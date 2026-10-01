@@ -202,6 +202,44 @@ html[data-platform="darwin"] .conversation-pane {
   margin-top: 6px;
 }
 
+/* F-1：卡头的轮次锚点。文字由 utils/timeline 的 cardTurnLabel 生成，这里只管排布。 */
+.card-turn {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--selected);
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+/* F-1：已裁决的卡收进默认折叠的分组。刻意用原生 details 的文档流排布——
+   不绝对定位、不定高，所以折叠态盖不住任何东西，展开后卡里的按钮也照常可点。 */
+.settled-stack {
+  margin-top: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sidebar) 42%, transparent);
+}
+
+.settled-summary {
+  padding: 9px 12px;
+  color: var(--text-soft);
+  font-size: 13px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settled-summary::-webkit-details-marker {
+  display: none;
+}
+
+.settled-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 12px 12px;
+}
+
 .proposal-card {
   padding: 0;
 }

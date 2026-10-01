@@ -45,6 +45,37 @@ function snippet(text: string): string {
   return flat.length <= 200 ? flat : `${flat.slice(0, 200)}…`;
 }
 
+/** 从已 JSON.parse 的错误体里挑那句中文：先看 error.message，再看顶层 message。 */
+function upstreamMessage(parsed: unknown): string {
+  if (typeof parsed !== "object" || parsed === null) return "";
+  const root = parsed as Record<string, unknown>;
+  const nested = root["error"];
+  const nestedMessage =
+    typeof nested === "object" && nested !== null
+      ? (nested as Record<string, unknown>)["message"]
+      : undefined;
+  const candidate = typeof nestedMessage === "string" ? nestedMessage : root["message"];
+  return typeof candidate === "string" ? candidate.trim() : "";
+}
+
+/**
+ * 上游错误体优先取 error.message / message；取不到再压平截断，不把裸 JSON 丢给用户。
+ * 空体返回空串，由调用处的 `|| "无响应体"` 兜住。JSON.parse 必须 try/catch：
+ * 一段畸形体不许把整轮炸成异常，退回原样片段就是 F-5 之前的行为。
+ */
+function errorHint(text: string): string {
+  const flat = snippet(text);
+  if (flat === "") return "";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return flat;
+  }
+  const message = upstreamMessage(parsed);
+  return message === "" ? flat : snippet(message);
+}
+
 function completionsUrl(baseURL: string): string {
   return `${baseURL.replace(/\/+$/, "")}/chat/completions`;
 }
@@ -138,7 +169,7 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
   }
   if (result.status < 200 || result.status >= 300)
     throw new ProviderError(
-      `模型服务端返回 ${result.status}：${snippet(result.errorText) || "无响应体"}`
+      `模型服务端返回 ${result.status}：${errorHint(result.errorText) || "无响应体"}`
     );
   if (result.stream === null) throw new ProviderError("模型服务端没有返回可读取的流");
 

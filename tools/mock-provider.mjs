@@ -28,9 +28,12 @@ function lastUserText(body) {
   return "";
 }
 
-function isFollowUp(body) {
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  return messages.some((item) => item && item.role === "tool");
+// F-3：判据是「最后一条消息是不是 tool 回投」，不是「历史里有没有 tool」。
+// 上一版用 some(...)，于是同一线程的第二轮（历史里必然带着上一轮的回投）永远被误判成
+// 收尾轮，「文本块」/「计划」关键字分支不可达——冒烟实测第一次发「用文本块提案」只拿到回投文案。
+function isFollowUp(messages) {
+  const last = messages.at(-1);
+  return Boolean(last) && last.role === "tool";
 }
 
 function patchBlock() {
@@ -102,7 +105,8 @@ function slowFrames() {
 }
 
 function framesFor(body, text) {
-  if (isFollowUp(body)) {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  if (isFollowUp(messages)) {
     const closing = "提案已经挂在下面，等你点批准才落盘。";
     const step = text.includes("慢") ? 2 : 8;
     const out = [];

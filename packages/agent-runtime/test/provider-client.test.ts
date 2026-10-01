@@ -176,6 +176,61 @@ describe("streamChat", () => {
     await expect(run(fetchImpl)).rejects.toBeInstanceOf(ProviderError);
   });
 
+  // ===== F-5：非 2xx 的用户可见句子不许是裸 JSON =====
+  // 钉整句用 toBe 而不是 toContain：toContain 守不住「不带花括号」这件事。
+  async function failMessage(
+    fetchImpl: Parameters<typeof streamChat>[0]["fetchImpl"]
+  ): Promise<string> {
+    let message = "";
+    try {
+      await run(fetchImpl);
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    return message;
+  }
+
+  it("错误体是嵌套 error.message 的 JSON 时只取那句中文，整句不带花括号", async () => {
+    const { fetchImpl } = makeFetch([], 503, '{"error":{"message":"上游繁忙，请稍后再试"}}');
+    expect(await failMessage(fetchImpl)).toBe("模型服务端返回 503：上游繁忙，请稍后再试");
+  });
+
+  it("顶层 message 也算：取它而不是原样 JSON", async () => {
+    const { fetchImpl } = makeFetch([], 429, '{"message":"额度不足"}');
+    expect(await failMessage(fetchImpl)).toBe("模型服务端返回 429：额度不足");
+  });
+
+  it("非 JSON 的 HTML 错误体：压平后原样带上，不抛异常也不被当 JSON", async () => {
+    const { fetchImpl } = makeFetch([], 502, "<html>502 Bad Gateway</html>");
+    const message = await failMessage(fetchImpl);
+    expect(message).toBe("模型服务端返回 502：<html>502 Bad Gateway</html>");
+    expect(message).not.toContain('{"error"');
+  });
+
+  it("畸形 JSON（截断的错误体）不许把轮次搞崩，退回压平截断", async () => {
+    const { fetchImpl } = makeFetch([], 503, '{"error":{"message":"x"');
+    expect(await failMessage(fetchImpl)).toBe('模型服务端返回 503：{"error":{"message":"x"');
+  });
+
+  it("error.message 为空串时不取空串，退回原样片段", async () => {
+    const { fetchImpl } = makeFetch([], 503, '{"error":{"message":""}}');
+    expect(await failMessage(fetchImpl)).toBe('模型服务端返回 503：{"error":{"message":""}}');
+  });
+
+  it("取出来的 message 同样受 200 字截断", async () => {
+    const { fetchImpl } = makeFetch(
+      [],
+      503,
+      JSON.stringify({ error: { message: "忙".repeat(250) } })
+    );
+    expect(await failMessage(fetchImpl)).toBe(`模型服务端返回 503：${"忙".repeat(200)}…`);
+  });
+
+  it("空响应体仍说「无响应体」，不因为新增的解析分支变成裸空串", async () => {
+    const { fetchImpl } = makeFetch([], 500, "");
+    expect(await failMessage(fetchImpl)).toBe("模型服务端返回 500：无响应体");
+  });
+
   it("abort 时安静收尾为 aborted，不抛错也不产出半截工具调用", async () => {
     const controller = new AbortController();
     // 桩流带一个真实的半截 tool_calls 分片（id + name + 截断的 arguments），随后 abort。

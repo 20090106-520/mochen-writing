@@ -14,6 +14,7 @@ import ProposalCard from "./ProposalCard.vue";
 import ComposerBox from "./ComposerBox.vue";
 import ProviderSettings from "./ProviderSettings.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
+import { cardTurnLabel, splitProposalCards, turnAnchors } from "../utils/timeline";
 import { useBookStore } from "../stores/useBookStore";
 import {
   composeStatusLine,
@@ -37,9 +38,18 @@ const thread = computed<ThreadView | undefined>(() => agent.threads[threadKey.va
 const items = computed(() => thread.value?.items ?? EMPTY_ITEMS);
 const tail = computed(() => thread.value?.streaming ?? EMPTY_TAIL);
 const running = computed(() => thread.value?.running ?? false);
-const pending = computed<ProposalView[]>(() =>
+/** 本线程的**全部**卡（含已裁决）。以前这份就叫 pending，名不副实且把卡全摊在最底部。 */
+const threadCards = computed<ProposalView[]>(() =>
   Object.values(agent.proposals).filter((view) => view.proposal.threadKey === threadKey.value)
 );
+// 判定层在 utils（本仓没有组件测试）：轮次锚点、待审/已裁决分组、卡头标签文字全部走纯函数。
+const anchors = computed(() => turnAnchors(items.value));
+const cardSplit = computed(() => splitProposalCards(threadCards.value, anchors.value));
+const openCards = computed(() => cardSplit.value.open);
+const settledCards = computed(() => cardSplit.value.settled);
+function turnLabel(card: ProposalView): string {
+  return cardTurnLabel(anchors.value, card.proposal.turnId);
+}
 const statusLine = computed(() =>
   composeStatusLine(thread.value, agent.seconds, agent.pendingOf(threadKey.value))
 );
@@ -142,7 +152,9 @@ onBeforeUnmount(() => {
     <div class="conversation-scroll-shell">
       <div class="conversation-scroll transient-scrollbar">
         <div
-          v-if="items.length === 0 && !running && pending.length === 0"
+          v-if="
+            items.length === 0 && !running && openCards.length === 0 && settledCards.length === 0
+          "
           class="conversation-empty"
         >
           <span class="empty-agent-mark">
@@ -159,16 +171,33 @@ onBeforeUnmount(() => {
         <div v-else class="message-list agent-column">
           <AgentTimeline :items="items" :tail="tail" />
 
-          <div v-if="pending.length" class="proposal-stack">
+          <div v-if="openCards.length" class="proposal-stack">
             <ProposalCard
-              v-for="card in pending"
+              v-for="card in openCards"
               :key="card.proposal.id"
               :view="card"
               :running="running"
+              :turn-label="turnLabel(card)"
               @decide="(decision, guidance) => decide(card.proposal.id, decision, guidance)"
               @interrupt="agent.stop()"
             />
           </div>
+
+          <!-- 已裁决的卡默认折叠（F-1：不再把「已写入」也摊在最底部抢位置）。 -->
+          <details v-if="settledCards.length" class="settled-stack">
+            <summary class="settled-summary">已裁决的提案 · {{ settledCards.length }} 条</summary>
+            <div class="settled-cards">
+              <ProposalCard
+                v-for="card in settledCards"
+                :key="card.proposal.id"
+                :view="card"
+                :running="running"
+                :turn-label="turnLabel(card)"
+                @decide="(decision, guidance) => decide(card.proposal.id, decision, guidance)"
+                @interrupt="agent.stop()"
+              />
+            </div>
+          </details>
 
           <p v-if="orphanError" class="turn-error">{{ orphanError }}</p>
         </div>

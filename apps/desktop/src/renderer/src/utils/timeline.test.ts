@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { AgentEvent } from "@mochen/contracts";
-import { buildTimeline, TOOL_LABELS } from "./timeline";
+import {
+  buildTimeline,
+  cardTurnLabel,
+  splitProposalCards,
+  turnAnchors,
+  TOOL_LABELS
+} from "./timeline";
 
 function event(type: AgentEvent["type"], rest: Record<string, unknown> = {}): AgentEvent {
   return {
@@ -10,6 +16,20 @@ function event(type: AgentEvent["type"], rest: Record<string, unknown> = {}): Ag
     type,
     ...rest
   } as AgentEvent;
+}
+
+/** 同上，但显式指定轮次：F-1 的轮次锚点要跨轮排布。 */
+function turnEvent(
+  type: AgentEvent["type"],
+  turnId: string,
+  rest: Record<string, unknown> = {}
+): AgentEvent {
+  return event(type, { turnId, ...rest });
+}
+
+/** splitProposalCards 只用到这三个字段，测试用最小形状而不是整份 EditProposal。 */
+function cardOf(id: string, turnId: string, createdAt: string, status: string) {
+  return { proposal: { id, turnId, createdAt }, status };
 }
 
 const NO_TAIL = { reasoning: "", message: "" };
@@ -160,5 +180,137 @@ describe("buildTimeline", () => {
       { reasoning: "丙", message: "丁" }
     );
     expect(new Set(blocks.map((block) => block.id)).size).toBe(blocks.length);
+  });
+});
+
+describe("turnAnchors（F-1：卡要认得自己属于哪一轮）", () => {
+  it("按轮次出现顺序编号；userText 取该轮第一条 user-message；该轮没有 user-message 即无锚点", () => {
+    const anchors = turnAnchors([
+      turnEvent("user-message", "tA", { text: "收紧比喻" }),
+      turnEvent("proposal", "tA", { proposal: {} }),
+      turnEvent("tool-call", "tB", {
+        callId: "c1",
+        tool: "read_doc",
+        args: "{}",
+        ok: true,
+        resultText: ""
+      }),
+      turnEvent("user-message", "tC", { text: "再来一次" }),
+      turnEvent("user-message", "tC", { text: "同一轮的第二条不算" })
+    ]);
+    expect(anchors["tA"]).toEqual({ index: 1, userText: "收紧比喻" });
+    // tB 只有工具卡、没有 user-message（历史重建时会这样）⇒ 刻意不立锚点，让卡退回「本轮」。
+    expect(anchors["tB"]).toBeUndefined();
+    // 编号数的是**线程内的第几轮**（中间没锚点的轮次照样占号），不是「第几条提问」。
+    expect(anchors["tC"]).toEqual({ index: 3, userText: "再来一次" });
+  });
+
+  it("空事件表得到空锚点表，不抛异常", () => {
+    expect(turnAnchors([])).toEqual({});
+  });
+});
+
+describe("cardTurnLabel（F-1：卡上必须有可读标签，绝不空串）", () => {
+  it("三种取值：有提问原文 / 原文为空 / 锚点表里查不到", () => {
+    const anchors = {
+      t1: { index: 1, userText: "收紧比喻" },
+      t2: { index: 2, userText: "" }
+    };
+    expect(cardTurnLabel(anchors, "t1")).toBe("第 1 轮 · 收紧比喻");
+    expect(cardTurnLabel(anchors, "t2")).toBe("第 2 轮");
+    expect(cardTurnLabel(anchors, "t9")).toBe("本轮");
+  });
+
+  it("提问原文里的换行压成空格，不撑破卡头", () => {
+    const label = cardTurnLabel({ t3: { index: 3, userText: "把这段\n改得有雾气" } }, "t3");
+    expect(label).toBe("第 3 轮 · 把这段 改得有雾气");
+  });
+
+  it("提问原文超过 24 字：截到 24 字并加省略号，截掉的字节一个不漏回来", () => {
+    // 40 个互不相同的汉字：这样 toBe 同时钉住了「截断长度」与「省略号位置」，
+    // 写成 toContain 就守不住（把 24 改成 30 也照样绿）。
+    const hanzi = Array.from({ length: 40 }, (_u, index) => String.fromCharCode(0x4e00 + index));
+    const label = cardTurnLabel({ t1: { index: 1, userText: hanzi.join("") } }, "t1");
+    expect(label).toBe(`第 1 轮 · ${hanzi.slice(0, 24).join("")}…`);
+    for (const ch of hanzi.slice(24)) expect(label).not.toContain(ch);
+  });
+
+  it("纯空白的提问原文按空处理，返回「第 N 轮」而不是「第 N 轮 · 」", () => {
+    expect(cardTurnLabel({ t4: { index: 4, userText: "  \n  " } }, "t4")).toBe("第 4 轮");
+  });
+
+  it("串起来：标签直接吃 turnAnchors 的输出，两半对得上接口（卡头不许出现空标签）", () => {
+    const anchors = turnAnchors([
+      turnEvent("user-message", "tA", { text: "收紧比喻" }),
+      turnEvent("tool-call", "tB", {
+        callId: "c1",
+        tool: "read_doc",
+        args: "{}",
+        ok: true,
+        resultText: ""
+      })
+    ]);
+    expect(cardTurnLabel(anchors, "tA")).toBe("第 1 轮 · 收紧比喻");
+    expect(cardTurnLabel(anchors, "tB")).toBe("本轮");
+    // 同一张锚点表也要能直接喂给分组排序：轮次乱的输入按轮次排好。
+    const split = splitProposalCards(
+      [
+        cardOf("pB", "tB", "2026-10-01T00:01:00.000Z", "pending"),
+        cardOf("pA", "tA", "2026-10-01T00:02:00.000Z", "pending")
+      ],
+      anchors
+    );
+    expect(split.open.map((item) => item.proposal.id)).toEqual(["pA", "pB"]);
+  });
+});
+
+describe("splitProposalCards（F-1：已裁决的卡收进折叠分组）", () => {
+  const ANCHORS = {
+    tA: { index: 1, userText: "甲" },
+    tB: { index: 2, userText: "乙" }
+  };
+
+  it("混排五张卡：分组正确，两组都按轮次升序、同轮按 createdAt 升序，无锚点排最后", () => {
+    const split = splitProposalCards(
+      [
+        cardOf("pB2", "tB", "2026-10-01T00:03:00.000Z", "pending"),
+        cardOf("pZ1", "tZ", "2026-10-01T00:00:10.000Z", "pending"),
+        cardOf("pB1", "tB", "2026-10-01T00:01:00.000Z", "pending"),
+        cardOf("pOld", "tZ", "2026-10-01T00:00:30.000Z", "written"),
+        cardOf("pA1", "tA", "2026-10-01T00:02:00.000Z", "rejected")
+      ],
+      ANCHORS
+    );
+    // 比整数组而不是长度：只断言长度时把排序整段删掉也照样绿。
+    expect(split.open.map((item) => item.proposal.id)).toEqual(["pB1", "pB2", "pZ1"]);
+    expect(split.settled.map((item) => item.proposal.id)).toEqual(["pA1", "pOld"]);
+  });
+
+  it("只有 pending 才算待审：stale / cancelled / failed 一律进已裁决组", () => {
+    const split = splitProposalCards(
+      [
+        cardOf("s1", "tA", "2026-10-01T00:01:00.000Z", "stale"),
+        cardOf("c1", "tA", "2026-10-01T00:02:00.000Z", "cancelled"),
+        cardOf("f1", "tA", "2026-10-01T00:03:00.000Z", "failed"),
+        cardOf("w1", "tA", "2026-10-01T00:04:00.000Z", "written"),
+        cardOf("p1", "tA", "2026-10-01T00:05:00.000Z", "pending")
+      ],
+      ANCHORS
+    );
+    expect(split.open.map((item) => item.proposal.id)).toEqual(["p1"]);
+    expect(split.settled.map((item) => item.proposal.id)).toEqual(["s1", "c1", "f1", "w1"]);
+  });
+
+  it("空输入两组皆空，CenterColumn 的空状态判断要用这两个长度", () => {
+    expect(splitProposalCards([], ANCHORS)).toEqual({ open: [], settled: [] });
+  });
+
+  it("不许就地改传入数组：排序要发生在新数组里，否则 Vue 的 computed 会自我失效", () => {
+    const cards = [
+      cardOf("pB2", "tB", "2026-10-01T00:03:00.000Z", "pending"),
+      cardOf("pA1", "tA", "2026-10-01T00:01:00.000Z", "pending")
+    ];
+    splitProposalCards(cards, ANCHORS);
+    expect(cards.map((item) => item.proposal.id)).toEqual(["pB2", "pA1"]);
   });
 });

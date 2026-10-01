@@ -37,6 +37,9 @@ describe("checkWritePermission", () => {
     });
     expect(out.allowed).toBe(false);
     expect(out.reason).toContain("只读参考");
+    // F-2：拒绝文案不许指向界面上不存在的入口——左栏权限档切换器属 Plan 3，
+    // 当前版本根本没有，让用户去「左栏」切换等于让他做一件做不到的事。
+    expect(out.reason).not.toContain("左栏");
   });
 
   it("可改当前章只放行当前章", () => {

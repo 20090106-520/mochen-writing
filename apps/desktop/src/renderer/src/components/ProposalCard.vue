@@ -6,7 +6,7 @@ import type { ProposalView } from "../stores/useAgentStore";
 import { resolveEscape } from "../utils/escape-policy";
 import AppIcon from "./AppIcon.vue";
 
-const props = defineProps<{ view: ProposalView; running: boolean }>();
+const props = defineProps<{ view: ProposalView; running: boolean; turnLabel: string }>();
 const emit = defineEmits<{
   decide: [decision: ProposalDecision, guidance: string];
   interrupt: [];
@@ -54,6 +54,7 @@ function onKeydown(event: KeyboardEvent): void {
   >
     <header class="card-head">
       <AppIcon name="replace" :size="15" />
+      <span class="card-turn">{{ turnLabel }}</span>
       <span class="proposal-title">{{ view.proposal.docRelPath }}</span>
       <span class="proposal-mode">{{ modeLabel }}</span>
       <span class="proposal-status">{{ statusLabel }}</span>

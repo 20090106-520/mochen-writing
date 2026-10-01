@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { chatMessage, ProviderError, streamChat } from "@mochen/agent-runtime";
+import { chatMessage, ProviderError, streamChat, toolMessage } from "@mochen/agent-runtime";
 
 // 与桩同目录，用 URL 相对定位：不依赖 vitest 的工作目录。
 const script = fileURLToPath(new URL("./mock-provider.mjs", import.meta.url));
@@ -111,6 +111,30 @@ describe("mock provider 与 streamChat 的真实 socket", () => {
       .join("");
     expect(text).toContain("```mochen-patch");
     expect(text).toContain("海雾涌上来，铁锈味很冲。");
+  });
+
+  // F-3：桩的 isFollowUp 判据以前是「历史任何位置存在 role:"tool"」⇒ 同一线程的第二轮
+  // （历史里必然带着上一轮的回投）永远被误判成收尾轮，「文本块」/「计划」分支不可达。
+  // 冒烟实测踩过：第一次发「用文本块提案」只拿到回投文案、零提案。
+  it("同线程第二轮（历史里有 tool 回投、最后一条是 user）仍走关键字分支", async () => {
+    const events = await collect(
+      baseRequest({
+        messages: [
+          chatMessage("user", "用文本块提案"),
+          chatMessage("assistant", "给你一条提案。"),
+          toolMessage("call-1", "提案已生成，等待人工审批；未批准前文件未改动"),
+          chatMessage("user", "再用文本块提案一次")
+        ]
+      })
+    );
+    const text = events
+      .filter((event) => event.kind === "text-delta")
+      .map((event) => event.text)
+      .join("");
+    expect(text).toContain("```mochen-patch");
+    // 收尾轮的那句回投文案一个字都不许出现：出现即说明这一轮又被判成 followUp。
+    expect(text).not.toContain("提案已经挂在下面");
+    expect(events.at(-1)).toEqual({ kind: "finish", reason: "tool_calls" });
   });
 
   it("503 翻成中文 ProviderError，且不留下未处理的 rejection", async () => {

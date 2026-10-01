@@ -36,9 +36,12 @@ export function checkWritePermission(input: WritePermissionInput): WritePermissi
   if (input.mode === "read-only")
     return {
       allowed: false,
+      // F-2：不点名任何界面位置（左栏权限档切换器属 Plan 3，当前版本没有这个入口），
+      // 档位名读 PERMISSION_LABELS，不手抄字面量。
       reason:
         `当前权限档为「${PERMISSION_LABELS["read-only"]}」，提案不会写入磁盘。` +
-        "可以先给出提案与理由，由用户在左栏切换权限档后再批准。"
+        "可以先给出提案与理由；确实要落盘时，把权限档切到" +
+        `「${PERMISSION_LABELS["chapter-write"]}」或「${PERMISSION_LABELS["full-access"]}」后再批准。`
     };
   if (input.mode === "chapter-write") {
     if (input.currentChapter === null)
