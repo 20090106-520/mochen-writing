@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import type { BookKind, DocRef } from "@abyss/contracts";
+import type { BookKind, DocRef } from "@mochen/contracts";
 import { parseFrontmatter } from "./frontmatter.js";
 import { toPosixRelPath } from "./paths.js";
 
@@ -15,7 +15,7 @@ const KIND_BY_DIR: Record<string, BookKind> = Object.fromEntries(
   Object.entries(DOC_DIRS).map(([kind, dir]) => [dir, kind as BookKind])
 );
 
-const SKIPPED_DIRS = new Set([".abyss", "node_modules"]);
+const SKIPPED_DIRS = new Set([".mochen", "node_modules"]);
 
 export async function scanBook(root: string): Promise<DocRef[]> {
   const docs: DocRef[] = [];
@@ -26,7 +26,7 @@ export async function scanBook(root: string): Promise<DocRef[]> {
 async function walk(root: string, dir: string, out: DocRef[]): Promise<void> {
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (entry.name.startsWith(".") && entry.name !== ".abyss") continue;
+    if (entry.name.startsWith(".") && entry.name !== ".mochen") continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (SKIPPED_DIRS.has(entry.name)) continue;

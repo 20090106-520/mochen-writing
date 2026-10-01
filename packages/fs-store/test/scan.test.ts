@@ -7,14 +7,14 @@ import { scanBook, sortChapters } from "../src/scan.js";
 let root = "";
 
 beforeAll(async () => {
-  root = await mkdtemp(path.join(tmpdir(), "abyss-scan-"));
+  root = await mkdtemp(path.join(tmpdir(), "mochen-scan-"));
   await mkdir(path.join(root, "chapters"), { recursive: true });
   await mkdir(path.join(root, "characters"), { recursive: true });
   await mkdir(path.join(root, "outline"), { recursive: true });
   await mkdir(path.join(root, "plot"), { recursive: true });
   await mkdir(path.join(root, "materials", "意象"), { recursive: true });
   await mkdir(path.join(root, "materials", "node_modules", "脏包"), { recursive: true });
-  await mkdir(path.join(root, ".abyss", "sessions"), { recursive: true });
+  await mkdir(path.join(root, ".mochen", "sessions"), { recursive: true });
   await writeFile(path.join(root, "materials", "node_modules", "脏包", "混进来.md"), "不应出现\n");
   await writeFile(path.join(root, "chapters", "02-潮汐.md"), "---\ntitle: 潮汐\n---\n第二段\n");
   await writeFile(path.join(root, "chapters", "10-深渊之下.md"), "正文\n");
@@ -23,7 +23,7 @@ beforeAll(async () => {
   await writeFile(path.join(root, "outline", "三幕.md"), "---\ntitle: 三幕\n---\n大纲\n");
   await writeFile(path.join(root, "plot", "主线.md"), "剧情\n");
   await writeFile(path.join(root, "materials", "意象", "雾.md"), "素材\n");
-  await writeFile(path.join(root, ".abyss", "sessions", "leak.md"), "不应出现\n");
+  await writeFile(path.join(root, ".mochen", "sessions", "leak.md"), "不应出现\n");
   await writeFile(path.join(root, "README.md"), "不应出现\n");
 });
 
@@ -32,7 +32,7 @@ afterAll(async () => {
 });
 
 describe("scanBook", () => {
-  it("按目录归类且跳过 .abyss 与根文件", async () => {
+  it("按目录归类且跳过 .mochen 与根文件", async () => {
     const docs = await scanBook(root);
     expect(docs.map((d) => d.relPath).sort()).toEqual([
       "chapters/01-开局.md",

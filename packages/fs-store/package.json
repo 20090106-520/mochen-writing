@@ -1,5 +1,5 @@
 {
-  "name": "@abyss/fs-store",
+  "name": "@mochen/fs-store",
   "version": "0.1.0",
   "type": "module",
   "main": "./src/index.ts",
@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@abyss/contracts": "workspace:*"
+    "@mochen/contracts": "workspace:*"
   },
   "devDependencies": {
     "typescript": "catalog:",

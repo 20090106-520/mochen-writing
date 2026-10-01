@@ -56,8 +56,15 @@ html[data-platform="darwin"] .sidebar-brand-row {
   width: 27px;
   height: 27px;
   border-radius: 7px;
+  overflow: hidden;
   background: #242629;
   color: #ffffff;
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .brand-name {

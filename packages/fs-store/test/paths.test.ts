@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assertSafeRelPath, toPosixRelPath } from "../src/paths.js";
 
 describe("assertSafeRelPath", () => {
-  it.each(["chapters/01-开局.md", "characters/李深.md", ".abyss/skills/三幕/SKILL.md"])(
+  it.each(["chapters/01-开局.md", "characters/李深.md", ".mochen/skills/三幕/SKILL.md"])(
     "接受书内相对路径 %s",
     (p) => {
       expect(assertSafeRelPath(p)).toBe(p);

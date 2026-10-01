@@ -7,8 +7,8 @@ import {
   type BookOpenResult,
   type DocContent,
   type DocWriteResult
-} from "@abyss/contracts";
-import { readDocFile, scanBook, sortChapters, writeDocFile } from "@abyss/fs-store";
+} from "@mochen/contracts";
+import { readDocFile, scanBook, sortChapters, writeDocFile } from "@mochen/fs-store";
 
 export interface BookService {
   open(rootPath: string): Promise<BookOpenResult>;

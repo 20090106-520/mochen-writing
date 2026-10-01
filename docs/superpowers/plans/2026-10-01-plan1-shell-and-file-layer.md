@@ -1,4 +1,8 @@
-# 深渊写作 · Plan 1（壳 + 文件层）实现计划
+# 墨宸 AI · Plan 1（壳 + 文件层）实现计划
+
+> **历史记录**：本文按执行当时的名字书写。Plan 1 交付后产品改名**墨宸 AI**，代码里的
+> `@abyss/*` → `@mochen/*`、作品目录内 `.abyss/` → `.mochen/`、`window.abyss` → `window.mochen`
+> 已整体替换；本文正文不回改，现状以代码为准。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

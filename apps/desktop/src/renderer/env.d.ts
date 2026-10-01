@@ -1,8 +1,8 @@
-import type { RendererApi } from "@abyss/contracts";
+import type { RendererApi } from "@mochen/contracts";
 
 declare global {
   interface Window {
-    abyss: RendererApi;
+    mochen: RendererApi;
   }
 }
 

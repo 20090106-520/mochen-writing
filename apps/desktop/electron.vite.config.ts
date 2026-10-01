@@ -6,13 +6,13 @@ export default defineConfig({
   main: {
     build: {
       lib: { entry: "src/main/index.ts" },
-      externalizeDeps: { exclude: ["@abyss/contracts", "@abyss/fs-store"] }
+      externalizeDeps: { exclude: ["@mochen/contracts", "@mochen/fs-store"] }
     }
   },
   preload: {
     build: {
       lib: { entry: "src/preload/index.ts" },
-      externalizeDeps: { exclude: ["@abyss/contracts"] }
+      externalizeDeps: { exclude: ["@mochen/contracts"] }
     }
   },
   renderer: {

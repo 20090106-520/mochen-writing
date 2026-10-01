@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { DocWriteResult } from "@abyss/contracts";
+import type { DocWriteResult } from "@mochen/contracts";
 import { makeFingerprint } from "./fingerprint.js";
 import { assertSafeRelPath } from "./paths.js";
 
@@ -41,7 +41,7 @@ export async function writeDocFile(
   let backupRelPath: string | null = null;
   if (current !== null) {
     const stamp = new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-");
-    backupRelPath = `.abyss/changes/${stamp}/${safe}.bak`;
+    backupRelPath = `.mochen/changes/${stamp}/${safe}.bak`;
     const backupTarget = path.join(root, ...backupRelPath.split("/"));
     await mkdir(path.dirname(backupTarget), { recursive: true });
     await writeFile(backupTarget, current, "utf8");

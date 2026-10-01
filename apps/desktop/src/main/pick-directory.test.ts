@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { IPC_CHANNELS } from "@abyss/contracts";
+import { IPC_CHANNELS } from "@mochen/contracts";
 import { registerPickDirectoryIpc } from "./pick-directory.js";
 
 interface DialogStub {

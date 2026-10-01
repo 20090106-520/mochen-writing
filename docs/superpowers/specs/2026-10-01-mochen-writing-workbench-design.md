@@ -1,4 +1,6 @@
-# 深渊写作 · 三栏 AI 写作工作台设计（首轮）
+# 墨宸 AI · 三栏写作智能体工作台设计（首轮）
+
+> 品牌：产品名 **墨宸 AI / MOCHEN AI**（原名"深渊写作"，Plan 1 交付后整体改名，代码内 `@mochen/*`、`.mochen/`、`window.mochen` 均为该品牌）。
 
 日期：2026-10-01
 状态：待实现
@@ -53,7 +55,7 @@
 - vitest 4 单元/契约测试；electron 冒烟脚本
 
 ```
-深渊写作/
+墨宸 AI/
   apps/desktop/
     src/main/        主进程：文件层、provider client、工具循环、审批、会话落盘、密钥
     src/preload/     仅暴露白名单 API（渲染层禁止直接触达 fs/net）
@@ -81,7 +83,7 @@
   plot/<剧情线>.md
   materials/<主题>.md
   chapters/<两位序号>-<章名>.md        # 例：03-深渊之下.md
-  .abyss/
+  .mochen/
     sessions/<YYYY>/<MM>/<DD>/rollout-<时间戳>-<uuid>.jsonl
     changes/<时间戳>/<相对路径>.bak
     skills/<技能名>/SKILL.md
@@ -91,7 +93,7 @@
 文稿头部用 YAML frontmatter 存结构字段（人物：身份/弧线/关系；章节： POV/涉及人物/关联剧情线），
 正文其余部分保持纯 Markdown，保证创作者用任意编辑器都能改。
 
-技能库：全局 `~/.abyss-writing/skills/<名>/SKILL.md` + 书内 `.abyss/skills/`，
+技能库：全局 `~/.mochen-writing/skills/<名>/SKILL.md` + 书内 `.mochen/skills/`，
 frontmatter 声明 `name/description/stage/appliesTo/tools`。
 
 会话文件（照 Codex rollout 布局）：JSONL，首行 `SessionMeta`，
@@ -134,7 +136,7 @@ frontmatter 声明 `name/description/stage/appliesTo/tools`。
 
 **模型永不直接写盘。** `propose_patch` 只产出 `EditProposal`（文档相对路径 + 锚点 + 新文本 + 理由），
 右栏高亮对应位置，中栏出现建议卡与 diff。只有人审批通过，主进程才执行写入；
-写入前把原文件复制到 `.abyss/changes/<时间戳>/`。`write_doc` 同样必须经审批，
+写入前把原文件复制到 `.mochen/changes/<时间戳>/`。`write_doc` 同样必须经审批，
 且在"只读参考"档下一律拒绝（拒绝结果回喂给模型，而不是静默丢弃）。
 
 权限三档（Codex `read-only/auto/full-access` 的写作映射，默认 `read-only`）：
@@ -158,7 +160,7 @@ frontmatter 声明 `name/description/stage/appliesTo/tools`。
 因此提案来源有两条路，汇聚到同一个 `EditProposal` schema：
 1. 原生 `tool_calls`（首选）。
 2. 文本块协议：模型在消息里输出
-   ` ```abyss-patch {"doc":"chapters/03-x.md","anchor":"…","replace":"…","why":"…"} ``` `，
+   ` ```mochen-patch {"doc":"chapters/03-x.md","anchor":"…","replace":"…","why":"…"} ``` `，
    由 `agent-runtime/patch-protocol.ts` 解析。
 
 解析器纯函数、无 Electron 依赖，单测覆盖：正常、多块、嵌套围栏、坏 JSON、锚点缺失、
@@ -204,7 +206,7 @@ Codex 中 Esc 既是 `interrupt_turn` 又是审批 `decline`。桌面端必须�
 
 ## 8. 密钥与配置
 
-- 模型凭据只进主进程：`%APPDATA%\abyss-writing\secrets.enc`，Electron `safeStorage`（Windows DPAPI）。
+- 模型凭据只进主进程：`%APPDATA%\mochen-writing\secrets.enc`，Electron `safeStorage`（Windows DPAPI）。
 - 渲染层拿到的永远是 `hasKey: true` + 掩码串，不接触明文。
 - baseURL/key 不进 URL query（deepwrite 同类教训：commit `7229622` "keep the model list credential out of the request URL"）。
 - provider 配置：OpenAI 兼容 `baseURL + apiKey + model`，可指向 Ollama / LM Studio / DeepSeek 等。

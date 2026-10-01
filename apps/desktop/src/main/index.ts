@@ -19,6 +19,8 @@ app.whenReady().then(() => {
     width: 1440,
     height: 900,
     show: false,
+    title: "墨宸 AI",
+    icon: fileURLToPath(new URL("../../resources/icon.ico", import.meta.url)),
     webPreferences: {
       preload: fileURLToPath(new URL("../preload/index.mjs", import.meta.url)),
       contextIsolation: true,

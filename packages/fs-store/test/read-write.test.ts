@@ -8,7 +8,7 @@ import { readDocFile, writeDocFile } from "../src/read-write.js";
 let root = "";
 
 beforeAll(async () => {
-  root = await mkdtemp(path.join(tmpdir(), "abyss-rw-"));
+  root = await mkdtemp(path.join(tmpdir(), "mochen-rw-"));
   await mkdir(path.join(root, "chapters"), { recursive: true });
   await writeFile(path.join(root, "chapters", "01-a.md"), "原稿\n");
 });
@@ -24,7 +24,7 @@ describe("writeDocFile", () => {
     expect(result.ok).toBe(true);
     expect(await readFile(path.join(root, "chapters/01-a.md"), "utf8")).toBe("新稿\n");
     if (!result.ok) throw new Error("不该走到这里");
-    expect(result.backupRelPath).toMatch(/^\.abyss\/changes\/.+\/chapters\/01-a\.md\.bak$/);
+    expect(result.backupRelPath).toMatch(/^\.mochen\/changes\/.+\/chapters\/01-a\.md\.bak$/);
     if (result.backupRelPath === null) throw new Error("备份路径不该为空");
     expect(await readFile(path.join(root, result.backupRelPath), "utf8")).toBe("原稿\n");
     expect(result.fingerprint).toBe(makeFingerprint("新稿\n"));

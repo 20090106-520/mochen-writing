@@ -1,9 +1,10 @@
 <!-- 左栏：结构、类名与 transient 滚动条用法取自 deepwrite（Apache-2.0）的 LeftSidebar.vue / TreeSection.vue / TreeNodeItem.vue -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from "vue";
-import type { BookKind } from "@abyss/contracts";
+import type { BookKind } from "@mochen/contracts";
 import type { IconName } from "../types/icons";
 import AppIcon from "./AppIcon.vue";
+import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
 import { useBookStore } from "../stores/useBookStore";
 
@@ -60,11 +61,11 @@ async function pickBook(): Promise<void> {
 </script>
 
 <template>
-  <aside class="left-sidebar" aria-label="深渊写作导航与文稿树">
+  <aside class="left-sidebar" aria-label="墨宸 AI 导航与文稿树">
     <header class="sidebar-brand-row">
       <span class="brand-button">
-        <span class="brand-mark"><AppIcon name="logo" :size="19" /></span>
-        <span class="brand-name">深渊写作</span>
+        <span class="brand-mark"><img :src="brandMark" alt="" width="27" height="27" /></span>
+        <span class="brand-name">墨宸 AI</span>
       </span>
       <button class="icon-button" type="button" aria-label="收起左侧栏" @click="emit('collapse')">
         <AppIcon name="panel-left" :size="18" />

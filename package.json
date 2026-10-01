@@ -1,5 +1,5 @@
 {
-  "name": "abyss-writing",
+  "name": "mochen-ai",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,8 +9,8 @@
     "pnpm": ">=11.0.0"
   },
   "scripts": {
-    "dev": "corepack pnpm --filter @abyss/desktop dev",
-    "build": "corepack pnpm --filter @abyss/desktop build",
+    "dev": "corepack pnpm --filter @mochen/desktop dev",
+    "build": "corepack pnpm --filter @mochen/desktop build",
     "typecheck": "tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/fs-store/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p apps/desktop/tsconfig.web.json",
     "test": "vitest run --maxWorkers=4",
     "lint:eslint": "eslint . --max-warnings=0",

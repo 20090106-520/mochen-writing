@@ -2,15 +2,15 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DEFAULT_PERMISSION_MODE } from "@abyss/contracts";
+import { DEFAULT_PERMISSION_MODE } from "@mochen/contracts";
 import { createBookService } from "./book-service.js";
 
 let root = "";
 let other = "";
 
 beforeAll(async () => {
-  root = await mkdtemp(path.join(tmpdir(), "abyss-svc-"));
-  other = await mkdtemp(path.join(tmpdir(), "abyss-svc2-"));
+  root = await mkdtemp(path.join(tmpdir(), "mochen-svc-"));
+  other = await mkdtemp(path.join(tmpdir(), "mochen-svc2-"));
   await mkdir(path.join(root, "chapters"), { recursive: true });
   await writeFile(path.join(root, "chapters", "01-a.md"), "正文\n");
   await writeFile(

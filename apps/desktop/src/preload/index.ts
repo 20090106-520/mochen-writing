@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC_CHANNELS, type RendererApi } from "@abyss/contracts";
+import { IPC_CHANNELS, type RendererApi } from "@mochen/contracts";
 
 const api: RendererApi = {
   pickBookDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.bookPick),
@@ -10,4 +10,4 @@ const api: RendererApi = {
     ipcRenderer.invoke(IPC_CHANNELS.docWrite, relPath, content, expectedFingerprint)
 };
 
-contextBridge.exposeInMainWorld("abyss", api);
+contextBridge.exposeInMainWorld("mochen", api);

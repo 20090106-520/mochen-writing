@@ -1,5 +1,5 @@
 {
-  "name": "@abyss/desktop",
+  "name": "@mochen/desktop",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "test": "vitest run src/main --maxWorkers=4"
   },
   "dependencies": {
-    "@abyss/contracts": "workspace:*",
-    "@abyss/fs-store": "workspace:*",
+    "@mochen/contracts": "workspace:*",
+    "@mochen/fs-store": "workspace:*",
     "pinia": "catalog:",
     "vue": "catalog:"
   },

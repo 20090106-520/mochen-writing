@@ -1,4 +1,4 @@
-// 源自 deepwrite（Apache-2.0），仅改 import 路径；logo 改为自绘漩涡，不引用其品牌图片。
+<!-- 源自 deepwrite（Apache-2.0），仅改 import 路径；其 logo 分支已删，品牌标记直接用 assets/brand 下的墨宸原图（未裁切）。 -->
 <script setup lang="ts">
 import type { IconName } from "../types/icons";
 
@@ -17,12 +17,7 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     stroke-linejoin="round"
     aria-hidden="true"
   >
-    <template v-if="name === 'logo'">
-      <path d="M20.5 12a8.5 8.5 0 1 1-8.5-8.5" />
-      <path d="M16.6 12a4.6 4.6 0 1 1-4.6-4.6" />
-      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
-    </template>
-    <template v-else-if="name === 'plus'">
+    <template v-if="name === 'plus'">
       <path d="M12 5v14M5 12h14" />
     </template>
     <template v-else-if="name === 'minus'">

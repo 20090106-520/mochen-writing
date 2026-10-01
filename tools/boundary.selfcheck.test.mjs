@@ -10,26 +10,26 @@ import { findOverruns } from "./check-source-line-budget.mjs";
 const TOOLS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 test("边界门禁能抓到 electron import", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "abyss-bound-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mochen-bound-"));
   fs.writeFileSync(path.join(dir, "bad.ts"), 'import { app } from "electron";\n');
   expect(findViolations(dir)).toEqual(["bad.ts"]);
 });
 
 test("边界门禁放过干净目录", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "abyss-bound-ok-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mochen-bound-ok-"));
   fs.writeFileSync(path.join(dir, "good.ts"), "export const a = 1;\n");
   expect(findViolations(dir)).toEqual([]);
 });
 
 test("行数门禁能抓到超长文件", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "abyss-budget-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mochen-budget-"));
   fs.writeFileSync(path.join(dir, "big.ts"), "x\n".repeat(801));
   expect(findOverruns([dir], 800)).toHaveLength(1);
 });
 
 // 回归：CLI 守卫曾在含中文的项目路径下静默不执行，门禁退化成永远返回 0 的空壳。
 test("CLI 形态会真的执行并把违规转成非零退出码", () => {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "abyss-cli-"));
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "mochen-cli-"));
   fs.mkdirSync(path.join(cwd, "packages", "demo"), { recursive: true });
   fs.writeFileSync(
     path.join(cwd, "packages", "demo", "bad.ts"),

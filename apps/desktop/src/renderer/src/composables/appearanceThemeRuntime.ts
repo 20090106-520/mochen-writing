@@ -1,5 +1,5 @@
 // 源自 deepwrite（Apache-2.0），原样移植：https://github.com/20090106-520/deepwrite
-// 仅把 @deepwrite/contracts/renderer 换成 @abyss/contracts。
+// 仅把 @deepwrite/contracts/renderer 换成 @mochen/contracts。
 
 import {
   APPEARANCE_FONT_SIZE_LIMITS,
@@ -10,7 +10,7 @@ import {
   type AppearanceEditorFontSelection,
   type AppearanceThemeConfig,
   type AppearanceUiFontSelection
-} from "@abyss/contracts";
+} from "@mochen/contracts";
 
 export interface ThemePreset {
   id: string;

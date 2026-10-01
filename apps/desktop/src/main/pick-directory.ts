@@ -1,4 +1,4 @@
-import { IPC_CHANNELS } from "@abyss/contracts";
+import { IPC_CHANNELS } from "@mochen/contracts";
 
 interface OpenDialogResult {
   canceled: boolean;

@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import AppIcon from "./AppIcon.vue";
+import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { useBookStore } from "../stores/useBookStore";
 
 defineProps<{ leftCollapsed: boolean; rightCollapsed: boolean }>();
@@ -56,7 +57,7 @@ const contextTitle = computed(() => {
       <div class="conversation-scroll transient-scrollbar">
         <div class="conversation-empty">
           <span class="empty-agent-mark">
-            <AppIcon name="logo" :size="40" />
+            <img :src="brandMark" alt="" width="52" height="52" />
           </span>
           <h1>{{ agentLabel }}</h1>
           <p>

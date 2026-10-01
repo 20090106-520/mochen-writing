@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import type { BookOpenResult, DocWriteResult, RendererApi } from "@abyss/contracts";
+import type { BookOpenResult, DocWriteResult, RendererApi } from "@mochen/contracts";
 import { useBookStore } from "./useBookStore";
 
 const result: BookOpenResult = {
@@ -45,7 +45,7 @@ function docReads() {
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  vi.stubGlobal("window", { abyss: api });
+  vi.stubGlobal("window", { mochen: api });
   readDoc.mockClear();
   writeDoc.mockClear();
 });
@@ -91,7 +91,7 @@ describe("useBookStore", () => {
     writeDoc.mockResolvedValueOnce({
       ok: true,
       fingerprint: "fp-b",
-      backupRelPath: ".abyss/changes/x/01-a.md.bak"
+      backupRelPath: ".mochen/changes/x/01-a.md.bak"
     });
     const store = useBookStore();
     await store.openBook("/book");

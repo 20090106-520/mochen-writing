@@ -3,7 +3,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from "vue";
 import { storeToRefs } from "pinia";
-import { createDefaultAppearanceSettings, type AppearanceColorScheme } from "@abyss/contracts";
+import { createDefaultAppearanceSettings, type AppearanceColorScheme } from "@mochen/contracts";
 import LeftSidebar from "./components/LeftSidebar.vue";
 import CenterColumn from "./components/CenterColumn.vue";
 import DocumentPane from "./components/DocumentPane.vue";

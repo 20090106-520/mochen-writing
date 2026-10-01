@@ -24,7 +24,6 @@ export type IconName =
   | "ledger"
   | "library"
   | "list"
-  | "logo"
   | "mic"
   | "message"
   | "model"

@@ -95,10 +95,10 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@abyss/contracts':
+      '@mochen/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@abyss/fs-store':
+      '@mochen/fs-store':
         specifier: workspace:*
         version: link:../../packages/fs-store
       pinia:
@@ -142,7 +142,7 @@ importers:
 
   packages/fs-store:
     dependencies:
-      '@abyss/contracts':
+      '@mochen/contracts':
         specifier: workspace:*
         version: link:../contracts
     devDependencies:

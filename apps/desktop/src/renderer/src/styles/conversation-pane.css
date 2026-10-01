@@ -164,6 +164,14 @@ html[data-platform="darwin"] .conversation-header {
   width: 52px;
   height: 52px;
   margin-bottom: 18px;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.empty-agent-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .conversation-empty h1 {

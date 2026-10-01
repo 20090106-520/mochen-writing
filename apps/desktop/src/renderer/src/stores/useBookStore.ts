@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { BookMeta, DocRef } from "@abyss/contracts";
+import type { BookMeta, DocRef } from "@mochen/contracts";
 
 interface DocState {
   draft: string;
@@ -40,7 +40,7 @@ export const useBookStore = defineStore("book", {
   actions: {
     /** 用户取消时必须什么都不做——已打开的作品、草稿、标签一律保持原样。 */
     async pickAndOpen() {
-      const picked = await window.abyss.pickBookDirectory();
+      const picked = await window.mochen.pickBookDirectory();
       if (!picked) {
         this.notice = "未选择作品目录";
         return;
@@ -49,7 +49,7 @@ export const useBookStore = defineStore("book", {
     },
 
     async openBook(rootPath: string) {
-      const opened = await window.abyss.openBook(rootPath);
+      const opened = await window.mochen.openBook(rootPath);
       this.rootPath = opened.rootPath;
       this.meta = opened.meta;
       this.docs = opened.docs;
@@ -78,7 +78,7 @@ export const useBookStore = defineStore("book", {
         Object.assign(this, stashed);
         return;
       }
-      const loaded = await window.abyss.readDoc(relPath);
+      const loaded = await window.mochen.readDoc(relPath);
       this.draft = loaded.content;
       this.savedFingerprint = loaded.fingerprint;
       this.dirty = false;
@@ -103,7 +103,7 @@ export const useBookStore = defineStore("book", {
       this.activeBrowse = ref.relPath;
       this.rightPaneMode = "browse";
       if (this.browseContents[ref.relPath] === undefined) {
-        void window.abyss.readDoc(ref.relPath).then((loaded) => {
+        void window.mochen.readDoc(ref.relPath).then((loaded) => {
           this.browseContents[ref.relPath] = loaded.content;
         });
       }
@@ -125,7 +125,7 @@ export const useBookStore = defineStore("book", {
     async saveActive() {
       if (!this.activeDocTab) return;
       this.saving = true;
-      const result = await window.abyss.writeDoc(
+      const result = await window.mochen.writeDoc(
         this.activeDocTab,
         this.draft,
         this.savedFingerprint
@@ -148,7 +148,7 @@ export const useBookStore = defineStore("book", {
 
     async reloadActive() {
       if (!this.activeDocTab) return;
-      const loaded = await window.abyss.readDoc(this.activeDocTab);
+      const loaded = await window.mochen.readDoc(this.activeDocTab);
       this.draft = loaded.content;
       this.savedFingerprint = loaded.fingerprint;
       this.dirty = false;
