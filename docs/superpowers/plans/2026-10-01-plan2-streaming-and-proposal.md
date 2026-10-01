@@ -2798,7 +2798,7 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
       messages.push(toolMessage(call.id, outcome.text));
     }
     if (round === deps.maxToolRounds - 1) {
-      const message = `本轮工具调用达到上限（${deps.maxToolRounds} 次），已停下等你介入。`;
+      const message = `本轮工具调用达到上限（${deps.maxToolRounds} 轮），已停下等你介入。`;
       emitSimple({ type: "error", message });
       return { status: "failed", message };
     }
