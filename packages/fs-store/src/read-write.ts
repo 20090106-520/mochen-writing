@@ -32,12 +32,7 @@ export async function writeDocFile(
   }
 
   const target = path.join(root, ...safe.split("/"));
-  let current: string | null = null;
-  try {
-    current = await readFile(target, "utf8");
-  } catch {
-    current = null;
-  }
+  const current = await readFile(target, "utf8").catch(() => null);
 
   const currentFingerprint = makeFingerprint(current ?? "");
   if (currentFingerprint !== expectedFingerprint)

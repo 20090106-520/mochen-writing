@@ -1,0 +1,23 @@
+{
+  "name": "@abyss/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "test": "vitest run src/main --maxWorkers=4"
+  },
+  "dependencies": {
+    "@abyss/contracts": "workspace:*",
+    "@abyss/fs-store": "workspace:*"
+  },
+  "devDependencies": {
+    "electron": "catalog:",
+    "electron-vite": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

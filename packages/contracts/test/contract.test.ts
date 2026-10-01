@@ -22,7 +22,8 @@ describe("bookMetaSchema", () => {
   });
 
   it("缺 activeStage 时拒绝", () => {
-    const { activeStage, ...rest } = valid;
+    const rest: Record<string, unknown> = { ...valid };
+    delete rest.activeStage;
     expect(() => parseBookMeta(rest)).toThrow(/activeStage/);
   });
 
