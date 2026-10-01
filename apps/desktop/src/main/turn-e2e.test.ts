@@ -265,12 +265,33 @@ describe("端到端：模型 → 提案 → 审批 → 写盘", () => {
     service.dispose();
   });
 
-  // 简报的第四条「慢流中途 Esc：已流出的思考入库标注 interrupted，半截正文绝不写盘」
-  // 在本波**没有交付**：它在真实 socket 上是红的，而且红在上游而不是这里。
-  // 打断落到 provider-client.ts:146 的帧循环时，未收完的 read() 抛 AbortError
-  // （只有 :126-134 的连接期守卫会把它收成 finish:aborted），异常穿过
-  // tool-loop.ts:131 的 catch ⇒ turn-end 判 failed、reasoning 事件根本不会发出，
-  // 于是 `events.some((e) => e.type === "reasoning" && e.interrupted)` 必假。
-  // 最小复现、定位与待粘贴回的用例原文见 task-15-report.md「BLOCKED：真 socket 打断链」。
-  // 按纪律在此不降级、不 skip、不写「断言现状」的替代用例。
+  // 简报第 4 条（Task 15 报告 §7 曾被判 BLOCKED）：读流期打断的守卫补上后，
+  // 这条才第一次在全链层钉住「Esc 之后是 interrupted 而不是 failed」。
+  it("慢流中途 Esc：已流出思考标 interrupted，无提案、章节字节不变、turn-end 是 interrupted", async () => {
+    const { dir, service, outbound } = await build();
+    const running = service.startTurn(turn(CHAPTER, "慢一点，我要打断"));
+    // 确定性等待：必须先看到第一条 reasoning delta 再打断——「打断早于第一帧」会落在
+    // 连接期守卫上，读流期这条链就没被走到，假绿。
+    for (let attempt = 0; attempt < 800; attempt += 1) {
+      if (outbound.some((item) => item.type === "delta" && item.deltaKind === "reasoning")) break;
+      await sleep(25);
+    }
+    expect(outbound.some((item) => item.type === "delta" && item.deltaKind === "reasoning")).toBe(
+      true
+    );
+    const turnId = outbound.find((item) => item.type === "turn-start")?.turnId ?? "";
+    if (turnId === "") throw new Error("turn-start 必须先于任何 delta 到达");
+    expect(await service.interrupt(turnId)).toBe(true);
+    await running;
+    const events = eventsOf(outbound);
+    expect(events.some((event) => event.type === "reasoning" && event.interrupted)).toBe(true);
+    expect(proposalIds(outbound)).toEqual([]);
+    expect(await readFile(path.join(dir, ...CHAPTER.split("/")), "utf8")).toBe(CHAPTER_TEXT);
+    expect(lastTurnEnd(outbound)?.status).toBe("interrupted");
+    // 面向用户文案一律简体中文：打断绝不允许把英文异常原文吐进任何 emit 的消息里
+    const wire = JSON.stringify(outbound);
+    expect(wire).not.toContain("This operation was aborted");
+    expect(wire).not.toContain("AbortError");
+    service.dispose();
+  });
 });

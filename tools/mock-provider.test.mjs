@@ -126,14 +126,26 @@ describe("mock provider 与 streamChat 的真实 socket", () => {
     expect(message).toContain("模型服务端返回 503");
   });
 
-  // 简报在这里还写了第五条「abort 之后立刻收束：不再产出新 delta」，走的是
-  // `for await (const event of streamChat(...))` + 流中途 controller.abort()。
-  // 它在真实 socket 上**必红**：客户端打断后未收完的 read() 抛 AbortError，
-  // provider-client.ts:146 的帧循环没有守卫（只有 :126-134 的连接期守卫），异常穿过
-  // sse.ts / provider-fetch.ts 的 toAsyncIterable，被 tool-loop.ts:131 的 catch 接住后
-  // 整轮判成 failed ——「已流出的思考标 interrupted」这条性质因此在全链上拿不到。
-  // 最小复现见 task-15-report.md「BLOCKED：真 socket 打断链」；该用例与 turn-e2e.test.ts
-  // 的第四条一起留给上游修复后的接续波，此处不降级、不 skip、也不改成断言现状。
+  // 简报第 5 用例（Task 15 报告 §7 曾被判 BLOCKED）：真 socket 流中途 abort 后，
+  // 未收完的 read() 抛 AbortError——provider-client.ts 的读流期守卫把它折成
+  // finish:aborted 之后，这条才在真实链路上成立。它与下面的「客户端中途拔线」并存：
+  // 那条验桩活着，这条验 streamChat 的收束语义（不再产出新 delta）。
+  it("abort 之后立刻收束：不再产出新 delta", async () => {
+    const controller = new AbortController();
+    const seen = [];
+    for await (const event of streamChat(
+      baseRequest({
+        messages: [chatMessage("user", "慢一点，我要打断")],
+        signal: controller.signal
+      })
+    )) {
+      seen.push(event);
+      if (seen.length === 2) controller.abort();
+    }
+    expect(seen.length).toBeLessThan(10);
+    expect(seen.at(-1).kind).toBe("finish");
+  });
+
   it("客户端中途拔线：桩进程不崩，后续用例仍能用同一个子进程", async () => {
     const controller = new AbortController();
     const response = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
@@ -162,7 +174,7 @@ describe("mock provider 与 streamChat 的真实 socket", () => {
     // 拔线时确实只拿到很少几片，且之后没有新片
     expect(chunks.length).toBeLessThan(8);
     expect(thrown).toBe("AbortError");
-    // 桩还活着：e2e 的四个用例共用一个子进程，一次打断不能把它带走
+    // 桩还活着：e2e 的五个用例共用一个子进程，一次打断不能把它带走
     const health = await fetch(`http://127.0.0.1:${port}/__health`);
     expect(health.ok).toBe(true);
     expect(

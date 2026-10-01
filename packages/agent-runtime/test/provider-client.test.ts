@@ -57,6 +57,29 @@ async function run(
   return out;
 }
 
+// Task 15 §7 的最小复现夹具：真实 socket 被打断时，未收完的 reader.read() 是直接 reject
+// AbortError（DOMException: "This operation was aborted"），不是返回 {done:true}，也不是
+// 「消费者主动停止」。上面三条 abort 用例的假处所正在于此——它们永远收不到这条 reject，
+// 所以 provider-client.ts 帧循环缺守卫的洞藏了 12 个任务。
+function abortRejectingStream(
+  chunks: Uint8Array[],
+  signal: AbortSignal
+): AsyncIterable<Uint8Array> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const chunk of chunks) yield chunk;
+      // 流尚未收完：等到 abort 为止，然后让「下一次 read」reject——与真 fetch 的时序一致。
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) resolve();
+        else signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+      const error = new Error("This operation was aborted");
+      error.name = "AbortError";
+      throw error;
+    }
+  };
+}
+
 describe("streamChat", () => {
   it("思考与正文增量按序产出并带上 finish 原因", async () => {
     const { fetchImpl } = makeFetch(
@@ -383,6 +406,36 @@ describe("streamChat", () => {
       throw new TypeError("This operation was aborted");
     };
     expect(await run(fetchImpl, controller.signal)).toEqual([
+      { kind: "finish", reason: "aborted" }
+    ]);
+  });
+
+  it("读流期打断：read() 在 abort 后 reject AbortError 也折成 finish:aborted，绝不外抛", async () => {
+    // 钉 §7 的上游缺口：真 fetch 被打断后是 read 直接 reject，**收不到下一帧**，
+    // 所以循环内 aborted 检查（:147）与连接期守卫（:119-138）都救不了它。
+    // 与连接期守卫同性质：aborted 时按现有语义收成 finish:aborted；未打断则原样抛。
+    const controller = new AbortController();
+    const chunks = sse({ choices: [{ delta: { reasoning_content: "想了一半" } }] });
+    const fetchImpl = async (): Promise<ProviderFetchResult> => ({
+      status: 200,
+      stream: abortRejectingStream(chunks, controller.signal),
+      errorText: ""
+    });
+    const events: StreamEvent[] = [];
+    for await (const event of streamChat({
+      fetchImpl,
+      baseURL: "http://127.0.0.1:8787/v1",
+      apiKey: "k",
+      model: "m",
+      messages: [chatMessage("user", "x")],
+      tools: [],
+      signal: controller.signal
+    })) {
+      events.push(event);
+      if (event.kind === "reasoning-delta") controller.abort();
+    }
+    expect(events).toEqual([
+      { kind: "reasoning-delta", text: "想了一半" },
       { kind: "finish", reason: "aborted" }
     ]);
   });

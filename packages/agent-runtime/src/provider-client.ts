@@ -143,50 +143,60 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
   if (result.stream === null) throw new ProviderError("模型服务端没有返回可读取的流");
 
   const calls = new Map<number, PendingCall>();
-  for await (const frame of sseDataFrames(result.stream)) {
-    if (req.signal.aborted) {
-      yield { kind: "finish", reason: "aborted" };
-      return;
-    }
-    // 空帧策略：裸 `data:`（载荷为空或只剩空白）不携带任何内容，直接跳过。
-    // 若送去 JSON.parse("")，它会抛 SyntaxError，一条杂帧就能误杀整条流。
-    if (frame.trim() === "") continue;
-    let raw: unknown;
-    try {
-      raw = JSON.parse(frame);
-    } catch (error) {
-      throw new ProviderError("流式响应不是合法 JSON：" + snippet(frame), { cause: error });
-    }
-    const delta = readDelta(raw);
-    if (delta.reasoning !== "") yield { kind: "reasoning-delta", text: delta.reasoning };
-    if (delta.content !== "") yield { kind: "text-delta", text: delta.content };
-    for (const fragment of delta.toolCalls) {
-      const index = typeof fragment.index === "number" ? fragment.index : 0;
-      const fn = (fragment.function ?? {}) as Record<string, unknown>;
-      const held = calls.get(index) ?? { id: "", name: "", args: "" };
-      if (typeof fragment.id === "string" && fragment.id !== "") held.id = fragment.id;
-      if (typeof fn.name === "string" && fn.name !== "") held.name = fn.name;
-      if (typeof fn.arguments === "string") held.args += fn.arguments;
-      calls.set(index, held);
-    }
-    if (delta.finishReason !== "") {
-      for (const [index, call] of [...calls.entries()].sort(([a], [b]) => a - b)) {
-        if (call.name === "") continue;
-        // §6.3 与下方断流分支同一条门禁：端点正常收尾（finish_reason）时，
-        // 参数未收全的 tool_call 也必须丢弃——Task 8 会把这些 arguments 原样 JSON.parse，半截串就炸。
-        if (!argumentsComplete(call.args)) continue;
-        yield {
-          kind: "tool-call",
-          call: {
-            id: call.id === "" ? `call_${index}_${calls.size}` : call.id,
-            name: call.name,
-            args: call.args
-          }
-        };
+  try {
+    for await (const frame of sseDataFrames(result.stream)) {
+      if (req.signal.aborted) {
+        yield { kind: "finish", reason: "aborted" };
+        return;
       }
-      yield { kind: "finish", reason: delta.finishReason };
-      return;
+      // 空帧策略：裸 `data:`（载荷为空或只剩空白）不携带任何内容，直接跳过。
+      // 若送去 JSON.parse("")，它会抛 SyntaxError，一条杂帧就能误杀整条流。
+      if (frame.trim() === "") continue;
+      let raw: unknown;
+      try {
+        raw = JSON.parse(frame);
+      } catch (error) {
+        throw new ProviderError("流式响应不是合法 JSON：" + snippet(frame), { cause: error });
+      }
+      const delta = readDelta(raw);
+      if (delta.reasoning !== "") yield { kind: "reasoning-delta", text: delta.reasoning };
+      if (delta.content !== "") yield { kind: "text-delta", text: delta.content };
+      for (const fragment of delta.toolCalls) {
+        const index = typeof fragment.index === "number" ? fragment.index : 0;
+        const fn = (fragment.function ?? {}) as Record<string, unknown>;
+        const held = calls.get(index) ?? { id: "", name: "", args: "" };
+        if (typeof fragment.id === "string" && fragment.id !== "") held.id = fragment.id;
+        if (typeof fn.name === "string" && fn.name !== "") held.name = fn.name;
+        if (typeof fn.arguments === "string") held.args += fn.arguments;
+        calls.set(index, held);
+      }
+      if (delta.finishReason !== "") {
+        for (const [index, call] of [...calls.entries()].sort(([a], [b]) => a - b)) {
+          if (call.name === "") continue;
+          // §6.3 与下方断流分支同一条门禁：端点正常收尾（finish_reason）时，
+          // 参数未收全的 tool_call 也必须丢弃——Task 8 会把这些 arguments 原样 JSON.parse，半截串就炸。
+          if (!argumentsComplete(call.args)) continue;
+          yield {
+            kind: "tool-call",
+            call: {
+              id: call.id === "" ? `call_${index}_${calls.size}` : call.id,
+              name: call.name,
+              args: call.args
+            }
+          };
+        }
+        yield { kind: "finish", reason: delta.finishReason };
+        return;
+      }
     }
+  } catch (error) {
+    // 读流期守卫：与上面连接期 .catch 的守卫同性质，不是新策略。真 fetch 被打断后，
+    // 未收完的 reader.read() 直接 reject AbortError——**收不到下一帧**，循环体内的
+    // aborted 检查永远轮不到；只有在这里折成 finish:aborted，runTurn 才认得出「打断」（§6.3/§9）。
+    // 未被 abort 的异常（坏帧 ProviderError 等）原样抛，语义一字不改。
+    if (!req.signal.aborted) throw error;
+    yield { kind: "finish", reason: "aborted" };
+    return;
   }
   // 端点没给 finish_reason 就断流了：只把参数收全的工具调用交出去，其余丢弃，再标 incomplete。
   for (const [index, call] of [...calls.entries()].sort(([a], [b]) => a - b)) {
