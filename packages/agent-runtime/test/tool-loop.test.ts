@@ -300,6 +300,9 @@ describe("runTurn", () => {
     const out = await runTurn(deps, input);
     expect(out.status).toBe("failed");
     expect(out.message).toContain("上限");
+    // 上限计数的是「轮」而不是「次」：一轮可以派发好几个调用，单位写成「次」会误导用户。
+    expect(out.message).toContain(`达到上限（${deps.maxToolRounds} 轮）`);
+    expect(out.message).not.toMatch(/\d+\s*次/);
     expect(harness.hostCalls.length).toBe(4);
   });
 
@@ -331,5 +334,55 @@ describe("runTurn", () => {
     const toolCall = harness.events[1];
     expect(toolCall?.type === "tool-call" && toolCall.ok).toBe(false);
     expect(toolCall?.type === "tool-call" && toolCall.resultText).toContain("只读参考");
+  });
+
+  it("未知名工具调用：error 事件与中文 tool 回执成对，第二轮绝不留悬空 tool_call", async () => {
+    // §4 裁定：对模型请求的拒绝必须用中文回喂、绝不静默丢弃。
+    // messages 里那条 assistant 消息带着**全部** calls，于是每条 call 都必须有自己的 tool 回执——
+    // 缺回执时 toWireMessages 会发出无配对的 tool_calls，OpenAI 兼容端点直接 400，整轮被判 failed。
+    // 混一条已知调用（c2）是为了证明「配对」是逐条的，不是「有一条回执就算过」。
+    const unknownName = "delete_file";
+    const { deps, harness } = makeDeps(
+      [
+        [
+          { kind: "tool-call", call: { id: "c1", name: unknownName, args: "{}" } },
+          { kind: "tool-call", call: { id: "c2", name: "list_docs", args: "{}" } },
+          { kind: "finish", reason: "tool_calls" }
+        ],
+        [
+          { kind: "text-delta", text: "好的，我改用列目录" },
+          { kind: "finish", reason: "stop" }
+        ]
+      ],
+      { ok: true, text: "清单", proposals: [] }
+    );
+    const out = await runTurn(deps, input);
+    expect(out.status).toBe("done");
+    // 未知名的那条不派发 host，但必须在事件流里可见（UI 与审计日志靠这条 error）。
+    expect(harness.hostCalls.map((c) => c.name)).toEqual(["list_docs"]);
+    const errors = harness.events.filter((e) => e.type === "error");
+    expect(errors.length).toBe(1);
+    const reason = errors[0]?.type === "error" ? errors[0].message : "";
+    expect(reason).toContain("不存在的工具");
+    expect(reason).toContain(unknownName);
+    // 第二轮发出去的消息：assistant 的每条 tool_call 都有配对的 tool 回执。
+    const second = harness.sentMessages[1] ?? [];
+    expect(second.map((m) => m.role)).toEqual([
+      "system",
+      "user",
+      "user",
+      "assistant",
+      "tool",
+      "tool"
+    ]);
+    const calls = second.find((m) => m.role === "assistant")?.toolCalls ?? [];
+    const receipts = second.filter((m) => m.role === "tool");
+    expect(calls.map((c) => c.id)).toEqual(["c1", "c2"]);
+    expect(receipts.length).toBe(calls.length);
+    expect(receipts.map((m) => m.toolCallId)).toEqual(["c1", "c2"]);
+    // 回执正文就是那句中文，且与 error 事件同一句。
+    expect(receipts[0]?.content).toContain("不存在的工具");
+    expect(receipts[0]?.content).toBe(reason);
+    expect(receipts[1]?.content).toBe("清单");
   });
 });

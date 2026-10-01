@@ -332,4 +332,58 @@ describe("streamChat", () => {
       { kind: "finish", reason: "aborted" }
     ]);
   });
+
+  it("只有工具名、端点根本不发 arguments 字段的调用是合法调用，正常收尾必须产出", async () => {
+    // 反向钉 parked (a) 的门禁：list_docs 这类无参工具的 arguments 字段常常整个不缺省，
+    // readDelta 于是把 held.args 留在空串。而 tools.ts 的 dispatchToolCall 明写
+    // `call.args === "" ? "{}" : call.args`——空串按「无参」处理，是收全的合法调用。
+    // 若 argumentsComplete("") 判 false，模型这条调用就会在这里被静默丢弃。
+    const { fetchImpl } = makeFetch(
+      sse(
+        {
+          choices: [
+            { delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "list_docs" } }] } }
+          ]
+        },
+        { choices: [{ delta: {}, finish_reason: "tool_calls" }] }
+      )
+    );
+    expect(await run(fetchImpl)).toEqual([
+      { kind: "tool-call", call: { id: "c1", name: "list_docs", args: "" } },
+      { kind: "finish", reason: "tool_calls" }
+    ]);
+  });
+
+  it("arguments 为空串的 name-only 调用在断流收尾（无 finish_reason）时同样不得丢弃", async () => {
+    // 同一条性质的另一条路径：两个收尾分支共用 argumentsComplete，判定必须一致。
+    const { fetchImpl } = makeFetch(
+      sse({
+        choices: [
+          {
+            delta: {
+              tool_calls: [{ index: 0, id: "c1", function: { name: "list_docs", arguments: "" } }]
+            }
+          }
+        ]
+      })
+    );
+    expect(await run(fetchImpl)).toEqual([
+      { kind: "tool-call", call: { id: "c1", name: "list_docs", args: "" } },
+      { kind: "finish", reason: "incomplete" }
+    ]);
+  });
+
+  it("连接阶段就已打断：fetch 直接 reject 也安静收为 aborted，绝不抛错", async () => {
+    // 这条钉 fetch 的 .catch 里的连接期守卫：abort 落在 fetch 之前/期间时，端点的 reject
+    // 是 AbortError，不是「连不上」。下一轮 fetch 的拒绝只有靠它才变成 finish:aborted（→ interrupted），
+    // 抽掉它整轮会被 runTurn 判成 failed。
+    const controller = new AbortController();
+    controller.abort();
+    const fetchImpl = async (): Promise<ProviderFetchResult> => {
+      throw new TypeError("This operation was aborted");
+    };
+    expect(await run(fetchImpl, controller.signal)).toEqual([
+      { kind: "finish", reason: "aborted" }
+    ]);
+  });
 });

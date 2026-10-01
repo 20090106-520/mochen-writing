@@ -188,10 +188,13 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
     for (const call of collected.calls) {
       const name = toolNameOf(call.name);
       if (name === null) {
-        emitSimple({
-          type: "error",
-          message: `模型请求了不存在的工具「${call.name}」，这条调用已被忽略。可用工具只有 ${AGENT_TOOL_NAMES.join("、")}。`
-        });
+        // §4 裁定：对模型的拒绝必须用中文回喂，绝不静默丢弃。
+        // error 事件让这件事在 UI 与审计日志里可见；tool 回执则保证上面那条 assistant 消息里的
+        // **每一条** tool_call 都有配对——缺回执时 toWireMessages 发出悬空 tool_calls，
+        // OpenAI 兼容端点直接 400，整轮会被 runTurn 判成 failed。
+        const reason = `模型请求了不存在的工具「${call.name}」，这条调用已被忽略。可用工具只有 ${AGENT_TOOL_NAMES.join("、")}。`;
+        emitSimple({ type: "error", message: reason });
+        messages.push(toolMessage(call.id, reason));
         continue;
       }
       const outcome = await dispatchToolCall(deps.host, call);
@@ -210,7 +213,8 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
       messages.push(toolMessage(call.id, outcome.text));
     }
     if (round === deps.maxToolRounds - 1) {
-      const message = `本轮工具调用达到上限（${deps.maxToolRounds} 次），已停下等你介入。`;
+      // 上限计的是「轮」不是「次」：一轮可以派发好几个工具调用，单位写错会让用户以为还能再调几次。
+      const message = `本轮工具调用达到上限（${deps.maxToolRounds} 轮），已停下等你介入。`;
       emitSimple({ type: "error", message });
       return { status: "failed", message };
     }

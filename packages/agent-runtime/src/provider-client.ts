@@ -82,8 +82,15 @@ function readDelta(raw: unknown): {
  * §6.3 规则 2：参数未收全的 tool_call 视为不存在。
  * complete 的判据即 JSON.parse(args) 成功；收不全（截断、非法 JSON）就不交给下游，
  * 后续 Task 8 会把这些 arguments 原样 JSON.parse，半截串会在那里炸。
+ *
+ * 空串是**合法**的：无参工具（如 list_docs）在很多端点上干脆不发 `arguments` 字段，
+ * readDelta 于是把 held.args 留在 ""；tools.ts 的 dispatchToolCall 也明写
+ * `call.args === "" ? "{}" : call.args` 按「无参」执行。若这里判 false，
+ * 模型这条调用就会被静默丢弃——正是收全门禁要避免的反面。
+ * 判定只放在这一处：正常收尾与断流收尾两个分支共用同一个 verdict。
  */
 function argumentsComplete(args: string): boolean {
+  if (args === "") return true;
   try {
     JSON.parse(args);
     return true;
