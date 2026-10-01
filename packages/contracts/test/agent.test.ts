@@ -4,9 +4,12 @@ import {
   agentEventSchema,
   decideInputSchema,
   editProposalSchema,
+  isWriteTool,
   maskApiKey,
   providerDraftSchema,
-  sessionMetaSchema
+  sessionMetaSchema,
+  WRITE_TOOLS,
+  type WriteToolName
 } from "../src/index.js";
 
 const proposal = {
@@ -171,5 +174,28 @@ describe("provider 与掩码", () => {
       "search_docs",
       "write_doc"
     ]);
+  });
+
+  it("五个工具名的排列顺序同样是契约（上一条先排序再比对，钉不住原序）", () => {
+    // 注册表顺序决定提示词与工具卡的展示顺序；被重排必须转红。
+    expect([...AGENT_TOOL_NAMES]).toEqual([
+      "read_doc",
+      "list_docs",
+      "search_docs",
+      "propose_patch",
+      "write_doc"
+    ]);
+  });
+
+  it("WRITE_TOOLS 只有两个成员，WriteToolName 被真正收窄", () => {
+    expect([...WRITE_TOOLS]).toEqual(["propose_patch", "write_doc"]);
+    const writable: WriteToolName = "propose_patch";
+    expect(isWriteTool(writable)).toBe(true);
+    expect(isWriteTool("read_doc")).toBe(false);
+    // 若 WRITE_TOOLS 的声明退回 readonly AgentToolName[]，WriteToolName 就退化成整个联合，
+    // 下面这行不再报错，@ts-expect-error 会变成「未使用的指令」⇒ tsc 转红。
+    // @ts-expect-error read_doc 是只读工具，不属于 WriteToolName
+    const notWritable: WriteToolName = "read_doc";
+    expect(notWritable).toBe("read_doc");
   });
 });
