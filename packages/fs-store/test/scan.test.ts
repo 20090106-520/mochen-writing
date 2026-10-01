@@ -10,6 +10,8 @@ beforeAll(async () => {
   root = await mkdtemp(path.join(tmpdir(), "abyss-scan-"));
   await mkdir(path.join(root, "chapters"), { recursive: true });
   await mkdir(path.join(root, "characters"), { recursive: true });
+  await mkdir(path.join(root, "outline"), { recursive: true });
+  await mkdir(path.join(root, "plot"), { recursive: true });
   await mkdir(path.join(root, "materials", "意象"), { recursive: true });
   await mkdir(path.join(root, "materials", "node_modules", "脏包"), { recursive: true });
   await mkdir(path.join(root, ".abyss", "sessions"), { recursive: true });
@@ -18,6 +20,8 @@ beforeAll(async () => {
   await writeFile(path.join(root, "chapters", "10-深渊之下.md"), "正文\n");
   await writeFile(path.join(root, "chapters", "01-开局.md"), "正文\n");
   await writeFile(path.join(root, "characters", "李深.md"), "---\ntitle: 李深\n---\n人物\n");
+  await writeFile(path.join(root, "outline", "三幕.md"), "---\ntitle: 三幕\n---\n大纲\n");
+  await writeFile(path.join(root, "plot", "主线.md"), "剧情\n");
   await writeFile(path.join(root, "materials", "意象", "雾.md"), "素材\n");
   await writeFile(path.join(root, ".abyss", "sessions", "leak.md"), "不应出现\n");
   await writeFile(path.join(root, "README.md"), "不应出现\n");
@@ -35,10 +39,22 @@ describe("scanBook", () => {
       "chapters/02-潮汐.md",
       "chapters/10-深渊之下.md",
       "characters/李深.md",
-      "materials/意象/雾.md"
+      "materials/意象/雾.md",
+      "outline/三幕.md",
+      "plot/主线.md"
     ]);
-    expect(docs.find((d) => d.relPath === "characters/李深.md")?.kind).toBe("character");
-    expect(docs.find((d) => d.relPath === "materials/意象/雾.md")?.kind).toBe("material");
+  });
+
+  it("五类文稿各位归其类——少一类左栏就少一栏", async () => {
+    const docs = await scanBook(root);
+    const kindByPath = Object.fromEntries(docs.map((d) => [d.relPath, d.kind]));
+    expect(kindByPath).toMatchObject({
+      "chapters/01-开局.md": "chapter",
+      "characters/李深.md": "character",
+      "outline/三幕.md": "outline",
+      "plot/主线.md": "plot",
+      "materials/意象/雾.md": "material"
+    });
   });
 
   it("素材目录下的 node_modules 被跳过（这条只有 SKIPPED_DIRS 挡得住）", async () => {
