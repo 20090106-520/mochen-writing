@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@mochen/contracts";
+import type { AgentEvent, AgentToolName } from "@mochen/contracts";
 
 export interface StreamingTail {
   reasoning: string;
@@ -19,8 +19,12 @@ export type TimelineBlock =
   | { kind: "error"; id: string; text: string }
   | { kind: "interrupted"; id: string; pending: number };
 
-/** 工具卡的中文标签（中栏给用户看的名字，不是工具 id）。 */
-export const TOOL_LABELS: Record<string, string> = {
+/**
+ * 工具卡的中文标签（中栏给用户看的名字，不是工具 id）。
+ * 裁定 r：键类型用 `AgentToolName`（唯一来源 `AGENT_TOOL_NAMES`）而不是 `string`——
+ * 工具改名或新增时这张表必须编译报错，靠类型穷尽而不是靠人记得来改映射。
+ */
+export const TOOL_LABELS: Record<AgentToolName, string> = {
   read_doc: "读取文档",
   list_docs: "列出文档",
   search_docs: "全书检索",
@@ -74,7 +78,10 @@ export function buildTimeline(items: AgentEvent[], tail: StreamingTail): Timelin
       blocks.push({
         kind: "tool",
         id: event.id,
-        label: TOOL_LABELS[event.tool] ?? event.tool,
+        // 取值处保留运行期兜底（裁定 r）：store 的闸门（useAgentStore.ts:79-111）只校验
+        // threadKey/turnId/type，不校验嵌套的 event.tool，preload 也是裸 `payload as AgentOutbound`，
+        // 所以表外的工具名确实能一路走到这里。类型上「不可能」，运行时可能——cast 不是装饰。
+        label: (TOOL_LABELS as Partial<Record<string, string>>)[event.tool] ?? event.tool,
         args: event.args,
         ok: event.ok,
         resultText: event.resultText
