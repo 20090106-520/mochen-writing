@@ -65,6 +65,9 @@ importers:
       '@eslint/js':
         specifier: 'catalog:'
         version: 10.0.1(eslint@10.8.1)
+      '@mochen/agent-runtime':
+        specifier: workspace:*
+        version: link:packages/agent-runtime
       '@types/node':
         specifier: 'catalog:'
         version: 26.0.1
