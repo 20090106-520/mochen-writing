@@ -701,11 +701,30 @@ describe("agentService 全链", () => {
     ).toContain("还没打开文稿");
   });
 
-  it("空 userText 在开轮前就被边界校验挡下：中文报错，一个字节都没落盘", async () => {
+  it("空 userText 走优雅路径而非拒绝：中文错误事件 + turn-end failed，一个字节都没落盘", async () => {
     const { service, writes } = await build(sseFetch(proposeChunks));
     await expect(
       service.startTurn({ threadKey: CHAPTER, docRelPath: CHAPTER, stageId: "draft", userText: "" })
-    ).rejects.toThrow(/输入内容不能为空/);
+    ).resolves.toBeDefined();
+    expect(errorMessages().join("\n")).toContain("输入是空的");
+    expect(lastTurnEnd()?.status).toBe("failed");
+    expect(writes).toEqual([]);
+    expect(await chapterFile()).toBe(CHAPTER_TEXT);
+    service.dispose();
+  });
+
+  it("纯空白 userText 走同一条优雅路径：:387 的 trim 分支不是死代码", async () => {
+    const { service, writes } = await build(sseFetch(proposeChunks));
+    await expect(
+      service.startTurn({
+        threadKey: CHAPTER,
+        docRelPath: CHAPTER,
+        stageId: "draft",
+        userText: "   "
+      })
+    ).resolves.toBeDefined();
+    expect(errorMessages().join("\n")).toContain("输入是空的");
+    expect(lastTurnEnd()?.status).toBe("failed");
     expect(writes).toEqual([]);
     expect(await chapterFile()).toBe(CHAPTER_TEXT);
     service.dispose();
@@ -723,6 +742,44 @@ describe("agentService 全链", () => {
     ).rejects.toThrow(/输入内容过长/);
     expect(writes).toEqual([]);
     expect(await chapterFile()).toBe(CHAPTER_TEXT);
+    service.dispose();
+  });
+
+  it("空 threadKey 不 reject：作为合法的 unbound 线程落点", async () => {
+    const { service } = await build(sseFetch(proposeChunks));
+    await expect(
+      service.startTurn({ threadKey: "", docRelPath: null, stageId: "draft", userText: "" })
+    ).resolves.toBeDefined();
+    const start = outbound.find((item) => item.type === "turn-start");
+    if (start === undefined || start.type !== "turn-start")
+      throw new Error("turn-start 必须先发出来");
+    expect(start.threadKey).toBe("unbound");
+    service.dispose();
+  });
+
+  it("超长 threadKey 被边界校验挡下：中文报错", async () => {
+    const { service } = await build(sseFetch(proposeChunks));
+    await expect(
+      service.startTurn({
+        threadKey: "x".repeat(201),
+        docRelPath: CHAPTER,
+        stageId: "draft",
+        userText: "写点什么"
+      })
+    ).rejects.toThrow(/会话线程标识过长/);
+    service.dispose();
+  });
+
+  it("空 stageId 仍是硬校验：装配处没有对应的优雅分支", async () => {
+    const { service } = await build(sseFetch(proposeChunks));
+    await expect(
+      service.startTurn({
+        threadKey: CHAPTER,
+        docRelPath: CHAPTER,
+        stageId: "",
+        userText: "写点什么"
+      })
+    ).rejects.toThrow(/创作阶段标识不能为空/);
     service.dispose();
   });
 });

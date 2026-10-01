@@ -95,15 +95,19 @@ export type AgentOutbound =
 
 /**
  * 渲染层可控输入进入服务边界的校验（与 decideInputSchema 同层）：
- * 空/超长的 userText、缺失的 threadKey/stageId 都要在落盘前被挡下，
- * 且每条错误都是用户看得见的中文。字段名与可选性和原 interface 一字不改。
+ * 分工是「业务规则走事件，请求形状与上限走拒绝」——
+ * 空/纯空白的 userText、空 threadKey（未打开文稿标签即 unbound 线程）都是合法业务态，
+ * 由 agent-service 的优雅路径发中文事件 + turn-end{failed}，这里绝不挡；
+ * 本 schema 只挡形状与上限：缺字段、类型不符、threadKey/userText/stageId 超长、
+ * stageId 为空（装配处无对应的优雅分支），且每条错误都是用户看得见的中文。
+ * 字段名与可选性和原 interface 一字不改。
  */
 export const startTurnInputSchema = z.object({
-  threadKey: z.string().min(1, "会话线程标识不能为空").max(200, "会话线程标识过长（最多 200 字）"),
+  threadKey: z.string().max(200, "会话线程标识过长（最多 200 字）"),
   /** null = 还没打开文稿标签，此时只能问不能改。 */
   docRelPath: z.string().nullable(),
   stageId: z.string().min(1, "创作阶段标识不能为空").max(200, "创作阶段标识过长（最多 200 字）"),
-  userText: z.string().min(1, "输入内容不能为空").max(20000, "输入内容过长（最多 20000 字）")
+  userText: z.string().max(20000, "输入内容过长（最多 20000 字）")
 });
 export type StartTurnInput = z.infer<typeof startTurnInputSchema>;
 
