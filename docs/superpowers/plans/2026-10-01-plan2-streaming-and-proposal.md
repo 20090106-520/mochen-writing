@@ -7640,26 +7640,36 @@ git commit -m "test(e2e): 本地 SSE 桩打通模型到写盘全链，补真机�
 - Consumes: 前 15 个任务的全部产出
 - Produces: 一条可交付的 S3+S4 切片（墨宸 AI 能对话、能出提案、能逐条审批落盘）
 
-- [ ] **Step 1：全量门禁**
+- [x] **Step 1：全量门禁**
 
 Run: `corepack pnpm verify`
 Expected: 末行 `VERIFY_EXIT=0`，且 vitest 汇总的用例总数 ≥ Plan 1 收尾时的基线。
 Windows 提醒：本机 dev 在跑时全量 vitest 会假红且每次红的文件不同；先 `taskkill //IM electron.exe //F`
 或用 `--maxWorkers=4` 复核，别把并发争用当真红灯。
 
-- [ ] **Step 2：边界与预算复述**
+> **实测（2026-10-02，控制方收尾跑 `t16c-verify.log`）**：`Test Files 34 passed (34)` /
+> `Tests 353 passed (353)` / 末行 `VERIFY_EXIT=0`。基线从 Plan 1 的 329 涨到 353（波 A +19、波 A2 +5）。
+> 未启 dev、未 `taskkill`：单进程跑，无并发争用。
+> **这次 verify 跑在勾选本文件复选框之前**，所以它不证明当前这份 plan 文件的格式；
+> 收尾改动单独过 `prettier --check docs`，结果记在 Step 4。
+
+- [x] **Step 2：边界与预算复述**
 
 Run: `corepack pnpm lint:boundary && corepack pnpm lint:budget`
 Expected: 两条都 0 退出。`packages/agent-runtime` 里若出现 `import "electron"` 会被边界拦下；
 `agent-service.ts` 逼近 800 行预算时，按本计划的约定把提案登记拆成 `proposal-registry.ts`，
 不要靠压缩注释或换行蒙过门禁。
 
+> **实测（2026-10-02，`t16c-lint.log`）**：`lint:boundary` 打出「边界检查通过」退出 0、
+> `lint:budget` 打出「行数预算通过」退出 0。渲染层对 `@mochen/agent-runtime` 的 import 另由全分支
+> 评审者 grep 复核为 NONE（`t16rev-boundary.log` 同批）。
+
 > **收尾实测与决定（2026-10-02，Task 16 波 B）**：`wc -l apps/desktop/src/main/agent-service.ts` = **513 行**，
 > 未逼近 800 行预算 ⇒ **决定：本计划不拆 `proposal-registry.ts`**，`applyDecision` 留在原文件。
 > 理由写死在此处，别让下一个任务把「不拆」当成遗漏：拆分的前提是逼近边界，而它没到。
 > 同批核对：`useAgentStore.test.ts` 737 行（预算 800，同样不拆；再加用例前要先想好拆分）。
 
-- [ ] **Step 3：变异台账（把每任务实测结果写回本文件）**
+- [x] **Step 3：变异台账（把每任务实测结果写回本文件）**
 
 | 任务 | 抽掉了什么 | 是否转红 | 备注（含证据日志名） |
 | --- | --- | --- | --- |
@@ -7683,17 +7693,33 @@ Expected: 两条都 0 退出。`packages/agent-runtime` 里若出现 `import "el
 
 「待填」必须换成实测结论。没跑过的变异实验不算做过——只报「全绿」不算验证。
 
+> **全分支独立评审补跑（2026-10-02，`fcd31b8`，评审者亲跑、控制方逐份回读日志）**：评审者对六条铁律
+> 各自抽变异跑出红，日志前缀 `t16rev-`：`agent-service.ts:293` 权限闸 → 红 2（`t16rev-mut1a-permgate.log`，
+> `2 failed \| 25 passed (27)`）、`:316` 指纹比对 → 红 1（`-mut1b-fingerprint.log`，`1 failed \| 26 passed (27)`）、
+> `contracts/src/tools.ts:4` 工具改名 → 类型关卡红（`-mut2-toolrename-tsc.log`，web `WEB_TSC_EXIT=2` ＋
+> node `NODE_TSC_EXIT=2`）、`permission.ts:23` 五目录天花板 → 红 1（`-mut3-ceiling.log`，`1 failed \| 4 passed (5)`）、
+> `permission.ts:36` read-only 档 → 红 1（`-mut3b-readonly.log`，同数）、`credential-store.ts:63` 明文守卫 → 红 1
+> （`-mut4-plaintext-guard.log`，`1 failed \| 7 passed (8)`）、`read-write.ts:62` 写盘前备份 → 红 1
+> （`-mut5-nobak.log`，`1 failed \| 5 passed (6)`），基线 `t16rev-baseline.log` = `Tests 353 passed (353)` / EXIT=0。
+> **这补上了行 8、行 9「本体半边」在 HEAD 代码上的实测红**（此前只有实现者报告转述、无归档日志）。
+> 要写清边界：这是**同一份当前代码上的新实验**，不是「找回当年那一红」——行 1、2、4、5、6 的定性不变。
+> 台账抽查 10 格判「不认 / 造假」0 格；评审者唯一的新发现 F-R1（P3）是**控制方派发简报里的通道数误数**
+> （写「十三」，`IPC_CHANNELS` 实为 **12** 个键，`ipc.ts:6-17`），「无历史回放口子 ⇒ F-6 延后到 Plan 3」
+> 的实质主张不受影响。教训：**预检要核数量，不只核行号与符号存在性。**
+
 > **台账落表口径（2026-10-02，Task 16 波 B）**：上表 17 行（原 15 行 + 波 A + 波 A2）全部换成实测或
 > 照实标注「无归档日志」。取证目录 `.superpowers/sdd/2026-10-01-plan2-streaming-and-proposal/`（git-ignore），
 > 每一格引用的日志名都经波 B 实现者 `grep` 回读 `Tests …` 汇总行核对。
 > **五行只有实现者报告的逐字转述、没有归档日志**：行 1、2、4、5、6（变异当时跑在 `/tmp`，当场未落盘）；
-> 另有两处「本体无日志 / 下游有日志」分开写在行 8、行 9。
+> 另有两处「本体无日志 / 下游有日志」分开写在行 8、行 9——**这两处本体已由全分支评审者在 HEAD 代码上
+> 重跑出红并留日志**（见上段 `t16rev-mut3-ceiling.log` / `t16rev-mut4-plaintext-guard.log`），
+> 但「当年那一次跑在 `/tmp`、日志不可找回」的历史仍然成立，行内文字不改写。
 > 三条已定案口径（真 socket 打断教训、审批时权限闸只有单元守卫、§9.4 之辨定案为实现者装置问题）
 > 与 C 组四项裁定写在 `EXECUTION-NOTES.md` §6，不在此重复。
 > 波 A 之前 `progress.md` 说「Task 1/2 等早期任务的日志在本目录」**不成立**，已就地更正；
 > 教训入表：**变异实验必须当场把日志写进过程目录**，否则下一轮无法自证。
 
-- [ ] **Step 4：文档收尾**
+- [x] **Step 4：文档收尾**
 
 - `docs/superpowers/plans/README.md`：Plan 2 行改成「已完成（S3 流式对话 + S4 提案写盘与审批，
   16 任务；冒烟实测：……）」，并把 Plan 3 的依赖句改成「依赖 Plan 2 的 `useAgentStore` 与
@@ -7703,12 +7729,32 @@ Expected: 两条都 0 退出。`packages/agent-runtime` 里若出现 `import "el
   `agent-pane.css` 是自有样式，只复用主题变量。
 - 本计划文件：把已完成任务的复选框勾上。
 
-- [ ] **Step 5：提交**
+> **实测（2026-10-02，波 B 落盘 + 控制方收尾核）**：三处都改了，且计划原文那句
+> 「冒烟实测：……」里的省略号**没有**被填成一句自夸——README 的 Plan 2 行写的是「真机三栏冒烟通过」，
+> 并把逐条观测与**未做口径**指向 `2026-10-02-plan2-smoke-report.md`；该报告「未做/留底」一节仍在，
+> 含 UNBOUND 线程真机批准、四项 DevTools 核查、以及「计划点名的四项内部核查只有单测/静态证据」，
+> 不许升格成「真机验证」。已知缺口清单另列 F-4、F-6 与波 A 延后的四条 P3，全部标注归属 Plan 3。
+> `ATTRIBUTION.md` 的两条已补（`CenterColumn.vue` / `ProviderSettings.vue` 沿用
+> `conversation-pane` / `dialog.css` 类名；`agent-pane.css` 为自有样式只复用主题变量），
+> 控制方回读源码核实：`styles/agent-pane.css:5-12` 确实把 `.conversation-pane` 的
+> `grid-template-rows` 覆写成四轨（上游是三轨），`styles/left-nav.css` 头部**没有**移植说明注释
+> ⇒ 按例外登记在清单里。收尾这批 markdown 单独过了 `corepack pnpm exec prettier --check docs`
+> （`t16c-prettier-docs.log`：`All matched files use Prettier code style!`，退出 0）。
+
+- [x] **Step 5：提交**
 
 ```bash
 git add docs
 git commit -m "docs(plan2): 收尾台账与来源清单"
 ```
+
+> **实测（2026-10-02）**：`README.md` 与 `ATTRIBUTION.md` 的改动已在波 B 的 `fcd31b8` 落盘；
+> 本条勾选对应的收尾提交只含**本计划文件**（Step 1-5 的勾选与实测注、全分支评审补跑段、
+> 「十三→十二通道」更正），提交号当场 `git log --oneline -1` 回读并记进 `progress.md`。
+> 未 push、未建 PR——集成方式由 `finishing-a-development-branch` 交给用户拍板。
+> 勾选与注记写完后**又跑了一遍全量门禁**（`t16c-verify-final.log`）：`prettier . --check` 打出
+> `All matched files use Prettier code style!`、`Tests 353 passed (353)`、`VERIFY_EXIT=0` ⇒ 收尾改动
+> 没有把任何门禁带坏，Step 1 那条「跑在勾选之前」的空档由这一次补上。
 
 ---
 
