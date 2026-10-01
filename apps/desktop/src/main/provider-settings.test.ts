@@ -32,6 +32,21 @@ afterEach(async () => {
   }
 });
 
+/**
+ * 跨 IPC 的拒绝必须是**单句中文**（裁定 n）：这里先把 message 取出来，
+ * 再当场钉掉裸 ZodError 的骨架特征（`[`、`{`、`ZodError`、`origin`、`too_big`/`too_small`）——
+ * 把 safeParse 换回 parse 时，message 就是 issue 数组原文，这条必红。
+ */
+async function rejectMessage(promise: Promise<unknown>): Promise<string> {
+  const message = await promise.then(
+    () => null,
+    (error: unknown) => (error instanceof Error ? error.message : String(error))
+  );
+  if (message === null) throw new Error("期待拒绝，结果却 resolve 了");
+  expect(message).not.toMatch(/ZodError|origin|too_big|too_small|\[|\{/);
+  return message;
+}
+
 describe("providerSettings", () => {
   it("未配置时 view 给出空串与 hasKey=false", async () => {
     const settings = createProviderSettings({ dir, credentials });
@@ -73,12 +88,23 @@ describe("providerSettings", () => {
     expect(Object.keys(await settings.view())).toEqual(["hasKey", "baseURL", "model", "keyMask"]);
   });
 
-  it("baseURL 非法时拒绝且不落盘", async () => {
+  it("baseURL 非法时拒绝且不落盘：拒绝是单句中文，不是裸 ZodError", async () => {
     const settings = createProviderSettings({ dir, credentials });
-    await expect(
+    const message = await rejectMessage(
       settings.save({ baseURL: "127.0.0.1:8787", model: "m", apiKey: null })
-    ).rejects.toThrow(/baseURL/);
+    );
+    expect(message).toContain("baseURL 必须以 http:// 或 https:// 开头");
     expect(await settings.config()).toBeNull();
+  });
+
+  it("baseURL 为空串时拒绝：中文「不能为空」，一个文件都没落盘", async () => {
+    const settings = createProviderSettings({ dir, credentials });
+    const message = await rejectMessage(
+      settings.save({ baseURL: "", model: "m", apiKey: "sk-abcdefg" })
+    );
+    expect(message).toContain("不能为空");
+    expect(await settings.config()).toBeNull();
+    expect(await readdir(dir)).toEqual([]);
   });
 
   it("config.json 被人写坏时 view 报中文错误而不是静默给空", async () => {

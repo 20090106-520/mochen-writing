@@ -3,6 +3,7 @@ import {
   DEFAULT_PERMISSION_MODE,
   PERMISSION_LABELS,
   decideInputSchema,
+  firstIssueMessage,
   startTurnInputSchema,
   type AgentEvent,
   type AgentOutbound,
@@ -376,7 +377,10 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
   return {
     async startTurn(input: StartTurnInput): Promise<{ turnId: string }> {
       // 渲染层可控输入进服务边界的校验，与 decide 同层：换 preload 也换不掉这一层。
-      startTurnInputSchema.parse(input);
+      // 拒绝必须是单句中文（裁定 n）：裸 ZodError 过 ipcMain.handle 到渲染层就是 issue 数组原文。
+      const parsed = startTurnInputSchema.safeParse(input);
+      if (!parsed.success)
+        throw new Error(firstIssueMessage(parsed.error, "这一轮的参数不对，请重新发送。"));
       const turnId = deps.newId();
       const threadKey = input.threadKey.trim() === "" ? UNBOUND : input.threadKey.trim();
       const docRelPath = input.docRelPath ?? null;
@@ -482,7 +486,11 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     },
 
     async decide(input: DecideInput): Promise<DecisionResult> {
-      const value = decideInputSchema.parse(input);
+      // 同上：审批的拒绝也只送单句中文（裁定 n），渲染层拿不到 issue 数组。
+      const parsed = decideInputSchema.safeParse(input);
+      if (!parsed.success)
+        throw new Error(firstIssueMessage(parsed.error, "这条审批的参数不对，请重试。"));
+      const value = parsed.data;
       const result = await applyDecision(value.proposalId, value.decision, value.guidance, false);
       await drain();
       return result;

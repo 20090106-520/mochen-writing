@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  firstIssueMessage,
   maskApiKey,
   providerConfigSchema,
   providerDraftSchema,
@@ -77,7 +78,11 @@ export function createProviderSettings(deps: {
     apiKey: () => deps.credentials.read(),
 
     async save(draft) {
-      const value = providerDraftSchema.parse(draft);
+      // 模型设置的拒绝同样是跨 IPC 的用户可见文案（裁定 n）：只留单句中文，不留 issue 数组。
+      const parsed = providerDraftSchema.safeParse(draft);
+      if (!parsed.success)
+        throw new Error(firstIssueMessage(parsed.error, "模型设置没保存：填写的内容不对。"));
+      const value = parsed.data;
       const config = { baseURL: value.baseURL, model: value.model };
       await mkdir(deps.dir, { recursive: true });
       // 裁定：先落密钥再落 config.json。若密钥保管不可用（或恒等加密含明文），credentials.save 会抛，

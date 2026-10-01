@@ -100,20 +100,33 @@ export type AgentOutbound =
  * 由 agent-service 的优雅路径发中文事件 + turn-end{failed}，这里绝不挡；
  * 本 schema 只挡形状与上限：缺字段、类型不符、threadKey/userText/stageId 超长、
  * stageId 为空（装配处无对应的优雅分支），且每条错误都是用户看得见的中文。
+ * 跨字段一致性（裁定 o）：空 threadKey 是「没打开文稿标签」的独立线程态，
+ * 此时 docRelPath 必须为 null——否则有当前章的一轮会被塞进 unbound 会话桶，
+ * 造成不同章共用同一份 JSONL 历史、session-meta 自述与提案所改文件互相打脸、
+ * accept-session 的自动批准授权跨所有空 threadKey 复用。这类组合走中文拒绝。
  * 字段名与可选性和原 interface 一字不改。
  */
-export const startTurnInputSchema = z.object({
-  threadKey: z.string().max(200, "会话线程标识过长（最多 200 字）"),
-  /** null = 还没打开文稿标签，此时只能问不能改。 */
-  docRelPath: z.string().nullable(),
-  stageId: z.string().min(1, "创作阶段标识不能为空").max(200, "创作阶段标识过长（最多 200 字）"),
-  userText: z.string().max(20000, "输入内容过长（最多 20000 字）")
-});
+export const startTurnInputSchema = z
+  .object({
+    threadKey: z.string().max(200, "会话线程标识过长（最多 200 字）"),
+    /** null = 还没打开文稿标签，此时只能问不能改。 */
+    docRelPath: z.string().nullable(),
+    stageId: z.string().min(1, "创作阶段标识不能为空").max(200, "创作阶段标识过长（最多 200 字）"),
+    userText: z.string().max(20000, "输入内容过长（最多 20000 字）")
+  })
+  .superRefine((value, ctx) => {
+    if (value.threadKey.trim() === "" && value.docRelPath !== null)
+      ctx.addIssue({
+        code: "custom",
+        message: "没打开文稿标签时才算独立线程：会话线程为空就不能再指定文稿路径，两者不能同时给。",
+        path: ["threadKey"]
+      });
+  });
 export type StartTurnInput = z.infer<typeof startTurnInputSchema>;
 
 export const decideInputSchema = z
   .object({
-    proposalId: id,
+    proposalId: z.string().min(1, "提案标识不能为空"),
     decision: z.enum(PROPOSAL_DECISIONS),
     guidance: z.string()
   })

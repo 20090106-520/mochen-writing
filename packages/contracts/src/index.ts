@@ -6,3 +6,4 @@ export * from "./ipc.js";
 export * from "./tools.js";
 export * from "./agent-event.js";
 export * from "./provider.js";
+export * from "./validation.js";
