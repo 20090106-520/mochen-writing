@@ -207,4 +207,45 @@ describe("useBookStore", () => {
     expect(store.draft).toBe("写了一半\n");
     expect(store.dirty).toBe(true);
   });
+
+  it("智能体写盘后：干净草稿直接同步盘上内容与新指纹", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    await store.openDocTab("chapters/01-a.md");
+    // 盘上已被智能体改成新内容：mock 要钉在 absorbAgentWrite 触发的这次重读上，
+    // 若放在 openDocTab 之前会被首次读取消费掉，重读拿到的是默认夹具。
+    readDoc.mockResolvedValueOnce({
+      relPath: "chapters/01-a.md",
+      content: "智能体改过的\n",
+      fingerprint: "fp-b"
+    });
+    await store.absorbAgentWrite("chapters/01-a.md", "fp-b");
+    expect(store.draft).toBe("智能体改过的\n");
+    expect(store.savedFingerprint).toBe("fp-b");
+    expect(store.dirty).toBe(false);
+    expect(store.notice).toContain("草稿已同步");
+  });
+
+  it("智能体写盘撞上未保存手改：草稿一字不动，标冲突让人决定", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    await store.openDocTab("chapters/01-a.md");
+    store.onEdit("我还没保存的一段\n");
+    await store.absorbAgentWrite("chapters/01-a.md", "fp-z");
+    expect(store.draft).toBe("我还没保存的一段\n");
+    expect(store.conflict?.currentFingerprint).toBe("fp-z");
+    expect(store.notice).toContain("未保存修改没有丢");
+  });
+
+  it("写的是非活动标签：不动当前草稿，只作废那一路暂存副本让下次重读", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    await store.openDocTab("chapters/01-a.md");
+    await store.openDocTab("chapters/02-b.md");
+    readDoc.mockClear();
+    await store.absorbAgentWrite("chapters/01-a.md", "fp-c");
+    expect(store.draft).toBe("正文\n");
+    expect(store.draftsByPath["chapters/01-a.md"]).toBeUndefined();
+    expect(readDoc).not.toHaveBeenCalled();
+  });
 });

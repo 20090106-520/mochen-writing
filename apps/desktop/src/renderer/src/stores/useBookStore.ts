@@ -157,6 +157,32 @@ export const useBookStore = defineStore("book", {
       this.draftsByPath[this.activeDocTab] = this.snapshot();
     },
 
+    /**
+     * 把智能体写入的盘上事实吸收进右栏。
+     * 干净草稿：作废暂存副本，活动标签立刻重载。
+     * 有未保存手改：绝不覆盖用户草稿，改成报冲突，由人决定重载还是另存。
+     */
+    async absorbAgentWrite(relPath: string, fingerprint: string): Promise<void> {
+      const stashed = this.draftsByPath[relPath];
+      if (stashed?.dirty) {
+        this.draftsByPath[relPath] = { ...stashed, conflict: { currentFingerprint: fingerprint } };
+        if (this.activeDocTab === relPath) this.conflict = { currentFingerprint: fingerprint };
+        this.notice = "智能体改写了本章，你的未保存修改没有丢；确认后重载再手工合并";
+        return;
+      }
+      delete this.draftsByPath[relPath];
+      if (this.activeDocTab === relPath) {
+        try {
+          await this.reloadActive();
+          this.notice = "智能体已写入本章，草稿已同步";
+        } catch (err) {
+          // 裁定 n：主进程边界拒绝的 message 是单句中文，这里必须让它可见，绝不静默吞掉。
+          const reason = err instanceof Error ? err.message : String(err);
+          this.notice = `智能体已写入本章，但草稿同步失败：${reason}`;
+        }
+      } else this.notice = "智能体已写入本章";
+    },
+
     snapshot(): DocState {
       return {
         draft: this.draft,
