@@ -146,6 +146,8 @@ describe("buildTimeline", () => {
     expect(buildTimeline([], { reasoning: "在想", message: "" })).toEqual([
       { kind: "thinking", id: "tail-thinking", text: "在想", streaming: true, interrupted: false }
     ]);
+    // 纯空白的正文残字也不成块：上面那条只钉住了 reasoning 侧的空串判定，message 侧要单独钉。
+    expect(buildTimeline([], { reasoning: "", message: "  " })).toEqual([]);
   });
 
   it("块 id 不重复：v-for 的 key 撞车就是渲染错位", () => {
