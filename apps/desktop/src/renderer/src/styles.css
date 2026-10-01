@@ -3,6 +3,7 @@
 @import "./styles/conversation-pane.css";
 @import "./styles/editor-pane.css";
 @import "./styles/dialog.css";
+@import "./styles/agent-pane.css";
 @import "./styles/theme-runtime.css";
 
 :root {
