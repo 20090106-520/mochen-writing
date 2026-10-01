@@ -86,7 +86,7 @@
 - Consumes: 无
 - Produces: 根脚本 `pnpm verify` = `format:check && typecheck && lint && test`；`check-package-boundary.mjs` 导出 `findViolations(dir): string[]` 供测试复用
 
-- [ ] **Step 1: 写 workspace 与 catalog**
+- [x] **Step 1: 写 workspace 与 catalog**
 
 `pnpm-workspace.yaml`：
 ```yaml
@@ -151,7 +151,7 @@ allowBuilds:
 }
 ```
 
-- [ ] **Step 1b: 其余根配置逐字写入（不留"参考 deepwrite"这类口头交代）**
+- [x] **Step 1b: 其余根配置逐字写入（不留"参考 deepwrite"这类口头交代）**
 
 `vitest.config.ts`：
 ```ts
@@ -235,7 +235,7 @@ export default tseslint.config(
 
 对应 devDependencies 追加到根 `package.json`：`"@eslint/js": "10.0.1"`、`"eslint": "10.8.1"`、`"eslint-config-prettier": "10.1.8"`、`"eslint-plugin-vue": "10.10.0"`、`"globals": "17.11.0"`、`"typescript-eslint": "8.67.0"`、`"prettier": "3.9.6"`，并在 scripts 里加 `"lint:eslint": "eslint . --max-warnings=0"`，`lint` 改为 `pnpm lint:eslint && pnpm lint:boundary && pnpm lint:budget`。
 
-- [ ] **Step 2: 写两个包骨架**
+- [x] **Step 2: 写两个包骨架**
 
 `packages/contracts/package.json`：
 ```json
@@ -278,7 +278,7 @@ export default tseslint.config(
 
 `packages/contracts/tsconfig.json` 与它逐字相同。fs-store 不直接用 zod，`zod` 依赖只是让 `@abyss/contracts` 的类型在 workspace 内可解析；若 `pnpm typecheck` 报未使用依赖，删掉它而不是删掉 `@abyss/contracts`。
 
-- [ ] **Step 3: 写边界门禁脚本**
+- [x] **Step 3: 写边界门禁脚本**
 
 `tools/check-package-boundary.mjs`：
 ```js
@@ -346,7 +346,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 ```
 
-- [ ] **Step 4: 写门禁的失败用例（证明它能红）**
+- [x] **Step 4: 写门禁的失败用例（证明它能红）**
 
 `tools/boundary.selfcheck.test.mjs`：
 ```js
@@ -374,7 +374,7 @@ Run: `corepack pnpm install --prefer-offline`（electron 走本地缓存 `%LOCAL
 Run: `corepack pnpm exec vitest run tools --maxWorkers=4`
 Expected: 先 FAIL（脚本尚未创建时），Step 3 建好后 PASS 2 项。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add pnpm-workspace.yaml package.json tsconfig.base.json tools packages apps 2>/dev/null; git add -A
@@ -402,7 +402,7 @@ git commit -m "chore: 工作区脚手架与边界/行数门禁"
   - `type ProposalDecision = "accept-once" | "accept-session" | "accept-prefix" | "deny-with-guidance" | "cancel"`
   - `const IPC_CHANNELS`、`interface RendererApi`（Task 5 preload 与 Task 6 渲染层都按它写）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `packages/contracts/test/contract.test.ts`：
 ```ts
@@ -461,7 +461,7 @@ describe("bookMetaSchema", () => {
 Run: `corepack pnpm exec vitest run packages/contracts --maxWorkers=4`
 Expected: FAIL — `Cannot find module '../src/index.js'`
 
-- [ ] **Step 2: 写实现**
+- [x] **Step 2: 写实现**
 
 `src/permission.ts`：
 ```ts
@@ -598,16 +598,16 @@ export * from "./patch.js";
 export * from "./ipc.js";
 ```
 
-- [ ] **Step 3: 跑测试确认全绿 + 类型检查**
+- [x] **Step 3: 跑测试确认全绿 + 类型检查**
 
 Run: `corepack pnpm exec vitest run packages/contracts --maxWorkers=4` → PASS 5 项
 Run: `corepack pnpm typecheck` → 无错误
 
-- [ ] **Step 4: 变异实验（证明断言能失败）**
+- [x] **Step 4: 变异实验（证明断言能失败）**
 
 临时把 `bookMetaSchema` 的 `.superRefine(...)` 整段注释掉，重跑 Step 3 → 期望 "stage id 重复时拒绝" 与 "缺 activeStage 时拒绝" 转红。恢复后再跑一次确认转绿。记录两条红用例名到提交信息。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add packages/contracts
@@ -630,7 +630,7 @@ git commit -m "feat(contracts): 书籍元数据/提案/权限契约与 zod 校�
   - `parseFrontmatter(raw: string): { data: Record<string, string | string[]>; body: string }`
   - `serializeFrontmatter(data: Record<string, string | string[]>, body: string): string`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `test/paths.test.ts`：
 ```ts
@@ -699,7 +699,7 @@ describe("frontmatter 往返", () => {
 Run: `corepack pnpm exec vitest run packages/fs-store --maxWorkers=4`
 Expected: FAIL — 模块不存在
 
-- [ ] **Step 2: 写实现**
+- [x] **Step 2: 写实现**
 
 `src/paths.ts`：
 ```ts
@@ -793,16 +793,16 @@ export * from "./fingerprint.js";
 export * from "./frontmatter.js";
 ```
 
-- [ ] **Step 3: 跑测试 + typecheck**
+- [x] **Step 3: 跑测试 + typecheck**
 
 Run: `corepack pnpm exec vitest run packages/fs-store --maxWorkers=4` → PASS
 Run: `corepack pnpm typecheck` → 无错误
 
-- [ ] **Step 4: 变异实验**
+- [x] **Step 4: 变异实验**
 
 把 `assertSafeRelPath` 里 `segments.some((s) => s === "..")` 改成恒 `false`，重跑 → 三条穿越用例必须转红；恢复转绿后提交信息里写明。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add packages/fs-store
@@ -825,7 +825,7 @@ git commit -m "feat(fs-store): 路径校验、内容指纹与 frontmatter 往返
   - `scanBook(root: string): Promise<DocRef[]>`（递归 materials，跳过 `.abyss`）
   - `sortChapters(docs: DocRef[], chapterOrder: string[]): DocRef[]`
 
-- [ ] **Step 1: 写失败测试（真临时目录）**
+- [x] **Step 1: 写失败测试（真临时目录）**
 
 `test/scan.test.ts`：
 ```ts
@@ -895,7 +895,7 @@ describe("sortChapters", () => {
 
 Run: `corepack pnpm exec vitest run packages/fs-store --maxWorkers=4` → FAIL — `scan.js` 不存在
 
-- [ ] **Step 2: 写实现**
+- [x] **Step 2: 写实现**
 
 `src/scan.ts`：
 ```ts
@@ -973,16 +973,16 @@ export function sortChapters(docs: DocRef[], chapterOrder: string[]): DocRef[] {
 
 `src/index.ts` 追加：`export * from "./scan.js";`
 
-- [ ] **Step 3: 跑测试 + typecheck**
+- [x] **Step 3: 跑测试 + typecheck**
 
 Run: `corepack pnpm exec vitest run packages/fs-store --maxWorkers=4` → PASS
 Run: `corepack pnpm typecheck` → 无错误
 
-- [ ] **Step 4: 变异实验**
+- [x] **Step 4: 变异实验**
 
 把 `SKIPPED_DIRS` 清空 → "跳过 .abyss" 断言必须转红；把 `chapterOrder` 查找改成恒 `undefined` → 排序断言转红。恢复后转绿。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add packages/fs-store
@@ -1004,7 +1004,7 @@ git commit -m "feat(fs-store): 作品目录扫描与章节排序"
   - `writeDocFile(root: string, relPath: string, content: string, expectedFingerprint: string): Promise<DocWriteResult>`
   - 写入语义：读盘算实际指纹 → 不等于 `expectedFingerprint` 则返回 `{ok:false, reason:"stale", currentFingerprint}` 且**不改文件**；相等则先把原内容备份到 `.abyss/changes/<ISO 时间戳>/<relPath>.bak`（文件不存在时 `backupRelPath: null`），再写新内容，返回 `{ok:true, fingerprint, backupRelPath}`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `test/read-write.test.ts`：
 ```ts
@@ -1076,7 +1076,7 @@ describe("writeDocFile", () => {
 
 Run: `corepack pnpm exec vitest run packages/fs-store --maxWorkers=4` → FAIL — `read-write.js` 不存在
 
-- [ ] **Step 2: 写实现**
+- [x] **Step 2: 写实现**
 
 `src/read-write.ts`：
 ```ts
@@ -1142,18 +1142,18 @@ export async function writeDocFile(
 
 `src/index.ts` 追加：`export * from "./read-write.js";`
 
-- [ ] **Step 3: 跑测试 + typecheck**
+- [x] **Step 3: 跑测试 + typecheck**
 
 Run: `corepack pnpm exec vitest run packages/fs-store --maxWorkers=4` → PASS 5 项
 Run: `corepack pnpm typecheck` → 无错误
 
-- [ ] **Step 4: 变异实验（本任务最关键，必须做）**
+- [x] **Step 4: 变异实验（本任务最关键，必须做）**
 
 抽掉备份分支（把 `if (current !== null)` 改成 `if (false)`）→ "写盘并备份原稿" 转红；
 把指纹比较改成恒相等 → "拒绝写入且文件一字不变" 转红。两条都验证后恢复，重跑转绿。
 在提交信息里写清"两条反向用例先红后绿 + 变异实验转红"。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add packages/fs-store
@@ -1175,7 +1175,7 @@ git commit -m "feat(fs-store): 指纹冲突检测写盘与落盘前备份"
   - `registerBookIpc(ipcMain, service): void`
   - 模块级单例 `activeBookRoot: string | null`（未打开书时任何 doc 调用返回 `io-error` 且中文消息"尚未打开作品目录"）
 
-- [ ] **Step 1: 建 desktop 骨架**
+- [x] **Step 1: 建 desktop 骨架**
 
 `apps/desktop/package.json`：
 ```json
@@ -1220,7 +1220,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 2: 写失败测试**
+- [x] **Step 2: 写失败测试**
 
 `src/main/book-service.test.ts`（node 环境，不启 electron）：
 ```ts
@@ -1305,7 +1305,7 @@ describe("bookService", () => {
 Run: `corepack pnpm install --prefer-offline && corepack pnpm exec vitest run apps/desktop/src/main --maxWorkers=4`
 Expected: FAIL — `book-service` 不存在
 
-- [ ] **Step 3: 写实现**
+- [x] **Step 3: 写实现**
 
 `src/main/book-service.ts`：
 ```ts
@@ -1436,17 +1436,17 @@ const api: RendererApi = {
 contextBridge.exposeInMainWorld("abyss", api);
 ```
 
-- [ ] **Step 4: 跑测试 + 边界门禁**
+- [x] **Step 4: 跑测试 + 边界门禁**
 
 Run: `corepack pnpm exec vitest run apps/desktop/src/main --maxWorkers=4` → PASS 4 项
 Run: `corepack pnpm lint:boundary` → 通过（electron import 只出现在 `apps/desktop`，不在 `packages/*`）
 
-- [ ] **Step 5: 变异实验**
+- [x] **Step 5: 变异实验**
 
 把 `writeDoc` 的 `if (!root)` 保护删掉 → "未打开书时" 用例转红；
 把 `open()` 里的 `parseBookMeta` 调用删掉 → "非法时抛中文错误" 转红。恢复转绿后提交。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add apps/desktop pnpm-lock.yaml
@@ -1468,7 +1468,7 @@ git commit -m "feat(desktop): 主进程 book-service 与 preload 白名单 IPC"
   - `actions = openBook(rootPath) / openDocTab(relPath) / closeTab(relPath) / browse(ref) / closeBrowse(relPath) / saveActive() / reloadActive() / onEdit(content) / refOf(relPath): DocRef | null`
   - **不变式（本任务要证明的）**：`browse()` 不改变 `docTabs`/`activeDocTab`/`draft`；`saveActive()` 在 `stale` 时设 `conflict` 且不更新 `savedFingerprint`
 
-- [ ] **Step 1: 建渲染层配置与入口**
+- [x] **Step 1: 建渲染层配置与入口**
 
 `apps/desktop/tsconfig.web.json`：
 ```json
@@ -1551,7 +1551,7 @@ body {
 }
 ```
 
-- [ ] **Step 2: 写 store 的失败测试**
+- [x] **Step 2: 写 store 的失败测试**
 
 `src/renderer/src/stores/useBookStore.test.ts`：
 ```ts
@@ -1643,7 +1643,7 @@ describe("useBookStore", () => {
 Run: `corepack pnpm exec vitest run apps/desktop/src/renderer --maxWorkers=4`
 Expected: FAIL — `useBookStore` 不存在
 
-- [ ] **Step 3: 写 store**
+- [x] **Step 3: 写 store**
 
 `src/renderer/src/stores/useBookStore.ts`：
 ```ts
@@ -1761,12 +1761,12 @@ export const useBookStore = defineStore("book", {
 });
 ```
 
-- [ ] **Step 4: 跑测试确认绿 + 变异实验**
+- [x] **Step 4: 跑测试确认绿 + 变异实验**
 
 Run: `corepack pnpm exec vitest run apps/desktop/src/renderer --maxWorkers=4` → PASS 4 项
 变异：把 `browse()` 里 `this.docTabs.push` 之类副作用加进去（误改文稿标签）→ "浏览不打断" 必须转红；把 `stale` 分支改成也更新 `savedFingerprint` → 冲突用例转红。恢复转绿。
 
-- [ ] **Step 5: 写三栏 UI（消费 store）**
+- [x] **Step 5: 写三栏 UI（消费 store）**
 
 `App.vue`：
 ```vue
@@ -2028,7 +2028,7 @@ button { background: var(--glass-strong); border: 1px solid var(--edge); border-
 </style>
 ```
 
-- [ ] **Step 6: 起 dev 真窗口冒烟 + 截图验收**
+- [x] **Step 6: 起 dev 真窗口冒烟 + 截图验收**
 
 ```bash
 corepack pnpm dev   # 后台起
@@ -2042,7 +2042,7 @@ corepack pnpm dev   # 后台起
 
 注意：computer-use 的 UIA Invoke 不触发 Vue `@click`，用坐标点击；停 dev 后还要 `taskkill electron`。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add apps/desktop
@@ -2057,7 +2057,7 @@ git commit -m "feat(renderer): 三栏壳、作品树、文稿/浏览双标签与
 - Modify: `package.json`（`verify` 脚本补 `lint:eslint`）
 - Create: `docs/superpowers/plans/README.md`（Plan 2/3 的入口说明）
 
-- [ ] **Step 1: 写计划索引**
+- [x] **Step 1: 写计划索引**
 
 `eslint.config.js`、`prettier.config.mjs`、`vitest.config.ts` 均已在 Task 1b 落地，本任务不重复创建；若 `pnpm lint:eslint` 报缺依赖，回到 Task 1b 的 devDependencies 清单补齐，不要新造规则集。
 
@@ -2070,25 +2070,25 @@ git commit -m "feat(renderer): 三栏壳、作品树、文稿/浏览双标签与
 - Plan 3（待写）：键位/权限档/打断排队 + 阶段装配与浏览不打断，对应 S5/S6。
 ```
 
-- [ ] **Step 2: 跑全量 verify 并回读退出码**
+- [x] **Step 2: 跑全量 verify 并回读退出码**
 
 Run: `corepack pnpm verify 2>&1 | tee /tmp/abyss-verify.log; grep VERIFY_EXIT /tmp/abyss-verify.log`
 Expected: `VERIFY_EXIT=0` 且测试总数 > 15。
 **不要把管道末端 `tail`/`tee` 的退出码当门禁码**——必须回读日志里的 `VERIFY_EXIT` 与用例总数。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add -A
 git commit -m "chore: 根测试与门禁配置，Plan 1 收尾"
 ```
 
-- [ ] **Step 4: 交付核对表（人工过一遍）**
+- [x] **Step 4: 交付核对表（人工过一遍）**
 
-- [ ] 能开真实作品目录、读五类文稿
-- [ ] 章节按 `chapterOrder` 排序，未登记章补末尾
-- [ ] 外部改动冲突时拒绝覆盖并备份原稿
-- [ ] 浏览素材不打断文稿（有测试 + 有截图）
-- [ ] `packages/*` 无 electron import（门禁绿）
-- [ ] 无单文件超 800 行（门禁绿）
-- [ ] 每个关键断言做过变异实验
+- [x] 能开真实作品目录、读五类文稿
+- [x] 章节按 `chapterOrder` 排序，未登记章补末尾
+- [x] 外部改动冲突时拒绝覆盖并备份原稿
+- [x] 浏览素材不打断文稿（有测试 + 有截图）
+- [x] `packages/*` 无 electron import（门禁绿）
+- [x] 无单文件超 800 行（门禁绿）
+- [x] 每个关键断言做过变异实验
