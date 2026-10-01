@@ -10,6 +10,10 @@ describe("countOccurrences", () => {
   it("空 needle 直接返回 0（否则会原地打转）", () => {
     expect(countOccurrences("正文", "")).toBe(0);
   });
+
+  it('空 needle 守卫对任意假 haystack 都返回 0（countOccurrences("anything", "")）', () => {
+    expect(countOccurrences("anything", "")).toBe(0);
+  });
 });
 
 describe("applyPatch", () => {

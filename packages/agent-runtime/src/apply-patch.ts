@@ -6,6 +6,8 @@ import type { PatchMode } from "@mochen/contracts";
  * - `ambiguous`：锚点出现多处，**必须判歧义且不产出新文本**，由上层把 `message` 回喂模型；
  * - `missing`：锚点为空或文中找不到，同样不产出新文本。
  * status/hits/message 三个字面值与文案是 Task 7/10/11 逐字消费的门面，改动需同步。
+ * 锚点按盘上字节逐字匹配（仓库约定 UTF-8+LF，不做任何换行归一化）：diff 侧才把 \r\n 归一，
+ * 这里 anchor 必须与文件里的字节一致才能命中。
  */
 export interface ApplyResult {
   status: "unique" | "ambiguous" | "missing";
