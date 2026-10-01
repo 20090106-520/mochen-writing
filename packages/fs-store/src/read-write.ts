@@ -32,7 +32,22 @@ export async function writeDocFile(
   }
 
   const target = path.join(root, ...safe.split("/"));
-  const current = await readFile(target, "utf8").catch(() => null);
+  // 只有 ENOENT 才是「这份稿子还没写过」；EBUSY/EACCES/EISDIR 说「这一秒读不到」。
+  // 把后者当成前者会跳过备份直接盖写，用户没备份的正文就没了——所以只窄化到 ENOENT，其余如实报 io。
+  let current: string | null;
+  try {
+    current = await readFile(target, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+      return {
+        ok: false,
+        reason: "io-error",
+        message:
+          `读 ${safe} 失败（${error instanceof Error ? error.message : String(error)}），` +
+          "没有覆盖任何内容。"
+      };
+    current = null;
+  }
 
   const currentFingerprint = makeFingerprint(current ?? "");
   if (currentFingerprint !== expectedFingerprint)

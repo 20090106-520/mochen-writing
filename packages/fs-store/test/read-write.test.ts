@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -62,6 +62,20 @@ describe("writeDocFile", () => {
     if (!result.ok) throw new Error("不该走到这里");
     expect(result.backupRelPath).toBeNull();
     expect(await readFile(path.join(root, "characters/新人物.md"), "utf8")).toBe("卡\n");
+  });
+
+  it("读失败但不是「不存在」（EISDIR）时判 io-error，绝不写成新稿也不留备份", async () => {
+    // 目标是个目录：readFile 报 EISDIR。把它当成「文件不存在」就等于允许无备份盲写。
+    const dir = path.join(root, "chapters", "占用中");
+    await mkdir(dir, { recursive: true });
+    const result = await writeDocFile(root, "chapters/占用中", "覆盖它\n", makeFingerprint(""));
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("读目录失败绝不能当成「文件不存在」写下去");
+    if (result.reason !== "io-error")
+      throw new Error(`读失败必须报 io-error，实际报了 ${result.reason}`);
+    expect(result.message).toContain("占用中");
+    expect((await stat(dir)).isDirectory()).toBe(true);
+    expect(await readdir(dir)).toEqual([]);
   });
 
   it("readDocFile 报缺失文件", async () => {

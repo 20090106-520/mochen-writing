@@ -86,6 +86,20 @@ describe("bookService", () => {
     await expect(service.saveMeta({} as never)).rejects.toThrow("尚未打开作品目录");
   });
 
+  it("saveMeta 刷新 current().meta，权限档改了审批时立刻查得到", async () => {
+    const service = createBookService();
+    const opened = await service.open(root);
+    const before = service.current();
+    if (before === null) throw new Error("打开后必须有快照");
+    expect(before.root).toBe(root);
+    expect(before.meta.title).toBe(opened.meta.title);
+    expect(before.docs.map((doc) => doc.relPath)).toEqual(["chapters/01-a.md"]);
+    await service.saveMeta({ ...before.meta, permissionMode: "chapter-write" });
+    expect(service.current()?.meta.permissionMode).toBe("chapter-write");
+    await service.close();
+    expect(service.current()).toBeNull();
+  });
+
   it("writeDoc 走指纹冲突：外部改动后拒绝", async () => {
     const service = createBookService();
     await service.open(root);

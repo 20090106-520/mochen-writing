@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -36,6 +36,26 @@ describe("sessionRelPath", () => {
   it("按 Codex rollout 布局分年月日", () => {
     const rel = sessionRelPath(new Date("2026-10-01T08:00:00.000Z"), "s-1");
     expect(rel).toBe(`${SESSIONS_DIR}/2026/10/01/rollout-20261001-080000-s-1.jsonl`);
+  });
+
+  it("sessionId 会被拼进路径，所以只认 [A-Za-z0-9._-]+：越界的一律拒绝而不是改名", () => {
+    expect(() => sessionRelPath(new Date("2026-10-01T08:00:00.000Z"), "s.1_2")).not.toThrow();
+    for (const bad of ["../../escape", "a/b", "a\\b", "", " ", "s-1.jsonl\u0000"]) {
+      expect(() => sessionRelPath(new Date("2026-10-01T08:00:00.000Z"), bad)).toThrow(/sessionId/);
+    }
+  });
+
+  it("越界 sessionId 建线程时如实失败，会话目录外一个文件都不多", async () => {
+    // 书根再嵌一层，八个 ../ 正好爬到 root 这一层：没有门禁时它会真的把会话写到那里。
+    const book = await mkdtemp(path.join(root, "book-"));
+    await expect(
+      createSession(book, { ...meta, sessionId: "../../../../../../../../escape" })
+    ).rejects.toThrow(/sessionId/);
+    expect(await readdir(root)).not.toContain("escape.jsonl");
+    await expect(createSession(book, { ...meta, sessionId: "a/b" })).rejects.toThrow(/sessionId/);
+    // 被拒绝的建线程连会话目录都不该建出来
+    const sessions = path.join(book, ...SESSIONS_DIR.split("/"));
+    expect(await readdir(sessions).catch(() => [])).toEqual([]);
   });
 });
 

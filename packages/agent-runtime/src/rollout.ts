@@ -16,7 +16,18 @@ function pad(value: number): string {
   return String(value).padStart(2, "0");
 }
 
+/**
+ * sessionId 会被拼进文件路径，所以只认一个文件名安全的形状。
+ * 越界的宁可当场拒绝，也绝不静默改名或把会话写到书目录外——调用方必须只会喂 randomUUID()。
+ */
+const SAFE_SESSION_ID = /^[A-Za-z0-9._-]+$/;
+
 export function sessionRelPath(now: Date, sessionId: string): string {
+  if (!SAFE_SESSION_ID.test(sessionId))
+    throw new Error(
+      `非法 sessionId（${JSON.stringify(sessionId)}）：只允许字母、数字与 . _ -，` +
+        "会话只会落在书内的 .mochen/sessions 下。"
+    );
   const y = String(now.getUTCFullYear());
   const m = pad(now.getUTCMonth() + 1);
   const d = pad(now.getUTCDate());
