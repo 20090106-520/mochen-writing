@@ -10,6 +10,12 @@ let root = "";
 let docs: DocRef[] = [];
 const CHAPTER = "chapters/01-开局.md";
 const CHAPTER_TEXT = "第一段\n雾从海面涌上来。\n第三段\n雾又从海面涌上来。\n";
+// 书外的真文件：路径尾巴和可写目录同形（chapters/*.md），且真实可读——
+// 用它把「绝对路径的拒」钉成「既没进提案管道（baselines 空）、也没被改写（末尾再读一次）」，
+// 而不是只对着一个不存在的路径形状自说自话。
+let outsideRoot = "";
+const OUTSIDE_REL = "chapters/01-开局.md";
+const OUTSIDE_TEXT = "盘外之书：这段正文不属于本书，host 永远不该读到它。\n";
 let collected: EditProposal[] = [];
 let baselines: string[] = [];
 let mode: PermissionMode = "read-only";
@@ -21,6 +27,9 @@ beforeAll(async () => {
   await writeFile(path.join(root, CHAPTER), CHAPTER_TEXT, "utf8");
   await writeFile(path.join(root, "characters", "李深.md"), "身份：守闸人\n", "utf8");
   docs = await scanBook(root);
+  outsideRoot = await mkdtemp(path.join(tmpdir(), "mochen-outside-"));
+  await mkdir(path.join(outsideRoot, "chapters"), { recursive: true });
+  await writeFile(path.join(outsideRoot, OUTSIDE_REL), OUTSIDE_TEXT, "utf8");
 });
 beforeEach(async () => {
   await writeFile(path.join(root, ...CHAPTER.split("/")), CHAPTER_TEXT, "utf8");
@@ -87,6 +96,14 @@ describe("read_doc / list_docs / search_docs", () => {
     const out = await host().call("search_docs", { query: "守闸人" });
     expect(out.ok).toBe(true);
     expect(out.text).toContain("characters/李深.md:1:");
+  });
+
+  it("search_docs 的 query 是空串时拒绝，而不是拿空串去全书逐行匹配", async () => {
+    // 空串 line.includes("") 恒真：少了这条守卫，回执会变成「命中 N 处」的全书倾倒。
+    const out = await host().call("search_docs", { query: "" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("非空");
+    expect(out.proposals).toEqual([]);
   });
 });
 
@@ -169,6 +186,16 @@ describe("propose_patch", () => {
     expect(collected).toEqual([]);
   });
 
+  it("doc 与 why 齐、anchor/replace 都缺时不产提案，applyPatch 的中文「锚点为空」原样回喂模型", async () => {
+    // host 不自己重写这句话（文案单点在 apply-patch.ts:42-48），只在后面附上「提案没有生成」的兜底说明。
+    const out = await host().call("propose_patch", { doc: CHAPTER, why: "模型漏了锚点" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("锚点为空");
+    expect(out.proposals).toEqual([]);
+    expect(collected).toEqual([]);
+    expect(baselines).toEqual([]);
+  });
+
   it("source 为 text-block 时提案记下来源", async () => {
     const out = await host().call("propose_patch", {
       doc: CHAPTER,
@@ -222,6 +249,54 @@ describe("write_doc", () => {
     expect(out.proposals[0]?.mode).toBe("doc-overwrite");
     expect(out.proposals[0]?.tool).toBe("write_doc");
     expect(await chapterFile()).toBe(CHAPTER_TEXT);
+  });
+
+  it("全开档下 write_doc 写入与盘上一字不差的原文（空差异）被拒，不产出提案", async () => {
+    // carry-in (a)（Task 5 → Task 10）：doc-overwrite 支的空差异门（host:183-184）与
+    // anchor 支（host:211-212）是两条互斥路径，各需一条用例钉住；这条走 write_doc。
+    mode = "full-access";
+    const out = await host().call("write_doc", {
+      doc: CHAPTER,
+      content: CHAPTER_TEXT,
+      why: "整篇按原文重写一遍"
+    });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("文字未发生变化");
+    expect(out.proposals).toEqual([]);
+    expect(collected).toEqual([]);
+    expect(baselines).toEqual([]);
+    expect(await chapterFile()).toBe(CHAPTER_TEXT);
+  });
+
+  it("边界：Windows 绝对路径的 doc 在路径门就被拒，书外那个真文件既没被读也没被动", async () => {
+    mode = "full-access";
+    const outside = path.join(outsideRoot, ...OUTSIDE_REL.split("/"));
+    const out = await host().call("write_doc", {
+      doc: outside,
+      content: "覆盖书外文件",
+      why: "试着越过书目录"
+    });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("非法路径");
+    expect(out.proposals).toEqual([]);
+    expect(collected).toEqual([]);
+    // baselines 为空 = 没有任何书外正文被交给提案管道（读发生在门禁之后）
+    expect(baselines).toEqual([]);
+    expect(await readFile(outside, "utf8")).toBe(OUTSIDE_TEXT);
+  });
+
+  it("边界：POSIX 绝对路径的 doc（/etc/passwd 形）同样被路径门拒，零提案", async () => {
+    mode = "full-access";
+    const out = await host().call("write_doc", {
+      doc: "/etc/passwd",
+      content: "越界",
+      why: "试着读系统文件"
+    });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("非法路径");
+    expect(out.proposals).toEqual([]);
+    expect(collected).toEqual([]);
+    expect(baselines).toEqual([]);
   });
 
   it("可改当前章档下，别章的 write_doc 被拒", async () => {
