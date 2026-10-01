@@ -151,7 +151,7 @@ Task 11 的 `promptFor()` 是临时最小装配（角色 + 当前档 + 当前章
 - Consumes: `PERMISSION_MODES`/`PermissionMode`（`permission.ts`）、`BookKind`（`book.ts`）
 - Produces:
   - `AGENT_TOOL_NAMES: readonly ["read_doc","list_docs","search_docs","propose_patch","write_doc"]`、`AgentToolName`、`WRITE_TOOLS`
-  - `EditProposal` + `editProposalSchema`；`PatchMode`/`PROPOSAL_MODES`、`ProposalStatus`/`PROPOSAL_STATUSES`/`PROPOSAL_STATUS_LABELS`、`ProposalDecision`/`PROPOSAL_DECISIONS`
+  - `EditProposal` + `editProposalSchema`；`PatchMode`/`PATCH_MODES`、`ProposalStatus`/`PROPOSAL_STATUSES`/`PROPOSAL_STATUS_LABELS`、`ProposalDecision`/`PROPOSAL_DECISIONS`
   - `AgentEvent` + `agentEventSchema`、`SessionMeta` + `sessionMetaSchema`、`AgentOutbound`、`TurnEndStatus`
   - `StartTurnInput`、`DecideInput` + `decideInputSchema`、`DecisionResult`
   - `ProviderConfig`/`providerConfigSchema`、`ProviderDraft`/`providerDraftSchema`、`ProviderView`、`maskApiKey(key: string): string`
@@ -267,7 +267,7 @@ describe("provider 与掩码", () => {
   });
 
   it("掩码只露末 4 位且长度不足时全遮", () => {
-    expect(maskApiKey("sk-abcdefg")).toBe("••••cdefg");
+    expect(maskApiKey("sk-abcdefg")).toBe("••••defg");
     expect(maskApiKey("ab")).toBe("••••");
   });
 
