@@ -700,4 +700,29 @@ describe("agentService 全链", () => {
       })
     ).toContain("还没打开文稿");
   });
+
+  it("空 userText 在开轮前就被边界校验挡下：中文报错，一个字节都没落盘", async () => {
+    const { service, writes } = await build(sseFetch(proposeChunks));
+    await expect(
+      service.startTurn({ threadKey: CHAPTER, docRelPath: CHAPTER, stageId: "draft", userText: "" })
+    ).rejects.toThrow(/输入内容不能为空/);
+    expect(writes).toEqual([]);
+    expect(await chapterFile()).toBe(CHAPTER_TEXT);
+    service.dispose();
+  });
+
+  it("超长 userText 在开轮前就被边界校验挡下：中文报错，一个字节都没落盘", async () => {
+    const { service, writes } = await build(sseFetch(proposeChunks));
+    await expect(
+      service.startTurn({
+        threadKey: CHAPTER,
+        docRelPath: CHAPTER,
+        stageId: "draft",
+        userText: "写".repeat(20001)
+      })
+    ).rejects.toThrow(/输入内容过长/);
+    expect(writes).toEqual([]);
+    expect(await chapterFile()).toBe(CHAPTER_TEXT);
+    service.dispose();
+  });
 });

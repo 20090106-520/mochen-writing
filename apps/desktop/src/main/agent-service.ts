@@ -3,6 +3,7 @@ import {
   DEFAULT_PERMISSION_MODE,
   PERMISSION_LABELS,
   decideInputSchema,
+  startTurnInputSchema,
   type AgentEvent,
   type AgentOutbound,
   type DecideInput,
@@ -374,6 +375,8 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
 
   return {
     async startTurn(input: StartTurnInput): Promise<{ turnId: string }> {
+      // 渲染层可控输入进服务边界的校验，与 decide 同层：换 preload 也换不掉这一层。
+      startTurnInputSchema.parse(input);
       const turnId = deps.newId();
       const threadKey = input.threadKey.trim() === "" ? UNBOUND : input.threadKey.trim();
       const docRelPath = input.docRelPath ?? null;

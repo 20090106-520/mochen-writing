@@ -93,13 +93,19 @@ export type AgentOutbound =
       message: string;
     };
 
-export interface StartTurnInput {
-  threadKey: string;
+/**
+ * 渲染层可控输入进入服务边界的校验（与 decideInputSchema 同层）：
+ * 空/超长的 userText、缺失的 threadKey/stageId 都要在落盘前被挡下，
+ * 且每条错误都是用户看得见的中文。字段名与可选性和原 interface 一字不改。
+ */
+export const startTurnInputSchema = z.object({
+  threadKey: z.string().min(1, "会话线程标识不能为空").max(200, "会话线程标识过长（最多 200 字）"),
   /** null = 还没打开文稿标签，此时只能问不能改。 */
-  docRelPath: string | null;
-  stageId: string;
-  userText: string;
-}
+  docRelPath: z.string().nullable(),
+  stageId: z.string().min(1, "创作阶段标识不能为空").max(200, "创作阶段标识过长（最多 200 字）"),
+  userText: z.string().min(1, "输入内容不能为空").max(20000, "输入内容过长（最多 20000 字）")
+});
+export type StartTurnInput = z.infer<typeof startTurnInputSchema>;
 
 export const decideInputSchema = z
   .object({
