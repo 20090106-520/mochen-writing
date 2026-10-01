@@ -10,6 +10,7 @@
     "test": "vitest run src/main --maxWorkers=4"
   },
   "dependencies": {
+    "@mochen/agent-runtime": "workspace:*",
     "@mochen/contracts": "workspace:*",
     "@mochen/fs-store": "workspace:*",
     "pinia": "catalog:",

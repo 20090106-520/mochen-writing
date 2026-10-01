@@ -95,6 +95,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@mochen/agent-runtime':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime
       '@mochen/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -126,6 +129,19 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@types/node@26.0.1)(vite@8.1.0(@types/node@26.0.1))
+
+  packages/agent-runtime:
+    dependencies:
+      '@mochen/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@types/node@26.0.1)(vite@8.3.1(@types/node@26.0.1))
 
   packages/contracts:
     dependencies:

@@ -6,7 +6,9 @@ export default defineConfig({
   main: {
     build: {
       lib: { entry: "src/main/index.ts" },
-      externalizeDeps: { exclude: ["@mochen/contracts", "@mochen/fs-store"] }
+      externalizeDeps: {
+        exclude: ["@mochen/contracts", "@mochen/fs-store", "@mochen/agent-runtime"]
+      }
     }
   },
   preload: {
