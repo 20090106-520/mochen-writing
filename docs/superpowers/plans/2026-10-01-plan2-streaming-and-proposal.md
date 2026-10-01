@@ -157,7 +157,7 @@ Task 11 的 `promptFor()` 是临时最小装配（角色 + 当前档 + 当前章
   - `ProviderConfig`/`providerConfigSchema`、`ProviderDraft`/`providerDraftSchema`、`ProviderView`、`maskApiKey(key: string): string`
   - `IPC_CHANNELS` 追加：`agentStartTurn`/`agentInterrupt`/`agentDecide`/`agentEvent`/`agentDiff`/`providerGet`/`providerSave`
 
-- [ ] **Step 1：先写会红的测试**
+- [x] **Step 1：先写会红的测试**
 
 `packages/contracts/test/agent.test.ts`：
 
@@ -277,12 +277,12 @@ describe("provider 与掩码", () => {
 });
 ```
 
-- [ ] **Step 2：跑到红**
+- [x] **Step 2：跑到红**
 
 Run: `corepack pnpm vitest run packages/contracts/test/agent.test.ts --maxWorkers=4`
 Expected: FAIL —— `agentEventSchema` 等具名导出不存在（`SyntaxError ... does not provide an export named`）。
 
-- [ ] **Step 3：`packages/contracts/src/tools.ts`**
+- [x] **Step 3：`packages/contracts/src/tools.ts`**
 
 ```ts
 export const AGENT_TOOL_NAMES = ["read_doc", "list_docs", "search_docs", "propose_patch", "write_doc"] as const;
@@ -297,7 +297,7 @@ export function isWriteTool(name: AgentToolName): name is WriteToolName {
 }
 ```
 
-- [ ] **Step 4：`patch.ts` 整体改写**
+- [x] **Step 4：`patch.ts` 整体改写**
 
 ```ts
 import { z } from "zod";
@@ -348,7 +348,7 @@ export const PROPOSAL_STATUS_LABELS: Record<ProposalStatus, string> = {
 };
 ```
 
-- [ ] **Step 5：`agent-event.ts`**
+- [x] **Step 5：`agent-event.ts`**
 
 ```ts
 import { z } from "zod";
@@ -463,7 +463,7 @@ export type DecisionResult =
     };
 ```
 
-- [ ] **Step 6：`provider.ts`**
+- [x] **Step 6：`provider.ts`**
 
 ```ts
 import { z } from "zod";
@@ -506,7 +506,7 @@ export function maskApiKey(key: string): string {
 > }
 > ```
 
-- [ ] **Step 7：`ipc.ts` 追加通道 + `index.ts` 追加 re-export**
+- [x] **Step 7：`ipc.ts` 追加通道 + `index.ts` 追加 re-export**
 
 `IPC_CHANNELS` 里加（既有的 5 个键一个不动，只在末尾追加，`as const` 保持）：
 
@@ -533,20 +533,20 @@ export * from "./agent-event.js";
 export * from "./provider.js";
 ```
 
-- [ ] **Step 8：跑到绿并过 prettier/tsc**
+- [x] **Step 8：跑到绿并过 prettier/tsc**
 
 Run: `corepack pnpm vitest run packages/contracts/test/agent.test.ts --maxWorkers=4`
 Expected: PASS（11 个用例）。
 Run: `corepack pnpm prettier --write packages/contracts && corepack pnpm tsc --noEmit -p packages/contracts/tsconfig.json`
 Expected: 无诊断。
 
-- [ ] **Step 9：变异实验**
+- [x] **Step 9：变异实验**
 
 把 `agent-event.ts` 里 `decision` 分支的 `auto: z.boolean()` 删掉再跑测试 ——
 必须转红（`proposal`/`decision` 用例之一）。恢复后 `git diff --exit-code packages/contracts/src` 必须空。
 理由：`auto` 是「自动批准规则生效」的唯一凭据，丢了它 §6 的 `a`/`p` 两态在审计日志里就与手点无法区分。
 
-- [ ] **Step 10：提交**
+- [x] **Step 10：提交**
 
 ```bash
 git add packages/contracts
@@ -568,7 +568,7 @@ git commit -m "feat(contracts): Agent 事件流、提案 v2 与 provider 视图�
 - Produces: `sseDataFrames(bytes: AsyncIterable<Uint8Array>): AsyncGenerator<string>` —— 产出每个 SSE 消息的
   `data` 文本（多行 data 以 `\n` 拼接），遇 `[DONE]` 终止，注释行与非 `data:` 字段忽略。
 
-- [ ] **Step 1：包骨架**
+- [x] **Step 1：包骨架**
 
 `packages/agent-runtime/package.json`：
 
@@ -614,13 +614,13 @@ externalizeDeps: { exclude: ["@mochen/contracts", "@mochen/fs-store", "@mochen/a
 
 主进程那一处 `exclude` 改完即可；`preload` 段不动（preload 只用 contracts）。
 
-- [ ] **Step 2：装依赖（离线可达）**
+- [x] **Step 2：装依赖（离线可达）**
 
 Run: `corepack pnpm install`
 Expected: 只有 workspace 链接变更（`@mochen/agent-runtime -> @mochen/contracts`），不下载任何包。
 若 pnpm 试图联网抓 registry，说明 catalog 版本没对上——停下来核对 `pnpm-workspace.yaml`，不要硬装。
 
-- [ ] **Step 3：写红的测试**
+- [x] **Step 3：写红的测试**
 
 `packages/agent-runtime/test/sse.test.ts`：
 
@@ -680,7 +680,7 @@ describe("sseDataFrames", () => {
 
 Run: `corepack pnpm vitest run packages/agent-runtime --maxWorkers=4` → FAIL（`src/sse.ts` 空）。
 
-- [ ] **Step 4：`src/sse.ts`**
+- [x] **Step 4：`src/sse.ts`**
 
 ```ts
 const BOUNDARIES = ["\r\n\r\n", "\n\n", "\r\r"] as const;
@@ -726,18 +726,18 @@ export async function* sseDataFrames(bytes: AsyncIterable<Uint8Array>): AsyncGen
 }
 ```
 
-- [ ] **Step 5：跑到绿 + 门禁确认新包被自动覆盖**
+- [x] **Step 5：跑到绿 + 门禁确认新包被自动覆盖**
 
 Run: `corepack pnpm vitest run packages/agent-runtime --maxWorkers=4` → PASS（7 用例）。
 Run: `corepack pnpm lint:boundary && echo BOUNDARY_EXIT=0 && corepack pnpm lint:budget && echo BUDGET_EXIT=0`
 Expected: 两个 EXIT 都出现（`tools/check-package-boundary.mjs` 遍历 `packages`，新包自动在射程内）。
 
-- [ ] **Step 6：变异实验**
+- [x] **Step 6：变异实验**
 
 把 `frameData` 里 `line.startsWith(":")` 这个条件删掉 → 「注释…被忽略」用例必须转红
 （`: ping` 会被当成 data 产出）。恢复后 `git diff --exit-code packages/agent-runtime/src` 必须空。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```bash
 git add packages/agent-runtime package.json pnpm-lock.yaml apps/desktop/package.json apps/desktop/electron.vite.config.ts
@@ -761,7 +761,7 @@ git commit -m "feat(runtime): 新增 agent-runtime 包与 SSE 帧解析"
   - `streamChat(req: StreamRequest): AsyncGenerator<StreamEvent>`
   - `class ProviderError extends Error`
 
-- [ ] **Step 1：`src/chat-message.ts`**
+- [x] **Step 1：`src/chat-message.ts`**
 
 ```ts
 export type ChatRole = "system" | "user" | "assistant" | "tool";
@@ -811,7 +811,7 @@ export function toWireMessages(messages: ChatMessage[]): Record<string, unknown>
 }
 ```
 
-- [ ] **Step 2：写红的测试**
+- [x] **Step 2：写红的测试**
 
 `packages/agent-runtime/test/provider-client.test.ts`：
 
@@ -957,7 +957,7 @@ describe("streamChat", () => {
 });
 ```
 
-- [ ] **Step 3：`src/provider-client.ts`**
+- [x] **Step 3：`src/provider-client.ts`**
 
 ```ts
 import { sseDataFrames } from "./sse.js";
@@ -1113,19 +1113,19 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
 }
 ```
 
-- [ ] **Step 4：跑到绿**
+- [x] **Step 4：跑到绿**
 
 Run: `corepack pnpm vitest run packages/agent-runtime/test/provider-client.test.ts --maxWorkers=4`
 Expected: PASS（7 用例）。若 `Object.keys(body)` 顺序断言红，说明 payload 组装顺序变了——按实现顺序改正断言，
 不要放松成 `toContain`（这条就是在钉「不把密钥塞进 body 之外的位置」）。
 
-- [ ] **Step 5：变异实验（两处）**
+- [x] **Step 5：变异实验（两处）**
 
 1. 删掉 `if (req.signal.aborted) { yield finish aborted; return; }` 的 abort 分支 → abort 用例必须红。
 2. 把 `headers.Authorization = Bearer` 改成把密钥拼进 `completionsUrl` → 「密钥只进 header」用例必须红。
    恢复后 `git diff --exit-code packages/agent-runtime/src` 必须空。
 
-- [ ] **Step 6：`src/index.ts` 追加 re-export 并提交**
+- [x] **Step 6：`src/index.ts` 追加 re-export 并提交**
 
 ```ts
 export * from "./chat-message.js";
@@ -1153,7 +1153,7 @@ git commit -m "feat(runtime): OpenAI 兼容流式客户端与增量合并"
   `ProtocolProblem = { reason: "bad-json" | "missing-field" | "unclosed-fence"; detail: string }`。
   另出 `protocolBlockHint: string`（一段给模型的中文说明，Task 11 的临时提示词直接引用）。
 
-- [ ] **Step 1：写红的测试**
+- [x] **Step 1：写红的测试**
 
 `packages/agent-runtime/test/patch-protocol.test.ts`：
 
@@ -1235,7 +1235,7 @@ describe("parseProtocolBlocks", () => {
 
 Run: `corepack pnpm vitest run packages/agent-runtime/test/patch-protocol.test.ts --maxWorkers=4` → FAIL。
 
-- [ ] **Step 2：`src/patch-protocol.ts`**
+- [x] **Step 2：`src/patch-protocol.ts`**
 
 ```ts
 import type { PatchMode } from "@mochen/contracts";
@@ -1364,18 +1364,18 @@ export function parseProtocolBlocks(text: string): ProtocolParseResult {
 }
 ```
 
-- [ ] **Step 3：跑到绿**
+- [x] **Step 3：跑到绿**
 
 Run: `corepack pnpm vitest run packages/agent-runtime/test/patch-protocol.test.ts --maxWorkers=4`
 Expected: PASS（9 用例）。
 
-- [ ] **Step 4：变异实验**
+- [x] **Step 4：变异实验**
 
 把 `match[1]?.length >= open.marker.length` 改成 `match[1]?.length === open.marker.length` 之外的
 「任何围栏都闭合」（即删掉长度比较，只判 `info === ""`）→ 「内部更短的围栏算内容」用例必须红。
 恢复后 `git diff --exit-code` 空。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add packages/agent-runtime
@@ -1398,7 +1398,7 @@ git commit -m "feat(runtime): mochen-patch/mochen-plan 双路文本块协议解�
   - `applyPatch(doc: string, mode: PatchMode, anchor: string, replace: string): ApplyResult`
   - `diffLines(before: string, after: string): DiffOp[]`、`unifiedDiff(before, after, relPath, context?: number): string`
 
-- [ ] **Step 1：写红的测试（两个文件）**
+- [x] **Step 1：写红的测试（两个文件）**
 
 `packages/agent-runtime/test/apply-patch.test.ts`：
 
@@ -1515,7 +1515,7 @@ describe("unifiedDiff", () => {
 
 Run: `corepack pnpm vitest run packages/agent-runtime/test/apply-patch.test.ts packages/agent-runtime/test/diff.test.ts --maxWorkers=4` → FAIL。
 
-- [ ] **Step 2：`src/apply-patch.ts`**
+- [x] **Step 2：`src/apply-patch.ts`**
 
 ```ts
 import type { PatchMode } from "@mochen/contracts";
@@ -1579,7 +1579,7 @@ export function applyPatch(doc: string, mode: PatchMode, anchor: string, replace
 > return { status: "unique", content: `${doc.slice(0, at)}${replace}${doc.slice(at + anchor.length)}`, hits: 1, message: "锚点唯一命中" };
 > ```
 
-- [ ] **Step 3：`src/diff.ts`**
+- [x] **Step 3：`src/diff.ts`**
 
 ```ts
 export interface DiffOp {
@@ -1710,17 +1710,17 @@ export function unifiedDiff(before: string, after: string, relPath: string, cont
 > 两段改动之间的 `eq` 行若被上下文覆盖仍属同一段，所以「两处远距改动」用例要求间距 > 2×context
 > （测试里的第 1 行与第 6 行满足）。若绿不了，先打印 `tagged`/`keep` 再改，不要改断言凑绿。
 
-- [ ] **Step 4：跑到绿**
+- [x] **Step 4：跑到绿**
 
 Run: `corepack pnpm vitest run packages/agent-runtime/test/apply-patch.test.ts packages/agent-runtime/test/diff.test.ts --maxWorkers=4`
 Expected: PASS（6 + 7 用例）。
 
-- [ ] **Step 5：变异实验**
+- [x] **Step 5：变异实验**
 
 把 `applyPatch` 里 `if (hits > 1)` 分支删掉 → 歧义锚点必须变红（且它正是 §6.1 与风险表第 3 行的命门）。
 恢复后 `git diff --exit-code` 空。
 
-- [ ] **Step 6：`src/index.ts` 全量导出 + 提交**
+- [x] **Step 6：`src/index.ts` 全量导出 + 提交**
 
 每个任务新增模块时都要在同一个任务里给 `src/index.ts` 追加一行——漏导出会让 Task 10/11 的
 import 报「没有该导出」。到这里 `src/index.ts` 的完整内容是：
@@ -1757,7 +1757,7 @@ git commit -m "feat(runtime): 锚点三态应用与 unified diff"
   - `findLatestSession(root, docRelPath): Promise<string | null>`
   - `eventsToMessages(events): ChatMessage[]`
 
-- [ ] **Step 1：写红的测试**
+- [x] **Step 1：写红的测试**
 
 `packages/agent-runtime/test/rollout.test.ts`：
 
@@ -1901,7 +1901,7 @@ function proposalFixture() {
 }
 ```
 
-- [ ] **Step 2：`src/rollout.ts`**
+- [x] **Step 2：`src/rollout.ts`**
 
 ```ts
 import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
@@ -2054,17 +2054,17 @@ export function eventsToMessages(events: AgentEvent[]): ChatMessage[] {
 > `safeParse(null)` 必然失败并计入 `droppedLines`，因此坏行既不会抛也不会静默消失——
 > 这正是用例里 `[2, 3]` 的由来。
 
-- [ ] **Step 3：跑到绿**
+- [x] **Step 3：跑到绿**
 
 Run: `corepack pnpm vitest run packages/agent-runtime/test/rollout.test.ts --maxWorkers=4`
 Expected: PASS（6 用例）。
 
-- [ ] **Step 4：变异实验**
+- [x] **Step 4：变异实验**
 
 把 `findLatestSession` 的 `parsed.data.docRelPath !== docRelPath` 判断删掉 →
 「同一章找回自己的线程」必须红（会返回任意最新文件）。恢复后 `git diff --exit-code` 空。
 
-- [ ] **Step 5：`src/index.ts` 追加 + 提交**
+- [x] **Step 5：`src/index.ts` 追加 + 提交**
 
 ```ts
 export * from "./rollout.js";
@@ -2094,7 +2094,7 @@ git commit -m "feat(runtime): 会话 JSONL 落盘与历史重建"
   - `dispatchToolCall(host, call: AssistantToolCall): Promise<ToolOutcome>`
   - `toolNameOf(name: string): AgentToolName | null`
 
-- [ ] **Step 1：写红的测试**
+- [x] **Step 1：写红的测试**
 
 `packages/agent-runtime/test/permission.test.ts`：
 
@@ -2204,7 +2204,7 @@ describe("dispatchToolCall", () => {
 });
 ```
 
-- [ ] **Step 2：`src/permission.ts`**
+- [x] **Step 2：`src/permission.ts`**
 
 ```ts
 import { PERMISSION_LABELS, type PermissionMode } from "@mochen/contracts";
@@ -2253,7 +2253,7 @@ export function checkWritePermission(input: WritePermissionInput): WritePermissi
 }
 ```
 
-- [ ] **Step 3：`src/tools.ts`**
+- [x] **Step 3：`src/tools.ts`**
 
 ```ts
 import type { AgentToolName, EditProposal, PermissionMode } from "@mochen/contracts";
@@ -2342,17 +2342,17 @@ export async function dispatchToolCall(host: ToolHost, call: AssistantToolCall):
 }
 ```
 
-- [ ] **Step 4：跑到绿 + 门禁**
+- [x] **Step 4：跑到绿 + 门禁**
 
 Run: `corepack pnpm vitest run packages/agent-runtime --maxWorkers=4` → PASS（含前 5 个任务的所有用例）。
 Run: `corepack pnpm lint:boundary && echo BOUNDARY_EXIT=0`（`agent-runtime` 全程无 electron import）。
 
-- [ ] **Step 5：变异实验**
+- [x] **Step 5：变异实验**
 
 给 `TOOL_SPECS` 追加一个 `delete_drafts` 工具 → 「恰好五个工具」用例必须红。删掉后恢复绿。
 这条断言是 §5.1 约束 2（花名册不加工具）与 §6（工具集 5 个）的永久关卡，留着别删。
 
-- [ ] **Step 6：`src/index.ts` 追加 + 提交**
+- [x] **Step 6：`src/index.ts` 追加 + 提交**
 
 ```ts
 export * from "./permission.js";
@@ -2384,7 +2384,7 @@ git commit -m "feat(runtime): 三档权限判定与五工具派发层"
   - `TurnOutcome = { status: "done" | "interrupted" | "failed"; message: string }`
   - `runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOutcome>`
 
-- [ ] **Step 1：写红的测试**
+- [x] **Step 1：写红的测试**
 
 `packages/agent-runtime/test/tool-loop.test.ts`：
 
@@ -2610,7 +2610,7 @@ describe("runTurn", () => {
 });
 ```
 
-- [ ] **Step 2：`src/tool-loop.ts`**
+- [x] **Step 2：`src/tool-loop.ts`**
 
 ```ts
 import type {
@@ -2807,7 +2807,7 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
 }
 ```
 
-- [ ] **Step 3：跑到绿**
+- [x] **Step 3：跑到绿**
 
 Run: `corepack pnpm vitest run packages/agent-runtime/test/tool-loop.test.ts --maxWorkers=4`
 Expected: PASS（7 用例）。两条易踩的点：
@@ -2816,14 +2816,14 @@ Expected: PASS（7 用例）。两条易踩的点：
 2. `makeDeps` 与失败用例的内联 deps 都要带 `provider: { baseURL: "http://x/v1", apiKey: "k", model: "m" }`，
    否则 `TurnDeps` 少属性直接编译红。
 
-- [ ] **Step 4：变异实验（两处，对应 spec §10 点名的两个抽除点）**
+- [x] **Step 4：变异实验（两处，对应 spec §10 点名的两个抽除点）**
 
 1. 删掉 abort 分支里 `emitSimple({ type: "interrupted", pendingProposals })` → 「打断」用例必须红。
 2. 把 `if (collected.reasoning !== "") emitSimple({ type: "reasoning", ..., interrupted: aborted })` 的
    `interrupted: aborted` 改成 `interrupted: false` → 「打断」用例的 `interrupted === true` 断言必须红。
    恢复后 `git diff --exit-code packages/agent-runtime/src` 必须空。
 
-- [ ] **Step 5：`src/index.ts` 追加 + 全链门禁 + 提交**
+- [x] **Step 5：`src/index.ts` 追加 + 全链门禁 + 提交**
 
 ```ts
 export * from "./tool-loop.js";
@@ -2855,7 +2855,7 @@ git commit -m "feat(runtime): 工具循环与打断残留规则"
     `ProviderSettings = { view(): Promise<ProviderView>; config(): Promise<ProviderConfig | null>; apiKey(): Promise<string | null>; save(draft: ProviderDraft): Promise<ProviderView> }`
   - `electronCipher`（Task 11 里在 index.ts 现场包 `safeStorage`，本任务不提供，避免 import electron 进单测）
 
-- [ ] **Step 1：写红的测试**
+- [x] **Step 1：写红的测试**
 
 `apps/desktop/src/main/credential-store.test.ts`：
 
@@ -2994,7 +2994,7 @@ describe("providerSettings", () => {
 });
 ```
 
-- [ ] **Step 2：`credential-store.ts`**
+- [x] **Step 2：`credential-store.ts`**
 
 ```ts
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -3046,7 +3046,7 @@ export function createCredentialStore(dir: string, cipher: Cipher): CredentialSt
 }
 ```
 
-- [ ] **Step 3：`provider-settings.ts`**
+- [x] **Step 3：`provider-settings.ts`**
 
 ```ts
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -3122,18 +3122,18 @@ export function createProviderSettings(deps: { dir: string; credentials: Credent
 }
 ```
 
-- [ ] **Step 4：跑到绿**
+- [x] **Step 4：跑到绿**
 
 Run: `corepack pnpm vitest run apps/desktop/src/main --maxWorkers=4`
 Expected: PASS（含 Plan 1 的 8 个既有用例 + 本任务 10 个）。
 
-- [ ] **Step 5：变异实验**
+- [x] **Step 5：变异实验**
 
 删掉 `save()` 里 `if (!cipher.available) throw` 那两行 → 「不可用时拒绝落盘，且目录里不留下任何文件」必须红
 （`readdir` 会多出 `secrets.enc`）。这条断言是「密钥以明文躺在 %APPDATA%」和「不躺」之间唯一的墙，
 不许用 try/catch 兜住降级成明文写入。恢复后 `git diff --exit-code apps/desktop/src/main` 空。
 
-- [ ] **Step 6：提交**
+- [x] **Step 6：提交**
 
 ```bash
 git add apps/desktop/src/main
@@ -3156,7 +3156,7 @@ git commit -m "feat(main): safeStorage 密钥存储与模型设置（视图只�
   - `createDocToolHost(deps: DocToolHostDeps): ToolHost`
   - `READ_TRUNCATE_AT = 6000`
 
-- [ ] **Step 1：写红的测试**
+- [x] **Step 1：写红的测试**
 
 `apps/desktop/src/main/doc-tools-host.test.ts`：
 
@@ -3335,7 +3335,7 @@ async function chapterFile(): Promise<string> {
 > `chapterFile()` 放在测试末尾（vitest 的函数声明会提升，用例里先用它没问题）。
 > 顶部 import 必须含 `readFile`：`import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";`
 
-- [ ] **Step 2：`doc-tools-host.ts`**
+- [x] **Step 2：`doc-tools-host.ts`**
 
 ```ts
 import path from "node:path";
@@ -3540,19 +3540,19 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
 > 2. `expectedFingerprint` 是**提案生成那一刻**读到的文件指纹；审批时（Task 11）拿它跟盘上
 >    当前指纹比，不等就判 stale。这是「模型不能覆盖人刚写过的东西」的唯一凭据。
 
-- [ ] **Step 3：跑到绿**
+- [x] **Step 3：跑到绿**
 
 Run: `corepack pnpm vitest run apps/desktop/src/main/doc-tools-host.test.ts --maxWorkers=4`
 Expected: PASS（12 用例）。
 
-- [ ] **Step 4：变异实验**
+- [x] **Step 4：变异实验**
 
 把 `propose_patch` 分支里 `applyPatch(...)` 之后那句 `deps.onProposal(item, body ?? "")` 前面
 插入一行 `await writeFile(路径, applied.content)`（也就是"顺手写盘"）→
 「文件字节一字不变」用例必须红。然后删掉这行恢复。
 这条实验直接验铁律：**唯一能写盘的代码路径不在这个 host 里**。恢复后 `git diff --exit-code` 空。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add apps/desktop/src/main
@@ -3585,7 +3585,7 @@ git commit -m "feat(main): fs 版工具 host（读/列/检索/提案，永不写
   - `electronCipher(storage: SafeStorageLike): Cipher`、`toProviderFetch(send): ProviderFetch`
   - `BookService` 新增 `current(): BookSnapshot | null`，`BookSnapshot = { root: string; meta: BookMeta; docs: DocRef[] }`
 
-- [ ] **Step 1：写红的集成测试（spec §10 的全链断言就在这里）**
+- [x] **Step 1：写红的集成测试（spec §10 的全链断言就在这里）**
 
 `apps/desktop/src/main/agent-service.test.ts`：
 
@@ -3951,7 +3951,7 @@ describe("agentService 全链", () => {
 > 不写死 `id3`/`id4`——写死会让任何一次实现顺序调整变成假红灯，而事件**顺序**本身是 §10 要的验收，
 > 那个才不许改。
 
-- [ ] **Step 2：给 `BookService` 加 `current()`（本任务对 Plan 1 代码唯一的改动）**
+- [x] **Step 2：给 `BookService` 加 `current()`（本任务对 Plan 1 代码唯一的改动）**
 
 `agent-service` 与 `doc-tools-host` 都要在运行期现取「当前书目录 + 当前 meta + 当前文稿清单」：
 权限档来自 `meta.permissionMode`（用户随时在设置里改），文稿清单来自 `docs`。
@@ -4064,7 +4064,7 @@ export function createBookService(): BookService {
 > `openedBook()` 是既有测试文件里已有的建书助手；若那个文件用的是内联临时目录，就把上面这段
 > 改成同样的内联写法，**不要**为了两条断言重构整个既有测试文件。
 
-- [ ] **Step 3：`agent-service.ts`（完整实现，不留骨架）**
+- [x] **Step 3：`agent-service.ts`（完整实现，不留骨架）**
 
 ```ts
 import {
@@ -4468,7 +4468,7 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
 > `emitOnly` 只用在「没开书 / 没配模型 / 没填密钥 / 输入为空」这四种情况：那时会话文件还不存在，
 > 事件只发渲染层、不落盘。
 
-- [ ] **Step 4：`registerAgentIpc` 与 `registerProviderIpc`**
+- [x] **Step 4：`registerAgentIpc` 与 `registerProviderIpc`**
 
 ```ts
 import {
@@ -4530,7 +4530,7 @@ describe("registerAgentIpc", () => {
 });
 ```
 
-- [ ] **Step 5：`electron-cipher.ts` 与 `provider-fetch.ts`（主进程侧两块真实胶水）**
+- [x] **Step 5：`electron-cipher.ts` 与 `provider-fetch.ts`（主进程侧两块真实胶水）**
 
 `electron-cipher.ts`（8 行包装，`safeStorage` 由调用方传入，测试不需要 electron）：
 
@@ -4639,7 +4639,7 @@ describe("toProviderFetch", () => {
 });
 ```
 
-- [ ] **Step 6：`index.ts` 装配（不进单测，Task 15 冒烟验）**
+- [x] **Step 6：`index.ts` 装配（不进单测，Task 15 冒烟验）**
 
 `apps/desktop/src/main/index.ts` 的 `app.whenReady()` 里，在现有 `registerBookIpc` 之后加：
 
@@ -4665,13 +4665,13 @@ describe("toProviderFetch", () => {
 `win` 是既有的窗口变量；`randomUUID` 从 `node:crypto` 引；`safeStorage` 从 `electron` 引。
 渲染层拿到的 `turn-start` / `delta` / `event` / `turn-end` 都走 `IPC_CHANNELS.agentEvent` 一条通道。
 
-- [ ] **Step 7：跑到绿**
+- [x] **Step 7：跑到绿**
 
 Run: `corepack pnpm vitest run apps/desktop/src/main --maxWorkers=4`
 Expected: PASS（Plan 1 既有 8 条 + Task 9 的 11 条 + Task 10 的 12 条 + 本任务 12 条 + ipc/fetch 4 条）。
 Run: `corepack pnpm verify` → 回读日志末行 `VERIFY_EXIT=0`（别把管道尾部的 0 当结论）。
 
-- [ ] **Step 8：变异实验（本计划最重要的一次）**
+- [x] **Step 8：变异实验（本计划最重要的一次）**
 
 按 spec §10 点名的抽除点逐个验，每抽一个跑一次测试并记录**红的用例名**，恢复后再抽下一个：
 
@@ -4688,7 +4688,7 @@ Run: `corepack pnpm verify` → 回读日志末行 `VERIFY_EXIT=0`（别把管�
 全部恢复后 `git diff --exit-code apps/desktop/src packages` 必须空，并把这张表的实际结果写进
 提交信息与 Task 16 的台账。
 
-- [ ] **Step 9：提交**
+- [x] **Step 9：提交**
 
 ```bash
 git add apps/desktop packages
@@ -4710,7 +4710,7 @@ git commit -m "feat(main): 智能体服务——审批登记、唯一写盘通�
   `RendererApi` 新增
   `startTurn` / `interruptTurn` / `decideProposal` / `proposalDiff` / `providerView` / `providerSave` / `onAgentEvent`
 
-- [ ] **Step 1：先扩 `RendererApi`（与实现同任务，保中间提交绿）**
+- [x] **Step 1：先扩 `RendererApi`（与实现同任务，保中间提交绿）**
 
 `packages/contracts/src/ipc.ts` 现在只从 `./book.js` 引类型，先把新载荷引上（同包内用相对 `./x.js`，
 NodeNext 不许省扩展名）：
@@ -4741,7 +4741,7 @@ export interface RendererApi {
 }
 ```
 
-- [ ] **Step 2：写红的测试**
+- [x] **Step 2：写红的测试**
 
 `apps/desktop/src/preload/renderer-api.test.ts`：
 
@@ -4809,7 +4809,7 @@ describe("createRendererApi", () => {
 });
 ```
 
-- [ ] **Step 3：`renderer-api.ts`**
+- [x] **Step 3：`renderer-api.ts`**
 
 ```ts
 import {
@@ -4843,7 +4843,7 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
 }
 ```
 
-- [ ] **Step 4：`index.ts` 改为薄接线**
+- [x] **Step 4：`index.ts` 改为薄接线**
 
 ```ts
 import { contextBridge, ipcRenderer } from "electron";
@@ -4871,7 +4871,7 @@ contextBridge.exposeInMainWorld(
 > }
 > ```
 
-- [ ] **Step 5：跑到绿 + 全量 typecheck**
+- [x] **Step 5：跑到绿 + 全量 typecheck**
 
 Run: `corepack pnpm vitest run apps/desktop/src/preload --maxWorkers=4` → PASS（3 用例）。
 
@@ -4908,11 +4908,11 @@ const api = {
 
 Run: `corepack pnpm typecheck`（5 个 tsc 项目）→ 无诊断。
 
-- [ ] **Step 6：变异实验**
+- [x] **Step 6：变异实验**
 
 把 `onAgentEvent` 的通道写成 `"agent:events"`（多个 s）→ 订阅用例必须红。恢复。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```bash
 git add packages/contracts/src/ipc.ts apps/desktop/src/preload
@@ -4949,7 +4949,7 @@ git commit -m "feat(preload): 智能体与模型设置的白名单 API"
 > main 与 renderer 属不同 tsconfig 项目、不能互相 import，所以一致性由 Task 15 的端到端用例兜住
 > ——渲染层发出去的 `threadKey` 若与主进程回推的不上号，事件就落进另一条线程，中栏看起来「没反应」。
 
-- [ ] **Step 1：写红的 `escape-policy.test.ts`（spec §6.2 的全组合）**
+- [x] **Step 1：写红的 `escape-policy.test.ts`（spec §6.2 的全组合）**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -5006,7 +5006,7 @@ describe("resolveEscape", () => {
 });
 ```
 
-- [ ] **Step 2：写红的 `useAgentStore.test.ts`**
+- [x] **Step 2：写红的 `useAgentStore.test.ts`**
 
 ```ts
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -5371,7 +5371,7 @@ describe("useAgentStore", () => {
 });
 ```
 
-- [ ] **Step 3：追加红的 `useBookStore.test.ts` 用例（吸收智能体写盘）**
+- [x] **Step 3：追加红的 `useBookStore.test.ts` 用例（吸收智能体写盘）**
 
 在既有用例后追加三条（`readDoc` 夹具按 `relPath` 返回内容，已在文件顶部定义）：
 
@@ -5412,13 +5412,13 @@ describe("useAgentStore", () => {
   });
 ```
 
-- [ ] **Step 4：跑一次，确认三处都红**
+- [x] **Step 4：跑一次，确认三处都红**
 
 Run: `corepack pnpm vitest run apps/desktop/src/renderer --maxWorkers=4`
 Expected: FAIL —— `resolveEscape`、`useAgentStore`、`absorbAgentWrite` 三者都不存在
 （模块解析失败或方法 `is not a function`）。必须先看到红，再进 Step 5。
 
-- [ ] **Step 5：`escape-policy.ts`**
+- [x] **Step 5：`escape-policy.ts`**
 
 ```ts
 export type EscapeAction = "keep-guidance" | "cancel-proposal" | "interrupt" | "none";
@@ -5442,7 +5442,7 @@ export function resolveEscape(state: EscapeFocusState): EscapeAction {
 }
 ```
 
-- [ ] **Step 6：`useBookStore.ts` 追加 `absorbAgentWrite`**
+- [x] **Step 6：`useBookStore.ts` 追加 `absorbAgentWrite`**
 
 放在 `reloadActive` 之后（复用同一份重载语义）：
 
@@ -5468,7 +5468,7 @@ export function resolveEscape(state: EscapeFocusState): EscapeAction {
     },
 ```
 
-- [ ] **Step 7：`useAgentStore.ts`**
+- [x] **Step 7：`useAgentStore.ts`**
 
 ```ts
 import { defineStore } from "pinia";
@@ -5723,7 +5723,7 @@ export const useAgentStore = defineStore("agent", {
 });
 ```
 
-- [ ] **Step 8：跑到绿**
+- [x] **Step 8：跑到绿**
 
 Run: `corepack pnpm vitest run apps/desktop/src/renderer --maxWorkers=4`
 Expected: PASS —— `escape-policy` 6 用例、`useAgentStore` 16 用例、`useBookStore` 原 11 + 新 3 = 14 用例。
@@ -5732,7 +5732,7 @@ Run: `corepack pnpm typecheck` → 无诊断。
 > 若「proposal 事件登记成待审卡」卡在 `await vi.runAllTimersAsync()`，先查 `proposalDiff` 桩是否
 > 真的返回 promise；fake timers 下未兑现的微任务要靠 `runAllTimersAsync` 才排空。
 
-- [ ] **Step 9：变异实验（逐条做完立刻恢复）**
+- [x] **Step 9：变异实验（逐条做完立刻恢复）**
 
 | 抽掉的实现 | 必须转红的用例 |
 |---|---|
@@ -5749,7 +5749,7 @@ Run: `corepack pnpm typecheck` → 无诊断。
 
 Run: `git diff --exit-code apps/desktop/src/renderer` —— 恢复后必须为空。
 
-- [ ] **Step 10：提交**
+- [x] **Step 10：提交**
 
 ```bash
 git add apps/desktop/src/renderer
@@ -5781,7 +5781,7 @@ git commit -m "feat(renderer): 智能体事件归约、线程隔离与写盘回�
 > `.vue` 只做展示与事件转发；`.vue` 的正确性由 `corepack pnpm build`（编译 SFC，模板写错就红）
 > 与 Task 15 的真实冒烟兜住。别把逻辑留在 `.vue` 里——那是这条线唯一能失败的地方。
 
-- [ ] **Step 1：写红的 `timeline.test.ts`**
+- [x] **Step 1：写红的 `timeline.test.ts`**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -5899,12 +5899,12 @@ describe("buildTimeline", () => {
 });
 ```
 
-- [ ] **Step 2：跑红**
+- [x] **Step 2：跑红**
 
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/timeline.test.ts --maxWorkers=4`
 Expected: FAIL —— `buildTimeline` 不存在。
 
-- [ ] **Step 3：`timeline.ts`**
+- [x] **Step 3：`timeline.ts`**
 
 ```ts
 import type { AgentEvent } from "@mochen/contracts";
@@ -6009,12 +6009,12 @@ export function buildTimeline(items: AgentEvent[], tail: StreamingTail): Timelin
 > `last.items = event.items` 之后又改 `last.id`：id 变了会让 Vue 重建这块（清单重排一次），
 > 这是可接受的——计划本就是一份份覆盖。不要为了保住 id 把两块计划连成无限增长清单。
 
-- [ ] **Step 4：跑到绿**
+- [x] **Step 4：跑到绿**
 
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils --maxWorkers=4`
 Expected: PASS（9 用例）。
 
-- [ ] **Step 5：`AgentTimeline.vue`（纯展示，无逻辑）**
+- [x] **Step 5：`AgentTimeline.vue`（纯展示，无逻辑）**
 
 ```vue
 <!-- 中栏四层流式渲染：类名沿用 deepwrite 的 message/message-body（见 ATTRIBUTION.md），卡片样式自有 -->
@@ -6088,7 +6088,7 @@ const blocks = computed<TimelineBlock[]>(() => buildTimeline(props.items, props.
 </template>
 ```
 
-- [ ] **Step 6：`ProposalCard.vue`（含 spec §6.2 的 Esc 第一优先级）**
+- [x] **Step 6：`ProposalCard.vue`（含 spec §6.2 的 Esc 第一优先级）**
 
 ```vue
 <script setup lang="ts">
@@ -6186,7 +6186,7 @@ function onKeydown(event: KeyboardEvent): void {
 > `deny-with-guidance` 在两处都设了闸：按钮 `:disabled` 与 `decide()` 的早退。主进程的
 > `decideInputSchema` 是第三道（Task 1）。少一道都能被绕过——这是 spec §6 的 `d` 语义。
 
-- [ ] **Step 7：`ComposerBox.vue`**
+- [x] **Step 7：`ComposerBox.vue`**
 
 ```vue
 <script setup lang="ts">
@@ -6264,7 +6264,7 @@ function onKeydown(event: KeyboardEvent): void {
 > `Shift+Enter` 走的是「在末尾补一个换行」，不是光标处插入——`textarea` 要拿 `selectionStart`
 > 才做得到，那是 Plan 3 的键位打磨范围。`Ctrl+J` 在此与 `Shift+Enter` 同义（spec §7）。
 
-- [ ] **Step 8：`ProviderSettings.vue`（spec §8 的唯一入口）**
+- [x] **Step 8：`ProviderSettings.vue`（spec §8 的唯一入口）**
 
 ```vue
 <!-- 弹窗骨架取自 deepwrite 的 dialog-backdrop / workspace-dialog / dialog-actions -->
@@ -6349,7 +6349,7 @@ onMounted(() => {
 </template>
 ```
 
-- [ ] **Step 9：`CenterColumn.vue` 整文件重写**
+- [x] **Step 9：`CenterColumn.vue` 整文件重写**
 
 保留 Plan 1 的对外契约（props `leftCollapsed`/`rightCollapsed`，emits `toggleLeft`/`toggleRight`），
 `App.vue` 不用改：
@@ -6521,7 +6521,7 @@ onBeforeUnmount(() => {
 </template>
 ```
 
-- [ ] **Step 10：`styles/agent-pane.css` + `styles.css` 挂载**
+- [x] **Step 10：`styles/agent-pane.css` + `styles.css` 挂载**
 
 新文件首行注明是自有样式（复用 deepwrite 的主题变量，不新造 deepwrite 那批类名），
 在 `styles.css` 的 `@import` 序列里、`theme-runtime.css` 之前插一行：
@@ -6960,7 +6960,7 @@ onBeforeUnmount(() => {
 }
 ```
 
-- [ ] **Step 11：编译与门禁**
+- [x] **Step 11：编译与门禁**
 
 Run: `corepack pnpm prettier --write apps/desktop/src/renderer`（`.vue` 的属性换行由它定，别硬猜格式）
 Run: `corepack pnpm build`
@@ -6969,7 +6969,7 @@ Expected: 主进程 / preload / 渲染层三段都出包。`.vue` 的模板错�
 Run: `corepack pnpm verify` → 末行回读 `VERIFY_EXIT=0` 与用例总数（管道会吞掉门禁退出码，
 `| tail` 报的是 `tail` 的码）。
 
-- [ ] **Step 12：变异实验（`timeline.ts` 是唯一可编程判定的地方）**
+- [x] **Step 12：变异实验（`timeline.ts` 是唯一可编程判定的地方）**
 
 | 抽掉的实现 | 必须转红的用例 |
 |---|---|
@@ -6981,7 +6981,7 @@ Run: `corepack pnpm verify` → 末行回读 `VERIFY_EXIT=0` 与用例总数（�
 
 Run: `git diff --exit-code apps/desktop/src/renderer` 恢复后必须为空。
 
-- [ ] **Step 13：提交**
+- [x] **Step 13：提交**
 
 ```bash
 git add apps/desktop/src/renderer
@@ -7010,7 +7010,7 @@ git commit -m "feat(renderer): 中栏四层流式渲染、逐条提案卡与模�
 > 与 `turn-e2e.test.ts` 都**以子进程 spawn 它**，走真实 socket。不要为了测试再写第二个假服务器——
 > 两份假服务器会各自漂移，最后谁也没验过真的那条路。
 
-- [ ] **Step 1：`tools/mock-provider.mjs`**
+- [x] **Step 1：`tools/mock-provider.mjs`**
 
 关键字驱动，无状态：按最后一条 user 文本决定这一轮演什么，按 `messages` 里有没有 `role:"tool"`
 决定是第一轮还是收尾轮。SSE 帧**故意从中间切成两次 `res.write`**——那才是真实端点会干的事
@@ -7207,7 +7207,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 ```
 
-- [ ] **Step 2：`tools/mock-provider.test.mjs`（桩自身 + runtime 真 socket）**
+- [x] **Step 2：`tools/mock-provider.test.mjs`（桩自身 + runtime 真 socket）**
 
 先解决一件事：根 `node_modules` 里现在**没有** `@mochen/*` 的链接（pnpm 只把依赖链进
 「声明它的那个包」的 `node_modules`），所以 `tools/*.test.mjs` 直接 `import "@mochen/agent-runtime"`
@@ -7366,7 +7366,7 @@ describe("mock provider 与 streamChat 的真实 socket", () => {
 
 Run: `corepack pnpm vitest run tools/mock-provider.test.mjs --maxWorkers=4` → PASS（5 用例）。
 
-- [ ] **Step 3：写红的 `turn-e2e.test.ts`（全链，真 HTTP）**
+- [x] **Step 3：写红的 `turn-e2e.test.ts`（全链，真 HTTP）**
 
 `apps/desktop/src/main/turn-e2e.test.ts` 复用 Task 11 那套装配，但 `fetchImpl` 走
 `toProviderFetch(全局 fetch)`，provider 是 spawn 出来的 `tools/mock-provider.mjs`：
@@ -7572,7 +7572,7 @@ Run: `corepack pnpm vitest run apps/desktop/src/main --maxWorkers=4`
 Expected: PASS —— 目录里是「Plan 1 既有 8 + Task 9 的 11 + Task 10 的 12 + Task 11 的 12 + ipc/fetch 4」
 再加本文件 4 条；把总数记进 Task 16 的台账，别只写「都绿了」。
 
-- [ ] **Step 4：根脚本**
+- [x] **Step 4：根脚本**
 
 `package.json` 的 `scripts` 追加两行（放在 `build` 之后）：
 
@@ -7584,7 +7584,7 @@ Expected: PASS —— 目录里是「Plan 1 既有 8 + Task 9 的 11 + Task 10 �
 Run: `corepack pnpm prettier --write tools package.json apps/desktop/src/main` → 无变更后再
 Run: `corepack pnpm verify` → 回读末行 `VERIFY_EXIT=0` 与用例总数（`| tail` 会把门禁退出码吞掉）。
 
-- [ ] **Step 5：变异实验**
+- [x] **Step 5：变异实验**
 
 | 抽掉的实现 | 必须转红的用例 |
 |---|---|
@@ -7595,7 +7595,7 @@ Run: `corepack pnpm verify` → 回读末行 `VERIFY_EXIT=0` 与用例总数（`
 
 Run: `git diff --exit-code apps/desktop/src packages tools` 恢复后必须为空。
 
-- [ ] **Step 6：真机三栏冒烟（spec §10 的 UI 验收）**
+- [x] **Step 6：真机三栏冒烟（spec §10 的 UI 验收）**
 
 前置：另开一个终端 `corepack pnpm mock-provider`（端口 8787）。
 
@@ -7621,7 +7621,7 @@ Run: `git diff --exit-code apps/desktop/src packages tools` 恢复后必须为�
 冒烟任一步不符，就在本任务内修到底再进 Task 16；`docs/superpowers/plans/README.md` 的完成状态里
 记一句「冒烟实测：通过 / 待办」。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```bash
 git add tools apps/desktop/src/main package.json docs/superpowers/plans/README.md
@@ -7654,27 +7654,44 @@ Expected: 两条都 0 退出。`packages/agent-runtime` 里若出现 `import "el
 `agent-service.ts` 逼近 800 行预算时，按本计划的约定把提案登记拆成 `proposal-registry.ts`，
 不要靠压缩注释或换行蒙过门禁。
 
+> **收尾实测与决定（2026-10-02，Task 16 波 B）**：`wc -l apps/desktop/src/main/agent-service.ts` = **513 行**，
+> 未逼近 800 行预算 ⇒ **决定：本计划不拆 `proposal-registry.ts`**，`applyDecision` 留在原文件。
+> 理由写死在此处，别让下一个任务把「不拆」当成遗漏：拆分的前提是逼近边界，而它没到。
+> 同批核对：`useAgentStore.test.ts` 737 行（预算 800，同样不拆；再加用例前要先想好拆分）。
+
 - [ ] **Step 3：变异台账（把每任务实测结果写回本文件）**
 
-| 任务 | 抽掉了什么 | 是否转红 | 备注 |
-|---|---|---|---|
-| 1 | `decision.auto` 字段 | 待填 | 契约 |
-| 2 | SSE 单行单 chunk 假定 | 待填 | 中文跨字节 |
-| 3 | abort 分支 | 待填 | 打断语义 |
-| 4 | 锚点多处命中判歧义 | 待填 | 双路提案 |
-| 5 | diff 前后缀裁剪 | 待填 | 卡片可读性 |
-| 6 | 坏行计入 droppedLines | 待填 | 会话可读回 |
-| 7 | 工具轮次上限 | 待填 | 死循环 |
-| 8 | 权限天花板五目录 | 待填 | 铁律 |
-| 9 | 明文密钥落盘 | 待填 | spec §8 |
-| 10 | 提案 baseline 传盘上文 | 待填 | diff 真实性 |
-| 11 | 备份 / 权限判定 / pending 保留 / 指纹比对 | 待填 | 全案最硬 |
-| 12 | `onAgentEvent` 通道拼错 | 待填 | 白名单 |
-| 13 | 残字归零 / stale 落态 / 未保存手改保护 / 断了才给「继续」 | 待填 | 中栏一致性 |
-| 14 | plan 合并 / 残字置末 / 工具名兜底 | 待填 | 四层渲染 |
-| 15 | 备份步骤 / interrupted 标注 | 待填 | 端到端 |
+| 任务 | 抽掉了什么 | 是否转红 | 备注（含证据日志名） |
+| --- | --- | --- | --- |
+| 1 | `decision.auto` 字段 | 红 1 条（`packages/contracts/test/agent.test.ts`）——**无归档日志，仅实现者报告逐字转述** | 契约。落点 `packages/contracts/src/agent-event.ts:58`（`auto: z.boolean()`）。`task-1-report.md` §3.1 原文：简报逐字给的 10 个用例下**变异存活、`Tests 10 passed (10)` 全绿**（zod 的 object 静默剥掉未声明键，那 10 条只断言 `safeParse().success`）；补守护用例「decision 事件必须留住 auto 字段」（现 `agent.test.ts:99`）后同一变异转红，逐字 `AssertionError: expected undefined to be true`、`Tests 1 failed \| 10 passed (11)`，恢复后 `Tests 11 passed (11)`。同报告 §3.2 另记一条（删 `packages/contracts/src/patch.ts` 的 `expectedFingerprint: z.string().min(1)`）红 2 条 `Tests 2 failed \| 9 passed (11)`，同样无日志。报告「遗留」自陈：本套件对「schema 删字段」这类变异整体偏弱。 |
+| 2 | SSE 单行单 chunk 假定 | 红 1 条（`packages/agent-runtime/test/sse.test.ts`）——**无归档日志，仅实现者报告逐字转述** | 中文跨字节。落点 `packages/agent-runtime/src/sse.ts:26`（`decoder.decode(chunk, { stream: true })` 去掉 `{ stream: true }`）。`task-2-report.md`「变异实验」原文：`AssertionError: expected [ '雾从\ufffd\ufffd\ufffd面涌上来' ] to deeply equal [ '雾从海面涌上来' ]`、`Tests 1 failed \| 6 passed (7)`。必须一并记两点：① 简报自己指定的变异（删 `sse.ts:16` 的 `line.startsWith(":")` 注释守卫）实测 `Tests 7 passed (7)` 全绿＝**等价变异**（该守卫位于 `!startsWith("data:")` 白名单之后，恒为死代码），属计划缺陷，`progress.md` Task 2 段有裁定；② 变异 B 首跑也曾全绿，根因是简报用例用 `Uint8Array.indexOf(Uint8Array)` 算断点得 `-1`、切成「空块＋整段」，任何实现下恒绿，修断点计算后才转红。 |
+| 3 | abort 分支 | 红（**有日志**）：主证据红 1 条（`provider-client.test.ts`）＋同性质各红 1 条（`tool-loop.test.ts`）＋补装置后三层各红 1 条 | 打断语义。① `provider-client.ts:179-181` 帧循环顶部 abort 守卫整块删除 → 红 1 条（`mutB1-red.log`：`Tests 1 failed \| 11 passed (12)`，用例「abort 后停止消费后续帧：只产出已流出文本，第二帧 delta 绝不出现」）；② `tool-loop.ts:140-146` 的 interrupted 发射：删 `emitSimple({ type: "interrupted", pendingProposals })` → 红 1（`mutM1.log`，`1 failed \| 7 passed (8)`）、`interrupted: aborted` 写死 `false` → 红 1（`mutM2.log`，同数）、`pendingProposals` 传 `void 0` → 红 1（`mutM5.log`，`1 failed \| 8 passed (9)`），三条都在 `tool-loop.test.ts` 的「打断…」用例；③ Task 15 补上真 socket 装置后，控制方与评审者在三层各自跑红：`t15r-mut-guard-unit.log` 红 1（`1 failed \| 15 passed (16)`「读流期打断…」）、`t15r-mut-guard-stub.log` 红 1（`1 failed \| 6 passed (7)`「abort 之后立刻收束」）、`t15r-mut-guard-e2e.log` 红 1（`1 failed \| 4 passed (5)`「慢流中途 Esc…」），恢复后 `t15r-guard-restored.log` = `Tests 28 passed (28)`；控制方侧 `t15c-mut-noguard-unit.log`、`t15c-mut-noguard-e2e.log` 各红 1 条。教训见 `EXECUTION-NOTES.md` §6「三条已定案口径」第 1、3 条：「打断」类语义必须有一条走真 socket 的用例。 |
+| 4 | 锚点多处命中判歧义 | 红 1 条（`packages/agent-runtime/test/apply-patch.test.ts`）——**无归档日志，仅实现者报告逐字转述** | 双路提案。落点 `packages/agent-runtime/src/apply-patch.ts:58`（`if (hits > 1)` 歧义分支）。`task-5-report.md` §6 M1：只有「锚点出现两次判为歧义」红，其余 20 条仍绿；删掉后歧义锚点走唯一分支、`status` 变 `unique` 并产出被猜位置的 `content`；恢复证明是 md5 逐字节比对（当时四个文件未入库，`git diff` 看不到）。**行号与任务号的漂移**：本行挂在「任务 4」名下，抽除点实在 Task 5 的 `apply-patch.ts`；Task 4 自己的五条变异（`task-4-report.md` §5 A–E，`patch-protocol.ts` 围栏闭合等）同样**只有报告、无归档日志**，其中简报指定的 A 为等价变异体（9 个原文用例全绿），补一条 `expect(out.prose).toBe("")` 才变成可杀。 |
+| 5 | diff 前后缀裁剪 | 红 1 条（`packages/agent-runtime/test/diff.test.ts`）——**无归档日志，仅实现者报告逐字转述** | 卡片可读性。落点 `packages/agent-runtime/src/diff.ts:68` 的 `diffLines`（整体换成不裁剪的 `lcsOps(...)`）。`task-5-report.md` §6 M3：只有「长文稿只改一句时首尾修剪生效」红，逐字 `expected … to contain '@@ -998,7 +998,7 @@'`，其余 11 条全绿。**如实记**：简报原有 7 条用例对该变异是**等价变异体**（小样本不触 `diff.ts:11` 的 `LCS_CELL_CAP`，裁剪与否输出相同），按 EXECUTION-NOTES §2.2 补用例后才可杀。同任务 M9（删 `countOccurrences` 的 `needle === ""` 早退）不是断言红而是**挂死**：报告记 `EXIT=124`＋`Worker exited unexpectedly`；Task 10 的 MU-9 复现同一形状，`task10-mut-9.log` 回读为 `Errors 1 error`、`Tests (10)` 未收口、`Error: Worker exited unexpectedly`（该报告写 `Tests (9)`，日志实为 `(10)`）。 |
+| 6 | 坏行计入 droppedLines | 红（**无归档日志，仅实现者报告逐字转述，且报告只标 `RED`、未给条数**） | 会话可读回。落点 `packages/agent-runtime/src/rollout.ts:87`（`else droppedLines.push(offset + 2)` 不 push，报告 M3）与 `:89`（`return { meta, events, droppedLines }` 换成 `droppedLines: []`，报告 M15），两条都落在用例「中间坏行跳过并计数，首行坏则报中文错误」。（草稿给的 `:83`/`:87` 分别是数组声明行与 push 行，本行按当前 HEAD 更正为 `:87`/`:89`。）`task-6-report.md` §3 的 16 条变异（M1–M16）全部只写 RED、无条数，脚本与输出留在 `/tmp/mut-t6.mjs`、`/tmp/mut-t6b.mjs`（脚本自带还原但没落盘），**日志未进本过程目录**。简报指定的 M1（删 `docRelPath` 过滤）不是等价体、照跑即红。 |
+| 7 | 工具轮次上限 | 红 1 条（`packages/agent-runtime/test/tool-loop.test.ts`，**有日志**） | 死循环。落点 `packages/agent-runtime/src/tool-loop.ts:216`（`if (round === deps.maxToolRounds - 1)` → `if (false)`）。日志 `mutM3.log`：`Tests 1 failed \| 7 passed (8)`，用例「工具轮超过上限时停下并说明，不死循环」，逐字 `AssertionError: expected 'done' to be 'failed'`；同代另有 `toolloop-red.log` / `toolloop-green.log` 两份，但它们是 **TDD 的红绿基线、不是变异红**：前者回读为收集期失败（`Error: Cannot find module '../src/tool-loop.js'`、`Test Files 1 failed (1)`、`Tests no tests`），后者 `Tests 9 passed (9)`（9 条；本行变异日志所在的套件是 8 条，属不同代，别混着数）。**行号与任务号的漂移**：本行挂在「任务 7」名下，抽除点是 Task 8 的 `runTurn`。 |
+| 8 | 权限天花板五目录 | **本体无日志**（仅 `task-7-report.md` §4 逐字转述）；**下游有日志**，各红 1–7 条（`doc-tools-host.test.ts` / `permission.test.ts`） | 铁律。本体落点 `packages/agent-runtime/src/permission.ts:4-10`（`WRITABLE_TOP_DIRS` 清单本身）、`:23-26`（`insideWritableDir`）、`:33`（天花板文案）：Task 7 报告 §4 记 M6（删 `insideWritableDir` 判定，逐字 `AssertionError: expected true to be false`）、M7（删 `read-only` 默认档拦截）、M8（删 `docRelPath !== currentChapter`）、M9（删 `currentChapter === null` 分支，红在文案 `to contain '尚未选定'`）、M10（五目录前两项重排）全部转红、各钉一条用例，但**只有报告、无归档日志**。有日志的是**下游各层对同一道天花板的抽除**，不许冒充本体证据：`task10-mut-2.log` 红 2 条（`2 failed \| 20 passed (22)`，删 write_doc 档位门 → 「只读档下拒绝，并把中文理由作为工具回执回喂模型」＋「可改当前章档下，别章的 write_doc 被拒」）、`t10fix-mut-e.log` 红 5 条（host 的 `inWritableDir` 恒 `return true`）、`t10fix-mut-f.log` 红 7 条（归一＋天花板＋档位三道门全拆；同批 `t10fix-mut-d.log` 红 4、`t10fix-mut-f-scratch.log` 是一次性探针 1 passed）、`t11-mut-m11.log` 红 5 条（`5 failed \| 43 passed (48)`，含「doc 不在五个文稿目录内时直接拒绝」「反斜杠越界路径仍然 fail-closed」）、`t16ac-mut-f2-wording.log` 红 1 条（`1 failed \| 4 passed (5)`，只读档文案塞回「左栏」二字 → `permission.test.ts`「只读参考档一律拒绝，且说明里点名当前档位」）。 |
+| 9 | 明文密钥落盘 | **本体无日志**（仅 `task-9-report.md` §4 逐字转述）；后端与端到端**有日志**，各红 1 条 | spec §8。本体落点 `apps/desktop/src/main/credential-store.ts:63`（`if (text.includes(key)) throw new Error("加密结果仍含明文，已拒绝落盘。")`）：报告 §4 变异 2 记 RED，逐字 `AssertionError: promise resolved "undefined" instead of rejecting`，**无归档日志**（当时的恢复证明是「全量回绿＋grep 源码 0 命中」，报告 §4 自陈四个源文件尚未入库）。有日志的是另外两道：`t15-mut-m5.log` 红 4 条（`Tests 4 failed (4)`，`turn-e2e.test.ts` 四条一起红，首条是「文本块协议产出的提案…」而非密钥用例 ⇒ 精确归因靠下一条）、`t15-mut-m5b.log` 红 1 条（`1 failed \| 3 passed (4)`，只留「密钥只进 header：书目录、密钥目录与会话 JSONL 都不含明文」，逐字 `expected '{\n "baseURL": …' not to contain 'sk-e2e-canary-4f9d1c'`）、评审者复跑 `t15r-mut-keyleak.log` 红 1 条（同一用例）。 |
+| 10 | 提案 baseline 传盘上文 | 红 1 条（`apps/desktop/src/main/doc-tools-host.test.ts`，**有日志**） | diff 真实性。落点 `apps/desktop/src/main/doc-tools-host.ts:195` 与 `:223`（`deps.onProposal(item, body ?? "")` → `(item, applied.content)`）。日志 `task10-mut-8.log`：`Tests 1 failed \| 21 passed (22)`，用例「锚点唯一时产出 pending 提案，文件字节一字不变（全案最硬的断言）」的 baselines 断言，逐字 `AssertionError: expected [ Array(1) ] to deeply equal [ '第一段\n雾从海面涌上来。…' ]`。同批 `task10-mut-1..7.log` 回读为红 6/2/2/1/2/4/1 条（`Tests` 行依次为 `6 failed \| 16`、`2 failed \| 20`、`2 failed \| 20`、`1 failed \| 21`、`2 failed \| 20`、`4 failed \| 18`、`1 failed \| 21`，每组 22 条），MU-9 为挂死（见第 5 行）。 |
+| 11 | 备份 / 权限判定 / pending 保留 / 指纹比对 | 红（**有日志，14 个抽除点全部实测**，逐点见备注） | 全案最硬。逐点条数（日志 `t11-mut-mN.log`，用例名逐字见 `t11-mut-summary.txt`）：m1 删先备份段 → 红 2（`2 failed \| 25 passed (27)`，`fs-store/test/read-write.test.ts` 单元层同红）；m2 删 `if (!permission.allowed)` → 红 2（`agent-service.test.ts`）；m3 删 `pending.set(...)` → 红 9（`9 failed \| 12 passed (21)`）；m4 删指纹比对 → 红 1；m5 删 `proposal.turnId = turnId` → 红 2；m6 删 `appendAgentEvent` → 红 3；m7 删 `startTurn` 失败早退 → 红 1；m8 密钥只进 header → 红 2；m9 fs-store 读失败分类 → 红 1；m10 审批读失败处理 → 红 1；m11 路径门 → 红 5（`5 failed \| 43 passed (48)`）；m11b 抽 host 整段守卫 → 红 1（`t11-mut-m11b-E4.log` 逐字复现原日志；**只抽前两道门的 `t11-mut-m11b-remeasure.log` 为 `Tests 21 passed (21)` 全绿**，故台账把「抽除什么」更正为整段三道门）；m12 `sessionId` 退回 `newId()` → 红 1。m3 的**如实记录**：简报预言的两半里「未批准时文件字节一字不变」在该抽除下为**绿**（日志里是 `✓`，该用例不调 `decide()`，无可达路径）。**审批时刻权限闸的覆盖面另见 `EXECUTION-NOTES.md` §6 口径第 2 条**：`agent-service.ts:293` 的 `if (!permission.allowed)` 改成恒假时 e2e 五条全绿，只有单元测试红 2 条（`t15r-mut-permgate.log`：`2 failed \| 107 passed (109)`）。 |
+| 12 | `onAgentEvent` 通道拼错 | 红 1 条（`apps/desktop/src/preload/renderer-api.test.ts`，**有日志**） | 白名单。落点 `apps/desktop/src/preload/renderer-api.ts:47` 的 `on(IPC_CHANNELS.agentEvent, ...)`（通道常量唯一来源 `packages/contracts/src/ipc.ts:14`）；`t12-mutation1.log`：`Tests 1 failed \| 3 passed (4)`，用例「订阅 agentEvent 后能收到推送，取消订阅后不再收到」，逐字 `AssertionError: expected 'agent:events' to be 'agent:event'`（栈顶 `renderer-api.test.ts:48`）。**这是 EXECUTION-NOTES §4「Task 12 更正」的位置**：拼错通道名**确实能红**，控制方早期「拼错不红＝等价变异」的说法作废（该说法只适用于「撤订阅传原始 listener」那条，要靠同引用断言才红得住，`t12-mutation2.log` 红 1）。同批 `t12-mutation3.log` 红 2 条；修复波 `t12fix-mut1..4.log` 红 3/2/1/1；评审者二波 `t12r2-mut-channel.log` 红 1 条（用例「12 个方法各调一次：通道与参数逐条钉死（期望值全是字面量，不从 `IPC_CHANNELS` 派生）」），`-args`/`-draft`/`-superrefine`/`-n-decide` 各红 1，`-n-provider` 红 2，`-n-startturn` 红 3。 |
+| 13 | 残字归零 / stale 落态 / 未保存手改保护 / 断了才给「继续」 | 红（**四性质全部有日志**，各红 1–2 条） | 中栏一致性。落点 `apps/desktop/src/renderer/src/stores/useAgentStore.ts`（脚本 `t13b-mutations.sh`，逐行 `hits=1`＋`changed=mutated` 证明确实改到）：残字归零 `:223-224` → 红 2 条（`t13b-mutation-1-streaming-reset.log`，`2 failed \| 22 passed (24)`，主用例＋m2 白名单用例）；stale 落态 `:295` → 红 1（`t13b-mutation-3-stale.log`，`1 failed \| 23 passed (24)`）；`endedAs` `:213` → 红 2（`-7-endedas`）；`turnId=null`、io 文案、`absorbAgentWrite` 调用（`:249`）、`listening` 闸门（`:171`）、`canContinue` 闸门各红 1（`-2/-4/-5/-6/-8`，均 `1 failed \| 23 passed (24)`）。**未保存手改保护**在 Wave A：`t13a-mutation-absorb.log` 红 1（`1 failed \| 13 passed (14)`，「智能体写盘撞上未保存手改：草稿一字不动，标冲突让人决定」）、`t13a-mutation-escape.log` 红 1（`1 failed \| 5 passed (6)`，「聚焦待审卡且说明非空：只失焦，不清字」）。修复波：`t13fix-mut-{delta-route,event-route,turnid,trim}.log` 各红 1（均 `1 failed \| 59 passed (60)`）；`t13fix-mut-status-union.log` 是**同文件两阶段**（PHASE A 派生白名单 `Tests 70 passed (70)` 全绿＝无漂移，正是修复目标；PHASE B 退回硬编码 `1 failed \| 59 passed (60)`），**不是**「等价变异之说」。评审者三波 `t13r3-mut-{delta-route,event-route,turnid,drift}.log` 各红 1（基线 `t13r3-baseline.log` = `Tests 60 passed (60)`）。 |
+| 14 | plan 合并 / 残字置末 / 工具名兜底 | 红（**有日志**，各红 1 条；另有 1 个曾全绿的无牙齿点） | 四层渲染。落点 `apps/desktop/src/renderer/src/utils/timeline.ts`（脚本 `t14a-mutations.sh`）：plan 合并 → 红 1（`t14a-mut-1-plan-merge.log`，`1 failed \| 9 passed (10)`，「连续 plan 事件合并成一块，以最后一份清单为准」）；提案事件不入正文 → 红 1（`-2-proposal-events`）；残字置末/尾部修剪 → 红 1（`-3-tail-reasoning-trim`）；**工具名兜底 `:27`/`:84`：简报原用例下 `t14a-mut-4-before-hardening.log` 回读为 `Tests 10 passed (10)` 全绿（无牙齿）**，补断言后 `t14a-mut-4-after-hardening.log` 红 1；尾部插入位置在循环前 → 红 1（`-6-tail-before-loop`）；尾部 id 撞车 → 红 1（`-7-tail-id-collision`）；恢复后 `t14a-mut-restored-green.log` = `Tests 10 passed (10)`。（同目录另有上一代命名 `-3-tail-trim`、`-4-tool-label-fallback`、`-5-tool-label-fallback`、`-5-tail-before-loop`，回读各红 1，内容与最后一代重叠，台账按最后一代引用。）裁定 r（类型关卡可失败性）：`t14b-r-mutation-toolrename.log` 回读 `TSC_EXIT=2`＋`timeline.ts(30,3): error TS2561`，对照弱断言的 `t14b-r-control-weak-type-silent.log` `TSC_EXIT=0`；评审者复跑 `t14r-r-mutation.log`/`t14r-r-control-weak.log` 同形；另 `t14r-mutA-tail-streaming-false.log`、`t14r-mutB-drop-interrupted.log` 各红 1（`1 failed \| 9 passed (10)`）。 |
+| 15 | 备份步骤 / interrupted 标注 | 红（**有日志**；端到端一层最硬） | 端到端。备份步骤：`packages/fs-store/src/read-write.ts:56-63`（`:62` 的 `await writeFile(backupTarget, current, "utf8")` 整段抽掉）→ `t15-mut-m2.log` 红 1、`t15-mut-m2b.log` 红 1（均 `1 failed \| 3 passed (4)`，用例「文本块协议产出的提案，批准后真的写进文件并留下原稿备份」）；评审者复跑 `t15r-mut-nobak.log` 红 1（同用例），会话侧 `t15r-mut-nojsonl.log` 红 1（同一 e2e 用例里的 JSONL 断言）。interrupted 标注：`tool-loop.ts:140-146` → `t15-mut-m3.log` 红 1（`1 failed \| 196 passed (197)`，当时只有单元层能跑，e2e 尚未接上），修复后 `t15fix-mut-m3.log` 是同文件两阶段（单元层红 1 `1 failed \| 9 passed (10)`、e2e 层红 1 `1 failed \| 4 passed (5)`）；控制方 `t15c-mut-m3.log` 红 2（`2 failed \| 13 passed (15)`，`tool-loop.test.ts`＋`turn-e2e.test.ts`「慢流中途 Esc…」两层同红）。桩侧 `t15-mut-m1b.log` 红 2、`t15-mut-m4.log` 红 2、`t15-mut-m6.log` 红 3。**必须如实记**：`t15-mut-m1a-alone.log`、`t15-mut-m1a-plus-m1b.log`、`t15-mut-m1c-alone.log`、`t15-mut-m1c-plus-m1b.log` 四条对照日志回读都是 `Tests 6 passed (6)` **全绿**（报告自己标注为绿，不是造假）；`t15fix2-red-provider.log` 名叫 red 实为 `Tests 16 passed (16)` **全绿**，真正的红证据在同代另一份 `t15fix-red-provider.log`（`Tests 1 failed \| 89 passed (90)`）⇒ 这是**文件名与内容不符＋台账没引用**，不是「某步没红」。 |
+| 波 A（Task 16 自身的修复 `85fd394`） | open 判据恒真 / `turnAnchors` 返回 `{}` / `errorHint` 回原响应体 / `isFollowUp` 恢复旧判据 / 只读档文案塞回「左栏」 | 红（**控制方亲跑五条，全部有日志**）：各红 3、2、3、1、1 条 | 台账落表波自己的修复面。基线 `t16ac-controller-baseline.log` = `Tests 348 passed (348)`、`VERIFY_EXIT=0`。逐条：open 判据恒真 → 红 3（`t16ac-mut-f1a-predicate.log`，`3 failed \| 18 passed (21)`，`timeline.test.ts`）；`turnAnchors` → `{}` → 红 2（`t16ac-mut-f1b-anchors.log`，`2 failed \| 19 passed (21)`，含 `expected '本轮' to be '第 1 轮 · 收紧比喻'`）；`errorHint` 直接回原响应体 → 红 3（`t16ac-mut-f5-hint.log`，`3 failed \| 20 passed (23)`，`provider-client.test.ts`）；`isFollowUp` 恢复「历史里有 tool」旧判据 → 红 1（`t16ac-mut-f3-followup.log`，`1 failed \| 7 passed (8)`，`tools/mock-provider.test.mjs`）；只读档文案塞回「左栏」→ 红 1（`t16ac-mut-f2-wording.log`）。**教训一**：简报原列的 `turnAnchors` → `return {}` 变异**不可能**让 `cardTurnLabel` 的单元用例转红（anchors 是入参，单元用例自造锚点绕开实现），是实现者补了一条集成用例才钉住 ⇒ 变异要问「改动能不能被这条用例看见」，不只要问「有没有对应用例」。**教训二**：`85fd394` 提交信息写「347 passed（基线 329 + 新增 18）」，落盘后的最终日志 `t16a-verify-final.log` 回读是 **348**（＋19），347 是补集成用例**之前**的 `t16a-verify.log` ⇒ 不改历史，只记账务。**教训三**：波 A 初稿曾记「六条变异」，其中「`{open:cards, settled:[]}` 红 2」一条**没有控制方日志**（目录只有 5 个 `t16ac-mut-*.log`），是把实现者的 `t16a-mut-f1a-split.log`（回读红 3）混记 ⇒ 台账每行必须当场写日志名，隔轮补会造出不存在的实验；该行按现状不能定案，本表不列。 |
+| 波 A2（评审后补保护 `03185a4`） | 码点截断 / 原型键 / 比较器并列返回值 / 第二句指引 / `candidate.trim()` / createdAt 次级键 / `status` 类型收窄 | 红（**控制方亲跑，全部有日志**）：M1 红 1、M2 红 2、M3a **全绿**、M3b 红 1、M6 红 2、M4 红 1、M5 红 1；P3-8 是类型关卡不是用例 | 本波基线（`Tests 353 passed (353)`，见 `t16a2c-controller-verify.log`）。基线 `t16a2c-baseline.log` = 三个被改文件 `Tests 54 passed (54)`。M1 码点截断退回 UTF-16 `slice` → 红 1（`t16a2c-m1-codepoint-revert.log`，`1 failed \| 24 passed (25)`）；M2 `Object.create(null)` 换回 `{}` → 红 2（`t16a2c-m2-proto-revert.log`，两次 `TypeError: Cannot read properties of undefined (reading 'replace')`）；M3a **简报逐字指定的** `return 0` → `return 1` → **全绿 `Tests 25 passed (25)`**（`t16a2c-m3a-tie-return1.log`，V8 TimSort 对并列组不可观测 ⇒ 等价变异，控制方另用 `node -e` 对 n=3..64 探针独立证实）；M3b 同位 `return 0` → `return -1` → 红 1（`t16a2c-m3b-tie-return-1.log`，`expected [ 'pZ', 'pY', 'pX' ] to deeply equal [ 'pX', 'pY', 'pZ' ]`）；M6 比较器丢 createdAt 次级键 → 红 2（`t16a2c-m6-drop-createdat.log`，证明 P3-3 的加固把第二条用例变成牙齿）；M4 只删只读档第二句指引 → 红 1（`t16a2c-m4-drop-guidance.log`，`1 failed \| 4 passed (5)`，`permission.test.ts`）；M5 去掉 `provider-client.ts:58` 的 `candidate.trim()` → 红 1（`t16a2c-m5-drop-trim.log`，落到「无响应体」可区分）。P3-8：`status` 收窄成 `ProposalStatus` 后 vitest 测不出来，控制方用临时 `cardOf(..., "bogus")` + `tsc -p apps/desktop/tsconfig.web.json` 证到 `timeline.test.ts(364,74): error TS2345`（`t16a2c-p38-typeprobe.log`；**该日志只存了 tsc 的输出行，`TSC_EXIT=2` 这个数字在归档里回读不到**，按「有 TS2345 报错、退出码未落盘」记）。**本波唯一一条「抽了但不红」是 M3a**，写成教训：排序类变异要先问返回值方向在 V8 里可不可观测，不可观测就换向、别放弃。 |
 
 「待填」必须换成实测结论。没跑过的变异实验不算做过——只报「全绿」不算验证。
+
+> **台账落表口径（2026-10-02，Task 16 波 B）**：上表 17 行（原 15 行 + 波 A + 波 A2）全部换成实测或
+> 照实标注「无归档日志」。取证目录 `.superpowers/sdd/2026-10-01-plan2-streaming-and-proposal/`（git-ignore），
+> 每一格引用的日志名都经波 B 实现者 `grep` 回读 `Tests …` 汇总行核对。
+> **五行只有实现者报告的逐字转述、没有归档日志**：行 1、2、4、5、6（变异当时跑在 `/tmp`，当场未落盘）；
+> 另有两处「本体无日志 / 下游有日志」分开写在行 8、行 9。
+> 三条已定案口径（真 socket 打断教训、审批时权限闸只有单元守卫、§9.4 之辨定案为实现者装置问题）
+> 与 C 组四项裁定写在 `EXECUTION-NOTES.md` §6，不在此重复。
+> 波 A 之前 `progress.md` 说「Task 1/2 等早期任务的日志在本目录」**不成立**，已就地更正；
+> 教训入表：**变异实验必须当场把日志写进过程目录**，否则下一轮无法自证。
 
 - [ ] **Step 4：文档收尾**
 
