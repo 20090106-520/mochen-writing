@@ -3,3 +3,6 @@ export * from "./permission.js";
 export * from "./book.js";
 export * from "./patch.js";
 export * from "./ipc.js";
+export * from "./tools.js";
+export * from "./agent-event.js";
+export * from "./provider.js";

@@ -5,7 +5,14 @@ export const IPC_CHANNELS = {
   bookSaveMeta: "book:save-meta",
   docRead: "doc:read",
   docWrite: "doc:write",
-  bookPick: "book:pick"
+  bookPick: "book:pick",
+  agentStartTurn: "agent:start-turn",
+  agentInterrupt: "agent:interrupt",
+  agentDecide: "agent:decide",
+  agentEvent: "agent:event",
+  agentDiff: "agent:diff",
+  providerGet: "provider:get",
+  providerSave: "provider:save"
 } as const;
 
 export interface BookOpenResult {
