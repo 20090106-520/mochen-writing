@@ -78,6 +78,20 @@ function readDelta(raw: unknown): {
   };
 }
 
+/**
+ * §6.3 规则 2：参数未收全的 tool_call 视为不存在。
+ * complete 的判据即 JSON.parse(args) 成功；收不全（截断、非法 JSON）就不交给下游，
+ * 后续 Task 8 会把这些 arguments 原样 JSON.parse，半截串会在那里炸。
+ */
+function argumentsComplete(args: string): boolean {
+  try {
+    JSON.parse(args);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEvent> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
@@ -164,9 +178,10 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
       return;
     }
   }
-  // 端点没给 finish_reason 就断流了：把已收全的工具调用交出去，再标 incomplete。
+  // 端点没给 finish_reason 就断流了：只把参数收全的工具调用交出去，其余丢弃，再标 incomplete。
   for (const [index, call] of [...calls.entries()].sort(([a], [b]) => a - b)) {
     if (call.name === "") continue;
+    if (!argumentsComplete(call.args)) continue;
     yield {
       kind: "tool-call",
       call: {

@@ -155,8 +155,23 @@ describe("streamChat", () => {
 
   it("abort 时安静收尾为 aborted，不抛错也不产出半截工具调用", async () => {
     const controller = new AbortController();
+    // 桩流带一个真实的半截 tool_calls 分片（id + name + 截断的 arguments），随后 abort。
+    // 这条就是在钉 spec §6.3 规则 2：参数未收全的 tool_call 绝不交给下游。
     const { fetchImpl } = makeFetch(
-      sse({ choices: [{ delta: { content: "半" } }] }, { choices: [{ delta: { content: "句" } }] })
+      sse(
+        {
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  { index: 0, id: "c1", function: { name: "read_doc", arguments: '{"doc"' } }
+                ]
+              }
+            }
+          ]
+        },
+        { choices: [{ delta: { content: "半" } }] }
+      )
     );
     const events: StreamEvent[] = [];
     for await (const event of streamChat({
@@ -173,6 +188,68 @@ describe("streamChat", () => {
     }
     expect(events.at(-1)).toEqual({ kind: "finish", reason: "aborted" });
     expect(events.some((e) => e.kind === "tool-call")).toBe(false);
+  });
+
+  it("流提前断开且工具参数未收全时，丢弃半截调用并收尾为 incomplete", async () => {
+    // 无 finish_reason、也无 abort：走非 abort 的 incomplete 收尾分支（F2 修复点）。
+    const { fetchImpl } = makeFetch(
+      sse(
+        {
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  { index: 0, id: "c1", function: { name: "read_doc", arguments: '{"doc"' } }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          choices: [
+            {
+              delta: { tool_calls: [{ index: 0, function: { arguments: ': "c' } }] }
+            }
+          ]
+        }
+      )
+    );
+    const events = await run(fetchImpl);
+    expect(events).toEqual([{ kind: "finish", reason: "incomplete" }]);
+  });
+
+  it("流提前断开但工具参数已收全时，incomplete 收尾仍交出完整调用", async () => {
+    // 反向钉桩：门禁只丢半截，不丢收全的（防止退化成「incomplete 一律丢弃」）。
+    const { fetchImpl } = makeFetch(
+      sse(
+        {
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  { index: 0, id: "c1", function: { name: "read_doc", arguments: '{"doc"' } }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          choices: [
+            {
+              delta: { tool_calls: [{ index: 0, function: { arguments: ': "chapters/01.md"}' } }] }
+            }
+          ]
+        }
+      )
+    );
+    const events = await run(fetchImpl);
+    expect(events).toEqual([
+      {
+        kind: "tool-call",
+        call: { id: "c1", name: "read_doc", args: '{"doc": "chapters/01.md"}' }
+      },
+      { kind: "finish", reason: "incomplete" }
+    ]);
   });
 
   it("密钥只进 header，绝不进 URL（spec §8）", async () => {
