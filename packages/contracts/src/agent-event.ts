@@ -72,7 +72,8 @@ export type AgentEvent = z.infer<typeof agentEventSchema>;
 
 export const AGENT_DELTA_KINDS = ["reasoning", "message"] as const;
 export type AgentDeltaKind = (typeof AGENT_DELTA_KINDS)[number];
-export type TurnEndStatus = "done" | "interrupted" | "failed";
+export const TURN_END_STATUSES = ["done", "interrupted", "failed"] as const;
+export type TurnEndStatus = (typeof TURN_END_STATUSES)[number];
 
 /** 主进程 → 渲染层的唯一外发载荷；delta 不落盘，event 已落盘。 */
 export type AgentOutbound =

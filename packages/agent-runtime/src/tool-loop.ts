@@ -3,7 +3,8 @@ import type {
   AgentEvent,
   AgentToolName,
   EditProposal,
-  ProposalDecision
+  ProposalDecision,
+  TurnEndStatus
 } from "@mochen/contracts";
 import { AGENT_TOOL_NAMES } from "@mochen/contracts";
 import { parseProtocolBlocks } from "./patch-protocol.js";
@@ -49,7 +50,7 @@ export interface TurnDeps {
 }
 
 export interface TurnOutcome {
-  status: "done" | "interrupted" | "failed";
+  status: TurnEndStatus;
   message: string;
 }
 

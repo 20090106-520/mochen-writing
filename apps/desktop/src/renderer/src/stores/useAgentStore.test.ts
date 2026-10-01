@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
+import { TURN_END_STATUSES } from "@mochen/contracts";
 import type {
   AgentEvent,
   AgentOutbound,
@@ -650,6 +651,87 @@ describe("useAgentStore", () => {
       stageId: "draft",
       userText: "没开标签也问一句"
     });
+    expect(threadKeyFor(null)).toBe(UNBOUND);
+  });
+
+  // ===== 修复波（Task 13 评审）：裁定 p 单一来源 / 线程隔离全分支 / 同线程两轮 turnId 守卫 / threadKeyFor trim =====
+
+  it("（裁定 p）TURN_END_STATUSES 每一项的 turn-end 都收尾：running 归 false、endedAs 落对应值", async () => {
+    // 随枚举增长的写法：contracts 新加一项时这里会自动多跑一次；若渲染层退回自造白名单会漏掉新状态而挂 running。
+    await openChapter();
+    store().startListening();
+    for (const status of TURN_END_STATUSES) {
+      push({ type: "turn-start", turnId: `t-${status}`, threadKey: CH });
+      push({ type: "turn-end", turnId: `t-${status}`, threadKey: CH, status, message: "" });
+      expect(store().viewOf(CH).running).toBe(false);
+      expect(store().viewOf(CH).endedAs).toBe(status);
+    }
+  });
+
+  it("（隔离·全分支）非激活线程的 delta/event/written 各归各线程，绝不串进激活页", async () => {
+    await openChapter(); // 激活页 = CH
+    store().startListening();
+    push({ type: "turn-start", turnId: "t1", threadKey: CH });
+    // 向另一条线程 OTHER 推三类事件：delta 走增量分支、error 与 written 走 event 分支
+    push({ type: "delta", turnId: "t9", threadKey: OTHER, deltaKind: "message", text: "别章残字" });
+    push({
+      type: "event",
+      turnId: "t9",
+      threadKey: OTHER,
+      event: eventOf("error", { message: "别章的错" })
+    });
+    push({
+      type: "event",
+      turnId: "t9",
+      threadKey: OTHER,
+      event: eventOf("written", {
+        proposalId: "pOther",
+        docRelPath: OTHER,
+        fingerprint: "fp-b",
+        backupRelPath: null
+      })
+    });
+    await vi.runAllTimersAsync();
+    // 激活页 CH 的流式与错误一字未动
+    expect(store().viewOf(CH).streaming.message).toBe("");
+    expect(store().viewOf(CH).lastError).toBe("");
+    expect(itemsOf(CH).length).toBe(0);
+    // 载荷各归 OTHER 自己那条线程
+    expect(store().viewOf(OTHER).streaming.message).toBe("别章残字");
+    expect(store().viewOf(OTHER).lastError).toBe("别章的错");
+    expect(itemsOf(OTHER).length).toBe(2);
+  });
+
+  it("（同线程两轮）迟到的旧轮 turn-end 不许抹掉新一轮的 running/streaming", async () => {
+    await openChapter();
+    store().startListening();
+    push({ type: "turn-start", turnId: "t1", threadKey: CH });
+    push({ type: "turn-end", turnId: "t1", threadKey: CH, status: "done", message: "" });
+    // 同一条线程再起第二轮
+    push({ type: "turn-start", turnId: "t2", threadKey: CH });
+    push({ type: "delta", turnId: "t2", threadKey: CH, deltaKind: "message", text: "第二轮残字" });
+    // 迟到的第一轮 turn-end 到达：必须被忽略，不能清空第二轮
+    push({ type: "turn-end", turnId: "t1", threadKey: CH, status: "done", message: "" });
+    expect(store().viewOf(CH).running).toBe(true);
+    expect(store().viewOf(CH).turnId).toBe("t2");
+    expect(store().viewOf(CH).streaming.message).toBe("第二轮残字");
+    // 第二轮正常收尾
+    push({
+      type: "turn-end",
+      turnId: "t2",
+      threadKey: CH,
+      status: "interrupted",
+      message: "已打断"
+    });
+    expect(store().viewOf(CH).running).toBe(false);
+    expect(store().viewOf(CH).streaming.message).toBe("");
+    expect(store().viewOf(CH).endedAs).toBe("interrupted");
+  });
+
+  it("（threadKeyFor trim）纯空白活动标签归一到 UNBOUND，与主进程同口径", () => {
+    expect(threadKeyFor("   ")).toBe(UNBOUND);
+    expect(threadKeyFor("")).toBe(UNBOUND);
+    expect(threadKeyFor(CH)).toBe(CH);
     expect(threadKeyFor(null)).toBe(UNBOUND);
   });
 });

@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import {
   AGENT_DELTA_KINDS,
   AGENT_EVENT_TYPES,
+  TURN_END_STATUSES,
   type AgentDeltaKind,
   type AgentEvent,
   type AgentEventType,
@@ -21,13 +22,6 @@ export const UNBOUND = "unbound";
 
 /** 「继续」按钮发出的固定指令：残字已随 interrupted 事件进历史，模型接着写而不是重来。 */
 const CONTINUE_TEXT = "接着上一轮未写完的地方继续，不要重复已经写出的内容。";
-
-/** 收尾状态的运行时白名单：与 contracts 的 TurnEndStatus 对齐（漂移时这行编译不过）。 */
-const TURN_END_STATUS_VALUES = [
-  "done",
-  "interrupted",
-  "failed"
-] as const satisfies readonly TurnEndStatus[];
 
 export interface ThreadView {
   turnId: string | null;
@@ -65,7 +59,9 @@ function newThread(): ThreadView {
 
 /** 裁定 o：线程键恒等于 `docRelPath ?? UNBOUND`，渲染层不许自己拼别的口径。 */
 export function threadKeyFor(activeDocTab: string | null): string {
-  return activeDocTab ?? UNBOUND;
+  // 与主进程 agent-service.ts:385 同口径：trim 后为空即独立线程，避免 "   " 绑出与主进程不同名的键。
+  const trimmed = activeDocTab?.trim() ?? "";
+  return trimmed === "" ? UNBOUND : trimmed;
 }
 
 /** 跨 IPC 的 rejection 一律收成中文句子（裁定 n 保证 message 已是单句中文）。 */
@@ -105,7 +101,7 @@ function malformedPush(raw: unknown): string {
     }
     case "turn-end": {
       const status = value.status;
-      if (typeof status !== "string" || !TURN_END_STATUS_VALUES.includes(status as TurnEndStatus))
+      if (typeof status !== "string" || !(TURN_END_STATUSES as readonly string[]).includes(status))
         return `无法识别的收尾状态：${String(status)}`;
       return "";
     }
@@ -186,6 +182,8 @@ export const useAgentStore = defineStore("agent", {
         this.notice = `已忽略一条无法归约的智能体推送：${malformed}`;
         return;
       }
+      // 事件按「载荷自带的 threadKey」归位（Important 1）：delta / event / turn-end 都不能退回按
+      // 激活页路由，否则别的线程的残字与错误会串进当前章视图，激活页看起来「凭空冒字」。
       const thread = this.viewOf(outbound.threadKey);
       if (outbound.type === "turn-start") {
         thread.turnId = outbound.turnId;
@@ -197,6 +195,10 @@ export const useAgentStore = defineStore("agent", {
         this.seconds = 0;
         return;
       }
+      // Important 2：同线程连发两轮时，thread.turnId 已由最新一次 turn-start 占位；
+      // 迟到的旧轮 delta / event / turn-end 与当前 turnId 不一致即忽略，绝不清空当前轮的流式缓冲或状态。
+      // turn-start 是唯一的设置入口，上面已先行处理，故这里不会把新一轮也挡掉。
+      if (thread.turnId !== null && thread.turnId !== outbound.turnId) return;
       if (outbound.type === "delta") {
         thread.streaming[outbound.deltaKind] += outbound.text;
         return;
