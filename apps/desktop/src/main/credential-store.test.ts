@@ -1,8 +1,8 @@
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createCredentialStore, type Cipher } from "./credential-store.js";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { createCredentialStore, type Cipher, type ReadTextFile } from "./credential-store.js";
 
 let dir = "";
 
@@ -78,5 +78,14 @@ describe("credentialStore", () => {
     await store.save("sk-abcdef");
     await store.clear();
     expect(await store.read()).toBeNull();
+  });
+
+  it("读密钥遇到非 ENOENT 的 IO 错误（EBUSY）时向外抛，不被当成未配置返回 null", async () => {
+    // 注入 readFile 抛出 EBUSY（非 ENOENT）：确定性、跨平台一致，不依赖真实文件系统对
+    // 「父级是文件」「目标是目录」在不同 OS 上返回 ENOENT/ENOTDIR/EISDIR/EBUSY 的差异。
+    const busy = Object.assign(new Error("resource busy or locked"), { code: "EBUSY" });
+    const readSpy = vi.fn<ReadTextFile>(() => Promise.reject(busy));
+    const store = createCredentialStore(dir, reversible, readSpy);
+    await expect(store.read()).rejects.toThrow(/密钥文件读取失败/);
   });
 });

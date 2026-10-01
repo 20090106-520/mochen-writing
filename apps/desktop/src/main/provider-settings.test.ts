@@ -1,8 +1,12 @@
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createCredentialStore, type CredentialStore } from "./credential-store.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  createCredentialStore,
+  type CredentialStore,
+  type ReadTextFile
+} from "./credential-store.js";
 import { createProviderSettings } from "./provider-settings.js";
 
 let dir = "";
@@ -104,5 +108,27 @@ describe("providerSettings", () => {
       settings.save({ baseURL: "http://a/v1", model: "m", apiKey: "sk-x1234" })
     ).rejects.toThrow(/不可用/);
     expect(await settings.config()).toBeNull();
+  });
+
+  it("保存后读盘校验两个落盘文件的原始字节都不含明文密钥（spec §8：密钥绝不以明文落盘，覆盖每个文件）", async () => {
+    const settings = createProviderSettings({ dir, credentials });
+    const key = "sk-plaintext-never-on-disk";
+    await settings.save({ baseURL: "http://a/v1", model: "m", apiKey: key });
+    const configRaw = await readFile(path.join(dir, "config.json"), "utf8");
+    const secretsRaw = await readFile(path.join(dir, "secrets.enc"), "utf8");
+    expect(configRaw).not.toContain(key);
+    expect(secretsRaw).not.toContain(key);
+    expect(JSON.parse(configRaw)).toEqual({ baseURL: "http://a/v1", model: "m" });
+  });
+
+  it("config.json 读取遇到非 ENOENT 的 IO 错误（EISDIR）时向外抛，不被当成未配置返回 null", async () => {
+    // 注入 readFile 抛 EISDIR（非 ENOENT）：确定性、跨平台一致，不依赖真实文件系统对
+    // 各类占位/权限场景在不同 OS 上返回 ENOENT/ENOTDIR/EISDIR 的差异。
+    const eisdir = Object.assign(new Error("illegal operation on a directory, read"), {
+      code: "EISDIR"
+    });
+    const readSpy = vi.fn<ReadTextFile>(() => Promise.reject(eisdir));
+    const settings = createProviderSettings({ dir, credentials, readFile: readSpy });
+    await expect(settings.config()).rejects.toThrow(/模型配置文件读取失败/);
   });
 });

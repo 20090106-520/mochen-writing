@@ -8,7 +8,7 @@ import {
   type ProviderDraft,
   type ProviderView
 } from "@mochen/contracts";
-import type { CredentialStore } from "./credential-store.js";
+import type { CredentialStore, ReadTextFile } from "./credential-store.js";
 
 export interface ProviderSettings {
   view(): Promise<ProviderView>;
@@ -20,13 +20,26 @@ export interface ProviderSettings {
 export function createProviderSettings(deps: {
   dir: string;
   credentials: CredentialStore;
+  readFile?: ReadTextFile;
 }): ProviderSettings {
   const configFile = path.join(deps.dir, "config.json");
+  const readText: ReadTextFile = deps.readFile ?? ((p) => readFile(p, "utf8"));
 
   async function loadConfig(): Promise<ProviderConfig | null> {
-    const raw = await readFile(configFile, "utf8").catch(() => null);
-    // 没配置过就是 null：Task 10 取密钥、Task 11 拦「未配置模型」的 turn 都依赖这条不抛错。
-    if (raw === null || raw.trim() === "") return null;
+    // 只有 ENOENT（从未配置）才返回 null；EBUSY/EACCES 等真实 IO 错误向外抛，
+    // 否则 Task 11 的「未配置模型」守卫会在配置文件只是读不了（被占用/无权限）时误触发。
+    let raw: string;
+    try {
+      raw = await readText(configFile);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw new Error(
+        `模型配置文件读取失败（${error instanceof Error ? error.message : String(error)}）；` +
+          "请检查该文件是否被占用或有访问权限。",
+        { cause: error }
+      );
+    }
+    if (raw.trim() === "") return null;
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
