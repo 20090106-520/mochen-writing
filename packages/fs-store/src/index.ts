@@ -2,3 +2,4 @@ export * from "./paths.js";
 export * from "./fingerprint.js";
 export * from "./frontmatter.js";
 export * from "./scan.js";
+export * from "./read-write.js";
