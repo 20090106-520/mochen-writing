@@ -4,7 +4,8 @@ export const IPC_CHANNELS = {
   bookOpen: "book:open",
   bookSaveMeta: "book:save-meta",
   docRead: "doc:read",
-  docWrite: "doc:write"
+  docWrite: "doc:write",
+  bookPick: "book:pick"
 } as const;
 
 export interface BookOpenResult {
@@ -25,6 +26,7 @@ export type DocWriteResult =
   | { ok: false; reason: "invalid-path" | "outside-book" | "io-error"; message: string };
 
 export interface RendererApi {
+  pickBookDirectory(): Promise<string | null>;
   openBook(rootPath: string): Promise<BookOpenResult>;
   saveMeta(meta: BookMeta): Promise<void>;
   readDoc(relPath: string): Promise<DocContent>;

@@ -1,3 +1,4 @@
+export * from "./appearance.js";
 export * from "./permission.js";
 export * from "./book.js";
 export * from "./patch.js";

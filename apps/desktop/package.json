@@ -11,9 +11,12 @@
   },
   "dependencies": {
     "@abyss/contracts": "workspace:*",
-    "@abyss/fs-store": "workspace:*"
+    "@abyss/fs-store": "workspace:*",
+    "pinia": "catalog:",
+    "vue": "catalog:"
   },
   "devDependencies": {
+    "@vitejs/plugin-vue": "catalog:",
     "electron": "catalog:",
     "electron-vite": "catalog:",
     "typescript": "catalog:",

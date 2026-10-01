@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS, type RendererApi } from "@abyss/contracts";
 
 const api: RendererApi = {
+  pickBookDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.bookPick),
   openBook: (rootPath) => ipcRenderer.invoke(IPC_CHANNELS.bookOpen, rootPath),
   saveMeta: (meta) => ipcRenderer.invoke(IPC_CHANNELS.bookSaveMeta, meta),
   readDoc: (relPath) => ipcRenderer.invoke(IPC_CHANNELS.docRead, relPath),

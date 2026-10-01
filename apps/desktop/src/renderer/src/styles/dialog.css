@@ -1,0 +1,188 @@
+/* 源自 deepwrite（Apache-2.0），原样移植。 */
+
+/* Dialogs */
+
+.dialog-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 30px;
+  background: color-mix(in srgb, var(--theme-foreground) 28%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.workspace-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100vw - 48px));
+  max-height: min(720px, calc(100vh - 60px));
+  overflow: hidden;
+  border: 1px solid var(--theme-line);
+  border-radius: 15px;
+  background: var(--surface-main);
+  box-shadow:
+    0 24px 70px rgba(27, 29, 31, 0.2),
+    0 2px 8px rgba(27, 29, 31, 0.08);
+}
+
+.workspace-dialog.is-model-config {
+  width: min(820px, calc(100vw - 48px));
+}
+
+.workspace-settings-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 100%);
+  min-height: min(560px, calc(100vh - 104px));
+  overflow: hidden;
+  border: 1px solid var(--theme-line);
+  border-radius: 15px;
+  background: var(--surface-raised);
+  box-shadow: 0 14px 42px rgb(0 0 0 / 8%);
+}
+
+.workspace-settings-panel.is-model-config {
+  width: min(960px, 100%);
+  min-height: min(680px, calc(100vh - 104px));
+}
+
+.workspace-settings-panel.is-model-config.is-embedded {
+  width: 100%;
+  min-height: 0;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.workspace-settings-panel .dialog-content {
+  flex: 1 1 auto;
+  padding: 24px 26px 28px;
+}
+
+.workspace-dialog > header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 15px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.dialog-eyebrow {
+  color: var(--text-tertiary);
+  font-size: 0.642857rem;
+  font-weight: 650;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.workspace-dialog h2 {
+  margin-top: 3px;
+  color: var(--text-primary);
+  font-size: 1.35714rem;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+}
+
+.dialog-close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 1.57143rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dialog-close:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.dialog-content {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 22px 23px;
+}
+
+.dialog-description {
+  margin-bottom: 15px;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  line-height: 1.65;
+}
+
+.dialog-content textarea {
+  width: 100%;
+  min-height: 180px;
+  padding: 12px;
+  resize: vertical;
+  border: 1px solid var(--theme-line);
+  border-radius: 9px;
+  outline: 0;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-family: var(--editor-font);
+  font-size: 0.857143rem;
+  line-height: 1.7;
+}
+
+.dialog-content textarea:focus {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--theme-line));
+  background: var(--surface-main);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 13px;
+}
+
+.dialog-primary-button,
+.dialog-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-size: 0.785714rem;
+  cursor: pointer;
+}
+
+.dialog-primary-button {
+  background: var(--neutral-solid);
+  color: var(--neutral-solid-contrast);
+}
+
+.dialog-primary-button:disabled,
+.dialog-secondary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dialog-secondary-button {
+  border: 1px solid var(--theme-line);
+  background: var(--surface-main);
+  color: var(--text-secondary);
+}
+
+.dialog-secondary-button:hover {
+  background: var(--sidebar-surface);
+}
+
+.dialog-primary-button.is-danger {
+  background: var(--danger);
+  color: var(--danger-contrast);
+}
+
+.dialog-primary-button.is-danger:hover {
+  background: var(--danger);
+}
