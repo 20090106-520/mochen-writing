@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentToolName } from "@mochen/contracts";
+import type { AgentEvent, AgentToolName, ProposalStatus } from "@mochen/contracts";
 
 export interface StreamingTail {
   reasoning: string;
@@ -129,7 +129,10 @@ export interface TurnAnchor {
  */
 export function turnAnchors(items: AgentEvent[]): Record<string, TurnAnchor> {
   const order: string[] = [];
-  const anchors: Record<string, TurnAnchor> = {};
+  // 用无原型表存锚点：普通 {} 继承 Object.prototype，查询键是 "toString"/"valueOf"/"constructor"
+  // 这类原型键时会命中继承的成员（IPC 被篡改/畸形推送下内层 turnId 可为任意串），
+  // 让下游 anchor.userText.replace 抛 TypeError。Object.create(null) 从根上堵死这条面。
+  const anchors: Record<string, TurnAnchor> = Object.create(null);
   for (const item of items) {
     const turnId = item.turnId;
     if (!order.includes(turnId)) order.push(turnId);
@@ -151,14 +154,18 @@ export function cardTurnLabel(anchors: Record<string, TurnAnchor>, turnId: strin
   if (anchor === undefined) return "本轮";
   const text = anchor.userText.replace(/\s+/g, " ").trim();
   if (text === "") return `第 ${anchor.index} 轮`;
-  const clipped = text.length > TURN_TEXT_MAX ? `${text.slice(0, TURN_TEXT_MAX)}…` : text;
+  // 按码点截断而不是按 UTF-16 码元：slice(0,24) 会把 emoji（代理对）劈成孤立高代理，
+  // 卡头渲染出豆腐块。Array.from 先拆成码点数组，截 24 个码点再拼回，代理对要么整留要么整去。
+  const chars = Array.from(text);
+  const clipped =
+    chars.length > TURN_TEXT_MAX ? `${chars.slice(0, TURN_TEXT_MAX).join("")}…` : text;
   return `第 ${anchor.index} 轮 · ${clipped}`;
 }
 
 /** splitProposalCards 用到的最小形状；渲染层直接把 ProposalView[] 传进来。 */
 export interface ProposalCardInput {
   proposal: { turnId: string; createdAt: string };
-  status: string;
+  status: ProposalStatus;
 }
 
 export interface CardSplit<T extends ProposalCardInput = ProposalCardInput> {

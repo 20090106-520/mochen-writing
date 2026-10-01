@@ -231,6 +231,15 @@ describe("streamChat", () => {
     expect(await failMessage(fetchImpl)).toBe("模型服务端返回 500：无响应体");
   });
 
+  it("error.message 为全空白：按空处理退回压平后的原样片段，而不是走「无响应体」", async () => {
+    // provider-client.ts:58 的 candidate.trim() 把纯空白 message 归零 ⇒ upstreamMessage 返回 "" ⇒
+    // errorHint 退回 flat（原样片段）。删掉 trim 后 candidate 保持 "   "（非空），
+    // errorHint 走 snippet("   ")="" ⇒ 调用处 || "无响应体" ⇒ 结果变成「无响应体」。
+    // 这条正是能区分 trim 有/无的断言（评审 M14：当前无断言能区分）。
+    const { fetchImpl } = makeFetch([], 503, '{"error":{"message":"   "}}');
+    expect(await failMessage(fetchImpl)).toBe('模型服务端返回 503：{"error":{"message":" "}}');
+  });
+
   it("abort 时安静收尾为 aborted，不抛错也不产出半截工具调用", async () => {
     const controller = new AbortController();
     // 桩流带一个真实的半截 tool_calls 分片（id + name + 截断的 arguments），随后 abort。
