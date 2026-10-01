@@ -1,0 +1,36 @@
+{
+  "name": "abyss-writing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "dev": "corepack pnpm --filter @abyss/desktop dev",
+    "build": "corepack pnpm --filter @abyss/desktop build",
+    "typecheck": "tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/fs-store/tsconfig.json",
+    "test": "vitest run --maxWorkers=4",
+    "lint:eslint": "eslint . --max-warnings=0",
+    "lint:boundary": "node tools/check-package-boundary.mjs",
+    "lint:budget": "node tools/check-source-line-budget.mjs",
+    "lint": "eslint . --max-warnings=0 && node tools/check-package-boundary.mjs && node tools/check-source-line-budget.mjs",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "verify": "prettier . --check && tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/fs-store/tsconfig.json && eslint . --max-warnings=0 && node tools/check-package-boundary.mjs && node tools/check-source-line-budget.mjs && vitest run --maxWorkers=4 && echo VERIFY_EXIT=0"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-plugin-vue": "catalog:",
+    "globals": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
+  }
+}
