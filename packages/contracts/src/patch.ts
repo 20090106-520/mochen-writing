@@ -37,7 +37,7 @@ export const editProposalSchema = z.object({
   replace: z.string(),
   why: z.string(),
   tool: z.enum(AGENT_TOOL_NAMES),
-  source: z.enum(["tool-call", "text-block"]),
+  source: z.enum(PROPOSAL_SOURCES),
   expectedFingerprint: z.string().min(1),
   createdAt: z.string().min(1)
 });

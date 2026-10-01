@@ -8,9 +8,9 @@ export const AGENT_TOOL_NAMES = [
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
 
 /** 只有这两个工具会产生待写入动作；其余三个是只读参考。 */
-export const WRITE_TOOLS = ["propose_patch", "write_doc"] as const;
+export const WRITE_TOOLS: readonly AgentToolName[] = ["propose_patch", "write_doc"];
 export type WriteToolName = (typeof WRITE_TOOLS)[number];
 
 export function isWriteTool(name: AgentToolName): name is WriteToolName {
-  return (WRITE_TOOLS as readonly AgentToolName[]).includes(name);
+  return WRITE_TOOLS.includes(name);
 }
