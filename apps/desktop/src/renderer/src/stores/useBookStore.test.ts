@@ -248,4 +248,19 @@ describe("useBookStore", () => {
     expect(store.draftsByPath["chapters/01-a.md"]).toBeUndefined();
     expect(readDoc).not.toHaveBeenCalled();
   });
+
+  // 补 Wave A 的覆盖缺口：absorbAgentWrite 里 reloadActive 的 catch 分支（裁定 m1′ 的可见性）。
+  it("吸收写盘时重读被主进程拒绝：中文原因进 notice，草稿一字不动", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    await store.openDocTab("chapters/01-a.md");
+    readDoc.mockImplementationOnce(async () => {
+      throw new Error("路径越界，已拒绝读取");
+    });
+    await store.absorbAgentWrite("chapters/01-a.md", "fp-b");
+    expect(store.notice).toContain("路径越界，已拒绝读取");
+    expect(store.draft).toBe("正文\n");
+    expect(store.savedFingerprint).toBe("fp-a");
+    expect(store.dirty).toBe(false);
+  });
 });
