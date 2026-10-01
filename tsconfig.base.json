@@ -8,6 +8,7 @@
     "exactOptionalPropertyTypes": true,
     "noUnusedLocals": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "types": ["node"]
   }
 }
