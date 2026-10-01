@@ -31,12 +31,29 @@ const writeDoc = vi.fn(async (): Promise<DocWriteResult> => ({
   currentFingerprint: "fp-x"
 }));
 const pickBookDirectory = vi.fn(async (): Promise<string | null> => "/book");
+/** book 侧测试绝不触碰的通道：一旦被调用就报出来。 */
+function offLimits(name: string) {
+  return vi.fn(async () => {
+    throw new Error(`useBookStore 不该调用 ${name}`);
+  });
+}
+
 const api = {
   pickBookDirectory,
   openBook: vi.fn(async () => result),
   saveMeta: vi.fn(async () => {}),
   readDoc,
-  writeDoc
+  writeDoc,
+  startTurn: offLimits("startTurn"),
+  interruptTurn: offLimits("interruptTurn"),
+  decideProposal: offLimits("decideProposal"),
+  proposalDiff: offLimits("proposalDiff"),
+  providerView: offLimits("providerView"),
+  providerSave: offLimits("providerSave"),
+  // onAgentEvent 要同步返回取消函数，async 夹具类型不符——这里同步抛错。
+  onAgentEvent: vi.fn(() => {
+    throw new Error("useBookStore 不该订阅 agent");
+  })
 } satisfies RendererApi;
 
 function docReads() {
