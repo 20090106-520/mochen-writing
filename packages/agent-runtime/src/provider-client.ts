@@ -165,6 +165,9 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
     if (delta.finishReason !== "") {
       for (const [index, call] of [...calls.entries()].sort(([a], [b]) => a - b)) {
         if (call.name === "") continue;
+        // §6.3 与下方断流分支同一条门禁：端点正常收尾（finish_reason）时，
+        // 参数未收全的 tool_call 也必须丢弃——Task 8 会把这些 arguments 原样 JSON.parse，半截串就炸。
+        if (!argumentsComplete(call.args)) continue;
         yield {
           kind: "tool-call",
           call: {

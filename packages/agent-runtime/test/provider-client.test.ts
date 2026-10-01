@@ -282,4 +282,54 @@ describe("streamChat", () => {
       { kind: "finish", reason: "stop" }
     ]);
   });
+
+  it("正常收尾（finish_reason）也必须丢弃参数未收全的工具调用（§6.3）", async () => {
+    // 钉 parked 项 (a)：finish_reason 分支此前只按 name==="" 过滤，不看 arguments 是否收全，
+    // 于是截断的工具参数会在「端点正常收尾」这条路上被原样交给下游（Task 8 会直接 JSON.parse 炸）。
+    const { fetchImpl } = makeFetch(
+      sse(
+        {
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  { index: 0, id: "c1", function: { name: "read_doc", arguments: '{"doc": "c' } }
+                ]
+              }
+            }
+          ]
+        },
+        { choices: [{ delta: {}, finish_reason: "tool_calls" }] }
+      )
+    );
+    // 断言完整事件序列：半截调用被丢弃，只剩收尾的 finish；等价于「不产出 tool-call」。
+    expect(await run(fetchImpl)).toEqual([{ kind: "finish", reason: "tool_calls" }]);
+  });
+
+  it("abort 后停止消费后续帧：只产出已流出文本，第二帧 delta 绝不出现", async () => {
+    // 钉 parked 项 (b)：断流守卫的独特性质是「abort 后不再消费后续帧」，
+    // 此前没有任何用例专门触达循环内守卫（Task 3 fix-round 把 abort 落在最后一帧后失Cover）。
+    // 用完整序列断言（非 containment）：frames [半, 句]，abort 落在两帧之间 ⇒ 句 不得产出。
+    const controller = new AbortController();
+    const { fetchImpl } = makeFetch(
+      sse({ choices: [{ delta: { content: "半" } }] }, { choices: [{ delta: { content: "句" } }] })
+    );
+    const events: StreamEvent[] = [];
+    for await (const event of streamChat({
+      fetchImpl,
+      baseURL: "http://127.0.0.1:8787/v1",
+      apiKey: "k",
+      model: "m",
+      messages: [chatMessage("user", "x")],
+      tools: [],
+      signal: controller.signal
+    })) {
+      events.push(event);
+      if (event.kind === "text-delta") controller.abort();
+    }
+    expect(events).toEqual([
+      { kind: "text-delta", text: "半" },
+      { kind: "finish", reason: "aborted" }
+    ]);
+  });
 });
