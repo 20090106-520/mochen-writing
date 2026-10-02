@@ -41,6 +41,7 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     interruptTurn: (turnId) => invoke(IPC_CHANNELS.agentInterrupt, turnId),
     decideProposal: (input: DecideInput) => invoke(IPC_CHANNELS.agentDecide, input),
     proposalDiff: (proposalId) => invoke(IPC_CHANNELS.agentDiff, proposalId),
+    loadSession: (threadKey) => invoke(IPC_CHANNELS.agentLoadSession, threadKey),
     providerView: () => invoke(IPC_CHANNELS.providerGet),
     providerSave: (draft: ProviderDraft) => invoke(IPC_CHANNELS.providerSave, draft),
     onAgentEvent: (listener) =>

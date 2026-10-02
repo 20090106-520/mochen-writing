@@ -11,6 +11,7 @@ import type {
   EditProposal,
   ProviderView,
   RendererApi,
+  SessionLoadResult,
   StartTurnInput
 } from "@mochen/contracts";
 import { composeStatusLine, threadKeyFor, UNBOUND, useAgentStore } from "./useAgentStore";
@@ -108,6 +109,12 @@ const writeDoc = vi.fn(async (): Promise<DocWriteResult> => ({
   fingerprint: "fp-b",
   backupRelPath: null
 }));
+/** 回放取数的桩：本波恒返回 no-session，Task 5 的 ensureHydrated 用例再改成可编排。 */
+const loadSession = vi.fn(async (): Promise<SessionLoadResult> => ({
+  found: false,
+  reason: "no-session",
+  message: "这本书里没有这条线程的历史。"
+}));
 
 const api = {
   pickBookDirectory: vi.fn(async () => CH),
@@ -119,6 +126,7 @@ const api = {
   interruptTurn,
   decideProposal,
   proposalDiff,
+  loadSession,
   providerView: vi.fn(async (): Promise<ProviderView> => view),
   providerSave: vi.fn(async (): Promise<ProviderView> => view),
   onAgentEvent: vi.fn((listener: (payload: AgentOutbound) => void) => {

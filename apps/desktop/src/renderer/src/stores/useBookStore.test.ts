@@ -48,6 +48,7 @@ const api = {
   interruptTurn: offLimits("interruptTurn"),
   decideProposal: offLimits("decideProposal"),
   proposalDiff: offLimits("proposalDiff"),
+  loadSession: offLimits("loadSession"),
   providerView: offLimits("providerView"),
   providerSave: offLimits("providerSave"),
   // onAgentEvent 要同步返回取消函数，async 夹具类型不符——这里同步抛错。

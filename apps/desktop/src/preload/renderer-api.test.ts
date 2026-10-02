@@ -61,7 +61,7 @@ describe("createRendererApi", () => {
     expect(listeners.size).toBe(0);
   });
 
-  it("12 个方法各调一次：通道与参数逐条钉死（期望值全是字面量，不从 IPC_CHANNELS 派生）", async () => {
+  it("13 个方法各调一次：通道与参数逐条钉死（期望值全是字面量，不从 IPC_CHANNELS 派生）", async () => {
     const { api, calls } = harness();
     const meta: BookMeta = {
       id: "b1",
@@ -94,11 +94,12 @@ describe("createRendererApi", () => {
     await api.interruptTurn("t-1");
     await api.decideProposal(decideInput);
     await api.proposalDiff("p-1");
+    await api.loadSession("chapters/01-开局.md");
     await api.providerView();
     await api.providerSave(draft);
     api.onAgentEvent(() => {});
 
-    expect(calls.length).toBe(12);
+    expect(calls.length).toBe(13);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -111,6 +112,7 @@ describe("createRendererApi", () => {
       "agent:interrupt",
       "agent:decide",
       "agent:diff",
+      "agent:load-session",
       "provider:get",
       "provider:save",
       "agent:event"
@@ -125,14 +127,16 @@ describe("createRendererApi", () => {
       ["t-1"],
       [decideInput],
       ["p-1"],
+      ["chapters/01-开局.md"],
       [],
       [draft],
       ["subscribe"]
     ]);
-    // 渲染层只拿到这 12 个方法：invoke/on/ipcRenderer 一个字都不许泄漏成键。
+    // 渲染层只拿到这 13 个方法：invoke/on/ipcRenderer 一个字都不许泄漏成键。
     expect(Object.keys(api).sort()).toEqual([
       "decideProposal",
       "interruptTurn",
+      "loadSession",
       "onAgentEvent",
       "openBook",
       "pickBookDirectory",
