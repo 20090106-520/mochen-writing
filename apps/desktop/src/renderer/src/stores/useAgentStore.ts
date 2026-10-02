@@ -233,12 +233,18 @@ export const useAgentStore = defineStore("agent", {
   },
 
   actions: {
+    /**
+     * 线程视图的唯一取处。新建时必须**回读** `this.threads[key]` 而不是返回手里的裸对象：
+     * 写进 pinia state 的那份会被 Vue 包成响应式代理，裸对象与代理是「同一个 target、两套拦截」，
+     * 拿着裸对象改字段真值是对的、依赖通知却一次不发。跨 await 握引用时最要命——建线程那次的
+     * 通知被渲染帧消费掉后再写的值（hydrating / 回放 items）永久停在旧缓存，真机表现为占位卡在
+     * 「正在恢复这一条线程…」（回归用例见 useAgentStore.hydrate.test.ts）。
+     */
     viewOf(threadKey: string): ThreadView {
       const existing = this.threads[threadKey];
       if (existing) return existing;
-      const created = newThread();
-      this.threads[threadKey] = created;
-      return created;
+      this.threads[threadKey] = newThread();
+      return this.threads[threadKey];
     },
 
     /** 中栏唯一的订阅入口：装配处挂载时调一次，重复调用不叠加监听。 */

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { computed } from "vue";
+import type { SessionLoadResult } from "@mochen/contracts";
 import {
   CH,
   eventOf,
@@ -162,5 +164,42 @@ describe("useAgentStore 水合（ensureHydrated 八规则）", () => {
     expect(store().viewOf(CH).endedAs).toBe("");
     expect(store().canContinue(CH)).toBe(false);
     expect(store().viewOf(CH).lastError).toBe("模型服务端返回 503：上游繁忙");
+  });
+
+  /**
+   * 真机 P0 回归（占位永久停在「正在恢复这一条线程…」）：`viewOf` 新建线程时若把**裸对象**
+   * 返回并留在手里，`ensureHydrated` / `runHydrate` 整段都写在响应式代理之外。真值是对的
+   * （下一回 `viewOf` 读出来已是代理，视图自愈），但建线程那次的通知被「渲染帧」消费掉之后，
+   * 跨越 await 才落地的 `hydrating=false` 与回放 items 一次通知都发不出去，组件里的 computed
+   * 就把渲染那一帧的旧值永久缓存下去。八条规则的用例全部直读 store，天生测不到「值对、视图旧」，
+   * 所以这里必须借 computed 复现组件的读法，并且**先在取数在途时读一次把缓存钉住**再放数据。
+   */
+  it("新建线程走代理：取数结束后视图侧 computed 与真值一致（不卡「正在恢复」）", async () => {
+    await openChapter();
+    let release!: (value: SessionLoadResult) => void;
+    loadSession.mockImplementationOnce(
+      () =>
+        new Promise<SessionLoadResult>((resolve) => {
+          release = resolve;
+        })
+    );
+    const inflight = store().ensureHydrated(CH);
+    const viewHydrating = computed(() => store().threads[CH]?.hydrating ?? false);
+    const viewItems = computed(() => store().threads[CH]?.items.length ?? 0);
+    // 在途的这一读 = 组件渲染出占位的那一帧。
+    expect(viewHydrating.value).toBe(true);
+    expect(viewItems.value).toBe(0);
+    release(
+      loaded([
+        eventOf("user-message", { text: "改紧" }),
+        eventOf("message", { text: "海雾涌上来", interrupted: false })
+      ])
+    );
+    await inflight;
+    // 先要真值（这一对变异前后都过，只作前提），再要视图值与它一致——红的只有后两条。
+    expect(store().viewOf(CH).hydrating).toBe(false);
+    expect(store().viewOf(CH).items.length).toBe(2);
+    expect(viewHydrating.value).toBe(false);
+    expect(viewItems.value).toBe(2);
   });
 });
