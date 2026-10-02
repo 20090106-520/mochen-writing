@@ -53,6 +53,8 @@ describe("useAgentStore.composerDrafts · 输入值上收与排队无丢失", ()
     agent.setDraft(CH, "把第二段改短");
     const text = agent.draftOf(CH);
     const accepted = agent.queueText(CH, text);
+    // 入队本身一格都不许动输入框：清空只能来自下面那次显式回写（「先清后问」在这里就会红）。
+    expect(agent.draftOf(CH)).toBe(text);
     agent.setDraft(CH, composerTextAfterQueue(text, accepted));
     expect(accepted).toBe(true);
     expect(agent.threads[CH]?.queued).toEqual(["把第二段改短"]);
@@ -65,6 +67,8 @@ describe("useAgentStore.composerDrafts · 输入值上收与排队无丢失", ()
     const draft = "   满额后按下的这句\n带前导空格与末尾换行";
     agent.setDraft(CH, draft);
     const accepted = agent.queueText(CH, draft);
+    // 被拒的一刻草稿必须原封不动还在原格：回写之前它一个字都不许被顺手清掉或 Trim 掉。
+    expect(agent.draftOf(CH)).toBe(draft);
     agent.setDraft(CH, composerTextAfterQueue(draft, accepted));
     expect(accepted).toBe(false);
     expect(agent.threads[CH]?.queued).toEqual(["第1条", "第2条", "第3条", "第4条", "第5条"]);
