@@ -1,7 +1,9 @@
 /**
  * 键位判定层（spec §5）：只回答「哪个键在什么焦点下等于哪个动作」。
  * 入参是拆开的修饰键而不是 KeyboardEvent——不依赖 DOM，也不会有人偷偷传 event 读别的字段。
- * Esc 一律 delegated：真正的三态裁决仍在 utils/escape-policy.ts 的 resolveEscape，这里绝不复制一份。
+ * 键位表（spec §5）与五条护栏冲突时以护栏为准：表是摘要，白名单才是裁决边界。
+ * Esc：只有裸键 delegated（带修饰的 Esc 属于 OS 或别人）；三态裁决仍在 utils/escape-policy.ts
+ * 的 resolveEscape，这里绝不复制一份。
  */
 export interface HotkeyMods {
   ctrl: boolean;
@@ -53,13 +55,16 @@ const APPROVAL_KEYS: Record<string, HotkeyAction> = {
 };
 
 export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods): HotkeyResult {
-  const none: HotkeyResult = { action: "none" };
   // 护栏 1（M4）：输入法合成期间一律不截键——候选框回车被吃掉是这类应用最刺眼的错。
-  if (focus.isComposing) return none;
+  if (focus.isComposing) return { action: "none" };
 
   const bare = !mods.ctrl && !mods.alt && !mods.meta; // 是否只可能带 shift（或不带）
   const noMods = bare && !mods.shift; // 是否纯键（无任何修饰）
   const k = key.length === 1 ? key.toLowerCase() : key;
+
+  // Esc：先于 Ctrl 族、后于合成闸门判定，但**只有裸键**才委托——
+  // Alt+Esc 在 Windows 是系统切窗口键，Ctrl/Shift/Meta+Esc 归 OS 或归别人，一律 none。
+  if (k === "Escape") return noMods ? { action: "delegated" } : { action: "none" };
 
   // 全局 Ctrl 族（先于编辑态判断：即便在文本框里也应放行）
   if (mods.ctrl && !mods.alt && !mods.meta) {
@@ -71,28 +76,29 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
       if (/^[1-9]$/.test(k)) {
         const index = Number(k) - 1;
         if (focus.hasBook && index < focus.tabCount) return { action: "jump-tab", tabIndex: index };
-        return none; // 越界 / 无书
+        return { action: "none" }; // 越界 / 无书
       }
       if (focus.composerIsFocused && k === "j") return { action: "newline" }; // Ctrl+J
     }
-    return none; // 其余 Ctrl 组合不在键位表
+    return { action: "none" }; // 其余 Ctrl 组合不在键位表
   }
-
-  // Esc：委托给 resolveEscape（裁决不在这层）
-  if (k === "Escape") return { action: "delegated" };
 
   // / 开面板：composer 无焦点且不在文本框、无修饰键
   if (k === "/" && noMods && !focus.composerIsFocused && !focus.textInputIsFocused)
     return { action: "open-palette" };
 
-  // Tab 排队：仅运行中有文本；其余保留焦点移动（无障碍优先）
+  // Tab 排队：仅运行中有文本，且焦点不在文本输入里；其余保留焦点移动（无障碍优先）。
+  // 焦点条件写在护栏 2 的白名单里（textInputIsFocused 时只放行 newline/submit/全局 Ctrl+*），
+  // spec §5 的 Tab 行漏了它——以护栏为准：文稿编辑器里按 Tab 是缩进，不能被排队抢走。
   if (k === "Tab" && noMods)
-    return focus.turnRunning && focus.composerHasText ? { action: "queue" } : none;
+    return focus.turnRunning && focus.composerHasText && !focus.textInputIsFocused
+      ? { action: "queue" }
+      : { action: "none" };
 
   // Enter / Shift+Enter（composer 焦点）
   if (k === "Enter" && focus.composerIsFocused && bare) {
     if (mods.shift) return { action: "newline" };
-    return focus.turnRunning ? none : { action: "submit" };
+    return focus.turnRunning ? { action: "none" } : { action: "submit" };
   }
 
   // 审批四键：只作用于聚焦的那一张待审卡，且不在文本框里（护栏 2、4）
@@ -105,5 +111,5 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
   )
     return { action: APPROVAL_KEYS[k] as HotkeyAction };
 
-  return none;
+  return { action: "none" };
 }

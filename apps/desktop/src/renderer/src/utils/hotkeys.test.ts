@@ -60,11 +60,40 @@ describe("resolveHotkey · composer 区", () => {
     ).toBe("queue");
     expect(resolveHotkey(focus({ composerHasText: true }), "Tab", mods()).action).toBe("none");
   });
+  it("Tab 反向：运行中但 composer 是空的 ⇒ none（排队得先有文本）", () => {
+    expect(
+      resolveHotkey(
+        focus({ composerIsFocused: true, composerHasText: false, turnRunning: true }),
+        "Tab",
+        mods()
+      ).action
+    ).toBe("none");
+  });
+  it("Tab 护栏 2 反向：焦点在文稿编辑器里，运行中且 composer 有草稿 ⇒ none（Tab 是缩进，不是排队）", () => {
+    expect(
+      resolveHotkey(
+        focus({ composerHasText: true, turnRunning: true, textInputIsFocused: true }),
+        "Tab",
+        mods()
+      ).action
+    ).toBe("none");
+  });
 });
 
 describe("resolveHotkey · Esc 委托", () => {
   it("Escape 一律 delegated（Esc 的裁决仍在 resolveEscape，不在这里复制）", () => {
     expect(resolveHotkey(focus({ hasBook: true }), "Escape", mods()).action).toBe("delegated");
+  });
+  it("带任何修饰的 Escape ⇒ none（Alt+Esc 是 Windows 系统键，Ctrl/Shift/Meta+Esc 不归我们）", () => {
+    const f = focus({ hasBook: true, composerIsFocused: true });
+    for (const m of [
+      { ctrl: true },
+      { shift: true },
+      { alt: true },
+      { meta: true },
+      { ctrl: true, shift: true }
+    ])
+      expect(resolveHotkey(f, "Escape", mods(m)).action).toBe("none");
   });
 });
 
@@ -126,7 +155,53 @@ describe("resolveHotkey · / 开面板", () => {
   it("composer 有焦点时 / 只是打字 ⇒ none", () => {
     expect(resolveHotkey(focus({ composerIsFocused: true }), "/", mods()).action).toBe("none");
   });
+  it("护栏 2 反向：文本框（文稿编辑器/设置输入）里打 / ⇒ none，不开面板", () => {
+    expect(
+      resolveHotkey(focus({ hasBook: true, textInputIsFocused: true }), "/", mods()).action
+    ).toBe("none");
+  });
   it("其余按键 ⇒ none", () => {
     expect(resolveHotkey(focus(), "z", mods()).action).toBe("none");
+  });
+});
+
+describe("resolveHotkey · 修饰键必须参与判定", () => {
+  it("Shift+y 落在聚焦待审卡上 ⇒ none（审批四键要纯键）", () => {
+    const f = focus({ proposalIsFocused: true, proposalIsPending: true });
+    expect(resolveHotkey(f, "y", mods({ shift: true })).action).toBe("none");
+  });
+  it("Shift+Tab 运行中有草稿 ⇒ none（那是反向焦点移动，不是排队）", () => {
+    expect(
+      resolveHotkey(
+        focus({ composerIsFocused: true, composerHasText: true, turnRunning: true }),
+        "Tab",
+        mods({ shift: true })
+      ).action
+    ).toBe("none");
+  });
+  it("Ctrl+Shift+B ⇒ none（左栏开关只认纯 Ctrl+B）", () => {
+    expect(resolveHotkey(focus(), "b", mods({ ctrl: true, shift: true })).action).toBe("none");
+  });
+  it("Shift+/ （问号）空闲态也不开面板 ⇒ none", () => {
+    expect(resolveHotkey(focus({ hasBook: true }), "/", mods({ shift: true })).action).toBe("none");
+  });
+  it("Ctrl+J 护栏：composer 无焦点 ⇒ none（换行键属于 composer）", () => {
+    expect(
+      resolveHotkey(
+        focus({ composerIsFocused: false, textInputIsFocused: true }),
+        "j",
+        mods({ ctrl: true })
+      ).action
+    ).toBe("none");
+  });
+});
+
+describe("resolveHotkey · 结果对象不共享可变状态", () => {
+  it("两条 none 不是同一个引用：改一条不污染另一条", () => {
+    const a = resolveHotkey(focus(), "z", mods());
+    const b = resolveHotkey(focus(), "x", mods());
+    expect(a).not.toBe(b);
+    a.action = "submit";
+    expect(b.action).toBe("none");
   });
 });
