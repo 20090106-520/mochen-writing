@@ -4,7 +4,8 @@
  * 于是改用 node:fs 直接读 .vue 源——Task 7 最怕的静默失败模式（改一处标记名不红不坏、键位整体失灵）
  * 在这里变成可失败的断言：
  * ① 五个标记名各钉一次字面量；② 模板里必须**以属性形态**出现这些名字（剥掉 HTML 注释，写在注释里不算）；
- * ③ 全渲染层 src 的 `document.addEventListener("keydown"` 有且只有一处且就在 useHotkeys.ts（裁定 G5）。
+ * ③ 全渲染层 src 的 `document.addEventListener("keydown"` 有且只有一处且就在 useHotkeys.ts（裁定 G5）；
+ * ④ ComposerBox 的 textarea 必须以 v-model 绑定，退回 `:value` + `@input` 即红（评审 T4-1：IME 组合守卫）。
  * ESM 没有 __dirname，路径一律由 import.meta.url 解出。
  */
 import { readdirSync, readFileSync } from "node:fs";
@@ -35,6 +36,21 @@ function templateMarkup(relPath: string): string {
 /** 以「属性名」形态命中：前界为行首/空白/冒号（:data-* 绑定），后界为空白/=/>。 */
 function hasAttribute(markup: string, name: string): boolean {
   return new RegExp(`(^|[\\s:>])${name}([\\s=>]|$)`, "m").test(markup);
+}
+
+/** 取 <textarea> 的开标签：只有真绑在这里的属性才算数（注释与脚本里的同名字串都不算）。 */
+function textareaTag(relPath: string): string {
+  const tag = /<textarea\b[^>]*>/.exec(templateMarkup(relPath))?.[0];
+  if (tag === undefined) throw new Error(`${relPath} 的模板里没有 <textarea>`);
+  return tag;
+}
+
+/** 取 <script setup> 并剥掉注释：注释里写着 needle 不等于真做了这件事。 */
+function scriptSource(relPath: string): string {
+  const source = readFileSync(join(SRC_DIR, relPath), "utf8");
+  const body = /<script setup lang="ts">([\s\S]*?)<\/script>/.exec(source)?.[1];
+  if (body === undefined) throw new Error(`${relPath} 里没有 <script setup lang="ts"> 块`);
+  return body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 }
 
 /** 递归列渲染层源码；跳过 *.test.ts——契约测试自己写着 needle 字符串，不该被自己数进去。 */
@@ -99,5 +115,25 @@ describe("hotkey-markers · 全局 keydown 监听有且只有一个（裁定 G5�
     expect(remove.map((hit) => hit.file)).toEqual([
       expect.stringContaining("composables/useHotkeys.ts")
     ]);
+  });
+});
+
+/**
+ * 评审 T4-1：textarea 若退回 `:value` + `@input` 的裸绑定，Vue 的 IME 组合守卫就没了——
+ * 组合期间的候选串会被任何一次 store 写入（Task 7 预填、切章）打断。本仓零 jsdom，
+ * 于是把「用哪种绑定」本身钉成源码契约：改回裸写法当场转红，而不是等真机冒烟才发现。
+ */
+describe("ComposerBox · textarea 必须是 v-model 绑定（评审 T4-1）", () => {
+  it("textarea 上是 v-model，没有 :value / @input —— 退回裸绑定即红", () => {
+    const tag = textareaTag("components/ComposerBox.vue");
+    expect(tag).toContain('v-model="draft"');
+    expect(tag).not.toContain(":value=");
+    expect(tag).not.toContain("@input=");
+  });
+
+  it("draft 的读写仍单向回 store：写回走 emit，不留 DOM 取值的第二份通路", () => {
+    const script = scriptSource("components/ComposerBox.vue");
+    expect(script).toContain('emit("update:modelValue"');
+    expect(script).not.toContain("HTMLTextAreaElement");
   });
 });

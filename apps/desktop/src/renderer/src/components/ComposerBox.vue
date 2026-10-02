@@ -1,5 +1,6 @@
 <!-- 输入区：发送 / 打断 / 断流后续写。这里不含业务判断，一切交给 store；输入值本身也由 store 持有（F-A 前置）。 -->
 <script setup lang="ts">
+import { computed } from "vue";
 import AppIcon from "./AppIcon.vue";
 
 const props = defineProps<{
@@ -15,9 +16,12 @@ const emit = defineEmits<{
   resume: [];
 }>();
 
-function onInput(event: Event): void {
-  emit("update:modelValue", (event.target as HTMLTextAreaElement).value);
-}
+// 值只有一份：读写都经 props/emit 走 store.composerDrafts，且必须用 v-model——
+// 裸 :value + @input 会丢掉 Vue 的 IME 组合守卫，拼音候选期间的任何一次 store 写入都会打断输入。
+const draft = computed({
+  get: () => props.modelValue,
+  set: (value: string) => emit("update:modelValue", value)
+});
 
 // 发送只抛事件，清格由装配处（CenterColumn）负责：那里才是「发出去 = 清这一格」的唯一收口。
 function submit(): void {
@@ -27,13 +31,13 @@ function submit(): void {
 }
 
 // 回车提交 / Shift+Enter 与 Ctrl+J 换行 / 运行中 Tab 排队全在 utils/hotkeys + composables/useHotkeys 判定，
-// 值经 store 的 composerDrafts 与本 textarea 同源（受控 :value + @input），不再有第二份监听（裁定 G5）。
+// 值经 store 的 composerDrafts 与本 textarea 同源（v-model 计算属性），不再有第二份监听（裁定 G5）。
 </script>
 
 <template>
   <footer class="agent-composer">
     <textarea
-      :value="modelValue"
+      v-model="draft"
       data-mochen-composer
       class="composer-box"
       rows="3"
@@ -42,7 +46,6 @@ function submit(): void {
           ? '想改哪一段？说给人话，别贴整篇正文——它会自己读文件。'
           : '先在左栏打开作品，或在右上角设置里配好模型。'
       "
-      @input="onInput"
     />
     <div class="composer-actions">
       <span class="composer-hint">Enter 发送 · Shift+Enter 换行 · Esc 打断</span>
