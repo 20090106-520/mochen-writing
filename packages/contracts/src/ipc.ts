@@ -1,5 +1,11 @@
 import type { BookMeta, DocRef } from "./book.js";
-import type { AgentOutbound, DecideInput, DecisionResult, StartTurnInput } from "./agent-event.js";
+import type {
+  AgentOutbound,
+  DecideInput,
+  DecisionResult,
+  SessionLoadResult,
+  StartTurnInput
+} from "./agent-event.js";
 import type { ProviderDraft, ProviderView } from "./provider.js";
 
 export const IPC_CHANNELS = {
@@ -14,7 +20,8 @@ export const IPC_CHANNELS = {
   agentEvent: "agent:event",
   agentDiff: "agent:diff",
   providerGet: "provider:get",
-  providerSave: "provider:save"
+  providerSave: "provider:save",
+  agentLoadSession: "agent:load-session"
 } as const;
 
 export interface BookOpenResult {
@@ -45,6 +52,8 @@ export interface RendererApi {
   decideProposal(input: DecideInput): Promise<DecisionResult>;
   /** 提案的统一 diff 文本；主进程算好，渲染层不 import agent-runtime（见 Task 1 的 agentDiff 说明）。 */
   proposalDiff(proposalId: string): Promise<string>;
+  /** 只读回放：把这条线程落盘的 JSONL 读回来，永不动盘、永不重建可批准的待审队列（D1）。 */
+  loadSession(threadKey: string): Promise<SessionLoadResult>;
   providerView(): Promise<ProviderView>;
   providerSave(draft: ProviderDraft): Promise<ProviderView>;
   /** 返回取消订阅的函数；渲染层拿不到 ipcRenderer。 */

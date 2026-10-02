@@ -154,3 +154,25 @@ export type DecisionResult =
       reason: "permission-denied" | "stale" | "not-pending" | "cancelled" | "denied" | "io";
       message: string;
     };
+
+/**
+ * 重启后回放一条线程的取数结果（F-6 / spec §4.1）。
+ * found:true 是「读到了」——即便 events 为空也算读到（确实没有历史的线程首行仍在）；
+ * found:false 只有两种失败：没开书 / 这本书里没这条线程。首行坏不在此表达，
+ * 那是 readSession 直接抛中文（spec §4.2 第 3 步），由 IPC 层透传、渲染层收成一条 notice。
+ */
+export const sessionLoadResultSchema = z.discriminatedUnion("found", [
+  z.object({
+    found: z.literal(true),
+    relPath: z.string().min(1),
+    meta: sessionMetaSchema,
+    events: z.array(agentEventSchema),
+    droppedLines: z.array(z.number().int().min(0))
+  }),
+  z.object({
+    found: z.literal(false),
+    reason: z.enum(["no-book", "no-session"]),
+    message: z.string().min(1)
+  })
+]);
+export type SessionLoadResult = z.infer<typeof sessionLoadResultSchema>;

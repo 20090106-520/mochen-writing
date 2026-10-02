@@ -7,6 +7,7 @@ import {
   isWriteTool,
   maskApiKey,
   providerDraftSchema,
+  sessionLoadResultSchema,
   sessionMetaSchema,
   WRITE_TOOLS,
   type WriteToolName
@@ -197,5 +198,61 @@ describe("provider 与掩码", () => {
     // @ts-expect-error read_doc 是只读工具，不属于 WriteToolName
     const notWritable: WriteToolName = "read_doc";
     expect(notWritable).toBe("read_doc");
+  });
+});
+
+const meta = {
+  type: "session-meta",
+  sessionId: "s1",
+  docRelPath: "chapters/01-开局.md",
+  stageId: "draft",
+  model: "mochen-mock",
+  startedAt: "2026-10-01T08:00:00.000Z"
+};
+
+describe("sessionLoadResultSchema", () => {
+  it("found:true 带 meta / events / droppedLines，逐条能解析", () => {
+    const ok = {
+      found: true,
+      relPath: ".mochen/sessions/2026-10-01/rollout-x.jsonl",
+      meta,
+      events: [
+        {
+          id: "e1",
+          ts: "2026-10-01T08:00:00.000Z",
+          turnId: "t1",
+          type: "user-message",
+          text: "改紧"
+        }
+      ],
+      droppedLines: [3, 7]
+    };
+    expect(sessionLoadResultSchema.parse(ok)).toEqual(ok);
+  });
+
+  it("found:false 的两种 reason 各自带中文 message", () => {
+    for (const reason of ["no-book", "no-session"] as const) {
+      const miss = { found: false, reason, message: "这本书里没有这条线程的历史。" };
+      expect(sessionLoadResultSchema.parse(miss)).toEqual(miss);
+    }
+  });
+
+  it("未知 reason 一律拒绝——回放失败态只有两种，第三种是编的", () => {
+    expect(
+      sessionLoadResultSchema.safeParse({ found: false, reason: "corrupt", message: "坏了" })
+        .success
+    ).toBe(false);
+  });
+
+  it("found:true 却不带 events 或 droppedLines 形状不符时拒绝（跨 IPC 兜底）", () => {
+    expect(
+      sessionLoadResultSchema.safeParse({
+        found: true,
+        relPath: "x",
+        meta,
+        events: "坏",
+        droppedLines: []
+      }).success
+    ).toBe(false);
   });
 });
