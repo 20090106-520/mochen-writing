@@ -98,8 +98,8 @@
 
 **波 2「六个档案与一双不刺眼的眼睛」（10 任务，S6 主体 + 外观）**
 
-11. contracts：`ProfileView`、`StartTurnInput.profileId`、`SessionMeta.profileId?`、`BookStage.profileId?`、`appearance:get/save`
-12. preload/白名单：`listProfiles` / `appearanceView` / `saveAppearance` + 计数 13→16 连带
+11. contracts：`ProfileView`、`ContextSummary`/`ContextPreviewInput`、`StartTurnInput.profileId`、`SessionMeta.profileId?`、`BookStage.profileId?`、`profile:list`/`agent:context-preview`/`appearance:get/save`
+12. preload/白名单：`listProfiles` / `contextPreview` / `appearanceView` / `saveAppearance` + 计数 13→17 连带
 13. agent-runtime：`AgentProfile` 类型 + `AGENT_PROFILES` 六条 + `profileAllowsDoc` + 按档案取 `TOOL_SPECS` 子集
 14. agent-runtime：`context-pack.ts`（`ContextReader` / `buildContextPack` / `estimateTokens` / 预算与整节丢弃）+ 纯函数单测
 15. 主进程：`profile:list` 注册 + `ContextReader` 装配（fs 与 frontmatter 由 main 实现，runtime 不碰 fs）
@@ -112,7 +112,7 @@
 **波 3「技能、迁移与总账」（7 任务，S6 技能库 + F-4 + 收尾）**
 
 21. fs-store：`scanSkills` + 技能 frontmatter 解析（复用 `frontmatter.ts`）+ 单测
-22. 主进程/preload：`skills:list` / `skills:read`（只读、路径安全、大小上限）+ 计数 16→18 连带
+22. 主进程/preload：`skills:list` / `skills:read`（只读、路径安全、大小上限）+ 计数 17→19 连带
 23. 渲染层：左栏技能入口 + 技能浏览标签 + 「加入当前上下文」 + `skillsByThread` + `StartTurnInput.skillPaths`
 24. 装配 + 保护：上下文包的「已挂入技能」节 + 「浏览不打断」四条写死测试（含运行中开浏览不打断）
 25. F-4：`app-data-migration.ts` 纯模块 + 单测（三态 + 变异）+ `index.ts:43` 接线 + 中文播报
@@ -384,7 +384,7 @@ export function estimateTokens(text: string): number   // Math.ceil(码点数 / 
 - 前情提要：常量 `PREVIOUS_CHAPTER_COUNT = 2`、`PREVIOUS_CHAPTER_TAIL_CHARS = 400`（集中在 `context-pack.ts` 顶部）；尾部切片按**码点**切，不许 `slice` 劈代理对（现仓已有这条教训，`timeline.ts:157-161`）。
 - 预算与丢弃：`CONTEXT_CHAR_BUDGET = 24000` 字符。超预算按优先级从**尾部整节**丢弃：`doc > outline > characters > prev-chapters > skills > materials`，被丢的节名进 `omitted`，占用条显示「已省略 3 节（技能 · 素材）」。不做半句截断式压缩。
 - 装配收口：`AgentServiceDeps.promptFor` 改成 `promptFor(context: PromptContext): Promise<string>`（`agent-service.ts:65-73`、`:453`），`PromptContext` 加 `profileId`、`skillPaths`、`chapterOrder`；`defaultPromptFor`（`:48-63`）**删除**，由 `apps/desktop/src/main/book-prompt.ts` 提供 `createBookPromptAssembler({ book, reader, profiles })`。连带必须同任务改完的调用方：`main/index.ts:60`、`agent-service.test.ts:687,699` 等所有夹具（铁律 5：中间提交也要能过 tsc）。
-- 占用条：`utils/context-bar.ts`（纯函数）`formatContextBar(pack: {sections; charCount; estimate; omitted}): string` → 「上下文 · 6 节 · 约 9,800 字 · 约 6,100 token」；渲染在 `CenterColumn.vue` 头部下方一行，详情随 `/status` 展开。档案/上下文数据由 store 持有，`CenterColumn.vue` 现 223 行，接线仍不到 800 行预算的一半，但新控件一律分文件。
+- 占用条：装配只在主进程发生，而占用条要在**发送前**随章节/档案/挂入技能变化，所以开一条只读预览通道：`IPC_CHANNELS.agentContextPreview = "agent:context-preview"`，`RendererApi.contextPreview(input: ContextPreviewInput): Promise<ContextSummary>`。`ContextSummary`/`ContextSectionView`/`CONTEXT_SECTION_KINDS` 放 `packages/contracts/src/context.ts`（渲染层禁止 import runtime，只吃视图形状）；`contextSummaryOf(pack): ContextSummary` 放 `context-pack.ts`，主进程只转发。因此本片 IPC 数是 **13 → 17 → 19**（§13 已按此计）。渲染层纯函数 `utils/context-bar.ts`：`formatContextBar(summary: ContextSummary): string` → 「上下文 · 6 节 · 约 9,800 字 · 约 6,100 token」；渲染在 `CenterColumn.vue` 头部下方一行，详情随 `/status` 展开。档案/上下文数据由 store 持有，`CenterColumn.vue` 现 223 行，接线仍不到 800 行预算的一半，但新控件一律分文件。
 
 ## 10. 阶段切换、档案选择器与「浏览不打断」（波 2/3）
 
@@ -462,8 +462,8 @@ export async function migrateLegacyAppData(deps: AppDataMigrationDeps): Promise<
 
 | 项 | 现值 | 波 1 后 | 波 2 后 | 波 3 后 |
 | --- | --- | --- | --- | --- |
-| `IPC_CHANNELS` 键数 | 12 | 13（+`agent:load-session`） | 16（+`profile:list` `appearance:get` `appearance:save`） | 18（+`skills:list` `skills:read`） |
-| `RendererApi` 方法数 | 12 | 13 | 16 | 18 |
+| `IPC_CHANNELS` 键数 | 12 | 13（+`agent:load-session`） | 17（+`profile:list` `agent:context-preview` `appearance:get` `appearance:save`） | 19（+`skills:list` `skills:read`） |
+| `RendererApi` 方法数 | 12 | 13 | 17 | 19 |
 | `PROPOSAL_STATUSES` | 6 | 7（+`expired`） | 7 | 7 |
 | `StartTurnInput` 字段 | 4 | 4 | 5（+`profileId`） | 6（+`skillPaths`） |
 | `SessionMeta` | 6 | 6 | 7（+`profileId?`） | 7 |
@@ -478,7 +478,7 @@ export async function migrateLegacyAppData(deps: AppDataMigrationDeps): Promise<
 
 改共享契约必须同任务改完消费方（否则中间提交过不了 tsc）：
 
-- `renderer-api.test.ts:101` 的 `expect(calls.length).toBe(12)` 与 `:132` 的注释 → 13 / 16 / 18，**字面量**（该文件刻意不从 `IPC_CHANNELS` 派生期望值）。
+- `renderer-api.test.ts:101` 的 `expect(calls.length).toBe(12)` 与 `:132` 的注释 → 13 / 17 / 19，**字面量**（该文件刻意不从 `IPC_CHANNELS` 派生期望值）。
 - `useBookStore.test.ts:12` 附近 `satisfies RendererApi` 夹具、`useAgentStore.test.ts:28` 的 meta 夹具、`agent-service.test.ts:264-282,687,699`、`turn-e2e.test.ts:88-106`、`book-service.test.ts:17-23` 的 `book.json` 夹具与 `promptFor` 注入。
 - `contracts/src/index.ts` barrel 加导出。
 - `tools/check-source-line-budget.mjs`（800 行，含 `.vue`）：新组件一律新文件；`CenterColumn.vue` 223 行起步，接线后不得超过 400 行。
