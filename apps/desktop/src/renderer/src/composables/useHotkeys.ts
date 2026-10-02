@@ -148,6 +148,11 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
         event.preventDefault();
         layout.showSettings("general");
         return;
+      case "open-book":
+        // 与左栏「打开作品目录」按钮同一条通路（store 的 pickAndOpen 是唯一真身，取消也有中文）。
+        event.preventDefault();
+        void book.pickAndOpen();
+        return;
       case "open-palette":
         event.preventDefault();
         handlers.openPalette();

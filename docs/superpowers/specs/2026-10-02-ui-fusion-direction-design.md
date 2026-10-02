@@ -110,7 +110,9 @@
 
 ### F-C · 左栏三段主操作（B 稿导航密度）
 
-- `LeftSidebar.vue:75-81` 的 `primary-nav` 从一段扩成三段：打开作品目录（已有，`Ctrl O` 键标保留）、
+- `LeftSidebar.vue:75-81` 的 `primary-nav` 从一段扩成三段：打开作品目录（按钮已有；`Ctrl O` 键标此前
+  是**空标**——`utils/hotkeys.ts` 的 Ctrl 族里没有 `o` 这一支，按下什么都不是，本批已接通
+  `open-book` ⇒ `book.pickAndOpen()`，键标这才诚实，`Ctrl+O` 行也补进了总 spec §7 与 Plan 3 spec §5 两张键位表）、
   模型配置（把 `CenterColumn.vue:174-177` 的入口**移进来**，中栏头部同时保留，两处走同一个
   `layoutStore.showSettings("general")`，不复制逻辑）、本章新对话（= 当前 `threadKey` 视图重置，
   复用 Task 8 的 `clearThreadView`，**只清渲染层，不碰 JSONL 与 pending**）。

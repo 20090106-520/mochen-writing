@@ -40,6 +40,7 @@ export type HotkeyAction =
   | "jump-tab"
   | "toggle-left"
   | "open-settings"
+  | "open-book"
   | "open-palette";
 
 export interface HotkeyResult {
@@ -79,6 +80,9 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
     if (!mods.shift) {
       if (k === "b") return { action: "toggle-left" };
       if (k === ",") return { action: "open-settings" };
+      // 左栏「打开作品目录」的键标（`LeftSidebar.vue` 的 `<kbd>Ctrl O</kbd>`）从这里落地，
+      // 不许再出现「屏上标了键、按下什么都不是」的第三种状态。
+      if (k === "o") return { action: "open-book" };
       if (focus.hasBook && k === "PageDown") return { action: "next-tab" };
       if (focus.hasBook && k === "PageUp") return { action: "prev-tab" };
       if (/^[1-9]$/.test(k)) {

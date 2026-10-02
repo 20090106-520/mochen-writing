@@ -220,6 +220,7 @@ Codex 中 Esc 既是 `interrupt_turn` 又是审批 `decline`。桌面端必须�
 | `Ctrl+B` | 收/放左栏 | 自有 |
 | `Ctrl+Shift+F` | 全书检索 | 自有 |
 | `Ctrl+,` | 设置 | 自有 |
+| `Ctrl+O` | 打开作品目录（与左栏同一条 `pickAndOpen` 通路） | 自有（Plan 3 补：键标已在屏上，键不能是空的） |
 | `/` | 斜杠命令面板 | `slash_command.rs:13` |
 
 斜杠命令：`/model /permissions /status /usage /compact /new /resume /fork /clear /export /skills`

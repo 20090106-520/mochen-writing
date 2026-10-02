@@ -231,6 +231,7 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
 | `Ctrl+1..9` | 有书且 `n ≤ tabCount` | `jump-tab`（`tabIndex = n-1`）；越界 `none` | 总 spec §7 |
 | `Ctrl+B` | 任意 | `toggle-left`（接 `layoutStore.togglePane("left")`） | 总 spec §7 |
 | `Ctrl+,` | 任意 | `open-settings` | 总 spec §7 |
+| `Ctrl+O` | 任意（含文本框里，走全局 Ctrl 族） | `open-book` → `book.pickAndOpen()`；`Ctrl+Shift+O` 与合成期间 `none` | 本批补：`LeftSidebar.vue:79` 的 `<kbd>Ctrl O</kbd>` 一直是空标 |
 | `/` | composer **无**焦点且不在文本框里、无修饰键 | `open-palette` | `slash_command.rs:13` |
 
 > 这张表是摘要，下面五条护栏的白名单才是裁决边界：两者冲突时以护栏为准。已按此改写两行——

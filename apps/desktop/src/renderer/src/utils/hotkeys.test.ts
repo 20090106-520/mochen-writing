@@ -129,6 +129,21 @@ describe("resolveHotkey · 全局 Ctrl 族", () => {
       "prev-tab"
     );
   });
+  it("Ctrl+O ⇒ open-book（左栏那颗按钮一直标着这个键位，键必须真的能用）", () => {
+    // 没开书时更要能按——这正是「打开作品目录」唯一有用的场合。
+    expect(resolveHotkey(focus({ hasBook: false }), "o", mods({ ctrl: true })).action).toBe(
+      "open-book"
+    );
+    // 全局 Ctrl 族先于编辑态判定（护栏 2 白名单），在文本框里也放行。
+    expect(
+      resolveHotkey(focus({ textInputIsFocused: true, hasBook: true }), "o", mods({ ctrl: true }))
+        .action
+    ).toBe("open-book");
+    expect(resolveHotkey(focus(), "o", mods({ ctrl: true, shift: true })).action).toBe("none");
+    expect(resolveHotkey(focus({ isComposing: true }), "o", mods({ ctrl: true })).action).toBe(
+      "none"
+    );
+  });
   it("Ctrl+1..9：越界或无书 ⇒ none；n≤tabCount ⇒ jump-tab 且 tabIndex=n-1", () => {
     expect(resolveHotkey(focus({ hasBook: true, tabCount: 3 }), "3", mods({ ctrl: true }))).toEqual(
       {
