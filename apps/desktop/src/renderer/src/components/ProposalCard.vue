@@ -14,6 +14,7 @@ const emit = defineEmits<{
 
 const guidance = ref("");
 const pending = computed(() => props.view.status === "pending");
+const expired = computed(() => props.view.status === "expired");
 const statusLabel = computed(() => PROPOSAL_STATUS_LABELS[props.view.status]);
 const modeLabel = computed(() =>
   props.view.proposal.mode === "doc-overwrite" ? "整篇替换" : "锚点替换"
@@ -62,6 +63,7 @@ function onKeydown(event: KeyboardEvent): void {
 
     <p class="proposal-why">{{ view.proposal.why }}</p>
     <pre v-if="view.diff" class="proposal-diff">{{ view.diff }}</pre>
+    <p v-else-if="expired" class="proposal-diff-empty">这条历史提案的 diff 不再取回。</p>
     <p v-else class="proposal-diff-empty">diff 尚未取回</p>
     <p
       v-if="view.proposal.anchor && view.proposal.mode === 'anchor-replace'"
@@ -93,6 +95,16 @@ function onKeydown(event: KeyboardEvent): void {
           拒绝并说明
         </button>
         <button type="button" @click="decide('cancel')">取消（Esc）</button>
+      </div>
+    </footer>
+
+    <footer v-else-if="expired" class="proposal-actions is-expired">
+      <p class="expired-note">这一条要在新一轮里重新提出。</p>
+      <div class="proposal-buttons">
+        <button class="is-primary" type="button" disabled>仅这一次批准</button>
+        <button type="button" disabled>本章不再问</button>
+        <button type="button" disabled>同文档同类改动不再问</button>
+        <button class="is-danger" type="button" disabled>拒绝并说明</button>
       </div>
     </footer>
   </article>

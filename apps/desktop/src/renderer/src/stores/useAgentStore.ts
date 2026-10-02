@@ -12,9 +12,11 @@ import {
   type EditProposal,
   type ProposalDecision,
   type ProposalStatus,
+  type SessionLoadResult,
   type StartTurnInput,
   type TurnEndStatus
 } from "@mochen/contracts";
+import { replayProposalStatuses } from "../utils/timeline";
 import { useBookStore } from "./useBookStore";
 
 /** 与主进程 agent-service.ts:38 的同名常量必须一致（裁定 o）。 */
@@ -223,9 +225,15 @@ export const useAgentStore = defineStore("agent", {
       thread.streaming = { ...EMPTY_STREAM };
       thread.endedAs = outbound.status;
       if (outbound.status === "failed") thread.lastError = outbound.message;
+      // 规则2 的另一半：轮次跑完才允许补一次水合（running 时上面早退过了）。
+      if (!thread.hydrated) void this.ensureHydrated(outbound.threadKey);
     },
 
-    reduceEvent(thread: ThreadView, event: AgentEvent, options?: { fetchDiff?: boolean }): void {
+    reduceEvent(
+      thread: ThreadView,
+      event: AgentEvent,
+      options?: { fetchDiff?: boolean; absorbWrites?: boolean }
+    ): void {
       thread.items.push(event);
       if (event.type === "reasoning") {
         thread.streaming.reasoning = "";
@@ -256,9 +264,14 @@ export const useAgentStore = defineStore("agent", {
           written.status = "written";
           written.message = "";
         }
-        this.notice = `已写入 ${event.docRelPath}${event.backupRelPath ? "，原稿已备份" : ""}`;
-        // absorbAgentWrite 内部已把重读失败收成中文 notice（Wave A 偏离 2），这里不再包 try。
-        void useBookStore().absorbAgentWrite(event.docRelPath, event.fingerprint);
+        // D1：status/message 是规则6/规则8 的依赖，回放也必须落；但实时提示与文档重读
+        // 属实时路径副作用——回放 N 条历史 written 若照常吸收，会在重启瞬间打 N 次
+        // readDoc 并用陈旧文案覆盖实时 notice，故由 absorbWrites 单独关闸（默认开）。
+        if (options?.absorbWrites !== false) {
+          this.notice = `已写入 ${event.docRelPath}${event.backupRelPath ? "，原稿已备份" : ""}`;
+          // absorbAgentWrite 内部已把重读失败收成中文 notice（Wave A 偏离 2），这里不再包 try。
+          void useBookStore().absorbAgentWrite(event.docRelPath, event.fingerprint);
+        }
         return;
       }
       if (event.type !== "decision") return;
@@ -355,6 +368,66 @@ export const useAgentStore = defineStore("agent", {
         this.notice = `打断没能送达主进程：${reason}`;
         return false;
       }
+    },
+
+    /** 水合入口：八条规则逐字照 spec §4.3。判定与取数全在 store，组件只触发。 */
+    async ensureHydrated(threadKey: string): Promise<void> {
+      const thread = this.viewOf(threadKey);
+      if (thread.hydrated) return; // 规则1 幂等
+      if (thread.running) return; // 规则2 running 时不抢顺序
+      if (thread.hydrating) {
+        // 规则3 并发合流：复用同一次在途取数，不发第二条 IPC
+        const inflight = this.hydrateInflight[threadKey];
+        if (inflight !== undefined) await inflight;
+        return;
+      }
+      thread.hydrating = true;
+      const task = this.runHydrate(threadKey, thread);
+      this.hydrateInflight[threadKey] = task;
+      try {
+        await task;
+      } finally {
+        delete this.hydrateInflight[threadKey];
+      }
+    },
+
+    async runHydrate(threadKey: string, thread: ThreadView): Promise<void> {
+      let result: SessionLoadResult;
+      try {
+        result = await window.mochen.loadSession(threadKey);
+      } catch (err) {
+        // 规则3 失败回滚：首行坏 / IPC 抛 ⇒ 留待用户再按 /resume 重试
+        thread.hydrating = false;
+        this.notice = `这条线程的历史没有读回来：${reasonOf(err)}`;
+        return;
+      }
+      thread.hydrating = false;
+      if (!result.found) {
+        // 规则5：no-session 视为确实没有历史 ⇒ 置位；no-book 不置位（下次开书还得能水合）
+        if (result.reason === "no-session") thread.hydrated = true;
+        return;
+      }
+      // 规则4：只归约 items 里不存在该事件 id 的那些；回放路径既关 diff 取数（M1），
+      // 也关写盘回吸收与实时提示覆盖（D1）——重启回放绝不 spam 文档重读。
+      const known = new Set(thread.items.map((item) => item.id));
+      for (const event of result.events) {
+        if (known.has(event.id)) continue;
+        known.add(event.id);
+        this.reduceEvent(thread, event, { fetchDiff: false, absorbWrites: false });
+      }
+      // 规则6：派生扫描覆盖这些卡的 status（expired 卡已在规则4 里没请求 diff）
+      const replayed = replayProposalStatuses(result.events);
+      for (const [id, status] of Object.entries(replayed)) {
+        const view = this.proposals[id];
+        if (view) view.status = status;
+      }
+      // 规则8：只有最后一条是 interrupted 才复活「继续」；error 保守不标 failed
+      const last = result.events[result.events.length - 1];
+      if (last?.type === "interrupted") thread.endedAs = "interrupted";
+      // 规则7：坏行如实播报，不伪造事件、不静默
+      if (result.droppedLines.length > 0)
+        this.notice = `这条线程有 ${result.droppedLines.length} 行没能读回，其余内容已恢复。`;
+      thread.hydrated = true;
     },
 
     tick(): void {

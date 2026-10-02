@@ -1,7 +1,7 @@
 <!-- 中栏骨架（conversation-pane / conversation-header / conversation-scroll-shell / conversation-empty）
      取自 deepwrite（Apache-2.0）；卡片与时间线为自有。 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   DEFAULT_PERMISSION_MODE,
   PERMISSION_LABELS,
@@ -38,6 +38,10 @@ const thread = computed<ThreadView | undefined>(() => agent.threads[threadKey.va
 const items = computed(() => thread.value?.items ?? EMPTY_ITEMS);
 const tail = computed(() => thread.value?.streaming ?? EMPTY_TAIL);
 const running = computed(() => thread.value?.running ?? false);
+const hydrating = computed(() => thread.value?.hydrating ?? false);
+const hydratedEmpty = computed(
+  () => thread.value?.hydrated === true && (thread.value?.items.length ?? 0) === 0
+);
 /** 本线程的**全部**卡（含已裁决）。以前这份就叫 pending，名不副实且把卡全摊在最底部。 */
 const threadCards = computed<ProposalView[]>(() =>
   Object.values(agent.proposals).filter((view) => view.proposal.threadKey === threadKey.value)
@@ -47,9 +51,20 @@ const anchors = computed(() => turnAnchors(items.value));
 const cardSplit = computed(() => splitProposalCards(threadCards.value, anchors.value));
 const openCards = computed(() => cardSplit.value.open);
 const settledCards = computed(() => cardSplit.value.settled);
+const expiredCards = computed(() => cardSplit.value.expired);
 function turnLabel(card: ProposalView): string {
   return cardTurnLabel(anchors.value, card.proposal.turnId);
 }
+// 水合时机（spec §4.4）：开书后（rootPath 落定）与切文稿标签（threadKey 变）各触发一次。
+// 判定与取数全在 store；immediate 让「已开书状态下重新挂载」也能回放。
+// （/resume 走 Task 8 的面板动作，调同一个 ensureHydrated，靠规则1 幂等。）
+watch(
+  [() => book.rootPath, threadKey],
+  ([root]) => {
+    if (root !== null) void agent.ensureHydrated(threadKeyFor(book.activeDocTab));
+  },
+  { immediate: true }
+);
 const statusLine = computed(() =>
   composeStatusLine(thread.value, agent.seconds, agent.pendingOf(threadKey.value))
 );
@@ -153,7 +168,12 @@ onBeforeUnmount(() => {
       <div class="conversation-scroll transient-scrollbar">
         <div
           v-if="
-            items.length === 0 && !running && openCards.length === 0 && settledCards.length === 0
+            items.length === 0 &&
+            !running &&
+            !hydrating &&
+            openCards.length === 0 &&
+            settledCards.length === 0 &&
+            expiredCards.length === 0
           "
           class="conversation-empty"
         >
@@ -166,6 +186,10 @@ onBeforeUnmount(() => {
             你不点批准，它一个字也写不进作品目录。
           </p>
           <p v-if="orphanError" class="error-line">{{ orphanError }}</p>
+        </div>
+
+        <div v-else-if="hydrating && !hydratedEmpty" class="conversation-empty">
+          <p class="hydrating-line">正在恢复这一条线程…</p>
         </div>
 
         <div v-else class="message-list agent-column">
@@ -199,6 +223,22 @@ onBeforeUnmount(() => {
             </div>
           </details>
 
+          <!-- 上次会话未处理（D1）：回放的未裁决卡，按钮禁用，绝不伪装成可批准。 -->
+          <details v-if="expiredCards.length" class="expired-stack">
+            <summary class="expired-summary">上次会话未处理 · {{ expiredCards.length }} 条</summary>
+            <div class="expired-cards">
+              <ProposalCard
+                v-for="card in expiredCards"
+                :key="card.proposal.id"
+                :view="card"
+                :running="running"
+                :turn-label="turnLabel(card)"
+                @decide="(decision, guidance) => decide(card.proposal.id, decision, guidance)"
+                @interrupt="agent.stop()"
+              />
+            </div>
+          </details>
+
           <p v-if="orphanError" class="turn-error">{{ orphanError }}</p>
         </div>
       </div>
@@ -207,6 +247,7 @@ onBeforeUnmount(() => {
     <div class="agent-statusbar">
       <span class="status-line">{{ statusLine }}</span>
       <span v-if="book.notice" class="status-note">{{ book.notice }}</span>
+      <span v-if="agent.notice" class="status-note status-note-agent">{{ agent.notice }}</span>
     </div>
 
     <ComposerBox

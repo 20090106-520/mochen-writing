@@ -348,7 +348,7 @@ describe("splitProposalCards（F-1：已裁决的卡收进折叠分组）", () =
     expect(split.settled.map((item) => item.proposal.id)).toEqual(["c1", "w1", "f1", "s1"]);
   });
 
-  it("空输入两组皆空，CenterColumn 的空状态判断要用这两个长度", () => {
+  it("空输入三组皆空，CenterColumn 的空状态判断要用这三个长度", () => {
     expect(splitProposalCards([], ANCHORS)).toEqual({ open: [], settled: [], expired: [] });
   });
 
@@ -376,6 +376,25 @@ describe("splitProposalCards 第三组 expired（D1）", () => {
     expect(split.open.map((c) => c.proposal.id)).toEqual(["p1"]);
     expect(split.expired.map((c) => c.proposal.id)).toEqual(["p2"]);
     expect(split.settled.map((c) => c.proposal.id)).toEqual(["p3"]);
+  });
+
+  it("expired 组按轮次升序、同轮按 createdAt 升序（保护 expired.sort(byTurn)）", () => {
+    // D4：expired.sort(byTurn) 只有一例时排序不可观测；这里给乱序多例，
+    // 删掉排序会退回插入序 [eB2,eA2,eB1,eA1] 而转红。
+    const anchors = {
+      tA: { index: 1, userText: "甲" },
+      tB: { index: 2, userText: "乙" }
+    };
+    const split = splitProposalCards(
+      [
+        cardOf("eB2", "tB", "2026-10-01T00:04:00.000Z", "expired"),
+        cardOf("eA2", "tA", "2026-10-01T00:02:00.000Z", "expired"),
+        cardOf("eB1", "tB", "2026-10-01T00:03:00.000Z", "expired"),
+        cardOf("eA1", "tA", "2026-10-01T00:01:00.000Z", "expired")
+      ],
+      anchors
+    );
+    expect(split.expired.map((c) => c.proposal.id)).toEqual(["eA1", "eA2", "eB1", "eB2"]);
   });
 });
 

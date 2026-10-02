@@ -1,177 +1,32 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPinia, setActivePinia } from "pinia";
+import { describe, expect, it, vi } from "vitest";
 import { TURN_END_STATUSES } from "@mochen/contracts";
-import type {
-  AgentEvent,
-  AgentOutbound,
-  BookOpenResult,
-  DecideInput,
-  DecisionResult,
-  DocWriteResult,
-  EditProposal,
-  ProviderView,
-  RendererApi,
-  SessionLoadResult,
-  StartTurnInput
-} from "@mochen/contracts";
-import { composeStatusLine, threadKeyFor, UNBOUND, useAgentStore } from "./useAgentStore";
+import type { AgentOutbound } from "@mochen/contracts";
+import { composeStatusLine, threadKeyFor, UNBOUND } from "./useAgentStore";
 import { useBookStore } from "./useBookStore";
-
-const CH = "chapters/01-a.md";
-const OTHER = "chapters/02-b.md";
-
-const opened: BookOpenResult = {
-  rootPath: "/book",
-  meta: {
-    id: "b1",
-    title: "深渊之下",
-    schemaVersion: 1,
-    stages: [{ id: "draft", name: "正文" }],
-    activeStage: "draft",
-    permissionMode: "chapter-write",
-    chapterOrder: [CH]
-  },
-  docs: [
-    { relPath: CH, kind: "chapter", title: "开局" },
-    { relPath: OTHER, kind: "chapter", title: "转折" }
-  ]
-};
-
-const view: ProviderView = {
-  hasKey: true,
-  baseURL: "http://127.0.0.1:8787/v1",
-  model: "mochen-mock",
-  keyMask: "••••"
-};
-
-function proposal(id: string, overrides: Partial<EditProposal> = {}): EditProposal {
-  return {
-    id,
-    threadKey: CH,
-    turnId: "t1",
-    docRelPath: CH,
-    mode: "anchor-replace",
-    anchor: "夜色沉下去",
-    replace: "夜色沉下去，海雾涌上来。",
-    why: "补一层听觉与雾气",
-    tool: "propose_patch",
-    source: "tool-call",
-    expectedFingerprint: "fp-a",
-    createdAt: "2026-10-01T00:00:00.000Z",
-    ...overrides
-  };
-}
-
-function eventOf(type: AgentEvent["type"], rest: Record<string, unknown> = {}): AgentEvent {
-  return {
-    id: `e-${type}`,
-    ts: "2026-10-01T00:00:00.000Z",
-    turnId: "t1",
-    type,
-    ...rest
-  } as AgentEvent;
-}
-
-/** 按类型取该线程里的第一条同类事件，省掉测试里满屏的类型收窄。 */
-function typed<T extends AgentEvent["type"]>(type: T, threadKey = CH) {
-  const items = useAgentStore().threads[threadKey]?.items ?? [];
-  return items.find((item) => item.type === type) as Extract<AgentEvent, { type: T }>;
-}
-
-const listeners = new Set<(payload: AgentOutbound) => void>();
-const started: StartTurnInput[] = [];
-const decided: DecideInput[] = [];
-let nextDecision: DecisionResult = {
-  ok: true,
-  docRelPath: CH,
-  fingerprint: "fp-b",
-  backupRelPath: null,
-  auto: false
-};
-
-const startTurn = vi.fn(async (input: StartTurnInput) => {
-  started.push(input);
-  return { turnId: "t1" };
-});
-const interruptTurn = vi.fn(async (turnId: string) => turnId.length > 0);
-const decideProposal = vi.fn(async (input: DecideInput) => {
-  decided.push(input);
-  return nextDecision;
-});
-const proposalDiff = vi.fn(async (id: string) => `diff:${id}`);
-const readDoc = vi.fn(async (relPath: string) => ({
-  relPath,
-  content: "正文\n夜色沉下去\n",
-  fingerprint: "fp-a"
-}));
-const writeDoc = vi.fn(async (): Promise<DocWriteResult> => ({
-  ok: true,
-  fingerprint: "fp-b",
-  backupRelPath: null
-}));
-/** 回放取数的桩：本波恒返回 no-session，Task 5 的 ensureHydrated 用例再改成可编排。 */
-const loadSession = vi.fn(async (): Promise<SessionLoadResult> => ({
-  found: false,
-  reason: "no-session",
-  message: "这本书里没有这条线程的历史。"
-}));
-
-const api = {
-  pickBookDirectory: vi.fn(async () => CH),
-  openBook: vi.fn(async (): Promise<BookOpenResult> => opened),
-  saveMeta: vi.fn(async (): Promise<void> => undefined),
-  readDoc,
-  writeDoc,
-  startTurn,
-  interruptTurn,
+// 夹具（api 桩、事件工厂、openChapter/itemsOf/store 等）与 useAgentStore.hydrate.test.ts 共用，
+// 抽到 agent-store-fixture.ts 只为过 800 行门禁（D2）；此处为纯搬迁，未改任何断言语义。
+import {
+  CH,
+  OTHER,
+  api,
+  decided,
   decideProposal,
+  eventOf,
+  interruptTurn,
+  itemsOf,
+  openChapter,
+  proposal,
   proposalDiff,
-  loadSession,
-  providerView: vi.fn(async (): Promise<ProviderView> => view),
-  providerSave: vi.fn(async (): Promise<ProviderView> => view),
-  onAgentEvent: vi.fn((listener: (payload: AgentOutbound) => void) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  })
-} satisfies RendererApi;
+  push,
+  setNextDecision,
+  setupAgentFixture,
+  started,
+  startTurn,
+  store,
+  typed
+} from "./agent-store-fixture";
 
-function push(outbound: AgentOutbound): void {
-  for (const listener of listeners) listener(outbound);
-}
-
-function store() {
-  return useAgentStore();
-}
-
-async function openChapter(relPath = CH) {
-  await useBookStore().openBook("/book");
-  await useBookStore().openDocTab(relPath);
-}
-
-function itemsOf(threadKey = CH): AgentEvent[] {
-  return store().threads[threadKey]?.items ?? [];
-}
-
-beforeEach(() => {
-  setActivePinia(createPinia());
-  vi.stubGlobal("window", { mochen: api });
-  listeners.clear();
-  started.length = 0;
-  decided.length = 0;
-  nextDecision = {
-    ok: true,
-    docRelPath: CH,
-    fingerprint: "fp-b",
-    backupRelPath: null,
-    auto: false
-  };
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-10-01T00:00:00.000Z"));
-});
-
-afterEach(() => {
-  vi.useRealTimers();
-});
+setupAgentFixture();
 
 describe("useAgentStore", () => {
   it("startListening 幂等：装配重复调用也只订阅一次", async () => {
@@ -318,11 +173,15 @@ describe("useAgentStore", () => {
       threadKey: CH,
       event: eventOf("proposal", { proposal: proposal("p1") })
     });
-    nextDecision = { ok: false, reason: "io", message: "文件被占用，写入失败" };
+    setNextDecision({ ok: false, reason: "io", message: "文件被占用，写入失败" });
     await store().decide("p1", "accept-once", "");
     expect(store().proposals.p1?.status).toBe("pending");
     expect(store().proposals.p1?.message).toBe("文件被占用，写入失败");
-    nextDecision = { ok: false, reason: "permission-denied", message: "只读参考档下一律拒绝写入" };
+    setNextDecision({
+      ok: false,
+      reason: "permission-denied",
+      message: "只读参考档下一律拒绝写入"
+    });
     await store().decide("p1", "accept-once", "");
     expect(store().proposals.p1?.status).toBe("pending");
     expect(store().proposals.p1?.message).toContain("只读");
@@ -338,7 +197,7 @@ describe("useAgentStore", () => {
       threadKey: CH,
       event: eventOf("proposal", { proposal: proposal("p1") })
     });
-    nextDecision = { ok: false, reason: "stale", message: "文件在外部被改过，已拒写" };
+    setNextDecision({ ok: false, reason: "stale", message: "文件在外部被改过，已拒写" });
     await store().decide("p1", "accept-once", "");
     expect(store().proposals.p1?.status).toBe("stale");
     expect(store().pendingOf(CH)).toBe(0);
@@ -353,10 +212,10 @@ describe("useAgentStore", () => {
       threadKey: CH,
       event: eventOf("proposal", { proposal: proposal("p1") })
     });
-    nextDecision = { ok: false, reason: "cancelled", message: "已取消这条提案" };
+    setNextDecision({ ok: false, reason: "cancelled", message: "已取消这条提案" });
     await store().decide("p1", "cancel", "");
     expect(store().proposals.p1?.status).toBe("cancelled");
-    nextDecision = { ok: false, reason: "denied", message: "已拒绝" };
+    setNextDecision({ ok: false, reason: "denied", message: "已拒绝" });
     push({
       type: "event",
       turnId: "t1",
