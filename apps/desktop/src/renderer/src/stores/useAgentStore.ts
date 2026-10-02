@@ -4,6 +4,7 @@ import {
   AGENT_EVENT_TYPES,
   DEFAULT_PERMISSION_MODE,
   PERMISSION_LABELS,
+  PERMISSION_MODES,
   TURN_END_STATUSES,
   type AgentDeltaKind,
   type AgentEvent,
@@ -19,7 +20,7 @@ import {
   type TurnEndStatus
 } from "@mochen/contracts";
 import { replayProposalStatuses } from "../utils/timeline";
-import type { SlashCommand } from "../utils/slash-commands";
+import { matchPermissionMode, type SlashCommand } from "../utils/slash-commands";
 import { useLayoutStore } from "./layoutStore";
 import { useBookStore } from "./useBookStore";
 
@@ -533,10 +534,22 @@ export const useAgentStore = defineStore("agent", {
           // 与 Ctrl+, 同一条通路（Task 7）：模型设置的唯一真身仍是 ProviderSettings 浮层。
           useLayoutStore().showSettings("general");
           return;
-        case "permissions":
-          // 波 1：带档位名只作为预选传给菜单（菜单真身 Task 9），不在这里写盘。
-          book.openPermissionMenu(argument);
+        case "permissions": {
+          const bookStore = useBookStore();
+          // 不带档名 ⇒ 只开菜单（popover 里逐档可点）；带档名 ⇒ 查表直接切档落盘（spec §6）。
+          if (argument === "") {
+            bookStore.openPermissionMenu("");
+            return;
+          }
+          const mode = matchPermissionMode(argument);
+          if (mode === null) {
+            // 档名列一律来自 PERMISSION_LABELS，这里不手抄第二份中文。
+            this.notice = `没有这一档：「${argument}」。可选：${PERMISSION_MODES.map((item) => PERMISSION_LABELS[item]).join(" / ")}。`;
+            return;
+          }
+          void bookStore.setPermissionMode(mode);
           return;
+        }
         case "status": {
           this.notice = composeStatusReport({
             threadKey,

@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import type { BookOpenResult, DocWriteResult, RendererApi } from "@mochen/contracts";
+import { computed } from "vue";
+import {
+  DEFAULT_PERMISSION_MODE,
+  type BookMeta,
+  type BookOpenResult,
+  type DocWriteResult,
+  type PermissionMode,
+  type RendererApi
+} from "@mochen/contracts";
 import { useBookStore } from "./useBookStore";
 
 const result: BookOpenResult = {
@@ -32,7 +40,8 @@ const writeDoc = vi.fn(async (): Promise<DocWriteResult> => ({
 }));
 const pickBookDirectory = vi.fn(async (): Promise<string | null> => "/book");
 // 写盘桩提成模块级常量（照 pickBookDirectory 现例）：Task 8 的用例要查它的调用次数。
-const saveMeta = vi.fn(async () => {});
+// Task 9 起用例要读 mock.calls[0]?.[0]，故与 agent-store-fixture 同法用 vi.fn 的泛型签名标注入参。
+const saveMeta = vi.fn<(meta: BookMeta) => Promise<void>>(async () => {});
 /** book 侧测试绝不触碰的通道：一旦被调用就报出来。 */
 function offLimits(name: string) {
   return vi.fn(async () => {
@@ -305,5 +314,66 @@ describe("useBookStore", () => {
     expect(store.permissionMenuOpen).toBe(false);
     expect(store.permissionPreset).toBe("");
     expect(saveMeta).not.toHaveBeenCalled();
+  });
+
+  it("切档成功：写盘、刷新本地 meta，并把生效范围说清楚", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    saveMeta.mockClear();
+    await store.setPermissionMode("chapter-write");
+    expect(saveMeta).toHaveBeenCalledTimes(1);
+    expect(saveMeta.mock.calls[0]?.[0]).toEqual({
+      ...result.meta,
+      permissionMode: "chapter-write"
+    });
+    expect(store.meta?.permissionMode).toBe("chapter-write");
+    expect(store.notice).toBe("权限档已切到「可改当前章」，下一次审批就用这一档判断。");
+  });
+
+  it("同档重复点：不写盘，给一句实话", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    saveMeta.mockClear();
+    await store.setPermissionMode("read-only");
+    expect(saveMeta).not.toHaveBeenCalled();
+    expect(store.notice).toBe("已经是这一档了：「只读参考」。");
+  });
+
+  it("没开书时切档：既不写盘也不假装成功", async () => {
+    const store = useBookStore();
+    saveMeta.mockClear();
+    await store.setPermissionMode("full-access");
+    expect(saveMeta).not.toHaveBeenCalled();
+    expect(store.meta).toBeNull();
+    expect(store.notice).toBe("还没打开作品目录，权限档改不了。");
+  });
+
+  it("主进程拒绝（例如 book.json 被占用）：中文原因原样可见，本地档位保持不变", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    saveMeta.mockRejectedValueOnce(new Error("无法写入 book.json：文件正被占用"));
+    await store.setPermissionMode("full-access");
+    expect(store.meta?.permissionMode).toBe("read-only");
+    expect(store.notice).toBe("权限档没改过来：无法写入 book.json：文件正被占用");
+  });
+
+  /**
+   * 经 computed 读的用例（9625c52 的同类盲区）：PermissionMenu.vue 的 `current` 与 CenterColumn.vue
+   * 的 `permissionLabel` 都是 `computed(() => book.meta?.permissionMode ?? ...)`，本仓没有组件测试。
+   * 写进 pinia state 的对象若在代理之外落地（例如改到裸引用上），真值照样对、依赖通知一次不发，
+   * 组件就把渲染那一帧的旧档永久缓存下去。节奏必须是**先在旧档上读一次把缓存钉住**，再触发写，再读。
+   */
+  it("切档后视图侧 computed 与真值一致（组件的读法不是直读 store）", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    const viewMode = computed<PermissionMode>(
+      () => store.meta?.permissionMode ?? DEFAULT_PERMISSION_MODE
+    );
+    // 这一读 = 组件渲染出当前档的那一帧，缓存从此钉在这里。
+    expect(viewMode.value).toBe("read-only");
+    await store.setPermissionMode("full-access");
+    // 先要真值（这一对写坏与否都过，只作前提），再要视图值与它一致——红的只有后一条。
+    expect(store.meta?.permissionMode).toBe("full-access");
+    expect(viewMode.value).toBe("full-access");
   });
 });

@@ -1,7 +1,11 @@
 <!-- 提案卡：逐条人审批的唯一入口。Esc 的第一优先级（spec §6.2）在卡内裁决。 -->
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { PROPOSAL_STATUS_LABELS, type ProposalDecision } from "@mochen/contracts";
+import {
+  PROPOSAL_MODE_LABELS,
+  PROPOSAL_STATUS_LABELS,
+  type ProposalDecision
+} from "@mochen/contracts";
 import type { ProposalView } from "../stores/useAgentStore";
 import { resolveEscape } from "../utils/escape-policy";
 import AppIcon from "./AppIcon.vue";
@@ -16,9 +20,8 @@ const guidance = ref("");
 const pending = computed(() => props.view.status === "pending");
 const expired = computed(() => props.view.status === "expired");
 const statusLabel = computed(() => PROPOSAL_STATUS_LABELS[props.view.status]);
-const modeLabel = computed(() =>
-  props.view.proposal.mode === "doc-overwrite" ? "整篇替换" : "锚点替换"
-);
+// 模式文案的唯一来源是 contracts 的穷尽表（铁律 6）：这里不写三元链，加模式不写文案直接编译不过。
+const modeLabel = computed(() => PROPOSAL_MODE_LABELS[props.view.proposal.mode]);
 
 function decide(decision: ProposalDecision): void {
   if (decision === "deny-with-guidance" && guidance.value.trim() === "") return;

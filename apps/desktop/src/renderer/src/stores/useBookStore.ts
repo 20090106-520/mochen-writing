@@ -1,5 +1,10 @@
 import { defineStore } from "pinia";
-import type { BookMeta, DocRef } from "@mochen/contracts";
+import {
+  PERMISSION_LABELS,
+  type BookMeta,
+  type DocRef,
+  type PermissionMode
+} from "@mochen/contracts";
 
 interface DocState {
   draft: string;
@@ -217,10 +222,39 @@ export const useBookStore = defineStore("book", {
       if (this.activeDocTab) this.draftsByPath[this.activeDocTab] = this.snapshot();
     },
 
-    /** 只搬标志位与预选文案：档位真正落盘在 Task 9 的菜单动作里，这里绝不写 meta。 */
+    /** 只搬标志位与预选文案：档位真正落盘在 setPermissionMode，这里绝不写 meta。 */
     openPermissionMenu(preset = ""): void {
       this.permissionPreset = preset;
       this.permissionMenuOpen = true;
+    },
+
+    /**
+     * 切权限档：渲染层唯一的 saveMeta 调用方（主进程写盘后会刷新快照，档位当场生效）。
+     * 本地 meta 必须一起改，否则头部标签还停在旧档；失败时一个字都不改，原因进 notice。
+     */
+    async setPermissionMode(mode: PermissionMode): Promise<void> {
+      if (!this.meta) {
+        this.notice = "还没打开作品目录，权限档改不了。";
+        return;
+      }
+      if (this.meta.permissionMode === mode) {
+        this.notice = `已经是这一档了：「${PERMISSION_LABELS[mode]}」。`;
+        return;
+      }
+      const next: BookMeta = { ...this.meta, permissionMode: mode };
+      try {
+        await window.mochen.saveMeta(next);
+      } catch (err) {
+        const reason = err instanceof Error && err.message !== "" ? err.message : String(err);
+        this.notice = `权限档没改过来：${reason}`;
+        return;
+      }
+      this.meta = next;
+      // 先写后回读（9625c52 的同类坑）：赋进 pinia state 的对象要被 Vue 包成响应式代理，
+      // 手里的裸 `next` 与 `this.meta` 是「同一个 target、两套拦截」，后续只认回读到的那一份，
+      // 否则组件里的 computed 会把渲染那一帧的旧档永久缓存住（回归用例见 useBookStore.test.ts）。
+      this.notice = `权限档已切到「${PERMISSION_LABELS[this.meta.permissionMode]}」，下一次审批就用这一档判断。`;
+      this.closePermissionMenu();
     },
 
     closePermissionMenu(): void {

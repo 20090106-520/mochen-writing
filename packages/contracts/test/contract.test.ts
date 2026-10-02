@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PERMISSION_MODE,
+  PATCH_MODES,
+  PERMISSION_LABELS,
   PERMISSION_MODES,
+  PROPOSAL_MODE_LABELS,
+  PROPOSAL_STATUSES,
+  PROPOSAL_STATUS_LABELS,
   bookMetaSchema,
   parseBookMeta
 } from "../src/index.js";
@@ -55,5 +60,25 @@ describe("bookMetaSchema", () => {
     expect(bookMetaSchema.safeParse({ ...valid, permissionMode: "full-access" }).success).toBe(
       true
     );
+  });
+});
+
+describe("权限档与提案模式的文案表（铁律 6：一张表，穷尽键）", () => {
+  it("PERMISSION_LABELS 的键与 PERMISSION_MODES 完全一致，中文逐字钉死", () => {
+    expect(Object.keys(PERMISSION_LABELS).sort()).toEqual([...PERMISSION_MODES].sort());
+    expect(PERMISSION_LABELS["read-only"]).toBe("只读参考");
+    expect(PERMISSION_LABELS["chapter-write"]).toBe("可改当前章");
+    expect(PERMISSION_LABELS["full-access"]).toBe("全开");
+  });
+
+  it("PROPOSAL_MODE_LABELS 覆盖 PATCH_MODES，中文逐字钉死", () => {
+    expect(Object.keys(PROPOSAL_MODE_LABELS).sort()).toEqual([...PATCH_MODES].sort());
+    expect(PROPOSAL_MODE_LABELS["anchor-replace"]).toBe("锚点替换");
+    expect(PROPOSAL_MODE_LABELS["doc-overwrite"]).toBe("整篇替换");
+  });
+
+  it("提案状态表含 expired，中文是「上次会话未处理」", () => {
+    expect(PROPOSAL_STATUSES).toContain("expired");
+    expect(PROPOSAL_STATUS_LABELS.expired).toBe("上次会话未处理");
   });
 });

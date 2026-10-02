@@ -2,6 +2,8 @@
  * `/` 命令面板的判定层（spec §6）：命令表、运行期可用性、输入解析、面板自己吃的键。
  * SlashPalette.vue 只画这张表并把选中的命令交出去，本文件以外不允许判断「这条命令现在能不能用」。
  */
+import { PERMISSION_LABELS, type PermissionMode } from "@mochen/contracts";
+
 export const SLASH_COMMANDS = [
   "model",
   "permissions",
@@ -69,4 +71,14 @@ export function filterCommands(text: string, focus: PaletteFocus): SlashCommand[
 export function paletteOwnsKey(key: string, isComposing: boolean): boolean {
   if (isComposing) return false;
   return key === "ArrowUp" || key === "ArrowDown" || key === "Enter" || key === "Escape";
+}
+
+/** 中文档位名反查 PermissionMode：查不到返回 null，由调用处给一句中文提示（spec §6）。 */
+export function matchPermissionMode(text: string): PermissionMode | null {
+  const trimmed = text.trim();
+  if (trimmed === "") return null;
+  for (const [mode, label] of Object.entries(PERMISSION_LABELS) as [PermissionMode, string][]) {
+    if (label === trimmed) return mode;
+  }
+  return null;
 }

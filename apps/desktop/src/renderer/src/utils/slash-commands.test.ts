@@ -4,6 +4,7 @@ import {
   SLASH_COMMAND_DESCRIPTIONS,
   availableCommands,
   filterCommands,
+  matchPermissionMode,
   parseSlashInput,
   paletteOwnsKey
 } from "./slash-commands";
@@ -132,5 +133,19 @@ describe("slash-commands · 面板列表过滤与自处理的键", () => {
       expect(paletteOwnsKey(key, true)).toBe(false);
     }
     expect(paletteOwnsKey("a", false)).toBe(false);
+  });
+});
+
+describe("slash-commands · 中文档位名反查（唯一来源仍是 PERMISSION_LABELS）", () => {
+  it("三个档名都能查回去，多余空白容忍", () => {
+    expect(matchPermissionMode("只读参考")).toBe("read-only");
+    expect(matchPermissionMode(" 可改当前章 ")).toBe("chapter-write");
+    expect(matchPermissionMode("全开")).toBe("full-access");
+  });
+
+  it("查不到与空串都给 null，绝不猜", () => {
+    expect(matchPermissionMode("随意改")).toBeNull();
+    expect(matchPermissionMode("read-only")).toBeNull();
+    expect(matchPermissionMode("")).toBeNull();
   });
 });

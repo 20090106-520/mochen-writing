@@ -53,3 +53,13 @@ export const PROPOSAL_STATUS_LABELS: Record<ProposalStatus, string> = {
   failed: "写入失败",
   expired: "上次会话未处理"
 };
+
+/**
+ * 提案模式的文案表：与 PERMISSION_LABELS 同一手法，`Record<PatchMode, string>` 让加模式不写文案直接编译不过。
+ * 本表是 `PatchMode` 的展示名唯一来源（渲染层提案卡卡头只读这里）；
+ * 后续「审批模式（请求批准 / 替我审批）」的同型表将落在同一模块，不得在渲染层复制第二份。
+ */
+export const PROPOSAL_MODE_LABELS: Record<PatchMode, string> = {
+  "anchor-replace": "锚点替换",
+  "doc-overwrite": "整篇替换"
+};

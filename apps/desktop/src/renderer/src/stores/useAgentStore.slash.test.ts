@@ -156,17 +156,31 @@ describe("useAgentStore · / 面板动作", () => {
     expect(useLayoutStore().settingsInitialCategory).toBe("general");
   });
 
-  it("/permissions 只把档位菜单连同预选档位名一起打开，不写盘也不改 meta", async () => {
+  it("/permissions 不带档名只把档位菜单打开，不写盘也不改 meta", async () => {
     const bookStore = useBookStore();
     await bookStore.openBook("/book");
     saveMeta.mockClear();
-    store().runSlashCommand("permissions", "可改当前章");
-    expect(bookStore.permissionMenuOpen).toBe(true);
-    expect(bookStore.permissionPreset).toBe("可改当前章");
-    expect(saveMeta).not.toHaveBeenCalled();
     store().runSlashCommand("permissions", "");
+    expect(bookStore.permissionMenuOpen).toBe(true);
     expect(bookStore.permissionPreset).toBe("");
+    expect(saveMeta).not.toHaveBeenCalled();
     bookStore.closePermissionMenu();
+    expect(bookStore.permissionMenuOpen).toBe(false);
+  });
+
+  it("/permissions 带档名直接调 saveMeta，带错档名只给一句中文且不写盘", async () => {
+    const bookStore = useBookStore();
+    await bookStore.openBook("/book");
+    saveMeta.mockClear();
+
+    store().runSlashCommand("permissions", "全开");
+    expect(saveMeta).toHaveBeenCalledTimes(1);
+    expect(saveMeta.mock.calls[0]?.[0]).toMatchObject({ permissionMode: "full-access" });
+
+    bookStore.closePermissionMenu();
+    store().runSlashCommand("permissions", "随意改");
+    expect(store().notice).toBe("没有这一档：「随意改」。可选：只读参考 / 可改当前章 / 全开。");
+    expect(saveMeta).toHaveBeenCalledTimes(1);
     expect(bookStore.permissionMenuOpen).toBe(false);
   });
 

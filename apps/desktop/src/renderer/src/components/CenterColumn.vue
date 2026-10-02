@@ -13,6 +13,7 @@ import AppIcon from "./AppIcon.vue";
 import AgentTimeline from "./AgentTimeline.vue";
 import ProposalCard from "./ProposalCard.vue";
 import ComposerBox from "./ComposerBox.vue";
+import PermissionMenu from "./PermissionMenu.vue";
 import ProviderSettings from "./ProviderSettings.vue";
 import SlashPalette from "./SlashPalette.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
@@ -171,7 +172,18 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div class="conversation-header-actions">
-        <span class="permission-chip">{{ permissionLabel }}</span>
+        <div class="permission-menu-actions">
+          <button
+            class="permission-chip is-button"
+            type="button"
+            :disabled="book.permissionMenuOpen"
+            :aria-expanded="book.permissionMenuOpen"
+            @click="book.openPermissionMenu('')"
+          >
+            {{ permissionLabel }}
+          </button>
+          <PermissionMenu v-if="book.permissionMenuOpen" @close="book.closePermissionMenu()" />
+        </div>
         <button class="header-text-button" type="button" @click="showSettings = true">
           <AppIcon name="settings" :size="15" />
           <span>模型设置</span>
