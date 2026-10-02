@@ -217,6 +217,8 @@ export function splitProposalCards<T extends ProposalCardInput>(
  * 回放派生扫描（spec §4.3 第 6 条）：对每条 proposal 事件，
  * 其后有 decision/written ⇒ 给已裁决态（沿用 store 语义）；没有 ⇒ expired。
  * accept 落了 decision 却没 written 视为 failed（写没成功），绝不留在可批准的 pending。
+ * 缺陷③补一条：带 proposalId 的 error 是主进程「这条提案已确定失效」的口径，
+ * 它没有配对的 decision，所以先归到 expired 再改判 stale——两张卡都不可批准，只是文案不同。
  */
 export function replayProposalStatuses(events: AgentEvent[]): Record<string, ProposalStatus> {
   const status: Record<string, ProposalStatus> = Object.create(null);
@@ -233,6 +235,13 @@ export function replayProposalStatuses(events: AgentEvent[]): Record<string, Pro
     }
     if (event.type === "written") {
       status[event.proposalId] = "written";
+      continue;
+    }
+    if (event.type === "error") {
+      // 缺陷③：error{stale} 在盘上没有配对的 decision，回放派生扫描会把这类卡归到 expired（未处理组）。
+      // 规则：仅当当前值是 expired 才改判 stale；已 written / cancelled / rejected / failed 一律不动。
+      if (event.proposalId !== undefined && status[event.proposalId] === "expired")
+        status[event.proposalId] = "stale";
       continue;
     }
   }

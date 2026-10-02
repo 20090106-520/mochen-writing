@@ -389,6 +389,8 @@ describe("agentService 全链", () => {
     const result = await service.decide({ proposalId: id, decision: "accept-once", guidance: "" });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("stale");
+    // 缺陷③发送侧：这条 error 必须带 proposalId，否则重启回放把已失效卡念成 expired
+    expect(events().some((item) => item.type === "error" && item.proposalId === id)).toBe(true);
     expect(await chapterFile()).toBe("我自己在编辑器里写的\n");
     const again = await service.decide({ proposalId: id, decision: "accept-once", guidance: "" });
     expect(again.ok).toBe(false);

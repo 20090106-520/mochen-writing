@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   DEFAULT_PERMISSION_MODE,
+  type AgentEvent,
   type AgentOutbound,
   type StartTurnInput
 } from "@mochen/contracts";
@@ -22,7 +23,8 @@ import { createAgentService, defaultPromptFor, type AgentService } from "./agent
  * 服务边界的「拒绝长什么样」专项（裁定 n + 裁定 o + 空白而非空串的可达分支）。
  * 这些用例要从头跑装配，而 agent-service.test.ts 已经贴着 800 行预算，
  * 所以另起一份最小夹具：模型只回一条 stop——边界用例验的是「有没有开轮、拒绝是不是中文」，
- * 不是模型说了什么。
+ * 不是模型说了什么。写盘竞态那一例（裁定 A）同理：它要自己装配一份必定返回 stale 的
+ * 写盘通路，塞进 agent-service.test.ts 会撞行数硬门禁，所以落在这里。
  */
 const CHAPTER = "chapters/01-开局.md";
 const CHAPTER_TEXT = "第一段\n雾从海面涌上来。\n第三段\n";
@@ -35,19 +37,64 @@ afterAll(async () => {
   for (const dir of tempDirs) await rm(dir, { recursive: true, force: true });
 });
 
-/** 只回一条 finish_reason=stop：让工具循环干净收尾，不产生任何提案。 */
-function stopFetch(): ProviderFetch {
+/**
+ * 脚本化 SSE：第 n 次请求回 `rounds[n]`，脚本用完回一条 stop——
+ * 一次工具调用要吃掉两个响应位（调用 + 无调用的收尾），不兜底工具循环收不了尾。
+ */
+function scriptedFetch(...rounds: Record<string, unknown>[][]): ProviderFetch {
   const enc = new TextEncoder();
+  const stop = { choices: [{ delta: {}, finish_reason: "stop" }] };
+  let call = 0;
   return async () => {
-    const chunk = { choices: [{ delta: {}, finish_reason: "stop" }] };
+    const chunks = rounds[call] ?? [stop];
+    call += 1;
     const stream = (async function* () {
-      yield enc.encode(`data: ${JSON.stringify(chunk)}\n\n`);
+      for (const chunk of chunks) yield enc.encode(`data: ${JSON.stringify(chunk)}\n\n`);
     })();
     return { status: 200, stream, errorText: "" } satisfies ProviderFetchResult;
   };
 }
 
-async function build(): Promise<{
+/** 只回一条 finish_reason=stop：让工具循环干净收尾，不产生任何提案。 */
+function stopFetch(): ProviderFetch {
+  return scriptedFetch();
+}
+
+/** 一轮 propose_patch 工具调用（锚点在 CHAPTER_TEXT 里逐字唯一），随后 stop 收尾。 */
+const proposePatchChunks: Record<string, unknown>[] = [
+  {
+    choices: [
+      {
+        delta: {
+          tool_calls: [
+            {
+              index: 0,
+              id: "c1",
+              function: {
+                name: "propose_patch",
+                arguments: JSON.stringify({
+                  doc: CHAPTER,
+                  anchor: "雾从海面涌上来。",
+                  replace: "海雾涌上来，铁锈味很冲。",
+                  why: "补可感细节"
+                })
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  { choices: [{ delta: {}, finish_reason: "tool_calls" }] }
+];
+
+/**
+ * `fetchImpl` 默认只回 stop；`writeDoc` 用来替换唯一写盘通路的返回值——
+ * 「审批前指纹比对待通过、真正写盘时才发现被改动」这条 TOCTOU 分支只能这样造。
+ */
+async function build(
+  options: { fetchImpl?: ProviderFetch; writeDoc?: BookService["writeDoc"] } = {}
+): Promise<{
   service: AgentService;
   writes: string[];
   outbound: AgentOutbound[];
@@ -94,6 +141,9 @@ async function build(): Promise<{
   const spied: BookService = {
     ...book,
     async writeDoc(relPath, content, expectedFingerprint) {
+      // 注入的写盘返回值优先：这一支不落真盘，所以 writes 探针也不记账。
+      if (options.writeDoc !== undefined)
+        return options.writeDoc(relPath, content, expectedFingerprint);
       writes.push(relPath);
       return book.writeDoc(relPath, content, expectedFingerprint);
     }
@@ -101,7 +151,7 @@ async function build(): Promise<{
   const service = createAgentService({
     book: spied,
     settings: createProviderSettings({ dir: secrets, credentials }),
-    fetchImpl: stopFetch(),
+    fetchImpl: options.fetchImpl ?? stopFetch(),
     emit: (payload) => outbound.push(payload),
     newId: () => "id1",
     isoNow: () => "2026-10-01T08:00:00.000Z",
@@ -127,6 +177,19 @@ async function rejectMessage(promise: Promise<unknown>): Promise<string> {
 
 function turnStartThreadKeys(outbound: AgentOutbound[]): string[] {
   return outbound.flatMap((item) => (item.type === "turn-start" ? [item.threadKey] : []));
+}
+
+function proposalIdsOf(outbound: AgentOutbound[]): string[] {
+  return outbound.flatMap((item) =>
+    item.type === "event" && item.event.type === "proposal" ? [item.event.proposal.id] : []
+  );
+}
+
+/** 外发载荷里的 error 事件：先窄化到 error 成员，`proposalId` 才是类型可见的字段。 */
+function errorEventsOf(outbound: AgentOutbound[]): Extract<AgentEvent, { type: "error" }>[] {
+  return outbound.flatMap((item) =>
+    item.type === "event" && item.event.type === "error" ? [item.event] : []
+  );
 }
 
 async function chapterBytes(): Promise<string> {
@@ -232,6 +295,37 @@ describe("agentService 边界拒绝与线程归一", () => {
       })
     ).resolves.toBeDefined();
     expect(turnStartThreadKeys(outbound)).toEqual(["unbound"]);
+    service.dispose();
+  });
+
+  it("写盘竞态返回 stale ⇒ 也发一条带 proposalId 的 error（裁定 A：这一支不再静默）", async () => {
+    // 审批前指纹比对待通过、真正落盘时才发现被改动：TOCTOU 这一支现状只有 pending.delete，
+    // 用户与 JSONL 都看不到它 ⇒ 重启回放会把这张已失效的卡念成 expired。
+    const { service, outbound } = await build({
+      fetchImpl: scriptedFetch(proposePatchChunks),
+      writeDoc: async () => ({ ok: false, reason: "stale", currentFingerprint: "f".repeat(64) })
+    });
+    await service.startTurn({
+      threadKey: CHAPTER,
+      docRelPath: CHAPTER,
+      stageId: "draft",
+      userText: "改紧一点"
+    });
+    const id = proposalIdsOf(outbound)[0] ?? "";
+    if (id === "") throw new Error("夹具必须先出提案，否则走不到写盘那一步");
+    const result = await service.decide({ proposalId: id, decision: "accept-once", guidance: "" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("stale");
+    const errs = errorEventsOf(outbound);
+    expect(errs.map((event) => event.proposalId)).toContain(id);
+    // 「写入时」而非「提案之后」：这句文案只能来自写盘竞态那一条，指纹不符那条没被误认。
+    expect(errs.some((event) => event.message.includes("写入时"))).toBe(true);
+    expect(errs.some((event) => event.message.includes("又被改动过"))).toBe(true);
+    // 失败仍然保守：没有 written 事件，原稿一字不变
+    expect(outbound.some((item) => item.type === "event" && item.event.type === "written")).toBe(
+      false
+    );
+    expect(await chapterBytes()).toBe(CHAPTER_TEXT);
     service.dispose();
   });
 });

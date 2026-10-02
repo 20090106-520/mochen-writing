@@ -322,6 +322,7 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         threadKey,
         event({
           type: "error",
+          proposalId,
           message:
             `提案之后 ${proposal.docRelPath} 又被改动过，这条建议已失效；` +
             "我没有覆盖你的改动，请让模型基于最新正文重出一条。"
@@ -338,7 +339,7 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     );
     if (applied.status !== "unique") {
       pending.delete(proposalId);
-      publish(threadKey, event({ type: "error", message: applied.message }));
+      publish(threadKey, event({ type: "error", proposalId, message: applied.message }));
       return { ok: false, reason: "stale", message: applied.message };
     }
 
@@ -347,6 +348,18 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     if (!write.ok) {
       if (write.reason === "stale") {
         pending.delete(proposalId);
+        // 裁定 A：审批前比对通过、落盘那一刻才发现被改——pending 已删，这一支不再静默，
+        // 同一条「提案已失效」的中文必须进对话流与 JSONL，否则回放会把它念成 expired。
+        publish(
+          threadKey,
+          event({
+            type: "error",
+            proposalId,
+            message:
+              `写入时 ${proposal.docRelPath} 又被改动过，这条建议已失效；` +
+              "我没有覆盖你的改动，请让模型基于最新正文重出一条。"
+          })
+        );
         return { ok: false, reason: "stale", message: "原稿已被改动，没有覆盖。" };
       }
       // io / invalid-path / outside-book：提案留在 pending，用户可以重试（§9 第 2 行）

@@ -66,7 +66,17 @@ export const agentEventSchema = z.discriminatedUnion("type", [
     backupRelPath: z.string().nullable()
   }),
   z.object({ ...turn, type: z.literal("interrupted"), pendingProposals: z.number().int().min(0) }),
-  z.object({ ...turn, type: z.literal("error"), message: z.string().min(1) })
+  /**
+   * 错误事件。`proposalId` 只在「这条提案已经确定失效」的三处出现（指纹不符 / 锚点不唯一 /
+   * 写盘撞指纹）：那三处 pending 已删，卡上的状态必须随回放存活（缺陷③）。
+   * 权限挡下与读盘失败**刻意不带**——提案还在待审队列里，标了就是谎报失效。
+   */
+  z.object({
+    ...turn,
+    type: z.literal("error"),
+    message: z.string().min(1),
+    proposalId: id.optional()
+  })
 ]);
 export type AgentEvent = z.infer<typeof agentEventSchema>;
 

@@ -441,3 +441,41 @@ describe("replayProposalStatuses（回放派生扫描）", () => {
     expect(replayProposalStatuses(events)).toEqual({ p: "failed" });
   });
 });
+
+describe("replayProposalStatuses 的 stale 改判（缺陷③）", () => {
+  it("error 带 proposalId 且该卡当前是 expired ⇒ 改判 stale", () => {
+    const events: AgentEvent[] = [
+      event("proposal", { proposal: { id: "pStale" } }),
+      event("error", { message: "原稿已被改动，没有覆盖。", proposalId: "pStale" })
+    ];
+    expect(replayProposalStatuses(events)).toEqual({ pStale: "stale" });
+  });
+
+  it("已 written 的卡不因后续 error{proposalId} 被改判（守卫：仅 expired 可改）", () => {
+    const events: AgentEvent[] = [
+      event("proposal", { proposal: { id: "pWrite" } }),
+      event("decision", {
+        proposalId: "pWrite",
+        decision: "accept-once",
+        guidance: "",
+        auto: false
+      }),
+      event("written", {
+        proposalId: "pWrite",
+        docRelPath: "chapters/01.md",
+        fingerprint: "b".repeat(64),
+        backupRelPath: null
+      }),
+      event("error", { message: "写入失败：磁盘满", proposalId: "pWrite" })
+    ];
+    expect(replayProposalStatuses(events)).toEqual({ pWrite: "written" });
+  });
+
+  it("error 不带 proposalId：不动任何卡（未配对提案仍是 expired）", () => {
+    const events: AgentEvent[] = [
+      event("proposal", { proposal: { id: "pOpen" } }),
+      event("error", { message: "模型服务端返回 503" })
+    ];
+    expect(replayProposalStatuses(events)).toEqual({ pOpen: "expired" });
+  });
+});

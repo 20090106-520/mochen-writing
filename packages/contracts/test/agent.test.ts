@@ -276,3 +276,28 @@ describe("expired 提案状态（回放派生，D1）", () => {
     expect(PROPOSAL_STATUS_LABELS.expired).toBe("上次会话未处理");
   });
 });
+
+describe("error 事件的可选 proposalId（缺陷③）", () => {
+  const base = { id: "e1", ts: "2026-10-01T08:00:00.000Z", turnId: "t1" };
+
+  it("error 带 proposalId 能解析，且解析结果留住该字段", () => {
+    const parsed = agentEventSchema.parse({
+      ...base,
+      type: "error",
+      message: "原稿已被改动，没有覆盖。",
+      proposalId: "p1"
+    });
+    if (parsed.type !== "error") throw new Error("error 事件未被解析为 error");
+    expect(parsed.proposalId).toBe("p1");
+  });
+
+  it("error 不带 proposalId 也能解析（老盘上的历史 error 事件）", () => {
+    const parsed = agentEventSchema.parse({
+      ...base,
+      type: "error",
+      message: "模型服务端返回 503：繁忙"
+    });
+    if (parsed.type !== "error") throw new Error("error 事件未被解析为 error");
+    expect(parsed.proposalId).toBeUndefined();
+  });
+});
