@@ -1,10 +1,18 @@
-// 薄壳：装全局唯一的 keydown 监听、把真 DOM 解成焦点源、把判定结果派到既有 store action。
-// 键→动作的判断 100% 在 utils/hotkeys.ts，Esc 的三态裁决 100% 在 utils/escape-policy.ts，
-// 焦点标志的推导 100% 在 utils/hotkey-focus.ts（裁定 G2：那三个文件才是可测的判定层）。
-// 本文件不判断，只做「解析 DOM → 调纯函数 → 调 store」；全局 keydown 有且只有这里一处（裁定 G5）。
+// 薄壳：装全局唯一的 keydown 监听、把真 DOM 解成焦点源、把判定结果派到既有 store action；本文件不判断。
+// 判断层各有其主：键→动作 utils/hotkeys.ts、Esc 三态 utils/escape-policy.ts、焦点推导 utils/hotkey-focus.ts（裁定 G2）；
+// 审批映射 utils/hotkey-decisions（评审 X2）、DOM 标记名 utils/hotkey-markers（评审 X4a）——单实现模块，只消费。
+// 全局 keydown 有且只有这里一处（裁定 G5）。
 import { onBeforeUnmount, onMounted } from "vue";
-import type { ProposalDecision } from "@mochen/contracts";
 import { resolveHotkey, type HotkeyAction, type HotkeyMods } from "../utils/hotkeys";
+import { APPROVAL_DECISIONS } from "../utils/hotkey-decisions";
+import { composerTextAfterQueue } from "../utils/hotkey-queue";
+import {
+  CARD_ID_ATTR,
+  CARD_SELECTOR,
+  CARD_STATUS_ATTR,
+  COMPOSER_SELECTOR,
+  GUIDANCE_SELECTOR
+} from "../utils/hotkey-markers";
 import { deriveHotkeyFocus, type HotkeyFocusSources } from "../utils/hotkey-focus";
 import { resolveEscape } from "../utils/escape-policy";
 import { threadKeyFor, useAgentStore } from "../stores/useAgentStore";
@@ -15,24 +23,11 @@ export interface HotkeyHandlers {
   openPalette(): void;
 }
 
-/**
- * 裁定 G1：HotkeyAction 的三个审批值与 contracts 的 ProposalDecision **不同名**
- * （`patch.ts` 的 PROPOSAL_DECISIONS 是 accept-*）。映射只此一份，类型写成
- * `Record<联合类型, ProposalDecision>` ⇒ 契约改名/加成员时这里直接编译失败，
- * 而不是运行时把非法裁决值送到主进程、审批悄悄不生效。下面唯一消费点是查表，不写三元链、不做 cast。
- */
-const APPROVAL_DECISIONS: Record<
-  "approve-once" | "approve-session" | "approve-prefix",
-  ProposalDecision
-> = {
-  "approve-once": "accept-once",
-  "approve-session": "accept-session",
-  "approve-prefix": "accept-prefix"
-};
-
-const COMPOSER_SELECTOR = "[data-mochen-composer]";
-const CARD_SELECTOR = "[data-proposal-card]";
-const GUIDANCE_SELECTOR = "[data-guidance]";
+/** 评审 X4b：每次按键把「哪枚是 composer、哪张卡聚焦」解析**一次**，dispatch/escape 共用同一份，不再回头重查 DOM。 */
+interface KeyTargets {
+  readonly composer: HTMLTextAreaElement | null;
+  readonly card: HTMLElement | null;
+}
 
 export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
   const agent = useAgentStore();
@@ -41,10 +36,6 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
 
   function elementOf(target: EventTarget | null): HTMLElement | null {
     return target instanceof HTMLElement ? target : null;
-  }
-
-  function composerOf(): HTMLTextAreaElement | null {
-    return document.querySelector<HTMLTextAreaElement>(COMPOSER_SELECTOR);
   }
 
   /** 护栏 4：审批四键与卡内 Esc 只作用于「聚焦的那一张卡」——靠 activeElement 往上找卡。 */
@@ -58,36 +49,21 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
     return agent.threads[threadKeyFor(book.activeDocTab)]?.running ?? false;
   }
 
-  function sourcesOf(event: KeyboardEvent): HotkeyFocusSources {
-    return {
-      eventTarget: elementOf(event.target),
-      activeElement: elementOf(document.activeElement),
-      composer: composerOf(),
-      focusedCard: focusedCard(),
-      turnRunning: runningNow(),
-      isComposing: event.isComposing,
-      hasBook: book.rootPath !== null,
-      tabCount: book.docTabs.length
-    };
-  }
-
-  /**
-   * 写 composer 的 DOM 值之后必须补一个 input 事件：ComposerBox 用 v-model，只听 input。
-   * 不补的话 ref 里还留着旧文本，下一次重渲染会把已发走/已排队的字吐回输入框，发送按钮也一直是亮的。
-   */
+  /** 写 composer 的 DOM 值后必须补发 input：v-model 只听 input，不补则重渲染（running 变真）会把已发走的字吐回输入框。
+   *  脆弱点：这条同步链赌的是 v-model 的默认 input 事件——改 .lazy（改听 change）或 .trim（回写被修剪）就不再同源；
+   *  durable 方案（composer 草稿进 store）进台账，不在本片做。 */
   function setComposerText(el: HTMLTextAreaElement, value: string): void {
     el.value = value;
     el.dispatchEvent(new Event("input"));
   }
 
-  function escape(event: KeyboardEvent): void {
-    const card = focusedCard();
+  function escape(event: KeyboardEvent, card: HTMLElement | null): void {
     const guidance = card?.querySelector<HTMLTextAreaElement>(GUIDANCE_SELECTOR) ?? null;
-    const cardId = card?.getAttribute("data-proposal-id") ?? "";
+    const cardId = card?.getAttribute(CARD_ID_ATTR) ?? "";
     // 三态裁决（审批卡 > 打断 > 无动作）全在 resolveEscape，这里不复制口径。
     const action = resolveEscape({
       hasFocusedProposal: card !== null,
-      focusedProposalPending: card?.getAttribute("data-proposal-status") === "pending",
+      focusedProposalPending: card?.getAttribute(CARD_STATUS_ATTR) === "pending",
       guidanceIsDirty: (guidance?.value.trim() ?? "") !== "",
       turnRunning: runningNow()
     });
@@ -108,9 +84,14 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
     }
   }
 
-  function dispatch(event: KeyboardEvent, action: HotkeyAction, tabIndex?: number): void {
+  function dispatch(
+    event: KeyboardEvent,
+    action: HotkeyAction,
+    targets: KeyTargets,
+    tabIndex?: number
+  ): void {
     if (action === "submit" || action === "newline" || action === "queue") {
-      const el = composerOf();
+      const el = targets.composer;
       const text = el?.value ?? "";
       if (action === "newline") {
         event.preventDefault();
@@ -119,23 +100,28 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
       }
       if (text.trim() === "") return;
       event.preventDefault();
-      if (el) setComposerText(el, "");
-      if (action === "submit") agent.send(text.trim());
-      // queueText 自己 trim，这里传原文（spec §5.1：trim 的口径归 store 一处）。
-      else agent.queueText(threadKeyFor(book.activeDocTab), text);
+      if (action === "submit") {
+        if (el) setComposerText(el, "");
+        agent.send(text.trim());
+        return;
+      }
+      // 评审 X1（数据丢失）：**先**问 store，拿到 accepted **才**决定回写——队列满时 queueText 那句中文
+      // 要用户重发的就是这些字，先清空等于把提示要保的字删了。回写值出自 utils/hotkey-queue（可测纯函数）。
+      const accepted = agent.queueText(threadKeyFor(book.activeDocTab), text);
+      if (el) setComposerText(el, composerTextAfterQueue(text, accepted));
       return;
     }
     if (action === "approve-once" || action === "approve-session" || action === "approve-prefix") {
-      const id = focusedCard()?.getAttribute("data-proposal-id") ?? "";
+      const id = targets.card?.getAttribute(CARD_ID_ATTR) ?? "";
       if (id === "") return;
       event.preventDefault();
-      // 与鼠标按钮调的是同一个 decide（护栏 4），键不引入新语义。
+      // 与鼠标按钮调的是同一个 decide（护栏 4），键不引入新语义；映射表在 utils/hotkey-decisions，唯一一份。
       void agent.decide(id, APPROVAL_DECISIONS[action], "");
       return;
     }
     if (action === "deny-guidance") {
       // 护栏 3：只把焦点搬到该卡的说明框，绝不替用户提交。
-      const guidance = focusedCard()?.querySelector<HTMLTextAreaElement>(GUIDANCE_SELECTOR);
+      const guidance = targets.card?.querySelector<HTMLElement>(GUIDANCE_SELECTOR);
       if (!guidance) return;
       event.preventDefault();
       guidance.focus();
@@ -167,11 +153,14 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
         handlers.openPalette();
         return;
       case "delegated":
-        escape(event);
+        escape(event, targets.card);
         return;
-      default:
-        // none（含被五条护栏拦下来的全部组合）：一个 preventDefault 都不做，把键还给浏览器。
-        return;
+      case "none":
+        return; // none（含被五条护栏拦下来的全部组合）：一个 preventDefault 都不做，把键还给浏览器。
+      default: {
+        const unhandled: never = action; // 评审 X3：穷尽性守卫（与 G1 同律）——新 HotkeyAction 没接线 ⇒ 编译失败，不是静默死键。
+        return unhandled;
+      }
     }
   }
 
@@ -182,12 +171,22 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
       alt: event.altKey,
       meta: event.metaKey
     };
-    const { action, tabIndex } = resolveHotkey(
-      deriveHotkeyFocus(sourcesOf(event)),
-      event.key,
-      mods
-    );
-    dispatch(event, action, tabIndex);
+    const targets: KeyTargets = {
+      composer: document.querySelector<HTMLTextAreaElement>(COMPOSER_SELECTOR),
+      card: focusedCard()
+    };
+    const sources: HotkeyFocusSources = {
+      eventTarget: elementOf(event.target),
+      activeElement: elementOf(document.activeElement),
+      composer: targets.composer,
+      focusedCard: targets.card,
+      turnRunning: runningNow(),
+      isComposing: event.isComposing,
+      hasBook: book.rootPath !== null,
+      tabCount: book.docTabs.length
+    };
+    const { action, tabIndex } = resolveHotkey(deriveHotkeyFocus(sources), event.key, mods);
+    dispatch(event, action, targets, tabIndex);
   }
 
   onMounted(() => document.addEventListener("keydown", onKey));

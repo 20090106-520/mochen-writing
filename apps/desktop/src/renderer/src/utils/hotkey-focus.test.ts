@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { deriveHotkeyFocus, type ComposerSource, type FocusSource } from "./hotkey-focus";
-import { type HotkeyFocusSources } from "./hotkey-focus";
+import {
+  deriveHotkeyFocus,
+  type ComposerSource,
+  type FocusSource,
+  type HotkeyFocusSources
+} from "./hotkey-focus";
 
 /**
  * 本仓没有 jsdom/happy-dom，故这里一律传**鸭子类型的普通对象**：

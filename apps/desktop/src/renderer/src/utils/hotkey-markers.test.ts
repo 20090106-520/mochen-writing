@@ -1,0 +1,103 @@
+/// <reference types="node" />
+/**
+ * 源码契约测试（评审 X4a）：本仓没有 jsdom / @vue/test-utils，模板层的标记正确性够不着运行时断言。
+ * 于是改用 node:fs 直接读 .vue 源——Task 7 最怕的静默失败模式（改一处标记名不红不坏、键位整体失灵）
+ * 在这里变成可失败的断言：
+ * ① 五个标记名各钉一次字面量；② 模板里必须**以属性形态**出现这些名字（剥掉 HTML 注释，写在注释里不算）；
+ * ③ 全渲染层 src 的 `document.addEventListener("keydown"` 有且只有一处且就在 useHotkeys.ts（裁定 G5）。
+ * ESM 没有 __dirname，路径一律由 import.meta.url 解出。
+ */
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import {
+  CARD_ID_ATTR,
+  CARD_MARKER,
+  CARD_STATUS_ATTR,
+  COMPOSER_MARKER,
+  GUIDANCE_MARKER
+} from "./hotkey-markers";
+
+/** src/renderer/src —— 本文件所在 utils 的上一级。 */
+const SRC_DIR = fileURLToPath(new URL("../", import.meta.url));
+
+/** 读 SFC 顶层 <template> 并剥掉 HTML 注释：标记只有出现在真标记属性里才算数。 */
+function templateMarkup(relPath: string): string {
+  const source = readFileSync(join(SRC_DIR, relPath), "utf8");
+  const match = /<template>([\s\S]*)<\/template>/.exec(source);
+  if (match === null || match[1] === undefined) {
+    throw new Error(`${relPath} 里没有 <template> 块`);
+  }
+  return match[1].replace(/<!--[\s\S]*?-->/g, "");
+}
+
+/** 以「属性名」形态命中：前界为行首/空白/冒号（:data-* 绑定），后界为空白/=/>。 */
+function hasAttribute(markup: string, name: string): boolean {
+  return new RegExp(`(^|[\\s:>])${name}([\\s=>]|$)`, "m").test(markup);
+}
+
+/** 递归列渲染层源码；跳过 *.test.ts——契约测试自己写着 needle 字符串，不该被自己数进去。 */
+function listSourceFiles(dir: string): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listSourceFiles(full));
+    } else if (/\.(ts|vue)$/.test(entry.name) && !entry.name.endsWith(".test.ts")) {
+      files.push(full);
+    }
+  }
+  return files;
+}
+
+function countOccurrences(needle: string): { file: string; count: number }[] {
+  const hits: { file: string; count: number }[] = [];
+  for (const file of listSourceFiles(SRC_DIR)) {
+    const text = readFileSync(file, "utf8");
+    let count = 0;
+    let index = text.indexOf(needle);
+    while (index !== -1) {
+      count += 1;
+      index = text.indexOf(needle, index + needle.length);
+    }
+    if (count > 0) hits.push({ file: file.replace(/\\/g, "/"), count });
+  }
+  return hits;
+}
+
+describe("hotkey-markers · 模板必须真的带着这些标记名（评审 X4a）", () => {
+  it("五个标记名钉一次字面量：改名要同时过模板契约与这两行，不存在静默的一半", () => {
+    expect(COMPOSER_MARKER).toBe("data-mochen-composer");
+    expect(CARD_MARKER).toBe("data-proposal-card");
+    expect(CARD_ID_ATTR).toBe("data-proposal-id");
+    expect(CARD_STATUS_ATTR).toBe("data-proposal-status");
+    expect(GUIDANCE_MARKER).toBe("data-guidance");
+  });
+
+  it("ComposerBox 的模板属性里有 data-mochen-composer", () => {
+    expect(hasAttribute(templateMarkup("components/ComposerBox.vue"), COMPOSER_MARKER)).toBe(true);
+  });
+
+  it("ProposalCard 的模板属性里有卡/id/status/guidance 四枚标记", () => {
+    const markup = templateMarkup("components/ProposalCard.vue");
+    for (const name of [CARD_MARKER, CARD_ID_ATTR, CARD_STATUS_ATTR, GUIDANCE_MARKER]) {
+      expect(hasAttribute(markup, name)).toBe(true);
+    }
+  });
+});
+
+describe("hotkey-markers · 全局 keydown 监听有且只有一个（裁定 G5）", () => {
+  it("addEventListener 与 removeEventListener 各命中一处，且都在 composables/useHotkeys.ts", () => {
+    const add = countOccurrences('document.addEventListener("keydown"');
+    expect(add.reduce((sum, hit) => sum + hit.count, 0)).toBe(1);
+    expect(add.map((hit) => hit.file)).toEqual([
+      expect.stringContaining("composables/useHotkeys.ts")
+    ]);
+    const remove = countOccurrences('document.removeEventListener("keydown"');
+    expect(remove.reduce((sum, hit) => sum + hit.count, 0)).toBe(1);
+    expect(remove.map((hit) => hit.file)).toEqual([
+      expect.stringContaining("composables/useHotkeys.ts")
+    ]);
+  });
+});

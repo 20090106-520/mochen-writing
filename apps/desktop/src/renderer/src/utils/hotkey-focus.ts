@@ -8,6 +8,7 @@
  * tagName / isContentEditable / getAttribute / value，绝不 `instanceof HTMLElement`，
  * 于是这条互斥不变式可测（见 hotkey-focus.test.ts）。useHotkeys.ts 只负责把真 DOM 解成这些源。
  */
+import { CARD_STATUS_ATTR } from "./hotkey-markers";
 import { type HotkeyFocus } from "./hotkeys";
 
 /** 焦点判定要读的节点成员——真实 HTMLElement 天然满足，测试里传普通对象即可。 */
@@ -63,7 +64,7 @@ export function deriveHotkeyFocus(sources: HotkeyFocusSources): HotkeyFocus {
       !composerIsFocused &&
       (isTextField(sources.eventTarget) || isTextField(sources.activeElement)),
     proposalIsFocused: card !== null,
-    proposalIsPending: card?.getAttribute("data-proposal-status") === "pending",
+    proposalIsPending: card?.getAttribute(CARD_STATUS_ATTR) === "pending",
     turnRunning: sources.turnRunning,
     isComposing: sources.isComposing,
     hasBook: sources.hasBook,
