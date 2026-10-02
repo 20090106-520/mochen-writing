@@ -42,6 +42,11 @@
 | 五工具/三档/中文文案是铁律；`book.json` 与 `.mochen/` 是天花板 | `contracts/src/tools.ts:1-8`、`agent-runtime/src/permission.ts:3,34` | 档案只能取五工具的子集，不得新增工具 |
 | 门禁链与预算 | `package.json` 的 `verify`、`tools/check-source-line-budget.mjs:5`（800 行，含 `.vue`）、`tools/check-package-boundary.mjs:6` | `CenterColumn.vue` 现 223 行；新组件必须分文件，判定逻辑必须留在可 node 单测处 |
 
+> **波 1 落地后的快照更正（2026-10-02，Task 10 当场回读）**：上表第 15/16/17 行写的「12 键 / 12 方法 / `calls.length === 12`」
+> 是本 spec 写作时的现仓值，不是现值。现值三处一起到 13：`packages/contracts/src/ipc.ts` 的 `IPC_CHANNELS` 13 键、
+> 同文件 `RendererApi` 13 方法、`apps/desktop/src/preload/renderer-api.test.ts:102` 的 `toBe(13)` 与 `:135` 的
+> 「渲染层只拿到这 13 个方法」。§13 契约总表「现值」列同属写作时快照，往后的波次照此逐波更正，不拿它当现状读。
+
 现况基线：`master` = `58cbf1d`，`corepack pnpm verify` 绿，**353 用例 / 34 文件**。
 
 ## 1. 目标与非目标
