@@ -3,6 +3,7 @@
  * SlashPalette.vue 只画这张表并把选中的命令交出去，本文件以外不允许判断「这条命令现在能不能用」。
  */
 import { PERMISSION_LABELS, type PermissionMode } from "@mochen/contracts";
+import { hasNoMods, type HotkeyMods } from "./hotkeys";
 
 export const SLASH_COMMANDS = [
   "model",
@@ -75,11 +76,12 @@ export function paletteOwnsKey(key: string, isComposing: boolean): boolean {
 
 /**
  * 权限档 popover 自己吃的键：只有**裸 Esc** 归弹层（关掉它，不切档），其余键一律放行给上层。
- * 合成期间一律不接——与 paletteOwnsKey / utils/hotkeys.ts 护栏 1 同口径；
- * 带修饰的 Esc 属于 OS 或别人，仍由全局 resolveHotkey 的 noMods 判据裁决，这里不复制那条。
+ * 合成期间一律不接、带任何修饰都不接——两条判据都与 utils/hotkeys.ts 同口径：
+ * 弹层会 stopPropagation，全局 `resolveHotkey` 因此永远看不见这一键，
+ * 所以「裸键」这道闸必须在这里也过一遍；判据本身用 hotkeys.ts 的 `hasNoMods`，这里不另写一份。
  */
-export function popoverOwnsKey(key: string, isComposing: boolean): boolean {
-  if (isComposing) return false;
+export function popoverOwnsKey(key: string, mods: HotkeyMods, isComposing: boolean): boolean {
+  if (isComposing || !hasNoMods(mods)) return false;
   return key === "Escape";
 }
 

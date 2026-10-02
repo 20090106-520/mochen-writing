@@ -10,6 +10,7 @@ import {
 } from "@mochen/contracts";
 import { useBookStore } from "../stores/useBookStore";
 import { popoverOwnsKey } from "../utils/slash-commands";
+import type { HotkeyMods } from "../utils/hotkeys";
 
 const book = useBookStore();
 const emit = defineEmits<{ close: [] }>();
@@ -23,13 +24,19 @@ const busy = computed(() => book.metaSaving || book.meta === null);
 
 async function choose(mode: PermissionMode): Promise<void> {
   if (busy.value) return;
+  // 收起与否由 store 裁决：成功它自己关；失败或同档必须留着，给用户一条当场重试的路。
   await book.setPermissionMode(mode);
-  emit("close");
 }
 
 // 只有裸 Esc 归弹层（关掉它，不切档）；键的判定走 popoverOwnsKey 纯函数，模板里不写裸比较。
 function onKeydown(event: KeyboardEvent): void {
-  if (!popoverOwnsKey(event.key, event.isComposing === true)) return;
+  const mods: HotkeyMods = {
+    ctrl: event.ctrlKey,
+    shift: event.shiftKey,
+    alt: event.altKey,
+    meta: event.metaKey
+  };
+  if (!popoverOwnsKey(event.key, mods, event.isComposing === true)) return;
   event.stopPropagation();
   emit("close");
 }

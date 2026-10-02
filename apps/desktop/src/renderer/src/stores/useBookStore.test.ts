@@ -371,6 +371,32 @@ describe("useBookStore", () => {
   });
 
   /**
+   * 弹层收起的唯一通路：store 在成功末尾自己关。10495e0 之前 PermissionMenu.vue 的 choose()
+   * 在 await 之后又 emit 了一次 close，把「失败也要留着」的意图覆盖成静默关闭；本仓没有组件测试，
+   * 这两条 store 用例是该意图在自动化里唯一的落点（组件删掉那次 emit 由 Task 10 真机冒烟复看）。
+   */
+  it("切档成功后弹层自动收起", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    store.openPermissionMenu();
+    await store.setPermissionMode("full-access");
+    expect(store.permissionMenuOpen).toBe(false);
+  });
+
+  it("切档失败与同档重复点都不收起：给用户当场重试的通路", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    saveMeta.mockRejectedValueOnce(new Error("无法写入 book.json：文件正被占用"));
+    store.openPermissionMenu();
+    await store.setPermissionMode("full-access");
+    expect(store.permissionMenuOpen).toBe(true);
+    saveMeta.mockClear();
+    await store.setPermissionMode("read-only"); // 此刻真值仍是 read-only ⇒ 走同档早退
+    expect(store.permissionMenuOpen).toBe(true);
+    expect(saveMeta).not.toHaveBeenCalled();
+  });
+
+  /**
    * 经 computed 读的用例（9625c52 的同类盲区）：PermissionMenu.vue 的 `current` 与 CenterColumn.vue
    * 的 `permissionLabel` 都是 `computed(() => book.meta?.permissionMode ?? ...)`，本仓没有组件测试。
    * 写进 pinia state 的对象若在代理之外落地（例如改到裸引用上），真值照样对、依赖通知一次不发，

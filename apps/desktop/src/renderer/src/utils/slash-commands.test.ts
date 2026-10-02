@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { HotkeyMods } from "./hotkeys";
 import {
   SLASH_COMMANDS,
   SLASH_COMMAND_DESCRIPTIONS,
@@ -11,6 +12,8 @@ import {
 } from "./slash-commands";
 
 const NO_GATE = { hasBook: true, turnRunning: false };
+/** 四个修饰键全不按下——弹层只认这一种（判据真身在 utils/hotkeys.ts 的 hasNoMods）。 */
+const NO_MODS: HotkeyMods = { ctrl: false, shift: false, alt: false, meta: false };
 
 describe("slash-commands · 枚举与说明表（铁律 6：一张表，穷尽键）", () => {
   it("波 1 落 6 条，顺序即面板顺序", () => {
@@ -153,14 +156,25 @@ describe("slash-commands · 中文档位名反查（唯一来源仍是 PERMISSIO
 
 describe("slash-commands · 弹层自处理的键（权限档 popover）", () => {
   it("只有裸 Esc 归弹层：面板的其余三键与普通字符都不接", () => {
-    expect(popoverOwnsKey("Escape", false)).toBe(true);
+    expect(popoverOwnsKey("Escape", NO_MODS, false)).toBe(true);
     for (const key of ["ArrowUp", "ArrowDown", "Enter", "a", "/"]) {
-      expect(popoverOwnsKey(key, false)).toBe(false);
+      expect(popoverOwnsKey(key, NO_MODS, false)).toBe(false);
     }
   });
 
+  /**
+   * spec §5 键位表第 228 行：Esc 带任何修饰都不归此表。弹层一旦 stopPropagation，
+   * 全局 resolveHotkey 就再也看不见这一键，所以「裸键」判据必须在弹层这一层也生效。
+   */
+  it("带任何修饰的 Esc 都不接（Ctrl/Shift/Alt/Meta 逐个试）", () => {
+    expect(popoverOwnsKey("Escape", { ...NO_MODS, ctrl: true }, false)).toBe(false);
+    expect(popoverOwnsKey("Escape", { ...NO_MODS, shift: true }, false)).toBe(false);
+    expect(popoverOwnsKey("Escape", { ...NO_MODS, alt: true }, false)).toBe(false);
+    expect(popoverOwnsKey("Escape", { ...NO_MODS, meta: true }, false)).toBe(false);
+  });
+
   it("输入法合成期间一个都不接（M4/护栏 1 同口径）", () => {
-    expect(popoverOwnsKey("Escape", true)).toBe(false);
-    expect(popoverOwnsKey("Enter", true)).toBe(false);
+    expect(popoverOwnsKey("Escape", NO_MODS, true)).toBe(false);
+    expect(popoverOwnsKey("Enter", NO_MODS, true)).toBe(false);
   });
 });

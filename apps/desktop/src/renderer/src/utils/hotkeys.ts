@@ -47,6 +47,14 @@ export interface HotkeyResult {
   tabIndex?: number;
 }
 
+/**
+ * 「裸键」的唯一判据：四个修饰键一个都不能按上（spec §5 键位表 Esc 行）。
+ * 全局 `resolveHotkey` 与各 popover 的自处理键共用这一条，不再各写一份四元与。
+ */
+export function hasNoMods(mods: HotkeyMods): boolean {
+  return !mods.ctrl && !mods.shift && !mods.alt && !mods.meta;
+}
+
 const APPROVAL_KEYS: Record<string, HotkeyAction> = {
   y: "approve-once",
   a: "approve-session",
@@ -59,7 +67,7 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
   if (focus.isComposing) return { action: "none" };
 
   const bare = !mods.ctrl && !mods.alt && !mods.meta; // 是否只可能带 shift（或不带）
-  const noMods = bare && !mods.shift; // 是否纯键（无任何修饰）
+  const noMods = hasNoMods(mods); // 是否纯键（无任何修饰）
   const k = key.length === 1 ? key.toLowerCase() : key;
 
   // Esc：先于 Ctrl 族、后于合成闸门判定，但**只有裸键**才委托——
