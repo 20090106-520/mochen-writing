@@ -375,6 +375,20 @@ describe("useBookStore", () => {
     expect(store.notice).toBe("权限档已切到「可改当前章」，下一次审批就用这一档判断。");
   });
 
+  it("切档交给主进程的是可结构化克隆的裸对象：响应式代理过不了 IPC", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    // Electron 在 IPC 的 send 端做结构化克隆，Vue 的 reactive 代理（连带嵌套数组）会在这里抛 DataCloneError。
+    // 真机冒烟就是这样炸的（notice 变成「权限档没改过来：An object could not be cloned.」）；
+    // 上面那条成功用例用 toEqual 比对，代理与裸对象在 it 眼里一模一样，抓不到。
+    saveMeta.mockImplementationOnce(async (meta) => {
+      structuredClone(meta);
+    });
+    await store.setPermissionMode("chapter-write");
+    expect(store.notice).toBe("权限档已切到「可改当前章」，下一次审批就用这一档判断。");
+    expect(store.meta?.permissionMode).toBe("chapter-write");
+  });
+
   it("同档重复点：不写盘，给一句实话", async () => {
     const store = useBookStore();
     await store.openBook("/book");

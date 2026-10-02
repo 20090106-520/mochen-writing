@@ -1,4 +1,5 @@
 import { defineStore } from "pinia";
+import { toRaw } from "vue";
 import {
   PERMISSION_LABELS,
   type BookMeta,
@@ -251,7 +252,9 @@ export const useBookStore = defineStore("book", {
         this.notice = `已经是这一档了：「${PERMISSION_LABELS[mode]}」。`;
         return;
       }
-      const next: BookMeta = { ...this.meta, permissionMode: mode };
+      // 展开响应式代理拿到的仍是代理（stages / chapterOrder 都是嵌套代理），而 Electron 在 IPC 的
+      // send 端做结构化克隆，代理当场抛「An object could not be cloned.」⇒ 必须先 toRaw。
+      const next: BookMeta = { ...toRaw(this.meta), permissionMode: mode };
       // metaSaving 只圈住这条落盘通路（右栏的 saving 与之无关）：进出各写一次，
       // finally 让成功、失败、连点都不把弹层灰着——reject 分支同样必须落回 false。
       this.metaSaving = true;
