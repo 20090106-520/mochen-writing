@@ -192,6 +192,13 @@ function errorEventsOf(outbound: AgentOutbound[]): Extract<AgentEvent, { type: "
   );
 }
 
+/** 提案事件所在的那条线程键：失效的 error 必须回到同一个键，否则用户在对话流里看不见它。 */
+function proposalThreadKeyOf(outbound: AgentOutbound[]): string {
+  for (const item of outbound)
+    if (item.type === "event" && item.event.type === "proposal") return item.threadKey;
+  return "";
+}
+
 async function chapterBytes(): Promise<string> {
   return readFile(path.join(root, ...CHAPTER.split("/")), "utf8");
 }
@@ -321,6 +328,19 @@ describe("agentService 边界拒绝与线程归一", () => {
     // 「写入时」而非「提案之后」：这句文案只能来自写盘竞态那一条，指纹不符那条没被误认。
     expect(errs.some((event) => event.message.includes("写入时"))).toBe(true);
     expect(errs.some((event) => event.message.includes("又被改动过"))).toBe(true);
+    // 路由钉（评审 T3-1 F2）：这条 error 必须发回**提案自己那条线程**——发往别的 threadKey
+    // （unbound、别的章、空串）用户都看不到它，卡会被实时/回放两头念成「未处理」。
+    const proposalThreadKey = proposalThreadKeyOf(outbound);
+    expect(proposalThreadKey).toBe(CHAPTER);
+    expect(
+      outbound.some(
+        (item) =>
+          item.type === "event" &&
+          item.threadKey === proposalThreadKey &&
+          item.event.type === "error" &&
+          item.event.proposalId === id
+      )
+    ).toBe(true);
     // 失败仍然保守：没有 written 事件，原稿一字不变
     expect(outbound.some((item) => item.type === "event" && item.event.type === "written")).toBe(
       false

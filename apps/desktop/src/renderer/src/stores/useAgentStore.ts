@@ -345,6 +345,19 @@ export const useAgentStore = defineStore("agent", {
       }
       if (event.type === "error") {
         thread.lastError = event.message;
+        // 缺陷③的 live 半边（评审 T3-1）：带 proposalId 的 error 是主进程「这条提案已确定失效」的
+        // 实时口径——applyDecision 只在 pending 已删的三条分支带上它。自动批准（accept-session /
+        // accept-prefix）跑在主进程的 autos 队列里，渲染层拿不到 DecisionResult，失败只剩这一条
+        // error，于是那张已死的卡在重启前一直显示可批准——卡不许说谎。
+        // 规则：只在那张卡仍是 pending 时收编成 stale（严格 ===，written / cancelled / rejected /
+        // expired / stale / failed 一律不重判）。不带 proposalId 的 error（模型 503、读盘 io、
+        // 档位收紧）一个字都不动：那几条分支的 pending 还在，卡仍可批准，改判就是说谎。
+        // 这条只减授权：不造 pending、不动 queued；回放侧仍以 replayProposalStatuses 为权威
+        // （水合规则 6 会用它覆盖这些卡的 status，两条路对同一张盘给出同一个答案）。
+        if (event.proposalId !== undefined) {
+          const card = this.proposals[event.proposalId];
+          if (card !== undefined && card.status === "pending") card.status = "stale";
+        }
         return;
       }
       if (event.type === "written") {
