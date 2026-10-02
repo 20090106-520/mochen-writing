@@ -58,6 +58,11 @@
    （`AGENT_PROFILES` 六条，Plan 3 spec §9），A 稿右栏的「档案」= **一本书的资料面板**。
    同一个 UI 里两个「档案」必然出错，所以右栏那一格定名**「作品资料」**，
    「档案」一词在 UI 上永远只指 agent profile。
+7. **名字与动作不符也算摆设**（用户 2026-10-02 追加的硬约束：「所有东西都是要真实能用，而不是摆设」）。
+   本附录初稿给「灵感激发」卡配的动作是派发 `/status`——那是把体检报告换个好听的名字，
+   已删（见 F-A）。判据固定为一条：**任何一个卡 / 按钮 / chip / 页签，必须能当场报出
+   它调用的函数名与（如涉及）IPC 通道名；报不出来就不进 UI。**
+
 
 ## 3. 六个改造面
 
@@ -65,20 +70,27 @@
 
 - 位置：`CenterColumn.vue:188+` 的空分支，抽成新组件 `components/BookWorkbench.vue`
   （新文件，不往 CenterColumn 里堆 markup——它已有 ≤360 行的自设预算）。
-- 内容：品牌区（现有 `mochen-lockup.jpg` 或用户补的横幅原图，**原样使用**）+ 五张入口卡。
-- **卡必须是真动作**，映射到已经存在或已在计划里的通路，且沿用波 1 Task 8 刚建好的派发口
-  `useAgentStore.runSlashCommand` / `utils/slash-commands.ts`：
+- 内容：品牌区（现有 `mochen-lockup.jpg` 或用户补的横幅原图，**原样使用**）+ 入口卡。
+- **卡必须是真动作**，且当场报得出函数名。初稿的五张卡里只留下四张有现成通路的，
+  第五张「灵感激发」被删——它唯一能配的动作是 `/status`（把体检报告换个好听的名字），
+  等波 2 的 agent profile 落地后它才有真身（换一个智能体人格来出题），届时再加：
 
-  | 卡 | 点击后发生的事 | 依赖 |
+  | 卡 | 点击后发生的事（可核对的调用） | 依赖 |
   |---|---|---|
-  | 主笔创作 | 预填「续写当前章」类指令并聚焦输入区 | 已有 thread + `send` |
-  | 角色塑造 | 打开 `characters/` 分组第一项到右栏浏览 | 已有 `book.browse` |
-  | 世界构建 | 打开/新建 `materials/` 世界观文档到右栏浏览 | 已有 `browseContents` |
-  | 大纲规划 | 打开 `outline/` 分组第一项到右栏浏览 | 已有 `book.browse` |
-  | 灵感激发 | 派发 `/status`（先给作品与上下文体检，不造新工具） | Task 8 `runSlashCommand` |
+  | 主笔创作 | `useBookStore.openDocTab(当前/第一章 relPath)` → 右栏进文稿态，中栏线程随 `threadKeyFor` 绑定 | 已有 |
+  | 角色塑造 | `useBookStore.browse(ref)`，ref 取 `characters/` 分组第一项 | 已有 |
+  | 世界构建 | `useBookStore.browse(ref)`，ref 取 `materials/` 分组第一项 | 已有 |
+  | 大纲规划 | `useBookStore.browse(ref)`，ref 取 `outline/` 分组第一项 | 已有 |
 
+- **一条前置缺口，不许糊过去**：B 稿那种「点卡预填一句指令再聚焦」的形态今天做不到——
+  `ComposerBox.vue:9` 的 `text` 是组件内 `ref`，外部写不进去。要做预填，必须先二选一：
+  ① 把输入值上收到 store（按 `threadKey` 存，切章不丢字，顺带解决排队文案的同源性）；
+  ② 沿用 `useHotkeys` 已有的 `[data-mochen-composer]` DOM 读写口径 + 派 `InputEvent` 让 `v-model` 同步。
+  默认取 ①（判定可单测，②是 DOM 代码，本仓零覆盖）。**这条通路本身是 F-A 的第一个任务**；
+  它没落地之前，「主笔创作」卡就叫「打开当前章」，不许用漂亮名字冒充能力。
 - 无书时（`hasBook === false`）整块降级成一句引导 + 「打开作品目录」按钮，**不显示死卡**。
   这条判定写成纯函数（`utils/workbench-state.ts`）以便 node 单测——`.vue` 模板在本仓零自动化覆盖。
+
 
 ### F-B · 右栏第三页签「作品资料」（A 稿右栏）
 
@@ -107,12 +119,17 @@
 
 ### F-D · 输入区 chip 只放真开关
 
-- `ComposerBox.vue` 输入框下方一排 chip，**每个都对应一个已存在或已在计划里的状态**：
-  权限档（Task 9 的 `PermissionMenu.vue` 触发口，显示 `PERMISSION_LABELS`）、
-  `/` 命令（打开 SlashPalette，与 `Ctrl K` 同一条 `openPalette`）、
-  排队数（`QUEUED_MAX` 那条已有状态，`queued > 0` 才出现）。
+- `ComposerBox.vue` 输入框下方一排 chip，**每个都对应一个已存在或已在计划里的状态，且报得出调用点**：
+  权限档（`useBookStore.openPermissionMenu()`，菜单真身是 Task 9 的 `PermissionMenu.vue`，
+  文案读 `PERMISSION_LABELS`）、
+  `/` 命令（emit 一个 `open-palette` 事件，由 `CenterColumn.vue:38` 的 `paletteOpen` 接，
+  与 `Ctrl K` 走同一个 `openPalette`，不复制打开逻辑）。
+- **排队那一格不做成 chip**：它今天只有「显示 `queued.length`」这一件事可做，点开没有面板，
+  所以按 `<span>` 徽标处理（与 `ComposerBox.vue:37` 的 `.composer-hint` 同一姿态）。
+  只有真做出「点开看队列 / 撤回某条」的面板时，才升格成按钮——**按了没反应的 button 就是摆设**。
 - 样式并入 `styles/interaction.css`（Task 8 已建，毛玻璃基调一致），不新开样式文件。
 - 纯函数判定（哪个 chip 在什么状态下可见/可点）落在 `utils/composer-chips.ts` 并单测。
+
 
 ### F-E · 主题：加「墨宸 · 青金」preset 并把 preset 选择器接上
 
@@ -173,6 +190,21 @@
    - md 片段插入后走一次真提案 → 审批 → `.mochen/changes/<时间戳>/` 备份生成；
    - 既有七项冒烟（spec §16）不回归，尤其 Esc 打断与四键审批。
 3. 交付定义：**每一面都要能指出「点下去发生什么、数据从哪来」**，只改配色不算交付。
+   冒烟时逐张卡 / 逐个 chip 当场报出它调用的函数名并真的点一次，产生不了可见状态变化的一律退回。
+
+## 7. 存量摆设清单（2026-10-02 静态审计，逐条有主）
+
+用户这条约束不只约束新界面，所以顺手查了已经在你屏幕上的东西：
+
+| 存量 | 证据 | 性质 | 谁修 |
+|---|---|---|---|
+| `themePresets` 三套主题预设 | `appearanceThemeRuntime.ts:24-45`，**全仓零消费者** | 真摆设（写了没人读的代码） | F-E + 波 3 三态开关接线 |
+| 权限档那一格 | `CenterColumn.vue:173` 是 `<span class="permission-chip">`，显示状态但点不动 | 半摆设（诚实显示，未冒充按钮） | Plan 3 Task 9（本波进行中） |
+| 五工具 / 三档 / `/` 面板 6 条命令 | `runSlashCommand` 每条都有真分支；`stage` 被 `GATED_COMMANDS` **滤掉不列**，绕过面板直调时回一句实话（`useAgentStore.ts:555-558`） | 合规：不列出来冒充能力，与「列出来但按下去报错」的禁止口径一致 | 不修 |
+| 图标集 48 个 | `types/icons.ts` 48 名 vs `AppIcon.vue` 48 个绘制分支，**无一名无图形** | 合规（今天只用其中 ~14 个，其余是已绘制的备用，不是空壳） | 不修 |
+| 输入区三键（发送 / 打断 / 继续） | `ComposerBox.vue:38-60`，分别 emit `send` / `stop` / `resume`，全部落到 store 真动作 | 合规 | 不修 |
+| 模型设置弹窗 | `ProviderSettings.vue:15-44`，`providerView()` 读、`providerSave()` 写，密钥只显示 `keyMask` | 合规 | 不修 |
+
 
 ## 6. 未决（需要用户点头才能推进的三项）
 
