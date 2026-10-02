@@ -69,24 +69,33 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
       // 唯一喂入点：设置浮层的真身是 layout.currentView === "settings"（设计决定 2）。
       settingsIsOpen: layout.currentView === "settings"
     });
-    if (action === "keep-guidance") {
-      event.preventDefault();
-      guidance?.blur();
-      return;
-    }
-    if (action === "cancel-proposal" && cardId !== "") {
-      event.preventDefault();
-      void agent.decide(cardId, "cancel", "");
-      return;
-    }
-    if (action === "close-overlay") {
-      event.preventDefault();
-      layout.showWorkspace();
-      return;
-    }
-    if (action === "interrupt") {
-      event.preventDefault();
-      void agent.stop();
+    // 评审 X3（与 dispatch 的 :171-174 同律，G1/X3 同法一条）：switch + never 穷尽性守卫——
+    // EscapeAction 新增成员没在此接线 ⇒ 编译失败，杜绝「静默死键」。
+    switch (action) {
+      case "keep-guidance":
+        event.preventDefault();
+        guidance?.blur();
+        return;
+      case "cancel-proposal":
+        // 无卡可撤（cardId 为空）：与旧 if 链逐字同义——什么都不做，不 preventDefault，也不进后续分支。
+        if (cardId === "") return;
+        event.preventDefault();
+        void agent.decide(cardId, "cancel", "");
+        return;
+      case "close-overlay":
+        event.preventDefault();
+        layout.showWorkspace();
+        return;
+      case "interrupt":
+        event.preventDefault();
+        void agent.stop();
+        return;
+      case "none":
+        return; // 无动作：一个 preventDefault 都不做，把键还给浏览器。
+      default: {
+        const unhandled: never = action; // 评审 X3：穷尽性守卫（与 G1 同律）——新 EscapeAction 没接线 ⇒ 编译失败，不是静默死键。
+        return unhandled;
+      }
     }
   }
 
