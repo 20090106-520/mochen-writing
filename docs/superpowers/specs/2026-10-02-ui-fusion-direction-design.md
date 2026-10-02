@@ -38,7 +38,7 @@
 | 2 | 右栏有作品档案（小说信息 / 人物 / 剧情 / 世界观 / 素材） | 右栏只有「文稿 / 浏览」两页签 + textarea（`DocumentPane.vue:130-152`） | **缺一个只读视图** |
 | 3 | 左栏顶部三段主操作 | 只有一段「打开作品目录」（`LeftSidebar.vue:75-81`）；模型设置藏在中栏头部按钮（`CenterColumn.vue:174-177`） | 缺导航密度 |
 | 4 | 输入区有 chip | `ComposerBox.vue` 只有 textarea + placeholder（`:30`），权限档是头部一个不可点的 `<span class="permission-chip">`（`CenterColumn.vue:173`） | 权限档切换正是 Plan 3 Task 9 |
-| 5 | A 的墨青 + 金气质 | `themePresets` 已有 codex / 暖纸 / 海雾三套（`appearanceThemeRuntime.ts:24-45`），但**全仓零消费者，是死代码**；三态开关是 Plan 3 波 3 的任务 | 缺一个 preset + 缺接线 |
+| 5 | A 的墨青 + 金气质 | `themePresets` 已有 codex / 暖纸 / 海雾三套（`appearanceThemeRuntime.ts:24-45`），但**全仓零消费者，是死代码**；三态开关是 Plan 3 **波 2 Task 19** 的任务（原文误记「波 3」，2026-10-03 按 `2026-10-02-plan3-interaction-and-assembly-design.md:114` 更正） | 缺一个 preset + 缺接线 |
 | 6 | 左栏按 kind 分组的树 | `LeftSidebar.vue:14-31` 已按 `chapter/outline/character/plot/material` 分组，数据来自 `scanBook` | **已经对齐，不动** |
 | 7 | 页脚字数 / 阅读时长 / 保存态 | `DocumentPane.vue:181-195` 有字数与保存态，无阅读时长 | 小补丁 |
 
@@ -166,7 +166,7 @@
   `{ id: "mochen-ink", label: "墨宸 · 青金", dark: { 墨青底 + 金强调 }, light: { 纸白底 + 深墨青强调 } }`，
   **照现有 `ThemePreset` 形状**，不新造 token 层（`--surface-main` 等由
   `applyAppearanceThemeToDocument` 统一注入）。
-- 顺带治死代码：`themePresets` 今天全仓零消费者，波 3 的「跟随系统 / 浅色 / 深色」三态开关落地时
+- 顺带治死代码：`themePresets` 今天全仓零消费者，**波 2 Task 19** 的「跟随系统 / 浅色 / 深色」三态开关落地时
   必须同时把 **preset 选择器**接进外观设置，否则四套预设仍是四套摆设。
   外观设置的既有结构：`ProviderSettings.vue`（分类页签，`layoutStore.showSettings(category)`）。
 - A 稿的金色**只进 preset 的 accent**，不写死在任何组件里——`styles.css:40` 的 `--focus`
@@ -193,7 +193,7 @@
 |---|---|---|
 | 波 1（Task 1–10） | 回放 + 键位 + `/` 面板 + 权限档菜单 | **先跑完并过门禁**，F-A/F-D 直接复用它的 `runSlashCommand` 与 `PermissionMenu` |
 | 波 2（Task 11–20） | 六档案（agent profile）+ 上下文占用条 + 外观 | 术语撞车方在这里（§2 第 6 条）；F-E 的 preset 与三态开关同题 |
-| 波 3（Task 21–27） | 技能 + F-4 品牌迁移 + 总账 | F-E 的 preset 选择器接线在这里 |
+| 波 3（Task 21–27） | 技能 + F-4 品牌迁移 + 总账 | （原文写「F-E 的 preset 选择器接线在这里」，2026-10-03 更正：接线在**波 2 Task 19**，波 3 不再背这条） |
 | **波 1.5（本附录）** | F-A…F-G | 拆任务排在波 1 门禁之后、波 2 之前，**因为它只碰渲染层，与波 2 的 runtime 主线不抢文件** |
 
 **为什么插在这里**：F-A…F-G 全在 `apps/desktop/src/renderer/src/`，与波 2 的
@@ -202,7 +202,7 @@
 `CenterColumn.vue` 保持 ≤400 行、`DocumentPane.vue` 保持 ≤220 行，超限即拆。
 
 **Task 9 未落地前 F-D 的权限 chip 不实现**（它等的就是 `PermissionMenu.vue`），
-所以波 1.5 内部顺序是：F-B → F-A → F-C → F-D → F-E → F-F → F-G。
+所以波 1.5 内部顺序是：F-B → F-A → F-C → F-D → F-F → F-G（**F-E 已挪出本波**，见下面的第 4 条）。
 
 **2026-10-03 追加的两件事不在波 1.5**（它们破了「本波只碰渲染层」这条前提，别硬塞）：
 
@@ -235,13 +235,21 @@
 3. 交付定义：**每一面都要能指出「点下去发生什么、数据从哪来」**，只改配色不算交付。
    冒烟时逐张卡 / 逐个 chip 当场报出它调用的函数名并真的点一次，产生不了可见状态变化的一律退回。
 
+**2026-10-03 拆任务后的验收校正（以 `plans/2026-10-03-plan3-wave1-5-ui-fusion.md` 为准，本节的原话保留不改史）**：
+上面第 2 条里的「五卡」「三 chip」「主题切『墨宸 · 青金』」三处数字与本波实际交付不符 ——
+工作台是**四卡**（第五张「灵感激发」没有可配的真实动作，按 §2.7 不进 UI，留波 2 的档案落地后再说）；
+chip 行是**两枚**（权限 + `/`，另三枚分别归波 2 / 波 3 / 未决，见 §4 的 2026-10-03 追加），
+排队那一格按**裁定 C** 只做静态提示句、不做带数字的徽标；
+「墨宸 · 青金」preset（F-E）**整条挪出本波**，随波 2 Task 19 的三态开关与 `appearance.json` 一起出生——
+在那之前 `themePresets` 仍零消费者，本波加第四条就是新摆设。
+
 ## 6. 存量摆设清单（2026-10-02 静态审计，逐条有主）
 
 用户这条约束不只约束新界面，所以顺手查了已经在你屏幕上的东西：
 
 | 存量 | 证据 | 性质 | 谁修 |
 |---|---|---|---|
-| `themePresets` 三套主题预设 | `appearanceThemeRuntime.ts:24-45`，**全仓零消费者** | 真摆设（写了没人读的代码） | F-E + 波 3 三态开关接线 |
+| `themePresets` 三套主题预设 | `appearanceThemeRuntime.ts:24-45`，**全仓零消费者** | 真摆设（写了没人读的代码） | F-E + **波 2 Task 19** 三态开关接线（原记「波 3」，2026-10-03 更正） |
 | 权限档那一格 | `CenterColumn.vue:173` 是 `<span class="permission-chip">`，显示状态但点不动 | 半摆设（诚实显示，未冒充按钮） | Plan 3 Task 9（本波进行中） |
 | 五工具 / 三档 / `/` 面板 6 条命令 | `runSlashCommand` 每条都有真分支；`stage` 被 `GATED_COMMANDS` **滤掉不列**，绕过面板直调时回一句实话（`useAgentStore.ts:555-558`） | 合规：不列出来冒充能力，与「列出来但按下去报错」的禁止口径一致 | 不修 |
 | 图标集 48 个 | `types/icons.ts` 48 名 vs `AppIcon.vue` 48 个绘制分支，**无一名无图形** | 合规（今天只用其中 ~14 个，其余是已绘制的备用，不是空壳） | 不修 |
