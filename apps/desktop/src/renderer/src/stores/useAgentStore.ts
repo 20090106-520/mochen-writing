@@ -271,13 +271,13 @@ export const useAgentStore = defineStore("agent", {
     },
 
     /**
-     * F-A 预填唯一入口：判定在 prefillText（一处实现），这里只负责「被挡时写一句中文」。
+     * F-A 预填唯一入口：判定在 prefillText（一处实现）、写入只走 setDraft（一处写者），这里只负责「被挡时写一句中文」。
      * 被挡 = 已有非空草稿、预填没进去（prefillText 原样还回 current）。
      */
     prefillComposer(threadKey: string, value: string): void {
       const current = this.draftOf(threadKey);
       const next = prefillText(current, value);
-      this.composerDrafts[threadKey] = next;
+      this.setDraft(threadKey, next);
       if (next === current && current.trim() !== "")
         this.notice = "输入框里已经有内容，预填没有覆盖你正在写的字。";
     },

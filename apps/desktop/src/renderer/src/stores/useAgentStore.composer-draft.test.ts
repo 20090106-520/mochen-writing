@@ -23,10 +23,19 @@ describe("useAgentStore.composerDrafts · 输入值上收与排队无丢失", ()
   it("prefillComposer：空草稿时写入预填，已有字时不覆盖并给中文提示（W4 联动）", () => {
     store().prefillComposer(CH, "我想改这一章：先读它，再给我三处可以动的地方。");
     expect(store().draftOf(CH)).toBe("我想改这一章：先读它，再给我三处可以动的地方。");
+    // 预填成功那一趟必须静默：提示只属于被挡那一支，写成功也提示 = 无条件写 notice
+    expect(store().notice).toBe("");
     // 已有字 ⇒ 再预填被挡，草稿一字不改，且写一句中文（错误可见，不静默）
     store().prefillComposer(CH, "第二条预填指令");
     expect(store().draftOf(CH)).toBe("我想改这一章：先读它，再给我三处可以动的地方。");
     expect(store().notice).toContain("预填");
+  });
+
+  it("prefillComposer：草稿里只有空白 ⇒ 视作空，预填照样落地且一字提示都不写", () => {
+    store().setDraft(CH, "   \n\t ");
+    store().prefillComposer(CH, "预填指令");
+    expect(store().draftOf(CH)).toBe("预填指令");
+    expect(store().notice).toBe("");
   });
 
   it("clearDraft 只清那一格，别的线程草稿不动", () => {
@@ -63,7 +72,9 @@ describe("useAgentStore.composerDrafts · 输入值上收与排队无丢失", ()
 
   it("排队满额被拒 ⇒ queued 一字不加、草稿逐字节留在原格（提示要用户重发的字没被删）", () => {
     const agent = store();
-    for (let index = 0; index < QUEUED_MAX; index += 1) agent.queueText(CH, `第${index + 1}条`);
+    // 满额条数由 QUEUED_MAX 推导（不留第二份「5」）：种队列与期望吃同一份数组。
+    const seeded = Array.from({ length: QUEUED_MAX }, (_, index) => `第${index + 1}条`);
+    for (const text of seeded) agent.queueText(CH, text);
     const draft = "   满额后按下的这句\n带前导空格与末尾换行";
     agent.setDraft(CH, draft);
     const accepted = agent.queueText(CH, draft);
@@ -71,7 +82,7 @@ describe("useAgentStore.composerDrafts · 输入值上收与排队无丢失", ()
     expect(agent.draftOf(CH)).toBe(draft);
     agent.setDraft(CH, composerTextAfterQueue(draft, accepted));
     expect(accepted).toBe(false);
-    expect(agent.threads[CH]?.queued).toEqual(["第1条", "第2条", "第3条", "第4条", "第5条"]);
+    expect(agent.threads[CH]?.queued).toEqual(seeded);
     expect(agent.draftOf(CH)).toBe(draft);
   });
 });
