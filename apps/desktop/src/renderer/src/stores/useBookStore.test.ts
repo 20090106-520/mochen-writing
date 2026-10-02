@@ -199,6 +199,38 @@ describe("useBookStore", () => {
     expect(store.savedFingerprint).toBe("");
   });
 
+  /**
+   * 关掉的正是「正在看且改了没存」的那一格时，将死标签的 live 状态绝不能灌进下一格的存档：
+   * closeTab 先把活动指针挪走再调 openDocTab，而 openDocTab 开头就是 stashActive()——
+   * 它按 activeDocTab 存盘，存的却是上一格还没加载前的 live 内容，等于串台（真数据丢失，非显示问题）。
+   */
+  it("关闭活动标签：将死标签的未存草稿绝不进下一格的存档", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    await store.openDocTab("chapters/01-a.md");
+    await store.openDocTab("chapters/02-b.md");
+    store.onEdit("02-b 的改动\n");
+    store.closeTab("chapters/02-b.md");
+    expect(store.activeDocTab).toBe("chapters/01-a.md");
+    expect(store.draft).toBe("正文\n");
+    expect(store.dirty).toBe(false);
+    expect(store.draftsByPath["chapters/01-a.md"]?.draft).toBe("正文\n");
+    expect(store.draftsByPath["chapters/01-a.md"]?.dirty).toBe(false);
+  });
+
+  it("关闭非活动标签：live 草稿与活动指针一字不动", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    await store.openDocTab("chapters/01-a.md");
+    await store.openDocTab("chapters/02-b.md");
+    store.onEdit("02-b 的改动\n");
+    store.closeTab("chapters/01-a.md");
+    expect(store.docTabs).toEqual(["chapters/02-b.md"]);
+    expect(store.activeDocTab).toBe("chapters/02-b.md");
+    expect(store.draft).toBe("02-b 的改动\n");
+    expect(store.dirty).toBe(true);
+  });
+
   it("Ctrl+1..9 / Ctrl+PageUp·Down：activateTab 越界返回 false 且不切标签，cycleTab 环形切换", async () => {
     const store = useBookStore();
     await store.openBook("/book");

@@ -101,7 +101,9 @@ export const useBookStore = defineStore("book", {
       delete this.draftsByPath[relPath];
       if (this.activeDocTab !== relPath) return;
       const next = this.docTabs[this.docTabs.length - 1] ?? null;
-      this.activeDocTab = next;
+      // 指针先置空再交给 openDocTab：这一段 live 还装着 relPath 的内容，
+      // 而 openDocTab 开头的 stashActive() 认的是 activeDocTab——留着 next 就是把脏水泼进它的存档。
+      this.activeDocTab = null;
       if (next) void this.openDocTab(next);
       else Object.assign(this, EMPTY_DOC);
     },
