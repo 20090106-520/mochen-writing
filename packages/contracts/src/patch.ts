@@ -19,7 +19,8 @@ export const PROPOSAL_STATUSES = [
   "rejected",
   "cancelled",
   "stale",
-  "failed"
+  "failed",
+  "expired"
 ] as const;
 export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
 
@@ -49,5 +50,6 @@ export const PROPOSAL_STATUS_LABELS: Record<ProposalStatus, string> = {
   rejected: "已拒绝",
   cancelled: "已取消",
   stale: "文件已变动",
-  failed: "写入失败"
+  failed: "写入失败",
+  expired: "上次会话未处理"
 };

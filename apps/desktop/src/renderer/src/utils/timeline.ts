@@ -173,15 +173,18 @@ export interface CardSplit<T extends ProposalCardInput = ProposalCardInput> {
   open: T[];
   /** 已裁决：written / rejected / cancelled / stale / failed。 */
   settled: T[];
+  /** 上次会话未处理：回放里没有 decision/written 配对的卡（D1，绝不伪装成可批准）。 */
+  expired: T[];
 }
 
 /** 查不到锚点 ⇒ 轮次未知，排序时一律垫到最后。 */
 const UNKNOWN_TURN_INDEX = Number.MAX_SAFE_INTEGER;
 
 /**
- * 分「待审 / 已裁决」两组（F-1：已裁决的卡收进默认折叠的分组，不再摊在最底部）。
+ * 分「待审 / 已裁决 / 上次会话未处理」三组（F-1：已裁决的卡收进默认折叠的分组，不再摊在最底部；
+ * D1：expired 单独一组，绝不与可批准的待审混在一起）。
  * 排序所需的锚点表由调用方传入而不读 store——保持纯函数才可测（本仓没有组件测试）。
- * 两组都按轮次序号升序、同轮按 createdAt 升序；排序只发生在新数组里，不改传入数组。
+ * 三组都按轮次序号升序、同轮按 createdAt 升序；排序只发生在新数组里，不改传入数组。
  */
 export function splitProposalCards<T extends ProposalCardInput>(
   cards: T[],
@@ -189,8 +192,10 @@ export function splitProposalCards<T extends ProposalCardInput>(
 ): CardSplit<T> {
   const open: T[] = [];
   const settled: T[] = [];
+  const expired: T[] = [];
   for (const card of cards) {
     if (card.status === "pending") open.push(card);
+    else if (card.status === "expired") expired.push(card);
     else settled.push(card);
   }
   const byTurn = (a: T, b: T): number => {
@@ -204,5 +209,32 @@ export function splitProposalCards<T extends ProposalCardInput>(
   };
   open.sort(byTurn);
   settled.sort(byTurn);
-  return { open, settled };
+  expired.sort(byTurn);
+  return { open, settled, expired };
+}
+
+/**
+ * 回放派生扫描（spec §4.3 第 6 条）：对每条 proposal 事件，
+ * 其后有 decision/written ⇒ 给已裁决态（沿用 store 语义）；没有 ⇒ expired。
+ * accept 落了 decision 却没 written 视为 failed（写没成功），绝不留在可批准的 pending。
+ */
+export function replayProposalStatuses(events: AgentEvent[]): Record<string, ProposalStatus> {
+  const status: Record<string, ProposalStatus> = Object.create(null);
+  for (const event of events) {
+    if (event.type === "proposal") {
+      status[event.proposal.id] = "expired";
+      continue;
+    }
+    if (event.type === "decision") {
+      if (event.decision === "cancel") status[event.proposalId] = "cancelled";
+      else if (event.decision === "deny-with-guidance") status[event.proposalId] = "rejected";
+      else status[event.proposalId] = "failed";
+      continue;
+    }
+    if (event.type === "written") {
+      status[event.proposalId] = "written";
+      continue;
+    }
+  }
+  return status;
 }

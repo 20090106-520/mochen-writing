@@ -3,6 +3,7 @@ import type { AgentEvent, ProposalStatus } from "@mochen/contracts";
 import {
   buildTimeline,
   cardTurnLabel,
+  replayProposalStatuses,
   splitProposalCards,
   turnAnchors,
   TOOL_LABELS
@@ -348,7 +349,7 @@ describe("splitProposalCards（F-1：已裁决的卡收进折叠分组）", () =
   });
 
   it("空输入两组皆空，CenterColumn 的空状态判断要用这两个长度", () => {
-    expect(splitProposalCards([], ANCHORS)).toEqual({ open: [], settled: [] });
+    expect(splitProposalCards([], ANCHORS)).toEqual({ open: [], settled: [], expired: [] });
   });
 
   it("不许就地改传入数组：排序要发生在新数组里，否则 Vue 的 computed 会自我失效", () => {
@@ -358,5 +359,66 @@ describe("splitProposalCards（F-1：已裁决的卡收进折叠分组）", () =
     ];
     splitProposalCards(cards, ANCHORS);
     expect(cards.map((item) => item.proposal.id)).toEqual(["pB2", "pA1"]);
+  });
+});
+
+describe("splitProposalCards 第三组 expired（D1）", () => {
+  const ANCHORS = { tA: { index: 1, userText: "甲" } };
+  it("expired 不进 open 也不进 settled——把它塞进已裁决组是假话", () => {
+    const split = splitProposalCards(
+      [
+        cardOf("p1", "tA", "2026-10-01T00:01:00.000Z", "pending"),
+        cardOf("p2", "tA", "2026-10-01T00:02:00.000Z", "expired"),
+        cardOf("p3", "tA", "2026-10-01T00:03:00.000Z", "written")
+      ],
+      ANCHORS
+    );
+    expect(split.open.map((c) => c.proposal.id)).toEqual(["p1"]);
+    expect(split.expired.map((c) => c.proposal.id)).toEqual(["p2"]);
+    expect(split.settled.map((c) => c.proposal.id)).toEqual(["p3"]);
+  });
+});
+
+describe("replayProposalStatuses（回放派生扫描）", () => {
+  it("未配对的 proposal 给 expired；有 decision/written 的给对应已裁决态", () => {
+    const events: AgentEvent[] = [
+      event("proposal", { proposal: { id: "pOpen" } }),
+      event("proposal", { proposal: { id: "pCancel" } }),
+      event("decision", { proposalId: "pCancel", decision: "cancel", guidance: "", auto: false }),
+      event("proposal", { proposal: { id: "pDeny" } }),
+      event("decision", {
+        proposalId: "pDeny",
+        decision: "deny-with-guidance",
+        guidance: "别动",
+        auto: false
+      }),
+      event("proposal", { proposal: { id: "pWrite" } }),
+      event("decision", {
+        proposalId: "pWrite",
+        decision: "accept-once",
+        guidance: "",
+        auto: false
+      }),
+      event("written", {
+        proposalId: "pWrite",
+        docRelPath: "chapters/01.md",
+        fingerprint: "b".repeat(64),
+        backupRelPath: null
+      })
+    ];
+    expect(replayProposalStatuses(events)).toEqual({
+      pOpen: "expired",
+      pCancel: "cancelled",
+      pDeny: "rejected",
+      pWrite: "written"
+    });
+  });
+
+  it("accept 落了 decision 却没有 written ⇒ 判 failed（写没成， settled 而非 expired）", () => {
+    const events: AgentEvent[] = [
+      event("proposal", { proposal: { id: "p" } }),
+      event("decision", { proposalId: "p", decision: "accept-session", guidance: "", auto: true })
+    ];
+    expect(replayProposalStatuses(events)).toEqual({ p: "failed" });
   });
 });

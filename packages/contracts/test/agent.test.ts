@@ -6,6 +6,8 @@ import {
   editProposalSchema,
   isWriteTool,
   maskApiKey,
+  PROPOSAL_STATUSES,
+  PROPOSAL_STATUS_LABELS,
   providerDraftSchema,
   sessionLoadResultSchema,
   sessionMetaSchema,
@@ -254,5 +256,23 @@ describe("sessionLoadResultSchema", () => {
         droppedLines: []
       }).success
     ).toBe(false);
+  });
+});
+
+describe("expired 提案状态（回放派生，D1）", () => {
+  it("PROPOSAL_STATUSES 恰含七个成员，expired 排在末尾", () => {
+    expect([...PROPOSAL_STATUSES]).toEqual([
+      "pending",
+      "written",
+      "rejected",
+      "cancelled",
+      "stale",
+      "failed",
+      "expired"
+    ]);
+  });
+
+  it("expired 的中文标签定稿整句钉死（Record 穷尽键，加成员不写说明就编译不过）", () => {
+    expect(PROPOSAL_STATUS_LABELS.expired).toBe("上次会话未处理");
   });
 });

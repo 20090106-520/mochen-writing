@@ -34,6 +34,12 @@ export interface ThreadView {
   lastError: string;
   /** 上一轮怎么收场的——决定「继续」按钮是否出现（spec §9 第 4 行）。 */
   endedAs: "" | TurnEndStatus;
+  /** 历史是否已回放过（幂等闸门，spec §4.3 第 1/5 条）。 */
+  hydrated: boolean;
+  /** 是否有一次在途取数（并发合流，spec §4.3 第 3 条）。 */
+  hydrating: boolean;
+  /** 运行中按 Tab 排好的后续指令，本轮结束后自动发队首（spec §5.1）。 */
+  queued: string[];
 }
 
 export interface ProposalView {
@@ -53,7 +59,10 @@ function newThread(): ThreadView {
     items: [],
     streaming: { ...EMPTY_STREAM },
     lastError: "",
-    endedAs: ""
+    endedAs: "",
+    hydrated: false,
+    hydrating: false,
+    queued: []
   };
 }
 
@@ -136,7 +145,9 @@ export const useAgentStore = defineStore("agent", {
     proposals: {} as Record<string, ProposalView>,
     notice: "",
     seconds: 0,
-    listening: false
+    listening: false,
+    /** 同线程并发 ensureHydrated 合流到同一个 promise（Task 5 用；本任务先建位）。 */
+    hydrateInflight: {} as Record<string, Promise<void>>
   }),
 
   getters: {
@@ -214,7 +225,7 @@ export const useAgentStore = defineStore("agent", {
       if (outbound.status === "failed") thread.lastError = outbound.message;
     },
 
-    reduceEvent(thread: ThreadView, event: AgentEvent): void {
+    reduceEvent(thread: ThreadView, event: AgentEvent, options?: { fetchDiff?: boolean }): void {
       thread.items.push(event);
       if (event.type === "reasoning") {
         thread.streaming.reasoning = "";
@@ -231,7 +242,8 @@ export const useAgentStore = defineStore("agent", {
           message: "",
           diff: ""
         };
-        void this.loadDiff(event.proposal.id);
+        // 实时路径默认取 diff；回放路径显式传 false，重启后绝不给每条历史提案白打一次 IPC（M1）。
+        if (options?.fetchDiff !== false) void this.loadDiff(event.proposal.id);
         return;
       }
       if (event.type === "error") {

@@ -742,4 +742,31 @@ describe("useAgentStore", () => {
     expect(threadKeyFor(CH)).toBe(CH);
     expect(threadKeyFor(null)).toBe(UNBOUND);
   });
+
+  it("reduceEvent 第三参 fetchDiff:false 时不打 diff IPC（回放不白打）", async () => {
+    await openChapter();
+    const thread = store().viewOf(CH);
+    proposalDiff.mockClear();
+    store().reduceEvent(thread, eventOf("proposal", { proposal: proposal("pNoDiff") }), {
+      fetchDiff: false
+    });
+    expect(proposalDiff).not.toHaveBeenCalled();
+  });
+
+  it("pendingOf 不数 expired（零改动靠测试钉住，不靠注释）", async () => {
+    await openChapter();
+    const thread = store().viewOf(CH);
+    store().reduceEvent(thread, eventOf("proposal", { proposal: proposal("pOpen") }));
+    store().proposals["pOpen"]!.status = "expired";
+    expect(store().pendingOf(CH)).toBe(0);
+    store().proposals["pOpen"]!.status = "pending";
+    expect(store().pendingOf(CH)).toBe(1);
+  });
+
+  it("新线程默认 hydrated=false / hydrating=false / queued=[]", () => {
+    const thread = store().viewOf("brand-new-thread");
+    expect(thread.hydrated).toBe(false);
+    expect(thread.hydrating).toBe(false);
+    expect(thread.queued).toEqual([]);
+  });
 });
