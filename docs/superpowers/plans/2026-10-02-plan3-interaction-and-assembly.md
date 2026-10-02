@@ -471,7 +471,7 @@ AgentServiceDeps += reader: ContextReader                                       
   - `IPC_CHANNELS.agentLoadSession = "agent:load-session"`
   - `RendererApi.loadSession(threadKey: string): Promise<SessionLoadResult>`
 
-- [ ] **Step 1：先写会红的测试**
+- [x] **Step 1：先写会红的测试**
 
 在 `packages/contracts/test/agent.test.ts` 末尾追加（import 处把 `sessionLoadResultSchema` 加进第 2–13 行的具名导入）：
 
@@ -535,12 +535,12 @@ describe("sessionLoadResultSchema", () => {
 });
 ```
 
-- [ ] **Step 2：跑到红**
+- [x] **Step 2：跑到红**
 
 Run: `corepack pnpm vitest run packages/contracts/test/agent.test.ts --maxWorkers=4`
 Expected: FAIL —— `SyntaxError: The requested module '../src/index.js' does not provide an export named 'sessionLoadResultSchema'`（该具名导出不存在）。
 
-- [ ] **Step 3：`agent-event.ts` 追加 `sessionLoadResultSchema`**
+- [x] **Step 3：`agent-event.ts` 追加 `sessionLoadResultSchema`**
 
 在 `packages/contracts/src/agent-event.ts` 文件末尾（现 `DecisionResult` 定义结束于第 157 行）追加：
 
@@ -568,7 +568,7 @@ export const sessionLoadResultSchema = z.discriminatedUnion("found", [
 export type SessionLoadResult = z.infer<typeof sessionLoadResultSchema>;
 ```
 
-- [ ] **Step 4：`ipc.ts` 加键 + 加方法**
+- [x] **Step 4：`ipc.ts` 加键 + 加方法**
 
 `IPC_CHANNELS`（第 17 行 `providerSave` 之后、第 18 行 `} as const` 之前）追加：
 
@@ -590,7 +590,7 @@ import type { AgentOutbound, DecideInput, DecisionResult, SessionLoadResult, Sta
   loadSession(threadKey: string): Promise<SessionLoadResult>;
 ```
 
-- [ ] **Step 5：跑到绿并过 tsc（含 barrel 可达性自检）**
+- [x] **Step 5：跑到绿并过 tsc（含 barrel 可达性自检）**
 
 `sessionLoadResultSchema` 已从 `../src/index.js` 具名导入成功，即证明 barrel（`index.ts:5,7`）自动带出，无需改 barrel。
 
@@ -601,14 +601,14 @@ Expected: 无诊断。
 
 > 注意：`RendererApi` 加了 `loadSession` 后，本包自洽（无实现方）。但**根 tsc（`tsconfig.web.json`/`tsconfig.node.json`）会立刻红**——preload 工厂（Task 2）与两处 `satisfies RendererApi` 夹具（Task 4/5 会补）都缺这个方法。所以本任务的提交**只跑 contracts 的 tsc**，根的连带在 Task 2 与 Task 4 收口；这正是 Plan 2 Task 1→12 的分工节奏。**不要在 Task 1 末尾跑 `corepack pnpm verify`。**
 
-- [ ] **Step 6：变异实验（本任务无独立变异编号；做一条删字段的自检）**
+- [x] **Step 6：变异实验（本任务无独立变异编号；做一条删字段的自检）**
 
 用 Edit 把 `sessionLoadResultSchema` 里 `droppedLines: z.array(...)` 整行删掉再跑测试 ——
 必须转红（「found:true 带 … droppedLines」用例的 `parse().toEqual` 会因剥掉未知键而 `toEqual` 失败）。恢复后：
 Run: `git diff --exit-code packages/contracts/src` 必须为空。
 理由：`droppedLines` 是「有 N 行没读回」的唯一凭据，丢了它回放会谎报「完整恢复」。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 先跑 `git log --oneline -8` 对齐风格，再：
 
@@ -629,7 +629,7 @@ git commit -m "feat(contracts): 新增 SessionLoadResult 与 agent:load-session 
 - Consumes: `IPC_CHANNELS.agentLoadSession`（Task 1）
 - Produces: `createRendererApi` 返回值多出 `loadSession`，方法数 12→13
 
-- [ ] **Step 1：先写会红的测试**
+- [x] **Step 1：先写会红的测试**
 
 改 `apps/desktop/src/preload/renderer-api.test.ts`。
 
@@ -717,12 +717,12 @@ git commit -m "feat(contracts): 新增 SessionLoadResult 与 agent:load-session 
     ]);
 ```
 
-- [ ] **Step 2：跑到红**
+- [x] **Step 2：跑到红**
 
 Run: `corepack pnpm vitest run apps/desktop/src/preload/renderer-api.test.ts --maxWorkers=4`
 Expected: FAIL —— `api.loadSession is not a function`（工厂还没有这个方法），且计数断言 `expected 12 to be 13`。
 
-- [ ] **Step 3：`renderer-api.ts` 工厂加方法**
+- [x] **Step 3：`renderer-api.ts` 工厂加方法**
 
 在 `apps/desktop/src/preload/renderer-api.ts` 的 `proposalDiff`（第 43 行）之后追加：
 
@@ -731,20 +731,20 @@ Expected: FAIL —— `api.loadSession is not a function`（工厂还没有这�
     loadSession: (threadKey) => invoke(IPC_CHANNELS.agentLoadSession, threadKey),
 ```
 
-- [ ] **Step 4：跑到绿**
+- [x] **Step 4：跑到绿**
 
 Run: `corepack pnpm vitest run apps/desktop/src/preload/renderer-api.test.ts --maxWorkers=4`
 Expected: PASS（4 个用例）。
 Run: `corepack pnpm prettier --write apps/desktop/src/preload && corepack pnpm tsc --noEmit -p apps/desktop/tsconfig.node.json`
 Expected: 无诊断。（`tsconfig.web.json` 仍红——两处 `satisfies RendererApi` 夹具未补 `loadSession`，Task 4 收口；本任务不跑 web tsc。）
 
-- [ ] **Step 5：连带清单（点名到文件:行）**
+- [x] **Step 5：连带清单（点名到文件:行）**
 
 - `apps/desktop/src/preload/renderer-api.ts:43` 后加 `loadSession`。
 - `apps/desktop/src/preload/renderer-api.test.ts:64`（标题）、`:101`（`toBe(12)→13`）、`:104-117`（通道）、`:118-131`（参数）、`:132`（注释）、`:133-146`（键名）。
 - 本波**其余 `satisfies RendererApi` 夹具**（`useAgentStore.test.ts:112-128`、`useBookStore.test.ts:41-57`）留到 Task 4/5 补 `loadSession` 键；本任务只保证 preload 侧计数绿。
 
-- [ ] **Step 6：提交**
+- [x] **Step 6：提交**
 
 ```bash
 git add apps/desktop/src/preload/renderer-api.ts apps/desktop/src/preload/renderer-api.test.ts
@@ -764,7 +764,7 @@ git commit -m "feat(preload): 白名单加 loadSession，方法数字面量计�
 - Consumes: `findLatestSession`（`@mochen/agent-runtime`，`rollout.ts:128`）、`readSession`（`rollout.ts:69`）、`SessionLoadResult`（Task 1）、`deps.book.current()`（`book-service.ts:79`）、模块内 `UNBOUND`（`agent-service.ts:38`）、`threads` Map（`:119`）
 - Produces: `AgentService.loadSession(threadKey: string): Promise<SessionLoadResult>`；no-book / no-session 返回 `found:false` 值，首行坏与超长 `threadKey` **抛中文**（IPC 层不吞，见 Step 5 口径说明）
 
-- [ ] **Step 1：先写会红的测试**
+- [x] **Step 1：先写会红的测试**
 
 在 `apps/desktop/src/main/agent-service.test.ts` 末尾追加。`build()` 已返回 `{ service, book, writes }`（`:313`），`findLatestSession`/`readSession`/`proposeChunks`/`turn` 均已在文件里可用。
 
@@ -836,12 +836,12 @@ describe("agentService.loadSession 三态", () => {
 });
 ```
 
-- [ ] **Step 2：跑到红**
+- [x] **Step 2：跑到红**
 
 Run: `corepack pnpm vitest run apps/desktop/src/main/agent-service.test.ts --maxWorkers=4`
 Expected: FAIL —— `service.loadSession is not a function`。
 
-- [ ] **Step 3：`agent-service.ts` 接口加签名**
+- [x] **Step 3：`agent-service.ts` 接口加签名**
 
 `AgentService` 接口（75–82），在 `diffOf`（`:80`）之后加：
 
@@ -853,7 +853,7 @@ Expected: FAIL —— `service.loadSession is not a function`。
 
 顶部 `@mochen/contracts` 的 import（第 2–16 行的类型列表）加 `type SessionLoadResult`（紧跟 `type StartTurnInput`）。`findLatestSession`、`readSession` 已在 import（`:23`、`:26`）。
 
-- [ ] **Step 4：`agent-service.ts` 实现 `loadSession`**
+- [x] **Step 4：`agent-service.ts` 实现 `loadSession`**
 
 在返回对象里 `diffOf`（`:499-501`）之后、`dispose`（`:503`）之前插入：
 
@@ -887,7 +887,7 @@ Expected: FAIL —— `service.loadSession is not a function`。
     },
 ```
 
-- [ ] **Step 5：`agent-ipc.ts` 注册通道**
+- [x] **Step 5：`agent-ipc.ts` 注册通道**
 
 注释（第 13 行）与 `registerAgentIpc`（14–21）：
 
@@ -906,7 +906,7 @@ export function registerAgentIpc(handle: Handler, service: AgentService): void {
 }
 ```
 
-- [ ] **Step 6：跑到绿并过 node tsc**
+- [x] **Step 6：跑到绿并过 node tsc**
 
 Run: `corepack pnpm vitest run apps/desktop/src/main/agent-service.test.ts --maxWorkers=4`
 Expected: PASS（新增 5 个用例）。
@@ -915,13 +915,13 @@ Expected: 无诊断。（`tsconfig.web.json` 仍红，Task 4/5 收口。）
 
 > **口径说明（须与评审对齐）**：接口总表把 `loadSession` 注为「永不抛（IPC 层抛除外）」，而 spec §4.2 第 3 步与本任务清单都写明「首行坏抛中文」。本实现取**后者的字面**：no-book/no-session 是**返回值**（可预期的正常缺失态），首行坏与超长是**抛错**（异常，经 `ipcMain.handle` 透传为渲染层 promise rejection，由 store 收成一条 notice）。若评审坚持「永不抛」，则应改成 `{ found:false, reason:"corrupt", message }`——但 `sessionLoadResultSchema`（Task 1）的 `reason` 只枚举了 `no-book`/`no-session`，那条路要连 schema 一起改，不在本波。
 
-- [ ] **Step 7：变异实验（为 Task 5 的 M1 铺路的读侧保护，不占编号）**
+- [x] **Step 7：变异实验（为 Task 5 的 M1 铺路的读侧保护，不占编号）**
 
 用 Edit 把 `no-session` 分支的 `return { found: false, reason: "no-session", ... }` 改成 `threads.set(key, rel ?? "GHOST")` 前置且返回 `found:true`（模拟「缓存一条查不到的线程」）再跑 ——
 必须转红（`no-session` 用例的 `toEqual` 失败）。恢复后 `git diff --exit-code apps/desktop/src/main/agent-service.ts` 必须空。
 理由：spec §4.2 明令「找不到 ⇒ 不往 Map 里写任何东西」，否则用户重选目录/这一章后来第一次发轮都查不到真历史。
 
-- [ ] **Step 8：提交**
+- [x] **Step 8：提交**
 
 ```bash
 git add apps/desktop/src/main/agent-service.ts apps/desktop/src/main/agent-ipc.ts apps/desktop/src/main/agent-service.test.ts
@@ -949,7 +949,7 @@ git commit -m "feat(main): loadSession 三态回放（复用 findLatestSession/r
   - `reduceEvent(thread, event, options?: { fetchDiff?: boolean }): void`（默认 `true`）
   - `ThreadView.hydrated: boolean`、`hydrating: boolean`、`queued: string[]`
 
-- [ ] **Step 1：先写会红的测试（contracts）**
+- [x] **Step 1：先写会红的测试（contracts）**
 
 `packages/contracts/test/agent.test.ts` 顶部 import 加 `PROPOSAL_STATUSES, PROPOSAL_STATUS_LABELS`（从 `../src/index.js`），追加：
 
@@ -976,7 +976,7 @@ describe("expired 提案状态（回放派生，D1）", () => {
 Run: `corepack pnpm vitest run packages/contracts/test/agent.test.ts --maxWorkers=4`
 Expected: FAIL —— 六成员 vs 七成员；`PROPOSAL_STATUS_LABELS.expired` 为 `undefined`。
 
-- [ ] **Step 2：`patch.ts` 落地 `expired`**
+- [x] **Step 2：`patch.ts` 落地 `expired`**
 
 ```ts
 export const PROPOSAL_STATUSES = [
@@ -1005,7 +1005,7 @@ export const PROPOSAL_STATUS_LABELS: Record<ProposalStatus, string> = {
 Run: `corepack pnpm vitest run packages/contracts/test/agent.test.ts --maxWorkers=4`
 Expected: PASS。
 
-- [ ] **Step 3：先写会红的测试（timeline）**
+- [x] **Step 3：先写会红的测试（timeline）**
 
 `apps/desktop/src/renderer/src/utils/timeline.test.ts`：把第 351 行的精确形状改为三组：
 
@@ -1076,7 +1076,7 @@ describe("replayProposalStatuses（回放派生扫描）", () => {
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/timeline.test.ts --maxWorkers=4`
 Expected: FAIL —— `splitProposalCards(...).expired` 为 `undefined`；`replayProposalStatuses is not a function`。
 
-- [ ] **Step 4：`timeline.ts` 落地**
+- [x] **Step 4：`timeline.ts` 落地**
 
 `CardSplit`（171–176）与 `splitProposalCards`（186–208）：
 
@@ -1153,7 +1153,7 @@ export function replayProposalStatuses(events: AgentEvent[]): Record<string, Pro
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/timeline.test.ts --maxWorkers=4`
 Expected: PASS。
 
-- [ ] **Step 5：先写会红的测试（store：第三参 + pendingOf 钉 expired）**
+- [x] **Step 5：先写会红的测试（store：第三参 + pendingOf 钉 expired）**
 
 `apps/desktop/src/renderer/src/stores/useAgentStore.test.ts`：
 
@@ -1205,7 +1205,7 @@ const loadSession = vi.fn(async (): Promise<SessionLoadResult> => ({
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useAgentStore.test.ts --maxWorkers=4`
 Expected: FAIL —— 新签名 `reduceEvent` 仍会调 `loadDiff`（`proposalDiff` 被调用），`hydrated/hydrating/queued` 为 `undefined`。
 
-- [ ] **Step 6：`useAgentStore.ts` 落地**
+- [x] **Step 6：`useAgentStore.ts` 落地**
 
 `ThreadView`（26–37）加三字段（在 `endedAs` 之后）：
 
@@ -1267,7 +1267,7 @@ state（133–140）加在途取数表（不进 `ThreadView`，保持 `ThreadVie
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useAgentStore.test.ts --maxWorkers=4`
 Expected: PASS（含既有全部）。
 
-- [ ] **Step 7：web tsc + 全样连带清单核对**
+- [x] **Step 7：web tsc + 全样连带清单核对**
 
 Run: `corepack pnpm tsc --noEmit -p apps/desktop/tsconfig.web.json`
 Expected: 仍可能红于 `useBookStore.test.ts` 的 `satisfies RendererApi`（缺 `loadSession`）——那是 Task 5 的夹具；本任务在 Step 8 一并补，故本步应先补 `useBookStore.test.ts`。
@@ -1279,7 +1279,7 @@ Expected: 仍可能红于 `useBookStore.test.ts` 的 `satisfies RendererApi`（�
 - `PROPOSAL_STATUSES` 加 `expired` → `PROPOSAL_STATUS_LABELS` 必须加键（tsc 穷尽闸门）；全仓无其它 `Record<ProposalStatus, string>` 需连带（已 grep 确认）。
 - `splitProposalCards` 返回多出 `expired` → 调用方 `CenterColumn.vue:47-49` 与 `timeline.test.ts:351`；`CenterColumn.vue` 的第三组渲染在 Task 5 接线（本任务不碰组件，只保证 `.open/.settled` 仍有效）。
 
-- [ ] **Step 8：变异实验 M2（expired 不计待审、不进已裁决组）**
+- [x] **Step 8：变异实验 M2（expired 不计待审、不进已裁决组）**
 
 主变异：用 Edit 把 `replayProposalStatuses` 里「未配对 proposal」那句 `status[event.proposal.id] = "expired";` 改成 `= "pending";`（模拟把旧卡伪装成可批准）。
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/timeline.test.ts apps/desktop/src/renderer/src/stores/useAgentStore.test.ts --maxWorkers=4`
@@ -1287,7 +1287,7 @@ Expected 转红：`replayProposalStatuses` 第一条用例（期望 `{pOpen:"exp
 
 次变异（分组）：用 Edit 把 `splitProposalCards` 里 `else if (card.status === "expired") expired.push(card);` 删掉（expired 落进 settled）。Expected 转红：`splitProposalCards 第三组` 用例 `split.expired` 为空而 `split.settled` 多出 `p2`。写回。
 
-- [ ] **Step 9：提交**
+- [x] **Step 9：提交**
 
 ```bash
 git add packages/contracts/src/patch.ts packages/contracts/test/agent.test.ts apps/desktop/src/renderer/src/utils/timeline.ts apps/desktop/src/renderer/src/utils/timeline.test.ts apps/desktop/src/renderer/src/stores/useAgentStore.ts apps/desktop/src/renderer/src/stores/useAgentStore.test.ts apps/desktop/src/renderer/src/stores/useBookStore.test.ts
@@ -1308,7 +1308,7 @@ git commit -m "feat(contracts,renderer): expired 状态、replay 派生扫描与
 - Consumes: `window.mochen.loadSession`（Task 1/2）、`reduceEvent(…, { fetchDiff:false })`（Task 4）、`replayProposalStatuses`（Task 4）、`canContinue`（`:151`）、`ThreadView.hydrated/hydrating`（Task 4）、`PROPOSAL_STATUS_LABELS`（Task 4）
 - Produces: `ensureHydrated(threadKey: string): Promise<void>`；`runHydrate` 为内部 action
 
-- [ ] **Step 1：先写会红的测试**
+- [x] **Step 1：先写会红的测试**
 
 `apps/desktop/src/renderer/src/stores/useAgentStore.test.ts`：把 Step（Task 4）里那个恒返回 `no-session` 的 `loadSession` 桩改成可编排（模块级 `let sessionResult` + 桩返回它），并加一个 `found` 用的 events 工厂。替换/追加：
 
@@ -1459,7 +1459,7 @@ function loaded(events: AgentEvent[], droppedLines: number[] = []): SessionLoadR
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useAgentStore.test.ts --maxWorkers=4`
 Expected: FAIL —— `store().ensureHydrated is not a function`。
 
-- [ ] **Step 2：`useAgentStore.ts` import**
+- [x] **Step 2：`useAgentStore.ts` import**
 
 顶部 `@mochen/contracts` import 加 `type SessionLoadResult`。再加一行：
 
@@ -1467,7 +1467,7 @@ Expected: FAIL —— `store().ensureHydrated is not a function`。
 import { replayProposalStatuses } from "../utils/timeline";
 ```
 
-- [ ] **Step 3：`useAgentStore.ts` 加 `ensureHydrated` / `runHydrate`**
+- [x] **Step 3：`useAgentStore.ts` 加 `ensureHydrated` / `runHydrate`**
 
 在 `actions` 里 `tick()`（`:348`）之前插入：
 
@@ -1532,7 +1532,7 @@ import { replayProposalStatuses } from "../utils/timeline";
     },
 ```
 
-- [ ] **Step 4：`apply` 的 turn-end 分支补一次水合**
+- [x] **Step 4：`apply` 的 turn-end 分支补一次水合**
 
 把 `apply` 末尾（`:210-214`）改为：
 
@@ -1546,12 +1546,12 @@ import { replayProposalStatuses } from "../utils/timeline";
       if (!thread.hydrated) void this.ensureHydrated(outbound.threadKey);
 ```
 
-- [ ] **Step 5：跑到绿**
+- [x] **Step 5：跑到绿**
 
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useAgentStore.test.ts --maxWorkers=4`
 Expected: PASS（含 Task 4 新增）。
 
-- [ ] **Step 6：`CenterColumn.vue` 三处水合时机 + 占位 + expired 第三组**
+- [x] **Step 6：`CenterColumn.vue` 三处水合时机 + 占位 + expired 第三组**
 
 script：第 4 行 `import { computed, onBeforeUnmount, onMounted, ref } from "vue";` 加 `watch`；import 处不需要新符号（`expired` 走 `PROPOSAL_STATUS_LABELS` 由卡片带）。在 `const threadKey = computed(...)`（`:36`）之后加：
 
@@ -1632,7 +1632,7 @@ const expiredCards = computed(() => cardSplit.value.expired);
     </div>
 ```
 
-- [ ] **Step 7：`ProposalCard.vue` expired 态**
+- [x] **Step 7：`ProposalCard.vue` expired 态**
 
 script：`const pending`（`:16`）之后加：
 
@@ -1666,14 +1666,14 @@ Expected: 无诊断（此处 `RendererApi` 的两处 `satisfies` 夹具已在 Ta
 Run: `corepack pnpm prettier --write apps/desktop/src/renderer && corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useAgentStore.test.ts apps/desktop/src/renderer/src/utils/timeline.test.ts --maxWorkers=4`
 Expected: PASS。
 
-- [ ] **Step 8：连带清单**
+- [x] **Step 8：连带清单**
 
 - `useAgentStore.ts`：`apply` turn-end（`:210-214`）加补触发；`hydrateInflight` state（Task 4 已建位）；`runHydrate`/`ensureHydrated` 两个 action。
 - `CenterColumn.vue`：`watch` 引入、`hydrating`/`hydratedEmpty`/`expiredCards` computed、空状态 `v-if` 加 `!hydrating` 与 `expiredCards.length`、占位 `v-else-if`、expired `<details>`。**行数预算自查**：Run `wc -l apps/desktop/src/renderer/src/components/CenterColumn.vue` —— 本任务后应 ≤300 行（波 1 末 ≤400 的预算里，Task 7 还会加面板挂载与热key接线）；若逼近 300 说明 expired `<details>` 可抽 `ProposalStack.vue`，本任务先不抽（≤400 硬线由 `tools/check-source-line-budget.mjs` 800 行兜底，但本片自设 400）。
 - `ProposalCard.vue`：`expired` computed + expired `<footer>`。
 - 占位文案定稿：`正在恢复这一条线程…`；droppedLines 播报定稿：`这条线程有 N 行没能读回，其余内容已恢复。`；no-book `还没打开作品目录，历史读不回来。`；no-session `这本书里没有这条线程的历史。`（后两句来自 Task 3 主进程返回值，须逐字一致——Task 3/5 共用同一字符串，改一处必改另一处，写进台账提醒）。
 
-- [ ] **Step 9：变异实验 M1 + M3**
+- [x] **Step 9：变异实验 M1 + M3**
 
 M1（回放复用同一归约器且不白打 diff IPC）：用 Edit 把 `runHydrate` 里 `this.reduceEvent(thread, event, { fetchDiff: false });` 改成 `{ fetchDiff: true }`。
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useAgentStore.test.ts --maxWorkers=4`
@@ -1685,7 +1685,7 @@ Expected 转红：「规则8（M3）」用例后半 `expect(store().canContinue(
 
 恢复后 `git diff --exit-code apps/desktop/src/renderer/src/stores/useAgentStore.ts` 必须空。
 
-- [ ] **Step 10：提交**
+- [x] **Step 10：提交**
 
 ```bash
 git add apps/desktop/src/renderer/src/stores/useAgentStore.ts apps/desktop/src/renderer/src/stores/useAgentStore.test.ts apps/desktop/src/renderer/src/components/CenterColumn.vue apps/desktop/src/renderer/src/components/ProposalCard.vue
@@ -1706,7 +1706,7 @@ git commit -m "feat(renderer): ensureHydrated 八规则水合、expired 第三�
 - Consumes: 无（纯函数，入参是拆开的修饰键，不读 DOM、不接 `KeyboardEvent`）
 - Produces: `HotkeyMods` / `HotkeyFocus` / `HotkeyAction` / `HotkeyResult` / `resolveHotkey(focus, key, mods): HotkeyResult`
 
-- [ ] **Step 1：先写会红的测试**
+- [x] **Step 1：先写会红的测试**
 
 Create `apps/desktop/src/renderer/src/utils/hotkeys.test.ts`：
 
@@ -1843,7 +1843,7 @@ describe("resolveHotkey · / 开面板", () => {
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/hotkeys.test.ts --maxWorkers=4`
 Expected: FAIL —— 模块不存在 `Cannot find module './hotkeys'`（vitest 报 `Failed to load ... hotkeys`）。
 
-- [ ] **Step 2：`hotkeys.ts` 落地**
+- [x] **Step 2：`hotkeys.ts` 落地**
 
 Create `apps/desktop/src/renderer/src/utils/hotkeys.ts`：
 
@@ -1959,21 +1959,21 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
 }
 ```
 
-- [ ] **Step 3：跑到绿并过 prettier/tsc**
+- [x] **Step 3：跑到绿并过 prettier/tsc**
 
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/hotkeys.test.ts --maxWorkers=4`
 Expected: PASS（覆盖 spec §5 键位表每一行 + 五条护栏的反向用例）。
 Run: `corepack pnpm prettier --write apps/desktop/src/renderer/src/utils && corepack pnpm tsc --noEmit -p apps/desktop/tsconfig.web.json`
 Expected: 无诊断。
 
-- [ ] **Step 4：变异实验 M4（去掉 isComposing 闸门）**
+- [x] **Step 4：变异实验 M4（去掉 isComposing 闸门）**
 
 用 Edit 删掉 `hotkeys.ts` 里 `if (focus.isComposing) return none;` 这一行。
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/hotkeys.test.ts --maxWorkers=4`
 Expected 转红：「isComposing 为真时连 Enter/Esc 都一律 none」——Enter 变 `submit`、Esc 变 `delegated`，断言失败。写回该行。
 恢复后 `git diff --exit-code apps/desktop/src/renderer/src/utils/hotkeys.ts` 必须空。
 
-- [ ] **Step 5：提交**
+- [x] **Step 5：提交**
 
 ```bash
 git add apps/desktop/src/renderer/src/utils/hotkeys.ts apps/desktop/src/renderer/src/utils/hotkeys.test.ts
@@ -1997,7 +1997,7 @@ git commit -m "feat(renderer): resolveHotkey 纯函数与全焦点组合矩阵"
 - Consumes: `resolveHotkey`（Task 6）、`resolveEscape`（`escape-policy.ts:14`）、`agent.decide`/`send`/`stop`/`queueText`、`book.activateTab`/`cycleTab`/`activeDocTab`、`layout.togglePane`/`showSettings`/`showWorkspace`/`currentView`、`threadKeyFor`
 - Produces: `HotkeyHandlers { openPalette(): void }`、`useGlobalHotkeys(handlers): void`；`agent.queueText(threadKey, text): boolean`；`composeStatusLine(thread, seconds, pending, queued): string`；`useBookStore.activateTab(index): boolean`、`cycleTab(delta: 1|-1): void`；`QUEUED_MAX = 5`
 
-- [ ] **Step 1：先写会红的测试（store 侧排队 + 状态行）**
+- [x] **Step 1：先写会红的测试（store 侧排队 + 状态行）**
 
 `apps/desktop/src/renderer/src/stores/useAgentStore.test.ts`：
 
@@ -2050,7 +2050,7 @@ git commit -m "feat(renderer): resolveHotkey 纯函数与全焦点组合矩阵"
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useAgentStore.test.ts --maxWorkers=4`
 Expected: FAIL —— `store().queueText is not a function`；且 `composeStatusLine(running,42,0,2)` 第 4 参被忽略 ⇒ 缺「排队 2 条」。
 
-- [ ] **Step 2：`useAgentStore.ts` 排队侧**
+- [x] **Step 2：`useAgentStore.ts` 排队侧**
 
 模块顶层（`CONTINUE_TEXT` 之后，`:24` 附近）加常量：
 
@@ -2100,7 +2100,7 @@ export function composeStatusLine(
 
 > **口径（须与评审对齐）**：`send()` 依 `useBookStore.activeDocTab` 组 `threadKey`。本轮结束自动发的是「刚结束这条线程」的队首，前提是该线程仍是活动标签；若用户在轮次运行中切走了标签再回，`send()` 会发给当下活动线程。spec §5.1 字面即「取队首调 send()」，本任务不引入线程绑定的 `sendToThread`（那会改 `send` 形状、超出接口总表）。切标签清队不是本片行为——队列在 `stop()`（打断）里明确不清。此偏差写进台账风险。
 
-- [ ] **Step 3：`useBookStore.ts` 加 `activateTab` / `cycleTab`**
+- [x] **Step 3：`useBookStore.ts` 加 `activateTab` / `cycleTab`**
 
 在 `actions` 里 `closeTab`（90–98）之后加：
 
@@ -2144,7 +2144,7 @@ export function composeStatusLine(
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useAgentStore.test.ts apps/desktop/src/renderer/src/stores/useBookStore.test.ts --maxWorkers=4`
 Expected: 两条 store 用例 PASS。
 
-- [ ] **Step 4：`useHotkeys.ts` 薄壳（全局唯一 keydown）**
+- [x] **Step 4：`useHotkeys.ts` 薄壳（全局唯一 keydown）**
 
 Create `apps/desktop/src/renderer/src/composables/useHotkeys.ts`：
 
@@ -2307,7 +2307,7 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
 }
 ```
 
-- [ ] **Step 5：`CenterColumn.vue` 接线**
+- [x] **Step 5：`CenterColumn.vue` 接线**
 
 1) 删掉旧 Esc 监听三处：`onGlobalEscape`（98–102）整段、`onMounted` 里的 `document.addEventListener("keydown", onGlobalEscape);`（`:108`）、`onBeforeUnmount` 里的 `document.removeEventListener("keydown", onGlobalEscape);`（`:112`）。`onMounted` 保留 `agent.startListening()` 与 `timer`。
 2) script import 加 `import { useGlobalHotkeys } from "../composables/useHotkeys";` 与 `import { useLayoutStore } from "../stores/layoutStore";`（后者已在别处？没有——本文件原先没用 layout，需新增）。加：
@@ -2350,7 +2350,7 @@ const statusLine = computed(() =>
     <ProviderSettings v-if="showSettings" @close="closeSettings" />
 ```
 
-- [ ] **Step 6：`ComposerBox.vue` 交回全局层**
+- [x] **Step 6：`ComposerBox.vue` 交回全局层**
 
 删 `onKeydown`（18–28）与 textarea 上的 `@keydown="onKeydown"`。textarea 加 `data-mochen-composer`：
 
@@ -2370,7 +2370,7 @@ const statusLine = computed(() =>
 
 （`submit()` 保留给「发送」按钮点击；`text` ref 保留 v-model。回车提交由全局监听经 `[data-mochen-composer]` 读取 `composer.value`——与 v-model 同源，DOM 值与 ref 同步。）
 
-- [ ] **Step 7：`ProposalCard.vue` 打标记**
+- [x] **Step 7：`ProposalCard.vue` 打标记**
 
 根 `<article>`（`:49-54`）加**三个** data 属性（`useHotkeys.ts` 的 `focusOf`/`dispatch`/`escape` 全靠 `closest("[data-proposal-card]")` 找卡，缺这个标记四个审批键与 Esc 的卡内裁决全都落空），guidance `<textarea>`（`:75`）加 `data-guidance`：
 
@@ -2398,7 +2398,7 @@ const statusLine = computed(() =>
       />
 ```
 
-- [ ] **Step 8：跑到绿 + 行数预算自查**
+- [x] **Step 8：跑到绿 + 行数预算自查**
 
 Run: `corepack pnpm tsc --noEmit -p apps/desktop/tsconfig.web.json`
 Expected: 无诊断。
@@ -2406,14 +2406,14 @@ Run: `corepack pnpm prettier --write apps/desktop/src/renderer && corepack pnpm 
 Expected: PASS。
 行数预算自查：`wc -l apps/desktop/src/renderer/src/composables/useHotkeys.ts`（目标薄壳；判定全在 utils，dispatch 只是接线，若超预算说明该把 `dispatch`/`escape` 收进 store action）。`wc -l apps/desktop/src/renderer/src/components/CenterColumn.vue`（本任务后应 ≤340，波 1 末 ≤400）。
 
-- [ ] **Step 9：连带清单**
+- [x] **Step 9：连带清单**
 
 - `composeStatusLine` 加第 4 参 ⇒ 调用点 `CenterColumn.vue:53-55`（本任务改）、测试 `useAgentStore.test.ts:410-424`（本任务改）。全仓 grep `composeStatusLine` 无其它调用点。
 - `useGlobalHotkeys` ⇒ `CenterColumn.vue` 唯一调用点；确认 `CenterColumn.vue` 再无 `document.addEventListener("keydown", …)`（旧 `onGlobalEscape` 已删）。**全局 keydown 有且只有一个**——grep `document.addEventListener("keydown"` 应只在 `useHotkeys.ts` 命中。
 - `data-mochen-composer` ⇒ `ComposerBox.vue`；`[data-proposal-card]`/`[data-proposal-status]`/`[data-proposal-id]`/`[data-guidance]` ⇒ `ProposalCard.vue`。这些标记只被 `useHotkeys.ts` 读，别处不依赖。
 - `open-settings` 经 `layout.showSettings("general")` + `CenterColumn` 桥接 `currentView`。**风险（写进台账）**：`App.vue` 目前不渲染 `currentView==="settings"` 视图，故 `Ctrl+,` / `/model` 走的是本桥接到 `ProviderSettings`；若波 2 给 `App.vue` 加独立设置视图，需把 `layout.showSettings` 的落点从 CenterColumn 桥改到新视图，避免两处都开。
 
-- [ ] **Step 10：提交**
+- [x] **Step 10：提交**
 
 ```bash
 git add apps/desktop/src/renderer/src/composables/useHotkeys.ts apps/desktop/src/renderer/src/components/CenterColumn.vue apps/desktop/src/renderer/src/components/ComposerBox.vue apps/desktop/src/renderer/src/components/ProposalCard.vue apps/desktop/src/renderer/src/stores/useAgentStore.ts apps/desktop/src/renderer/src/stores/useAgentStore.test.ts apps/desktop/src/renderer/src/stores/useBookStore.ts apps/desktop/src/renderer/src/stores/useBookStore.test.ts
@@ -2465,7 +2465,7 @@ git commit -m "feat(renderer): 全局唯一 keydown 接线、Tab 排队与状态
   closePermissionMenu(): void;
   ```
 
-- [ ] **Step 1：先写会红的纯函数测试**
+- [x] **Step 1：先写会红的纯函数测试**
 
 Create `apps/desktop/src/renderer/src/utils/slash-commands.test.ts`：
 
@@ -2598,7 +2598,7 @@ describe("slash-commands · 面板列表过滤与自处理的键", () => {
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/slash-commands.test.ts --maxWorkers=4`
 Expected: FAIL —— `Failed to load url ./slash-commands (resolved id: ./slash-commands) in apps/desktop/src/renderer/src/utils/slash-commands.test.ts. Does the file exist?`
 
-- [ ] **Step 2：`slash-commands.ts` 落地**
+- [x] **Step 2：`slash-commands.ts` 落地**
 
 Create `apps/desktop/src/renderer/src/utils/slash-commands.ts`：
 
@@ -2677,12 +2677,12 @@ export function paletteOwnsKey(key: string, isComposing: boolean): boolean {
 }
 ```
 
-- [ ] **Step 3：纯函数跑到绿**
+- [x] **Step 3：纯函数跑到绿**
 
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/slash-commands.test.ts --maxWorkers=4`
 Expected: PASS（13 用例、4 个 describe；`/s`、`/sta`、`/st` 三条前缀断言此时应全部绿）。
 
-- [ ] **Step 4：store 侧的状态报告与派发口（先写红）**
+- [x] **Step 4：store 侧的状态报告与派发口（先写红）**
 
 `apps/desktop/src/renderer/src/stores/useAgentStore.test.ts`：先把 `:115` 那行内联的 `saveMeta: vi.fn(...)` 提成模块级常量（照 `:91-100` 的 `startTurn` / `interruptTurn` 现例），因为本任务与 Task 9 的用例都要查它的调用次数。**参数必须写上类型**（测试文件也在 `tsconfig.web.json` 的 tsc 范围内，无参 `vi.fn` 的 `mock.calls[0]?.[0]` 会报元组越界）：
 
@@ -2880,7 +2880,7 @@ import { useLayoutStore } from "./layoutStore";
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useAgentStore.test.ts --maxWorkers=4`
 Expected: FAIL —— `composeStatusReport is not a function` / `store().runSlashCommand is not a function`（TypeError 点名缺的导出）。
 
-- [ ] **Step 5：store 侧落地**
+- [x] **Step 5：store 侧落地**
 
 `apps/desktop/src/renderer/src/stores/useAgentStore.ts`：
 
@@ -3064,7 +3064,7 @@ export function composeStatusReport(facts: StatusFacts): string {
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useAgentStore.test.ts apps/desktop/src/renderer/src/stores/useBookStore.test.ts --maxWorkers=4`
 Expected: PASS。
 
-- [ ] **Step 6：`SlashPalette.vue`（面板内部键自处理，`stopPropagation`）**
+- [x] **Step 6：`SlashPalette.vue`（面板内部键自处理，`stopPropagation`）**
 
 Create `apps/desktop/src/renderer/src/components/SlashPalette.vue`：
 
@@ -3176,7 +3176,7 @@ onMounted(() => {
 
 > 组件里没有任何「能不能用 / 这条命令做什么」的判断：全部走 `utils/slash-commands.ts` 与 `agent.runSlashCommand`。`shownCursor` 只是将已有 `cursor` 夹进当前列表长度，不引入新语义。
 
-- [ ] **Step 7：`styles/interaction.css` 与挂载**
+- [x] **Step 7：`styles/interaction.css` 与挂载**
 
 Create `apps/desktop/src/renderer/src/styles/interaction.css`：
 
@@ -3376,7 +3376,7 @@ Create `apps/desktop/src/renderer/src/styles/interaction.css`：
     <SlashPalette v-if="paletteOpen" @close="paletteOpen = false" />
 ```
 
-- [ ] **Step 8：跑到绿 + 行数预算自查**
+- [x] **Step 8：跑到绿 + 行数预算自查**
 
 Run: `corepack pnpm tsc --noEmit -p apps/desktop/tsconfig.web.json`
 Expected: 无诊断。
@@ -3385,7 +3385,7 @@ Expected: PASS。
 Run: `node tools/check-source-line-budget.mjs` + `wc -l apps/desktop/src/renderer/src/components/CenterColumn.vue apps/desktop/src/renderer/src/components/SlashPalette.vue`
 Expected: 「行数预算通过」；`SlashPalette.vue` ≤140 行；`CenterColumn.vue` ≤360（波 1 末 ≤400）。
 
-- [ ] **Step 9：连带清单**
+- [x] **Step 9：连带清单**
 
 - `runSlashCommand` 唯一消费方是 `SlashPalette.vue`；`/model` 与 `Ctrl+,` 共用 `layout.showSettings("general")` ⇒ **两处都靠 Task 7 的 CenterColumn `currentView` 桥才真的显示浮层**（`App.vue` 目前不渲染 settings 视图）。若波 2 给 `App.vue` 加独立设置视图，改桥不改本 action。
 - `clearThreadView` 读 `ThreadView.hydrated`（Task 4）、写 `this.proposals`（`:136`）；删卡后到达的 `decision` / `written` 事件靠既有守卫（`:253-254` `if (!view) return`）静默吸收，不会崩——这一条要跑一遍确认没新增 try。
@@ -3393,7 +3393,7 @@ Expected: 「行数预算通过」；`SlashPalette.vue` ≤140 行；`CenterColu
 - `styles/interaction.css` 是波 1 新增控件样式的集中处；Task 5/7 的模板先引用了这里的类名（`.hydrating-line` / `.expired-*` / `.status-note-agent`），落地顺序造成的只有裸文本、无颜色——不影响门禁与冒烟判读，记进台账即可。
 - `GATED_COMMANDS` 是给波 2 的一处显式债务：**波 2 的 Task 18 必须删掉它并把 `profilesReady` 加进 `PaletteFocus`**（同任务改 `slash-commands.test.ts` 的三条可用性断言）。跨波接口，Task 18 动手前先 `grep -n "GATED_COMMANDS" apps/desktop/src/renderer/src/utils/slash-commands.ts` 确认它还在。
 
-- [ ] **Step 10：提交**
+- [x] **Step 10：提交**
 
 ```bash
 git add apps/desktop/src/renderer/src/utils/slash-commands.ts apps/desktop/src/renderer/src/utils/slash-commands.test.ts apps/desktop/src/renderer/src/components/SlashPalette.vue apps/desktop/src/renderer/src/styles/interaction.css apps/desktop/src/renderer/src/styles.css apps/desktop/src/renderer/src/components/CenterColumn.vue apps/desktop/src/renderer/src/stores/useAgentStore.ts apps/desktop/src/renderer/src/stores/useAgentStore.test.ts apps/desktop/src/renderer/src/stores/useBookStore.ts apps/desktop/src/renderer/src/stores/useBookStore.test.ts
@@ -3436,7 +3436,7 @@ git commit -m "feat(renderer): / 命令面板与派发口，clear 只清渲染�
   export function matchPermissionMode(text: string): PermissionMode | null;
   ```
 
-- [ ] **Step 1：契约侧先写红**
+- [x] **Step 1：契约侧先写红**
 
 `packages/contracts/test/contract.test.ts` 在 `:59` 的 `describe` 之后追加：
 
@@ -3481,7 +3481,7 @@ import {
 Run: `corepack pnpm vitest run packages/contracts/test/contract.test.ts --maxWorkers=4`
 Expected: FAIL —— `PROPOSAL_MODE_LABELS is not a function` 之类不成立；实际红形是 `SyntaxError: ... does not provide an export named 'PROPOSAL_MODE_LABELS'`。
 
-- [ ] **Step 2：`patch.ts` 落地**
+- [x] **Step 2：`patch.ts` 落地**
 
 `packages/contracts/src/patch.ts` 在 `PROPOSAL_STATUS_LABELS`（`:46-53`）之后加：
 
@@ -3498,7 +3498,7 @@ Expected: PASS。
 Run: `corepack pnpm tsc --noEmit -p packages/contracts/tsconfig.json`
 Expected: 无诊断。
 
-- [ ] **Step 3：`ProposalCard.vue` 删三元链**
+- [x] **Step 3：`ProposalCard.vue` 删三元链**
 
 `apps/desktop/src/renderer/src/components/ProposalCard.vue`：`modeLabel`（HEAD 版 `:18-20`）改成查表，并把 `:4` 的 import 补上 `PROPOSAL_MODE_LABELS`：
 
@@ -3509,7 +3509,7 @@ const modeLabel = computed(() => PROPOSAL_MODE_LABELS[props.view.proposal.mode])
 Run: `corepack pnpm tsc --noEmit -p apps/desktop/tsconfig.web.json`
 Expected: 无诊断。
 
-- [ ] **Step 4：`setPermissionMode` 先写红**
+- [x] **Step 4：`setPermissionMode` 先写红**
 
 `apps/desktop/src/renderer/src/stores/useBookStore.test.ts` 追加（沿用文件里的 `result` 夹具与 `saveMeta` 夹具；Step 已经把它提成模块级 `const saveMeta = vi.fn(async () => {});`）：
 
@@ -3556,7 +3556,7 @@ Expected: 无诊断。
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useBookStore.test.ts --maxWorkers=4`
 Expected: FAIL —— `store.setPermissionMode is not a function`。
 
-- [ ] **Step 5：`useBookStore.setPermissionMode` 落地**
+- [x] **Step 5：`useBookStore.setPermissionMode` 落地**
 
 `apps/desktop/src/renderer/src/stores/useBookStore.ts`：`:2` 的 type-only import 改成同时取值：
 
@@ -3602,7 +3602,7 @@ actions 里（`openPermissionMenu` 之后）加：
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useBookStore.test.ts --maxWorkers=4`
 Expected: PASS。
 
-- [ ] **Step 6：`PermissionMenu.vue`（只画表，不判断）**
+- [x] **Step 6：`PermissionMenu.vue`（只画表，不判断）**
 
 Create `apps/desktop/src/renderer/src/components/PermissionMenu.vue`：
 
@@ -3666,7 +3666,7 @@ async function choose(mode: PermissionMode): Promise<void> {
 
 > 两句 `permission-hint` 是 spec §7 点名的口径（「切档不复活已删的 pending」+「仍留 pending 的可批准」）。文案不在 `contracts` 里，因为它是本片新写的 UI 说明；**冒烟第 4 项要肉眼核对这两句在界面上出现**。
 
-- [ ] **Step 7：`matchPermissionMode` 与 `/permissions <档位名>`**
+- [x] **Step 7：`matchPermissionMode` 与 `/permissions <档位名>`**
 
 `apps/desktop/src/renderer/src/utils/slash-commands.ts` 末尾加（唯一来源仍是 `PERMISSION_LABELS`，反查不重抄档名）：
 
@@ -3745,7 +3745,7 @@ import { matchPermissionMode, type SlashCommand } from "../utils/slash-commands"
   });
 ```
 
-- [ ] **Step 8：`CenterColumn.vue` 接线**
+- [x] **Step 8：`CenterColumn.vue` 接线**
 
 script：加 `import PermissionMenu from "./PermissionMenu.vue";`；把只读的 `permissionLabel` computed（HEAD 版 `:69-71`，含「档位文案的唯一来源是 contracts」那条注释——**注释与实现都留着，别改成手抄**）保留。
 
@@ -3766,7 +3766,7 @@ template：`<span class="permission-chip">{{ permissionLabel }}</span>`（HEAD �
         </div>
 ```
 
-- [ ] **Step 9：跑到绿 + 行数预算自查**
+- [x] **Step 9：跑到绿 + 行数预算自查**
 
 Run: `corepack pnpm tsc --noEmit -p packages/contracts/tsconfig.json && corepack pnpm tsc --noEmit -p apps/desktop/tsconfig.web.json`
 Expected: 两处均无诊断。
@@ -3775,7 +3775,7 @@ Expected: PASS。
 Run: `node tools/check-source-line-budget.mjs` + `wc -l apps/desktop/src/renderer/src/components/CenterColumn.vue apps/desktop/src/renderer/src/components/PermissionMenu.vue`
 Expected: 「行数预算通过」；`PermissionMenu.vue` ≤70 行；`CenterColumn.vue` ≤380。
 
-- [ ] **Step 10：变异实验 M12（按 spec §15 的「tsc 探针 + 查表用例红」两条做）**
+- [x] **Step 10：变异实验 M12（按 spec §15 的「tsc 探针 + 查表用例红」两条做）**
 
 1. **tsc 探针**（证明「穷尽 Record 就是编译期闸」，也正是三元链不该回来的理由）。临时 Create `apps/desktop/src/renderer/src/utils/__m12-probe.ts`：
 
@@ -3795,7 +3795,7 @@ Expected: 红 —— `expected '整章替换' to be '整篇替换'`（`toBe` 的
 
 3. **如实记录（不粉饰）**：把 `ProposalCard.vue` 的 `modeLabel` 临时改回原三元链，`corepack pnpm tsc --noEmit -p apps/desktop/tsconfig.web.json` 与全量 vitest **都仍然绿**——本仓 `.vue` 模板零自动化覆盖（spec §15 末行、波 A 评审 P3 #4）。所以 M12 的真实防线是上面两步（编译期闸 + 表本身可红）+ **冒烟第 4 项肉眼看卡头「锚点替换 / 整篇替换」**。这一条写进波 1 台账，不许写成「变异已让测试转红」。
 
-- [ ] **Step 11：连带清单**
+- [x] **Step 11：连带清单**
 
 - `PROPOSAL_MODE_LABELS` 消费方只有 `ProposalCard.vue:18-20`（已删的三元链）；`packages/agent-runtime/src/apply-patch.ts:40` 那句 `message: "整篇替换"` 是**回喂模型的文本**、不是档位标签，不在本条范围内（波 A 已审过），执行本任务时也别顺手改它。
 - `PERMISSION_LABELS` 消费方：`CenterColumn.vue:69-71`（保留）、`PermissionMenu.vue`、`agent-service.ts:435`（主进程提示词）、`useAgentStore.runSlashCommand`（`/status` 报告与失败提示）。新增的 `matchPermissionMode` 只做反查，不产生新文案。
@@ -3803,7 +3803,7 @@ Expected: 红 —— `expected '整章替换' to be '整篇替换'`（`toBe` 的
 - `useAgentStore.test.ts` 的 `api` 夹具（`:112-128`）里 `saveMeta` 是 `vi.fn(async (): Promise<void> => undefined)`（`:115`）——本任务的 `/permissions` 用例要求 `openBook` 用同一份夹具（`result.meta` 形状见 `:26-31`）；若 `openBook` 在该文件里不可用，就照 `useBookStore.test.ts:6-21` 的 `result` 形状补一份 meta 夹具，别改契约。
 - `permissionMenuOpen` / `permissionPreset` 由 Task 8 建、Task 9 消费；`busy` 里的 `book.saving` 是文稿保存态——切档与保存不同事，这里只是避免弹层在写盘动画里连点；若评审认为耦合别扭，可换成 `permissionSwitching` 本地 ref（记录进台账，不影响门禁）。
 
-- [ ] **Step 12：提交**
+- [x] **Step 12：提交**
 
 ```bash
 git add packages/contracts/src/patch.ts packages/contracts/test/contract.test.ts apps/desktop/src/renderer/src/utils/slash-commands.ts apps/desktop/src/renderer/src/utils/slash-commands.test.ts apps/desktop/src/renderer/src/components/PermissionMenu.vue apps/desktop/src/renderer/src/components/ProposalCard.vue apps/desktop/src/renderer/src/components/CenterColumn.vue apps/desktop/src/renderer/src/stores/useBookStore.ts apps/desktop/src/renderer/src/stores/useBookStore.test.ts apps/desktop/src/renderer/src/stores/useAgentStore.ts apps/desktop/src/renderer/src/stores/useAgentStore.test.ts
@@ -3844,10 +3844,12 @@ echo "VERIFY_PIPESTATUS=${PIPESTATUS[0]}"
 grep -nE "VERIFY_EXIT=0|Test Files .*|Tests .*" /tmp/plan3-wave1-verify.log
 ```
 
-- [ ] 期望：`VERIFY_EXIT=0`（`package.json:24` 的 verify 串最后一步才 echo 它，出现即全链绿）、`VERIFY_PIPESTATUS=0`、`prettier . --check` 段无「[warn]」、五个 tsc 项目无诊断、`eslint . --max-warnings=0` 无告警、`边界检查通过`、`行数预算通过`、`Tests N passed` 里 **N ≥ 400**。
-- [ ] 任何一步红：**回到对应任务修，不许关规则、不许加 `--no-verify`、不许把 `--max-warnings=0` 改掉**。红文件怀疑是本机 dev 抢临时目录时，按文件单跑复核：`corepack pnpm vitest run <那个文件> --maxWorkers=4`。
+- [x] 期望：`VERIFY_EXIT=0`（`package.json:24` 的 verify 串最后一步才 echo 它，出现即全链绿）、`VERIFY_PIPESTATUS=0`、`prettier . --check` 段无「[warn]」、五个 tsc 项目无诊断、`eslint . --max-warnings=0` 无告警、`边界检查通过`、`行数预算通过`、`Tests N passed` 里 **N ≥ 400**。
+  > 实况：本波取码用 `corepack pnpm verify > 日志 2>&1; echo "VERIFY_EXIT=$?"`（不经管道，比 `PIPESTATUS` 更硬），链尾自印与 shell 两侧各一道 `VERIFY_EXIT=0`；`tee` 版另跑了一遍交叉核对。
+- [x] 任何一步红：**回到对应任务修，不许关规则、不许加 `--no-verify`、不许把 `--max-warnings=0` 改掉**。红文件怀疑是本机 dev 抢临时目录时，按文件单跑复核：`corepack pnpm vitest run <那个文件> --maxWorkers=4`。
+  > 实况：唯一一次撞红是我自己的 `scratch/` 探针被 `eslint .` 检查（flat config 不吃 `.gitignore`），处置只改探针、没动门禁 —— 详见报告的「门禁插曲」。
 
-- [ ] **Step 2：契约变更表自检（spec §13 / 计划共头「契约变更总表」波 1 列）**
+- [x] **Step 2：契约变更表自检（spec §13 / 计划共头「契约变更总表」波 1 列）**
 
 ```bash
 node -e 'const s=require("fs").readFileSync("packages/contracts/src/ipc.ts","utf8");const b=s.slice(s.indexOf("IPC_CHANNELS"),s.indexOf("} as const"));console.log("IPC键数="+(b.match(/:\s*"[a-z-]+:/g)||[]).length)'
@@ -3871,7 +3873,7 @@ node -e 'const s=require("fs").readFileSync("apps/desktop/src/renderer/src/store
 | `SessionMeta` / `BookStage` 字段 | 6 / 2 | 6 / 2（波 2 才加 `profileId?`） | |
 | `book.json` `schemaVersion` | 1 | 1（本波不动盘上形状） | |
 
-- [ ] **Step 3：用例数对账（353 → ≥400）**
+- [x] **Step 3：用例数对账（353 → ≥400）**
 
 从日志抄 `Test Files` 与 `Tests` 两行（基线：`353 用例 / 34 文件`，spec §0 末行）。各任务新增量的**估算**（只用于核对方向，落账以日志为准）：
 
@@ -3887,10 +3889,10 @@ node -e 'const s=require("fs").readFileSync("apps/desktop/src/renderer/src/store
 | Task 9（文案表 + 切档四态 + 反查） | 12 |
 | 合计 | ≈98 ⇒ 约 451 |
 
-- [ ] 若 `Tests` 落在 353–400 之间：说明上面某些「应该写的矩阵/反向用例」被省了。**按缺口回到对应任务补**（最常被省的是 Task 6 的越界与合成族、Task 5 的规则 4/5/6/8），别在报告里把 400 改小。
-- [ ] 记录最终数字与文件数到报告表头。
+- [x] 若 `Tests` 落在 353–400 之间：说明上面某些「应该写的矩阵/反向用例」被省了。**按缺口回到对应任务补**（最常被省的是 Task 6 的越界与合成族、Task 5 的规则 4/5/6/8），别在报告里把 400 改小。
+- [x] 记录最终数字与文件数到报告表头。
 
-- [ ] **Step 4：变异台账复核（评审者自己跑，不采信实现者转录）**
+- [x] **Step 4：变异台账复核（评审者自己跑，不采信实现者转录）**
 
 波 1 归属的五条（`spec §15` / 计划共头「变异归属」）：M1（Task 5）、M2（Task 4）、M3（Task 5）、M4（Task 6）、M12（Task 9）。每条按下面两步走，并把**转红的断言行原文**贴进台账：
 
@@ -3905,9 +3907,9 @@ node -e 'const s=require("fs").readFileSync("apps/desktop/src/renderer/src/store
 | M4 | `resolveHotkey` 顶部删掉 `if (focus.isComposing) return { action: "none" };` | `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/hotkeys.test.ts --maxWorkers=4` | |
 | M12 | 见 Task 9 Step 10（tsc 探针 + 改表值）；**并如实记录「模板层三元链回来了也不会红」** | `corepack pnpm tsc --noEmit -p apps/desktop/tsconfig.web.json` / `corepack pnpm vitest run packages/contracts/test/contract.test.ts --maxWorkers=4` | |
 
-- [ ] 五条全部有「红证据 + 改回绿证据」才算台账闭合；缺一条就回任务补，不进冒烟。
+- [x] 五条全部有「红证据 + 改回绿证据」才算台账闭合；缺一条就回任务补，不进冒烟。
 
-- [ ] **Step 5：真机冒烟（控制方亲自操作，不委托子代理）——spec §16 第 1–4 项**
+- [x] **Step 5：真机冒烟（控制方亲自操作，不委托子代理）——spec §16 第 1–4 项**
 
 准备：`corepack pnpm build` 后 `corepack pnpm --filter @mochen/desktop exec electron .`；测试用书放在临时书目录（`scratch/wave1-book`，`book.json` 用现仓测试同款形状：`stages: [{ id: "draft", name: "正文" }]`、`permissionMode: "read-only"`），**不拿任何真人书稿当对象**。密钥纪律：`baseURL` / 模型名 / 密钥**只在设置对话框里输入**，落 `secrets.enc`；命令行、日志、报告、commit 里都不许出现密钥串；本轮用过的密钥串在报告里记一句「已提醒轮换」。
 
@@ -3917,26 +3919,33 @@ node -e 'const s=require("fs").readFileSync("apps/desktop/src/renderer/src/store
 2. **打断后重启的「继续」**：发一轮 → 流式进行中按 Esc 打断 → 关闭应用 → 重开 → 同一章。
    - 期望：残字仍在（`interrupted` 事件落盘），状态行是打断口径，「继续」按钮在位；点下去真的续写且不重复已流出的句子。
 3. **键位逐项实操（spec §16 第 3 项，逐条打勾；本条只写操作，不写任何密钥）**：
-   - [ ] `Enter` 提交、`Shift+Enter` 与 `Ctrl+J` 换行；
-   - [ ] 运行中 `Tab` 把 composer 文本变成排队（状态行出现「排队 1 条」），本轮结束后**只自动发队首一条**；
-   - [ ] 队列非空时按 Esc 打断 ⇒ 队列**不清**，`turn-end{interrupted}` 后照样发出下一条；
+   - [x] `Enter` 提交、`Shift+Enter` 与 `Ctrl+J` 换行；
+   - [x] 运行中 `Tab` 把 composer 文本变成排队（状态行出现「排队 1 条」），本轮结束后**只自动发队首一条**；
+   > 实况：Tab 入队与「只自动发队首一条」都真机在案；「排队 1 条」徽标只在 N=2 的状态行读到（真按 Tab 那一次在 drain 之后才读）。
+   - [x] 队列非空时按 Esc 打断 ⇒ 队列**不清**，`turn-end{interrupted}` 后照样发出下一条；
    - [ ] 排队到第 6 条 ⇒ 状态条出现「排队指令最多 5 条，先等这一轮结束。」；
+   > 未勾原因：上限文案与 `queued:5` 是**直调 store** 造出来的，没走真 Tab 键盘路径，屏上徽标也没抓到（`badges:[]`）。留给波 1.5 复跑。
    - [ ] `y` / `a` / `p` / `d` 在聚焦卡上各验一次（`d` 只把焦点移进说明框、**不提交**；说明为空时点「拒绝并说明」不生效）；
-   - [ ] `expired` 组的卡上四键全无反应（`proposalIsPending` 为假）；
-   - [ ] `Ctrl+PageDown` / `Ctrl+PageUp` 切标签，`Ctrl+1..9` 在 `n > 标签数` 时无反应（不是切到最后一个）；
-   - [ ] `Ctrl+B` 折叠/展开左栏；`Ctrl+,` 打开模型设置；
-   - [ ] `/` 开面板：↑↓ 移动、Enter 执行、Esc 关闭且**不打断进行中的一轮**；面板里输入 `/s` 只剩 `status`（`stage` 不出现）；
-   - [ ] `Esc` 三态各验一次（总 spec §6.2）：说明框有字 ⇒ 保住字并失焦；聚焦待审卡 ⇒ 取消该卡；无卡 ⇒ 打断本轮；
+   > 未勾原因：`y` / `p` / `d` 三格有盘上或焦点证据；`a`（批准本会话同类）键事件发出过，但主会话 JSONL 里**没有** `decision:"accept-session"` ⇒ 四键不齐，整格不勾。
+   - [x] `expired` 组的卡上四键全无反应（`proposalIsPending` 为假）；
+   - [x] `Ctrl+PageDown` / `Ctrl+PageUp` 切标签，`Ctrl+1..9` 在 `n > 标签数` 时无反应（不是切到最后一个）；
+   - [x] `Ctrl+B` 折叠/展开左栏；`Ctrl+,` 打开模型设置；
+   > 实况：两个键都到位；顺带撞出「设置浮层开着、composer 聚焦时 Esc 不收浮层」，记进报告的「未做 / 留底」。
+   - [x] `/` 开面板：↑↓ 移动、Enter 执行、Esc 关闭且**不打断进行中的一轮**；面板里输入 `/s` 只剩 `status`（`stage` 不出现）；
+   - [x] `Esc` 三态各验一次（总 spec §6.2）：说明框有字 ⇒ 保住字并失焦；聚焦待审卡 ⇒ 取消该卡；无卡 ⇒ 打断本轮；
    - [ ] **中文输入法候选框回车不提交**（必实跑）：在 composer 里打拼音、候选框未上屏时按回车 ⇒ 只上屏文字、这一轮不发出。
+   > 未勾原因：只做到**合成级** `isComposing` 闸门（items 169→169、文本留在框、无新 user-message）+ 纯 Enter 阳性对照；**真 OS 拼音候选框回车仍欠一次人肉按键**（spec 标了必实跑，所以不自证通过）。
 4. **权限档（spec §16 第 4 项）**：
-   - [ ] 头部标签可点，弹层三档文案与 `PERMISSION_LABELS` 逐字一致（只读参考 / 可改当前章 / 全开），当前档有「（当前）」；
-   - [ ] 只读档点批准 ⇒ 中栏出现 `packages/agent-runtime/test/permission.test.ts:47-48` 钉死的那两句（「当前权限档为「只读参考」，提案不会写入磁盘。…」），卡仍待审、磁盘未动 —— **UI 落点与拒绝文案对得上**；
-   - [ ] 切到「可改当前章」⇒ 状态条「权限档已切到「可改当前章」，下一次审批就用这一档判断。」，当场批准本章那张 pending 卡 ⇒ 真落盘 + 备份目录新增；
-   - [ ] **切档后仍留 pending 的可批准**（上一条已验）；**已拒绝的不回来**：拒绝一条 → 切到「全开」→ 该卡依旧是「已拒绝」，不会变回待审；
+   - [x] 头部标签可点，弹层三档文案与 `PERMISSION_LABELS` 逐字一致（只读参考 / 可改当前章 / 全开），当前档有「（当前）」；
+   - [x] 只读档点批准 ⇒ 中栏出现 `packages/agent-runtime/test/permission.test.ts:47-48` 钉死的那两句（「当前权限档为「只读参考」，提案不会写入磁盘。…」），卡仍待审、磁盘未动 —— **UI 落点与拒绝文案对得上**；
+   - [x] 切到「可改当前章」⇒ 状态条「权限档已切到「可改当前章」，下一次审批就用这一档判断。」，当场批准本章那张 pending 卡 ⇒ 真落盘 + 备份目录新增；
+   > 实况：第一次切档被 P1（`An object could not be cloned.`）挡住，修于 `ca67ec3` 之后本条才真绿。
+   - [x] **切档后仍留 pending 的可批准**（上一条已验）；**已拒绝的不回来**：拒绝一条 → 切到「全开」→ 该卡依旧是「已拒绝」，不会变回待审；
    - [ ] 没开书时切档 ⇒ 「还没打开作品目录，权限档改不了。」（弹层按钮 disabled，标签不变）；
-   - [ ] `/permissions 随意改` ⇒ 「没有这一档：「随意改」。可选：只读参考 / 可改当前章 / 全开。」且不写盘。
+   > 未勾原因：提示句与三档 disabled 在案，但**标签本身**没 disabled 且文案捏造成「只读参考」（`chipDisabled:false`）——这是缺陷不是缺失，故不勾。
+   - [x] `/permissions 随意改` ⇒ 「没有这一档：「随意改」。可选：只读参考 / 可改当前章 / 全开。」且不写盘。
 
-- [ ] **Step 6：写台账文档**
+- [x] **Step 6：写台账文档**
 
 Create `docs/superpowers/plans/2026-10-02-plan3-wave1-report.md`，骨架如下（冒号处填观测到的事实，**不许填「应该没问题」**）：
 
@@ -3968,7 +3977,7 @@ Create `docs/superpowers/plans/2026-10-02-plan3-wave1-report.md`，骨架如下�
 
 - [ ] **Step 7：勾计划文件的复选框 + 提交**
 
-- [ ] 把装配后计划文件里波 1（Task 1–10）**确实验证过**的 `- [ ]` 改成 `- [x]`；变异与冒烟里没做完的留着不勾，并在旁边一行说明为什么（照 Plan 2 波 B 的做法）。
+- [x] 把装配后计划文件里波 1（Task 1–10）**确实验证过**的 `- [ ]` 改成 `- [x]`；变异与冒烟里没做完的留着不勾，并在旁边一行说明为什么（照 Plan 2 波 B 的做法）。
 
 ```bash
 git add docs/superpowers/plans/2026-10-02-plan3-wave1-report.md docs/superpowers/plans/2026-10-02-plan3-interaction-and-assembly.md
@@ -3977,12 +3986,15 @@ git commit -m "docs(plan3): 波 1 全链门禁、变异台账与真机冒烟记�
 
 - [ ] **Step 8：波 1 收尾自检（进波 2 之前必须全部为真）**
 
-- [ ] `VERIFY_EXIT=0` 与 `VERIFY_PIPESTATUS=0` 都在日志/终端里出现过，不是「上次绿过」。
-- [ ] 五条变异的红/绿两段证据都贴在台账里。
+- [x] `VERIFY_EXIT=0` 与 `VERIFY_PIPESTATUS=0` 都在日志/终端里出现过，不是「上次绿过」。
+- [x] 五条变异的红/绿两段证据都贴在台账里。
 - [ ] §16 第 1–4 项逐条有界面观测；第 3 项的候选框回车那条**真的实跑过**（这是这类应用最刺眼的错，比少一个快捷键严重）。
-- [ ] 全程没有新增 npm 依赖、没有第 6 个工具、`scanBook` 未动、`book.json` 的 `schemaVersion` 仍是 1。
-- [ ] `git status` 干净；`.mochen/` 与临时书目录未被 `git add`（`scratch/` 在忽略列表里，跑一下 `git status --porcelain` 核对）。
+  > 未勾原因：第 3 项候选框回车只到合成级，第 4 项的「全开档下批准」与「无书标签 disabled」两格未闭合 ⇒ 单项证据充分，但整句「逐条有界面观测 + 候选框真的实跑」还不能打勾。
+- [x] 全程没有新增 npm 依赖、没有第 6 个工具、`scanBook` 未动、`book.json` 的 `schemaVersion` 仍是 1。
+  > 实测：`git diff --name-only 35eed3a..HEAD` 里没有 `pnpm-lock.yaml`、没有 `package.json`、没有 `packages/fs-store`；临时书 `book.json` 回读 `schemaVersion: 1`。
+- [x] `git status` 干净；`.mochen/` 与临时书目录未被 `git add`（`scratch/` 在忽略列表里，跑一下 `git status --porcelain` 核对）。
 - [ ] 模型密钥没有出现在命令行、日志、报告、commit 里（`git log -p -1 | grep -i "sk-\|authorization"` 必须无输出）。
+  > 未勾原因（不粉饰）：这条**按字面**跑不出「无输出」——本次 commit 的改动行里没有任何密钥材料（新增文本刻意不写那两个前缀字面串；两道门禁日志里 `sk-` / 鉴权头字样各计数 0，已当场回读），但 `git log -p -1` 会把本行这条**计划原文**当上下文带出来，于是 grep 命中它自己。⇒ 实质达标、字面不达标，勾留着，报告里如实记这一条。
 
 ---
 
