@@ -41,6 +41,8 @@
 2. 三个创作阶段之间切换时，智能体档案与上下文包随之切换。
 3. 智能体能理解当前作品上下文，产出人物/剧情/大纲/正文的修改建议。
 4. 每一条建议都以 diff 呈现，由人逐条审批后才写真盘；不批准就不写。
+   （2026-10-03 起有唯一例外：**只在「全开」档**可开「替我审批」，由那次人肉授权代点，
+   卡片与备份一条不省，见 §6。）
 5. 浏览素材库与技能库不打断当前文稿与当前对话。
 6. 章节以独立标签切换，每个标签绑定自己的会话线程。
 
@@ -169,7 +171,21 @@ frontmatter 声明 `name/description/stage/appliesTo/tools`。
 |---|---|---|---|
 | 只读参考 | 全部 | 允许 | 无（一律拒绝并说明原因） |
 | 可改当前章 | 全部 | 允许 | 仅当前章文件 |
-| 全开 | 全部 | 允许 | 章/大纲/人物/剧情/素材（仍逐条审批） |
+| 全开 | 全部 | 允许 | 章/大纲/人物/剧情/素材（默认逐条审批；**只有本档可开「替我审批」**，见下） |
+
+> **2026-10-03 裁定（用户批准，推翻本节初稿隐含的「三档一律逐条」）**：
+> 「替我审批」是**一个开关，只作用在「全开」档**——`read-only` 与 `chapter-write` 两档不提供这个开关，
+> 提案永远逐条等人。开关本身即一次人肉授权：开了它，卡片、diff、理由、
+> `.mochen/changes/<时间戳>/` 备份与指纹比对**一条都不省**，改的只是「谁点那一下」。
+> 参照实现（deepwrite 本地克隆，行号当场回读）：`AgentApprovalMode = "request-approval" | "auto-approve"`
+> （`apps/desktop/src/renderer/src/types/conversation.ts:15`）在 auto-approve 下**仍生成同一张提案卡、
+> 走同一条 commit lane**（`apps/desktop/src/renderer/src/utils/agentEditProposalRevisionLane.ts:327-334`：
+> 只有 `pending.approvalMode === "auto-approve"` 才允许自动排干，手动提案「deliberately remain pending」），
+> 卡片文案随之切换（`components/LongProposalReview.vue:260,263,295`「自动预览中 / 待自动保存」vs「正在预览 / 待审阅」）。
+> **两处明确不照抄**：① 它出厂即 `auto-approve`（`packages/contracts/src/general-settings.ts:48-51`），
+> 并在 v1→v2 迁移时把老安装静默刷成 auto-approve（`apps/desktop/src/main/general-settings-store.ts:102-107`）——
+> 我们**默认 `read-only`、开关默认关、且永不批量改用户档位**；
+> ② 它的「跨阶段操作自动审批」（同文件 `:28`，默认 true）不引进，与「可改当前章」的边界直接冲突。
 
 审批动作（照 `approval_overlay.rs` 语义）：
 - `y` 仅这一次批准
