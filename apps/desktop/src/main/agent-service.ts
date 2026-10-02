@@ -12,6 +12,7 @@ import {
   type DocRef,
   type EditProposal,
   type ProposalDecision,
+  type SessionLoadResult,
   type StartTurnInput
 } from "@mochen/contracts";
 import {
@@ -78,6 +79,8 @@ export interface AgentService {
   interrupt(turnId: string): Promise<boolean>;
   decide(input: DecideInput): Promise<DecisionResult>;
   diffOf(proposalId: string): string;
+  /** 只读回放：读这条线程落盘的 JSONL；no-book/no-session 返回 found:false，首行坏/超长抛中文。 */
+  loadSession(threadKey: string): Promise<SessionLoadResult>;
   dispose(): void;
 }
 
@@ -498,6 +501,33 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
 
     diffOf(proposalId: string): string {
       return diffs.get(proposalId) ?? "";
+    },
+
+    async loadSession(threadKey: string): Promise<SessionLoadResult> {
+      // 入参守卫与 startTurnInputSchema 同口径（spec §4.1，裁定 n 延续）：越界抛单句中文，
+      // 非字符串（畸形 preload/被改写的载荷）归一成空串走 unbound，绝不崩在 .trim() 上。
+      const raw = typeof threadKey === "string" ? threadKey : "";
+      if (raw.length > 200) throw new Error("会话线程标识过长（最多 200 字），历史读不回来。");
+      const key = raw.trim() === "" ? UNBOUND : raw.trim();
+      const current = deps.book.current();
+      if (current === null)
+        return { found: false, reason: "no-book", message: "还没打开作品目录，历史读不回来。" };
+      // 先查缓存：threads 只在拿到真实相对路径时才写入（threadFor 同口径），不存在「缓存了查不到的线程」。
+      const cached = threads.get(key);
+      const rel = cached ?? (await findLatestSession(current.root, key));
+      if (rel === null)
+        return { found: false, reason: "no-session", message: "这本书里没有这条线程的历史。" };
+      // 读到即缓存，与 threadFor 用同一个 Map：随后这一章第一次发轮会 append 到同一份 JSONL。
+      if (cached === undefined) threads.set(key, rel);
+      // 首行坏：readSession 直接抛中文（rollout.ts:77-80 原文），这里不吞、不转 found:false。
+      const stored = await readSession(current.root, rel);
+      return {
+        found: true,
+        relPath: rel,
+        meta: stored.meta,
+        events: stored.events,
+        droppedLines: stored.droppedLines
+      };
     },
 
     dispose(): void {

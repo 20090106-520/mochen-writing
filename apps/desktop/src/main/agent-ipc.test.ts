@@ -61,6 +61,14 @@ function stubService(seen: unknown[]): AgentService {
       seen.push(proposalId);
       return `diff:${proposalId}`;
     },
+    async loadSession(threadKey: string) {
+      seen.push(threadKey);
+      return {
+        found: false as const,
+        reason: "no-session",
+        message: "这本书里没有这条线程的历史。"
+      };
+    },
     dispose() {
       seen.push("dispose");
     }
@@ -87,14 +95,15 @@ function stubSettings(seen: unknown[]): ProviderSettings {
 }
 
 describe("registerAgentIpc", () => {
-  it("注册四条 agent 通道，一条都不漏也不多余", () => {
+  it("注册五条 agent 通道，一条都不漏也不多余", () => {
     const { order, handle } = registry();
     registerAgentIpc(handle, stubService([]));
     expect(order).toEqual([
       IPC_CHANNELS.agentStartTurn,
       IPC_CHANNELS.agentInterrupt,
       IPC_CHANNELS.agentDecide,
-      IPC_CHANNELS.agentDiff
+      IPC_CHANNELS.agentDiff,
+      IPC_CHANNELS.agentLoadSession
     ]);
   });
 
@@ -117,7 +126,12 @@ describe("registerAgentIpc", () => {
       message: ""
     });
     expect(await fire(fns, IPC_CHANNELS.agentDiff, "p1")).toBe("diff:p1");
-    expect(seen).toEqual([startTurnInput, "t1", decideInput, "p1"]);
+    expect(await fire(fns, IPC_CHANNELS.agentLoadSession, "chapters/01.md")).toEqual({
+      found: false,
+      reason: "no-session",
+      message: "这本书里没有这条线程的历史。"
+    });
+    expect(seen).toEqual([startTurnInput, "t1", decideInput, "p1", "chapters/01.md"]);
   });
 });
 
