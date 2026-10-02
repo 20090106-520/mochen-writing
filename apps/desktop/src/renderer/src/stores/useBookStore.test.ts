@@ -307,12 +307,25 @@ describe("useBookStore", () => {
   it("档位菜单开关只搬标志位，不碰 meta 也不写盘", async () => {
     const store = useBookStore();
     await store.openBook("/book");
-    store.openPermissionMenu("全开");
+    store.openPermissionMenu();
     expect(store.permissionMenuOpen).toBe(true);
-    expect(store.permissionPreset).toBe("全开");
     store.closePermissionMenu();
     expect(store.permissionMenuOpen).toBe(false);
-    expect(store.permissionPreset).toBe("");
+    expect(saveMeta).not.toHaveBeenCalled();
+  });
+
+  it("togglePermissionMenu 开→关→开三步只搬 permissionMenuOpen，绝不写 notice", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    const noticeBefore = store.notice;
+    expect(store.permissionMenuOpen).toBe(false);
+    store.togglePermissionMenu();
+    expect(store.permissionMenuOpen).toBe(true);
+    store.togglePermissionMenu();
+    expect(store.permissionMenuOpen).toBe(false);
+    store.togglePermissionMenu();
+    expect(store.permissionMenuOpen).toBe(true);
+    expect(store.notice).toBe(noticeBefore);
     expect(saveMeta).not.toHaveBeenCalled();
   });
 
@@ -375,5 +388,33 @@ describe("useBookStore", () => {
     // 先要真值（这一对写坏与否都过，只作前提），再要视图值与它一致——红的只有后一条。
     expect(store.meta?.permissionMode).toBe("full-access");
     expect(viewMode.value).toBe("full-access");
+  });
+
+  it("切档在途时 metaSaving 为真，resolve 后落回 false（与右栏 saving 无关）", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    store.saving = true; // 右栏正在存文稿：切档忙态不该被它带起来，也不该被它压住。
+    let release = () => {};
+    saveMeta.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          release = () => resolve();
+        })
+    );
+    const pending = store.setPermissionMode("full-access");
+    expect(store.metaSaving).toBe(true);
+    release();
+    await pending;
+    expect(store.metaSaving).toBe(false);
+    expect(store.meta?.permissionMode).toBe("full-access");
+  });
+
+  it("切档被主进程拒绝：metaSaving 落回 false，绝不卡住", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    saveMeta.mockRejectedValueOnce(new Error("无法写入 book.json：文件正被占用"));
+    await store.setPermissionMode("full-access");
+    expect(store.metaSaving).toBe(false);
+    expect(store.meta?.permissionMode).toBe("read-only");
   });
 });

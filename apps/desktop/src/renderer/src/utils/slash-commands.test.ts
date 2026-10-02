@@ -6,7 +6,8 @@ import {
   filterCommands,
   matchPermissionMode,
   parseSlashInput,
-  paletteOwnsKey
+  paletteOwnsKey,
+  popoverOwnsKey
 } from "./slash-commands";
 
 const NO_GATE = { hasBook: true, turnRunning: false };
@@ -147,5 +148,19 @@ describe("slash-commands · 中文档位名反查（唯一来源仍是 PERMISSIO
     expect(matchPermissionMode("随意改")).toBeNull();
     expect(matchPermissionMode("read-only")).toBeNull();
     expect(matchPermissionMode("")).toBeNull();
+  });
+});
+
+describe("slash-commands · 弹层自处理的键（权限档 popover）", () => {
+  it("只有裸 Esc 归弹层：面板的其余三键与普通字符都不接", () => {
+    expect(popoverOwnsKey("Escape", false)).toBe(true);
+    for (const key of ["ArrowUp", "ArrowDown", "Enter", "a", "/"]) {
+      expect(popoverOwnsKey(key, false)).toBe(false);
+    }
+  });
+
+  it("输入法合成期间一个都不接（M4/护栏 1 同口径）", () => {
+    expect(popoverOwnsKey("Escape", true)).toBe(false);
+    expect(popoverOwnsKey("Enter", true)).toBe(false);
   });
 });

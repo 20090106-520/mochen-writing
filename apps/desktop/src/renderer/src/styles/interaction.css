@@ -122,11 +122,6 @@
   font-weight: 600;
 }
 
-.permission-option.is-preset {
-  outline: 1px solid var(--focus);
-  outline-offset: -2px;
-}
-
 .permission-hint {
   margin: 6px 9px 2px;
   color: var(--text-soft);

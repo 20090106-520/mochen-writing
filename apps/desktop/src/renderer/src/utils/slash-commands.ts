@@ -73,6 +73,16 @@ export function paletteOwnsKey(key: string, isComposing: boolean): boolean {
   return key === "ArrowUp" || key === "ArrowDown" || key === "Enter" || key === "Escape";
 }
 
+/**
+ * 权限档 popover 自己吃的键：只有**裸 Esc** 归弹层（关掉它，不切档），其余键一律放行给上层。
+ * 合成期间一律不接——与 paletteOwnsKey / utils/hotkeys.ts 护栏 1 同口径；
+ * 带修饰的 Esc 属于 OS 或别人，仍由全局 resolveHotkey 的 noMods 判据裁决，这里不复制那条。
+ */
+export function popoverOwnsKey(key: string, isComposing: boolean): boolean {
+  if (isComposing) return false;
+  return key === "Escape";
+}
+
 /** 中文档位名反查 PermissionMode：查不到返回 null，由调用处给一句中文提示（spec §6）。 */
 export function matchPermissionMode(text: string): PermissionMode | null {
   const trimmed = text.trim();

@@ -162,7 +162,6 @@ describe("useAgentStore · / 面板动作", () => {
     saveMeta.mockClear();
     store().runSlashCommand("permissions", "");
     expect(bookStore.permissionMenuOpen).toBe(true);
-    expect(bookStore.permissionPreset).toBe("");
     expect(saveMeta).not.toHaveBeenCalled();
     bookStore.closePermissionMenu();
     expect(bookStore.permissionMenuOpen).toBe(false);

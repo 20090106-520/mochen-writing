@@ -40,8 +40,8 @@ export const useBookStore = defineStore("book", {
     rightPaneMode: "manuscript" as "manuscript" | "browse",
     /** 权限档菜单是否展开；`/permissions` 与头部按钮共用的唯一开关。 */
     permissionMenuOpen: false,
-    /** 从 `/permissions <档位名>` 带进来的预选文案，菜单消费；空串表示没有预选。 */
-    permissionPreset: "",
+    /** 切换权限档是否正在落盘——只管这条通路，与右栏文稿保存 `saving` 是两件事。 */
+    metaSaving: false,
     /** 切换文稿标签前先存好当前草稿，切回来才不被盘上内容覆盖。 */
     draftsByPath: {} as Record<string, DocState>
   }),
@@ -222,10 +222,18 @@ export const useBookStore = defineStore("book", {
       if (this.activeDocTab) this.draftsByPath[this.activeDocTab] = this.snapshot();
     },
 
-    /** 只搬标志位与预选文案：档位真正落盘在 setPermissionMode，这里绝不写 meta。 */
-    openPermissionMenu(preset = ""): void {
-      this.permissionPreset = preset;
+    /** 只搬标志位：档位真正落盘在 setPermissionMode，这里绝不写 meta。 */
+    openPermissionMenu(): void {
       this.permissionMenuOpen = true;
+    },
+
+    /**
+     * chip 的唯一开关：开着就关、关着就开。关闭走既有 closePermissionMenu()，
+     * 让「收起弹层」这件事只有一处真身，也给用户一条「不切档就关掉」的通路。
+     */
+    togglePermissionMenu(): void {
+      if (this.permissionMenuOpen) this.closePermissionMenu();
+      else this.openPermissionMenu();
     },
 
     /**
@@ -242,12 +250,17 @@ export const useBookStore = defineStore("book", {
         return;
       }
       const next: BookMeta = { ...this.meta, permissionMode: mode };
+      // metaSaving 只圈住这条落盘通路（右栏的 saving 与之无关）：进出各写一次，
+      // finally 让成功、失败、连点都不把弹层灰着——reject 分支同样必须落回 false。
+      this.metaSaving = true;
       try {
         await window.mochen.saveMeta(next);
       } catch (err) {
         const reason = err instanceof Error && err.message !== "" ? err.message : String(err);
         this.notice = `权限档没改过来：${reason}`;
         return;
+      } finally {
+        this.metaSaving = false;
       }
       this.meta = next;
       // 先写后回读（9625c52 的同类坑）：赋进 pinia state 的对象要被 Vue 包成响应式代理，
@@ -259,7 +272,6 @@ export const useBookStore = defineStore("book", {
 
     closePermissionMenu(): void {
       this.permissionMenuOpen = false;
-      this.permissionPreset = "";
     }
   }
 });

@@ -535,10 +535,9 @@ export const useAgentStore = defineStore("agent", {
           useLayoutStore().showSettings("general");
           return;
         case "permissions": {
-          const bookStore = useBookStore();
           // 不带档名 ⇒ 只开菜单（popover 里逐档可点）；带档名 ⇒ 查表直接切档落盘（spec §6）。
           if (argument === "") {
-            bookStore.openPermissionMenu("");
+            book.openPermissionMenu();
             return;
           }
           const mode = matchPermissionMode(argument);
@@ -547,7 +546,7 @@ export const useAgentStore = defineStore("agent", {
             this.notice = `没有这一档：「${argument}」。可选：${PERMISSION_MODES.map((item) => PERMISSION_LABELS[item]).join(" / ")}。`;
             return;
           }
-          void bookStore.setPermissionMode(mode);
+          void book.setPermissionMode(mode);
           return;
         }
         case "status": {

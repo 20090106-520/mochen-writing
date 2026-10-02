@@ -1,6 +1,7 @@
-<!-- 权限档 popover：档位名全部来自 PERMISSION_LABELS，本文件不出现第二份中文档名。 -->
+<!-- 权限档 popover：档位名全部来自 PERMISSION_LABELS，本文件不出现第二份中文档名。
+     判定（哪个键归弹层、忙碌态、当前档）全在 stores/utils——本仓没有组件测试，这里只接线。 -->
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 import {
   DEFAULT_PERMISSION_MODE,
   PERMISSION_LABELS,
@@ -8,38 +9,51 @@ import {
   type PermissionMode
 } from "@mochen/contracts";
 import { useBookStore } from "../stores/useBookStore";
-import { matchPermissionMode } from "../utils/slash-commands";
+import { popoverOwnsKey } from "../utils/slash-commands";
 
 const book = useBookStore();
 const emit = defineEmits<{ close: [] }>();
+const menuEl = ref<HTMLElement | null>(null);
 
 // 判定全在 stores/utils（本仓没有组件测试）：这里只把表画出来、把点击接到唯一动作上。
 const current = computed<PermissionMode>(
   () => book.meta?.permissionMode ?? DEFAULT_PERMISSION_MODE
 );
-const presetMode = computed<PermissionMode | null>(() =>
-  matchPermissionMode(book.permissionPreset)
-);
-const busy = computed(() => book.saving || book.meta === null);
+const busy = computed(() => book.metaSaving || book.meta === null);
 
 async function choose(mode: PermissionMode): Promise<void> {
   if (busy.value) return;
   await book.setPermissionMode(mode);
   emit("close");
 }
+
+// 只有裸 Esc 归弹层（关掉它，不切档）；键的判定走 popoverOwnsKey 纯函数，模板里不写裸比较。
+function onKeydown(event: KeyboardEvent): void {
+  if (!popoverOwnsKey(event.key, event.isComposing === true)) return;
+  event.stopPropagation();
+  emit("close");
+}
+
+onMounted(() => {
+  void nextTick(() => menuEl.value?.focus());
+});
 </script>
 
 <template>
-  <div class="permission-menu" role="menu" aria-label="权限档">
+  <div
+    ref="menuEl"
+    class="permission-menu"
+    role="menu"
+    aria-label="权限档"
+    tabindex="-1"
+    @keydown="onKeydown"
+  >
     <button
       v-for="mode in PERMISSION_MODES"
       :key="mode"
       type="button"
       role="menuitem"
-      :class="[
-        'permission-option',
-        { 'is-current': mode === current, 'is-preset': mode === presetMode }
-      ]"
+      :class="['permission-option', { 'is-current': mode === current }]"
       :disabled="busy"
       @click="choose(mode)"
     >
@@ -48,7 +62,9 @@ async function choose(mode: PermissionMode): Promise<void> {
     </button>
     <p class="permission-hint">
       {{
-        book.meta ? "切档只改之后的判断，不复活已经被拒绝或取消的提案。" : "先打开作品才能切档。"
+        book.meta
+          ? "切档只改之后的判断，不复活已经被拒绝或取消的提案。"
+          : "还没打开作品目录，权限档改不了。"
       }}
     </p>
     <p class="permission-hint">

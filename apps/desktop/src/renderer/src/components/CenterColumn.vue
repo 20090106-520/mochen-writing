@@ -176,9 +176,9 @@ onBeforeUnmount(() => {
           <button
             class="permission-chip is-button"
             type="button"
-            :disabled="book.permissionMenuOpen"
+            :disabled="book.metaSaving"
             :aria-expanded="book.permissionMenuOpen"
-            @click="book.openPermissionMenu('')"
+            @click="book.togglePermissionMenu()"
           >
             {{ permissionLabel }}
           </button>
