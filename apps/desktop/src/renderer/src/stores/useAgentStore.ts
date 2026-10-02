@@ -25,6 +25,12 @@ export const UNBOUND = "unbound";
 /** 「继续」按钮发出的固定指令：残字已随 interrupted 事件进历史，模型接着写而不是重来。 */
 const CONTINUE_TEXT = "接着上一轮未写完的地方继续，不要重复已经写出的内容。";
 
+/** 运行中 Tab 排队的上限（spec §5.1）；满则拒入队并写中文。 */
+export const QUEUED_MAX = 5;
+
+/** 排队满额的中文提示（spec §5.1 定稿整句；数字取自 QUEUED_MAX，不留第二份「5」）。 */
+const QUEUED_FULL_NOTICE = `排队指令最多 ${QUEUED_MAX} 条，先等这一轮结束。`;
+
 export interface ThreadView {
   turnId: string | null;
   running: boolean;
@@ -121,13 +127,16 @@ function malformedPush(raw: unknown): string {
   }
 }
 
-/** 状态行文案（spec §7 的运行态、§6.3 的打断残留、§9 第 4 行的中断原因）。 */
+/** 状态行文案（spec §7 的运行态、§6.3 的打断残留、§9 第 4 行的中断原因、§5.1 的排队数）。 */
 export function composeStatusLine(
   thread: ThreadView | undefined,
   seconds: number,
-  pending: number
+  pending: number,
+  queued: number
 ): string {
-  if (thread?.running) return `工作中 · ${seconds}s · Esc 打断`;
+  // 排队数只在运行中出现：那条队列要等这一轮结束才生效，状态行必须如实说明（spec §5.1）。
+  if (thread?.running)
+    return `工作中 · ${seconds}s · Esc 打断${queued > 0 ? ` · 排队 ${queued} 条` : ""}`;
   if (thread && thread.endedAs !== "" && thread.endedAs !== "done") {
     const head =
       thread.endedAs === "failed"
@@ -225,6 +234,16 @@ export const useAgentStore = defineStore("agent", {
       thread.streaming = { ...EMPTY_STREAM };
       thread.endedAs = outbound.status;
       if (outbound.status === "failed") thread.lastError = outbound.message;
+      // 裁定 G3 的顺序（与计划文本相反）：先自动发队首，再谈水合。规则：turn-end{interrupted}
+      // 照样自动发下一条（打断不清队，spec §5.1），一轮只发一条。
+      // 发了这一条就必须在这里收口——水合的同步前缀若在同一 tick 抢跑，历史会重放进
+      // 正要起新轮的这条线程（running 要等 turn-start 推送才置真，规则 2 此刻还挡不住）。
+      // 新轮的 turn-end 到达时规则 2 已放行，水合照常补做。
+      const next = thread.queued.shift();
+      if (next !== undefined) {
+        this.send(next);
+        return;
+      }
       // 规则2 的另一半：轮次跑完才允许补一次水合（running 时上面早退过了）。
       if (!thread.hydrated) void this.ensureHydrated(outbound.threadKey);
     },
@@ -353,6 +372,19 @@ export const useAgentStore = defineStore("agent", {
     continueTurn(): void {
       if (!this.canContinue(threadKeyFor(useBookStore().activeDocTab))) return;
       this.send(CONTINUE_TEXT);
+    },
+
+    /** 运行中按 Tab：把 composer 文本 trim 后入队，不发 IPC；满 5 条拒收并写中文（spec §5.1）。 */
+    queueText(threadKey: string, text: string): boolean {
+      const thread = this.viewOf(threadKey);
+      const value = text.trim();
+      if (value === "") return false;
+      if (thread.queued.length >= QUEUED_MAX) {
+        this.notice = QUEUED_FULL_NOTICE;
+        return false;
+      }
+      thread.queued.push(value);
+      return true;
     },
 
     /** 裁定 m1：打断的拒绝同样写成中文并返回 false，调用位（Esc/按钮）不需要再包 try。 */

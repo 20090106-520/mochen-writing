@@ -97,6 +97,23 @@ export const useBookStore = defineStore("book", {
       else Object.assign(this, EMPTY_DOC);
     },
 
+    /** Ctrl+1..9：越界返回 false 且不改状态。 */
+    activateTab(index: number): boolean {
+      const target = this.docTabs[index];
+      if (target === undefined) return false;
+      void this.openDocTab(target);
+      return true;
+    },
+
+    /** Ctrl+PageUp/Down：环形切换；无标签时不动。 */
+    cycleTab(delta: 1 | -1): void {
+      if (this.docTabs.length === 0) return;
+      const current = this.activeDocTab ? this.docTabs.indexOf(this.activeDocTab) : -1;
+      const next = (current + delta + this.docTabs.length) % this.docTabs.length;
+      const target = this.docTabs[next];
+      if (target !== undefined) void this.openDocTab(target);
+    },
+
     /** 浏览：把右栏这一格切到浏览，但绝不触碰文稿标签与草稿。 */
     browse(ref: DocRef) {
       if (!this.browseTabs.some((doc) => doc.relPath === ref.relPath)) this.browseTabs.push(ref);

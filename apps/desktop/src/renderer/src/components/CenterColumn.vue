@@ -16,7 +16,9 @@ import ComposerBox from "./ComposerBox.vue";
 import ProviderSettings from "./ProviderSettings.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { cardTurnLabel, splitProposalCards, turnAnchors } from "../utils/timeline";
+import { useGlobalHotkeys } from "../composables/useHotkeys";
 import { useBookStore } from "../stores/useBookStore";
+import { useLayoutStore } from "../stores/layoutStore";
 import {
   composeStatusLine,
   threadKeyFor,
@@ -30,7 +32,10 @@ const emit = defineEmits<{ toggleLeft: []; toggleRight: [] }>();
 
 const book = useBookStore();
 const agent = useAgentStore();
+const layout = useLayoutStore();
 const showSettings = ref(false);
+/** `/` 面板的开关是瞬时 UI 态，不进 store（计划决定 6）；Task 8 的 SlashPalette 挂这里。 */
+const paletteOpen = ref(false);
 const EMPTY_ITEMS: AgentEvent[] = [];
 const EMPTY_TAIL = { reasoning: "", message: "" };
 
@@ -67,7 +72,12 @@ watch(
   { immediate: true }
 );
 const statusLine = computed(() =>
-  composeStatusLine(thread.value, agent.seconds, agent.pendingOf(threadKey.value))
+  composeStatusLine(
+    thread.value,
+    agent.seconds,
+    agent.pendingOf(threadKey.value),
+    thread.value?.queued.length ?? 0
+  )
 );
 const ready = computed(() => book.meta !== null);
 
@@ -111,21 +121,33 @@ function decide(proposalId: string, decision: ProposalDecision, guidance: string
   void agent.decide(proposalId, decision, guidance);
 }
 
-function onGlobalEscape(event: KeyboardEvent): void {
-  if (event.key !== "Escape") return;
-  // 卡内的 Esc 已在 ProposalCard 里 stopPropagation；走到这里只剩「打断」这一义（spec §6.2）。
-  if (running.value) void agent.stop();
+/**
+ * 键位接线（spec §5）：全局 keydown 有且只有一处，就在 useGlobalHotkeys 里。
+ * 这里删掉了原先的 onGlobalEscape —— 它的「Esc = 打断」已被 resolveEscape 的三态裁决取代，
+ * 保留两处监听会变成两份 Esc 裁决（裁定 G5）。判断一律在 utils，本组件只接线。
+ */
+useGlobalHotkeys({ openPalette: () => (paletteOpen.value = true) });
+
+// Ctrl+, 的落点是 layout.currentView；App.vue 目前不渲染 settings 视图，模型设置的唯一真身
+// 是本组件的 ProviderSettings 浮层，故由这里桥接（波 2 若给 App.vue 加独立设置视图，改的是这个桥）。
+watch(
+  () => layout.currentView,
+  (view) => {
+    if (view === "settings") showSettings.value = true;
+  }
+);
+function closeSettings(): void {
+  showSettings.value = false;
+  layout.showWorkspace();
 }
 
 let timer: number | undefined;
 onMounted(() => {
   agent.startListening();
   timer = window.setInterval(() => agent.tick(), 1000);
-  document.addEventListener("keydown", onGlobalEscape);
 });
 onBeforeUnmount(() => {
   if (timer !== undefined) window.clearInterval(timer);
-  document.removeEventListener("keydown", onGlobalEscape);
 });
 </script>
 
@@ -262,6 +284,9 @@ onBeforeUnmount(() => {
       @resume="agent.continueTurn()"
     />
 
-    <ProviderSettings v-if="showSettings" @close="showSettings = false" />
+    <ProviderSettings v-if="showSettings" @close="closeSettings" />
+
+    <!-- 命令面板挂载点（Task 8）：<SlashPalette v-if="paletteOpen" … /> 挂这里，
+         开关由 useGlobalHotkeys 的 open-palette 经上面的 handlers 回调进来。 -->
   </main>
 </template>

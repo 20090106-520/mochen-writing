@@ -14,6 +14,7 @@ import {
   eventOf,
   interruptTurn,
   itemsOf,
+  loadSession,
   openChapter,
   proposal,
   proposalDiff,
@@ -272,23 +273,65 @@ describe("useAgentStore", () => {
     expect(store().seconds).toBe(0);
   });
 
-  it("状态行四态：工作中 / 断了给原因 / 待审计数 / 就绪", () => {
+  it("状态行四态 + 排队数：工作中 / 断了给原因 / 待审计数 / 就绪", () => {
     const running = { ...store().viewOf("x"), running: true };
-    expect(composeStatusLine(running, 42, 0)).toBe("工作中 · 42s · Esc 打断");
+    expect(composeStatusLine(running, 42, 0, 0)).toBe("工作中 · 42s · Esc 打断");
+    // 排队数只在运行中出现（spec §5.1：状态行用「排队 N 条」如实说明下一条什么时候才生效）。
+    expect(composeStatusLine(running, 42, 0, 2)).toBe("工作中 · 42s · Esc 打断 · 排队 2 条");
     const idle = { ...store().viewOf("y"), running: false };
-    expect(composeStatusLine(idle, 0, 3)).toBe("3 条待审");
-    expect(composeStatusLine(idle, 0, 0)).toBe("就绪");
-    expect(composeStatusLine(undefined, 0, 0)).toBe("就绪");
+    expect(composeStatusLine(idle, 0, 3, 0)).toBe("3 条待审");
+    expect(composeStatusLine(idle, 0, 0, 0)).toBe("就绪");
+    expect(composeStatusLine(undefined, 0, 0, 0)).toBe("就绪");
     // spec §6.3 第 3 条：打断后仍有未审批提案时，状态行必须还是「已打断 · N 条待审」。
     const cut = { ...idle, endedAs: "interrupted" as const };
-    expect(composeStatusLine(cut, 0, 2)).toBe("已打断 · 2 条待审");
-    expect(composeStatusLine(cut, 0, 0)).toBe("已打断 · 可点「继续」");
+    expect(composeStatusLine(cut, 0, 2, 0)).toBe("已打断 · 2 条待审");
+    expect(composeStatusLine(cut, 0, 0, 0)).toBe("已打断 · 可点「继续」");
     const failed = {
       ...idle,
       endedAs: "failed" as const,
       lastError: "模型服务端返回 503：上游繁忙"
     };
-    expect(composeStatusLine(failed, 0, 0)).toBe("模型服务端返回 503：上游繁忙 · 可点「继续」");
+    expect(composeStatusLine(failed, 0, 0, 0)).toBe("模型服务端返回 503：上游繁忙 · 可点「继续」");
+  });
+
+  it("Tab 排队：trim 后入队、满 5 条拒入队并写中文；打断不清队；turn-end 自动发队首", async () => {
+    await openChapter();
+    store().startListening();
+    expect(store().queueText(CH, "  带空白  ")).toBe(true);
+    expect(store().viewOf(CH).queued.at(-1)).toBe("带空白");
+    // 纯空白没有指令，不占队列也不写提示
+    expect(store().queueText(CH, "   ")).toBe(false);
+    store().viewOf(CH).queued.length = 0;
+    for (let i = 1; i <= 5; i += 1) expect(store().queueText(CH, `第 ${i} 条`)).toBe(true);
+    expect(store().queueText(CH, "第六条")).toBe(false);
+    expect(store().notice).toBe("排队指令最多 5 条，先等这一轮结束。");
+    expect(store().viewOf(CH).queued.length).toBe(5);
+    // 打断不清队（spec §5.1：按 Esc 停的是当前这一轮，排队指令仍然有效）：
+    push({ type: "turn-start", turnId: "t1", threadKey: CH });
+    store().threads[CH]!.turnId = "t1";
+    await store().stop();
+    expect(store().viewOf(CH).queued.length).toBe(5);
+    // turn-end 自动发队首（一轮只发一条，其余继续排）：
+    started.length = 0;
+    loadSession.mockClear();
+    push({ type: "turn-end", turnId: "t1", threadKey: CH, status: "interrupted", message: "" });
+    await Promise.resolve();
+    expect(started.map((input) => input.userText)).toEqual(["第 1 条"]);
+    expect(store().viewOf(CH).queued.length).toBe(4);
+    // 裁定 G3 的顺序：发了队首就不在本 tick 触发水合。ensureHydrated 的同步前缀会把历史
+    // 重放进这条正要起新轮的线程，规则 2（running 跳过）此刻还没资格挡它。
+    expect(loadSession).not.toHaveBeenCalled();
+  });
+
+  it("turn-end 队列为空时仍补一次水合（证明上一条的早退不是把水合整个关掉）", async () => {
+    await openChapter();
+    store().startListening();
+    loadSession.mockClear();
+    push({ type: "turn-start", turnId: "t1", threadKey: CH });
+    push({ type: "turn-end", turnId: "t1", threadKey: CH, status: "done", message: "" });
+    expect(loadSession).toHaveBeenCalledWith(CH);
+    await vi.runAllTimersAsync();
+    expect(store().viewOf(CH).hydrated).toBe(true);
   });
 
   it("turn-end failed 与 error 事件都只留在出事的线程里", async () => {

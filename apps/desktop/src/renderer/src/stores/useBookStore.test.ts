@@ -188,6 +188,34 @@ describe("useBookStore", () => {
     expect(store.savedFingerprint).toBe("");
   });
 
+  it("Ctrl+1..9 / Ctrl+PageUp·Down：activateTab 越界返回 false 且不切标签，cycleTab 环形切换", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    await store.openDocTab("chapters/01-a.md");
+    await store.openDocTab("materials/雾.md");
+    expect(store.activateTab(9)).toBe(false);
+    expect(store.activeDocTab).toBe("materials/雾.md");
+    expect(store.activateTab(0)).toBe(true);
+    await Promise.resolve();
+    expect(store.activeDocTab).toBe("chapters/01-a.md");
+    store.cycleTab(1);
+    await Promise.resolve();
+    expect(store.activeDocTab).toBe("materials/雾.md");
+    store.cycleTab(-1);
+    await Promise.resolve();
+    expect(store.activeDocTab).toBe("chapters/01-a.md");
+  });
+
+  it("没有标签时 cycleTab 两步都不动，activateTab(0) 返回 false", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    expect(store.docTabs).toEqual([]);
+    store.cycleTab(1);
+    store.cycleTab(-1);
+    expect(store.activeDocTab).toBeNull();
+    expect(store.activateTab(0)).toBe(false);
+  });
+
   it("选中目录时按该目录开书", async () => {
     const store = useBookStore();
     await store.pickAndOpen();

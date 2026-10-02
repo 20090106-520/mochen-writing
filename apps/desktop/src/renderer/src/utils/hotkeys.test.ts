@@ -81,7 +81,7 @@ describe("resolveHotkey · composer 区", () => {
 });
 
 describe("resolveHotkey · Esc 委托", () => {
-  it("Escape 一律 delegated（Esc 的裁决仍在 resolveEscape，不在这里复制）", () => {
+  it("裸键 Escape ⇒ delegated（Esc 的三态裁决仍在 resolveEscape，不在这里复制）", () => {
     expect(resolveHotkey(focus({ hasBook: true }), "Escape", mods()).action).toBe("delegated");
   });
   it("带任何修饰的 Escape ⇒ none（Alt+Esc 是 Windows 系统键，Ctrl/Shift/Meta+Esc 不归我们）", () => {

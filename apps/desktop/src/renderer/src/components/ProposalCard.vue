@@ -47,10 +47,16 @@ function onKeydown(event: KeyboardEvent): void {
 </script>
 
 <template>
+  <!-- 三个 data-* 是全局键位层（useHotkeys）找卡、判状态、取 id 的唯一依据（裁定 G5）：
+       少任一个标记，审批四键与卡外 Esc 都会静默失效。自带的 @keydown 保留——卡内 Esc
+       已 stopPropagation（spec §5 护栏 5），全局层永远看不到它，两处不会重复裁决。 -->
   <article
     class="proposal-card"
     :class="[`is-${view.status}`, { 'is-focused': pending }]"
     tabindex="0"
+    data-proposal-card
+    :data-proposal-id="view.proposal.id"
+    :data-proposal-status="view.status"
     @keydown="onKeydown"
   >
     <header class="card-head">
@@ -76,6 +82,7 @@ function onKeydown(event: KeyboardEvent): void {
     <footer v-if="pending" class="proposal-actions">
       <textarea
         v-model="guidance"
+        data-guidance
         class="guidance-box"
         rows="2"
         placeholder="拒绝时写清该怎么改（Shift+Enter 换行，Esc 先保住这段字）"
