@@ -223,15 +223,19 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
 | `Enter` | composer 有焦点、无修饰键、未在合成、`!turnRunning` | `submit` | 总 spec §7 |
 | `Enter` | composer 有焦点但 `turnRunning` | `none`（运行中要追加指令走 `Tab`） | 本片裁定 |
 | `Shift+Enter` / `Ctrl+J` | 除首行外焦点同上 | `newline` | 同上 |
-| `Tab` | `turnRunning && composerHasText` | `queue`（见 §5.1） | `keymap.rs:1679` |
+| `Tab` | `turnRunning && composerHasText && !textInputIsFocused` | `queue`（见 §5.1） | `keymap.rs:1679` |
 | `Tab` | 其余 | `none`（保留焦点移动，无障碍优先） | 本片裁定 |
-| `Esc` | 任意 | `delegated` → 派发处调 `resolveEscape` | 总 spec §6.2 |
+| `Esc` | 裸键（`ctrl`/`shift`/`alt`/`meta` 任一为真则不归此表） | `delegated` → 派发处调 `resolveEscape`；带任何修饰 ⇒ `none` | 总 spec §6.2 |
 | `y` / `a` / `p` / `d` | `proposalIsFocused && proposalIsPending && !textInputIsFocused` | 四个审批态 | `keymap.rs:1933-1938` |
 | `Ctrl+PageDown` / `Ctrl+PageUp` | 有书 | `next-tab` / `prev-tab` | 总 spec §7 |
 | `Ctrl+1..9` | 有书且 `n ≤ tabCount` | `jump-tab`（`tabIndex = n-1`）；越界 `none` | 总 spec §7 |
 | `Ctrl+B` | 任意 | `toggle-left`（接 `layoutStore.togglePane("left")`） | 总 spec §7 |
 | `Ctrl+,` | 任意 | `open-settings` | 总 spec §7 |
 | `/` | composer **无**焦点且不在文本框里、无修饰键 | `open-palette` | `slash_command.rs:13` |
+
+> 这张表是摘要，下面五条护栏的白名单才是裁决边界：两者冲突时以护栏为准。已按此改写两行——
+> `Tab` 补 `!textInputIsFocused`（护栏 2，防在文稿编辑器里把缩进键抢成排队），`Esc` 收窄到裸键
+> （`Alt+Esc` 是系统窗口快捷键，`Ctrl+Esc` 一类也不归本表，一律 `none` 放行）。
 
 五条护栏（每条都要一条反向用例）：
 
