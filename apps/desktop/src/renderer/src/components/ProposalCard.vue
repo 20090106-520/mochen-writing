@@ -1,4 +1,4 @@
-<!-- 提案卡：逐条人审批的唯一入口。Esc 的第一优先级（spec §6.2）在卡内裁决。 -->
+<!-- 提案卡：逐条人审批的唯一入口。Esc 的裁决已上收全局唯一层（resolveEscape，spec §6.2），卡内不自裁决。 -->
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
@@ -7,7 +7,6 @@ import {
   type ProposalDecision
 } from "@mochen/contracts";
 import type { ProposalView } from "../stores/useAgentStore";
-import { resolveEscape } from "../utils/escape-policy";
 import AppIcon from "./AppIcon.vue";
 
 const props = defineProps<{ view: ProposalView; running: boolean; turnLabel: string }>();
@@ -27,32 +26,12 @@ function decide(decision: ProposalDecision): void {
   if (decision === "deny-with-guidance" && guidance.value.trim() === "") return;
   emit("decide", decision, guidance.value);
 }
-
-/** 卡内 Esc 先按 §6.2 裁决；落不到卡上的动作往上抛，由中栏处理打断。 */
-function onKeydown(event: KeyboardEvent): void {
-  if (event.key !== "Escape") return;
-  const action = resolveEscape({
-    hasFocusedProposal: true,
-    focusedProposalPending: pending.value,
-    guidanceIsDirty: guidance.value.trim() !== "",
-    turnRunning: props.running
-  });
-  if (action === "none") return;
-  event.preventDefault();
-  event.stopPropagation();
-  if (action === "keep-guidance") {
-    (event.target as HTMLElement | null)?.blur();
-    return;
-  }
-  if (action === "cancel-proposal") decide("cancel");
-  if (action === "interrupt") emit("interrupt");
-}
 </script>
 
 <template>
   <!-- 三个 data-* 是全局键位层（useHotkeys）找卡、判状态、取 id 的唯一依据（裁定 G5）：
-       少任一个标记，审批四键与卡外 Esc 都会静默失效。自带的 @keydown 保留——卡内 Esc
-       已 stopPropagation（spec §5 护栏 5），全局层永远看不到它，两处不会重复裁决。 -->
+       少任一个标记，审批四键与 Esc 的卡态裁决都会静默失效。卡内不再有 @keydown 自裁决——
+       Esc 一律冒泡到全局唯一裁决入口 resolveEscape（设计决定 1），杜绝两份优先级。 -->
   <article
     class="proposal-card"
     :class="[`is-${view.status}`, { 'is-focused': pending }]"
@@ -60,7 +39,6 @@ function onKeydown(event: KeyboardEvent): void {
     data-proposal-card
     :data-proposal-id="view.proposal.id"
     :data-proposal-status="view.status"
-    @keydown="onKeydown"
   >
     <header class="card-head">
       <AppIcon name="replace" :size="15" />

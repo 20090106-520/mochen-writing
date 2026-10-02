@@ -1,5 +1,5 @@
 // 薄壳：装全局唯一的 keydown 监听、把真 DOM 解成焦点源、把判定结果派到既有 store action；本文件不判断。
-// 判断层各有其主：键→动作 utils/hotkeys.ts、Esc 三态 utils/escape-policy.ts、焦点推导 utils/hotkey-focus.ts（裁定 G2）；
+// 判断层各有其主：键→动作 utils/hotkeys.ts、Esc 四态 utils/escape-policy.ts、焦点推导 utils/hotkey-focus.ts（裁定 G2）；
 // 审批映射 utils/hotkey-decisions（评审 X2）、DOM 标记名 utils/hotkey-markers（评审 X4a）——单实现模块，只消费。
 // 全局 keydown 有且只有这里一处（裁定 G5）。
 import { onBeforeUnmount, onMounted } from "vue";
@@ -60,14 +60,15 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
   function escape(event: KeyboardEvent, card: HTMLElement | null): void {
     const guidance = card?.querySelector<HTMLTextAreaElement>(GUIDANCE_SELECTOR) ?? null;
     const cardId = card?.getAttribute(CARD_ID_ATTR) ?? "";
-    // 三态裁决（审批卡 > 打断 > 无动作）全在 resolveEscape，这里不复制口径。
+    // 四态裁决（说明框保字 > 取消该条 > 收浮层 > 打断 > 无动作）全在 resolveEscape，这里不复制口径。
     const action = resolveEscape({
       hasFocusedProposal: card !== null,
       focusedProposalPending: card?.getAttribute(CARD_STATUS_ATTR) === "pending",
       guidanceIsDirty: (guidance?.value.trim() ?? "") !== "",
-      turnRunning: runningNow()
+      turnRunning: runningNow(),
+      // 唯一喂入点：设置浮层的真身是 layout.currentView === "settings"（设计决定 2）。
+      settingsIsOpen: layout.currentView === "settings"
     });
-    // 卡内的 Esc 由 ProposalCard 自己处理并 stopPropagation，冒到这里的一律是「卡外」的 Esc。
     if (action === "keep-guidance") {
       event.preventDefault();
       guidance?.blur();
@@ -76,6 +77,11 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
     if (action === "cancel-proposal" && cardId !== "") {
       event.preventDefault();
       void agent.decide(cardId, "cancel", "");
+      return;
+    }
+    if (action === "close-overlay") {
+      event.preventDefault();
+      layout.showWorkspace();
       return;
     }
     if (action === "interrupt") {

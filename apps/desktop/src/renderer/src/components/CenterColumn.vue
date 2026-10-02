@@ -35,7 +35,7 @@ const emit = defineEmits<{ toggleLeft: []; toggleRight: [] }>();
 const book = useBookStore();
 const agent = useAgentStore();
 const layout = useLayoutStore();
-const showSettings = ref(false);
+const showSettings = computed(() => layout.currentView === "settings");
 /** `/` 面板的开关是瞬时 UI 态，不进 store（计划决定 6）；Task 8 的 SlashPalette 挂这里。 */
 const paletteOpen = ref(false);
 const EMPTY_ITEMS: AgentEvent[] = [];
@@ -125,21 +125,14 @@ function decide(proposalId: string, decision: ProposalDecision, guidance: string
 
 /**
  * 键位接线（spec §5）：全局 keydown 有且只有一处，就在 useGlobalHotkeys 里。
- * 这里删掉了原先的 onGlobalEscape —— 它的「Esc = 打断」已被 resolveEscape 的三态裁决取代，
+ * 这里删掉了原先的 onGlobalEscape —— 它的「Esc = 打断」已被 resolveEscape 的四态裁决（含收浮层）取代，
  * 保留两处监听会变成两份 Esc 裁决（裁定 G5）。判断一律在 utils，本组件只接线。
  */
 useGlobalHotkeys({ openPalette: () => (paletteOpen.value = true) });
 
-// Ctrl+, 的落点是 layout.currentView；App.vue 目前不渲染 settings 视图，模型设置的唯一真身
-// 是本组件的 ProviderSettings 浮层，故由这里桥接（波 2 若给 App.vue 加独立设置视图，改的是这个桥）。
-watch(
-  () => layout.currentView,
-  (view) => {
-    if (view === "settings") showSettings.value = true;
-  }
-);
+// 设置浮层可见性的唯一真身是 layout.currentView === "settings"（设计决定 2）：
+// 按钮、Ctrl+,、/model、Esc 收浮层全部读写同一个 currentView，不再有两处真相。
 function closeSettings(): void {
-  showSettings.value = false;
   layout.showWorkspace();
 }
 
@@ -184,7 +177,7 @@ onBeforeUnmount(() => {
           </button>
           <PermissionMenu v-if="book.permissionMenuOpen" @close="book.closePermissionMenu()" />
         </div>
-        <button class="header-text-button" type="button" @click="showSettings = true">
+        <button class="header-text-button" type="button" @click="layout.showSettings('general')">
           <AppIcon name="settings" :size="15" />
           <span>模型设置</span>
         </button>
