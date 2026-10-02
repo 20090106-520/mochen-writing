@@ -55,19 +55,34 @@ describe("slash-commands · 运行期可用性", () => {
     ]);
   });
 
-  it("没开书：拿掉要读书目录的 resume，其余四条仍然可用", () => {
+  it("没开书：要读书目录的 resume 与 permissions 一起拿掉，其余三条仍然可用", () => {
     expect(availableCommands({ hasBook: false, turnRunning: false })).toEqual([
       "model",
-      "permissions",
       "status",
       "clear"
     ]);
+    // DURING_TURN_COMMANDS 是「运行中仍可用」的白名单，不是「无书也放行」的通行证：hasBook 这道闸在前。
     expect(availableCommands({ hasBook: false, turnRunning: true })).toEqual([
       "model",
-      "permissions",
       "status",
       "clear"
     ]);
+  });
+
+  /**
+   * 鉴别用例（反向钉）：无书时权限档菜单不挂载（CenterColumn 的挂载条件），此时列出 /permissions
+   * 就是一条按下 Enter 什么都不发生的命令——项目律「拒绝一律回单席中文原因，不静默丢弃」不允许它出现在面板里。
+   * 末尾那条「有书时仍在列」是这一组断言的对照组：空手而归只可能来自 hasBook，不是把命令整个删了。
+   */
+  it("无书时 permissions 绝不出现：availableCommands 与 filterCommands 的前缀通路一起封死", () => {
+    for (const turnRunning of [false, true]) {
+      const focus = { hasBook: false, turnRunning };
+      expect(availableCommands(focus)).not.toContain("permissions");
+      expect(filterCommands("/permissions", focus)).toEqual([]);
+      expect(filterCommands("/pe", focus)).toEqual([]);
+    }
+    expect(availableCommands(NO_GATE)).toContain("permissions");
+    expect(filterCommands("/pe", NO_GATE)).toEqual(["permissions"]);
   });
 });
 

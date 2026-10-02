@@ -169,7 +169,7 @@ onBeforeUnmount(() => {
             type="button"
             :disabled="permissionChip.disabled"
             :title="permissionChip.title"
-            :aria-expanded="book.permissionMenuOpen"
+            :aria-expanded="book.meta !== null && book.permissionMenuOpen"
             @click="book.togglePermissionMenu()"
           >
             {{ permissionChip.text }}

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { PERMISSION_LABELS } from "@mochen/contracts";
 import { CLEAR_VIEW_SENTENCE, composeStatusReport, newThread, UNBOUND } from "./useAgentStore";
 import { useBookStore } from "./useBookStore";
 import { useLayoutStore } from "./layoutStore";
+import { NO_BOOK_CHIP_LABEL } from "../utils/permission-chip";
 // 与 useAgentStore.test.ts 共用夹具（D2 的拆分先例）：本文件是 Task 8 新增的 `/` 面板动作断言，
 // 主文件已 674 行、再挂 7 个用例会顶破 800 行门禁，故按简报第 8 条裁定拆到这一个 slash 侧文件。
 import {
@@ -96,24 +98,29 @@ describe("useAgentStore · / 面板动作", () => {
         thread: replayed,
         cards: 2,
         pending: 1,
-        permissionLabel: "只读参考",
+        hasBook: true,
+        permissionMode: "read-only",
         stageName: "正文"
       })
     ).toBe(
       `状态 · 线程 ${CH} · 历史已回放（2 条） · 提案 2 张（待审 1 张） · 排队 0 条 · 权限档：只读参考 · 阶段：正文 · 尚无收尾记录`
     );
 
+    // UNBOUND 线程就是「没开书」的形状：这一格不再兜底成任何档位名（旧期望写的是「只读参考」，
+    // 那正是被捏造出来的档位，改它是修缺陷不是改测试迁就实现）。
     expect(
       composeStatusReport({
         threadKey: UNBOUND,
         thread: undefined,
         cards: 0,
         pending: 0,
-        permissionLabel: "只读参考",
+        hasBook: false,
+        permissionMode: null,
         stageName: "无"
       })
     ).toBe(
-      "状态 · 线程 未绑定文稿 · 历史未回放（本页 0 条） · 提案 0 张（待审 0 张） · 排队 0 条 · 权限档：只读参考 · 阶段：无 · 还没有这一条线程"
+      "状态 · 线程 未绑定文稿 · 历史未回放（本页 0 条） · 提案 0 张（待审 0 张） · 排队 0 条 · " +
+        `权限档：${NO_BOOK_CHIP_LABEL} · 阶段：无 · 还没有这一条线程`
     );
 
     const interrupted = newThread();
@@ -124,7 +131,8 @@ describe("useAgentStore · / 面板动作", () => {
         thread: interrupted,
         cards: 0,
         pending: 0,
-        permissionLabel: "可改当前章",
+        hasBook: true,
+        permissionMode: "chapter-write",
         stageName: "正文"
       })
     ).toContain("上一轮已打断，可继续");
@@ -144,6 +152,21 @@ describe("useAgentStore · / 面板动作", () => {
     expect(store().notice).toBe(
       `状态 · 线程 ${CH} · 历史未回放（本页 1 条） · 提案 1 张（待审 1 张） · 排队 0 条 · 权限档：可改当前章 · 阶段：正文 · 尚无收尾记录`
     );
+  });
+
+  /**
+   * 缺陷② 在 `/status` 这一面的对应（评审 T2-3）：状态条的权限档文案同样只经 permissionChipView。
+   * 无书时旧实现走 `PERMISSION_LABELS[... ?? DEFAULT_PERMISSION_MODE]`，照样播报「只读参考」——
+   * 与本任务要杀的是同一句谎言，只是另一个表面。反向那条循环把「任何档位名都不许出现」钉死。
+   */
+  it("无书时 /status 不捏造档位名：权限档那一格报「未打开作品目录」", () => {
+    store().runSlashCommand("status", "");
+    const notice = store().notice;
+    expect(notice).toBe(
+      "状态 · 线程 未绑定文稿 · 历史未回放（本页 0 条） · 提案 0 张（待审 0 张） · 排队 0 条 · " +
+        `权限档：${NO_BOOK_CHIP_LABEL} · 阶段：无 · 还没有这一条线程`
+    );
+    for (const label of Object.values(PERMISSION_LABELS)) expect(notice).not.toContain(label);
   });
 
   it("/resume 走 ensureHydrated，/model 走 layout.showSettings（面板不自己实现任何事）", async () => {

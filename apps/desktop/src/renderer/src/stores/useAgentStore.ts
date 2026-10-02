@@ -2,7 +2,6 @@ import { defineStore } from "pinia";
 import {
   AGENT_DELTA_KINDS,
   AGENT_EVENT_TYPES,
-  DEFAULT_PERMISSION_MODE,
   PERMISSION_LABELS,
   PERMISSION_MODES,
   TURN_END_STATUSES,
@@ -13,6 +12,7 @@ import {
   type DecideInput,
   type DecisionResult,
   type EditProposal,
+  type PermissionMode,
   type ProposalDecision,
   type ProposalStatus,
   type SessionLoadResult,
@@ -21,6 +21,7 @@ import {
 } from "@mochen/contracts";
 import { replayProposalStatuses } from "../utils/timeline";
 import { matchPermissionMode, type SlashCommand } from "../utils/slash-commands";
+import { permissionChipView } from "../utils/permission-chip";
 import { useLayoutStore } from "./layoutStore";
 import { useBookStore } from "./useBookStore";
 
@@ -176,13 +177,22 @@ export interface StatusFacts {
   thread: ThreadView | undefined;
   cards: number;
   pending: number;
-  permissionLabel: string;
+  /** 档位那一格的真相只有 permissionChipView 一份：状态条不接已渲染好的中文标签，只接「有没有书 + 真实档位」。 */
+  hasBook: boolean;
+  permissionMode: PermissionMode | null;
   stageName: string;
 }
 
 /** `/status` 的报告：纯函数，好测也好核对；「已回放」与「未回放」必须分开说，否则用户以为看到的是全部历史。 */
 export function composeStatusReport(facts: StatusFacts): string {
   const { thread } = facts;
+  // 档位文案的唯一一份判定（缺陷②）：无书 ⇒ NO_BOOK_CHIP_LABEL，这里不兜底 DEFAULT_PERMISSION_MODE、不捏造档位名。
+  // saving 传 false：状态条是一次播报而不是按钮忙态，permissionChipView 的 text 也不读它。
+  const permission = permissionChipView({
+    hasBook: facts.hasBook,
+    mode: facts.permissionMode,
+    saving: false
+  });
   const events = thread?.items.length ?? 0;
   const replay =
     thread?.hydrating === true
@@ -197,7 +207,7 @@ export function composeStatusReport(facts: StatusFacts): string {
     replay,
     `提案 ${facts.cards} 张（待审 ${facts.pending} 张）`,
     `排队 ${thread?.queued.length ?? 0} 条`,
-    `权限档：${facts.permissionLabel}`,
+    `权限档：${permission.text}`,
     `阶段：${facts.stageName}`,
     ended
   ];
@@ -557,8 +567,8 @@ export const useAgentStore = defineStore("agent", {
               (view) => view.proposal.threadKey === threadKey
             ).length,
             pending: this.pendingOf(threadKey),
-            permissionLabel:
-              PERMISSION_LABELS[book.meta?.permissionMode ?? DEFAULT_PERMISSION_MODE],
+            hasBook: book.meta !== null,
+            permissionMode: book.meta?.permissionMode ?? null,
             stageName:
               book.meta?.stages.find((stage) => stage.id === book.meta?.activeStage)?.name ?? "无"
           });
