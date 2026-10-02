@@ -5,6 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   DEFAULT_PERMISSION_MODE,
   PERMISSION_LABELS,
+  PROPOSAL_STATUS_LABELS,
   type AgentEvent,
   type ProposalDecision
 } from "@mochen/contracts";
@@ -225,7 +226,9 @@ onBeforeUnmount(() => {
 
           <!-- 上次会话未处理（D1）：回放的未裁决卡，按钮禁用，绝不伪装成可批准。 -->
           <details v-if="expiredCards.length" class="expired-stack">
-            <summary class="expired-summary">上次会话未处理 · {{ expiredCards.length }} 条</summary>
+            <summary class="expired-summary">
+              {{ PROPOSAL_STATUS_LABELS.expired }} · {{ expiredCards.length }} 条
+            </summary>
             <div class="expired-cards">
               <ProposalCard
                 v-for="card in expiredCards"
