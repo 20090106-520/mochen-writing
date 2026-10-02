@@ -4,3 +4,8 @@ out/
 .mochen-tmp/
 *.log
 .DS_Store
+
+# 作品目录运行时产物：会话 JSONL 与写盘前备份装的是正文，永远不进仓库
+.mochen/
+# 冒烟与实验用的临时书目录（Plan 3 Task 10 Step 5）
+scratch/
