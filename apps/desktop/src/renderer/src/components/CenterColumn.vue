@@ -2,13 +2,8 @@
      取自 deepwrite（Apache-2.0）；卡片与时间线为自有。 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import {
-  DEFAULT_PERMISSION_MODE,
-  PERMISSION_LABELS,
-  PROPOSAL_STATUS_LABELS,
-  type AgentEvent,
-  type ProposalDecision
-} from "@mochen/contracts";
+import { PROPOSAL_STATUS_LABELS, type AgentEvent, type ProposalDecision } from "@mochen/contracts";
+import { permissionChipView } from "../utils/permission-chip";
 import AppIcon from "./AppIcon.vue";
 import AgentTimeline from "./AgentTimeline.vue";
 import ProposalCard from "./ProposalCard.vue";
@@ -92,10 +87,13 @@ const contextTitle = computed(() => {
   const chapter = book.docs.find((doc) => doc.relPath === book.activeDocTab);
   return `${book.meta.title} · ${chapter ? chapter.title : "未打开章节"}`;
 });
-// 档位文案的唯一来源是 contracts（主进程的拒绝文案与系统提示都读它）；
-// 这里手抄三元链的话，两处迟早漂——与 TOOL_LABELS 用 AgentToolName 穷尽同一道理。
-const permissionLabel = computed(
-  () => PERMISSION_LABELS[book.meta?.permissionMode ?? DEFAULT_PERMISSION_MODE]
+// 档位 chip 的判定唯一来自 permissionChipView（设计决定 4）：无书不报档位名、不冒充按钮。
+const permissionChip = computed(() =>
+  permissionChipView({
+    hasBook: book.meta !== null,
+    mode: book.meta?.permissionMode ?? null,
+    saving: book.metaSaving
+  })
 );
 
 /**
@@ -169,13 +167,17 @@ onBeforeUnmount(() => {
           <button
             class="permission-chip is-button"
             type="button"
-            :disabled="book.metaSaving"
+            :disabled="permissionChip.disabled"
+            :title="permissionChip.title"
             :aria-expanded="book.permissionMenuOpen"
             @click="book.togglePermissionMenu()"
           >
-            {{ permissionLabel }}
+            {{ permissionChip.text }}
           </button>
-          <PermissionMenu v-if="book.permissionMenuOpen" @close="book.closePermissionMenu()" />
+          <PermissionMenu
+            v-if="book.meta !== null && book.permissionMenuOpen"
+            @close="book.closePermissionMenu()"
+          />
         </div>
         <button class="header-text-button" type="button" @click="layout.showSettings('general')">
           <AppIcon name="settings" :size="15" />
