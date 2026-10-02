@@ -7,7 +7,8 @@
   计划点名的四项内部核查（`createIpcOn` 退订、`contextBridge` 返回函数、主/渲染 `UNBOUND` 同值、
   turn-end 后迟到 delta）只有单测/静态证据，**未做 DevTools 逐项操作**，不许升格成「真机验证」。
   变异台账（17 行：原 15 行 + 波 A + 波 A2）落在该计划文件 Task 16 Step 3。
-- Plan 3（待写）：键位/权限档/打断排队 + 阶段装配与浏览不打断，对应 S5/S6；
+- Plan 3（**进行中**，spec `../specs/2026-10-02-plan3-interaction-and-assembly-design.md`、
+  计划 `2026-10-02-plan3-interaction-and-assembly.md`）：键位/权限档/打断排队 + 阶段装配与浏览不打断，对应 S5/S6；
   智能体侧按 spec §5.1 的墨宸花名册（六个 `AgentProfile` 实例）实现，不新增工具。
   依赖 Plan 2 的 `useAgentStore`（事件归约为唯一真相）与主进程 `agent-service`（唯一写盘通路）。
   Plan 2 收尾时两件悬而未决的事已由控制方拍板，Plan 3 照此执行：
@@ -16,6 +17,12 @@
   但把用户系统偏好盖掉是更糟的选择）；
   ② **品牌图来源按「用户提供的官方素材」定案**——规则锁死为原样使用、只做格式转换（PNG/ICO），
   禁止裁切、重绘或另生成（资产条目与转换记录见 `../../ATTRIBUTION.md` 的图标条）。
+- **波 1.5（界面方向附录，已定方向未开工）**：`../specs/2026-10-02-ui-fusion-direction-design.md`。
+  用户 2026-10-02 给了两张墨宸界面示意稿并裁定走「B 骨架 + A 气质」融合，落成六面渲染层改造
+  （中栏工作台 / 右栏作品资料 / 左栏三段主操作 / 输入区真开关 chip / 青金主题 preset / md 片段工具栏）。
+  排在波 1 门禁之后、波 2 之前，只碰 `apps/desktop/src/renderer`；
+  **其中一条术语裁定影响全局：UI 上的「档案」永远只指 agent profile，右栏那一格定名「作品资料」。**
+
 
 设计依据见 `../specs/2026-10-01-mochen-writing-workbench-design.md`；
 移植自 deepwrite 的 UI 资产清单见 `../../ATTRIBUTION.md`。
