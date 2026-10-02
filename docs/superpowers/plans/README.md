@@ -10,6 +10,12 @@
 - Plan 3（待写）：键位/权限档/打断排队 + 阶段装配与浏览不打断，对应 S5/S6；
   智能体侧按 spec §5.1 的墨宸花名册（六个 `AgentProfile` 实例）实现，不新增工具。
   依赖 Plan 2 的 `useAgentStore`（事件归约为唯一真相）与主进程 `agent-service`（唯一写盘通路）。
+  Plan 2 收尾时两件悬而未决的事已由控制方拍板，Plan 3 照此执行：
+  ① **主题默认值不硬锁深色**——现状 `App.vue:27-29` 跟随 `prefers-color-scheme` 保持不变，
+  Plan 3 要加的是「跟随系统 / 浅色 / 深色」三态显式开关并持久化（品牌图仍是暗色调底，
+  但把用户系统偏好盖掉是更糟的选择）；
+  ② **品牌图来源按「用户提供的官方素材」定案**——规则锁死为原样使用、只做格式转换（PNG/ICO），
+  禁止裁切、重绘或另生成（资产条目与转换记录见 `../../ATTRIBUTION.md` 的图标条）。
 
 设计依据见 `../specs/2026-10-01-mochen-writing-workbench-design.md`；
 移植自 deepwrite 的 UI 资产清单见 `../../ATTRIBUTION.md`。
