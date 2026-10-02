@@ -121,6 +121,12 @@ function decide(proposalId: string, decision: ProposalDecision, guidance: string
   void agent.decide(proposalId, decision, guidance);
 }
 
+/** 发送 = 投递这一轮 + 清掉这一格草稿（值已进对话流，留着会把上一句带进下一次输入）。 */
+function onComposerSend(text: string): void {
+  agent.send(text);
+  agent.clearDraft(threadKey.value);
+}
+
 /**
  * 键位接线（spec §5）：全局 keydown 有且只有一处，就在 useGlobalHotkeys 里。
  * 这里删掉了原先的 onGlobalEscape —— 它的「Esc = 打断」已被 resolveEscape 的四态裁决（含收浮层）取代，
@@ -287,7 +293,9 @@ onBeforeUnmount(() => {
       :running="running"
       :ready="ready"
       :can-continue="agent.canContinue(threadKey)"
-      @send="agent.send($event)"
+      :model-value="agent.draftOf(threadKey)"
+      @update:model-value="agent.setDraft(threadKey, $event)"
+      @send="onComposerSend"
       @stop="agent.stop()"
       @resume="agent.continueTurn()"
     />

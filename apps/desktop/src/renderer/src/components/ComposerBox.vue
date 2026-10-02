@@ -1,29 +1,39 @@
-<!-- 输入区：发送 / 打断 / 断流后续写。这里不含业务判断，一切交给 store。 -->
+<!-- 输入区：发送 / 打断 / 断流后续写。这里不含业务判断，一切交给 store；输入值本身也由 store 持有（F-A 前置）。 -->
 <script setup lang="ts">
-import { ref } from "vue";
 import AppIcon from "./AppIcon.vue";
 
-defineProps<{ running: boolean; ready: boolean; canContinue: boolean }>();
-const emit = defineEmits<{ send: [text: string]; stop: []; resume: [] }>();
+const props = defineProps<{
+  running: boolean;
+  ready: boolean;
+  canContinue: boolean;
+  modelValue: string;
+}>();
+const emit = defineEmits<{
+  "update:modelValue": [value: string];
+  send: [text: string];
+  stop: [];
+  resume: [];
+}>();
 
-const text = ref("");
+function onInput(event: Event): void {
+  emit("update:modelValue", (event.target as HTMLTextAreaElement).value);
+}
 
+// 发送只抛事件，清格由装配处（CenterColumn）负责：那里才是「发出去 = 清这一格」的唯一收口。
 function submit(): void {
-  const value = text.value.trim();
+  const value = props.modelValue.trim();
   if (value === "") return;
-  text.value = "";
   emit("send", value);
 }
 
-// 回车提交 / Shift+Enter 与 Ctrl+J 换行 / 运行中 Tab 排队的判断全部交回全局层
-// （utils/hotkeys.ts + composables/useHotkeys.ts 经 [data-mochen-composer] 读写同一个 DOM 值，
-// 与下面的 v-model 同源）。本组件不再自带 @keydown——两处监听就是两份裁决（spec §5 接线、裁定 G5）。
+// 回车提交 / Shift+Enter 与 Ctrl+J 换行 / 运行中 Tab 排队全在 utils/hotkeys + composables/useHotkeys 判定，
+// 值经 store 的 composerDrafts 与本 textarea 同源（受控 :value + @input），不再有第二份监听（裁定 G5）。
 </script>
 
 <template>
   <footer class="agent-composer">
     <textarea
-      v-model="text"
+      :value="modelValue"
       data-mochen-composer
       class="composer-box"
       rows="3"
@@ -32,6 +42,7 @@ function submit(): void {
           ? '想改哪一段？说给人话，别贴整篇正文——它会自己读文件。'
           : '先在左栏打开作品，或在右上角设置里配好模型。'
       "
+      @input="onInput"
     />
     <div class="composer-actions">
       <span class="composer-hint">Enter 发送 · Shift+Enter 换行 · Esc 打断</span>
@@ -52,7 +63,7 @@ function submit(): void {
       <button
         class="composer-send"
         type="button"
-        :disabled="running || text.trim() === ''"
+        :disabled="running || modelValue.trim() === ''"
         @click="submit()"
       >
         <AppIcon name="arrow-up" :size="15" />

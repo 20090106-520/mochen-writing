@@ -22,6 +22,7 @@ import {
 import { replayProposalStatuses } from "../utils/timeline";
 import { matchPermissionMode, type SlashCommand } from "../utils/slash-commands";
 import { permissionChipView } from "../utils/permission-chip";
+import { prefillText } from "../utils/composer-draft";
 import { useLayoutStore } from "./layoutStore";
 import { useBookStore } from "./useBookStore";
 
@@ -222,7 +223,9 @@ export const useAgentStore = defineStore("agent", {
     seconds: 0,
     listening: false,
     /** 同线程并发 ensureHydrated 合流到同一个 promise（Task 5 用；本任务先建位）。 */
-    hydrateInflight: {} as Record<string, Promise<void>>
+    hydrateInflight: {} as Record<string, Promise<void>>,
+    /** 输入框的值上收到的顶层 map（设计决定 3）：键是 threadKey，不进 ThreadView，切章不丢字。 */
+    composerDrafts: {} as Record<string, string>
   }),
 
   getters: {
@@ -256,6 +259,32 @@ export const useAgentStore = defineStore("agent", {
       if (existing) return existing;
       this.threads[threadKey] = newThread();
       return this.threads[threadKey];
+    },
+
+    /** 读某一格输入框的当前值；缺省空串（老状态从未写过草稿）。 */
+    draftOf(threadKey: string): string {
+      return this.composerDrafts[threadKey] ?? "";
+    },
+
+    setDraft(threadKey: string, value: string): void {
+      this.composerDrafts[threadKey] = value;
+    },
+
+    /**
+     * F-A 预填唯一入口：判定在 prefillText（一处实现），这里只负责「被挡时写一句中文」。
+     * 被挡 = 已有非空草稿、预填没进去（prefillText 原样还回 current）。
+     */
+    prefillComposer(threadKey: string, value: string): void {
+      const current = this.draftOf(threadKey);
+      const next = prefillText(current, value);
+      this.composerDrafts[threadKey] = next;
+      if (next === current && current.trim() !== "")
+        this.notice = "输入框里已经有内容，预填没有覆盖你正在写的字。";
+    },
+
+    /** 发送成功后清这一格（残留会把上一句带进下一次输入）。 */
+    clearDraft(threadKey: string): void {
+      delete this.composerDrafts[threadKey];
     },
 
     /** 中栏唯一的订阅入口：装配处挂载时调一次，重复调用不叠加监听。 */

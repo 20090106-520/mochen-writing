@@ -18,7 +18,7 @@ export interface FocusSource {
   getAttribute(name: string): string | null;
 }
 
-/** composer 额外要读文本内容（v-model 与 DOM 同源，故取 value 即可）。 */
+/** composer 额外要读文本内容（textarea 受控于 store.composerDrafts，DOM 值与那份同源，故取 value 即可）。 */
 export interface ComposerSource extends FocusSource {
   readonly value: string;
 }

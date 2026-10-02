@@ -49,14 +49,6 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
     return agent.threads[threadKeyFor(book.activeDocTab)]?.running ?? false;
   }
 
-  /** 写 composer 的 DOM 值后必须补发 input：v-model 只听 input，不补则重渲染（running 变真）会把已发走的字吐回输入框。
-   *  脆弱点：这条同步链赌的是 v-model 的默认 input 事件——改 .lazy（改听 change）或 .trim（回写被修剪）就不再同源；
-   *  durable 方案（composer 草稿进 store）进台账，不在本片做。 */
-  function setComposerText(el: HTMLTextAreaElement, value: string): void {
-    el.value = value;
-    el.dispatchEvent(new Event("input"));
-  }
-
   function escape(event: KeyboardEvent, card: HTMLElement | null): void {
     const guidance = card?.querySelector<HTMLTextAreaElement>(GUIDANCE_SELECTOR) ?? null;
     const cardId = card?.getAttribute(CARD_ID_ATTR) ?? "";
@@ -106,24 +98,26 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
     tabIndex?: number
   ): void {
     if (action === "submit" || action === "newline" || action === "queue") {
-      const el = targets.composer;
-      const text = el?.value ?? "";
+      // 输入值的真身在 store.composerDrafts（F-A 前置）：不再读/写 textarea 的 DOM value，
+      // 也就不再需要「写 DOM 值 + 补发 input 事件」那套脆弱同步（挂进台账的那笔债在此还清）。
+      const key = threadKeyFor(book.activeDocTab);
+      const text = agent.draftOf(key);
       if (action === "newline") {
         event.preventDefault();
-        if (el) setComposerText(el, `${el.value}\n`);
+        agent.setDraft(key, `${text}\n`);
         return;
       }
       if (text.trim() === "") return;
       event.preventDefault();
       if (action === "submit") {
-        if (el) setComposerText(el, "");
         agent.send(text.trim());
+        agent.clearDraft(key);
         return;
       }
-      // 评审 X1（数据丢失）：**先**问 store，拿到 accepted **才**决定回写——队列满时 queueText 那句中文
-      // 要用户重发的就是这些字，先清空等于把提示要保的字删了。回写值出自 utils/hotkey-queue（可测纯函数）。
-      const accepted = agent.queueText(threadKeyFor(book.activeDocTab), text);
-      if (el) setComposerText(el, composerTextAfterQueue(text, accepted));
+      // 评审 X1（数据丢失）：先问 store，拿到 accepted 才决定回写——队列满时 queueText 那句中文
+      // 要用户重发的就是这些字，先清空等于把提示要保的字删了。回写值仍出自 utils/hotkey-queue。
+      const accepted = agent.queueText(key, text);
+      agent.setDraft(key, composerTextAfterQueue(text, accepted));
       return;
     }
     if (action === "approve-once" || action === "approve-session" || action === "approve-prefix") {
