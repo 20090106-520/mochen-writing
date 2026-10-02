@@ -14,6 +14,7 @@ import AgentTimeline from "./AgentTimeline.vue";
 import ProposalCard from "./ProposalCard.vue";
 import ComposerBox from "./ComposerBox.vue";
 import ProviderSettings from "./ProviderSettings.vue";
+import SlashPalette from "./SlashPalette.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { cardTurnLabel, splitProposalCards, turnAnchors } from "../utils/timeline";
 import { useGlobalHotkeys } from "../composables/useHotkeys";
@@ -286,7 +287,6 @@ onBeforeUnmount(() => {
 
     <ProviderSettings v-if="showSettings" @close="closeSettings" />
 
-    <!-- 命令面板挂载点（Task 8）：<SlashPalette v-if="paletteOpen" … /> 挂这里，
-         开关由 useGlobalHotkeys 的 open-palette 经上面的 handlers 回调进来。 -->
+    <SlashPalette v-if="paletteOpen" @close="paletteOpen = false" />
   </main>
 </template>

@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from "pinia";
 import type {
   AgentEvent,
   AgentOutbound,
+  BookMeta,
   BookOpenResult,
   DecideInput,
   DecisionResult,
@@ -151,11 +152,18 @@ export const writeDoc = vi.fn(async (): Promise<DocWriteResult> => ({
   backupRelPath: null
 }));
 export const loadSession = vi.fn(async (): Promise<SessionLoadResult> => sessionResult);
+/**
+ * 写盘桩提成模块级导出常量：Task 8/9 的用例要查它的调用次数。
+ * 签名走 vi.fn 的泛型参数而不是简报裁定的 `_meta: BookMeta` 形参——本仓 eslint 没有配 argsIgnorePattern，
+ * 尾位的 `_meta` 会被 no-unused-vars 判错（agent-ipc.ts 的 `_event` 只在中位才免报）；
+ * 泛型签名同样让 `mock.calls[0]?.[0]` 的元组下标在 tsc 里有类型可查。
+ */
+export const saveMeta = vi.fn<(meta: BookMeta) => Promise<void>>(async () => {});
 
 export const api = {
   pickBookDirectory: vi.fn(async () => CH),
   openBook: vi.fn(async (): Promise<BookOpenResult> => opened),
-  saveMeta: vi.fn(async (): Promise<void> => undefined),
+  saveMeta,
   readDoc,
   writeDoc,
   startTurn,

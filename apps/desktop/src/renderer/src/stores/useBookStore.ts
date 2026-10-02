@@ -33,6 +33,10 @@ export const useBookStore = defineStore("book", {
     browseContents: {} as Record<string, string>,
     /** 右栏这一格当前展示文稿还是浏览；浏览永不改写文稿侧状态。 */
     rightPaneMode: "manuscript" as "manuscript" | "browse",
+    /** 权限档菜单是否展开；`/permissions` 与头部按钮共用的唯一开关。 */
+    permissionMenuOpen: false,
+    /** 从 `/permissions <档位名>` 带进来的预选文案，菜单消费；空串表示没有预选。 */
+    permissionPreset: "",
     /** 切换文稿标签前先存好当前草稿，切回来才不被盘上内容覆盖。 */
     draftsByPath: {} as Record<string, DocState>
   }),
@@ -211,6 +215,17 @@ export const useBookStore = defineStore("book", {
 
     stashActive() {
       if (this.activeDocTab) this.draftsByPath[this.activeDocTab] = this.snapshot();
+    },
+
+    /** 只搬标志位与预选文案：档位真正落盘在 Task 9 的菜单动作里，这里绝不写 meta。 */
+    openPermissionMenu(preset = ""): void {
+      this.permissionPreset = preset;
+      this.permissionMenuOpen = true;
+    },
+
+    closePermissionMenu(): void {
+      this.permissionMenuOpen = false;
+      this.permissionPreset = "";
     }
   }
 });

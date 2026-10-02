@@ -31,6 +31,8 @@ const writeDoc = vi.fn(async (): Promise<DocWriteResult> => ({
   currentFingerprint: "fp-x"
 }));
 const pickBookDirectory = vi.fn(async (): Promise<string | null> => "/book");
+// 写盘桩提成模块级常量（照 pickBookDirectory 现例）：Task 8 的用例要查它的调用次数。
+const saveMeta = vi.fn(async () => {});
 /** book 侧测试绝不触碰的通道：一旦被调用就报出来。 */
 function offLimits(name: string) {
   return vi.fn(async () => {
@@ -41,7 +43,7 @@ function offLimits(name: string) {
 const api = {
   pickBookDirectory,
   openBook: vi.fn(async () => result),
-  saveMeta: vi.fn(async () => {}),
+  saveMeta,
   readDoc,
   writeDoc,
   startTurn: offLimits("startTurn"),
@@ -291,5 +293,17 @@ describe("useBookStore", () => {
     expect(store.draft).toBe("正文\n");
     expect(store.savedFingerprint).toBe("fp-a");
     expect(store.dirty).toBe(false);
+  });
+
+  it("档位菜单开关只搬标志位，不碰 meta 也不写盘", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    store.openPermissionMenu("全开");
+    expect(store.permissionMenuOpen).toBe(true);
+    expect(store.permissionPreset).toBe("全开");
+    store.closePermissionMenu();
+    expect(store.permissionMenuOpen).toBe(false);
+    expect(store.permissionPreset).toBe("");
+    expect(saveMeta).not.toHaveBeenCalled();
   });
 });

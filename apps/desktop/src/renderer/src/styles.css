@@ -5,6 +5,7 @@
 @import "./styles/dialog.css";
 @import "./styles/agent-pane.css";
 @import "./styles/theme-runtime.css";
+@import "./styles/interaction.css";
 
 :root {
   color: var(--text-primary, #202226);

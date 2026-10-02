@@ -2,6 +2,8 @@ import { defineStore } from "pinia";
 import {
   AGENT_DELTA_KINDS,
   AGENT_EVENT_TYPES,
+  DEFAULT_PERMISSION_MODE,
+  PERMISSION_LABELS,
   TURN_END_STATUSES,
   type AgentDeltaKind,
   type AgentEvent,
@@ -17,6 +19,8 @@ import {
   type TurnEndStatus
 } from "@mochen/contracts";
 import { replayProposalStatuses } from "../utils/timeline";
+import type { SlashCommand } from "../utils/slash-commands";
+import { useLayoutStore } from "./layoutStore";
 import { useBookStore } from "./useBookStore";
 
 /** 与主进程 agent-service.ts:38 的同名常量必须一致（裁定 o）。 */
@@ -59,7 +63,7 @@ export interface ProposalView {
 
 const EMPTY_STREAM = { reasoning: "", message: "" };
 
-function newThread(): ThreadView {
+export function newThread(): ThreadView {
   return {
     turnId: null,
     running: false,
@@ -148,6 +152,55 @@ export function composeStatusLine(
   }
   if (pending > 0) return `${pending} 条待审`;
   return "就绪";
+}
+
+/** `/clear` 的确认文案（spec §6 定稿整句）：真实的边界就是「只动渲染层」，一个字都不许夸张。 */
+export const CLEAR_VIEW_SENTENCE = "这只清空本页显示；盘上的会话历史不动，重启后仍会完整回放。";
+
+/** 收尾态文案表：`Record<TurnEndStatus, string>` 是编译期闸，加状态不写文案就过不了 tsc（铁律 6）。 */
+const END_STATE_LINES: Record<TurnEndStatus, string> = {
+  done: "上一轮已完成",
+  interrupted: "上一轮已打断，可继续",
+  failed: "上一轮失败，可继续"
+};
+
+/** 空串是「这一条线程还没收场过」，不是 TurnEndStatus 的成员，所以单独一档，不塞进表里当第四键。 */
+function endStateLine(endedAs: "" | TurnEndStatus): string {
+  if (endedAs === "") return "尚无收尾记录";
+  return END_STATE_LINES[endedAs];
+}
+
+export interface StatusFacts {
+  threadKey: string;
+  thread: ThreadView | undefined;
+  cards: number;
+  pending: number;
+  permissionLabel: string;
+  stageName: string;
+}
+
+/** `/status` 的报告：纯函数，好测也好核对；「已回放」与「未回放」必须分开说，否则用户以为看到的是全部历史。 */
+export function composeStatusReport(facts: StatusFacts): string {
+  const { thread } = facts;
+  const events = thread?.items.length ?? 0;
+  const replay =
+    thread?.hydrating === true
+      ? "历史正在回放"
+      : thread?.hydrated === true
+        ? `历史已回放（${events} 条）`
+        : `历史未回放（本页 ${events} 条）`;
+  const ended = thread === undefined ? "还没有这一条线程" : endStateLine(thread.endedAs);
+  const label = facts.threadKey === UNBOUND ? "未绑定文稿" : facts.threadKey;
+  const parts = [
+    `线程 ${label}`,
+    replay,
+    `提案 ${facts.cards} 张（待审 ${facts.pending} 张）`,
+    `排队 ${thread?.queued.length ?? 0} 条`,
+    `权限档：${facts.permissionLabel}`,
+    `阶段：${facts.stageName}`,
+    ended
+  ];
+  return `状态 · ${parts.join(" · ")}`;
 }
 
 export const useAgentStore = defineStore("agent", {
@@ -460,6 +513,75 @@ export const useAgentStore = defineStore("agent", {
       if (result.droppedLines.length > 0)
         this.notice = `这条线程有 ${result.droppedLines.length} 行没能读回，其余内容已恢复。`;
       thread.hydrated = true;
+    },
+
+    /**
+     * `/` 面板唯一派发口（spec §6）：命令落在哪个 store 动作上，只在这里决定一次。
+     * 面板组件、快捷键接线都不允许再各写一份 switch。
+     */
+    runSlashCommand(command: SlashCommand, argument: string): void {
+      const book = useBookStore();
+      const threadKey = threadKeyFor(book.activeDocTab);
+      switch (command) {
+        case "model":
+          // 与 Ctrl+, 同一条通路（Task 7）：模型设置的唯一真身仍是 ProviderSettings 浮层。
+          useLayoutStore().showSettings("general");
+          return;
+        case "permissions":
+          // 波 1：带档位名只作为预选传给菜单（菜单真身 Task 9），不在这里写盘。
+          book.openPermissionMenu(argument);
+          return;
+        case "status": {
+          this.notice = composeStatusReport({
+            threadKey,
+            thread: this.threads[threadKey],
+            cards: Object.values(this.proposals).filter(
+              (view) => view.proposal.threadKey === threadKey
+            ).length,
+            pending: this.pendingOf(threadKey),
+            permissionLabel:
+              PERMISSION_LABELS[book.meta?.permissionMode ?? DEFAULT_PERMISSION_MODE],
+            stageName:
+              book.meta?.stages.find((stage) => stage.id === book.meta?.activeStage)?.name ?? "无"
+          });
+          return;
+        }
+        case "resume":
+          void this.ensureHydrated(threadKey);
+          return;
+        case "clear":
+          this.clearThreadView(threadKey);
+          return;
+        case "stage":
+          // availableCommands 已在波 1 把它滤掉；走到这里只可能是有人绕过面板直接调用，给实话而不是假装成功。
+          this.notice = "切换创作阶段要连同智能体档案一起切，这一条通路在波 2 接通。";
+          return;
+      }
+    },
+
+    /**
+     * `/clear` 的真实边界（spec §6）：只清渲染层视图——不动 JSONL、不动主进程 pending、不生成 boundary 事件。
+     * `hydrated` 置真 ⇒ Task 5 的三处自动水合时机不会把刚清掉的内容立刻倒回来；
+     * 恢复办法就是确认文案里那句「重启后仍会完整回放」。
+     * `queued` 不清：那是用户还没发出去的指令，不是显示内容。
+     */
+    clearThreadView(threadKey: string): void {
+      const thread = this.viewOf(threadKey);
+      const pendingCards = Object.values(this.proposals).filter(
+        (view) => view.proposal.threadKey === threadKey && view.status === "pending"
+      ).length;
+      thread.items = [];
+      thread.streaming = { ...EMPTY_STREAM };
+      thread.lastError = "";
+      thread.endedAs = "";
+      thread.hydrated = true;
+      for (const id of Object.keys(this.proposals)) {
+        if (this.proposals[id]?.proposal.threadKey === threadKey) delete this.proposals[id];
+      }
+      this.notice =
+        pendingCards === 0
+          ? CLEAR_VIEW_SENTENCE
+          : `${CLEAR_VIEW_SENTENCE} 本页还有 ${pendingCards} 条待审批提案，清空后这一轮里点不到它们；重启后会以「上次会话未处理」回来。`;
     },
 
     tick(): void {

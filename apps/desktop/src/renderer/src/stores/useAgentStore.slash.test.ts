@@ -1,0 +1,177 @@
+import { describe, expect, it } from "vitest";
+import { CLEAR_VIEW_SENTENCE, composeStatusReport, newThread, UNBOUND } from "./useAgentStore";
+import { useBookStore } from "./useBookStore";
+import { useLayoutStore } from "./layoutStore";
+// 与 useAgentStore.test.ts 共用夹具（D2 的拆分先例）：本文件是 Task 8 新增的 `/` 面板动作断言，
+// 主文件已 674 行、再挂 7 个用例会顶破 800 行门禁，故按简报第 8 条裁定拆到这一个 slash 侧文件。
+import {
+  CH,
+  OTHER,
+  eventOf,
+  loadSession,
+  openChapter,
+  proposal,
+  push,
+  saveMeta,
+  setupAgentFixture,
+  store
+} from "./agent-store-fixture";
+
+setupAgentFixture();
+
+describe("useAgentStore · / 面板动作", () => {
+  it("/clear 只清渲染层：视图空、hydrated 置真、其它线程不动、也不再被自动水合倒回来", async () => {
+    await openChapter();
+    store().startListening();
+    push({
+      type: "event",
+      turnId: "t1",
+      threadKey: CH,
+      event: eventOf("user-message", { id: "e-a", text: "改紧" })
+    });
+    push({
+      type: "event",
+      turnId: "t1",
+      threadKey: CH,
+      event: eventOf("message", { id: "e-b", text: "好", interrupted: false })
+    });
+    push({
+      type: "event",
+      turnId: "t9",
+      threadKey: OTHER,
+      event: eventOf("user-message", { id: "e-other", text: "别动" })
+    });
+    expect(store().viewOf(CH).items.length).toBe(2);
+    expect(store().viewOf(CH).hydrated).toBe(false);
+    loadSession.mockClear();
+
+    store().runSlashCommand("clear", "");
+
+    expect(store().viewOf(CH).items.length).toBe(0);
+    expect(store().viewOf(CH).hydrated).toBe(true);
+    expect(store().notice).toBe(CLEAR_VIEW_SENTENCE);
+    expect(store().viewOf(OTHER).items.length).toBe(1);
+    // hydrated 置真的意义：Task 5 的三处时机不会把刚清空的内容倒回来
+    await store().ensureHydrated(CH);
+    expect(loadSession).not.toHaveBeenCalled();
+    expect(store().viewOf(CH).items.length).toBe(0);
+  });
+
+  it("/clear 有 pending 卡时必须把代价说清楚，并把卡一起从页面上摘掉", async () => {
+    await openChapter();
+    store().startListening();
+    push({
+      type: "event",
+      turnId: "t1",
+      threadKey: CH,
+      event: eventOf("proposal", { id: "e-p", proposal: proposal("p-clear") })
+    });
+    expect(store().pendingOf(CH)).toBe(1);
+
+    store().runSlashCommand("clear", "");
+
+    expect(store().pendingOf(CH)).toBe(0);
+    expect(store().notice).toBe(
+      `${CLEAR_VIEW_SENTENCE} 本页还有 1 条待审批提案，清空后这一轮里点不到它们；重启后会以「上次会话未处理」回来。`
+    );
+  });
+
+  it("排队指令不属于显示内容：/clear 不动 queued", async () => {
+    await openChapter();
+    expect(store().queueText(CH, "第二条")).toBe(true);
+    store().runSlashCommand("clear", "");
+    expect(store().viewOf(CH).queued).toEqual(["第二条"]);
+  });
+
+  it("/status 写状态条的是整句报告，未回放与已回放两种口径分开", () => {
+    const replayed = newThread();
+    replayed.hydrated = true;
+    replayed.items = [
+      eventOf("user-message", { id: "e-a", text: "改紧" }),
+      eventOf("message", { id: "e-b", text: "好", interrupted: false })
+    ];
+    expect(
+      composeStatusReport({
+        threadKey: CH,
+        thread: replayed,
+        cards: 2,
+        pending: 1,
+        permissionLabel: "只读参考",
+        stageName: "正文"
+      })
+    ).toBe(
+      `状态 · 线程 ${CH} · 历史已回放（2 条） · 提案 2 张（待审 1 张） · 排队 0 条 · 权限档：只读参考 · 阶段：正文 · 尚无收尾记录`
+    );
+
+    expect(
+      composeStatusReport({
+        threadKey: UNBOUND,
+        thread: undefined,
+        cards: 0,
+        pending: 0,
+        permissionLabel: "只读参考",
+        stageName: "无"
+      })
+    ).toBe(
+      "状态 · 线程 未绑定文稿 · 历史未回放（本页 0 条） · 提案 0 张（待审 0 张） · 排队 0 条 · 权限档：只读参考 · 阶段：无 · 还没有这一条线程"
+    );
+
+    const interrupted = newThread();
+    interrupted.endedAs = "interrupted";
+    expect(
+      composeStatusReport({
+        threadKey: CH,
+        thread: interrupted,
+        cards: 0,
+        pending: 0,
+        permissionLabel: "可改当前章",
+        stageName: "正文"
+      })
+    ).toContain("上一轮已打断，可继续");
+  });
+
+  it("/status 走的是当前线程与 book.meta 的真实数字", async () => {
+    await openChapter();
+    store().startListening();
+    push({
+      type: "event",
+      turnId: "t1",
+      threadKey: CH,
+      event: eventOf("proposal", { id: "e-p2", proposal: proposal("p-status") })
+    });
+    store().runSlashCommand("status", "");
+    // 夹具的 meta：permissionMode 是 chapter-write、阶段 draft=正文
+    expect(store().notice).toBe(
+      `状态 · 线程 ${CH} · 历史未回放（本页 1 条） · 提案 1 张（待审 1 张） · 排队 0 条 · 权限档：可改当前章 · 阶段：正文 · 尚无收尾记录`
+    );
+  });
+
+  it("/resume 走 ensureHydrated，/model 走 layout.showSettings（面板不自己实现任何事）", async () => {
+    await openChapter();
+    loadSession.mockClear();
+    store().runSlashCommand("resume", "");
+    expect(loadSession).toHaveBeenCalledTimes(1);
+    store().runSlashCommand("model", "");
+    expect(useLayoutStore().currentView).toBe("settings");
+    expect(useLayoutStore().settingsInitialCategory).toBe("general");
+  });
+
+  it("/permissions 只把档位菜单连同预选档位名一起打开，不写盘也不改 meta", async () => {
+    const bookStore = useBookStore();
+    await bookStore.openBook("/book");
+    saveMeta.mockClear();
+    store().runSlashCommand("permissions", "可改当前章");
+    expect(bookStore.permissionMenuOpen).toBe(true);
+    expect(bookStore.permissionPreset).toBe("可改当前章");
+    expect(saveMeta).not.toHaveBeenCalled();
+    store().runSlashCommand("permissions", "");
+    expect(bookStore.permissionPreset).toBe("");
+    bookStore.closePermissionMenu();
+    expect(bookStore.permissionMenuOpen).toBe(false);
+  });
+
+  it("绕过面板直接叫 stage：给一句实话，不假装切了", () => {
+    store().runSlashCommand("stage", "正文");
+    expect(store().notice).toBe("切换创作阶段要连同智能体档案一起切，这一条通路在波 2 接通。");
+  });
+});
