@@ -174,6 +174,11 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     <template v-else-if="name === 'italic'">
       <path d="M10 4h8M6 20h8M14 4 10 20" />
     </template>
+    <!-- 「标题」的字形是本仓自造的一枚（deepwrite 的图标表里没有标题）：两竖一横的 H，
+         不带层级数字——我们插入的是 `## `，画个 1 就成了假话。描边语言与其余字形一致。 -->
+    <template v-else-if="name === 'heading'">
+      <path d="M5 5v14M19 5v14M5 12h14" />
+    </template>
     <template v-else-if="name === 'keyboard'">
       <rect x="2" y="6" width="20" height="12" rx="2" />
       <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8" />

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { nextTick, ref } from "vue";
 import { useSnippetToolbar, type SnippetEditorLike } from "./useSnippetToolbar";
+import { SNIPPET_KINDS } from "../utils/markdown-snippets";
 import { useBookStore } from "../stores/useBookStore";
 
 /**
@@ -73,22 +74,15 @@ describe("useSnippetToolbar（接线住 .ts：本仓 .vue 零类型检查零运�
     const { snippetToolbar } = useSnippetToolbar(ref(stubEditor({ value: "", start: 0, end: 0 })));
 
     // 文稿态但草稿还没打开：按钮在位却点不动。
+    // 枚数跟着 utils 的 SNIPPET_KINDS 走（那份表在 markdown-snippets.test.ts 逐字钉死），
+    // 这里只钉「整排同态」——状态由 store 现值驱动，一枚都不许漏。
     expect(snippetToolbar.value.visible).toBe(true);
-    expect(snippetToolbar.value.buttons.map((btn) => btn.disabled)).toEqual([
-      true,
-      true,
-      true,
-      true
-    ]);
+    expect(snippetToolbar.value.buttons).toHaveLength(SNIPPET_KINDS.length);
+    expect(snippetToolbar.value.buttons.every((btn) => btn.disabled)).toBe(true);
 
     book.activeDocTab = "chapters/01-a.md";
     expect(snippetToolbar.value.visible).toBe(true);
-    expect(snippetToolbar.value.buttons.map((btn) => btn.disabled)).toEqual([
-      false,
-      false,
-      false,
-      false
-    ]);
+    expect(snippetToolbar.value.buttons.every((btn) => !btn.disabled)).toBe(true);
 
     book.rightPaneMode = "browse";
     expect(snippetToolbar.value.visible).toBe(false);

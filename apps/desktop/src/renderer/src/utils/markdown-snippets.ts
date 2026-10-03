@@ -1,24 +1,40 @@
 import type { RightPaneMode } from "../stores/useBookStore";
+import type { IconName } from "../types/icons";
 
 /**
  * 右栏「插入 md 片段」的纯字符串改写（附录 F-F）。三条口径逐条有用例钉着：
  * 1. 下标口径 = UTF-16 码元：textarea 的 selectionStart/End 就是这个口径，返回的 start/end 要能直接喂回
  *    setSelectionRange，否则点一次按钮光标就跑到别处。
  * 2. 内容按码点算：一个表情是一个字，绝不把代理对劈成两半（本仓同类教训的原文见 timeline.ts 的 Array.from 注释）。
- * 3. 只插入、不反解析：已有前缀的行不再重复加，但点第二下不把标记摘掉——按钮文案是「列表」，
- *    不是「列表开关」（附录 §2.7：名字与动作不符也算摆设）。
+ * 3. 只插入、不反解析：已有前缀的行不再重复加，但点第二下不把标记摘掉——按钮叫「列表」，
+ *    不叫「列表开关」（附录 §2.7：名字与动作不符也算摆设）。#113a 起按钮上画的是字形，
+ *    这个名字改由 `aria-label` 承担：灰态的 title 是空串，没有 aria-label 就读屏只剩一句「按钮」。
  *    标题的去重按 markdown 语义认「行首已有 1–6 级 #」，因为 `# 手记` 再叠一层就成了 `## # 手记` 这种坏正文。
  */
 
-export const SNIPPET_KINDS = ["bold", "heading", "list", "quote"] as const;
+export const SNIPPET_KINDS = ["bold", "italic", "heading", "list", "quote"] as const;
 export type SnippetKind = (typeof SNIPPET_KINDS)[number];
 
-/** 片段按钮的中文标签唯一来源：模板里不许出现第二个「加粗」。 */
+/** 片段按钮的中文标签唯一来源：模板里不许出现第二个「加粗」。它同时是图标钮的可及名。 */
 export const SNIPPET_LABELS: Record<SnippetKind, string> = {
   bold: "加粗",
+  italic: "斜体",
   heading: "标题",
   list: "列表",
   quote: "引用"
+};
+
+/**
+ * 片段按钮的字形唯一来源（#113a：参考稿右栏第三行画的是 B/I/" 三枚图标，不是中文标签）。
+ * `Record<SnippetKind, IconName>` 让裸 tsc 盯住穷尽性——加一种片段却忘了配图标，编译期就红。
+ * `heading` 是本仓自造的一枚（deepwrite 的图标表里没有标题字形），已在 docs/ATTRIBUTION.md 登记。
+ */
+export const SNIPPET_ICONS: Record<SnippetKind, IconName> = {
+  bold: "bold",
+  italic: "italic",
+  heading: "heading",
+  list: "list",
+  quote: "quote"
 };
 
 /**
@@ -30,7 +46,7 @@ export const SNIPPET_LABELS: Record<SnippetKind, string> = {
 const SNIPPET_DISABLED_HINT = "打开一篇文稿后才能插入片段";
 
 /** 成对标记：包在选区两端；空选区时两个标记相邻，光标落正中。 */
-const PAIRED_MARKS: Partial<Record<SnippetKind, string>> = { bold: "**" };
+const PAIRED_MARKS: Partial<Record<SnippetKind, string>> = { bold: "**", italic: "*" };
 
 /** 行首标记：文稿标题在 document-title-input 里另存，正文只用二级，别再顶出一个一级跟它抢。 */
 const LINE_MARKS: Partial<Record<SnippetKind, string>> = {
@@ -42,6 +58,7 @@ const LINE_MARKS: Partial<Record<SnippetKind, string>> = {
 /** 逐行还是只作用首行：列表与引用逐行；标题即使选区跨三段也只加首行。变异 W8 改的就是这张表。 */
 const PER_LINE: Record<SnippetKind, boolean> = {
   bold: false,
+  italic: false,
   heading: false,
   list: true,
   quote: true
@@ -62,6 +79,7 @@ export interface SnippetResult {
 export interface SnippetButton {
   kind: SnippetKind;
   label: string;
+  icon: IconName;
   disabled: boolean;
   title: string;
 }
@@ -89,6 +107,7 @@ export function snippetToolbarState(input: {
   const buttons = SNIPPET_KINDS.map((kind) => ({
     kind,
     label: SNIPPET_LABELS[kind],
+    icon: SNIPPET_ICONS[kind],
     disabled,
     // title 只在可点态说用途（灰态弹不出来，理由另有可见的 hint）；措辞照 SNIPPET_LABELS 派生，不发明新词。
     title: disabled ? "" : `插入「${SNIPPET_LABELS[kind]}」`

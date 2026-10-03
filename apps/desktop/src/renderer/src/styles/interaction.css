@@ -144,22 +144,14 @@
   transform: rotate(90deg);
 }
 
-/* 右栏 md 片段工具栏（Task 10 / F-F）：复用 editor-pane.css 的 .format-button 尺寸与 token，
-   只把「两个汉字标签」需要的字号与内边距补上。不新开样式文件、不写死色值（Ruling T10-7：用既有 0.75rem 档）。 */
-.editor-text-tools .format-button {
-  width: auto;
-  min-width: 27px;
-  padding: 0 5px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
 .editor-footer .reading-time {
   flex: 0 0 auto;
 }
 
 /* 复审 I-1：灰态的理由必须是**看得见**的一行（Chromium 不给 disabled 按钮弹 title）。
-   工具栏本身是 flex 行，故让它独占第二行，而不是把四枚按钮挤扁；只吃既有 token，不写死色值。 */
+   工具栏本身是 flex 行，故让它独占第二行，而不是把五枚按钮挤扁；只吃既有 token，不写死色值。
+   #113a：按钮形状整个交回 editor-pane.css 的 .format-button（27×27 方块，与 deepwrite 的
+   .text-tool-button 同值），文字标签时代补的那条 `width: auto + padding + font-size` 覆盖已删。 */
 .editor-text-tools {
   flex-wrap: wrap;
 }

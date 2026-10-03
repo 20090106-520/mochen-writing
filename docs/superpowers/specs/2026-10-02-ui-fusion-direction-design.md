@@ -184,6 +184,12 @@
   实现放 `utils/markdown-snippets.ts`（可 node 单测，含空选区、跨行、光标在中间三类反向用例），
   结果只经 `book.onEdit(value)` 进 draft ⇒ 与手打完全同路，**不新增写盘路径**。
 - 明确不是富文本：不改 DOM、不引 contenteditable。
+- **2026-10-04 #113a 更正两处原口径**：① 位置不再靠 `toolbar-spacer` 推到行尾，而是照参考仓的
+  `.editor-toolbar` 左排——分段控件与工具组之间放一枚 `.toolbar-separator` 竖线；
+  ② 按钮上画的是字形（`.format-button` 27×27 + `AppIcon` 16，与参考仓 `.text-tool-button` 同值），
+  中文标签退居 `aria-label` 与 `title`（灰态 `title` 是空串，没有可及名就读屏只剩一句「按钮」），
+  并补上第五种片段**斜体**（`*` 成对标记，与加粗同一条纯函数通路）。
+  标题那枚字形是本仓自造的（参考仓图标表里没有标题），已在 `docs/ATTRIBUTION.md` 登记。
 
 ### F-G · 页脚补「约 N 分钟阅读」（B 稿页脚）
 

@@ -5,7 +5,15 @@
  * 真机行为（点了到底加不加粗、页脚到底显不显示）归 Task 11 的冒烟矩阵。
  */
 import { describe, expect, it } from "vitest";
-import { scriptSource, templateSource, vueSource } from "../utils/vue-source-reader";
+import { SNIPPET_ICONS } from "../utils/markdown-snippets";
+import {
+  countNeedle,
+  ruleBlock,
+  scriptSource,
+  styleSource,
+  templateSource,
+  vueSource
+} from "../utils/vue-source-reader";
 
 const pane = "components/DocumentPane.vue";
 const bar = "components/DocumentTabBar.vue";
@@ -33,8 +41,14 @@ describe("DocumentPane · 片段工具栏的接线形状（F-F）", () => {
     expect(markup).toContain('role="group"');
     expect(markup).toContain('aria-label="插入 md 片段"');
     expect(markup).toContain('class="format-button"');
-    // 按钮文案取自 SNIPPET_LABELS（经 state.buttons），子组件不另存一份中文。
-    expect(markup).toContain("{{ btn.label }}");
+    // #113a：按钮画的是字形，中文标签退居可及名与 title（参考稿右栏第三行是 B/I/" 三枚图标）。
+    expect(markup).toContain(':name="btn.icon"');
+    expect(countNeedle("<AppIcon", markup)).toBe(1);
+    expect(markup).toContain(':size="16"');
+    expect(markup).toContain(':aria-label="btn.label"');
+    // deepwrite 的 .text-tool-button 每条都带 @mousedown.prevent：按下不抢 textarea 的焦点与选区。
+    expect(markup).toContain("@mousedown.prevent");
+    expect(markup).not.toContain("{{ btn.label }}");
     expect(markup).not.toContain("加粗");
   });
 
@@ -61,6 +75,51 @@ describe("DocumentPane · 片段工具栏的接线形状（F-F）", () => {
     const editor = /<textarea\b[\s\S]*?\/>/.exec(paneTemplate)?.[0] ?? "";
     expect(editor).toContain('ref="editorEl"');
     expect(editor).toContain('@input="onContentInput"');
+  });
+});
+
+/**
+ * #113a 片段钮图标化。图标名住在 utils（铁律 6），模板只渲染 btn.icon。
+ * 这里补的是裸 tsc 看不见的那半截：`IconName` 拼错会被类型关卡拦下，
+ * 但「名字合法、AppIcon.vue 里没有对应字形分支」只会画出一枚空白按钮，tsc 与 vitest 都不红。
+ */
+describe("片段钮的字形真的画得出来（#113a）", () => {
+  // templateSource 会剥 HTML 注释：只在注释里写「有这枚字形」不算画得出来。
+  const glyphs = templateSource("components/AppIcon.vue");
+  for (const [kind, icon] of Object.entries(SNIPPET_ICONS)) {
+    it(`${kind} 的图标 ${icon} 在 AppIcon.vue 里有自己的分支`, () => {
+      expect(glyphs).toContain(`name === '${icon}'`);
+    });
+  }
+});
+
+/**
+ * 工具行排版照 deepwrite 的 `.editor-toolbar`（RightEditorPane.vue:904-970）：
+ * 分段控件之间用 `.toolbar-separator` 竖线，整行左排；`.toolbar-spacer` 是把工具推到最右的自创形状。
+ * 文字标签时代补的 `width: auto` 覆盖在图标化之后必须删掉——留着它，按钮就不是那枚 27×27 方块，
+ * hover 命中区也跟着变形状（同一条理由见 .format-button:focus-visible：图标钮没有文字可描边）。
+ */
+describe("工具行左排分段 + 按钮回到方块（#113a）", () => {
+  it("view-tabs 与片段工具栏之间是一枚分隔线，不是把工具推到最右的撑满空白", () => {
+    expect(paneTemplate).toContain('<span class="toolbar-separator" />');
+    expect(paneTemplate).not.toContain("toolbar-spacer");
+  });
+
+  it("27×27 方块、flex-shrink 与键盘描边都在；文字标签那条覆盖已删", () => {
+    const block = ruleBlock(styleSource("editor-pane.css"), ".format-button");
+    expect(block).toContain("width: 27px");
+    expect(block).toContain("height: 27px");
+    expect(block).toContain("flex-shrink: 0");
+    expect(ruleBlock(styleSource("editor-pane.css"), ".format-button:focus-visible")).toContain(
+      "outline: 2px solid var(--accent)"
+    );
+    expect(styleSource("interaction.css")).not.toContain(".editor-text-tools .format-button");
+  });
+
+  it("化石清理：本仓没有「正文/人物状态」双文件页签，无人消费的规则不留", () => {
+    const editor = styleSource("editor-pane.css");
+    expect(editor).not.toContain("draft-file-tabs");
+    expect(editor).not.toContain("toolbar-spacer");
   });
 });
 

@@ -160,7 +160,7 @@ function switchMode(next: RightPaneMode): void {
           {{ tab.label }}
         </button>
       </div>
-      <span class="toolbar-spacer" />
+      <span class="toolbar-separator" />
       <SnippetToolbar :state="snippetToolbar" @pick="applyToSelection" />
     </div>
 

@@ -228,8 +228,9 @@ html[data-platform="darwin"] .editor-header {
   background: var(--surface-muted);
 }
 
-.view-tabs,
-.draft-file-tabs {
+/* 只有 view-tabs 这一条分段控件：参考稿里的「正文 / 人物状态」双文件页签本仓没有对应概念，
+   它的样式规则不留作化石（同一条律见 document-pane-wiring.test.ts 的「化石清理」）。 */
+.view-tabs {
   display: flex;
   align-items: center;
   padding: 2px;
@@ -237,8 +238,7 @@ html[data-platform="darwin"] .editor-header {
   background: var(--surface-hover);
 }
 
-.view-tabs button,
-.draft-file-tabs button {
+.view-tabs button {
   height: 25px;
   padding: 0 9px;
   border-radius: 5px;
@@ -248,8 +248,7 @@ html[data-platform="darwin"] .editor-header {
   cursor: pointer;
 }
 
-.view-tabs button.is-active,
-.draft-file-tabs button.is-active {
+.view-tabs button.is-active {
   background: var(--surface-main);
   color: var(--text-primary);
   box-shadow: 0 1px 2px rgba(24, 26, 28, 0.08);
@@ -260,10 +259,6 @@ html[data-platform="darwin"] .editor-header {
   height: 19px;
   margin: 0 4px;
   background: var(--theme-line);
-}
-
-.toolbar-spacer {
-  flex: 1;
 }
 
 .editor-text-tools {
@@ -282,6 +277,7 @@ html[data-platform="darwin"] .editor-header {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .format-button:hover {
@@ -303,6 +299,12 @@ html[data-platform="darwin"] .editor-header {
 .format-button:disabled:hover {
   background: transparent;
   color: var(--text-tertiary);
+}
+
+/* #113a 图标化之后按钮里没有文字可描边，键盘焦点只能靠这一圈：照搬 deepwrite .text-tool-button 的同一条。 */
+.format-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .editor-document {

@@ -1,4 +1,4 @@
-// 源自 deepwrite（Apache-2.0），原样移植。
+// 源自 deepwrite（Apache-2.0），原样移植；唯一的例外是 `heading` 一枚（本仓自造，见 docs/ATTRIBUTION.md）。
 export type IconName =
   | "archive"
   | "arrow-left"
@@ -17,6 +17,7 @@ export type IconName =
   | "file"
   | "folder"
   | "globe"
+  | "heading"
   | "history"
   | "image"
   | "italic"
