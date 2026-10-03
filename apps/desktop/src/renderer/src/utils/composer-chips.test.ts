@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { permissionChipView } from "./permission-chip";
-import { composerChips, composerCounter, CHIP_EMIT } from "./composer-chips";
+import { COMPOSER_HINT, CHIP_EMIT, composerChips, composerCounter } from "./composer-chips";
 import { USER_TEXT_MAX_LEN } from "@mochen/contracts";
 
 /** chip 行的入参默认值：只关心某一枚时，其余按「什么都没开」传。 */
@@ -21,16 +21,12 @@ function chip(id: string, over: Partial<Parameters<typeof composerChips>[0]> = {
   return composerChips(input(over)).find((item) => item.id === id);
 }
 
+/** #112 照参考图定的数组序 = 左端从左到右的渲染序，权限档落在右端。 */
+const CHIP_ORDER = ["model", "thinking", "web-search", "tools", "palette", "permission"];
+
 describe("composer-chips · 六枚真开关/入口，排队不做按钮（F-D + #101 + #104）", () => {
-  it("id 顺序逐字钉死：permission/thinking/web-search/tools/model/palette（第三枚排队按钮不许长出来）", () => {
-    expect(composerChips(input()).map((c) => c.id)).toEqual([
-      "permission",
-      "thinking",
-      "web-search",
-      "tools",
-      "model",
-      "palette"
-    ]);
+  it("id 顺序逐字钉死：model/thinking/web-search/tools/palette/permission（第三枚排队按钮不许长出来）", () => {
+    expect(composerChips(input()).map((c) => c.id)).toEqual(CHIP_ORDER);
   });
 
   it("T9-1 反向钉：palette chip 的 title 不得再宣传不存在的 Ctrl+K 键位", () => {
@@ -38,7 +34,7 @@ describe("composer-chips · 六枚真开关/入口，排队不做按钮（F-D + 
     expect(chip("palette")?.title).not.toContain("Ctrl");
   });
 
-  it("联动用例：permission chip 与 permissionChipView 的四个显示字段逐字段同值（防两份判定漂移）", () => {
+  it("联动用例：permission chip 与 permissionChipView 的五个显示字段逐字段同值（防两份判定漂移）", () => {
     const inputs = [
       input({ mode: "chapter-write" }),
       input({ mode: "full-access", saving: true }),
@@ -51,7 +47,8 @@ describe("composer-chips · 六枚真开关/入口，排队不做按钮（F-D + 
         id: "permission",
         text: view.text,
         disabled: view.disabled,
-        title: view.title
+        title: view.title,
+        icon: view.icon
       });
     }
   });
@@ -67,12 +64,13 @@ describe("composer-chips · 六枚真开关/入口，排队不做按钮（F-D + 
     expect(composerChips(input()).every((c) => !c.text.includes("排队"))).toBe(true);
   });
 
-  it("每枚 chip 的键集固定为七字段（active 是aria-pressed 的真值来源，不许漏也不许多；#105 起 slot/badge 承载分栏与角标，同表决策）", () => {
+  it("每枚 chip 的键集固定为八字段（active 是aria-pressed 的真值来源，不许漏也不许多；#112 起 icon/caret 取代 badge，图标与下拉三角同表决策）", () => {
     for (const c of composerChips(input()))
       expect(Object.keys(c).sort()).toEqual([
         "active",
-        "badge",
+        "caret",
         "disabled",
+        "icon",
         "id",
         "slot",
         "text",
@@ -82,11 +80,11 @@ describe("composer-chips · 六枚真开关/入口，排队不做按钮（F-D + 
 });
 
 describe("composer-chips · 深度思考", () => {
-  it("关档文案不带档位名，开档才缀上中文档（标签只读 THINKING_LEVEL_LABELS）", () => {
-    expect(chip("thinking", { thinkingLevel: "off" })?.text).toBe("深度思考");
-    expect(chip("thinking", { thinkingLevel: "low" })?.text).toBe("深度思考 · 低");
-    expect(chip("thinking", { thinkingLevel: "medium" })?.text).toBe("深度思考 · 中");
-    expect(chip("thinking", { thinkingLevel: "high" })?.text).toBe("深度思考 · 高");
+  it("文案只有档位名（#112 照参考图：图标已经说明这是思考等级，文字不再重复「深度思考」）", () => {
+    expect(chip("thinking", { thinkingLevel: "off" })?.text).toBe("关闭");
+    expect(chip("thinking", { thinkingLevel: "low" })?.text).toBe("较低");
+    expect(chip("thinking", { thinkingLevel: "medium" })?.text).toBe("标准");
+    expect(chip("thinking", { thinkingLevel: "high" })?.text).toBe("深度");
   });
 
   it("active 只在非 off 时为真（关档时按下态不许骗人）", () => {
@@ -101,6 +99,13 @@ describe("composer-chips · 深度思考", () => {
     expect(chip("thinking", { thinkingLevel: "medium" })?.title).toContain(
       "reasoning_effort=medium"
     );
+  });
+
+  it("循环次序从 THINKING_LEVELS 现拼，不手抄第二份档位名（改标签不会留下一句说谎的提示）", () => {
+    for (const level of ["off", "low", "medium", "high"] as const)
+      expect(chip("thinking", { thinkingLevel: level })?.title).toContain(
+        "关闭 → 较低 → 标准 → 深度"
+      );
   });
 });
 
@@ -120,7 +125,8 @@ describe("composer-chips · 联网搜索与工具清单", () => {
   it("工具 chip 永远不 disabled，且文案里的数量就是从 contracts 数出来的那五枚", () => {
     const tools = chip("tools");
     expect(tools?.disabled).toBe(false);
-    expect(tools?.text).toBe("工具 ▾");
+    // #112：下拉三角是 icon/caret 两枚字段渲染出来的，不再混进 text（同一件事两份真身）。
+    expect(tools?.text).toBe("工具");
     expect(tools?.title).toContain("5 枚");
     expect(tools?.active).toBe(false);
   });
@@ -172,6 +178,63 @@ describe("composer-chips · 模型入口（#104）", () => {
   it("active 恒假：弹层打开是瞬态，不是按下态（aria-pressed 用它只会撒谎）", () => {
     expect(chip("model")?.active).toBe(false);
     expect(chip("model", { modelLabel: "", baseURL: "" })?.active).toBe(false);
+  });
+});
+
+/**
+ * #112 照参考图（用户提供的三张截图）对齐输入卡：
+ * 他那张卡左端是 `＋ / 模型 ▾ / 思考等级 ▾` **三枚独立控件**，#105 我把模型与思考等级
+ * 合并成一枚 chip 是自创的，截图证明它不存在 ⇒ 撤销合并（裁定 I）。
+ * 地球角标同理：它说的是「这一轮带不带 web_search」，挂在模型名字上等于让模型 chip 冒充联网开关；
+ * 而联网自己已经是一枚 chip ⇒ badge 字段整个退役，改由 icon 承载（裁定 I 续）。
+ * 图标的合法名不靠这条测试把关：`ComposerChipView.icon` 是 `IconName`，写错的名字在 tsc 就编不过。
+ */
+describe("composer-chips · #112 撤销合并口径，两枚控件各说各的", () => {
+  it("开着思考等级时模型 chip 仍是裸模型名——等级只在它自己那一枚上说一次", () => {
+    const model = chip("model", { thinkingLevel: "high" });
+    expect(model?.text).toBe("mochen-mock");
+    expect(model?.text).not.toContain("深度");
+    expect(chip("thinking", { thinkingLevel: "high" })?.text).toBe("深度");
+  });
+
+  it("每枚 chip 有自己的图标：模型=立方体、思考=脑、联网=地球、工具=清单、命令=火花、档位=按档而变", () => {
+    expect(chip("model")?.icon).toBe("model");
+    expect(chip("thinking")?.icon).toBe("brain");
+    expect(chip("web-search")?.icon).toBe("globe");
+    expect(chip("tools")?.icon).toBe("list");
+    expect(chip("palette")?.icon).toBe("sparkles");
+    expect(chip("permission")?.icon).toBe("user");
+    expect(chip("permission", { mode: "full-access" })?.icon).toBe("check");
+    expect(chip("permission", { mode: "chapter-write" })?.icon).toBe("edit");
+    expect(chip("permission", { hasBook: false, mode: null })?.icon).toBe("folder");
+  });
+
+  it("只有打开弹层的入口带下拉三角：两枚真开关（思考循环 / 联网开关）没有「更多」可展开", () => {
+    for (const id of ["model", "tools", "palette", "permission"])
+      expect(chip(id)?.caret, `${id} 是入口，该带三角`).toBe(true);
+    for (const id of ["thinking", "web-search"])
+      expect(chip(id)?.caret, `${id} 是开关，不该带三角`).toBe(false);
+  });
+
+  it("分栏照他那张卡：左端全是运行配置，右端只有权限（发送键由模板自己管）", () => {
+    const chips = composerChips(input());
+    const left = chips.filter((c) => c.slot === "left").map((c) => c.id);
+    const right = chips.filter((c) => c.slot === "right").map((c) => c.id);
+    expect(left).toEqual(["model", "thinking", "web-search", "tools", "palette"]);
+    expect(right).toEqual(["permission"]);
+  });
+});
+
+describe("composer-chips · 卡下键位提示（#112）", () => {
+  it("提示里的每一段都对应这张卡真有的通路：没有附件通道就不许写「附件」", () => {
+    expect(COMPOSER_HINT).toContain("Enter 发送");
+    expect(COMPOSER_HINT).toContain("Shift + Enter 换行");
+    expect(COMPOSER_HINT).toContain("＋ 引用素材");
+    expect(COMPOSER_HINT).toContain("/ 命令");
+    expect(COMPOSER_HINT).toContain("@ 素材");
+    // 那枚禁用的麦克风必须有看得见的理由（Chromium 不给 disabled 元素弹 title）。
+    expect(COMPOSER_HINT).toContain("语音输入后续开放");
+    expect(COMPOSER_HINT).not.toContain("附件");
   });
 });
 

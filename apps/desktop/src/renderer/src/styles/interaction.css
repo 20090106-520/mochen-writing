@@ -88,24 +88,30 @@
   color: var(--warning);
 }
 
-/* Task 9（F-D）：输入区 chip。#105 起 chip 行从独立一行搬进卡内 toolbar 左右分栏
-   （容器与骨架见 agent-pane.css 末尾的卡片段），这里只留单枚 chip 的本体样式：
-   T9-4②：chip 基础色用 --text-soft——同一个逻辑控件在中栏头部与输入区必须同色。 */
+/* Task 9（F-D）落地，#112 照参考图重画：chip 不再是描边药丸，而是卡内一枚无边框的「图形 + 文字 + 下拉三角」。
+   数值照搬 deepwrite 的 .conversation-model-config-trigger（高 29、gap 5、padding 0 7、圆角 7、
+   字号 0.75rem、透明面配 --text-secondary、hover 才上 --surface-hover 并把字提到 --text-primary）；
+   token 映射沿用本仓别名层：--text-secondary→--text-soft、--surface-hover→--hover、--text-primary→--text。
+   T9-4② 的口径不变：同一个逻辑控件在中栏头部与输入区同色。 */
 .composer-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
+  gap: 5px;
+  min-width: 0;
+  height: 29px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 7px;
   background: transparent;
   color: var(--text-soft);
-  font-size: 12px;
-  padding: 3px 10px;
+  font-size: 0.75rem;
+  white-space: nowrap;
   cursor: pointer;
 }
 
 .composer-chip:hover:not(:disabled) {
   background: var(--hover);
+  color: var(--text);
 }
 
 .composer-chip:focus-visible {
@@ -116,11 +122,26 @@
 .composer-chip:disabled {
   color: var(--text-faint);
   cursor: not-allowed;
+  opacity: 0.5;
 }
 
-.composer-chip-hint {
+/* 模型名可以很长（右栏窄时更不能把它撑破），所以文字独占一层可截断的 span——
+   截断的是显示，不是数据：完整模型名与通道名在 title 里。 */
+.composer-chip-label {
+  overflow: hidden;
+  max-width: 132px;
+  text-overflow: ellipsis;
+}
+
+.composer-chip-icon {
+  flex: 0 0 auto;
+}
+
+/* 本仓的 chevron 画的是「>」，转 90° 才是参考图里那枚朝下的三角（deepwrite 同一手法）。 */
+.composer-chip-caret {
+  flex: 0 0 auto;
   color: var(--text-faint);
-  font-size: 12px;
+  transform: rotate(90deg);
 }
 
 /* 右栏 md 片段工具栏（Task 10 / F-F）：复用 editor-pane.css 的 .format-button 尺寸与 token，
@@ -151,9 +172,9 @@
 }
 
 /* 输入区 chip 行的按下态（#101）：aria-pressed 由 composerChips 的 active 决定，
-   样式只负责把它画出来——两枚真开关（思考 / 联网）才为真，入口型 chip 永远是假。 */
+   样式只负责把它画出来——两枚真开关（思考 / 联网）才为真，入口型 chip 永远是假。
+   #112 起 chip 无边框，按下态只剩「上面 + 字色」两件事可画。 */
 .composer-chip[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--focus) 55%, var(--line-soft));
   background: var(--selected);
   color: var(--text);
 }

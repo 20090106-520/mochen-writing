@@ -89,8 +89,8 @@ describe("BookWorkbench · 建议 pill 的两条出路接到真身", () => {
       /agent\.prefillComposer\(threadKeyFor\(target\), (?:suggestion\.prefill|text)\)/
     );
     // #106 裁定 D1：第二块命令面板（SlashPalette + 其 paletteOpen ref）已退役，
-    // pill 的出路仍与裸 / 键、`/ 命令` chip 共用同一处入口 ⇒ 钉子跟着搬到 summonSlash，语义一字未松。
-    expect(center).toMatch(/kind === "palette"[\s\S]{0,120}referenceMenu\.summonSlash\(\)/);
+    // pill 的出路仍与裸 / 键、`/ 命令` chip 共用同一处入口 ⇒ 钉子跟着搬到行内菜单的 summon，语义一字未松。
+    expect(center).toMatch(/kind === "palette"[\s\S]{0,120}referenceMenu\.summon\("\/"\)/);
     // 反向：装配处不重抄句子——中栏里出现的预填字面量只该是 import 来的常量名。
     expect(center).not.toContain("给我三个能接着往下写的点子");
     expect(center).not.toContain("我想改这一章：");

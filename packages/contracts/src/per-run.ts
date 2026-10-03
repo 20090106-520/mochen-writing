@@ -15,15 +15,22 @@ export const THINKING_LEVELS = ["off", "low", "medium", "high"] as const;
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
 export const thinkingLevelSchema = z.enum(THINKING_LEVELS, {
-  message: "思考档位只能是关、低、中、高四档之一"
+  message: "思考档位只能是 关闭 / 较低 / 标准 / 深度 四档之一"
 });
 
-/** chip 上那枚中文标签；键集与 THINKING_LEVELS 完全一致（测试逐字钉死）。 */
+/**
+ * chip 上那枚中文标签；键集与 THINKING_LEVELS 完全一致（测试逐字钉死）。
+ *
+ * #112 照参考图改档名：输入卡的思考那一枚现在只剩档位名（图标负责说明它是思考等级），
+ * 所以词必须单独读得通——「低」是一枚摆设，「较低」才是一档。
+ * 取值口径抄自 deepwrite 的 `builtInThinkingLabels`（同一批 wire 值 low/medium/high 在他那里就是
+ * 较低/标准/深度），不是我自己另起的一套。
+ */
 export const THINKING_LEVEL_LABELS: Record<ThinkingLevel, string> = {
-  off: "关",
-  low: "低",
-  medium: "中",
-  high: "高"
+  off: "关闭",
+  low: "较低",
+  medium: "标准",
+  high: "深度"
 };
 
 /**

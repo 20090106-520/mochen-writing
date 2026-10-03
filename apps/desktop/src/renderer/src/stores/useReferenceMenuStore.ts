@@ -20,7 +20,8 @@ import {
   type ReferenceMenuCopy,
   type ReferenceMenuPool,
   type ReferenceOption,
-  type ReferenceSelection
+  type ReferenceSelection,
+  type ReferenceTrigger
 } from "../utils/inline-reference-menu";
 import { availableCommands, type PaletteFocus } from "../utils/slash-commands";
 import { threadKeyFor, useAgentStore } from "./useAgentStore";
@@ -144,19 +145,28 @@ export const useReferenceMenuStore = defineStore("reference-menu", {
     },
 
     /**
-     * `/` 的唤起真身（裁定 D1）：`/ 命令` chip、裸 `/` 键、工作台「更多功能」pill 三个入口都走这里。
-     * 做法是往这一格草稿末尾补一个 `/` 并摆好光标——菜单由同一套行内判定自己开，
-     * 于是全仓不再有第二块命令面板，也不再有第二份命令渲染。
+     * 唤起真身（裁定 D1）：`/` 的三个入口（`/ 命令` chip、裸 `/` 键、工作台「更多功能」pill）与
+     * `＋` 按钮（= `@` 引用素材）都走这里，全仓不再有第二块命令面板、也不再有第二份命令渲染。
+     * 做法是往这一格草稿末尾补一个触发符并摆好光标——菜单由同一套行内判定自己开，
+     * 于是按钮、键位与打字三条通路共用同一个 `findReferenceMatch`，没有第四份开合逻辑。
      */
-    summonSlash(): void {
+    summon(trigger: ReferenceTrigger): void {
       const agent = useAgentStore();
       const key = threadKeyFor(useBookStore().activeDocTab);
       const current = agent.draftOf(key);
-      // 已经以 `/` 收尾就别补第二个斜杠（那会多出一个字符）；把菜单与光标直接摆到位即可。
-      const already = current.endsWith("/");
-      const pad = current === "" || already || /\s$/.test(current) ? "" : " ";
-      const next = already ? current : `${current}${pad}/`;
-      if (next !== current) agent.setDraft(key, next);
+      // 末尾已经挂着一枚同型的触发符（上一枚没选完就再点一次）⇒ 只把菜单与光标摆回来。
+      // 照直再补一枚会在草稿里留下「/ /」这种残渣，选完命令后那枚斜杠还赖在句子里。
+      const tail = findReferenceMatch(current, current.length);
+      if (tail !== null && tail.trigger === trigger) {
+        this.caretRequest = current.length;
+        this.syncFrom(current, current.length, true);
+        return;
+      }
+      // 需要补一枚时才补，且只在末尾不是空白时先补一个空格：`findReferenceMatch` 的前置字符黑名单
+      // 会把紧贴字母/数字的 `/`「@」判成词内部（path/mod、user@name），省掉那个空格会点出一次没反应的按钮。
+      const pad = current === "" || /\s$/.test(current) ? "" : " ";
+      const next = `${current}${pad}${trigger}`;
+      agent.setDraft(key, next);
       this.caretRequest = next.length;
       this.syncFrom(next, next.length, true);
     },

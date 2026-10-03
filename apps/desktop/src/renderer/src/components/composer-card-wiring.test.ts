@@ -90,25 +90,39 @@ describe("composer 卡骨架 · 照搬 deepwrite 的圆角卡", () => {
     expect(pane).toContain("@container composer");
   });
 
-  it("旧竖排 footer 的类名全部退役：agent-composer/composer-box/composer-chips 容器/composer-hint 不再出现", () => {
+  it("旧竖排 footer 的类名全部退役：agent-composer/composer-box/composer-chips 容器不再出现", () => {
+    // #112 起 composer-hint 与 composer-chip-hint 不是一回事：前者是卡下那行常驻提示（活的），
+    // 后者是 toolbar 里那句「运行中按 Tab 可排队指令」（已被 COMPOSER_HINT 取代，才是化石）。
     const m = markup();
     for (const dead of [
       "agent-composer",
       "composer-box",
       'class="composer-chips"',
-      "composer-hint",
+      "composer-chip-hint",
       "composer-send",
       "composer-stop"
     ]) {
       expect(m, `旧类名 ${dead} 必须已被卡片结构取代`).not.toContain(dead);
     }
+    for (const file of ["agent-pane.css", "interaction.css"]) {
+      expect(styleSource(file), `styles/${file} 里 .composer-chip-hint 无人消费`).not.toContain(
+        ".composer-chip-hint"
+      );
+    }
   });
 
-  it("裁定 C：附件与麦克风没有通道，两枚控件的类名与图标都不许长进卡里", () => {
+  it("裁定 C（#112 改判）：`＋` 与麦克风照参考图进卡，各自带着自己真有的通路或禁用的理由", () => {
     const m = markup();
-    expect(m).not.toContain("round-tool-button");
-    expect(m).not.toContain('name="mic"');
-    expect(m).not.toContain('aria-label="上传附件"');
+    const plus = /<button[^>]*class="round-tool-button"[\s\S]*?<\/button>/.exec(m)?.[0] ?? "";
+    expect(plus).toContain('aria-label="引用素材"');
+    expect(plus).toContain(`@click="emit('open-mention')"`);
+    expect(plus).toContain('name="plus"');
+    // 麦克风仍是占位：它 disabled，而禁用的理由写在卡下那行看得见的提示里（Chromium 不弹 disabled 的 title）。
+    const mic = /<button[^>]*aria-label="语音功能后续开放"[\s\S]*?<\/button>/.exec(m)?.[0] ?? "";
+    expect(mic).toContain("disabled");
+    expect(mic).toContain('name="mic"');
+    expect(m).toContain('class="composer-hint"');
+    expect(m).toContain("COMPOSER_HINT");
   });
 
   // 档位 chip 搬进卡右端后，头部那套 `.permission-chip` 就成了零消费者的化石（评审 F1）。
@@ -147,24 +161,24 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     expect(sendTag).toContain("v-else");
   });
 
-  it("slot 是 .ts 表的新字段：左=model/tools/palette，右=thinking/web-search/permission（#105 裁定）", () => {
+  it("slot 是 .ts 表的新字段：左=运行配置五枚，右=只有权限（#112 照参考图定栏）", () => {
     const want: Record<string, ComposerChipSlot> = {
-      permission: "right",
-      thinking: "right",
-      "web-search": "right",
-      tools: "left",
       model: "left",
-      palette: "left"
+      thinking: "left",
+      "web-search": "left",
+      tools: "left",
+      palette: "left",
+      permission: "right"
     };
     const slots = composerChips(chipInput()).map((c) => [c.id, c.slot]);
     // 顺序不许动：composer-chips.test.ts 钉死了 id 序，这里跟着同一序核 slot。
     expect(slots).toEqual([
-      ["permission", want.permission],
+      ["model", want.model],
       ["thinking", want.thinking],
       ["web-search", want["web-search"]],
       ["tools", want.tools],
-      ["model", want.model],
-      ["palette", want.palette]
+      ["palette", want.palette],
+      ["permission", want.permission]
     ]);
   });
 
@@ -190,20 +204,25 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     );
   });
 
-  it("模型 chip 合并口径：文案是 模型名 · 思考等级，联网开着时带地球角标", () => {
-    expect(chip("model")?.text).toBe("mochen-mock");
-    expect(chip("model", { thinkingLevel: "low" })?.text).toBe("mochen-mock · 低");
-    expect(chip("model", { thinkingLevel: "high" })?.text).toBe("mochen-mock · 高");
-    expect(chip("model", { modelLabel: "", thinkingLevel: "medium" })?.text).toBe(
-      "未配置模型 · 中"
-    );
-    expect(chip("model")?.badge).toBeNull();
-    expect(chip("model", { webSearchEnabled: true })?.badge).toBe("globe");
-    expect(chip("thinking", { thinkingLevel: "low" })?.badge).toBeNull();
-    // 角标的真身在模板里渲染，且由表里的 badge 字段驱动（模板不自行判定联网状态）。
+  it("#112 图标与下拉三角由 .ts 表驱动：模板只按 chip.icon / chip.caret 渲染，不自行判定任何一档", () => {
+    expect(chip("model")?.icon).toBe("model");
+    expect(chip("model", { thinkingLevel: "high", webSearchEnabled: true })?.icon).toBe("model");
+    expect(chip("thinking", { thinkingLevel: "low" })?.icon).toBe("brain");
+    expect(chip("web-search", { webSearchEnabled: true })?.icon).toBe("globe");
     const m = markup();
-    expect(m).toContain("chip.badge === 'globe'");
-    expect(m).toContain('name="globe"');
+    expect(m).toContain(':name="chip.icon"');
+    expect(m).toContain('v-if="chip.caret"');
+    expect(m).toContain('name="chevron"');
+    // 合并口径与 badge 字段一起退役：模型名里再不许缀思考等级，也不许挂地球角标。
+    expect(chip("model", { thinkingLevel: "high" })?.text).toBe("mochen-mock");
+    expect(m).not.toContain("chip.badge");
+  });
+
+  it("卡下提示行的文案真身在 composer-chips.ts：模板只渲染 COMPOSER_HINT，不抄第二份键位表", () => {
+    const m = markup();
+    expect(m).toContain("{{ COMPOSER_HINT }}");
+    expect(m).not.toContain("Shift + Enter 换行");
+    expect(scriptSource(COMPOSER)).toContain("COMPOSER_HINT");
   });
 });
 
@@ -249,6 +268,32 @@ describe("样式硬门禁 · #105 新增段零色值字面量", () => {
     const block = ruleBlock(cardSection("agent-pane.css"), ".send-button");
     expect(block).toContain("var(--neutral-solid)");
     expect(block).toContain("var(--neutral-solid-contrast)");
+  });
+
+  it("#112 圆钮照搬 deepwrite 的原值（30×30 / 圆角 50% / disabled 0.42），但 disabled 不许画 pointer 手势", () => {
+    const pane = cardSection("agent-pane.css");
+    const round = ruleBlock(pane, ".round-tool-button");
+    expect(round).toContain("width: 30px");
+    expect(round).toContain("height: 30px");
+    expect(round).toContain("border-radius: 50%");
+    expect(round).toContain("place-items: center");
+    const off = ruleBlock(pane, ".round-tool-button:disabled");
+    expect(off).toContain("opacity: 0.42");
+    // F2 裁定：deepwrite 那一枚 disabled 仍留 cursor: pointer，本仓不照抄这条（禁用的钮要说「不让按」）。
+    expect(off).toContain("cursor: not-allowed");
+  });
+
+  it("#112 chip 从描边药丸改成无边框触发器（deepwrite 的 config-trigger 原值：高 29 / 圆角 7 / 字号 0.75rem）", () => {
+    const chipRule = ruleBlock(styleSource("interaction.css"), ".composer-chip");
+    expect(chipRule).toContain("height: 29px");
+    expect(chipRule).toContain("border-radius: 7px");
+    expect(chipRule).toContain("border: 0");
+    expect(chipRule).toContain("font-size: 0.75rem");
+    expect(chipRule).toContain("padding: 0 7px");
+    // 下拉三角：本仓 chevron 画的是「>」，靠 rotate 90° 才朝下（同一手法在 deepwrite 的 config-chevron）。
+    expect(ruleBlock(styleSource("interaction.css"), ".composer-chip-caret")).toContain(
+      "transform: rotate(90deg)"
+    );
   });
 });
 

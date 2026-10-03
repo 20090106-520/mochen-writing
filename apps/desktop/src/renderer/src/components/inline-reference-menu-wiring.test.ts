@@ -204,11 +204,20 @@ describe("裁定 D1 · `/` 的真身只有一个", () => {
     expect(store).toContain('from "../utils/slash-commands"');
   });
 
-  it("三个唤起处全部接到行内菜单：chip 事件、裸 / 键、工作台 pill 都走 summonSlash", () => {
+  it('三个唤起处全部接到行内菜单：chip 事件、裸 / 键、工作台 pill 都走 summon("/")', () => {
     const center = vueSource(CENTER);
-    expect(count("summonSlash", center)).toBe(3);
-    expect(center).toContain("openPalette: () => referenceMenu.summonSlash()");
-    expect(center).toContain('@open-palette="referenceMenu.summonSlash()"');
+    // 脚本里两处双引号（工作台 pill 的 handler、热键回调）；模板属性里那处被 prettier 收成单引号，
+    // 因为整条属性本身用双引号包裹，嵌套的字符串字面量只能是单引号。
+    expect(count('summon("/")', center)).toBe(2);
+    expect(count("summon('/')", center)).toBe(1);
+    expect(center).toContain('openPalette: () => referenceMenu.summon("/")');
+    expect(center).toContain(`@open-palette="referenceMenu.summon('/')"`);
+  });
+
+  it("#112 卡上那枚 `＋` 接的是 @ 素材：它发出的事件必须落到 summon('@')，不是另一套自造菜单", () => {
+    const center = vueSource(CENTER);
+    expect(center).toContain(`@open-mention="referenceMenu.summon('@')"`);
+    expect(count(`summon('@')`, center)).toBe(1);
   });
 
   it("命令仍由唯一派发口执行：组件里不许出现 runSlashCommand", () => {

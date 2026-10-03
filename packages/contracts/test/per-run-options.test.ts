@@ -126,12 +126,14 @@ describe("nextThinkingLevel 的循环（chip 每点一次走一格）", () => {
 });
 
 describe("THINKING_LEVEL_LABELS（chip 上的中文，只此一张表）", () => {
+  // #112：档名照参考图那三张截图的同一口径（deepwrite builtInThinkingLabels 里 low/medium/high
+  // 就是 较低/标准/深度）——chip 上只剩档位名，图标负责说这是思考等级，所以词得单独读得通。
   it("键与 THINKING_LEVELS 完全一致，中文逐字钉死", () => {
     expect(Object.keys(THINKING_LEVEL_LABELS).sort()).toEqual([...THINKING_LEVELS].sort());
-    expect(THINKING_LEVEL_LABELS.off).toBe("关");
-    expect(THINKING_LEVEL_LABELS.low).toBe("低");
-    expect(THINKING_LEVEL_LABELS.medium).toBe("中");
-    expect(THINKING_LEVEL_LABELS.high).toBe("高");
+    expect(THINKING_LEVEL_LABELS.off).toBe("关闭");
+    expect(THINKING_LEVEL_LABELS.low).toBe("较低");
+    expect(THINKING_LEVEL_LABELS.medium).toBe("标准");
+    expect(THINKING_LEVEL_LABELS.high).toBe("深度");
   });
 
   it("表能被 THINKING_LEVELS 的每个成员索引到非空串（穷尽性在类型层由 Record 键兜住）", () => {

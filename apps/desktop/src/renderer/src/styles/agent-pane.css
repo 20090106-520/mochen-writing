@@ -525,6 +525,43 @@ html[data-platform="darwin"] .conversation-pane {
   color: var(--text-faint);
 }
 
+/* Task 112 照参考图：`＋`（引用素材）与麦克风两枚圆钮与发送键同一形状。
+   deepwrite 的 .round-tool-button 原值 30×30 / 圆角 50% / 透明面 / :disabled 0.42 全部照搬，
+   只把 cursor 拆成两行——他那里 disabled 元素仍画 pointer 手势，本仓 F2 裁定不许（禁用的钮要说「不让按」）。
+   token 映射同本段抬头：--text-secondary→--text-soft、--surface-hover→--hover、--text-primary→--text。 */
+.round-tool-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.round-tool-button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.round-tool-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+/* 卡下常驻键位提示（Task 112 照参考图那一行，文案真身是 composer-chips.ts 的 COMPOSER_HINT）。
+   它同时是那枚禁用的麦克风**看得见**的理由（Chromium 不给 disabled 元素弹 title），
+   所以窄栏也只许缩字号、不许整句收掉。 */
+.composer-hint {
+  margin: 6px 2px 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .composer-resume {
   display: inline-flex;
   align-items: center;
@@ -543,10 +580,10 @@ html[data-platform="darwin"] .conversation-pane {
   bottom: calc(100% + 6px);
 }
 
-/* 窄栏响应（deepwrite 用 composer 容器查询收 toolbar）：先收掉静态键位提示句，chip 与发送键保序。 */
+/* 窄栏响应（deepwrite 用 composer 容器查询收 toolbar）：chip 与发送键保序，提示行只缩字号。 */
 @container composer (max-width: min(32rem, 560px)) {
-  .composer-chip-hint {
-    display: none;
+  .composer-hint {
+    font-size: 11px;
   }
 }
 

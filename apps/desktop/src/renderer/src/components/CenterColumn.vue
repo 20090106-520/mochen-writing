@@ -156,7 +156,7 @@ function onWorkbenchPick(id: WorkbenchCardId): void {
 function onWorkbenchSuggestion(suggestion: WorkbenchSuggestion): void {
   if (suggestion.kind === "palette") {
     // 裁定 D1：出路仍是「与裸 / 键、`/ 命令` chip 同一个入口」，真身换成行内菜单。
-    referenceMenu.summonSlash();
+    referenceMenu.summon("/");
     return;
   }
   const target = workbenchTarget({
@@ -198,7 +198,7 @@ function onComposerSend(text: string): void {
  * 这里删掉了原先的 onGlobalEscape —— 它的「Esc = 打断」已被 resolveEscape 的裁决（含收浮层那一支）取代，
  * 保留两处监听会变成两份 Esc 裁决（裁定 G5）。判断一律在 utils，本组件只接线。
  */
-useGlobalHotkeys({ openPalette: () => referenceMenu.summonSlash() });
+useGlobalHotkeys({ openPalette: () => referenceMenu.summon("/") });
 
 // 设置浮层可见性的唯一真身是 layout.currentView === "settings"（设计决定 2）：
 // 按钮、Ctrl+,、/model、Esc 收浮层全部读写同一个 currentView，不再有两处真相。
@@ -360,7 +360,8 @@ onBeforeUnmount(() => {
       @toggle-web-search="agent.toggleWebSearch()"
       @open-tool-roster="rosterOpen = true"
       @open-model-select="openModelSelect"
-      @open-palette="referenceMenu.summonSlash()"
+      @open-palette="referenceMenu.summon('/')"
+      @open-mention="referenceMenu.summon('@')"
     />
 
     <ProviderSettings v-if="showSettings" @close="closeSettings" />

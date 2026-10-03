@@ -1,8 +1,10 @@
 <!-- 输入区：一张圆角卡，结构照搬 deepwrite 的 ConversationComposer（Apache-2.0）——
      composer-wrap/composer/composer-input-surface 三层骨架、rows=1 + field-sizing 自增高、
      toolbar 左右分栏、同一位置的 发送↔stop 形变、忙态整卡 is-disabled 压暗。
-     三条裁定的落点：A 计数条常态不占位、只在接近/超限显形（超限有看得见的理由）；
-     B 忙态只压暗不禁用 textarea（Tab 排队通路原样保留）；C 附件(+)/麦克风没有通道，不进 UI。
+     裁定的落点：A 计数条常态不占位、只在接近/超限显形（超限有看得见的理由）；
+     B 忙态只压暗不禁用 textarea（Tab 排队通路原样保留）；
+     C（#112 改判）`＋` 与麦克风照参考图进卡：＋ 接的是本仓真有的「引用素材」通路（与手打 @ 同一个入口），
+       麦克风仍是参考仓自己那一枚 disabled 占位——它的理由写在卡下那行可见提示里，不靠 title 兜。
      这里不含业务判断，一切交给 store；输入值本身也由 store 持有（F-A 前置）。 -->
 <script setup lang="ts">
 import { computed } from "vue";
@@ -13,6 +15,7 @@ import PermissionMenu from "./PermissionMenu.vue";
 import {
   composerChips,
   composerCounter,
+  COMPOSER_HINT,
   CHIP_EMIT,
   type ComposerChipId
 } from "../utils/composer-chips";
@@ -47,6 +50,7 @@ const emit = defineEmits<{
   "open-tool-roster": [];
   "open-model-select": [];
   "open-palette": [];
+  "open-mention": [];
 }>();
 
 // 值只有一份：读写都经 props/emit 走 store.composerDrafts，且必须用 v-model——裸 :value + @input 会丢掉 Vue 的 IME 组合守卫。
@@ -87,7 +91,8 @@ function submit(): void {
 }
 
 // 回车提交 / Shift+Enter 与 Ctrl+J 换行 / 运行中 Tab 排队全在 utils/hotkeys + composables/useHotkeys 判定（裁定 G5）。
-// 键位提示按 deepwrite 的做法住在 title 里，不再单独占一行静态文字（textarea 的 title 见模板）。
+// 键位提示只有卡下那一行常驻真身（COMPOSER_HINT，#112 照参考图）：textarea 的 title 已删——
+// 同一套键位在 hover 里再说一遍是第二份文案，而 disabled 元素 Chromium 根本不弹 title，靠它兜理由等于没有。
 </script>
 
 <template>
@@ -103,10 +108,9 @@ function submit(): void {
           data-mochen-composer
           class="composer-textarea"
           rows="1"
-          title="Enter 发送 · Shift+Enter 换行 · Esc 打断 · 运行中按 Tab 排队指令"
           :placeholder="
             ready
-              ? '想改哪一段？说给人话，别贴整篇正文——它会自己读文件。'
+              ? '随心输入，输入 / 调用技能，输入 @ 引用素材……'
               : '先在左栏打开作品，或在右上角设置里配好模型。'
           "
         />
@@ -122,6 +126,17 @@ function submit(): void {
         </div>
         <div class="composer-toolbar">
           <div class="composer-toolbar-left" role="group" aria-label="输入区开关">
+            <!-- #112 照参考图：`＋` 是左端第一枚圆钮。他那里是「上传附件」，本仓没有附件通道（contracts 无
+                 attachment 字段、无落盘通路），所以这枚钮接的是我们真有的那条：与手打 @ 同一个入口 ⇒ 名字如实叫「引用素材」。 -->
+            <button
+              class="round-tool-button"
+              type="button"
+              aria-label="引用素材"
+              title="引用本书里的素材（与直接输入 @ 同一个入口）"
+              @click="emit('open-mention')"
+            >
+              <AppIcon name="plus" :size="18" />
+            </button>
             <button
               v-for="chip in chipsLeft"
               :key="chip.id"
@@ -132,11 +147,10 @@ function submit(): void {
               :aria-pressed="chip.active"
               @click="onChipClick(chip.id)"
             >
-              <AppIcon v-if="chip.badge === 'globe'" name="globe" :size="11" />
-              {{ chip.text }}
+              <AppIcon class="composer-chip-icon" :name="chip.icon" :size="14" />
+              <span class="composer-chip-label">{{ chip.text }}</span>
+              <AppIcon v-if="chip.caret" class="composer-chip-caret" name="chevron" :size="11" />
             </button>
-            <!-- 裁定 C/B：这一句是纯静态键位说明——不读计数、不带 click、不是徽标；队列数字唯一真身在状态行。 -->
-            <span class="composer-chip-hint">运行中按 Tab 可排队指令</span>
           </div>
           <div class="composer-toolbar-right" role="group" aria-label="模型与发送">
             <button
@@ -149,8 +163,9 @@ function submit(): void {
               :aria-pressed="chip.active"
               @click="onChipClick(chip.id)"
             >
-              <AppIcon v-if="chip.badge === 'globe'" name="globe" :size="11" />
-              {{ chip.text }}
+              <AppIcon class="composer-chip-icon" :name="chip.icon" :size="14" />
+              <span class="composer-chip-label">{{ chip.text }}</span>
+              <AppIcon v-if="chip.caret" class="composer-chip-caret" name="chevron" :size="11" />
             </button>
             <!-- 权限档弹层真身（#105）：开关与关闭都由装配处经 props/emit 交给 useBookStore 裁决。 -->
             <PermissionMenu v-if="permissionMenuOpen" @close="emit('close-permission-menu')" />
@@ -163,6 +178,11 @@ function submit(): void {
             >
               <AppIcon name="redo" :size="14" />
               <span>继续</span>
+            </button>
+            <!-- 麦克风：照搬参考图那一枚 disabled 占位（他在源码里也是 disabled + 「语音功能后续开放」）。
+                 禁用的理由必须看得见 ⇒ 那句写在卡下 COMPOSER_HINT 里，不靠 Chromium 根本不弹的 title。 -->
+            <button class="round-tool-button" type="button" disabled aria-label="语音功能后续开放">
+              <AppIcon name="mic" :size="18" />
             </button>
             <!-- 同一枚位置的 发送↔stop 形变（deepwrite）：v-if/v-else 互斥，不是并排两枚。 -->
             <button
@@ -189,5 +209,7 @@ function submit(): void {
         </div>
       </div>
     </div>
+    <!-- 卡下常驻键位提示（#112 照参考图）：文案真身是 composer-chips.ts 的 COMPOSER_HINT，这里只渲染它。 -->
+    <p class="composer-hint">{{ COMPOSER_HINT }}</p>
   </footer>
 </template>

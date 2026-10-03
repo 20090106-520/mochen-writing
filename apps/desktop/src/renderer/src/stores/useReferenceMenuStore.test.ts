@@ -17,11 +17,11 @@ const menu = () => useReferenceMenuStore();
 const labels = () => menu().visibleOptions.map((option) => option.label);
 
 describe("useReferenceMenuStore · 条目来源与可用性闸", () => {
-  it("summonSlash：往草稿末尾补一个 `/`，菜单随同一套行内判定自己开", async () => {
+  it('summon("/")：往草稿末尾补一个 `/`，菜单随同一套行内判定自己开', async () => {
     await openChapter();
     const agent = store();
     agent.setDraft(CH, "重写这段");
-    menu().summonSlash();
+    menu().summon("/");
     expect(agent.draftOf(CH)).toBe("重写这段 /");
     expect(menu().isOpen).toBe(true);
     expect(menu().trigger).toBe("/");
@@ -30,25 +30,52 @@ describe("useReferenceMenuStore · 条目来源与可用性闸", () => {
     expect(menu().caretRequest).toBe("重写这段 /".length);
   });
 
-  it("summonSlash：草稿已以 `/` 收尾或以空白收尾都不再补斜杠/空格（不会多出一个字符）", async () => {
+  it('summon("@")：`＋` 按钮与手打 @ 开的是同一张菜单——素材那一支', async () => {
+    await openChapter();
+    store().setDraft(CH, "参考");
+    menu().summon("@");
+    expect(store().draftOf(CH)).toBe("参考 @");
+    expect(menu().trigger).toBe("@");
+    expect(menu().copy?.title).toBe("引用素材");
+  });
+
+  it("末尾紧贴字母时先补空格：省掉那个空格会点出一次没反应的按钮（黑名单把 path/mod 判成词内部）", async () => {
+    await openChapter();
+    store().setDraft(CH, "mod");
+    menu().summon("/");
+    expect(store().draftOf(CH)).toBe("mod /");
+    expect(menu().isOpen).toBe(true);
+  });
+
+  it("末尾已经是一枚活着的触发符：再点一次只把菜单摆回来，绝不在草稿里补出第二枚残渣", async () => {
     await openChapter();
     store().setDraft(CH, "/");
-    menu().summonSlash();
+    menu().summon("/");
     expect(store().draftOf(CH)).toBe("/");
+    expect(menu().isOpen).toBe(true);
+    expect(menu().caretRequest).toBe(1);
+    store().setDraft(CH, "重写这段 /");
+    menu().summon("/");
+    expect(store().draftOf(CH)).toBe("重写这段 /");
+    expect(menu().isOpen).toBe(true);
+  });
+
+  it("草稿以空白收尾时不补多余空格：一个字都不许多", async () => {
+    await openChapter();
     store().setDraft(CH, "重写这段 ");
-    menu().summonSlash();
+    menu().summon("/");
     expect(store().draftOf(CH)).toBe("重写这段 /");
   });
 
   it("无书那一格只列接得通的命令：/stage 被通路闸掉，/permissions 与 /resume 因无书不列", () => {
-    menu().summonSlash();
+    menu().summon("/");
     expect(labels()).toEqual(["model", "status", "clear"]);
   });
 
   it("那一轮正在跑：只剩 model / permissions / status / clear（与 slash-commands 同一道闸，不在这里再写一份）", async () => {
     await openChapter();
     store().viewOf(CH).running = true;
-    menu().summonSlash();
+    menu().summon("/");
     expect(labels()).toEqual(["model", "permissions", "status", "clear"]);
   });
 
@@ -103,7 +130,7 @@ describe("useReferenceMenuStore · syncFrom 的开合与高亮", () => {
 
   it("↑↓ 环绕：首条再往上落到末条，末条再往下回到首条", async () => {
     await openChapter();
-    menu().summonSlash();
+    menu().summon("/");
     menu().move(-1);
     expect(labels()[menu().activeIndex]).toBe("clear");
     menu().move(1);

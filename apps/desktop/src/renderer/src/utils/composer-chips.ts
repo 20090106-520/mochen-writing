@@ -1,4 +1,5 @@
 import {
+  THINKING_LEVELS,
   THINKING_LEVEL_LABELS,
   THINKING_WIRE_FIELD,
   USER_TEXT_MAX_LEN,
@@ -7,6 +8,7 @@ import {
   type PermissionMode,
   type ThinkingLevel
 } from "@mochen/contracts";
+import type { IconName } from "../types/icons";
 import { permissionChipView } from "./permission-chip";
 import { toolRoster } from "./tool-roster";
 
@@ -16,12 +18,10 @@ export type ComposerChipId =
 /**
  * chip 住在卡内 toolbar 的哪一端（#105 照搬 deepwrite 的左右分栏）。
  * 分栏是决策不是样式：它是这张决策表的字段，模板只按它过滤（铁律 6，模板里不许出现第二份顺序表）。
- * 左端=运行配置入口（模型合并口径 / 工具清单 / 命令面板），右端=权限与两枚真开关 + 发送键。
+ * #112 照参考图定栏：左端=这一轮怎么跑（模型 / 思考等级 / 联网 / 工具清单 / 命令），
+ * 右端=权限档（它挨着发送键，与 deepwrite 的 composer-actions 同一位置）。
  */
 export type ComposerChipSlot = "left" | "right";
-
-/** 地球角标的唯一取值来源：本仓图标名表里就有 globe，模板按这个字段渲染，不自行判定联网状态。 */
-export type ComposerChipBadge = "globe";
 
 export interface ComposerChipView {
   id: ComposerChipId;
@@ -32,8 +32,13 @@ export interface ComposerChipView {
   active: boolean;
   /** toolbar 分栏（#105）。 */
   slot: ComposerChipSlot;
-  /** 角标（#105 合并口径）：目前只有模型 chip 在联网开启时挂 globe，其余一律 null。 */
-  badge: ComposerChipBadge | null;
+  /**
+   * 文字前那枚图形（#112 照参考图）。类型就是 `IconName`：写错一个图标名，裸 tsc 当场拒绝编译，
+   * 比在模板里拼字符串可靠（`.vue` 的 `<script setup>` 根本不进类型程序）。
+   */
+  icon: IconName;
+  /** 带不带下拉三角：只有「点开一层弹层」的入口为真；两枚真开关（循环 / 开关）没有「更多」可展开。 */
+  caret: boolean;
 }
 
 export type ComposerChipEvent =
@@ -61,22 +66,30 @@ export const CHIP_EMIT: Record<ComposerChipId, ComposerChipEvent> = {
 /**
  * 深度思考那一格的文案与提示。
  *
+ * #112 照参考图：这一枚只剩档位名（较低 / 标准 / 深度…），脑形图标负责说明它是什么——
+ * 上一版把「深度思考 · 低」写成一整串，是在一张已经有图标的卡里重复说同一件事。
+ *
  * title 必须报出**这一档实际发出去的那对键值**（本仓铁律：报不出出站字段名的控件不进 UI）：
  * 关档说的是「不发字段」而不是「发 off」——这两件事在服务端行为上并不等价，
  * 而差别正是 `per-run-fields.ts` 里那个 `if (level === "off") return {}`。
+ * 循环次序从 `THINKING_LEVELS` 现拼，不手抄第二份档位名（改了标签不会留下一句说谎的提示）。
  */
+const THINKING_CYCLE = THINKING_LEVELS.map((level) => THINKING_LEVEL_LABELS[level]).join(" → ");
+
 function thinkingChip(level: ThinkingLevel): ComposerChipView {
   const on = level !== "off";
   return {
     id: "thinking",
-    text: on ? `深度思考 · ${THINKING_LEVEL_LABELS[level]}` : "深度思考",
+    text: THINKING_LEVEL_LABELS[level],
     disabled: false,
     title: on
-      ? `本轮出站请求带 ${THINKING_WIRE_FIELD}=${level}（${THINKING_LEVEL_LABELS[level]}）。点击按 关 → 低 → 中 → 高 循环。`
-      : `当前关闭：本轮出站请求不发 ${THINKING_WIRE_FIELD} 字段——是真的不发，不是发 "off"。点击按 关 → 低 → 中 → 高 循环。`,
+      ? `深度思考 ${THINKING_LEVEL_LABELS[level]}：本轮出站请求带 ${THINKING_WIRE_FIELD}=${level}。点击按 ${THINKING_CYCLE} 循环。`
+      : `深度思考已关闭：本轮出站请求不发 ${THINKING_WIRE_FIELD} 字段——是真的不发，不是发 "off"。点击按 ${THINKING_CYCLE} 循环。`,
     active: on,
-    slot: "right",
-    badge: null
+    slot: "left",
+    icon: "brain",
+    // 点一下走一格，不展开任何弹层 ⇒ 没有「更多」可下拉。
+    caret: false
   };
 }
 
@@ -89,8 +102,9 @@ function webSearchChip(enabled: boolean): ComposerChipView {
       ? `本轮已带 ${WEB_SEARCH_WIRE_TYPE} 工具（追加在 tools 里，与五个书稿工具并存）。点击关闭。`
       : `本轮不带 ${WEB_SEARCH_WIRE_TYPE} 工具，模型只能读你书稿里的字。点击开启。`,
     active: enabled,
-    slot: "right",
-    badge: null
+    slot: "left",
+    icon: "globe",
+    caret: false
   };
 }
 
@@ -101,17 +115,11 @@ function webSearchChip(enabled: boolean): ComposerChipView {
  * title 必须报出真实通道名与被访问的地址（铁律：报不出通道名的控件不进 UI），
  * 同时把「改地址/密钥」这条它自己办不到的事指回模型设置，不让 chip 冒充设置面板。
  *
- * #105 照搬 deepwrite 的**合并口径**：文案是 `模型名 · 思考等级`（关档不缀档名），
- * 联网开着时挂地球角标（badge 字段驱动模板渲染，判定不搬进模板）。
- * title 仍以裸模型名为真身——合并的是显示，不是数据：`当前模型 ${modelLabel}` 不掺思考等级。
+ * #112 裁定 I（撤销 #105 的合并口径）：参考图左端是 `模型 ▾` 与 `思考等级 ▾` **两枚独立控件**，
+ * 合并成一枚「模型 · 等级」是我自创的，同一件事不该在一张卡上说两遍 ⇒ 文案回到裸模型名。
  */
-function modelChip(input: {
-  modelLabel: string;
-  baseURL: string;
-  thinkingLevel: ThinkingLevel;
-  webSearchEnabled: boolean;
-}): ComposerChipView {
-  const { modelLabel, baseURL, thinkingLevel, webSearchEnabled } = input;
+function modelChip(input: { modelLabel: string; baseURL: string }): ComposerChipView {
+  const { modelLabel, baseURL } = input;
   const endpoint = `${baseURL}/models`;
   let title: string;
   if (baseURL === "") {
@@ -122,16 +130,15 @@ function modelChip(input: {
   } else {
     title = `当前模型 ${modelLabel}。点开试拉 ${endpoint}（走 provider:list-models 通道，密钥只在主进程发出）；改地址或密钥请到模型设置。`;
   }
-  const base = modelLabel === "" ? "未配置模型" : modelLabel;
-  const levelPart = thinkingLevel === "off" ? "" : ` · ${THINKING_LEVEL_LABELS[thinkingLevel]}`;
   return {
     id: "model",
-    text: `${base}${levelPart}`,
+    text: modelLabel === "" ? "未配置模型" : modelLabel,
     disabled: false,
     title,
     active: false,
     slot: "left",
-    badge: webSearchEnabled ? "globe" : null
+    icon: "model",
+    caret: true
   };
 }
 
@@ -147,7 +154,35 @@ export function composerChips(input: {
   // 权限 chip 只调 permissionChipView 一次，不重算（设计决定 4）。
   const permission = permissionChipView(input);
   const roster = toolRoster();
+  // 数组序 = 左端从左到右的渲染序（#112 照参考图）：模型 → 思考等级 → 联网 → 工具清单 → / 命令，
+  // 权限档单独落在右端（它挨着发送键，与 deepwrite 的 composer-actions 同一位置）。
   return [
+    modelChip({ modelLabel: input.modelLabel, baseURL: input.baseURL }),
+    thinkingChip(input.thinkingLevel),
+    webSearchChip(input.webSearchEnabled),
+    {
+      id: "tools",
+      text: "工具",
+      disabled: false,
+      // 枚数从清单本身数出来，不手抄「5」：contracts 加工具时这条提示跟着变，不会指着一份不存在的名单。
+      title: `看它带哪 ${roster.length} 枚工具（只读清单，工具由模型自己挑，这里不能单独禁用）`,
+      active: false,
+      slot: "left",
+      icon: "list",
+      caret: true
+    },
+    {
+      id: "palette",
+      text: "/ 命令",
+      disabled: false,
+      // T9-1：实测 hotkeys.ts 的全局 Ctrl 族没有 k，键位真身是裸 / 键；
+      // 旧文案宣传的「Ctrl+K 同一个入口」是不存在的键位，反向钉见 composer-chips.test.ts 第二条。
+      title: "打开 / 命令菜单（与直接按 / 键同一个入口）",
+      active: false,
+      slot: "left",
+      icon: "sparkles",
+      caret: true
+    },
     {
       id: "permission",
       text: permission.text,
@@ -157,41 +192,25 @@ export function composerChips(input: {
       active: false,
       // #105：照 deepwrite，权限档是卡内右端「更多」那一摞的事；PermissionMenu 弹层真身跟着挂右端（见 ComposerBox）。
       slot: "right",
-      badge: null
-    },
-    thinkingChip(input.thinkingLevel),
-    webSearchChip(input.webSearchEnabled),
-    {
-      id: "tools",
-      text: "工具 ▾",
-      disabled: false,
-      // 枚数从清单本身数出来，不手抄「5」：contracts 加工具时这条提示跟着变，不会指着一份不存在的名单。
-      title: `看它带哪 ${roster.length} 枚工具（只读清单，工具由模型自己挑，这里不能单独禁用）`,
-      active: false,
-      slot: "left",
-      badge: null
-    },
-    modelChip({
-      modelLabel: input.modelLabel,
-      baseURL: input.baseURL,
-      thinkingLevel: input.thinkingLevel,
-      webSearchEnabled: input.webSearchEnabled
-    }),
-    {
-      id: "palette",
-      text: "/ 命令",
-      disabled: false,
-      // T9-1：实测 hotkeys.ts 的全局 Ctrl 族没有 k，键位真身是裸 / 键；
-      // 旧文案宣传的「Ctrl+K 同一个入口」是不存在的键位，反向钉见 composer-chips.test.ts 第二条。
-      title: "打开 / 命令面板（与直接按 / 键同一个入口）",
-      active: false,
-      slot: "left",
-      badge: null
+      icon: permission.icon,
+      caret: true
     }
   ];
   // 裁定 C：这里**不返回**队列数字。排队列数唯一的可见真身是 useAgentStore 的 composeStatusLine
   // （「排队 N 条」，波 1 已有单测与真机观察）；chip 行再显示一次就是同一个数两份文案。
 }
+
+/**
+ * 卡下那一行常驻提示（#112 照参考图：他把这行印在卡片正下方，不是塞进 title）。
+ * 住在 `.ts` 有两个理由：① 铁律 6——同一句键位说明只许有一份，模板里再抄一遍就是两份；
+ * ② 本仓 `.vue` 不进类型程序，字符串落在这一层才可能被测试逐字钉住（改一个键名就红）。
+ *
+ * 与参考图的唯一差别是诚实的：他的 `＋` 是「附件」（我们有附件通道才照抄），
+ * 我们的 `＋` 打开的是本书素材引用菜单 ⇒ 提示写「＋ 引用素材」；
+ * 末列「语音输入后续开放」是那枚禁用的麦克风**看得见**的理由（Chromium 不给 disabled 元素弹 title）。
+ */
+export const COMPOSER_HINT =
+  "Enter 发送 · Shift + Enter 换行 · ＋ 引用素材 · / 命令 · @ 素材 · 运行中 Tab 排队 · 语音输入后续开放";
 
 /**
  * 输入区字数计数。
