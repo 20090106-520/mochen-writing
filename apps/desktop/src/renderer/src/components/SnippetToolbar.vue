@@ -20,5 +20,8 @@ const emit = defineEmits<{ pick: [kind: SnippetKind] }>();
     >
       {{ btn.label }}
     </button>
+    <!-- 复审 I-1：禁用理由必须是**看得见的**一行——Chromium 不给 disabled 按钮弹 title。
+         文案的唯一真身在 utils/markdown-snippets.ts，这里只负责显示（铁律 6）。 -->
+    <p v-if="state.hint" class="editor-tools-hint">{{ state.hint }}</p>
   </div>
 </template>

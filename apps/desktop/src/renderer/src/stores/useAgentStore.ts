@@ -225,7 +225,14 @@ export const useAgentStore = defineStore("agent", {
     /** 同线程并发 ensureHydrated 合流到同一个 promise（Task 5 用；本任务先建位）。 */
     hydrateInflight: {} as Record<string, Promise<void>>,
     /** 输入框的值上收到的顶层 map（设计决定 3）：键是 threadKey，不进 ThreadView，切章不丢字。 */
-    composerDrafts: {} as Record<string, string>
+    composerDrafts: {} as Record<string, string>,
+    /**
+     * 「这一轮发出去的是什么字」——只记用户亲手打的，不记「继续」的内置文案（那是机器的话，
+     * 不该塞回用户的地盘）。真机上吞字走的是事件路径：主进程把三类 pre-flight 与 try 里的一切异常
+     * 都转成 turn-end{failed}，startTurn 照样 resolve，所以 `.catch` 那条拒绝支到不了。
+     * 判据是「该轮有没有发过 user-message」：发过 ⇒ 字已经在中栏转录里，绝不再回填成第二份。
+     */
+    pendingSend: {} as Record<string, string>
   }),
 
   getters: {
@@ -325,6 +332,8 @@ export const useAgentStore = defineStore("agent", {
         return;
       }
       if (outbound.type === "event") {
+        // 字已经落到中栏转录里（user-message 是「受理」的唯一凭据）⇒ 这一轮不再需要还字。
+        if (outbound.event.type === "user-message") delete this.pendingSend[outbound.threadKey];
         this.reduceEvent(thread, outbound.event);
         return;
       }
@@ -333,6 +342,18 @@ export const useAgentStore = defineStore("agent", {
       thread.streaming = { ...EMPTY_STREAM };
       thread.endedAs = outbound.status;
       if (outbound.status === "failed") thread.lastError = outbound.message;
+      // 真机上「这一轮没能启动」走的是这里，不是 send 的 `.catch`：主进程把 pre-flight 与 try 里的
+      // 异常全转成 turn-end{failed} 后照样 resolve。所以还字也必须在这一处收口——
+      // 只有 failed 且该格已被入口乐观清空才还；「继续」的内置文案从不进这张表（见 state.pendingSend）。
+      const unsent = this.pendingSend[outbound.threadKey];
+      delete this.pendingSend[outbound.threadKey];
+      if (
+        outbound.status === "failed" &&
+        unsent !== undefined &&
+        this.draftOf(outbound.threadKey) === ""
+      ) {
+        this.setDraft(outbound.threadKey, unsent);
+      }
       // 裁定 G3 的顺序（与计划文本相反）：先自动发队首，再谈水合。规则：turn-end{interrupted}
       // 照样自动发下一条（打断不清队，spec §5.1），一轮只发一条。
       // 发了这一条就必须在这里收口——水合的同步前缀若在同一 tick 抢跑，历史会重放进
@@ -473,12 +494,16 @@ export const useAgentStore = defineStore("agent", {
       };
       // startTurn 的 promise 要等整轮跑完才兑现；turnId 走 turn-start 推送，这里不等。
       // running 只由 turn-start / turn-end 拥有，被拒的这一轮从未开始，自然不会停在「工作中」。
+      // 「继续」发的是机器文案，它不进 pendingSend：那一轮失败也不该把内置句子塞回用户的地盘。
+      if (text !== CONTINUE_TEXT) this.pendingSend[input.threadKey] = text;
       window.mochen.startTurn(input).catch((err: unknown) => {
         const reason = reasonOf(err);
         this.viewOf(input.threadKey).lastError = reason;
         this.notice = `这一轮没能启动：${reason}`;
         // 发送被拒：把用户这一格刚被入口乐观清掉的文本原样还回去（清空是乐观的，失败才回写）。
         // 仅当该线程当前草稿仍是空——失败回执回来前用户可能又打了字，绝不覆盖新输入（本波「不吞字」承诺）。
+        // 这条支路一旦还过字，事件路径那份账就地销掉，免得迟到的 turn-end 再还一次把新打的字盖掉。
+        delete this.pendingSend[input.threadKey];
         if (this.draftOf(input.threadKey) === "") this.setDraft(input.threadKey, text);
       });
     },

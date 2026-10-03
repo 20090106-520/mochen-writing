@@ -85,18 +85,8 @@ describe("hotkey-markers · 模板必须真的带着这些标记名（评审 X4a
     }
   });
 
-  /**
-   * 评审 Important 1（F1）反向保护：删掉的 `running` prop 与 `interrupt` 发射不许化石化回来。
-   * `scriptSource` 会剥掉块注释与行注释，所以「只活在注释里的 interrupt」骗不过这条断言。
-   * 变异证明（先提交再变异）：把卡的 `emit("decide", …)` 改名为 `emit("interrupt", …)` ⇒ 下面
-   * 的 `toContain('emit("decide"')` 当场转红——卡唯一真正发射的事件名就是 decide，改错等于批准链断线。
-   */
-  it("ProposalCard 只发射 decide，running/interrupt 两枚化石不许回来（F1）", () => {
-    const script = scriptSource("components/ProposalCard.vue");
-    expect(script).toContain('emit("decide"');
-    expect(script).not.toContain("interrupt");
-    expect(script).not.toContain("running");
-  });
+  // 卡的发射口契约（F1：running prop 与 interrupt 发射两枚化石不许回来）不住这里——
+  // 本文件钉的是键盘标记，事件接线归 components/proposal-card-wiring.test.ts（复审 M-1 归位）。
 });
 
 describe("hotkey-markers · 全局 keydown 监听有且只有一个（裁定 G5）", () => {

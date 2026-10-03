@@ -37,12 +37,23 @@ describe("DocumentPane · 片段工具栏的接线形状（F-F）", () => {
     expect(markup).not.toContain("加粗");
   });
 
-  // F4（评审 Important 4）：载体钉——禁用理由住在 .ts 的 btn.title，模板只绑 :title="btn.title"。
+  // F4（评审 Important 4）：载体钉——按钮用途住在 .ts 派生的 btn.title，模板只绑 :title="btn.title"。
   // 若漂移回 :title="btn.label"（把 label 再念一遍 = 没解释），这条必须红。判定与理由一律不在模板造。
   it("按钮 title 绑的是 utils 派生出来的 btn.title，不在模板里退回 btn.label", () => {
     const markup = templateSource(toolbar);
     expect(markup).toContain(':title="btn.title"');
     expect(markup).not.toContain(':title="btn.label"');
+  });
+
+  // 复审 I-1：Chromium 不给 disabled 按钮弹原生 title，而灰态恰恰是唯一需要解释的时刻
+  // （本仓同律先例见 left-sidebar-nav.test.ts 的 M2）⇒ 理由必须是模板里的一枚**可见**节点。
+  // 钉的是载体：把 `{{ state.hint }}` 删掉或改回只挂 title，这条必须红。文案本身由 utils 逐字钉。
+  it("禁用理由走可见节点：hint 由 utils 给，模板只负责显示它", () => {
+    const markup = templateSource(toolbar);
+    expect(markup).toContain('v-if="state.hint"');
+    expect(markup).toContain("{{ state.hint }}");
+    // 那句中文的唯一真身在 utils/markdown-snippets.ts：子组件里再抄一遍就是第二份实现（铁律 6）。
+    expect(markup).not.toContain("打开一篇文稿");
   });
 
   it("光标与选区回设要拿到 textarea 真身：ref 必须挂在编辑器上，不能只挂在别处", () => {

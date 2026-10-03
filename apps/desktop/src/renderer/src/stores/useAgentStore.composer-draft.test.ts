@@ -4,6 +4,7 @@ import { QUEUED_MAX } from "./useAgentStore";
 import {
   CH,
   OTHER,
+  eventOf,
   openChapter,
   push,
   setupAgentFixture,
@@ -134,6 +135,86 @@ describe("useAgentStore.composerDrafts · 输入值上收与排队无丢失", ()
     store().send("要发出去的一句"); // 默认桩 resolve { turnId: "t1" }，不进 .catch
     store().clearDraft(CH);
     push({ type: "turn-start", turnId: "t1", threadKey: CH });
+    await vi.runAllTimersAsync();
+    expect(store().draftOf(CH)).toBe("");
+  });
+
+  // ===== 控制方真机实测补的第二条通路（实例 9228，2026-10-03 17:0x）=====
+  // 主进程把「尚未打开作品目录 / 还没有配置模型服务 / 还没有保存 API Key」以及 try 里的一切异常
+  // 都转成事件（agent-service.ts 的三个 pre-flight 分支 + 它的 catch），startTurn 照样 resolve。
+  // 所以真机上吞字走的是 turn-end{failed}，不是 promise 拒绝——上面两例只钉住了拒绝支。
+  // 判「这一轮到底进没进转录」的唯一凭据是它有没有发过 user-message：发过 ⇒ 字已在中栏，不许重复回填。
+
+  it("pre-flight 失败（turn-start → turn-end{failed}，该轮从未出现 user-message）⇒ 文本还回这一格", async () => {
+    await openChapter();
+    store().startListening();
+    store().setDraft(CH, "铁锈味的海雾");
+    store().send("铁锈味的海雾");
+    store().clearDraft(CH); // 入口的乐观清空
+    push({ type: "turn-start", turnId: "t1", threadKey: CH });
+    push({
+      type: "turn-end",
+      turnId: "t1",
+      threadKey: CH,
+      status: "failed",
+      message: "还没有配置模型服务：请在设置里填写 baseURL 与模型名。"
+    });
+    await vi.runAllTimersAsync();
+    expect(store().draftOf(CH)).toBe("铁锈味的海雾");
+  });
+
+  it("该轮已经出现 user-message（字已在转录里）⇒ 失败也不回填，草稿保持空", async () => {
+    await openChapter();
+    store().startListening();
+    store().setDraft(CH, "铁锈味的海雾");
+    store().send("铁锈味的海雾");
+    store().clearDraft(CH);
+    push({ type: "turn-start", turnId: "t1", threadKey: CH });
+    push({
+      type: "event",
+      turnId: "t1",
+      threadKey: CH,
+      event: eventOf("user-message", { text: "铁锈味的海雾" })
+    });
+    push({
+      type: "turn-end",
+      turnId: "t1",
+      threadKey: CH,
+      status: "failed",
+      message: "流式连接中断。"
+    });
+    await vi.runAllTimersAsync();
+    expect(store().draftOf(CH)).toBe("");
+  });
+
+  it("「继续」发的是内置文案，不是用户刚打的字 ⇒ 那轮 pre-flight 失败也不许把它塞进输入框", async () => {
+    await openChapter();
+    store().startListening();
+    // 第一轮：用户的话 pre-flight 失败 ⇒ 还回草稿，并把线程推进到 endedAs=failed（canContinue 才放行）。
+    store().setDraft(CH, "铁锈味的海雾");
+    store().send("铁锈味的海雾");
+    store().clearDraft(CH);
+    push({ type: "turn-start", turnId: "t1", threadKey: CH });
+    push({
+      type: "turn-end",
+      turnId: "t1",
+      threadKey: CH,
+      status: "failed",
+      message: "还没有配置模型服务：请在设置里填写 baseURL 与模型名。"
+    });
+    await vi.runAllTimersAsync();
+    expect(store().draftOf(CH)).toBe("铁锈味的海雾");
+    store().clearDraft(CH);
+    // 第二轮：点「继续」。内置文案失败后绝不进输入框——那格是用户的地盘。
+    store().continueTurn();
+    push({ type: "turn-start", turnId: "t2", threadKey: CH });
+    push({
+      type: "turn-end",
+      turnId: "t2",
+      threadKey: CH,
+      status: "failed",
+      message: "还没有配置模型服务：请在设置里填写 baseURL 与模型名。"
+    });
     await vi.runAllTimersAsync();
     expect(store().draftOf(CH)).toBe("");
   });

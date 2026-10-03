@@ -21,8 +21,13 @@ export const SNIPPET_LABELS: Record<SnippetKind, string> = {
   quote: "引用"
 };
 
-/** 无活动文稿时 disabled 的诚实理由（评审 Important 4）：不能再把 label 念一遍当解释。 */
-export const SNIPPET_DISABLED_TITLE = "打开一篇文稿后才能插入片段";
+/**
+ * 无活动文稿时那句诚实理由（评审 Important 4 + 复审 I-1）。
+ * 它**只走可见文本**，不走 `title`：Chromium 对 disabled 按钮不弹原生 tooltip，
+ * 而灰态恰恰是唯一需要解释的时刻——挂着弹不出来的解释等于没解释。
+ * 本仓同律先例：左栏「本章新对话（先打开一章）」把理由写进按钮文字本身。
+ */
+const SNIPPET_DISABLED_HINT = "打开一篇文稿后才能插入片段";
 
 /** 成对标记：包在选区两端；空选区时两个标记相邻，光标落正中。 */
 const PAIRED_MARKS: Partial<Record<SnippetKind, string>> = { bold: "**" };
@@ -65,10 +70,12 @@ export interface SnippetButton {
 export interface SnippetToolbarView {
   visible: boolean;
   buttons: SnippetButton[];
+  /** 整条工具栏下方那一行**可见**的理由；可点与非文稿态都是空串（容器由 visible 决定，不靠它兜底）。 */
+  hint: string;
 }
 
 /**
- * 工具栏「谁可见、谁可点」（附录 F-F 明写浏览态隐藏）。
+ * 工具栏「谁可见、谁可点、灰了要说为什么」（附录 F-F 明写浏览态隐藏）。
  * 右栏三态的类型只有一份实现：`stores/useBookStore.ts` 的 `RightPaneMode`（铁律 6，这里 import 而不是再抄一遍字面量）。
  * 作品资料态同样是只读视图，按钮在那儿点不出任何事 ⇒ 一并隐藏；
  * 没有活动文稿时按钮在位但 disabled：草稿还不存在，点了改谁？
@@ -83,10 +90,10 @@ export function snippetToolbarState(input: {
     kind,
     label: SNIPPET_LABELS[kind],
     disabled,
-    // disabled 时 title 说清楚为什么点不动；可点时 title = 按钮用途本身（照 SNIPPET_LABELS 派生，不发明新词）。
-    title: disabled ? SNIPPET_DISABLED_TITLE : `插入「${SNIPPET_LABELS[kind]}」`
+    // title 只在可点态说用途（灰态弹不出来，理由另有可见的 hint）；措辞照 SNIPPET_LABELS 派生，不发明新词。
+    title: disabled ? "" : `插入「${SNIPPET_LABELS[kind]}」`
   }));
-  return { visible, buttons };
+  return { visible, buttons, hint: disabled ? SNIPPET_DISABLED_HINT : "" };
 }
 
 function isHighSurrogate(value: string, index: number): boolean {

@@ -178,20 +178,35 @@ describe("snippetToolbarState（附录 F-F：浏览态隐藏）", () => {
     expect(view.buttons.map((btn) => btn.disabled)).toEqual([true, true, true, true]);
   });
 
-  // F4（评审 Important 4）：disabled 态不能再把 label 念一遍当解释——要给一句诚实理由。
-  it("disabled 态：四枚按钮的 title 逐字给『先打开文稿』的理由（不是把 label 再念一遍）", () => {
-    const REASON = "打开一篇文稿后才能插入片段";
+  // F4（评审 Important 4）+ 复审 I-1：Chromium 不给 disabled 按钮弹原生 title，灰态恰恰是唯一
+  // 需要解释的时刻 ⇒ 理由必须是**可见文本**（本仓同律先例：左栏「本章新对话（先打开一章）」）。
+  // title 只在可点态说用途，禁用态留空——挂着弹不出来的解释等于没解释。
+  it("disabled 态：理由住在可见的 hint 里（逐字），四枚按钮的 title 空着", () => {
     const view = snippetToolbarState({ mode: "manuscript", hasActiveDoc: false });
-    expect(view.buttons.map((btn) => btn.title)).toEqual([REASON, REASON, REASON, REASON]);
+    expect(view.hint).toBe("打开一篇文稿后才能插入片段");
+    expect(view.buttons.map((btn) => btn.title)).toEqual(["", "", "", ""]);
+    expect(view.buttons.map((btn) => btn.disabled)).toEqual([true, true, true, true]);
   });
 
-  // 反向保护：证明上面那条中文逐字钉抓得住「两态同词」的漂移——可点态绝不能等于禁用理由那句。
-  it("可点态：title 说按钮用途，且四枚都不等于禁用理由那句（抓两态同词漂移）", () => {
-    const REASON = "打开一篇文稿后才能插入片段";
+  // 反向保护一：可点态的 hint 必须是空串，否则那句「先打开文稿」会在能点的时候继续挂着说假话。
+  // 反向保护二：可点态 title 说按钮用途且逐枚不同（抓「两态同词」与「四枚同句」两种漂移）。
+  it("可点态：hint 收空，title 说按钮用途且四枚各不相同", () => {
     const view = snippetToolbarState({ mode: "manuscript", hasActiveDoc: true });
-    for (const btn of view.buttons) {
-      expect(btn.title.length).toBeGreaterThan(0);
-      expect(btn.title).not.toBe(REASON);
+    expect(view.hint).toBe("");
+    expect(view.buttons.map((btn) => btn.title)).toEqual([
+      "插入「加粗」",
+      "插入「标题」",
+      "插入「列表」",
+      "插入「引用」"
+    ]);
+  });
+
+  // 反向保护三：浏览态与作品资料态整条工具栏不进 DOM，hint 也不该有内容（visible 闸门在 .ts 里）。
+  it("非文稿态：visible 为假且 hint 空串（容器由 visible 决定，不靠 hint 兜底）", () => {
+    for (const mode of ["browse", "dossier"] as const) {
+      const view = snippetToolbarState({ mode, hasActiveDoc: true });
+      expect(view.visible).toBe(false);
+      expect(view.hint).toBe("");
     }
   });
 });
