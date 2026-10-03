@@ -76,6 +76,11 @@ describe("BookWorkbench · 建议 pill 的两条出路接到真身", () => {
     expect(template).toContain('v-for="item in suggestions"');
     expect(template).toMatch(/v-if="suggestions\.length"/);
     expect(template).toContain("@click=\"emit('suggestion', item)\"");
+    // 出路说明的载体必须是 pill 上的 title：常量表在 .ts 里改一遍不算接通（M5 变异目标）。
+    expect(template).toMatch(
+      /class="workbench-suggestion"[\s\S]{0,160}:title="WORKBENCH_SUGGESTION_TITLES\[item\.kind\]"/
+    );
+    expect(script).toContain("WORKBENCH_SUGGESTION_TITLES");
   });
 
   it("装配处：prefill 一类调 agent.prefillComposer(threadKeyFor(target), ...)，palette 一类开同一个 paletteOpen", () => {
