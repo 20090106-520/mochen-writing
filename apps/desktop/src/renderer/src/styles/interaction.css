@@ -125,14 +125,6 @@
   line-height: 1.5;
 }
 
-.permission-chip.is-button:not(:disabled) {
-  cursor: pointer;
-}
-
-.permission-chip.is-button:not(:disabled):hover {
-  background: var(--hover);
-}
-
 /* Task 5 的模板引用这些类（样式随本任务落地，中间一提交只有裸文本、不影响门禁与判读） */
 .hydrating-line {
   color: var(--text-soft);

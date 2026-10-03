@@ -18,7 +18,7 @@ import {
   composerCounter,
   type ComposerChipSlot
 } from "../utils/composer-chips";
-import { scriptSource, templateSource } from "../utils/vue-source-reader";
+import { scriptSource, templateSource, vueSource } from "../utils/vue-source-reader";
 
 const COMPOSER = "components/ComposerBox.vue";
 const CENTER = "components/CenterColumn.vue";
@@ -109,6 +109,20 @@ describe("composer 卡骨架 · 照搬 deepwrite 的圆角卡", () => {
     expect(m).not.toContain("round-tool-button");
     expect(m).not.toContain('name="mic"');
     expect(m).not.toContain('aria-label="上传附件"');
+  });
+
+  // 档位 chip 搬进卡右端后，头部那套 `.permission-chip` 就成了零消费者的化石（评审 F1）。
+  // 铁律「不留化石」要有关卡：类名一旦在样式表里复活而无人使用，这条就红。
+  it("档位 chip 的旧样式全退役：.permission-chip 在模板与样式表里都不许留", () => {
+    for (const file of ["agent-pane.css", "interaction.css", "conversation-pane.css"]) {
+      expect(
+        styleSource(file),
+        `styles/${file} 里 .permission-chip 是无人消费的化石`
+      ).not.toContain(".permission-chip");
+    }
+    for (const component of [COMPOSER, CENTER]) {
+      expect(vueSource(component)).not.toContain("permission-chip");
+    }
   });
 });
 

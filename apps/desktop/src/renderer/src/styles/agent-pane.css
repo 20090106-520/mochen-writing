@@ -396,14 +396,6 @@ html[data-platform="darwin"] .conversation-pane {
   color: var(--text-faint);
 }
 
-.permission-chip {
-  padding: 2px 9px;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  color: var(--text-soft);
-  font-size: 12px;
-}
-
 .provider-field {
   display: flex;
   flex-direction: column;
