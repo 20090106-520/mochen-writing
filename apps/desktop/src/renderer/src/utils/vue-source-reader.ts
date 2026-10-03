@@ -40,3 +40,14 @@ export function scriptSource(componentPathRelativeToRendererSrc: string): string
   }
   return body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 }
+
+/**
+ * 数 needle 出现的次数（铁律 6：原先 inline-reference-menu-wiring.test.ts 里自带一份）。
+ * 存在的理由：`toContain` 只证明「至少一处写过」，两栏各渲染一次同一件东西时，
+ * 其中一栏漏掉那件东西它照样绿——变异实验实测过（左栏 chip 循环的下拉三角整行删掉，
+ * 22 条断言全过）。需要「每条循环都带全这一件套」的场合只能数次数。
+ */
+export function countNeedle(needle: string, haystack: string): number {
+  if (needle === "") throw new Error("空针串数不出意义");
+  return haystack.split(needle).length - 1;
+}

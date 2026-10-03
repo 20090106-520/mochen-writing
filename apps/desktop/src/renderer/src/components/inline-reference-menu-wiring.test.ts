@@ -13,7 +13,7 @@
  */
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { scriptSource, templateSource, vueSource } from "../utils/vue-source-reader";
+import { countNeedle, scriptSource, templateSource, vueSource } from "../utils/vue-source-reader";
 
 const MENU = "components/ComposerReferenceMenu.vue";
 const COMPOSER = "components/ComposerBox.vue";
@@ -43,10 +43,6 @@ function ruleBlock(css: string, selector: string): string {
   const m = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css);
   expect(m, `样式表里找不到规则 ${selector}`).not.toBeNull();
   return m?.[1] ?? "";
-}
-
-function count(needle: string, haystack: string): number {
-  return haystack.split(needle).length - 1;
 }
 
 /** 全组件目录的 .vue 原文（跳过测试文件：契约测试自己写着 needle，不该被自己数进去）。 */
@@ -83,9 +79,9 @@ describe("菜单本体 · 照搬 deepwrite 的 composer-reference-* 骨架", () 
   it("页脚两枚 span 各恰好一次：↑↓ 选择 与 Enter 插入；Esc 的 kbd 住在标题行（照参考源，不在页脚）", () => {
     const m = templateSource(MENU);
     const source = vueSource(MENU);
-    expect(count("<kbd>↑</kbd><kbd>↓</kbd> 选择", m)).toBe(1);
-    expect(count("<kbd>Enter</kbd> 插入", m)).toBe(1);
-    expect(count("<kbd>Esc</kbd>", m)).toBe(1);
+    expect(countNeedle("<kbd>↑</kbd><kbd>↓</kbd> 选择", m)).toBe(1);
+    expect(countNeedle("<kbd>Enter</kbd> 插入", m)).toBe(1);
+    expect(countNeedle("<kbd>Esc</kbd>", m)).toBe(1);
     // Esc 那枚 kbd 必须在 footer 之前（标题行），页脚里不许再长出第三个 kbd 组。
     expect(m.indexOf("<kbd>Esc</kbd>")).toBeLessThan(m.indexOf("composer-reference-footer"));
     expect(m.slice(m.indexOf("composer-reference-footer")).indexOf("<kbd>Esc</kbd>")).toBe(-1);
@@ -200,7 +196,7 @@ describe("裁定 D1 · `/` 的真身只有一个", () => {
     const hits = componentSources().filter((item) => item.text.includes("availableCommands"));
     expect(hits).toEqual([]);
     const store = readFileSync(new URL(`../${STORE}`, import.meta.url), "utf8");
-    expect(count("availableCommands", store)).toBe(2); // import 一次 + 调用一次
+    expect(countNeedle("availableCommands", store)).toBe(2); // import 一次 + 调用一次
     expect(store).toContain('from "../utils/slash-commands"');
   });
 
@@ -208,8 +204,8 @@ describe("裁定 D1 · `/` 的真身只有一个", () => {
     const center = vueSource(CENTER);
     // 脚本里两处双引号（工作台 pill 的 handler、热键回调）；模板属性里那处被 prettier 收成单引号，
     // 因为整条属性本身用双引号包裹，嵌套的字符串字面量只能是单引号。
-    expect(count('summon("/")', center)).toBe(2);
-    expect(count("summon('/')", center)).toBe(1);
+    expect(countNeedle('summon("/")', center)).toBe(2);
+    expect(countNeedle("summon('/')", center)).toBe(1);
     expect(center).toContain('openPalette: () => referenceMenu.summon("/")');
     expect(center).toContain(`@open-palette="referenceMenu.summon('/')"`);
   });
@@ -217,7 +213,7 @@ describe("裁定 D1 · `/` 的真身只有一个", () => {
   it("#112 卡上那枚 `＋` 接的是 @ 素材：它发出的事件必须落到 summon('@')，不是另一套自造菜单", () => {
     const center = vueSource(CENTER);
     expect(center).toContain(`@open-mention="referenceMenu.summon('@')"`);
-    expect(count(`summon('@')`, center)).toBe(1);
+    expect(countNeedle(`summon('@')`, center)).toBe(1);
   });
 
   it("命令仍由唯一派发口执行：组件里不许出现 runSlashCommand", () => {

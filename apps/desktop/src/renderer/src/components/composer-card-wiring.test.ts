@@ -18,7 +18,7 @@ import {
   composerCounter,
   type ComposerChipSlot
 } from "../utils/composer-chips";
-import { scriptSource, templateSource, vueSource } from "../utils/vue-source-reader";
+import { countNeedle, scriptSource, templateSource, vueSource } from "../utils/vue-source-reader";
 
 const COMPOSER = "components/ComposerBox.vue";
 const CENTER = "components/CenterColumn.vue";
@@ -210,9 +210,15 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     expect(chip("thinking", { thinkingLevel: "low" })?.icon).toBe("brain");
     expect(chip("web-search", { webSearchEnabled: true })?.icon).toBe("globe");
     const m = markup();
-    expect(m).toContain(':name="chip.icon"');
-    expect(m).toContain('v-if="chip.caret"');
-    expect(m).toContain('name="chevron"');
+    // 左右两条循环各自带全「图形 + 可截断文字 + 三角」三件套 ⇒ 数次数而不是 toContain：
+    // 实测把左栏循环里那行下拉三角整行删掉，22 条断言全绿（toContain 只看见右栏那一处）。
+    expect(countNeedle(':name="chip.icon"', m), "两条 chip 循环都要渲染图标").toBe(2);
+    expect(
+      countNeedle('class="composer-chip-label"', m),
+      "两条 chip 循环都要包一层可截断文字"
+    ).toBe(2);
+    expect(countNeedle('v-if="chip.caret"', m), "两条 chip 循环都要按 caret 挂下拉三角").toBe(2);
+    expect(countNeedle('name="chevron"', m)).toBe(2);
     // 合并口径与 badge 字段一起退役：模型名里再不许缀思考等级，也不许挂地球角标。
     expect(chip("model", { thinkingLevel: "high" })?.text).toBe("mochen-mock");
     expect(m).not.toContain("chip.badge");
