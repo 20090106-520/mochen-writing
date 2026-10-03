@@ -45,7 +45,7 @@ export function availableCommands(focus: PaletteFocus): SlashCommand[] {
     if (GATED_COMMANDS.includes(command)) return false;
     if (command === "resume" && !focus.hasBook) return false;
     // 与 resume 同一条闸：无书时 PermissionMenu 不挂载（CenterColumn 的挂载条件要求 book.meta 非 null），
-    // 列出 /permissions 就是一条按下 Enter 什么都不发生的命令——项目律「拒绝一律回单席中文原因，不静默丢弃」，
+    // 列出 /permissions 就是一条按下 Enter 什么都不发生的命令——项目律「拒绝一律回单句中文原因，不静默丢弃」，
     // 而「不列出来」正是这里合规的拒绝形式（见 GATED_COMMANDS 那条不变量）。
     if (command === "permissions" && !focus.hasBook) return false;
     if (focus.turnRunning) return DURING_TURN_COMMANDS.includes(command);

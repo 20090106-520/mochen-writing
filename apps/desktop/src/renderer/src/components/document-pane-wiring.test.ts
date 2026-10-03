@@ -37,6 +37,14 @@ describe("DocumentPane · 片段工具栏的接线形状（F-F）", () => {
     expect(markup).not.toContain("加粗");
   });
 
+  // F4（评审 Important 4）：载体钉——禁用理由住在 .ts 的 btn.title，模板只绑 :title="btn.title"。
+  // 若漂移回 :title="btn.label"（把 label 再念一遍 = 没解释），这条必须红。判定与理由一律不在模板造。
+  it("按钮 title 绑的是 utils 派生出来的 btn.title，不在模板里退回 btn.label", () => {
+    const markup = templateSource(toolbar);
+    expect(markup).toContain(':title="btn.title"');
+    expect(markup).not.toContain(':title="btn.label"');
+  });
+
   it("光标与选区回设要拿到 textarea 真身：ref 必须挂在编辑器上，不能只挂在别处", () => {
     const editor = /<textarea\b[\s\S]*?\/>/.exec(paneTemplate)?.[0] ?? "";
     expect(editor).toContain('ref="editorEl"');

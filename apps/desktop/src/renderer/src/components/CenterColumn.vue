@@ -147,7 +147,8 @@ function decide(proposalId: string, decision: ProposalDecision, guidance: string
   void agent.decide(proposalId, decision, guidance);
 }
 
-/** 发送 = 投递这一轮 + 清掉这一格草稿（值已进对话流，留着会把上一句带进下一次输入）。 */
+/** 发送 = 投递这一轮 + 清掉这一格草稿（值已进对话流，留着会把上一句带进下一次输入）。
+ * 这里的清空是乐观的：那一轮若被边界拒绝，`useAgentStore.send` 的 catch 是真身，会把这一格原样还回来。 */
 function onComposerSend(text: string): void {
   agent.send(text);
   agent.clearDraft(threadKey.value);
@@ -155,7 +156,7 @@ function onComposerSend(text: string): void {
 
 /**
  * 键位接线（spec §5）：全局 keydown 有且只有一处，就在 useGlobalHotkeys 里。
- * 这里删掉了原先的 onGlobalEscape —— 它的「Esc = 打断」已被 resolveEscape 的四态裁决（含收浮层）取代，
+ * 这里删掉了原先的 onGlobalEscape —— 它的「Esc = 打断」已被 resolveEscape 的裁决（含收浮层那一支）取代，
  * 保留两处监听会变成两份 Esc 裁决（裁定 G5）。判断一律在 utils，本组件只接线。
  */
 useGlobalHotkeys({ openPalette: () => (paletteOpen.value = true) });
@@ -211,7 +212,7 @@ onBeforeUnmount(() => {
             @close="book.closePermissionMenu()"
           />
         </div>
-        <button class="header-text-button" type="button" @click="layout.showSettings('general')">
+        <button class="header-text-button" type="button" @click="layout.showSettings()">
           <AppIcon name="settings" :size="15" />
           <span>模型设置</span>
         </button>
@@ -261,10 +262,8 @@ onBeforeUnmount(() => {
               v-for="card in openCards"
               :key="card.proposal.id"
               :view="card"
-              :running="running"
               :turn-label="turnLabel(card)"
               @decide="(decision, guidance) => decide(card.proposal.id, decision, guidance)"
-              @interrupt="agent.stop()"
             />
           </div>
 
@@ -276,10 +275,8 @@ onBeforeUnmount(() => {
                 v-for="card in settledCards"
                 :key="card.proposal.id"
                 :view="card"
-                :running="running"
                 :turn-label="turnLabel(card)"
                 @decide="(decision, guidance) => decide(card.proposal.id, decision, guidance)"
-                @interrupt="agent.stop()"
               />
             </div>
           </details>
@@ -294,10 +291,8 @@ onBeforeUnmount(() => {
                 v-for="card in expiredCards"
                 :key="card.proposal.id"
                 :view="card"
-                :running="running"
                 :turn-label="turnLabel(card)"
                 @decide="(decision, guidance) => decide(card.proposal.id, decision, guidance)"
-                @interrupt="agent.stop()"
               />
             </div>
           </details>

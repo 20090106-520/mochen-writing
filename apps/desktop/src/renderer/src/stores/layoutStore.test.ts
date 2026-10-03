@@ -107,9 +107,8 @@ describe("layout store", () => {
     expect(refs.leftPaneWidth.value).toBe(defaultLeftPaneWidth(1400));
     expect(refs.rightPaneWidth.value).toBe(defaultRightPaneWidth(1400));
 
-    store.showSettings("official-models");
+    store.showSettings();
     expect(refs.currentView.value).toBe("settings");
-    expect(refs.settingsInitialCategory.value).toBe("official-models");
     store.showWorkspace();
     expect(refs.currentView.value).toBe("workspace");
 

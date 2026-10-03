@@ -9,10 +9,9 @@ import {
 import type { ProposalView } from "../stores/useAgentStore";
 import AppIcon from "./AppIcon.vue";
 
-const props = defineProps<{ view: ProposalView; running: boolean; turnLabel: string }>();
+const props = defineProps<{ view: ProposalView; turnLabel: string }>();
 const emit = defineEmits<{
   decide: [decision: ProposalDecision, guidance: string];
-  interrupt: [];
 }>();
 
 const guidance = ref("");

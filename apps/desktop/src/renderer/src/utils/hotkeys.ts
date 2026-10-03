@@ -2,8 +2,8 @@
  * 键位判定层（spec §5）：只回答「哪个键在什么焦点下等于哪个动作」。
  * 入参是拆开的修饰键而不是 KeyboardEvent——不依赖 DOM，也不会有人偷偷传 event 读别的字段。
  * 键位表（spec §5）与五条护栏冲突时以护栏为准：表是摘要，白名单才是裁决边界。
- * Esc：只有裸键 delegated（带修饰的 Esc 属于 OS 或别人）；三态裁决仍在 utils/escape-policy.ts
- * 的 resolveEscape，这里绝不复制一份。
+ * Esc：只有裸键 delegated（带修饰的 Esc 属于 OS 或别人）；Esc 的裁决全在 utils/escape-policy
+ * 的 resolveEscape（优先级：保字 > 取消该条 > 收浮层 > 打断 > 无动作），这里绝不复制一份。
  */
 export interface HotkeyMods {
   ctrl: boolean;

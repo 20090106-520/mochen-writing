@@ -176,7 +176,6 @@ describe("useAgentStore · / 面板动作", () => {
     expect(loadSession).toHaveBeenCalledTimes(1);
     store().runSlashCommand("model", "");
     expect(useLayoutStore().currentView).toBe("settings");
-    expect(useLayoutStore().settingsInitialCategory).toBe("general");
   });
 
   it("/permissions 不带档名只把档位菜单打开，不写盘也不改 meta", async () => {

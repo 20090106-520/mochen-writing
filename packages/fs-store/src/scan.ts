@@ -56,6 +56,8 @@ async function docMetaOf(full: string, rel: string): Promise<{ title: string; ex
   const fallback = (base.match(/^\d*[-_]?(.*)$/)?.[1] ?? "").trim() || rel;
   try {
     // 只读这一次：frontmatter 出 title，body 出 excerpt，与旧 titleOf 的 readFile 次数完全一致。
+    // 逃逸口提醒：IO 计数护栏（scan-excerpt.test.ts 的 readFile spy）只认这条 readFile——
+    // 若改用 readFileSync / createReadStream 读，护栏的调用计数看不见，读放大就悄悄溜过。
     const { data, body } = parseFrontmatter(await readFile(full, "utf8"));
     const raw = data.title;
     const title = typeof raw === "string" && raw.trim() ? raw.trim() : fallback;

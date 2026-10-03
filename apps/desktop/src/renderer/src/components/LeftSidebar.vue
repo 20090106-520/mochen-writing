@@ -65,7 +65,7 @@ async function pickBook(): Promise<void> {
 
 // 段②：与中栏头部两处入口同一个真身（设计决定 2 之后 showSettings 是唯一路径）。
 function openModelSettings(): void {
-  layout.showSettings("general");
+  layout.showSettings();
 }
 
 // 段③：只清渲染层视图，不碰 JSONL、不碰主进程 pending —— clearThreadView 的真实边界。

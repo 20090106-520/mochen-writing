@@ -15,7 +15,7 @@ const emit = defineEmits<{ pick: [kind: SnippetKind] }>();
       class="format-button"
       type="button"
       :disabled="btn.disabled"
-      :title="btn.label"
+      :title="btn.title"
       @click="emit('pick', btn.kind)"
     >
       {{ btn.label }}

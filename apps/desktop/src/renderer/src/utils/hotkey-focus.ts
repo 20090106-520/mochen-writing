@@ -18,7 +18,7 @@ export interface FocusSource {
   getAttribute(name: string): string | null;
 }
 
-/** composer 额外要读文本内容（textarea 受控于 store.composerDrafts，DOM 值与那份同源，故取 value 即可）。 */
+/** composer 额外要读文本内容（textarea 受控于 store.composerDrafts；但 IME 组合窗口内 DOM 值可能领先或滞后于 store，取值一律以 store 为准，这里读 value 只用来判断「是不是文本框」）。 */
 export interface ComposerSource extends FocusSource {
   readonly value: string;
 }

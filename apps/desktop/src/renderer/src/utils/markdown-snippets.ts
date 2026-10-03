@@ -21,6 +21,9 @@ export const SNIPPET_LABELS: Record<SnippetKind, string> = {
   quote: "引用"
 };
 
+/** 无活动文稿时 disabled 的诚实理由（评审 Important 4）：不能再把 label 念一遍当解释。 */
+export const SNIPPET_DISABLED_TITLE = "打开一篇文稿后才能插入片段";
+
 /** 成对标记：包在选区两端；空选区时两个标记相邻，光标落正中。 */
 const PAIRED_MARKS: Partial<Record<SnippetKind, string>> = { bold: "**" };
 
@@ -55,6 +58,7 @@ export interface SnippetButton {
   kind: SnippetKind;
   label: string;
   disabled: boolean;
+  title: string;
 }
 
 /** `snippetToolbarState` 的产物形状：工具栏组件与接线只认这一个形状，不在别处再描述一遍。 */
@@ -78,7 +82,9 @@ export function snippetToolbarState(input: {
   const buttons = SNIPPET_KINDS.map((kind) => ({
     kind,
     label: SNIPPET_LABELS[kind],
-    disabled
+    disabled,
+    // disabled 时 title 说清楚为什么点不动；可点时 title = 按钮用途本身（照 SNIPPET_LABELS 派生，不发明新词）。
+    title: disabled ? SNIPPET_DISABLED_TITLE : `插入「${SNIPPET_LABELS[kind]}」`
   }));
   return { visible, buttons };
 }

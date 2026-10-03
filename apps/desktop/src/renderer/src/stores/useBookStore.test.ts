@@ -444,7 +444,8 @@ describe("useBookStore", () => {
 
   /**
    * 经 computed 读的用例（9625c52 的同类盲区）：PermissionMenu.vue 的 `current` 与 CenterColumn.vue
-   * 的 `permissionLabel` 都是 `computed(() => book.meta?.permissionMode ?? ...)`，本仓没有组件测试。
+   * 的 `permissionChip`（档位文案经 utils/permission-chip.ts 的 `permissionChipView`）都是读
+   * `book.meta?.permissionMode` 的 computed，本仓没有组件测试。
    * 写进 pinia state 的对象若在代理之外落地（例如改到裸引用上），真值照样对、依赖通知一次不发，
    * 组件就把渲染那一帧的旧档永久缓存下去。节奏必须是**先在旧档上读一次把缓存钉住**，再触发写，再读。
    */

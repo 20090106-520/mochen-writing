@@ -177,4 +177,21 @@ describe("snippetToolbarState（附录 F-F：浏览态隐藏）", () => {
     expect(view.visible).toBe(true);
     expect(view.buttons.map((btn) => btn.disabled)).toEqual([true, true, true, true]);
   });
+
+  // F4（评审 Important 4）：disabled 态不能再把 label 念一遍当解释——要给一句诚实理由。
+  it("disabled 态：四枚按钮的 title 逐字给『先打开文稿』的理由（不是把 label 再念一遍）", () => {
+    const REASON = "打开一篇文稿后才能插入片段";
+    const view = snippetToolbarState({ mode: "manuscript", hasActiveDoc: false });
+    expect(view.buttons.map((btn) => btn.title)).toEqual([REASON, REASON, REASON, REASON]);
+  });
+
+  // 反向保护：证明上面那条中文逐字钉抓得住「两态同词」的漂移——可点态绝不能等于禁用理由那句。
+  it("可点态：title 说按钮用途，且四枚都不等于禁用理由那句（抓两态同词漂移）", () => {
+    const REASON = "打开一篇文稿后才能插入片段";
+    const view = snippetToolbarState({ mode: "manuscript", hasActiveDoc: true });
+    for (const btn of view.buttons) {
+      expect(btn.title.length).toBeGreaterThan(0);
+      expect(btn.title).not.toBe(REASON);
+    }
+  });
 });

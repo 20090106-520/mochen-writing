@@ -477,6 +477,9 @@ export const useAgentStore = defineStore("agent", {
         const reason = reasonOf(err);
         this.viewOf(input.threadKey).lastError = reason;
         this.notice = `这一轮没能启动：${reason}`;
+        // 发送被拒：把用户这一格刚被入口乐观清掉的文本原样还回去（清空是乐观的，失败才回写）。
+        // 仅当该线程当前草稿仍是空——失败回执回来前用户可能又打了字，绝不覆盖新输入（本波「不吞字」承诺）。
+        if (this.draftOf(input.threadKey) === "") this.setDraft(input.threadKey, text);
       });
     },
 
@@ -584,7 +587,7 @@ export const useAgentStore = defineStore("agent", {
       switch (command) {
         case "model":
           // 与 Ctrl+, 同一条通路（Task 7）：模型设置的唯一真身仍是 ProviderSettings 浮层。
-          useLayoutStore().showSettings("general");
+          useLayoutStore().showSettings();
           return;
         case "permissions": {
           // 不带档名 ⇒ 只开菜单（popover 里逐档可点）；带档名 ⇒ 查表直接切档落盘（spec §6）。

@@ -51,7 +51,6 @@ export const useLayoutStore = defineStore("layout", () => {
   const initialRightPaneWidth = defaultRightPaneWidth(viewportWidth.value);
 
   const currentView = ref<AppView>("workspace");
-  const settingsInitialCategory = ref("general");
   const leftCollapsed = ref(false);
   const rightCollapsed = ref(false);
   const desktopShell = shallowRef<HTMLElement | null>(null);
@@ -86,8 +85,7 @@ export const useLayoutStore = defineStore("layout", () => {
     width: rightPaneWidth.value
   }));
 
-  function showSettings(initialCategory = "general"): void {
-    settingsInitialCategory.value = initialCategory;
+  function showSettings(): void {
     currentView.value = "settings";
   }
 
@@ -283,7 +281,6 @@ export const useLayoutStore = defineStore("layout", () => {
 
   return {
     currentView,
-    settingsInitialCategory,
     leftCollapsed,
     rightCollapsed,
     desktopShell,

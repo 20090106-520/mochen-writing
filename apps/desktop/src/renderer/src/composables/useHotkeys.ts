@@ -1,5 +1,5 @@
 // 薄壳：装全局唯一的 keydown 监听、把真 DOM 解成焦点源、把判定结果派到既有 store action；本文件不判断。
-// 判断层各有其主：键→动作 utils/hotkeys.ts、Esc 四态 utils/escape-policy.ts、焦点推导 utils/hotkey-focus.ts（裁定 G2）；
+// 判断层各有其主：键→动作 utils/hotkeys.ts、Esc 裁决 utils/escape-policy.ts、焦点推导 utils/hotkey-focus.ts（裁定 G2）；
 // 审批映射 utils/hotkey-decisions（评审 X2）、DOM 标记名 utils/hotkey-markers（评审 X4a）——单实现模块，只消费。
 // 全局 keydown 有且只有这里一处（裁定 G5）。
 import { onBeforeUnmount, onMounted } from "vue";
@@ -52,7 +52,7 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
   function escape(event: KeyboardEvent, card: HTMLElement | null): void {
     const guidance = card?.querySelector<HTMLTextAreaElement>(GUIDANCE_SELECTOR) ?? null;
     const cardId = card?.getAttribute(CARD_ID_ATTR) ?? "";
-    // 四态裁决（说明框保字 > 取消该条 > 收浮层 > 打断 > 无动作）全在 resolveEscape，这里不复制口径。
+    // 裁决（说明框保字 > 取消该条 > 收浮层 > 打断 > 无动作）全在 resolveEscape，这里不复制口径。
     const action = resolveEscape({
       hasFocusedProposal: card !== null,
       focusedProposalPending: card?.getAttribute(CARD_STATUS_ATTR) === "pending",
@@ -61,7 +61,7 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
       // 唯一喂入点：设置浮层的真身是 layout.currentView === "settings"（设计决定 2）。
       settingsIsOpen: layout.currentView === "settings"
     });
-    // 评审 X3（与 dispatch 的 :171-174 同律，G1/X3 同法一条）：switch + never 穷尽性守卫——
+    // 评审 X3（与 dispatch 里的 never 穷尽守卫同律，G1/X3 同法一条）：switch + never 穷尽性守卫——
     // EscapeAction 新增成员没在此接线 ⇒ 编译失败，杜绝「静默死键」。
     switch (action) {
       case "keep-guidance":
@@ -155,7 +155,7 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
         return;
       case "open-settings":
         event.preventDefault();
-        layout.showSettings("general");
+        layout.showSettings();
         return;
       case "open-book":
         // 与左栏「打开作品目录」按钮同一条通路（store 的 pickAndOpen 是唯一真身，取消也有中文）。

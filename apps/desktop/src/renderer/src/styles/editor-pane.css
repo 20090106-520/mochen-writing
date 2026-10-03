@@ -33,7 +33,9 @@ html[data-platform="darwin"] .editor-pane.has-section-tabs {
   grid-template-rows: 52px 42px 40px minmax(0, 1fr) 36px;
 }
 
-/* 作品资料态整条标签带不渲染（评审 T6-4）：五行轨收成四行，剩余四格各归位，不留 42px 空带。 */
+/* 作品资料态整条标签带不渲染（评审 T6-4）：五行轨收成四行，剩余四格各归位，不留 42px 空带。
+   别只按类名理解：`.has-section-tabs` 是 DocumentPane.vue 模板里无条件挂在 <aside> 上的类，
+   作品资料态的收带全靠下面这条 :has(.editor-document.is-dossier) 覆盖，不是「有才挂上」。 */
 .editor-pane.has-section-tabs:has(.editor-document.is-dossier) {
   grid-template-rows: 50px 40px minmax(0, 1fr) 36px;
 }

@@ -129,11 +129,11 @@
   line-height: 1.5;
 }
 
-.permission-chip.is-button {
+.permission-chip.is-button:not(:disabled) {
   cursor: pointer;
 }
 
-.permission-chip.is-button:hover {
+.permission-chip.is-button:not(:disabled):hover {
   background: var(--hover);
 }
 

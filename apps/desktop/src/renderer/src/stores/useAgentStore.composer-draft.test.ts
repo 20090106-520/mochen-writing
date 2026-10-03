@@ -1,7 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { composerTextAfterQueue } from "../utils/hotkey-queue";
 import { QUEUED_MAX } from "./useAgentStore";
-import { CH, OTHER, openChapter, setupAgentFixture, store } from "./agent-store-fixture";
+import {
+  CH,
+  OTHER,
+  openChapter,
+  push,
+  setupAgentFixture,
+  startTurn,
+  store
+} from "./agent-store-fixture";
 
 /**
  * 输入框的值上收 store（F-A 预填通路）的 store 侧断言。
@@ -84,5 +92,49 @@ describe("useAgentStore.composerDrafts · 输入值上收与排队无丢失", ()
     expect(accepted).toBe(false);
     expect(agent.threads[CH]?.queued).toEqual(seeded);
     expect(agent.draftOf(CH)).toBe(draft);
+  });
+
+  // ===== F3（评审 Important 3）：发送被拒把用户刚打的字原样还回这一格 =====
+  // send 自己不清草稿；两个入口（CenterColumn.onComposerSend / useHotkeys 的 submit 支）发送后同步
+  // clearDraft 是「乐观清空」。被拒时 store.send 的 .catch 要把这句还回来——所以下面每例都照实复现
+  // 「send → clearDraft」这一对入口动作，再断言 .catch 的回写结果。
+
+  it("startTurn 被拒 ⇒ 把用户这一格刚乐观清掉的字原样还回（且 notice 仍是那句启动失败）", async () => {
+    await openChapter();
+    startTurn.mockImplementationOnce(async () => {
+      throw new Error("模型未配置");
+    });
+    store().setDraft(CH, "铁锈味的海雾");
+    store().send("铁锈味的海雾");
+    store().clearDraft(CH); // 入口的乐观清空（真身保持原位，见 F3 实现）
+    await vi.runAllTimersAsync();
+    expect(store().draftOf(CH)).toBe("铁锈味的海雾");
+    // 钉 notice 没被换成静默：仍是那句「这一轮没能启动：…」
+    expect(store().notice).toContain("这一轮没能启动");
+  });
+
+  it("失败回执回来之前用户又打了字 ⇒ 不许覆盖新输入", async () => {
+    await openChapter();
+    startTurn.mockImplementationOnce(async () => {
+      throw new Error("模型未配置");
+    });
+    store().setDraft(CH, "铁锈味的海雾");
+    store().send("铁锈味的海雾");
+    store().clearDraft(CH);
+    // 用户在 .catch 回来之前重新打了一句：回写必须看到非空草稿而放弃。
+    store().setDraft(CH, "新的半句");
+    await vi.runAllTimersAsync();
+    expect(store().draftOf(CH)).toBe("新的半句");
+  });
+
+  it("send 成功路径不回填草稿（startTurn resolve + turn-start 正常推送后这一格仍空）", async () => {
+    await openChapter();
+    store().startListening();
+    store().setDraft(CH, "要发出去的一句");
+    store().send("要发出去的一句"); // 默认桩 resolve { turnId: "t1" }，不进 .catch
+    store().clearDraft(CH);
+    push({ type: "turn-start", turnId: "t1", threadKey: CH });
+    await vi.runAllTimersAsync();
+    expect(store().draftOf(CH)).toBe("");
   });
 });

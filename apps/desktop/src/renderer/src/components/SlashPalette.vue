@@ -1,5 +1,6 @@
 <!-- / 命令面板：↑↓ 选择、Enter 执行、Esc 关闭。四个键在组件内吃掉并 stopPropagation
-     （spec §5 护栏 5）——全局 keydown 因此拿不到面板的 Esc，resolveEscape 不加第四优先级。 -->
+     （spec §5 护栏 5），所以浮层收起与打断各走各的：面板内自处理，全局侧 resolveEscape
+     的收浮层级只管 layout.currentView === "settings" 那一支。 -->
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
 import {
