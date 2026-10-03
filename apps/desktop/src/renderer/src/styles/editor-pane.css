@@ -308,6 +308,11 @@ html[data-platform="darwin"] .editor-header {
   background: var(--surface-raised);
 }
 
+/* 作品资料页不渲染 meta-row 与标题输入：网格只留一条内容轨道，不在下方留空行。 */
+.editor-document.is-dossier {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .document-meta-row {
   display: flex;
   align-items: center;
@@ -407,6 +412,82 @@ html[data-theme="dark"] .document-editor:focus-visible {
 
 .document-preview-empty {
   color: var(--text-tertiary);
+}
+
+/* 作品资料（右栏第三页签）：只读摘要卡，全部吃既有 token。 */
+.book-dossier {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 var(--document-inline-padding) 40px;
+  color: var(--text-primary);
+}
+
+.dossier-empty {
+  color: var(--text-tertiary);
+  font-size: 0.857143rem;
+  line-height: 1.7;
+}
+
+.dossier-meta {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.dossier-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.14286rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.dossier-facts {
+  margin: 6px 0 0;
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+  letter-spacing: 0.01em;
+}
+
+.dossier-group {
+  margin-top: 20px;
+}
+
+.dossier-group-heading {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.dossier-doc-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dossier-doc-card {
+  display: grid;
+  gap: 4px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+.dossier-doc-title {
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+  font-weight: 600;
+}
+
+.dossier-doc-excerpt {
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+  line-height: 1.6;
 }
 
 .editor-footer {

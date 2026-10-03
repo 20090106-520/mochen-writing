@@ -37,8 +37,8 @@ export const useBookStore = defineStore("book", {
     browseTabs: [] as DocRef[],
     activeBrowse: null as string | null,
     browseContents: {} as Record<string, string>,
-    /** 右栏这一格当前展示文稿还是浏览；浏览永不改写文稿侧状态。 */
-    rightPaneMode: "manuscript" as "manuscript" | "browse",
+    /** 右栏这一格当前展示文稿 / 浏览 / 作品资料；后两者永不改写文稿侧状态。 */
+    rightPaneMode: "manuscript" as "manuscript" | "browse" | "dossier",
     /** 权限档菜单是否展开；`/permissions` 与头部按钮共用的唯一开关。 */
     permissionMenuOpen: false,
     /** 切换权限档是否正在落盘——只管这条通路，与右栏文稿保存 `saving` 是两件事。 */
@@ -124,6 +124,14 @@ export const useBookStore = defineStore("book", {
       const next = (current + delta + this.docTabs.length) % this.docTabs.length;
       const target = this.docTabs[next];
       if (target !== undefined) void this.openDocTab(target);
+    },
+
+    /**
+     * 打开右栏「作品资料」页签：只改 rightPaneMode。
+     * 绝不动 docTabs / activeDocTab / draft / dirty / saving——切过去再切回来，草稿与标签不受影响（反向用例守着）。
+     */
+    openDossier(): void {
+      this.rightPaneMode = "dossier";
     },
 
     /** 浏览：把右栏这一格切到浏览，但绝不触碰文稿标签与草稿。 */

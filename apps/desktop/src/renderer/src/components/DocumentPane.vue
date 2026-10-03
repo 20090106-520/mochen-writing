@@ -2,12 +2,15 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import AppIcon from "./AppIcon.vue";
+import BookDossier from "./BookDossier.vue";
 import { useBookStore } from "../stores/useBookStore";
+import { dossierSummary, groupDocsForDossier } from "../utils/book-dossier";
+import { BOOK_KIND_LABELS } from "../utils/book-kinds";
 
 const emit = defineEmits<{ collapse: [] }>();
 const book = useBookStore();
 
-/** 文稿与浏览共用右栏这一格：浏览只读，且不改文稿标签与草稿。 */
+/** 文稿 / 浏览 / 作品资料共用右栏这一格：后两者只读，且永不改写文稿标签与草稿。 */
 const mode = computed(() => book.rightPaneMode);
 
 const activeDoc = computed(() => (book.activeDocTab ? book.refOf(book.activeDocTab) : null));
@@ -18,9 +21,9 @@ const browseDoc = computed(
 const breadcrumbs = computed(() => {
   const parts = [book.meta?.title ?? "未打开作品"];
   if (mode.value === "manuscript" && activeDoc.value) {
-    parts.push(activeDoc.value.kind, activeDoc.value.title);
+    parts.push(BOOK_KIND_LABELS[activeDoc.value.kind], activeDoc.value.title);
   } else if (mode.value === "browse" && browseDoc.value) {
-    parts.push(browseDoc.value.kind, browseDoc.value.title);
+    parts.push(BOOK_KIND_LABELS[browseDoc.value.kind], browseDoc.value.title);
   }
   return parts;
 });
@@ -28,6 +31,13 @@ const breadcrumbs = computed(() => {
 const title = computed(() =>
   mode.value === "manuscript" ? (activeDoc.value?.title ?? "") : (browseDoc.value?.title ?? "")
 );
+
+const dossier = computed(() => dossierSummary(book.meta, book.docs));
+const dossierGroups = computed(() => groupDocsForDossier(book.docs));
+const documentClasses = computed(() => ({
+  "is-readonly": mode.value === "browse",
+  "is-dossier": mode.value === "dossier"
+}));
 
 const characterCount = computed(() => book.draft.length);
 
@@ -44,7 +54,9 @@ const tabs = computed(() =>
         id: relPath,
         title: book.refOf(relPath)?.title ?? relPath
       }))
-    : book.browseTabs.map((doc) => ({ id: doc.relPath, title: doc.title }))
+    : mode.value === "browse"
+      ? book.browseTabs.map((doc) => ({ id: doc.relPath, title: doc.title }))
+      : []
 );
 
 const activeTabId = computed(() =>
@@ -147,20 +159,31 @@ function switchMode(next: "manuscript" | "browse"): void {
         >
           浏览
         </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="mode === 'dossier'"
+          :class="{ 'is-active': mode === 'dossier' }"
+          @click="book.openDossier()"
+        >
+          作品资料
+        </button>
       </div>
       <span class="toolbar-spacer" />
     </div>
 
-    <div class="editor-document" :class="{ 'is-readonly': mode === 'browse' }">
-      <div class="document-meta-row">
-        <span class="document-format">md</span>
-        <span v-if="mode === 'browse'" class="readonly-badge">浏览中，不影响文稿</span>
-      </div>
+    <div class="editor-document" :class="documentClasses">
+      <template v-if="mode !== 'dossier'">
+        <div class="document-meta-row">
+          <span class="document-format">md</span>
+          <span v-if="mode === 'browse'" class="readonly-badge">浏览中，不影响文稿</span>
+        </div>
+        <input class="document-title-input" :value="title" readonly aria-label="文档标题" />
+      </template>
 
-      <input class="document-title-input" :value="title" readonly aria-label="文档标题" />
-
+      <BookDossier v-if="mode === 'dossier'" :summary="dossier" :groups="dossierGroups" />
       <textarea
-        v-if="mode === 'manuscript'"
+        v-else-if="mode === 'manuscript'"
         class="document-editor transient-scrollbar"
         :value="book.draft"
         :readonly="!book.activeDocTab"

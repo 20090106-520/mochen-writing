@@ -6,26 +6,26 @@ import type { IconName } from "../types/icons";
 import AppIcon from "./AppIcon.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
+import { BOOK_KIND_LABELS, BOOK_KIND_ORDER } from "../utils/book-kinds";
 import { useBookStore } from "../stores/useBookStore";
 
 const emit = defineEmits<{ collapse: [] }>();
 const book = useBookStore();
 
-const KIND_META: Record<BookKind, { label: string; icon: IconName }> = {
-  chapter: { label: "章节", icon: "book" },
-  outline: { label: "大纲", icon: "list" },
-  character: { label: "人物", icon: "user" },
-  plot: { label: "剧情", icon: "ledger" },
-  material: { label: "素材库", icon: "library" }
+// 图标是渲染资产不是业务枚举（设计决定 6）：标签/顺序来自 utils/book-kinds 唯一表，这里只留 icon。
+const KIND_ICON: Record<BookKind, IconName> = {
+  chapter: "book",
+  outline: "list",
+  character: "user",
+  plot: "ledger",
+  material: "library"
 };
 
-const SECTION_ORDER: BookKind[] = ["chapter", "outline", "character", "plot", "material"];
-
 const sections = computed(() =>
-  SECTION_ORDER.map((kind) => ({
+  BOOK_KIND_ORDER.map((kind) => ({
     id: kind,
-    label: KIND_META[kind].label,
-    icon: KIND_META[kind].icon,
+    label: BOOK_KIND_LABELS[kind],
+    icon: KIND_ICON[kind],
     nodes: book.docs.filter((doc) => doc.kind === kind)
   })).filter((section) => section.nodes.length > 0)
 );

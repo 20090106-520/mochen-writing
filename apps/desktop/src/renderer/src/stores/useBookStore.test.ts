@@ -489,4 +489,31 @@ describe("useBookStore", () => {
     expect(store.metaSaving).toBe(false);
     expect(store.meta?.permissionMode).toBe("read-only");
   });
+
+  it("openDossier 只把右栏切到作品资料，文稿标签/活动章/草稿/脏位一字不动", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    await store.openDocTab("chapters/01-a.md");
+    store.onEdit("还没保存的一段\n");
+    saveMeta.mockClear();
+    const draftBefore = store.draft;
+    store.openDossier();
+    expect(store.rightPaneMode).toBe("dossier");
+    expect(store.docTabs).toEqual(["chapters/01-a.md"]);
+    expect(store.activeDocTab).toBe("chapters/01-a.md");
+    expect(store.draft).toBe(draftBefore);
+    expect(store.dirty).toBe(true);
+    expect(saveMeta).not.toHaveBeenCalled();
+  });
+
+  it("从作品资料切回文稿/浏览是三态往返，标签与草稿仍不受影响", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    await store.openDocTab("chapters/01-a.md");
+    store.openDossier();
+    store.rightPaneMode = "manuscript";
+    expect(store.rightPaneMode).toBe("manuscript");
+    expect(store.activeDocTab).toBe("chapters/01-a.md");
+    expect(store.draft).toBe("正文\n");
+  });
 });
