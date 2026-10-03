@@ -326,7 +326,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   `layout.showSettings(initialCategory)`（`stores/layoutStore.ts:89-92`）、`layout.showWorkspace()`（`:94-96`）、`layout.currentView`（`:53`）、`resolveEscape` 的消费方 `useHotkeys.ts:64`。
 - Produces：`EscapeAction` 多出成员 `"close-overlay"`、`EscapeFocusState` 多出必填字段 `settingsIsOpen`；`resolveEscape` 的四态优先级链。后续 Task 8（左栏「模型配置」入口）复用「唯一真身 = `layout.currentView === "settings"`」这条判定。
 
-- [ ] **Step 1：写失败的测试**
+- [x] **Step 1：写失败的测试**
 
   在 `apps/desktop/src/renderer/src/utils/escape-policy.test.ts` 顶部先把 `state()` 默认对象补上新必填字段（否则所有既有用例在 tsc 下编译不过），再追加一整段 `describe`。
 
@@ -388,7 +388,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   });
   ```
 
-- [ ] **Step 2：跑它，确认它因为想要的原因而红**
+- [x] **Step 2：跑它，确认它因为想要的原因而红**
 
   命令：`corepack pnpm vitest run apps/desktop/src/renderer/src/utils/escape-policy.test.ts --maxWorkers=4`
 
@@ -399,7 +399,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   ```
   「浮层开着但没在跑回合」那条也会红（`expected 'none' to be 'close-overlay'`）。既有的六条老用例（含 `:49` 「无动作」）应保持绿——证明新分支没挪动旧优先级。
 
-- [ ] **Step 3：最小实现**
+- [x] **Step 3：最小实现**
 
   3a. `apps/desktop/src/renderer/src/utils/escape-policy.ts` 整文件替换为：
   ```ts
@@ -515,13 +515,13 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
     ```
   - `props.running` 与 `emit("interrupt")` 的声明保留（CenterColumn 卡绑定仍传 `:running` / `@interrupt`，删声明会让属性变成裸 attr）；`guidance` ref、`decide()`、按钮全部不动。
 
-- [ ] **Step 4：复跑到绿**
+- [x] **Step 4：复跑到绿**
 
   命令：`corepack pnpm vitest run apps/desktop/src/renderer/src/utils/escape-policy.test.ts apps/desktop/src/renderer/src/utils/hotkey-markers.test.ts --maxWorkers=4`
 
   期望：`escape-policy.test.ts` 11 passed（原 6 + 新 5），`hotkey-markers.test.ts` 3 passed（删 handler 不影响标记契约）。合计 `14 passed`。
 
-- [ ] **Step 5：连带清单**
+- [x] **Step 5：连带清单**
 
   1. `resolveEscape` 的调用点只有两处：`useHotkeys.ts:64`（本任务改）与 `ProposalCard.vue:34`（本任务删）。Grep 复算，改完应只剩一处构造 `EscapeFocusState`：
      `corepack pnpm exec grep -rn "resolveEscape(" apps/desktop/src/renderer/src --include=*.ts --include=*.vue`
@@ -533,7 +533,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   4. `CenterColumn.vue` 现 304 行（当场回读），本任务净变化约 −4 行（删 watch 段 + 删注释多于一行），≤400 预算无压力。回读：`wc -l apps/desktop/src/renderer/src/components/CenterColumn.vue`。
   5. 计划文本账：`CenterColumn.vue:127-129` 那段注释仍写「Esc = 打断」已被取代、「保留两处监听会变成两份 Esc 裁决（裁定 G5）」——此结论方向不变，但「三态裁决」的措辞可在本任务顺手改成「四态裁决（含收浮层）」，避免与 `escape-policy.ts` 文档漂移。仅注释，不动逻辑。
 
-- [ ] **Step 6：局部门禁**
+- [x] **Step 6：局部门禁**
 
   按顺序，逐条不设管道：
   ```
@@ -543,14 +543,14 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   ```
   期望：prettier「All matched files use Prettier code style!」；tsc 零诊断（web 项目覆盖整个 `src/renderer`，含三个 `.vue` 接线，`.vue` 因 `vue-shim` 不进 tsc——判定逻辑都在 `escape-policy.ts`/`useHotkeys.ts` 两个 `.ts` 里，被真正类型检查）；eslint 零告警（重点：ProposalCard 删干净的 `resolveEscape` 导入不残留未用告警）。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
   ```
   git add apps/desktop/src/renderer/src/utils/escape-policy.ts apps/desktop/src/renderer/src/utils/escape-policy.test.ts apps/desktop/src/renderer/src/composables/useHotkeys.ts apps/desktop/src/renderer/src/components/CenterColumn.vue apps/desktop/src/renderer/src/components/ProposalCard.vue
   git commit -m "fix(hotkeys): 设置浮层单一真身收归 currentView，Esc 增加收浮层优先级并删除卡内自裁决"
   ```
 
-- [ ] **Step 8：变异 W1（先提交再变异）**
+- [x] **Step 8：变异 W1（先提交再变异）**
 
   落点 `apps/desktop/src/renderer/src/utils/escape-policy.ts`。用 Edit 删除 `resolveEscape` 里的这一行：
   ```ts
@@ -592,7 +592,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   `PERMISSION_LABELS`（`packages/contracts/src/permission.ts:5-9`，`Record<PermissionMode, string>`）、`type PermissionMode`（`packages/contracts` barrel）。
 - Produces：`permissionChipView()` / `PermissionChipView` / `NO_BOOK_CHIP_LABEL`。Task 9 的 `utils/composer-chips.ts` 里的 permission chip 的 `text`/`disabled` **必须调 `permissionChipView`**，不再算第二遍（接口总表 `composerChips` 注释与设计决定 4）。
 
-- [ ] **Step 1：写失败的测试**
+- [x] **Step 1：写失败的测试**
 
   新建 `apps/desktop/src/renderer/src/utils/permission-chip.test.ts`：
   ```ts
@@ -630,7 +630,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   });
   ```
 
-- [ ] **Step 2：跑它，确认它因为想要的原因而红**
+- [x] **Step 2：跑它，确认它因为想要的原因而红**
 
   命令：`corepack pnpm vitest run apps/desktop/src/renderer/src/utils/permission-chip.test.ts --maxWorkers=4`
 
@@ -640,7 +640,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   ```
   （这是「因为想要的原因」——实现缺失。Step 3 落地后转绿。）
 
-- [ ] **Step 3：最小实现**
+- [x] **Step 3：最小实现**
 
   3a. 新建 `apps/desktop/src/renderer/src/utils/permission-chip.ts`：
   ```ts
@@ -727,12 +727,12 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
     ```
     原 `:disabled="book.metaSaving"`、`{{ permissionLabel }}`、`v-if="book.permissionMenuOpen"` 三处分别被 `permissionChip.disabled` / `permissionChip.text` / 带 `book.meta !== null` 的条件取代。
 
-- [ ] **Step 4：复跑到绿**
+- [x] **Step 4：复跑到绿**
 
   命令：`corepack pnpm vitest run apps/desktop/src/renderer/src/utils/permission-chip.test.ts --maxWorkers=4`
   期望：`4 passed`。
 
-- [ ] **Step 5：连带清单**
+- [x] **Step 5：连带清单**
 
   1. 确认没把契约符号 `DEFAULT_PERMISSION_MODE` 删掉——它还有多处消费方。命令：
      `corepack pnpm exec grep -rn "DEFAULT_PERMISSION_MODE" packages apps --include=*.ts --include=*.vue`
@@ -743,7 +743,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   3. 行数预算：`CenterColumn.vue` 改后回读 `wc -l apps/desktop/src/renderer/src/components/CenterColumn.vue`，期望仍 ≤400（本任务净变化在 ±3 行）。
   4. `permission-chip.ts` 属新增纯函数模块，控制在接口总表「40–220 行」的精神内（实现约 30 行 + 注释，未越界）。
 
-- [ ] **Step 6：局部门禁**
+- [x] **Step 6：局部门禁**
 
   按顺序，不设管道：
   ```
@@ -753,14 +753,14 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   ```
   期望：prettier 全绿；tsc 零诊断（`permission-chip.ts`/`.test.ts` 被真正检查；web 项目 import `@mochen/contracts` 走源码，`PERMISSION_LABELS` 的 `Record<PermissionMode,string>` 穷尽性由类型层保证）；eslint 零告警（重点：CenterColumn 删干净 `DEFAULT_PERMISSION_MODE`/`PERMISSION_LABELS` 未用导入）。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
   ```
   git add apps/desktop/src/renderer/src/utils/permission-chip.ts apps/desktop/src/renderer/src/utils/permission-chip.test.ts apps/desktop/src/renderer/src/components/CenterColumn.vue
   git commit -m "fix(permission): 无书时档位格不报档位名并禁用，判定下沉 permissionChipView 纯函数"
   ```
 
-- [ ] **Step 8：变异 W2（先提交再变异）**
+- [x] **Step 8：变异 W2（先提交再变异）**
 
   落点 `apps/desktop/src/renderer/src/utils/permission-chip.ts`。用 Edit 把守卫里的 `hasBook` 判断改「恒为真」：
   ```ts
@@ -807,7 +807,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   主进程侧规则（接口总表 `agent-service.ts` 段，逐字）：「带 proposalId 的只有三条：指纹不符 / 锚点不唯一 / writeDoc 撞 stale。permission-denied 与 io 分支**不带**：那两条 pending 没删，提案仍可批准，改判 stale 等于说谎。」
 - Produces：`AgentEvent` 的 error 成员多出**可选**字段 `proposalId`（`PROPOSAL_STATUSES` 仍 7、语义不变、`IPC_CHANNELS` 仍 13、无新通道）。后续回放消费方 `replayProposalStatuses`。
 
-- [ ] **Step 1：写失败的测试**
+- [x] **Step 1：写失败的测试**
 
   1a. `packages/contracts/test/agent.test.ts` 末尾追加（复用文件内既有的 `agentEventSchema` import）：
   ```ts
@@ -906,7 +906,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   ```
   本用例的 `outbound` 就是就地构造时传进去的 `emit` 收集数组。注意「`pending` 已删 + 无 publish」正是本分支的现状，所以这条断言在 Step 1 必然红。
 
-- [ ] **Step 2：跑它，确认它因为想要的原因而红**
+- [x] **Step 2：跑它，确认它因为想要的原因而红**
 
   命令：`corepack pnpm vitest run packages/contracts/test/agent.test.ts apps/desktop/src/renderer/src/utils/timeline.test.ts apps/desktop/src/main/agent-service.test.ts --maxWorkers=4`
 
@@ -917,7 +917,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   - `agent-service.test.ts > 写盘竞态返回 stale ⇒ 也发一条带 proposalId 的 error`：`AssertionError: expected [] to include 'id…'`（该分支当前**一条 publish 都没有**，裁定 A 要补的就是它）。
   其余既有用例保持绿。
 
-- [ ] **Step 3：最小实现**
+- [x] **Step 3：最小实现**
 
   3a. `packages/contracts/src/agent-event.ts:69`，把 error 成员从：
   ```ts
@@ -987,12 +987,12 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   ```
   渲染层 live 路径不动：`useAgentStore.ts:336-338` 的 `reduceEvent` error 分支仍只 `thread.lastError = event.message`；`:399` 的 `decide` 仍靠 `result.reason === "stale"` 把当前卡打成 stale。回放侧 `useAgentStore.ts:511` 调 `replayProposalStatuses`，新规则让重开后已失效卡落在「已失效」而非「未处理」。
 
-- [ ] **Step 4：复跑到绿**
+- [x] **Step 4：复跑到绿**
 
   命令：`corepack pnpm vitest run packages/contracts/test/agent.test.ts packages/contracts/test/contract.test.ts apps/desktop/src/renderer/src/utils/timeline.test.ts apps/desktop/src/main/agent-service.test.ts apps/desktop/src/main/agent-service-boundary.test.ts apps/desktop/src/main/agent-service-load-session.test.ts --maxWorkers=4`
   期望：四条新用例（1a/1b/1c/1d）+ 全部既有 error 夹具用例转绿；`agent.test.ts` 计数 = 原用例 + 2，`timeline.test.ts` = 原 + 3，`agent-service.test.ts` = 原 + 1（1d）。既有不带 proposalId 的 error 夹具（`agent.test.ts:84`、`packages/agent-runtime/test/rollout.test.ts:152`）因字段可选，仍应绿。
 
-- [ ] **Step 5：连带清单**
+- [x] **Step 5：连带清单**
 
   全仓 `type: "error"` 构造点逐一核对（可选字段，向后兼容 ⇒ 只列不改的都不必动）：
   `grep -rn 'type:\s*"error"' packages apps --include=*.ts`（直接用 Bash 的 grep，`pnpm exec` 里没有 grep 这个包）
@@ -1016,7 +1016,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   - 契约变更总表对应行：「`error` 事件字段 += `proposalId?`（可选）」——本任务落地即为该行的收尾。
   - 行号预算：三个改动文件均远离 800 行硬门禁；`agent-service.ts` 净增约 13 行（两支加 `proposalId` 字段 + 裁定 A 新增一支完整 publish）、`timeline.ts` 净增 6 行、`agent-event.ts` 净增约 4 行（把单行 error 成员展成多行）。
 
-- [ ] **Step 6：局部门禁**
+- [x] **Step 6：局部门禁**
 
   按顺序，不设管道：
   ```
@@ -1028,14 +1028,14 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   ```
   期望：prettier 全绿；三个 tsc 项目零诊断（contracts 项目检查新 error 成员与其测试；node 项目检查 agent-service 发送侧 `proposalId` 落进 error body 及 agent-service.test 的 `e.type === "error" && e.proposalId` 窄化；web 项目检查 `timeline.ts` 里 `event.proposalId` 的 `string | undefined` 与 `noUncheckedIndexedAccess` 下的 `status[event.proposalId]` 读取）；eslint 零告警。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
   ```
   git add packages/contracts/src/agent-event.ts packages/contracts/test/agent.test.ts apps/desktop/src/main/agent-service.ts apps/desktop/src/main/agent-service.test.ts apps/desktop/src/renderer/src/utils/timeline.ts apps/desktop/src/renderer/src/utils/timeline.test.ts
   git commit -m "fix(replay): error 事件带可选 proposalId，回放把已失效卡从 expired 改判为 stale"
   ```
 
-- [ ] **Step 8：变异 W3（先提交再变异）**
+- [x] **Step 8：变异 W3（先提交再变异）**
 
   落点 `apps/desktop/src/renderer/src/utils/timeline.ts`。用 Edit 去掉 error 分支里的 `=== "expired"` 守卫：
   ```ts
@@ -1093,7 +1093,7 @@ DocumentPane.vue    片段按钮 emit 不外抛：直接读 textarea 选区 → 
   另消费既有：`threadKeyFor`（`useAgentStore.ts:83`）、`composerTextAfterQueue`（`hotkey-queue.ts:11`）、`COMPOSER_SELECTOR`（`hotkey-markers.ts:17`）。
 - Produces: `prefillText`（Task 7「主笔创作」卡的预填动作直接调 `agent.prefillComposer(threadKey, WORKBENCH_PREFILL)`）；store 的 `draftOf/setDraft/prefillComposer/clearDraft` 四个 action 名与形状；`ComposerBox.vue` 的受控 props `modelValue: string` + emit `update:modelValue`（接口总表里 ComposerBox 的 `open-permission-menu`/`open-palette` 两枚 emit 属 Task 9 的 chip 行，本任务不加）。
 
-- [ ] **Step 1：写失败的测试**
+- [x] **Step 1：写失败的测试**
 
 新建 `apps/desktop/src/renderer/src/utils/composer-draft.test.ts`：
 
@@ -1164,7 +1164,7 @@ describe("prefillText · 已有草稿时预填不吞字（F-A 前置）", () => 
   });
 ```
 
-- [ ] **Step 2：跑它，确认它因为想要的原因而红**
+- [x] **Step 2：跑它，确认它因为想要的原因而红**
 
 ```
 corepack pnpm vitest run apps/desktop/src/renderer/src/utils/composer-draft.test.ts apps/desktop/src/renderer/src/stores/useAgentStore.test.ts --maxWorkers=4
@@ -1174,7 +1174,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/composer-draft.test
 - `composer-draft.test.ts`：`Failed to load ./composer-draft` / `Cannot find module` —— 模块尚不存在。
 - `useAgentStore.test.ts`：`store().draftOf is not a function`（追加用例的第一条即此，其余三条被首条截断）。
 
-- [ ] **Step 3：最小实现**
+- [x] **Step 3：最小实现**
 
 新建 `apps/desktop/src/renderer/src/utils/composer-draft.ts`：
 
@@ -1366,7 +1366,7 @@ function onComposerSend(text: string): void {
 }
 ```
 
-- [ ] **Step 4：复跑到绿**
+- [x] **Step 4：复跑到绿**
 
 ```
 corepack pnpm vitest run apps/desktop/src/renderer/src/utils/composer-draft.test.ts apps/desktop/src/renderer/src/stores/useAgentStore.test.ts --maxWorkers=4
@@ -1374,7 +1374,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/composer-draft.test
 
 预期：`composer-draft.test.ts` 5 passed；`useAgentStore.test.ts` 在既有用例数之上 +4 passed（新增四条全绿），无 failed。
 
-- [ ] **Step 5：连带清单**
+- [x] **Step 5：连带清单**
 
 1. `ThreadView` 十字段形状未动：`grep -n "hydrated:\|hydrating:\|queued:" apps/desktop/src/renderer/src/stores/useAgentStore.ts` —— `newThread()`（`:67-80`）仍只那 10 个字段，`composerDrafts` 是 state 顶层格、不在 `ThreadView` 上。
 2. `data-mochen-composer` 保留：`grep -n "data-mochen-composer" apps/desktop/src/renderer/src/components/ComposerBox.vue` —— 命中一行；`hotkey-markers.ts:10` 的 `COMPOSER_MARKER` 与 `hotkey-markers.test.ts` 的源码契约用例不转红（焦点判定仍吃这个标记）。
@@ -1384,7 +1384,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/composer-draft.test
 6. IPC 计数不动：`grep -n "toBe(13)" apps/desktop/src/preload/renderer-api.test.ts` —— 仍命中（本任务不加通道，`RendererApi` 方法数保持 13）。
 7. 行数预算：`wc -l apps/desktop/src/renderer/src/stores/useAgentStore.ts` —— 期望 ≤700（若逼近 700，按计划「文件结构」末段把草稿四 action 拆到 `stores/useComposerDraftStore.ts`，届时接口总表 `agent.draftOf` 等改指该 store；本任务实测约 640 行，不拆）。
 
-- [ ] **Step 6：局部门禁**（顺序：prettier → 相关 tsc 项目 → eslint 点名文件；命令后面一律不接管道）
+- [x] **Step 6：局部门禁**（顺序：prettier → 相关 tsc 项目 → eslint 点名文件；命令后面一律不接管道）
 
 ```
 corepack pnpm exec prettier --check apps/desktop/src/renderer/src/utils/composer-draft.ts apps/desktop/src/renderer/src/utils/composer-draft.test.ts apps/desktop/src/renderer/src/stores/useAgentStore.ts apps/desktop/src/renderer/src/stores/useAgentStore.test.ts apps/desktop/src/renderer/src/components/ComposerBox.vue apps/desktop/src/renderer/src/composables/useHotkeys.ts apps/desktop/src/renderer/src/components/CenterColumn.vue
@@ -1394,7 +1394,7 @@ corepack pnpm exec eslint apps/desktop/src/renderer/src/utils/composer-draft.ts 
 
 预期：prettier 全 `All matched files use Prettier code style!`；tsc 退出码 0 无输出；eslint 退出码 0 无告警。若 prettier 报某文件不符，先 `corepack pnpm exec prettier --write <该文件>` 再复跑 `--check`。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```
 git add apps/desktop/src/renderer/src/utils/composer-draft.ts apps/desktop/src/renderer/src/utils/composer-draft.test.ts apps/desktop/src/renderer/src/stores/useAgentStore.ts apps/desktop/src/renderer/src/stores/useAgentStore.test.ts apps/desktop/src/renderer/src/components/ComposerBox.vue apps/desktop/src/renderer/src/composables/useHotkeys.ts apps/desktop/src/renderer/src/components/CenterColumn.vue
@@ -1408,7 +1408,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 8：变异 W4（先提交再变异）**
+- [x] **Step 8：变异 W4（先提交再变异）**
 
 用 `Edit` 把 `apps/desktop/src/renderer/src/utils/composer-draft.ts` 的实现行
 `  return current.trim() === "" ? incoming : current;`
@@ -1457,7 +1457,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/composer-draft.test
   消费 `parseFrontmatter(raw): { data, body }`（`frontmatter.ts:6`，确认返回 `body`）、`readFile`（`scan.ts:1`）。
 - Produces: `DocRef.excerpt?: string` —— Task 6 的 `BookDossier.vue` 用 `doc.excerpt ?? ""` 渲染摘要卡；Task 7 的工作台不读它。
 
-- [ ] **Step 1：写失败的测试**
+- [x] **Step 1：写失败的测试**
 
 新建 `packages/fs-store/test/scan-excerpt.test.ts`。用 `vi.mock` 把 `node:fs/promises` 的 `readFile` 包成「转发真实实现的 spy」，既真读盘又数得着次数——这条就是「不加盘 IO」的直接证据：
 
@@ -1547,7 +1547,7 @@ describe("scanBook · excerpt 顺路带出第一段", () => {
 });
 ```
 
-- [ ] **Step 2：跑它，确认它因为想要的原因而红**
+- [x] **Step 2：跑它，确认它因为想要的原因而红**
 
 ```
 corepack pnpm vitest run packages/fs-store/test/scan-excerpt.test.ts --maxWorkers=4
@@ -1557,7 +1557,7 @@ corepack pnpm vitest run packages/fs-store/test/scan-excerpt.test.ts --maxWorker
 - 「正常段落…」：`expected undefined to be '夜色沉下去，海雾从崖底涌上来。'`。
 - 「不加盘 IO…」这一条**此刻是绿的**（现状 `titleOf` 本就读一次），它是回归护栏不是驱动红的用例——红由前四条驱动即可。
 
-- [ ] **Step 3：最小实现**
+- [x] **Step 3：最小实现**
 
 `packages/contracts/src/book.ts` 的 `DocRef`（`:22-26`）加可选字段：
 
@@ -1641,7 +1641,7 @@ function clipCodePoints(text: string, max: number): string {
 }
 ```
 
-- [ ] **Step 4：复跑到绿**
+- [x] **Step 4：复跑到绿**
 
 ```
 corepack pnpm vitest run packages/fs-store/test/scan-excerpt.test.ts packages/fs-store/test/scan.test.ts --maxWorkers=4
@@ -1649,7 +1649,7 @@ corepack pnpm vitest run packages/fs-store/test/scan-excerpt.test.ts packages/fs
 
 预期：`scan-excerpt.test.ts` 6 passed；`scan.test.ts` 现有 6 passed（含 `sortChapters`）不回归；无 failed。
 
-- [ ] **Step 5：连带清单**
+- [x] **Step 5：连带清单**
 
 1. 导出一字未增：`grep -n "^export" packages/fs-store/src/scan.ts` —— 仍只有 `DOC_DIRS`、`scanBook`、`sortChapters` 三个（`docMetaOf`/`excerptOf` 等都是模块私有）。
 2. 消费方 `?? ""` 落点核对：`grep -rn "\.excerpt" apps/desktop/src/renderer/src` —— 本任务后仍为 0（Task 6 才引入 `BookDossier.vue` 的 `doc.excerpt ?? ""`），确认本任务没在渲染层留裸读字段。
@@ -1657,7 +1657,7 @@ corepack pnpm vitest run packages/fs-store/test/scan-excerpt.test.ts packages/fs
 4. IPC 计数与 schemaVersion 不动：`grep -rn "schemaVersion: z.literal(1)\|schemaVersion: 1" packages/contracts/src/book.ts` —— `bookMetaSchema` 仍锁 1；`toBe(13)` 那条（见 Task 4 Step 5）不受影响。
 5. `packages/contracts` 现有用例不回归：`corepack pnpm vitest run packages/contracts/test/contract.test.ts --maxWorkers=4` —— 全绿（`DocRef` 非 zod、`bookMetaSchema` 不含 DocRef，加可选字段不触任何解析）。
 
-- [ ] **Step 6：局部门禁**（顺序：prettier → 相关 tsc 项目 → eslint 点名文件；命令后面一律不接管道）
+- [x] **Step 6：局部门禁**（顺序：prettier → 相关 tsc 项目 → eslint 点名文件；命令后面一律不接管道）
 
 ```
 corepack pnpm exec prettier --check packages/contracts/src/book.ts packages/fs-store/src/scan.ts packages/fs-store/test/scan-excerpt.test.ts
@@ -1669,7 +1669,7 @@ corepack pnpm exec eslint packages/contracts/src/book.ts packages/fs-store/src/s
 
 预期：prettier 全 `All matched files use Prettier code style!`；三条 tsc 均退出码 0 无输出（web 项目重编以确认 `DocRef` 变更后渲染层无未兜住的裸读）；eslint 退出码 0。不符先 `corepack pnpm exec prettier --write <该文件>` 再复跑 `--check`。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```
 git add packages/contracts/src/book.ts packages/fs-store/src/scan.ts packages/fs-store/test/scan-excerpt.test.ts
@@ -1683,7 +1683,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 8：变异 W5（先提交再变异）**
+- [x] **Step 8：变异 W5（先提交再变异）**
 
 用 `Edit` 把 `packages/fs-store/src/scan.ts` 里 `docMetaOf` 成功分支的返回行
 `    return { title, excerpt: excerptOf(body) };`
@@ -1749,7 +1749,7 @@ corepack pnpm vitest run packages/fs-store/test/scan-excerpt.test.ts --maxWorker
   消费 `BookKind`/`BookMeta`/`DocRef`/`PERMISSION_LABELS`（`@mochen/contracts`）、Task 5 的 `DocRef.excerpt?`。
 - Produces: `BOOK_KIND_ORDER`/`BOOK_KIND_LABELS`（左栏与本任务 dossier 共读；后续任何按 kind 分组的 UI 都读它，不再手抄）；`groupDocsForDossier`/`dossierSummary`/`DossierGroup`/`DossierSummary`；`useBookStore.openDossier`/`rightPaneMode: "dossier"`；`BookDossier.vue` 组件（DocumentPane 挂载）。
 
-- [ ] **Step 1：写失败的测试**
+- [x] **Step 1：写失败的测试**
 
 新建 `apps/desktop/src/renderer/src/utils/book-kinds.test.ts`：
 
@@ -1886,7 +1886,7 @@ describe("dossierSummary", () => {
   });
 ```
 
-- [ ] **Step 2：跑它，确认它因为想要的原因而红**
+- [x] **Step 2：跑它，确认它因为想要的原因而红**
 
 ```
 corepack pnpm vitest run apps/desktop/src/renderer/src/utils/book-kinds.test.ts apps/desktop/src/renderer/src/utils/book-dossier.test.ts apps/desktop/src/renderer/src/stores/useBookStore.test.ts --maxWorkers=4
@@ -1896,7 +1896,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/book-kinds.test.ts 
 - `book-kinds.test.ts` / `book-dossier.test.ts`：`Cannot find module './book-kinds'`、`Cannot find module './book-dossier'` —— 模块尚不存在。
 - `useBookStore.test.ts` 的 `openDossier` 用例：`store.openDossier is not a function`。
 
-- [ ] **Step 3：最小实现**
+- [x] **Step 3：最小实现**
 
 新建 `apps/desktop/src/renderer/src/utils/book-kinds.ts`（标签逐字取自 `LeftSidebar.vue:14-20`；顺序取自 `:22`；图标是渲染资产不进此表，留组件）：
 
@@ -2099,7 +2099,7 @@ const tabs = computed(() =>
 
 > 三处内容分支顺序：`BookDossier v-if="mode==='dossier'"` → `textarea v-else-if="mode==='manuscript'"` → `article v-else`（browse）。footer 的保存按钮 `:disabled` 条件 `mode !== 'manuscript'`（`:189`）不改：dossier 态本就禁用保存。
 
-- [ ] **Step 4：复跑到绿**
+- [x] **Step 4：复跑到绿**
 
 ```
 corepack pnpm vitest run apps/desktop/src/renderer/src/utils/book-kinds.test.ts apps/desktop/src/renderer/src/utils/book-dossier.test.ts apps/desktop/src/renderer/src/stores/useBookStore.test.ts --maxWorkers=4
@@ -2107,7 +2107,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/book-kinds.test.ts 
 
 预期：`book-kinds.test.ts` 3 passed；`book-dossier.test.ts` 7 passed；`useBookStore.test.ts` 在既有用例数之上 +2 passed；无 failed。
 
-- [ ] **Step 5：连带清单**
+- [x] **Step 5：连带清单**
 
 1. 术语硬约束——UI 上「作品资料」格绝不出现「档案」二字：`grep -n "档案" apps/desktop/src/renderer/src/components/BookDossier.vue apps/desktop/src/renderer/src/components/DocumentPane.vue apps/desktop/src/renderer/src/utils/book-dossier.ts` —— 期望无输出（0 命中）。
 2. 「作品资料」命名到位：`grep -n "作品资料" apps/desktop/src/renderer/src/components/DocumentPane.vue apps/desktop/src/renderer/src/components/BookDossier.vue` —— 各命中（页签与 `aria-label`）。
@@ -2116,7 +2116,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/book-kinds.test.ts 
 5. `excerpt` 消费处已兜底：`grep -n "excerpt" apps/desktop/src/renderer/src/components/BookDossier.vue` —— 命中 `doc.excerpt ?? ""`（Task 5 的跨 IPC 消费口径在此落地，缺字段不当异常）。
 6. `rightPaneMode` 现有两态用例不回归：`corepack pnpm vitest run apps/desktop/src/renderer/src/stores/useBookStore.test.ts --maxWorkers=4` 里「点素材把右栏切到浏览」「再点章节把右栏切回文稿」两条仍绿（`browse`/`openDocTab` 未改）。
 
-- [ ] **Step 6：局部门禁**（顺序：prettier → 相关 tsc 项目 → eslint 点名文件；命令后面一律不接管道）
+- [x] **Step 6：局部门禁**（顺序：prettier → 相关 tsc 项目 → eslint 点名文件；命令后面一律不接管道）
 
 ```
 corepack pnpm exec prettier --check apps/desktop/src/renderer/src/utils/book-kinds.ts apps/desktop/src/renderer/src/utils/book-kinds.test.ts apps/desktop/src/renderer/src/utils/book-dossier.ts apps/desktop/src/renderer/src/utils/book-dossier.test.ts apps/desktop/src/renderer/src/components/BookDossier.vue apps/desktop/src/renderer/src/components/LeftSidebar.vue apps/desktop/src/renderer/src/components/DocumentPane.vue apps/desktop/src/renderer/src/stores/useBookStore.ts apps/desktop/src/renderer/src/stores/useBookStore.test.ts
@@ -2127,7 +2127,7 @@ corepack pnpm run lint:budget
 
 预期：prettier 全 `All matched files use Prettier code style!`；tsc 退出码 0（`.vue` 走 web 项目，`BookDossier.vue` 的 props 形状须与 `DossierSummary`/`DossierGroup` 对齐）；eslint 退出码 0；`check-source-line-budget.mjs` 打印「行数预算通过」（本任务所有文件远低于 800）。不符先 `corepack pnpm exec prettier --write <该文件>` 再复跑 `--check`。样式并入 `styles/interaction.css` 的 dossier 卡样式留给 Task 9/10 那道改 css 的任务统一做，本任务不新开样式文件、不改 css 门禁。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```
 git add apps/desktop/src/renderer/src/utils/book-kinds.ts apps/desktop/src/renderer/src/utils/book-kinds.test.ts apps/desktop/src/renderer/src/utils/book-dossier.ts apps/desktop/src/renderer/src/utils/book-dossier.test.ts apps/desktop/src/renderer/src/components/BookDossier.vue apps/desktop/src/renderer/src/components/LeftSidebar.vue apps/desktop/src/renderer/src/components/DocumentPane.vue apps/desktop/src/renderer/src/stores/useBookStore.ts apps/desktop/src/renderer/src/stores/useBookStore.test.ts
@@ -2142,7 +2142,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 8：变异 W6（先提交再变异）**
+- [x] **Step 8：变异 W6（先提交再变异）**
 
 用 `Edit` 把 `apps/desktop/src/renderer/src/utils/book-dossier.ts` 里 `groupDocsForDossier` 的空组过滤行
 `    if (inKind.length === 0) continue;`
@@ -2191,7 +2191,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/book-dossier.test.t
   - `utils/workbench-state.ts`：`WorkbenchCardId`、`WORKBENCH_CARD_LABELS`、`WORKBENCH_PREFILL`、`WorkbenchCard`、`workbenchVisible(hasBook)`、`workbenchCards({hasBook,docs,activeChapter})`、`workbenchTarget({id,docs,activeChapter})`。
   - `components/BookWorkbench.vue`：`props: { hasBook: boolean; agentLabel: string; cards: WorkbenchCard[] }`、`emits: { pick(id: WorkbenchCardId) }`（总表逐字）。四张卡的点击协调（跨 `book` 与 `agent` 两个 store）留在 `CenterColumn`，`BookWorkbench` 只在无书降级里直接调 `book.pickAndOpen()`（单一真身，与 `Ctrl+O` 同源）。
 
-- [ ] **Step 1：写失败的测试**
+- [x] **Step 1：写失败的测试**
 
 ```ts
 // apps/desktop/src/renderer/src/utils/workbench-state.test.ts
@@ -2290,7 +2290,7 @@ describe("workbench-state · 四张卡是真动作", () => {
 });
 ```
 
-- [ ] **Step 2：跑它，确认它因为想要的原因而红**
+- [x] **Step 2：跑它，确认它因为想要的原因而红**
 
 ```
 corepack pnpm vitest run apps/desktop/src/renderer/src/utils/workbench-state.test.ts --maxWorkers=4
@@ -2298,7 +2298,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/workbench-state.tes
 
 预期：`Cannot find module './workbench-state'`（模块尚未创建），红在 import 那一行，而不是恒真。
 
-- [ ] **Step 3：最小实现**
+- [x] **Step 3：最小实现**
 
 `utils/workbench-state.ts`（完整）：
 
@@ -2476,7 +2476,7 @@ function onWorkbenchPick(id: WorkbenchCardId): void {
 
 第五张「灵感激发」卡**刻意不做**：它唯一能配的动作是 `/status`（附录 §2.7 已删），要等波 2 的 agent profile（换一个人格来出题）才有真身，届时另立任务——本波不留占位 markup、不留 TODO。样式（`.book-workbench` / `.workbench-cards` / `.workbench-card`）本任务先在 `interaction.css` 落最小版（见 Task 9 一并并入 chip 行样式，均吃 token）。
 
-- [ ] **Step 4：复跑到绿**
+- [x] **Step 4：复跑到绿**
 
 ```
 corepack pnpm vitest run apps/desktop/src/renderer/src/utils/workbench-state.test.ts --maxWorkers=4
@@ -2484,14 +2484,14 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/workbench-state.tes
 
 期望：`10 passed`（两个 describe 合计 10 个 `it`）。
 
-- [ ] **Step 5：连带清单**
+- [x] **Step 5：连带清单**
   - 行号预算当场回读：`wc -l apps/desktop/src/renderer/src/components/CenterColumn.vue` —— 现状 304，替换掉 20 行 markup 但加 ~12 行脚本，预期 **≤400**（自设硬预算，超限即拆）。
   - 图标名 Grep 证据：`wand` → AppIcon.vue:43、`user` → :102、`globe` → :98、`list` → :78、`directory` → :29（均在 `<template v-else-if="name === '…'">` 里有绘制分支）。写不出分支的名字一律不用。
   - 品牌图核对：`BookWorkbench.vue` 只 `<img :src="brandMark">` 整幅引用，未裁切、未重绘、未 ImageGen；`mochen-lockup.jpg` 沿用现有 `empty-agent-mark` 的 `object-fit: cover` 展示（conversation-pane.css:171）。
   - 术语：UI 上「档案」一词只指 agent profile；本任务不出现「档案」字样（灵感激发归属用「agent profile / 人格」表述）。
   - 文档口径：附录 §3 F-A 卡表四行调用链逐字对齐（openDocTab / browse / pickAndOpen）；`prefillComposer` 依赖 Task 4，若 Task 4 未先落地，「主笔创作」卡文案须回退为「打开当前章」（设计决定 / §2.7）。
 
-- [ ] **Step 6：局部门禁**（顺序固定，命令后不接管道）
+- [x] **Step 6：局部门禁**（顺序固定，命令后不接管道）
 
 ```
 corepack pnpm exec prettier --check apps/desktop/src/renderer/src/utils/workbench-state.ts apps/desktop/src/renderer/src/utils/workbench-state.test.ts apps/desktop/src/renderer/src/components/BookWorkbench.vue apps/desktop/src/renderer/src/components/CenterColumn.vue
@@ -2501,14 +2501,14 @@ corepack pnpm exec eslint apps/desktop/src/renderer/src/utils/workbench-state.ts
 
 tsc 不进 `.vue`（vue-shim），故 `BookWorkbench.vue`/`CenterColumn.vue` 只由 utils 测试 + Task 11 真机兜底；`.ts` 侧 `noUncheckedIndexedAccess`/`exactOptionalPropertyTypes` 由 `.find()?.` 与不依赖 `excerpt` 满足。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```
 git add apps/desktop/src/renderer/src/utils/workbench-state.ts apps/desktop/src/renderer/src/utils/workbench-state.test.ts apps/desktop/src/renderer/src/components/BookWorkbench.vue apps/desktop/src/renderer/src/components/CenterColumn.vue
 git commit -m "feat(中栏): 空状态换作品工作台（F-A 四张真动作卡与无书降级）"
 ```
 
-- [ ] **Step 8：变异 W7（先提交再变异）**
+- [x] **Step 8：变异 W7（先提交再变异）**
 
 变异动作：把 `workbenchVisible` 改成 `return true;`（不看 `hasBook`）。落点 `utils/workbench-state.ts`，只用 `Edit`。
 预期转红：`workbench-state · 无书不显示死卡` 的「无书 ⇒ workbenchCards 一张卡都不出（W7 变异目标）」——`expected [ …4 卡… ] to deeply equal []`。
@@ -2534,7 +2534,7 @@ git commit -m "feat(中栏): 空状态换作品工作台（F-A 四张真动作�
   - 图标（AppIcon.vue 已绘制）：`directory`:29 / `settings`:162 / `plus`:20。
 - Produces：`LeftSidebar.vue` 三段 `primary-nav`，每段带 `data-nav-id`（`open-book` / `model-config` / `new-thread`）供真机探针定位。无新增纯函数（判定简单，见下）。
 
-- [ ] **Step 1：写失败的测试**
+- [x] **Step 1：写失败的测试**
 
 `.vue` 运行时够不着，且本任务**不抽新纯函数**（「无书时第三段 disabled」就是 `book.activeDocTab === null` 一行布尔，为它单开 util 是为抽而抽，明说不抽）。可失败的断言落在**源码契约**：钉死两段新入口调的是**真身函数名**，而不是捏造一个新动作（§2.7：报不出函数名就不进 UI）。
 
@@ -2578,7 +2578,7 @@ describe("LeftSidebar · 三段主操作各调一个真身（F-C，§2.7）", ()
 });
 ```
 
-- [ ] **Step 2：跑它，确认它因为想要的原因而红**
+- [x] **Step 2：跑它，确认它因为想要的原因而红**
 
 ```
 corepack pnpm vitest run apps/desktop/src/renderer/src/components/left-sidebar-nav.test.ts --maxWorkers=4
@@ -2586,7 +2586,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/components/left-sidebar-n
 
 预期：`model-config` / `new-thread` / `showSettings("general")` / `clearThreadView(...)` / `:disabled=...` 全部 `toContain`/`toMatch` 失败（当前只有一段 `open-book`），红在缺的东西上，而不是恒真。
 
-- [ ] **Step 3：最小实现**
+- [x] **Step 3：最小实现**
 
 `LeftSidebar.vue` 脚本段（在现有 import 与 `pickBook` 之外补齐）：
 
@@ -2637,7 +2637,7 @@ function newThreadForActiveChapter(): void {
 
 诚实口径：第三段标签是「本章新对话」而不是「新建会话线程」（总 spec §5.1 约束 1：一条章永远一条线程）；`title` 直接复用 `CLEAR_VIEW_SENTENCE`——「这只清空本页显示；盘上的会话历史不动，重启后仍会完整回放。」一句，用户当场读得到它清的是屏幕。附录 §3 记的那处「已完成的账」：`Ctrl O` 键标此前是空标、本批已接通 `open-book` ⇒ `book.pickAndOpen()`——回读现状：`LeftSidebar.vue:76-80` 的 `data-nav-id="open-book"` + `<kbd>Ctrl O</kbd>` + `pickBook`→`book.pickAndOpen()` 三件都已在位，故段①**原样保留不动**，测试仅核对不回改。
 
-- [ ] **Step 4：复跑到绿**
+- [x] **Step 4：复跑到绿**
 
 ```
 corepack pnpm vitest run apps/desktop/src/renderer/src/components/left-sidebar-nav.test.ts --maxWorkers=4
@@ -2645,14 +2645,14 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/components/left-sidebar-n
 
 期望：`4 passed`。
 
-- [ ] **Step 5：连带清单**
+- [x] **Step 5：连带清单**
   - 行号预算当场回读：`wc -l apps/desktop/src/renderer/src/components/LeftSidebar.vue` —— 现状 131，加两按钮 + 两函数约 +22 行，预期 **≈153**（远低于 800 门禁，且左栏无更紧的自设预算）。
   - 图标名 Grep 证据：`settings` → AppIcon.vue:162、`plus` → :20、`directory` → :29（均已绘制）。
   - 唯一真身核对：`grep -n "showSettings(\"general\")" apps/desktop/src/renderer/src/components/CenterColumn.vue` 应命中头部「模型设置」按钮（Task 1 已把它从局部 `showSettings.value = true` 改成 `layout.showSettings("general")`）；左栏这一处是**第二个入口、同一函数**，不复制打开逻辑（设计决定 2）。若 Task 1 尚未把头部改成走 `layout.showSettings`，本任务的同源断言要在 Step 6 前先在头部对齐——不在此复制局部 ref。
   - 术语：段③叫「新对话」不叫「新档案」；「档案」在本仓 UI 只指 agent profile。
   - 文档口径：附录 §3 F-C 三段与总 spec §5.1「一条章一条线程」对齐；`clearThreadView` 边界口径同 `useAgentStore.ts:586` 注释。
 
-- [ ] **Step 6：局部门禁**
+- [x] **Step 6：局部门禁**
 
 ```
 corepack pnpm exec prettier --check apps/desktop/src/renderer/src/components/LeftSidebar.vue apps/desktop/src/renderer/src/components/left-sidebar-nav.test.ts
@@ -2660,14 +2660,14 @@ corepack pnpm exec tsc --noEmit -p apps/desktop/tsconfig.web.json
 corepack pnpm exec eslint apps/desktop/src/renderer/src/components/LeftSidebar.vue apps/desktop/src/renderer/src/components/left-sidebar-nav.test.ts --max-warnings=0
 ```
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```
 git add apps/desktop/src/renderer/src/components/LeftSidebar.vue apps/desktop/src/renderer/src/components/left-sidebar-nav.test.ts
 git commit -m "feat(左栏): primary-nav 扩为三段主操作（模型配置与本章新对话同源真身）"
 ```
 
-- [ ] **Step 8：变异归属**
+- [x] **Step 8：变异归属**
 
 本任务无独立变异（`.vue` 模板零覆盖、无新纯函数，不硬造变异）。联动用例见 Step 1 的「LeftSidebar · 三段主操作各调一个真身」——其中「段③只清渲染层」与「文案诚实」两断言防的是接线指错真身；`clearThreadView` 本身「只动渲染层、不碰 JSONL 与 pending」的行为断言在波 1 的 store 测试里已钉（`useAgentStore.ts:586` 的 `/clear` 边界）。真机验证在 Task 11 冒烟矩阵第 2 行（左栏三段逐段点一次：段①开书、段②弹设置浮层且 Esc 能关、段③清屏后重启仍回放）。
 
@@ -2697,7 +2697,7 @@ git commit -m "feat(左栏): primary-nav 扩为三段主操作（模型配置与
   - `utils/composer-chips.ts`：`ComposerChipId`（`"permission" | "palette"`）、`ComposerChipView { id; text; disabled; title }`、`composerChips({ hasBook, mode, saving }) => ComposerChipView[]`（裁定 C：返回值就是数组，不含队列字段）。
   - `ComposerBox.vue` 对外契约（总表逐字）：`props: { running; ready; canContinue; modelValue: string; hasBook: boolean; permissionMode: PermissionMode | null; permissionSaving: boolean }`、`emits: { "update:modelValue"; send; stop; resume; "open-permission-menu"; "open-palette" }`。
 
-- [ ] **Step 1：写失败的测试**
+- [x] **Step 1：写失败的测试**
 
 ```ts
 // apps/desktop/src/renderer/src/utils/composer-chips.test.ts
@@ -2747,7 +2747,7 @@ describe("composer-chips · 只放真开关，排队不做按钮（F-D）", () =
 });
 ```
 
-- [ ] **Step 2：跑它，确认它因为想要的原因而红**
+- [x] **Step 2：跑它，确认它因为想要的原因而红**
 
 ```
 corepack pnpm vitest run apps/desktop/src/renderer/src/utils/composer-chips.test.ts --maxWorkers=4
@@ -2755,7 +2755,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/composer-chips.test
 
 预期：`Cannot find module './composer-chips'` 红在 import；若先补 composer-chips 再漏补 permission-chip（Task 2 未落地），则红在 `Cannot find module './permission-chip'`——两种红都指向「想要但还没建」的模块，不是恒真。
 
-- [ ] **Step 3：最小实现**
+- [x] **Step 3：最小实现**
 
 `utils/composer-chips.ts`（完整）：
 
@@ -2900,7 +2900,7 @@ const chips = computed(() =>
 - 「思考等级」chip —— 归**未决**（附录 §7.4：一期认哪几家厂商的 reasoning 出站字段格式没定案，定案前不发）。
 - 「替我审批」chip —— 归**波 3**（生效点在主进程审批链，且只在「全开」档可开）。
 
-- [ ] **Step 4：复跑到绿**
+- [x] **Step 4：复跑到绿**
 
 ```
 corepack pnpm vitest run apps/desktop/src/renderer/src/utils/composer-chips.test.ts --maxWorkers=4
@@ -2908,7 +2908,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/composer-chips.test
 
 期望：`4 passed`。
 
-- [ ] **Step 5：连带清单**
+- [x] **Step 5：连带清单**
   - 行号预算当场回读：`wc -l apps/desktop/src/renderer/src/components/CenterColumn.vue`（chip 事件与四个新绑定只加几行，仍 **≤400**）、`wc -l apps/desktop/src/renderer/src/components/ComposerBox.vue`（现状 63，加 chip 行与受控 props 后 **≤120**，远离 800）。
   - 图标名 Grep 证据：`terminal` → AppIcon.vue:191；权限 chip 无图标（头部 `permissionLabel` 按钮 CenterColumn.vue:176-184 本就纯文本，两处一致）。写不出分支就不加图标。
   - 样式 token 检查：`grep -n "#[0-9a-fA-F]\{3,6\}" apps/desktop/src/renderer/src/styles/interaction.css` 期望**无输出**（现有 `.slash-mask` 的 `#000` 在 `color-mix` 里且非本任务新增行；本任务新写的 chip/hint 规则只用 `--line-soft`/`--text`/`--hover`/`--focus`/`--text-faint`/`--text-soft`）；若门禁把整文件的 `#000` 计入，改用 `color-mix(in srgb, var(--shadow-color) …)` 等 token 表达，不引新色值。硬编码色值算 P1。
@@ -2917,7 +2917,7 @@ corepack pnpm vitest run apps/desktop/src/renderer/src/utils/composer-chips.test
   - 弹层真身唯一：确认全仓 `PermissionMenu` 实例计数仍为 1——`grep -rn "<PermissionMenu" apps/desktop/src/renderer/src/components` 只命中 `CenterColumn.vue:185`；chip 的 `open-permission-menu` 只是调 `togglePermissionMenu()`，不新增挂载。
   - 文档口径：附录 §3 F-D 的「排队」那一格按**裁定 C** 落为静态提示句（不读计数、不带 click），队列数字仍只在状态行出现；三枚新 chip 归属与「与附录/Plan 3 spec 的差异」第 2 条一致。
 
-- [ ] **Step 6：局部门禁**
+- [x] **Step 6：局部门禁**
 
 ```
 corepack pnpm exec prettier --check apps/desktop/src/renderer/src/utils/composer-chips.ts apps/desktop/src/renderer/src/utils/composer-chips.test.ts apps/desktop/src/renderer/src/components/ComposerBox.vue apps/desktop/src/renderer/src/components/CenterColumn.vue apps/desktop/src/renderer/src/styles/interaction.css
@@ -2927,14 +2927,14 @@ corepack pnpm exec eslint apps/desktop/src/renderer/src/utils/composer-chips.ts 
 
 `.css` 不被 eslint 管、prettier 管其格式；`.ts` 侧受 tsc 约束，`.vue` 仍只由 chip 契约 + Task 11 真机兜底。
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```
 git add apps/desktop/src/renderer/src/utils/composer-chips.ts apps/desktop/src/renderer/src/utils/composer-chips.test.ts apps/desktop/src/renderer/src/components/ComposerBox.vue apps/desktop/src/renderer/src/components/CenterColumn.vue apps/desktop/src/renderer/src/styles/interaction.css
 git commit -m "feat(输入区): chip 行只放权限与斜杠两枚真开关，排队只做静态提示不做徽标（F-D）"
 ```
 
-- [ ] **Step 8：变异归属**
+- [x] **Step 8：变异归属**
 
 本任务无独立变异编号（本波 W1–W8 已在别处占满，chip 无对应号）。联动用例见 Step 1 的「联动用例：permission chip 与 permissionChipView 逐字段同值」——它钉的是「两份权限判定必然漂移」这条铁律（若 `composerChips` 里另算一遍 text/disabled，三组输入里至少一组对不上）；配合「无书 ⇒ 文案不是任何档位名」把波 1 缺陷②的反例也挡在 chip 侧。真机验证在 Task 11 冒烟矩阵第 3 行（两枚 chip 各点一次：权限 chip 弹出且**只有一处** `PermissionMenu`、改档真写 `book.json` 重启保持；`/` chip 打开面板与**裸 `/` 键**同源；chip 行末尾那句静态提示读得出 `运行中按 Tab 可排队指令`、**不是 `<button>`、不带数字**）。
 
@@ -2993,7 +2993,7 @@ git commit -m "feat(输入区): chip 行只放权限与斜杠两枚真开关，�
 
   > 若 Task 6 落地时把右栏三态抽成了具名类型（例如 `RightPaneMode`），`SnippetToolbarMode` 改成 import 那个类型，**不留两份字面量**；仍是行内联合类型就照上面写。
 
-- [ ] **Step 1：前置实测（不实测就写代码 = 猜）**
+- [x] **Step 1：前置实测（不实测就写代码 = 猜）**
 
 ```bash
 wc -l apps/desktop/src/renderer/src/components/DocumentPane.vue
@@ -3005,7 +3005,7 @@ grep -n "rightPaneMode" apps/desktop/src/renderer/src/stores/useBookStore.ts
 
 把四个数抄进提交说明前的工作笔记：`DocumentPane.vue` 当前行数（HEAD 是 197，Task 6 之后会变，记实际值）、`.editor-text-tools`/`.format-button` 是否已在 `editor-pane.css:258-295` 在位（**必须在位**，本任务靠它免掉新样式）、图标分支数（HEAD 48）、`IconName` 数（HEAD 48，且 `grep -n '"heading"' apps/desktop/src/renderer/src/types/icons.ts` 必须**无输出**——这条就是「按钮用文字标签」的证据）。最后一行确认 `rightPaneMode` 已含 `"dossier"`（Task 6 已落地）。
 
-- [ ] **Step 2：`utils/markdown-snippets.ts` 先写红**
+- [x] **Step 2：`utils/markdown-snippets.ts` 先写红**
 
 新建 `apps/desktop/src/renderer/src/utils/markdown-snippets.test.ts`（全文，勿删注）：
 
@@ -3156,7 +3156,7 @@ describe("snippetToolbarState（附录 F-F：浏览态隐藏）", () => {
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/markdown-snippets.test.ts --maxWorkers=4`
 Expected: FAIL —— `Cannot find module './markdown-snippets'`（17 条用例一条都不许绿）。
 
-- [ ] **Step 3：`markdown-snippets.ts` 落地**
+- [x] **Step 3：`markdown-snippets.ts` 落地**
 
 新建 `apps/desktop/src/renderer/src/utils/markdown-snippets.ts`（全文）：
 
@@ -3340,7 +3340,7 @@ Expected: PASS —— `Test Files 1 passed (1)` / `Tests 17 passed (17)`。
 Run: `corepack pnpm tsc --noEmit -p apps/desktop/tsconfig.web.json`
 Expected: 无诊断（`tsconfig.base.json` 有 `noUncheckedIndexedAccess` 与 `exactOptionalPropertyTypes`：所以逐行循环走 `for (const head of heads.slice().reverse())` 而不是 `heads[i]`）。
 
-- [ ] **Step 4：`utils/reading-time.ts` 先写红，再落地**
+- [x] **Step 4：`utils/reading-time.ts` 先写红，再落地**
 
 新建 `apps/desktop/src/renderer/src/utils/reading-time.test.ts`（全文）：
 
@@ -3412,7 +3412,7 @@ export function readingMinutes(text: string): number | null {
 Run: `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/reading-time.test.ts apps/desktop/src/renderer/src/utils/markdown-snippets.test.ts --maxWorkers=4`
 Expected: PASS —— `Test Files 2 passed (2)` / `Tests 25 passed (25)`。
 
-- [ ] **Step 5：`DocumentPane.vue` 接线（一次把两面都接上，并当场把三枚页签表格化省行）**
+- [x] **Step 5：`DocumentPane.vue` 接线（一次把两面都接上，并当场把三枚页签表格化省行）**
 
 脚本区四处改动（锚点是 HEAD 原文，Task 6 之后按内容找）：
 
@@ -3537,7 +3537,7 @@ const viewTabs: { mode: SnippetToolbarMode; label: string }[] = [
 }
 ```
 
-- [ ] **Step 6：行数预算实测与削减阶梯（这一格不许「大约」）**
+- [x] **Step 6：行数预算实测与削减阶梯（这一格不许「大约」）**
 
 ```bash
 wc -l apps/desktop/src/renderer/src/components/DocumentPane.vue
@@ -3550,8 +3550,8 @@ node tools/check-source-line-budget.mjs
 
 **预算规则**：`DocumentPane.vue` 必须 `wc -l` ≤220（共头「契约变更总表」最后一行；800 行的机器门禁在 `tools/check-source-line-budget.mjs:5`，本波自设的更紧预算靠人跑 `wc -l`）。Step 5 的净增量按 HEAD 估算是 +39（脚本 23 / 模板 16），Step 5 第 5 项的页签表格化回收约 −15，Task 6 的净增约 +17 ⇒ 落在 215–235 之间，**必须实测**。
 
-- [ ] 实测 ≤220 ⇒ 抄下数字，进 Step 7。
-- [ ] 实测 >220 ⇒ **按顺序**执行下列削减，每做完一档就复跑 `wc -l`，回落即停（不许一次做三档然后回过头来猜）：
+- [x] 实测 ≤220 ⇒ 抄下数字，进 Step 7。
+- [x] 实测 >220 ⇒ **按顺序**执行下列削减，每做完一档就复跑 `wc -l`，回落即停（不许一次做三档然后回过头来猜）：
 
   **档 1（省约 24 行）**：把 `section-tabs-bar`（HEAD `:103-128` 的文件标签条）抽成 `components/DocumentTabBar.vue`——这正是 Task 6 的 Step 5 第 4 条预留的同一个 seam，**不另造新 seam、不新开样式文件**。新组件全文：
 
@@ -3600,8 +3600,9 @@ node tools/check-source-line-budget.mjs
   **档 3（省约 12 行，最后手段）**：把工具栏那 14 行 markup 拆成 `components/SnippetToolbar.vue`（props `{ buttons: SnippetButton[] }`，`emits: { pick: [kind: SnippetKind] }`）。**读选区 → `applySnippet` → `book.onEdit` 仍留在 DocumentPane**（共头接口总表那条：「DocumentPane.vue 片段按钮 emit 不外抛」= 事件只到父级 DocumentPane，不再往外），父侧只剩 `<SnippetToolbar :buttons="snippetToolbar.buttons" @pick="applyToSelection" />`。
 
 - [ ] 削减阶梯走完仍 >220 ⇒ **停手，不许把按钮砍成三个、不许把注释删了凑数、不许私改预算数字**。在提交说明里写清实测行数与卡在哪一步，交控制方裁定（这一条是「超限即拆」的铁律，不是软目标）。
+  （保持不勾原因：这一格是「三档削减走完仍 >220 ⇒ 停手交裁定」的止损口，条件未触发——实际阶梯 220→251→234→218→修复轮 212，最终 212 ≤ 220，没有停手也不需要停手。）
 
-- [ ] **Step 7：提交**
+- [x] **Step 7：提交**
 
 ```bash
 git status --porcelain
@@ -3610,10 +3611,11 @@ corepack pnpm verify > scratch/verify-wave15-task10.log 2>&1; echo "VERIFY_EXIT=
 grep -nE "VERIFY_EXIT=0|Test Files|Tests |边界检查通过|行数预算通过" scratch/verify-wave15-task10.log
 ```
 
-- [ ] `VERIFY_EXIT=0`（链尾自印与 shell 侧各一道，**`verify` 命令本身不许接管道**；上面那条 `grep` 扫的是日志文件，不是门禁命令）。
-- [ ] 确认没有新增写盘通路：`git diff --cached -U0 -- apps/desktop/src/renderer/src/components/DocumentPane.vue apps/desktop/src/renderer/src/utils | grep "^+.*writeDoc"` —— 期望无输出。片段改动只经 `onEdit`（`useBookStore.ts:148-152`）。
+- [x] `VERIFY_EXIT=0`（链尾自印与 shell 侧各一道，**`verify` 命令本身不许接管道**；上面那条 `grep` 扫的是日志文件，不是门禁命令）。
+- [x] 确认没有新增写盘通路：`git diff --cached -U0 -- apps/desktop/src/renderer/src/components/DocumentPane.vue apps/desktop/src/renderer/src/utils | grep "^+.*writeDoc"` —— 期望无输出。片段改动只经 `onEdit`（`useBookStore.ts:148-152`）。
 - [ ] 确认没有 `contenteditable`：`git diff --cached -U0 -- apps/desktop/src/renderer/src | grep "^+.*contenteditable"` —— 期望无输出（附录 §2.2 不做 WYSIWYG）。
-- [ ] 确认没有新增样式文件、没有硬编码色值：`git diff --cached --name-only` 里样式文件只许出现 `styles/interaction.css`；`git diff --cached -U0 -- apps/desktop/src/renderer/src/styles/interaction.css apps/desktop/src/renderer/src/components/DocumentPane.vue | grep -E "^\+.*#[0-9a-fA-F]{3,8}"` —— 期望无输出。
+  （保持不勾原因：字面命令自我命中——复跑 `6bca7b9` 的该 grep 命中 2 行，且都在源码契约用例自身（`document-pane-wiring.test.ts:130/132` 的 `not.toContain(…)`）；`.vue` 里 `contenteditable` 出现 0 次 ⇒ 实质要求为真、命令写法属计划缺陷，与 L6 同族。见报告 Step 1 裁定 ⑩。）
+- [x] 确认没有新增样式文件、没有硬编码色值：`git diff --cached --name-only` 里样式文件只许出现 `styles/interaction.css`；`git diff --cached -U0 -- apps/desktop/src/renderer/src/styles/interaction.css apps/desktop/src/renderer/src/components/DocumentPane.vue | grep -E "^\+.*#[0-9a-fA-F]{3,8}"` —— 期望无输出。
 
 ```bash
 git commit -m "feat(ui): 右栏 md 片段工具栏与页脚阅读时长（波 1.5 Task 10 / F-F + F-G）"
@@ -3621,7 +3623,7 @@ git commit -m "feat(ui): 右栏 md 片段工具栏与页脚阅读时长（波 1.
 
 > 若档 1/档 3 触发，把新建的 `DocumentTabBar.vue` / `SnippetToolbar.vue` 一并 `git add`（按文件名加，不用 `git add -A`）。
 
-- [ ] **Step 8：变异 W8（先提交再变异，评审者自己重跑，不采信转录）**
+- [x] **Step 8：变异 W8（先提交再变异，评审者自己重跑，不采信转录）**
 
 手法照波 1 台账：只用 `Edit` 改代码（**禁 `perl -i` / `sed -i`**），单跑点名文件带 `--maxWorkers=4`（本机 dev 常年常年在跑，全量 vitest 会假红且每次红的文件不同），改回后复跑绿，最后 `git diff --exit-code` 必须干净。
 
@@ -3629,11 +3631,11 @@ git commit -m "feat(ui): 右栏 md 片段工具栏与页脚阅读时长（波 1.
 | --- | --- | --- | --- |
 | W8 | `utils/markdown-snippets.ts` 的 `PER_LINE` 里把 `list: true` 改成 `list: false`（等价于「`applySnippet("list")` 只作用首行」） | `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/markdown-snippets.test.ts --maxWorkers=4` | `FAIL … > 跨行选区每行都加“- ”（变异 W8 的落点）` 与 `FAIL … > 选区从行中段起：被覆盖的行都加，没被碰到的首行不加`——后者转红的形状是 `AssertionError: expected '雾从海面涌上来。\n- 海雾…' to be '雾从海面涌上来。\n- 海雾…'`（第 3 行少前缀 ⇒ 字符串不等） |
 
-- [ ] 红证据与改回绿证据都贴进台账原文（**两条**都转红才算 W8 有鉴别力；只红一条说明另一条断言写虚了，回去补）。
-- [ ] 追加自证（同法，各跑一遍再改回，用来证明「表外不可达」与「码点口径不是装饰」）：
+- [x] 红证据与改回绿证据都贴进台账原文（**两条**都转红才算 W8 有鉴别力；只红一条说明另一条断言写虚了，回去补）。
+- [x] 追加自证（同法，各跑一遍再改回，用来证明「表外不可达」与「码点口径不是装饰」）：
   ① `LINE_MARKS` 里把 `heading: "## "` 改成 `heading: "# "` ⇒ 标题用例红（证明中文层级钉在断言里，不是随手写的）；
   ② `snapStart` 的返回值改成 `index`（即取消代理对归整）⇒ 「光标停在表情正中」用例红，红形是 `AssertionError: expected '**\udcae海雾**' …`（出现孤立代理即证这条断言真能失败）。
-- [ ] 变异全部改回后：`git diff --exit-code` 与 `git status --porcelain` 都干净（`scratch/` 在 `.gitignore` 里，日志不进版本库）。
+- [x] 变异全部改回后：`git diff --exit-code` 与 `git status --porcelain` 都干净（`scratch/` 在 `.gitignore` 里，日志不进版本库）。
 
 **验收口径（本任务交付定义，Task 11 的真机矩阵照此点）**：四个按钮在文稿态可点、在浏览与作品资料态不出现；点「加粗」后右栏出现 `**…**` 且光标停在原文两端，`dirty` 变 true；点「列表」把跨行选区每一行都变成 `- `；页脚同时出现「N 字」与「约 M 分钟阅读」，清空正文后页脚出现「— 分钟」；这一改动随后能走通「提案 → 批准 → `.mochen/changes/<时间戳>/` 备份」。
 
@@ -3657,7 +3659,7 @@ git commit -m "feat(ui): 右栏 md 片段工具栏与页脚阅读时长（波 1.
 - Consumes: Task 1–10 的全部落地物。
 - Produces: 无新接口，只产台账与勾选状态。
 
-- [ ] **Step 1：前置检查**
+- [x] **Step 1：前置检查**
 
 ```bash
 git log --oneline -12
@@ -3666,10 +3668,10 @@ corepack pnpm install --frozen-lockfile
 node -e 'const t=require("fs").readFileSync("apps/desktop/src/renderer/src/stores/useAgentStore.ts","utf8");console.log("QUEUED_MAX=",/export const QUEUED_MAX = (\d+)/.exec(t)?.[1])'
 ```
 
-- [ ] `git log --oneline -12` 里必须能看到 Task 1–10 的十个功能提交（缺一个就还没到门禁，回去做完）。
-- [ ] `git status --porcelain` 干净（`scratch/`、`out/`、`node_modules/`、`.mochen/` 都在 `.gitignore` 里；`.mochen/` 与冒烟用书**永远不进版本库**）。
-- [ ] 确认没有别的 `vitest` / `electron` 在跑：Windows 上重启 dev 与收冒烟实例用带进程树的方式，Git Bash 里双斜杠转义——`taskkill //F //T //IM electron.exe`（没有残留进程时它会报错，不拦路）。**只杀自己起的实例**：用户正在用的 9223 实例（如果他还开着）不要当成垃圾杀掉，本波冒烟另起端口。
-- [ ] `node` 版本与用例基线复核：`node -e 'console.log(process.version)'`（要求 v24）；静态数一遍当前用例数（只数 `it(`/`test(` 出现次数，两处 `it.each` 各自展开会多算，落账以 Step 2 日志为准）：
+- [x] `git log --oneline -12` 里必须能看到 Task 1–10 的十个功能提交（缺一个就还没到门禁，回去做完）。
+- [x] `git status --porcelain` 干净（`scratch/`、`out/`、`node_modules/`、`.mochen/` 都在 `.gitignore` 里；`.mochen/` 与冒烟用书**永远不进版本库**）。
+- [x] 确认没有别的 `vitest` / `electron` 在跑：Windows 上重启 dev 与收冒烟实例用带进程树的方式，Git Bash 里双斜杠转义——`taskkill //F //T //IM electron.exe`（没有残留进程时它会报错，不拦路）。**只杀自己起的实例**：用户正在用的 9223 实例（如果他还开着）不要当成垃圾杀掉，本波冒烟另起端口。
+- [x] `node` 版本与用例基线复核：`node -e 'console.log(process.version)'`（要求 v24）；静态数一遍当前用例数（只数 `it(`/`test(` 出现次数，两处 `it.each` 各自展开会多算，落账以 Step 2 日志为准）：
 
 ```bash
 grep -rhoE "^[[:space:]]*(it|test)(\.each|\.skip)?\(" --include=*.test.ts --include=*.test.mjs packages apps/desktop/src tools | wc -l
@@ -3680,7 +3682,7 @@ find tools -maxdepth 1 -name "*.test.mjs" | wc -l
 
 HEAD（本波开工前）实测：`471` 个 `it(`/`test(` 行（含两条 `it.each` 各计一次）+ `it.each` 展开的 5 次 = **476 用例**；文件数 `15 + 26 + 2 = 43`。与波 1 报告第 7 行记录的 `Test Files 43 passed (43)` / `Tests 476 passed (476)` 对得上 ⇒ 基线成立。
 
-- [ ] **Step 2：全链门禁两遍（第一遍可落日志，第二遍不经任何管道）**
+- [x] **Step 2：全链门禁两遍（第一遍可落日志，第二遍不经任何管道）**
 
 第一遍（允许把日志落文件后再随便 `grep`/`tail` 那个**文件**）：
 
@@ -3719,9 +3721,10 @@ grep -nE "VERIFY_EXIT=0|Test Files|Tests |All matched files|边界检查通过|�
 | Task 10（片段 + 时长） | 2（`markdown-snippets.test.ts` + `reading-time.test.ts`） | 25 | Step 2/Step 4 的文件全文，逐条数出来：17 + 8 |
 | **合计下限** | **+8 文件** | **+67 用例** | 5+4+8+3+5+5+4+4+4+25，逐行相加 |
 
-- [ ] 期望：**`Test Files` = 51**（43 + 8），**`Tests` ≥ 543**（476 + 67）；上限不设（各任务评审轮通常会补反向与越界案，波 1 就是这样从估算 451 涨到实测 476）。
+- [x] 期望：**`Test Files` = 51**（43 + 8），**`Tests` ≥ 543**（476 + 67）；上限不设（各任务评审轮通常会补反向与越界案，波 1 就是这样从估算 451 涨到实测 476）。
 - [ ] 实测落在下限之下 ⇒ **按缺口回对应任务补**，最容易被省的是 Task 1 的浮层优先级矩阵与 Task 6 的「空组不出现」；**不许把下限改小来迁就实测**。
-- [ ] `行数预算通过` 之外另跑一次点名文件（机器门禁只管 800 行，本波自设的 220/400 要靠人）：
+  （保持不勾原因：补任务动作未触发——实测 58 文件 / 599 用例，高于计划下限 ≥50 / ≥543，没有缺口要回补。）
+- [x] `行数预算通过` 之外另跑一次点名文件（机器门禁只管 800 行，本波自设的 220/400 要靠人）：
 
 ```bash
 node tools/check-source-line-budget.mjs
@@ -3731,7 +3734,7 @@ wc -l apps/desktop/src/renderer/src/components/DocumentPane.vue apps/desktop/src
 
 期望逐字：`行数预算通过`、`边界检查通过`；`DocumentPane.vue` ≤220、`CenterColumn.vue` ≤400、其余单文件 ≤800。实测值抄进报告「行号与预算」节，**并写清哪些行号是本波改过的**（Task 9 报告里那份「本波改动的行号清单」格式：`文件名:行号 改动一句话`）。
 
-- [ ] **Step 3：契约变更表对账（共头「契约变更总表」逐行给命令与实测值）**
+- [x] **Step 3：契约变更表对账（共头「契约变更总表」逐行给命令与实测值）**
 
 本机 `python` 不可用，切片一律 `node -e`（下面六条在 HEAD 上实测可用，输出逐字附后）。
 
@@ -3762,11 +3765,11 @@ HEAD（本波开工前）实测输出：`IPC键数=13`、`RendererApi方法数=1
 | `book.json` `schemaVersion` | 1 | 1 | |
 | 单文件行数 | `CenterColumn.vue` 304 / `DocumentPane.vue` 197 | ≤400 / ≤220（Step 2 末的 `wc -l` 原文） | |
 
-- [ ] 附加两条「不许有」的检查（本波不开新通道、不新增工具、不新增写盘通路）：
+- [x] 附加两条「不许有」的检查（本波不开新通道、不新增工具、不新增写盘通路）：
   `grep -rn "IPC_CHANNELS\[" packages apps/desktop/src` 与 `grep -rEn "writeDoc|saveMeta" apps/desktop/src/renderer/src/utils` —— 后者期望无输出（utils 里绝不出现写盘调用）。
   工具集仍 5 个：`node -e 'const t=require("fs").readFileSync("packages/contracts/src/agent-tool.ts","utf8");console.log((t.match(/"[a-z_]+"/g)||[]).join(" "))'`，期望恰好 `read_doc list_docs search_docs propose_patch write_doc`（若该常量不在 `agent-tool.ts`，先 `grep -rn "AGENT_TOOL_NAMES" packages/contracts/src` 定位再切片，别改文件）。
 
-- [ ] **Step 4：变异台账 W1–W8（控制方本人一次跑完，不转录实现者的话）**
+- [x] **Step 4：变异台账 W1–W8（控制方本人一次跑完，不转录实现者的话）**
 
 统一手法（逐条照做，顺序不许多不许少）：`git status --porcelain` 干净 → 只用 `Edit` 做变异（**禁 `perl -i`/`sed -i`**）→ 单跑点名的测试文件带 `--maxWorkers=4` → 粘贴 `FAIL` 与 `AssertionError` 原文 → `Edit` 改回 → 复跑绿 → 下一条。八条跑完再 `git diff --exit-code`，必须干净。
 
@@ -3781,10 +3784,10 @@ HEAD（本波开工前）实测输出：`IPC键数=13`、`RendererApi方法数=1
 | W7 | `workbenchVisible` 不看 `hasBook` | `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/workbench-state.test.ts --maxWorkers=4` | 无书 ⇒ 一张卡都不出 | | |
 | W8 | `applySnippet("list")` 只作用首行 | `corepack pnpm vitest run apps/desktop/src/renderer/src/utils/markdown-snippets.test.ts --maxWorkers=4` | 跨行选区每行都加 `- `（Task 10 Step 8 实测还会带红第二条） | | |
 
-- [ ] 八条都要有「红证据 + 改回绿证据」两段；某条改不动（比如那一支已并入别的表达式）就写清为什么，**不许拿「等价」当没跑**。
-- [ ] 台账里保留一句硬话（波 1 报告第 43 行的同款）：本波所有 `.vue` 模板接线（工具栏按钮是否显示、chip 是否 disabled、工作台卡片是否出屏）**没有任何自动化覆盖**——`vitest.config.ts` 的 include 只有 `*.test.ts`/`*.test.mjs` 且 `environment: "node"`，`tsconfig.web.json` 走 `renderer/vue-shim.d.ts` 的 `declare module "*.vue"`，tsc 不进 `.vue`。⇒ 这些格子的证据只有真机肉眼 + 行号，不许写成「单测覆盖」。
+- [x] 八条都要有「红证据 + 改回绿证据」两段；某条改不动（比如那一支已并入别的表达式）就写清为什么，**不许拿「等价」当没跑**。
+- [x] 台账里保留一句硬话（波 1 报告第 43 行的同款）：本波所有 `.vue` 模板接线（工具栏按钮是否显示、chip 是否 disabled、工作台卡片是否出屏）**没有任何自动化覆盖**——`vitest.config.ts` 的 include 只有 `*.test.ts`/`*.test.mjs` 且 `environment: "node"`，`tsconfig.web.json` 走 `renderer/vue-shim.d.ts` 的 `declare module "*.vue"`，tsc 不进 `.vue`。⇒ 这些格子的证据只有真机肉眼 + 行号，不许写成「单测覆盖」。
 
-- [ ] **Step 5：真机矩阵（控制方本人操作，不委托子代理）**
+- [x] **Step 5：真机矩阵（控制方本人操作，不委托子代理）**
 
 起法照波 1 报告第 4–5 行，一个命令都不许另创：
 
@@ -3844,10 +3847,11 @@ CDP_PORT=9225 node scratch/cdp.cjs eval 'JSON.stringify({title:document.title,ha
 | L5 | Step 8 的「§16 逐条」整句 | **字面不可达标格（如实不勾）** | §16 第 1–4 项 + 本波六面逐格有真机原文（本表 A/B 已覆盖）；第 5–9 项（外观三态 / 六档案 / 上下文占用条 / 技能库 / F-4 迁移）归波 2、波 3，本波一次都没跑 | 「§16 **逐条**（全 9 项）」那一格保持不勾，并在旁边一行写归属；不许把整句改读成「§16 相关项」来凑绿 |
 | L6 | Step 8 的密钥 grep 字面（两个词作为指令文本会被自己的 grep 命中） | **字面不可达标格（如实不勾）** | 本波换一种**不自我命中**的写法：只扫新增行、按形状不按词面——`git show --format= --unified=0 HEAD | grep "^+" | grep -cE "[A-Za-z]+-[A-Za-z0-9]{16,}"`（期望 `0`）。`--unified=0` 不带上下文行，所以计划原文不会再被带出来 | 形状扫描为 0 ⇒ 报告记「实质达标」；但**波 1 那格的原字面写法（带上下文的 `git log -p -1` + 那两个词的词面）跑起来仍会命中指令自身** ⇒ 该格保持不勾，并保留波 1 报告第 136 行那句原话作为出处 |
 
-- [ ] A/B/C 三张表里，**任何一格填不出屏幕原文就写「未证」**，并写清是「没做」还是「只有单测证据」。mock 桩答句是定值 ⇒ 「续写不重复已流出的句子」这类只有真模型能判的句子，本波照波 1 报告第 60 行的写法明记为未证。
+- [x] A/B/C 三张表里，**任何一格填不出屏幕原文就写「未证」**，并写清是「没做」还是「只有单测证据」。mock 桩答句是定值 ⇒ 「续写不重复已流出的句子」这类只有真模型能判的句子，本波照波 1 报告第 60 行的写法明记为未证。
 - [ ] 收尾把桩与实例收干净：`taskkill //F //T //IM electron.exe`、桩进程单独收（`node.exe` 里认 8787 那一个），**用户自己的实例与 profile 一律不碰**。
+  （保持不勾原因：按计划原字面要 `taskkill //F //T //IM electron.exe` 全杀，与本轮既有约束冲突——不得杀用户自己的 9223 CDP 实例与 mock 桩 8787。实际处置：只杀本波自起的 9225 / 9226 / 9227 三台（`taskkill` 逐 PID 带 `/T`），桩 8787 全程未动，profile 目录留在 gitignored `scratch/` 未入库。报告 Step 5 留底段在案。）
 
-- [ ] **Step 6：报告落盘**
+- [x] **Step 6：报告落盘**
 
 新建 `docs/superpowers/plans/2026-10-03-plan3-wave1-5-report.md`，骨架如下（**冒号处填当场观测到的事实，不许出现「应该没问题」**；格式照波 1 报告）：
 
@@ -3874,9 +3878,9 @@ tools/mock-provider.mjs（127.0.0.1:8787）。测试用书 scratch/wave15-book �
 ## 本波改动的行号清单（文件名:行号 + 一句话）
 ```
 
-- [ ] 报告末尾照波 1 的样子补一节「诚实账」：本波新写的 `.vue` 接线全部**零自动化覆盖**（`vue-shim` + vitest node 环境），凡是「按钮在位但没拍到点击后的可见变化」的格子，一律退回未证。
+- [x] 报告末尾照波 1 的样子补一节「诚实账」：本波新写的 `.vue` 接线全部**零自动化覆盖**（`vue-shim` + vitest node 环境），凡是「按钮在位但没拍到点击后的可见变化」的格子，一律退回未证。
 
-- [ ] **Step 7：提交与文档回改**
+- [x] **Step 7：提交与文档回改**
 
 1. 勾选本波计划：`docs/superpowers/plans/2026-10-03-plan3-wave1-5-ui-fusion.md` 里 Task 1–11 的 `- [ ]` → `- [x]`，**只勾真做完并验证过的**；没闭合的留着并在旁边一行说明为什么（L3 / L5 / L6 三格按 Step 5-C 的判定保持不勾）。
 2. 落盘报告：`docs/superpowers/plans/2026-10-03-plan3-wave1-5-report.md`（Step 6 的产物）。
@@ -3895,13 +3899,13 @@ git commit -m "docs(plan3): 波 1.5 全链门禁、变异台账与真机冒烟�
 git status --porcelain
 ```
 
-- [ ] 收尾自检（逐条为真才算本波闭合）：
-  - [ ] 两遍 `verify` 的退出码都当场在案（自印 + shell 两侧），用例总数与文件数抄的是**日志原文**。
-  - [ ] 契约八行全部对上：IPC 13/13 一字不加、`PROPOSAL_STATUSES` 7、`ThreadView` 10、`schemaVersion` 1、`EscapeAction` 5、`DocRef` 4、`error.proposalId?` 在位。
-  - [ ] W1–W8 八条各有红/绿两段证据，`git diff --exit-code` 干净。
-  - [ ] 三条缺陷（①②③）与留白六格每格都有处置与判定；**保持不勾的格子旁边都有一行为什么**。
-  - [ ] 本波没新增依赖、没新增 IPC 通道、没新增第 6 个工具、没新增写盘通路、没新开样式文件、没改门禁脚本或 ignore 文件；`.mochen/` 与 `scratch/wave15-book` 都没进版本库（`git show --stat HEAD` 里只许出现三个 docs 文件）。
-  - [ ] 报告里没有任何看起来像凭据的串，也没有把那两个指令词写成 grep 字面（Step 5-C 的 L6 记录在案）。
+- [x] 收尾自检（逐条为真才算本波闭合）：
+  - [x] 两遍 `verify` 的退出码都当场在案（自印 + shell 两侧），用例总数与文件数抄的是**日志原文**。
+  - [x] 契约八行全部对上：IPC 13/13 一字不加、`PROPOSAL_STATUSES` 7、`ThreadView` 10、`schemaVersion` 1、`EscapeAction` 5、`DocRef` 4、`error.proposalId?` 在位。
+  - [x] W1–W8 八条各有红/绿两段证据，`git diff --exit-code` 干净。
+  - [x] 三条缺陷（①②③）与留白六格每格都有处置与判定；**保持不勾的格子旁边都有一行为什么**。
+  - [x] 本波没新增依赖、没新增 IPC 通道、没新增第 6 个工具、没新增写盘通路、没新开样式文件、没改门禁脚本或 ignore 文件；`.mochen/` 与 `scratch/wave15-book` 都没进版本库（`git show --stat HEAD` 里只许出现三个 docs 文件）。
+  - [x] 报告里没有任何看起来像凭据的串，也没有把那两个指令词写成 grep 字面（Step 5-C 的 L6 记录在案）。
 
 ---
 
