@@ -122,6 +122,13 @@ describe("composer-chips · 联网搜索与工具清单", () => {
     for (const id of ["thinking", "web-search", "tools", "model"])
       expect(chips.find((c) => c.id === id)?.disabled).toBe(false);
   });
+
+  it("最裸的一档（没开书 + 没地址 + 没模型名）也不许把模型入口禁成摆设", () => {
+    // 变异 M-B 实测：只测「有 baseURL」那一支时，`disabled: baseURL === ""` 这种写法能全绿通过。
+    const model = chip("model", { hasBook: false, mode: null, modelLabel: "", baseURL: "" });
+    expect(model?.disabled).toBe(false);
+    expect(model?.text).toBe("未配置模型");
+  });
 });
 
 describe("composer-chips · 模型入口（#104）", () => {

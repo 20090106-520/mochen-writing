@@ -27,9 +27,12 @@ describe("ModelSelect · 弹层本体", () => {
 
   it("当前模型那一行不是按钮：再点一次只是把同一个值存回去，属于摆设", () => {
     const markup = templateSource(POPOVER);
-    // 当前项只挂徽章；改用的按钮走 v-else，永远点不到与自己同名的那一枚。
+    // 当前项只挂徽章；「改用」按钮必须挂在 v-else 上——它渲染的时机就是「这一行不是当前」。
+    // 变异 M-D 实测：只写 `toContain("v-else")` 会被失败分支里那个无关的 `<template v-else>` 蒙过去。
     expect(markup).toContain(`v-if="name === current"`);
-    expect(markup).toContain(`v-else`);
+    const pickTag = /<button[^>]*class="model-select-pick"[^>]*>/.exec(markup)?.[0] ?? "";
+    expect(pickTag).toContain("v-else");
+    expect(pickTag).not.toContain("v-if");
     expect(markup).toContain(`@click="emit('select', name)"`);
   });
 
