@@ -21,7 +21,10 @@ const props = defineProps<{
   thinkingLevel: ThinkingLevel;
   webSearchEnabled: boolean;
   modelLabel: string;
-  baseURL: string;
+  // prop 名必须是 `baseUrl` 而不是 `baseURL`：模板里的 kebab 绑定 `:base-url` 被 Vue camelize 成 `baseUrl`，
+  // 声明成 `baseURL` 时它根本收不到值（真机实测：chip 的 title 拼出 `undefined/models`）。
+  // 往里交给 composerChips 的参数仍叫 `baseURL`，那是对齐 contracts 的 ProviderView 字段名。
+  baseUrl: string;
 }>();
 const emit = defineEmits<{
   "update:modelValue": [value: string];
@@ -51,7 +54,7 @@ const chips = computed(() =>
     thinkingLevel: props.thinkingLevel,
     webSearchEnabled: props.webSearchEnabled,
     modelLabel: props.modelLabel,
-    baseURL: props.baseURL
+    baseURL: props.baseUrl
   })
 );
 // 计数条与主进程边界共用 USER_TEXT_MAX_LEN：这里说没超，发出去就不会被拒。

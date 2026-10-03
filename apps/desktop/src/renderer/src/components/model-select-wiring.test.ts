@@ -89,13 +89,29 @@ describe("CenterColumn · chip → 事件 → store → 弹层一条线", () => 
 });
 
 describe("ComposerBox · 只是转发，不自行判定", () => {
-  it("声明了 open-model-select 事件与 modelLabel/baseURL 两个入参", () => {
+  it("声明了 open-model-select 事件与 modelLabel/baseUrl 两个入参", () => {
     const script = scriptSource(COMPOSER);
     expect(script).toContain('"open-model-select": []');
     expect(script).toContain("modelLabel: string");
-    expect(script).toContain("baseURL: string");
+    expect(script).toContain("baseUrl: string");
     expect(script).toContain("modelLabel: props.modelLabel");
-    expect(script).toContain("baseURL: props.baseURL");
+    expect(script).toContain("baseURL: props.baseUrl");
+  });
+
+  // 真机冒烟抓到的原罪：`:base-url` 被 Vue camelize 成 `baseUrl`，而 prop 当时声明为 `baseURL`
+  // ⇒ 组件收到 undefined，chip 的 title 拼出 `undefined/models`。源码契约只看字符串，两边都绿。
+  // 这一条把「绑定名 camelize 之后必须等于声明名」钉住：改任何一边都必须同时改另一边。
+  it("kebab 绑定 `:base-url` 的 camelize 结果必须就是声明的 prop 名", () => {
+    const binding = /<ComposerBox[\s\S]*?\/>/.exec(templateSource(CENTER))?.[0] ?? "";
+    const camelize = (s: string) => s.replace(/-(\w)/g, (_, c: string) => c.toUpperCase());
+    const bound = [...binding.matchAll(/:([a-z][a-z0-9]*(?:-[a-z0-9]+)+)=/g)]
+      .map((m) => m[1])
+      .filter((k): k is string => k !== undefined && !k.startsWith("v-"));
+    expect(bound.length).toBeGreaterThan(0);
+    const declared = scriptSource(COMPOSER);
+    for (const key of bound) {
+      expect(declared).toContain(`${camelize(key)}:`);
+    }
   });
 });
 
