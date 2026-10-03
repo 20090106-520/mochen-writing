@@ -48,21 +48,24 @@ const SNIPPET_DISABLED_HINT = "打开一篇文稿后才能插入片段";
 /** 成对标记：包在选区两端；空选区时两个标记相邻，光标落正中。 */
 const PAIRED_MARKS: Partial<Record<SnippetKind, string>> = { bold: "**", italic: "*" };
 
-/** 行首标记：文稿标题在 document-title-input 里另存，正文只用二级，别再顶出一个一级跟它抢。 */
-const LINE_MARKS: Partial<Record<SnippetKind, string>> = {
-  heading: "## ",
-  list: "- ",
-  quote: "> "
-};
+/**
+ * 行首标记。这张表的**键域就是「行首类片段」的定义**：`LineKind` 由它派生，不再手写第二份枚举
+ * （铁律 6）。文稿标题在 document-title-input 里另存，正文只用二级，别再顶出一个一级跟它抢。
+ */
+const LINE_MARKS = { heading: "## ", list: "- ", quote: "> " } as const;
+type LineKind = keyof typeof LINE_MARKS;
 
-/** 逐行还是只作用首行：列表与引用逐行；标题即使选区跨三段也只加首行。变异 W8 改的就是这张表。 */
-const PER_LINE: Record<SnippetKind, boolean> = {
-  bold: false,
-  italic: false,
-  heading: false,
-  list: true,
-  quote: true
-};
+/**
+ * 逐行还是只作用首行：列表与引用逐行；标题即使选区跨三段也只加首行。变异 W8 改的就是这张表。
+ * 键域只列行首三类，因为成对标记在 `applySnippet` 里提前返回，**永远读不到这张表**：
+ * M8 变异实测过，从前给 `italic` 填 false、改成 true 后 31 条用例全绿——那两格是没人读的死值。
+ * 删掉之后 `italic: true` 这发变异连编译都过不去（多余属性检查，实测 TS2353），比测试更硬。
+ */
+const PER_LINE: Record<LineKind, boolean> = { heading: false, list: true, quote: true };
+
+/** 是行首类片段才返回它的行首身份；否则 undefined，由调用方原样返回，不靠猜。 */
+const asLineKind = (kind: SnippetKind): LineKind | undefined =>
+  (Object.keys(LINE_MARKS) as SnippetKind[]).includes(kind) ? (kind as LineKind) : undefined;
 
 export interface SnippetSelection {
   value: string;
@@ -214,9 +217,10 @@ export function applySnippet(kind: SnippetKind, sel: SnippetSelection): SnippetR
     };
   }
 
-  const mark = LINE_MARKS[kind];
-  if (mark === undefined) return { value, start, end };
-  const heads = lineHeads(value, start, end, PER_LINE[kind]);
+  const lineKind = asLineKind(kind);
+  if (lineKind === undefined) return { value, start, end };
+  const mark = LINE_MARKS[lineKind];
+  const heads = lineHeads(value, start, end, PER_LINE[lineKind]);
   let nextValue = value;
   let addedTotal = 0;
   let addedBeforeStart = 0;
