@@ -5,6 +5,7 @@ import {
   type StartTurnInput
 } from "@mochen/contracts";
 import type { ProviderSettings } from "./provider-settings.js";
+import type { ModelLister } from "./provider-models.js";
 import type { AgentService } from "./agent-service.js";
 
 /** electron 的 ipcMain.handle 的窄形状：装配处传进来，测试处传注册表。 */
@@ -23,8 +24,14 @@ export function registerAgentIpc(handle: Handler, service: AgentService): void {
   );
 }
 
-/** 视图与保存都只回掩码：明文密钥在这条线上是单向的（spec §8）。 */
-export function registerProviderIpc(handle: Handler, settings: ProviderSettings): void {
+/** 视图与保存只回掩码，枚举只按主进程自己的配置出网：明文密钥在这三条线上都是单向的（spec §8）。 */
+export function registerProviderIpc(
+  handle: Handler,
+  settings: ProviderSettings,
+  models: ModelLister
+): void {
   handle(IPC_CHANNELS.providerGet, () => settings.view());
   handle(IPC_CHANNELS.providerSave, (_event, draft) => settings.save(draft as ProviderDraft));
+  // 这条通道零参数：地址与密钥都由主进程从配置里自己取，渲染层递不进来，也就骗不出去。
+  handle(IPC_CHANNELS.providerListModels, () => models.list());
 }

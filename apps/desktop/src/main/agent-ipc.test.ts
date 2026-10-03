@@ -7,6 +7,7 @@ import {
   type StartTurnInput
 } from "@mochen/contracts";
 import { registerAgentIpc, registerProviderIpc } from "./agent-ipc.js";
+import type { ModelLister } from "./provider-models.js";
 import type { AgentService } from "./agent-service.js";
 import type { ProviderSettings } from "./provider-settings.js";
 
@@ -94,6 +95,15 @@ function stubSettings(seen: unknown[]): ProviderSettings {
   };
 }
 
+function stubLister(seen: unknown[]): ModelLister {
+  return {
+    async list() {
+      seen.push("list");
+      return { ok: true, models: ["mochen-8B"] };
+    }
+  };
+}
+
 describe("registerAgentIpc", () => {
   it("注册五条 agent 通道，一条都不漏也不多余", () => {
     const { order, handle } = registry();
@@ -138,16 +148,33 @@ describe("registerAgentIpc", () => {
 });
 
 describe("registerProviderIpc", () => {
-  it("注册两条 provider 通道并按白名单转交，返回的视图里没有密钥字段", async () => {
+  it("注册三条 provider 通道并按白名单转交，返回的视图里没有密钥字段", async () => {
     const seen: unknown[] = [];
     const reg = registry();
-    registerProviderIpc(reg.handle, stubSettings(seen));
-    expect(reg.order).toEqual([IPC_CHANNELS.providerGet, IPC_CHANNELS.providerSave]);
+    registerProviderIpc(reg.handle, stubSettings(seen), stubLister(seen));
+    expect(reg.order).toEqual([
+      IPC_CHANNELS.providerGet,
+      IPC_CHANNELS.providerSave,
+      IPC_CHANNELS.providerListModels
+    ]);
     expect(await fire(reg.fns, IPC_CHANNELS.providerGet)).toEqual(view);
     const draft: ProviderDraft = { baseURL: "http://mock/v1", model: "test-model", apiKey: null };
     expect(await fire(reg.fns, IPC_CHANNELS.providerSave, draft)).toEqual(view);
+    expect(await fire(reg.fns, IPC_CHANNELS.providerListModels)).toEqual({
+      ok: true,
+      models: ["mochen-8B"]
+    });
     expect(Object.keys(view).sort()).toEqual(["baseURL", "hasKey", "keyMask", "model"]);
     expect(JSON.stringify(view)).not.toContain("sk-never-crosses-ipc");
-    expect(seen).toEqual(["view", draft]);
+    expect(seen).toEqual(["view", draft, "list"]);
+  });
+
+  it("枚举通道不传任何参数：远端地址与密钥由主进程自己从配置里取", async () => {
+    const seen: unknown[] = [];
+    const reg = registry();
+    registerProviderIpc(reg.handle, stubSettings(seen), stubLister(seen));
+    // 渲染层哪怕硬塞一个对象进来（旧签名残留、或有人想传 baseURL），也不许变成参数落到 lister。
+    await fire(reg.fns, IPC_CHANNELS.providerListModels, { baseURL: "http://evil.test/v1" });
+    expect(seen).toEqual(["list"]);
   });
 });

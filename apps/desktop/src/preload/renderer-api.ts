@@ -44,6 +44,7 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     loadSession: (threadKey) => invoke(IPC_CHANNELS.agentLoadSession, threadKey),
     providerView: () => invoke(IPC_CHANNELS.providerGet),
     providerSave: (draft: ProviderDraft) => invoke(IPC_CHANNELS.providerSave, draft),
+    listModels: () => invoke(IPC_CHANNELS.providerListModels),
     onAgentEvent: (listener) =>
       on(IPC_CHANNELS.agentEvent, (payload) => listener(payload as AgentOutbound))
   };

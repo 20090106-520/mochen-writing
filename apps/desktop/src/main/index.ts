@@ -11,6 +11,7 @@ import { electronCipher } from "./electron-cipher.js";
 import { registerPickDirectoryIpc } from "./pick-directory.js";
 import { createProviderSettings } from "./provider-settings.js";
 import { toProviderFetch } from "./provider-fetch.js";
+import { createModelLister } from "./provider-models.js";
 
 const service = createBookService();
 
@@ -43,6 +44,8 @@ app.whenReady().then(() => {
   const secretDir = path.join(app.getPath("appData"), "mochen-writing");
   const credentials = createCredentialStore(secretDir, electronCipher(safeStorage));
   const settings = createProviderSettings({ dir: secretDir, credentials });
+  // 模型枚举只在这条线上出网：baseURL 与密钥都从 settings 里取，渲染层递不进任何一个字。
+  const modelLister = createModelLister({ settings });
   const agent = createAgentService({
     book: service,
     settings,
@@ -60,7 +63,7 @@ app.whenReady().then(() => {
     promptFor: defaultPromptFor
   });
   registerAgentIpc((channel, fn) => ipcMain.handle(channel, fn), agent);
-  registerProviderIpc((channel, fn) => ipcMain.handle(channel, fn), settings);
+  registerProviderIpc((channel, fn) => ipcMain.handle(channel, fn), settings, modelLister);
   win.on("closed", () => agent.dispose());
 
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;

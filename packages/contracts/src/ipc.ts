@@ -6,7 +6,7 @@ import type {
   SessionLoadResult,
   StartTurnInput
 } from "./agent-event.js";
-import type { ProviderDraft, ProviderView } from "./provider.js";
+import type { ModelListResult, ProviderDraft, ProviderView } from "./provider.js";
 
 export const IPC_CHANNELS = {
   bookOpen: "book:open",
@@ -21,6 +21,7 @@ export const IPC_CHANNELS = {
   agentDiff: "agent:diff",
   providerGet: "provider:get",
   providerSave: "provider:save",
+  providerListModels: "provider:list-models",
   agentLoadSession: "agent:load-session"
 } as const;
 
@@ -56,6 +57,8 @@ export interface RendererApi {
   loadSession(threadKey: string): Promise<SessionLoadResult>;
   providerView(): Promise<ProviderView>;
   providerSave(draft: ProviderDraft): Promise<ProviderView>;
+  /** 拉远端可选模型名（`{baseURL}/models`，只在主进程出网）；失败回一句中文理由，不抛过 IPC。 */
+  listModels(): Promise<ModelListResult>;
   /** 返回取消订阅的函数；渲染层拿不到 ipcRenderer。 */
   onAgentEvent(listener: (payload: AgentOutbound) => void): () => void;
 }

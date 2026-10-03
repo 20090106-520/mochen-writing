@@ -9,6 +9,7 @@ import type {
   DecisionResult,
   DocWriteResult,
   EditProposal,
+  ModelListResult,
   ProviderView,
   RendererApi,
   SessionLoadResult,
@@ -173,6 +174,10 @@ export const api = {
   loadSession,
   providerView: vi.fn(async (): Promise<ProviderView> => view),
   providerSave: vi.fn(async (): Promise<ProviderView> => view),
+  listModels: vi.fn(async (): Promise<ModelListResult> => ({
+    ok: true,
+    models: ["mochen-mock", "mochen-8B"]
+  })),
   onAgentEvent: vi.fn((listener: (payload: AgentOutbound) => void) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
