@@ -15,10 +15,12 @@ import ToolRoster from "./ToolRoster.vue";
 import BookWorkbench from "./BookWorkbench.vue";
 import { cardTurnLabel, splitProposalCards, turnAnchors } from "../utils/timeline";
 import {
-  WORKBENCH_PREFILL,
+  WORKBENCH_CARD_PREFILL,
   workbenchCards,
+  workbenchSuggestions,
   workbenchTarget,
-  type WorkbenchCardId
+  type WorkbenchCardId,
+  type WorkbenchSuggestion
 } from "../utils/workbench-state";
 import { useGlobalHotkeys } from "../composables/useHotkeys";
 import { useBookStore } from "../stores/useBookStore";
@@ -128,22 +130,44 @@ const orphanError = computed(() => {
   return text === "" || text === lastTimelineError.value ? "" : text;
 });
 
-// 作品工作台（F-A）：判定全在 utils/workbench-state，这里只接线；hasBook 不设本地 computed，
+// 作品工作台（F-A + 示意稿 A）：判定全在 utils/workbench-state，这里只接线；hasBook 不设本地 computed，
 // 统一读 store getter（T7-1 单一真身）。
 const cards = computed(() =>
   workbenchCards({ hasBook: book.hasBook, docs: book.docs, activeChapter: book.activeDocTab })
 );
-// 四张卡的点击协调（跨 book / agent 两个 store）只在这一处：
+const suggestions = computed(() =>
+  workbenchSuggestions({ hasBook: book.hasBook, docs: book.docs, activeChapter: book.activeDocTab })
+);
+/** 往「这一章的线程」里填一句人话：卡片与 pill 共用这一条通路，差别只是句子从哪张表来。 */
+function prefillChapterThread(target: string, text: string): void {
+  void book.openDocTab(target); // 右栏进文稿态，线程随 threadKeyFor 绑定；预填才看得见
+  agent.prefillComposer(threadKeyFor(target), text); // Task 4 通路
+}
+// 卡的点击协调（跨 book / agent 两个 store）只在这一处：填字卡 ⇒ 开章 + 预填，其余 ⇒ 浏览。
 function onWorkbenchPick(id: WorkbenchCardId): void {
   const target = workbenchTarget({ id, docs: book.docs, activeChapter: book.activeDocTab });
   if (target === null) return; // disabled 卡点不到；防御性早退。
-  if (id === "chief-write") {
-    void book.openDocTab(target); // 右栏进文稿态，线程随 threadKeyFor 绑定
-    agent.prefillComposer(threadKeyFor(target), WORKBENCH_PREFILL); // Task 4 通路
+  const text = WORKBENCH_CARD_PREFILL[id];
+  if (text !== null) {
+    prefillChapterThread(target, text);
     return;
   }
   const ref = book.refOf(target); // character / world / outline ⇒ 浏览，不动 docTabs / 草稿
   if (ref) book.browse(ref);
+}
+// pill 的两条出路（表在 workbench-state）：palette ⇒ 与 Ctrl+/, / 键同一个开关；prefill ⇒ 填进当前章线程。
+function onWorkbenchSuggestion(suggestion: WorkbenchSuggestion): void {
+  if (suggestion.kind === "palette") {
+    paletteOpen.value = true;
+    return;
+  }
+  const target = workbenchTarget({
+    id: "chief-write",
+    docs: book.docs,
+    activeChapter: book.activeDocTab
+  });
+  if (target === null) return; // pill 只在有目标时出场（workbenchSuggestions 已经这么判了）。
+  prefillChapterThread(target, suggestion.prefill);
 }
 
 function decide(proposalId: string, decision: ProposalDecision, guidance: string): void {
@@ -248,7 +272,9 @@ onBeforeUnmount(() => {
             :has-book="book.hasBook"
             :agent-label="agentLabel"
             :cards="cards"
+            :suggestions="suggestions"
             @pick="onWorkbenchPick"
+            @suggestion="onWorkbenchSuggestion"
           />
           <p v-if="orphanError" class="error-line">{{ orphanError }}</p>
         </div>

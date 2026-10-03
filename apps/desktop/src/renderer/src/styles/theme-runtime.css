@@ -164,8 +164,10 @@ html[data-theme]
   :where(
     .composer-input-surface,
     .composer-attachment-chip,
-    .empty-suggestions button,
     .workbench-card,
+    .workbench-hero,
+    .workbench-intro,
+    .workbench-suggestion,
     .workbench-open-book,
     .workspace-dialog,
     .workspace-settings-panel,

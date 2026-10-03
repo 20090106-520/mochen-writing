@@ -157,23 +157,6 @@ html[data-platform="darwin"] .conversation-header {
   color: var(--text-secondary);
 }
 
-.empty-agent-mark {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 52px;
-  height: 52px;
-  margin-bottom: 18px;
-  border-radius: 14px;
-  overflow: hidden;
-}
-
-.empty-agent-mark img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .conversation-empty h1 {
   color: var(--text-primary);
   font-size: 1.57143rem;
@@ -189,7 +172,87 @@ html[data-platform="darwin"] .conversation-header {
   line-height: 1.7;
 }
 
-.empty-suggestions {
+/* 作品工作台（示意稿 A）：hero + 五张能力卡 + 能力清单气泡 + 建议 pill。
+   只吃本仓已有 token（styles.css :root 与 appearanceThemeRuntime.ts 那套），不新增色值；
+   需要柔和一层就用 color-mix，不写第二份十六进制。
+   原先的 .empty-agent-mark / .empty-suggestions 是品牌空状态的遗留，工作台取代它们后已整段删除。 */
+
+.book-workbench {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  width: 100%;
+}
+
+.workbench-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--theme-line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+}
+
+/* 品牌原图整幅显示：cover 会裁掉龙首与落款，违「原图原样用」。 */
+.workbench-hero-art {
+  flex: 0 0 auto;
+  width: 118px;
+  height: auto;
+  border-radius: 12px;
+  object-fit: contain;
+}
+
+.workbench-hero-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.workbench-quote {
+  color: var(--text-faint);
+  font-size: 0.785714rem;
+  letter-spacing: 0.02em;
+}
+
+.workbench-intro {
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: var(--surface-raised);
+}
+
+.workbench-intro-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+}
+
+.workbench-intro-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.workbench-capabilities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 4px 16px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  line-height: 1.8;
+}
+
+.workbench-suggestions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -197,7 +260,7 @@ html[data-platform="darwin"] .conversation-header {
   margin-top: 19px;
 }
 
-.empty-suggestions button {
+.workbench-suggestion {
   min-height: 31px;
   padding: 0 11px;
   border: 1px solid var(--theme-line);
@@ -208,31 +271,15 @@ html[data-platform="darwin"] .conversation-header {
   cursor: pointer;
 }
 
-.empty-suggestions button:hover {
-  border-color: var(--theme-line);
+.workbench-suggestion:hover {
+  border-color: var(--focus);
   background: var(--surface-muted);
   color: var(--text-primary);
 }
 
-.empty-suggestions button:disabled {
-  border-color: var(--surface-hover);
-  background: var(--surface-raised);
-  color: var(--text-tertiary);
-}
-
-/* Task 7（波 1.5 · F-A）：作品工作台取代品牌空状态，就住在上面这套 empty 视觉语境里。
-   只吃本仓已有 token（appearanceThemeRuntime.ts:158-197 与 styles.css :root），不新增色值。 */
-
-.book-workbench {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  width: 100%;
-}
-
 .workbench-cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
   gap: 10px;
   width: 100%;
   margin-top: 22px;
@@ -250,6 +297,16 @@ html[data-platform="darwin"] .conversation-header {
   color: var(--text-primary);
   text-align: left;
   cursor: pointer;
+}
+
+.workbench-card-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--focus) 14%, transparent);
+  color: var(--focus);
 }
 
 .workbench-card:hover:not(:disabled) {

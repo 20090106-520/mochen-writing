@@ -1,16 +1,44 @@
 import type { BookKind, DocRef } from "@mochen/contracts";
+import type { IconName } from "../types/icons";
 
-export type WorkbenchCardId = "chief-write" | "character" | "world" | "outline";
+/**
+ * 作品工作台的判定表（示意稿 A 的中栏）。
+ *
+ * 为什么整张表住在 `.ts`：本仓的 `.vue` 既不过 `tsc` 也没有组件测试环境，
+ * 把「哪张卡对应哪个分组、点它填哪句话」写进模板就等于写了一段永远测不到的逻辑。
+ * 放在这里，`Record<WorkbenchCardId, …>` 就是编译期关卡——contracts 或这里加第六张卡而漏一行，
+ * 裸 `tsc` 当场报 TS2741，而不是画出一张缺格的假工作台。
+ */
+export type WorkbenchCardId = "chief-write" | "character" | "world" | "outline" | "inspire";
 
 export const WORKBENCH_CARD_LABELS: Record<WorkbenchCardId, string> = {
   "chief-write": "主笔创作",
   character: "角色塑造",
   world: "世界构建",
-  outline: "大纲规划"
+  outline: "大纲规划",
+  inspire: "灵感激发"
 };
 
-/** 主笔创作卡的预填指令；只在 Task 4 的 prefillComposer 通路落地后才随卡出现（§2.7）。 */
-export const WORKBENCH_PREFILL = "我想改这一章：先读它，再给我三处可以动的地方。";
+/** 卡上的图标名（原先这张表抄在 BookWorkbench.vue 里，`.vue` 不过 tsc ⇒ 下沉到这里才有关卡）。 */
+export const WORKBENCH_CARD_ICONS: Record<WorkbenchCardId, IconName> = {
+  "chief-write": "wand",
+  character: "user",
+  world: "globe",
+  outline: "list",
+  inspire: "brain"
+};
+
+/**
+ * 点了之后填进输入区的那句人话；`null` ⇒ 这张卡不填字，只把右栏落到浏览态。
+ * 装配处（CenterColumn）分支认的就是这一枚 `null`，于是「谁填字、谁浏览」全仓只有一处可改。
+ */
+export const WORKBENCH_CARD_PREFILL: Record<WorkbenchCardId, string | null> = {
+  "chief-write": "我想改这一章：先读它，再给我三处可以动的地方。",
+  character: null,
+  world: null,
+  outline: null,
+  inspire: "给我三个能接着往下写的点子，各写一句代价；先别动我的稿子。"
+};
 
 export interface WorkbenchCard {
   id: WorkbenchCardId;
@@ -19,10 +47,11 @@ export interface WorkbenchCard {
   enabled: boolean;
 }
 
-const CARD_ORDER: WorkbenchCardId[] = ["chief-write", "character", "world", "outline"];
+const CARD_ORDER: WorkbenchCardId[] = ["chief-write", "character", "world", "outline", "inspire"];
 
 // world 卡落 materials/ 分组（scan.ts:45 把 materials/ 归 material kind）；character→characters、outline→outline。
-const CARD_TARGET_KIND: Record<Exclude<WorkbenchCardId, "chief-write">, BookKind> = {
+// chief-write 与 inspire 都落在章节上：前者提改稿，后者要点子，动作同一条通路、句子不同。
+const CARD_TARGET_KIND: Record<Exclude<WorkbenchCardId, "chief-write" | "inspire">, BookKind> = {
   character: "character",
   world: "material",
   outline: "outline"
@@ -32,7 +61,8 @@ const CARD_HINTS: Record<WorkbenchCardId, string> = {
   "chief-write": "打开当前章，预填一句改稿指令，再交给你逐条审批。",
   character: "浏览人物分组第一篇，落到右栏浏览态。",
   world: "浏览素材库分组第一篇，落到右栏浏览态。",
-  outline: "浏览大纲分组第一篇，落到右栏浏览态。"
+  outline: "浏览大纲分组第一篇，落到右栏浏览态。",
+  inspire: "打开当前章，预填一句要点子的话；发不发由你。"
 };
 
 /** 该卡的目标分组在本书里不存在时的实话：不承诺动作，只说明缺什么。 */
@@ -40,10 +70,71 @@ export const WORKBENCH_EMPTY_HINTS: Record<WorkbenchCardId, string> = {
   "chief-write": "这本书还没有章节，先在左栏新建一篇。",
   character: "这本书还没有人物分组。",
   world: "这本书还没有素材库分组。",
-  outline: "这本书还没有大纲分组。"
+  outline: "这本书还没有大纲分组。",
+  inspire: "这本书还没有章节，先在左栏新建一篇。"
 };
 
-/** 无书 ⇒ false：整块降级成引导，不显示任何死卡。 */
+/** hero 那句引言：示意稿 A 右上位的文案，纯静态展示，不挂任何动作。 */
+export const WORKBENCH_HERO_QUOTE = "以文字为舟，载你抵达想象的彼岸。";
+
+/**
+ * 能力气泡的六条（示意稿 A 那条「我可以帮你进行：」）。
+ * 逐条都落在本版真有的通路上：五枚工具（读/列/检索/提案/写全篇）+ 逐条审批；
+ * 不写「自动写入」这一类本版没有的话。
+ */
+export const WORKBENCH_CAPABILITIES: readonly string[] = [
+  "改稿：先整篇读，再逐条给替换提案，你批准才落盘。",
+  "人物：核对设定与台词，点出人设前后对不上的地方。",
+  "世界观与素材：整理素材条目，标出还没用上的伏笔。",
+  "大纲：按现有章节倒推结构，给出下一节的落点。",
+  "全书检索：报出 路径:行号:原文，改哪一段都指得回去。",
+  "续写与开头备选：一次给几个方向，各写一句代价。"
+];
+
+/**
+ * 建议 pill（示意稿 A 输入区上方那一排）。
+ * 两条出路：`prefill` ⇒ 把 `prefill` 那句填进当前章的线程；`palette` ⇒ 打开 `/` 命令面板。
+ * 没有第三条：本版的「更多功能」就是面板本身，不另造一个只能弹 toast 的按钮。
+ */
+export type WorkbenchSuggestion =
+  | { id: string; kind: "prefill"; text: string; prefill: string }
+  | { id: string; kind: "palette"; text: string };
+
+const SUGGESTIONS: readonly WorkbenchSuggestion[] = [
+  {
+    id: "openings",
+    kind: "prefill",
+    text: "帮我构思三个开头",
+    prefill: "帮我构思三个不同的开头，各写一句它把读者往哪儿带。"
+  },
+  {
+    id: "cast",
+    kind: "prefill",
+    text: "点出这一章的人物",
+    prefill: "列出这一章出场的人物，指出谁的目标和代价还没写清楚。"
+  },
+  {
+    id: "thicken",
+    kind: "prefill",
+    text: "扩写最薄的一段",
+    prefill: "找出这一章最薄的一段，扩写到站得住，先给我看提案。"
+  },
+  {
+    id: "checkup",
+    kind: "prefill",
+    text: "给这一章做体检",
+    prefill: "通读这一章，指出三处节奏或逻辑上的问题，并给出改法。"
+  },
+  { id: "more", kind: "palette", text: "更多功能" }
+];
+
+/** pill 的 title：报得出这条出路真会发生的事，不写「敬请期待」。 */
+export const WORKBENCH_SUGGESTION_TITLES: Record<WorkbenchSuggestion["kind"], string> = {
+  prefill: "点一下把这句话填进输入区，发不发由你；不发它一个字也不动。",
+  palette: "打开 / 命令面板，看这一版能敲的命令。"
+};
+
+/** 无书降级的整块引导由装配处按 `cards.length === 0` 决定；这里只保证无书时一张死卡都不出。 */
 export function workbenchVisible(hasBook: boolean): boolean {
   return hasBook;
 }
@@ -53,7 +144,7 @@ export function workbenchTarget(input: {
   docs: DocRef[];
   activeChapter: string | null;
 }): string | null {
-  if (input.id === "chief-write") {
+  if (input.id === "chief-write" || input.id === "inspire") {
     const active = input.activeChapter?.trim() ?? "";
     if (active !== "") return active;
     return input.docs.find((doc) => doc.kind === "chapter")?.relPath ?? null;
@@ -78,4 +169,22 @@ export function workbenchCards(input: {
       enabled: target !== null
     };
   });
+}
+
+/**
+ * 建议 pill 的出场条件与 chief-write 卡同源：没有可填字的章节线程，就一枚都不出。
+ * （摆一枚点了填不进任何东西的 pill，就是本仓禁的那类「按了没反应的按钮」。）
+ */
+export function workbenchSuggestions(input: {
+  hasBook: boolean;
+  docs: DocRef[];
+  activeChapter: string | null;
+}): WorkbenchSuggestion[] {
+  if (!workbenchVisible(input.hasBook)) return [];
+  if (
+    workbenchTarget({ id: "chief-write", docs: input.docs, activeChapter: input.activeChapter }) ===
+    null
+  )
+    return [];
+  return [...SUGGESTIONS];
 }
