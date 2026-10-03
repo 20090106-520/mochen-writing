@@ -3,12 +3,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { PROPOSAL_STATUS_LABELS, type AgentEvent, type ProposalDecision } from "@mochen/contracts";
-import { permissionChipView } from "../utils/permission-chip";
 import AppIcon from "./AppIcon.vue";
 import AgentTimeline from "./AgentTimeline.vue";
 import ProposalCard from "./ProposalCard.vue";
 import ComposerBox from "./ComposerBox.vue";
-import PermissionMenu from "./PermissionMenu.vue";
 import ProviderSettings from "./ProviderSettings.vue";
 import SlashPalette from "./SlashPalette.vue";
 import ToolRoster from "./ToolRoster.vue";
@@ -105,14 +103,8 @@ const contextTitle = computed(() => {
   const chapter = book.docs.find((doc) => doc.relPath === book.activeDocTab);
   return `${book.meta.title} · ${chapter ? chapter.title : "未打开章节"}`;
 });
-// 档位 chip 的判定唯一来自 permissionChipView（设计决定 4）：无书不报档位名、不冒充按钮。
-const permissionChip = computed(() =>
-  permissionChipView({
-    hasBook: book.hasBook,
-    mode: book.meta?.permissionMode ?? null,
-    saving: book.metaSaving
-  })
-);
+// 档位 chip 的判定唯一来自 permissionChipView（设计决定 4）——#105 起这枚 chip 连弹层一起住进输入卡，
+// 头部不再自行算一份（composerChips 内部还是只调 permissionChipView 一次，真身没有第二份）。
 
 /**
  * 装配层去重（Wave A 顾虑 1）：`error` 事件既进 items（时间线里的 error 块），
@@ -244,22 +236,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div class="conversation-header-actions">
-        <div class="permission-menu-actions">
-          <button
-            class="permission-chip is-button"
-            type="button"
-            :disabled="permissionChip.disabled"
-            :title="permissionChip.title"
-            :aria-expanded="book.hasBook && book.permissionMenuOpen"
-            @click="book.togglePermissionMenu()"
-          >
-            {{ permissionChip.text }}
-          </button>
-          <PermissionMenu
-            v-if="book.hasBook && book.permissionMenuOpen"
-            @close="book.closePermissionMenu()"
-          />
-        </div>
+        <!-- #105：权限档 chip 与 PermissionMenu 弹层真身一起搬进输入卡右端（deepwrite 的「更多」那一端）；
+             头部再挂一枚就是同一个开关两份真身，故整块退役。 -->
         <button class="header-text-button" type="button" @click="layout.showSettings()">
           <AppIcon name="settings" :size="15" />
           <span>模型设置</span>
@@ -366,6 +344,7 @@ onBeforeUnmount(() => {
       :has-book="book.hasBook"
       :permission-mode="book.meta?.permissionMode ?? null"
       :permission-saving="book.metaSaving"
+      :permission-menu-open="book.hasBook && book.permissionMenuOpen"
       :thinking-level="agent.thinkingLevel"
       :web-search-enabled="agent.webSearchEnabled"
       :model-label="provider.modelLabel"
@@ -375,6 +354,7 @@ onBeforeUnmount(() => {
       @stop="agent.stop()"
       @resume="agent.continueTurn()"
       @open-permission-menu="book.togglePermissionMenu()"
+      @close-permission-menu="book.closePermissionMenu()"
       @cycle-thinking="agent.cycleThinking()"
       @toggle-web-search="agent.toggleWebSearch()"
       @open-tool-roster="rosterOpen = true"

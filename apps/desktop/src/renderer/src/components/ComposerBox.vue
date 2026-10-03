@@ -1,8 +1,14 @@
-<!-- 输入区：发送 / 打断 / 断流后续写。这里不含业务判断，一切交给 store；输入值本身也由 store 持有（F-A 前置）。 -->
+<!-- 输入区：一张圆角卡，结构照搬 deepwrite 的 ConversationComposer（Apache-2.0）——
+     composer-wrap/composer/composer-input-surface 三层骨架、rows=1 + field-sizing 自增高、
+     toolbar 左右分栏、同一位置的 发送↔stop 形变、忙态整卡 is-disabled 压暗。
+     三条裁定的落点：A 计数条常态不占位、只在接近/超限显形（超限有看得见的理由）；
+     B 忙态只压暗不禁用 textarea（Tab 排队通路原样保留）；C 附件(+)/麦克风没有通道，不进 UI。
+     这里不含业务判断，一切交给 store；输入值本身也由 store 持有（F-A 前置）。 -->
 <script setup lang="ts">
 import { computed } from "vue";
 import type { PermissionMode, ThinkingLevel } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
+import PermissionMenu from "./PermissionMenu.vue";
 import {
   composerChips,
   composerCounter,
@@ -18,6 +24,8 @@ const props = defineProps<{
   hasBook: boolean;
   permissionMode: PermissionMode | null; // 档位联合一律从 contracts 来，不在组件里手抄三元（铁律 6）
   permissionSaving: boolean;
+  // #105：权限档弹层真身挂到卡右端（deepwrite 的「更多」那一端）；开合仍由装配处的 useBookStore 裁决。
+  permissionMenuOpen: boolean;
   thinkingLevel: ThinkingLevel;
   webSearchEnabled: boolean;
   modelLabel: string;
@@ -32,6 +40,7 @@ const emit = defineEmits<{
   stop: [];
   resume: [];
   "open-permission-menu": [];
+  "close-permission-menu": [];
   "cycle-thinking": [];
   "toggle-web-search": [];
   "open-tool-roster": [];
@@ -57,6 +66,9 @@ const chips = computed(() =>
     baseURL: props.baseUrl
   })
 );
+// #105 左右分栏：栏位是 composerChips 表里的 slot 字段，这里只过滤——模板不养第二份顺序表（铁律 6）。
+const chipsLeft = computed(() => chips.value.filter((c) => c.slot === "left"));
+const chipsRight = computed(() => chips.value.filter((c) => c.slot === "right"));
 // 计数条与主进程边界共用 USER_TEXT_MAX_LEN：这里说没超，发出去就不会被拒。
 const counter = computed(() => composerCounter(props.modelValue));
 
@@ -74,67 +86,103 @@ function submit(): void {
 }
 
 // 回车提交 / Shift+Enter 与 Ctrl+J 换行 / 运行中 Tab 排队全在 utils/hotkeys + composables/useHotkeys 判定（裁定 G5）。
+// 键位提示按 deepwrite 的做法住在 title 里，不再单独占一行静态文字（textarea 的 title 见模板）。
 </script>
 
 <template>
-  <footer class="agent-composer">
-    <textarea
-      v-model="draft"
-      data-mochen-composer
-      class="composer-box"
-      rows="3"
-      :placeholder="
-        ready
-          ? '想改哪一段？说给人话，别贴整篇正文——它会自己读文件。'
-          : '先在左栏打开作品，或在右上角设置里配好模型。'
-      "
-    />
-    <div class="composer-chips" role="group" aria-label="输入区开关">
-      <button
-        v-for="chip in chips"
-        :key="chip.id"
-        class="composer-chip"
-        type="button"
-        :disabled="chip.disabled"
-        :title="chip.title"
-        :aria-pressed="chip.active"
-        @click="onChipClick(chip.id)"
-      >
-        {{ chip.text }}
-      </button>
-      <!-- 裁定 C：这一句是纯静态键位说明——不读计数、不带 click、不是徽标；队列数字唯一真身在状态行。 -->
-      <span class="composer-chip-hint">运行中按 Tab 可排队指令</span>
-    </div>
-    <div class="composer-actions">
-      <!-- 计数条：超上限时换成中文理由并翻红，同时禁用发送——主进程边界本来就会拒，这里不让你白按一次。 -->
-      <span class="composer-counter" :class="{ 'composer-counter--over': counter.over }">
-        {{ counter.over ? `已超出上限，先删一点（${counter.text}）` : counter.text }}
-      </span>
-      <span class="composer-hint">Enter 发送 · Shift+Enter 换行 · Esc 打断</span>
-      <button v-if="running" class="composer-stop" type="button" @click="emit('stop')">
-        <AppIcon name="stop" :size="14" />
-        <span>打断</span>
-      </button>
-      <button
-        v-if="canContinue && !running"
-        class="composer-resume"
-        type="button"
-        title="接着上一轮未写完的地方继续（残字已经在对话里）"
-        @click="emit('resume')"
-      >
-        <AppIcon name="redo" :size="14" />
-        <span>继续</span>
-      </button>
-      <!-- 发送键的 disabled 不配 title：Chromium 不给 disabled 按钮弹提示，理由由上面那行计数条说给人看。 -->
-      <button
-        class="composer-send"
-        type="button"
-        :disabled="running || modelValue.trim() === '' || counter.over"
-        @click="submit()"
-      >
-        <AppIcon name="arrow-up" :size="15" />
-        <span>发送</span>
-      </button>
+  <footer class="composer-wrap">
+    <div class="composer" :class="{ 'is-disabled': running }">
+      <div class="composer-input-surface">
+        <textarea
+          v-model="draft"
+          data-mochen-composer
+          class="composer-textarea"
+          rows="1"
+          title="Enter 发送 · Shift+Enter 换行 · Esc 打断 · 运行中按 Tab 排队指令"
+          :placeholder="
+            ready
+              ? '想改哪一段？说给人话，别贴整篇正文——它会自己读文件。'
+              : '先在左栏打开作品，或在右上角设置里配好模型。'
+          "
+        />
+        <!-- 裁定 A：常态不占位；接近上限显计数，超限翻红 + 禁用发送 + 中文理由（Chromium 不给 disabled 弹 title，理由必须是看得见的文字）。 -->
+        <div
+          v-if="counter.over || counter.near"
+          class="composer-counter"
+          :class="{ 'composer-counter--over': counter.over }"
+        >
+          {{
+            counter.over ? `已超出上限，先删一点（${counter.text}）` : `接近上限（${counter.text}）`
+          }}
+        </div>
+        <div class="composer-toolbar">
+          <div class="composer-toolbar-left" role="group" aria-label="输入区开关">
+            <button
+              v-for="chip in chipsLeft"
+              :key="chip.id"
+              class="composer-chip"
+              type="button"
+              :disabled="chip.disabled || running"
+              :title="chip.title"
+              :aria-pressed="chip.active"
+              @click="onChipClick(chip.id)"
+            >
+              <AppIcon v-if="chip.badge === 'globe'" name="globe" :size="11" />
+              {{ chip.text }}
+            </button>
+            <!-- 裁定 C/B：这一句是纯静态键位说明——不读计数、不带 click、不是徽标；队列数字唯一真身在状态行。 -->
+            <span class="composer-chip-hint">运行中按 Tab 可排队指令</span>
+          </div>
+          <div class="composer-toolbar-right" role="group" aria-label="模型与发送">
+            <button
+              v-for="chip in chipsRight"
+              :key="chip.id"
+              class="composer-chip"
+              type="button"
+              :disabled="chip.disabled || running"
+              :title="chip.title"
+              :aria-pressed="chip.active"
+              @click="onChipClick(chip.id)"
+            >
+              <AppIcon v-if="chip.badge === 'globe'" name="globe" :size="11" />
+              {{ chip.text }}
+            </button>
+            <!-- 权限档弹层真身（#105）：开关与关闭都由装配处经 props/emit 交给 useBookStore 裁决。 -->
+            <PermissionMenu v-if="permissionMenuOpen" @close="emit('close-permission-menu')" />
+            <button
+              v-if="canContinue && !running"
+              class="composer-resume"
+              type="button"
+              title="接着上一轮未写完的地方继续（残字已经在对话里）"
+              @click="emit('resume')"
+            >
+              <AppIcon name="redo" :size="14" />
+              <span>继续</span>
+            </button>
+            <!-- 同一枚位置的 发送↔stop 形变（deepwrite）：v-if/v-else 互斥，不是并排两枚。 -->
+            <button
+              v-if="running"
+              class="send-button stop-button"
+              type="button"
+              aria-label="停止生成"
+              title="停止生成"
+              @click="emit('stop')"
+            >
+              <AppIcon name="stop" :size="15" />
+            </button>
+            <button
+              v-else
+              class="send-button"
+              type="button"
+              aria-label="发送消息"
+              :disabled="modelValue.trim() === '' || counter.over"
+              @click="submit()"
+            >
+              <AppIcon name="arrow-up" :size="18" />
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </footer>
 </template>

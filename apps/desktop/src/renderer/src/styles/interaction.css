@@ -78,7 +78,8 @@
   font-size: 12px;
 }
 
-/* Task 9：权限档 popover */
+/* Task 9：权限档 popover。#105：锚点从头部 chip 挪到输入卡右端（.composer-toolbar-right 带 position: relative，
+   开向由 agent-pane.css 卡片段翻到上方），头部那枚包裹层随之退役。 */
 .permission-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -91,11 +92,6 @@
   background: color-mix(in srgb, var(--editor) 94%, transparent);
   backdrop-filter: blur(14px) saturate(118%);
   box-shadow: 0 12px 34px var(--shadow-color);
-}
-
-.permission-menu-actions {
-  position: relative;
-  display: inline-flex;
 }
 
 .permission-option {
@@ -175,18 +171,13 @@
   color: var(--warning);
 }
 
-/* Task 9（F-D）：输入区 chip 行，两枚真开关 + 一句静态键位提示。
-   T9-4②：chip 基础色用 --text-soft——同一个逻辑控件在中栏头部与输入区必须同色。
-   T9-4④：提示句与 .composer-hint（agent-pane.css:424-428）同一姿态：--text-faint + 12px。 */
-.composer-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  padding: 6px 10px 0;
-}
-
+/* Task 9（F-D）：输入区 chip。#105 起 chip 行从独立一行搬进卡内 toolbar 左右分栏
+   （容器与骨架见 agent-pane.css 末尾的卡片段），这里只留单枚 chip 的本体样式：
+   T9-4②：chip 基础色用 --text-soft——同一个逻辑控件在中栏头部与输入区必须同色。 */
 .composer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   border: 1px solid var(--line-soft);
   border-radius: 999px;
   background: transparent;
@@ -248,16 +239,6 @@
   border-color: color-mix(in srgb, var(--focus) 55%, var(--line-soft));
   background: var(--selected);
   color: var(--text);
-}
-
-.composer-counter {
-  color: var(--text-faint);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.composer-counter--over {
-  color: var(--danger-text);
 }
 
 /* 工具 ▾ 浮层（#101）：与 / 面板同一套毛玻璃与层级，只读清单，没有任何可点掉的行。 */
@@ -501,4 +482,19 @@
   margin: 12px 0 0;
   color: var(--text-faint);
   font-size: 12px;
+}
+
+/* ==== deepwrite-composer-card ====
+   Task 105 计数条（裁定 A）：deepwrite 的卡里没有计数，但超限拒发是主进程的真边界，不能照删——
+   折法是常态不占位（模板 v-if 只在 near/over 时渲染这一行），超限翻红并给出看得见的中文理由
+   （Chromium 不给 disabled 按钮弹 title）。样式照卡内排版走既有 token，零色值字面量。 */
+.composer-counter {
+  padding: 0 17px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-counter--over {
+  color: var(--danger-text);
 }

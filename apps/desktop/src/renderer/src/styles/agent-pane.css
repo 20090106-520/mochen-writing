@@ -396,69 +396,6 @@ html[data-platform="darwin"] .conversation-pane {
   color: var(--text-faint);
 }
 
-.agent-composer {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 24px 18px;
-  border-top: 1px solid var(--line-soft);
-}
-
-.composer-box {
-  width: 100%;
-  min-height: 76px;
-  padding: 11px 13px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--editor);
-  line-height: 1.7;
-  resize: vertical;
-}
-
-.composer-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.composer-hint {
-  margin-right: auto;
-  color: var(--text-faint);
-  font-size: 12px;
-}
-
-.composer-send,
-.composer-stop,
-.composer-resume {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 999px;
-  font-size: 13px;
-}
-
-.composer-send {
-  background: var(--neutral-solid);
-  color: var(--neutral-solid-contrast);
-}
-
-.composer-send:disabled {
-  opacity: 0.45;
-}
-
-.composer-stop {
-  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--line));
-  background: var(--danger-soft);
-  color: var(--danger-text);
-}
-
-.composer-resume {
-  border: 1px solid color-mix(in srgb, var(--focus) 40%, var(--line));
-  background: var(--hover);
-  color: var(--text);
-}
-
 .permission-chip {
   padding: 2px 9px;
   border: 1px solid var(--line-soft);
@@ -487,4 +424,136 @@ html[data-platform="darwin"] .conversation-pane {
   margin-bottom: 10px;
   color: var(--danger-text);
   font-size: 12px;
+}
+
+/* ==== deepwrite-composer-card ====
+   Task 105：输入区照搬 deepwrite（Apache-2.0）styles.css 的 composer 卡段——
+   圆角卡外骨架、focus 提亮、忙态压暗、textarea 自增高、toolbar 左右分栏、圆形发送键。
+   token 映射（deepwrite→本仓）：--theme-line→--line、--surface-main/--surface-raised→--editor、
+   --text-primary（正文色）→--text、--text-primary（实心键面）→--neutral-solid 配 --neutral-solid-contrast、
+   --surface-hover→--hover、深色半透明阴影→--shadow-color（:root 已是 theme-foreground 的 color-mix 档位）。
+   卡外渐变淡出与 focus 提亮的上色归 theme-runtime.css（那里早有 .composer-wrap/.composer-input-surface 的主题规则），
+   本段只落结构与不硬编码任何色值。 */
+
+.composer-wrap {
+  position: relative;
+  z-index: 2;
+  container: composer / inline-size;
+  padding: 10px max(18px, calc((100% - 760px) / 2)) 12px;
+}
+
+.composer {
+  position: relative;
+}
+
+/* 裁定 B：忙态整卡压暗（deepwrite 的 .composer.is-disabled 原值 0.75），但 textarea 不 disabled，Tab 排队通路照旧。 */
+.composer.is-disabled {
+  opacity: 0.75;
+}
+
+.composer-input-surface {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  border: 1px solid var(--line);
+  border-radius: 21px;
+  background: var(--editor);
+  box-shadow:
+    0 5px 18px color-mix(in srgb, var(--shadow-color) 45%, transparent),
+    0 1px 2px color-mix(in srgb, var(--shadow-color) 32%, transparent);
+}
+
+.composer:focus-within .composer-input-surface {
+  box-shadow:
+    0 7px 22px color-mix(in srgb, var(--shadow-color) 55%, transparent),
+    0 1px 2px color-mix(in srgb, var(--shadow-color) 26%, transparent);
+}
+
+.composer-textarea {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  max-height: 150px;
+  padding: 14px 17px 6px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  line-height: 1.6;
+  field-sizing: content;
+}
+
+.composer-textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.composer-toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px 8px;
+}
+
+.composer-toolbar-left {
+  display: flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
+}
+
+.composer-toolbar-right {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.send-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--neutral-solid);
+  color: var(--neutral-solid-contrast);
+  cursor: pointer;
+}
+
+.send-button:disabled {
+  background: var(--line-soft);
+  color: var(--text-faint);
+}
+
+.composer-resume {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--focus) 40%, var(--line));
+  border-radius: 999px;
+  background: var(--hover);
+  color: var(--text);
+  font-size: 12px;
+}
+
+/* 弹层真身挂卡右端：.permission-menu 默认朝下开（头部时代的锚点），输入卡在视口底部，必须翻到上方。 */
+.composer-toolbar-right .permission-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+/* 窄栏响应（deepwrite 用 composer 容器查询收 toolbar）：先收掉静态键位提示句，chip 与发送键保序。 */
+@container composer (max-width: min(32rem, 560px)) {
+  .composer-chip-hint {
+    display: none;
+  }
 }

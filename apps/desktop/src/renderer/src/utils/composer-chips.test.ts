@@ -67,9 +67,17 @@ describe("composer-chips · 六枚真开关/入口，排队不做按钮（F-D + 
     expect(composerChips(input()).every((c) => !c.text.includes("排队"))).toBe(true);
   });
 
-  it("每枚 chip 的键集固定为五字段（active 是aria-pressed 的真值来源，不许漏也不许多）", () => {
+  it("每枚 chip 的键集固定为七字段（active 是aria-pressed 的真值来源，不许漏也不许多；#105 起 slot/badge 承载分栏与角标，同表决策）", () => {
     for (const c of composerChips(input()))
-      expect(Object.keys(c).sort()).toEqual(["active", "disabled", "id", "text", "title"]);
+      expect(Object.keys(c).sort()).toEqual([
+        "active",
+        "badge",
+        "disabled",
+        "id",
+        "slot",
+        "text",
+        "title"
+      ]);
   });
 });
 
@@ -194,17 +202,22 @@ describe("composer-chips · CHIP_EMIT 与 ComposerChipId 同集", () => {
 
 describe("composerCounter · 计数条与守卫共用同一个上限", () => {
   it("空串是 0/20000，数字来自 USER_TEXT_MAX_LEN 而不是手抄", () => {
-    expect(composerCounter("")).toEqual({ text: `0/${USER_TEXT_MAX_LEN}`, over: false });
+    expect(composerCounter("")).toEqual({
+      text: `0/${USER_TEXT_MAX_LEN}`,
+      over: false,
+      near: false
+    });
   });
 
   it("按码点计数：一个 emoji 算一个字，两条代理对不许算成两个", () => {
     expect(composerCounter("🌊").text).toBe(`1/${USER_TEXT_MAX_LEN}`);
   });
 
-  it("刚好到上限不算超，超一个字就翻红（over 的边界由计数条与守卫共同承认）", () => {
+  it("刚好到上限不算超但已接近（near 归 #105 计数条），超一个字才翻 over", () => {
     expect(composerCounter("字".repeat(USER_TEXT_MAX_LEN))).toEqual({
       text: `${USER_TEXT_MAX_LEN}/${USER_TEXT_MAX_LEN}`,
-      over: false
+      over: false,
+      near: true
     });
     expect(composerCounter("字".repeat(USER_TEXT_MAX_LEN + 1)).over).toBe(true);
   });
