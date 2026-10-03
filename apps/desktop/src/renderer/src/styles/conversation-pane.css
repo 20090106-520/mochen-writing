@@ -220,6 +220,87 @@ html[data-platform="darwin"] .conversation-header {
   color: var(--text-tertiary);
 }
 
+/* Task 7（波 1.5 · F-A）：作品工作台取代品牌空状态，就住在上面这套 empty 视觉语境里。
+   只吃本仓已有 token（appearanceThemeRuntime.ts:158-197 与 styles.css :root），不新增色值。 */
+
+.book-workbench {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  width: 100%;
+}
+
+.workbench-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  margin-top: 22px;
+}
+
+.workbench-card {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--theme-line);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.workbench-card:hover:not(:disabled) {
+  border-color: var(--text-faint);
+  background: var(--surface-hover);
+}
+
+.workbench-card:disabled {
+  border-color: var(--line-soft);
+  background: var(--surface-muted);
+  color: var(--text-tertiary);
+}
+
+.workbench-card-label {
+  font-size: 0.892857rem;
+  font-weight: 620;
+}
+
+.workbench-card-hint {
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.workbench-empty-book {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.workbench-open-book {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 31px;
+  padding: 0 12px;
+  border: 1px solid var(--theme-line);
+  border-radius: 16px;
+  background: var(--surface-main);
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  cursor: pointer;
+}
+
+.workbench-open-book:hover {
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+
 .message-list {
   width: min(760px, calc(100% - 48px));
   margin: 0 auto;

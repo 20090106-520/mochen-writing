@@ -523,4 +523,12 @@ describe("useBookStore", () => {
     expect(store.activeDocTab).toBe("chapters/01-a.md");
     expect(store.draft).toBe("正文\n");
   });
+
+  // T7-1：hasBook 单一真身。判别力刻意压在「新 store ⇒ false」这一半——`() => true` 变异必先红在这里。
+  it("hasBook getter：新 store 为 false，openBook 后为 true", async () => {
+    const store = useBookStore();
+    expect(store.hasBook).toBe(false);
+    await store.openBook("/book");
+    expect(store.hasBook).toBe(true);
+  });
 });

@@ -22,7 +22,7 @@ const box = ref<HTMLInputElement | null>(null);
 
 const candidates = computed<SlashCommand[]>(() =>
   filterCommands(typed.value, {
-    hasBook: book.rootPath !== null,
+    hasBook: book.hasBook,
     turnRunning: agent.threads[threadKeyFor(book.activeDocTab)]?.running ?? false
   })
 );

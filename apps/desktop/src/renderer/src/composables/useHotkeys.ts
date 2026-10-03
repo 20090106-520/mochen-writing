@@ -196,7 +196,7 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
       focusedCard: targets.card,
       turnRunning: runningNow(),
       isComposing: event.isComposing,
-      hasBook: book.rootPath !== null,
+      hasBook: book.hasBook,
       tabCount: book.docTabs.length
     };
     const { action, tabIndex } = resolveHotkey(deriveHotkeyFocus(sources), event.key, mods);

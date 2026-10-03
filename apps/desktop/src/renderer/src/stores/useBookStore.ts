@@ -47,6 +47,16 @@ export const useBookStore = defineStore("book", {
     draftsByPath: {} as Record<string, DocState>
   }),
 
+  getters: {
+    /**
+     * T7-1：「有没有打开作品」这一概念的**单一真身**，判据取 meta（5 个读点里 4 个原本就读它，
+     * 且权限档 / 作品资料 / 状态回报三条通路都要读 meta）。
+     * 此前 CenterColumn / useAgentStore 读 `meta !== null`、SlashPalette / useHotkeys 读
+     * `rootPath !== null`，同一个 hasBook 字段两套口径——一律改读本 getter。
+     */
+    hasBook: (state) => state.meta !== null
+  },
+
   actions: {
     /** 用户取消时必须什么都不做——已打开的作品、草稿、标签一律保持原样。 */
     async pickAndOpen() {

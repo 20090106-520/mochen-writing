@@ -609,7 +609,7 @@ export const useAgentStore = defineStore("agent", {
               (view) => view.proposal.threadKey === threadKey
             ).length,
             pending: this.pendingOf(threadKey),
-            hasBook: book.meta !== null,
+            hasBook: book.hasBook,
             permissionMode: book.meta?.permissionMode ?? null,
             stageName:
               book.meta?.stages.find((stage) => stage.id === book.meta?.activeStage)?.name ?? "无"

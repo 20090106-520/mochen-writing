@@ -11,8 +11,14 @@ import ComposerBox from "./ComposerBox.vue";
 import PermissionMenu from "./PermissionMenu.vue";
 import ProviderSettings from "./ProviderSettings.vue";
 import SlashPalette from "./SlashPalette.vue";
-import brandMark from "../assets/brand/mochen-lockup.jpg";
+import BookWorkbench from "./BookWorkbench.vue";
 import { cardTurnLabel, splitProposalCards, turnAnchors } from "../utils/timeline";
+import {
+  WORKBENCH_PREFILL,
+  workbenchCards,
+  workbenchTarget,
+  type WorkbenchCardId
+} from "../utils/workbench-state";
 import { useGlobalHotkeys } from "../composables/useHotkeys";
 import { useBookStore } from "../stores/useBookStore";
 import { useLayoutStore } from "../stores/layoutStore";
@@ -76,7 +82,7 @@ const statusLine = computed(() =>
     thread.value?.queued.length ?? 0
   )
 );
-const ready = computed(() => book.meta !== null);
+const ready = computed(() => book.hasBook);
 
 const agentLabel = computed(() => {
   const stage = book.meta?.stages.find((item) => item.id === book.meta?.activeStage);
@@ -90,7 +96,7 @@ const contextTitle = computed(() => {
 // 档位 chip 的判定唯一来自 permissionChipView（设计决定 4）：无书不报档位名、不冒充按钮。
 const permissionChip = computed(() =>
   permissionChipView({
-    hasBook: book.meta !== null,
+    hasBook: book.hasBook,
     mode: book.meta?.permissionMode ?? null,
     saving: book.metaSaving
   })
@@ -116,6 +122,24 @@ const orphanError = computed(() => {
   const text = thread.value?.lastError ?? "";
   return text === "" || text === lastTimelineError.value ? "" : text;
 });
+
+// 作品工作台（F-A）：判定全在 utils/workbench-state，这里只接线；hasBook 不设本地 computed，
+// 统一读 store getter（T7-1 单一真身）。
+const cards = computed(() =>
+  workbenchCards({ hasBook: book.hasBook, docs: book.docs, activeChapter: book.activeDocTab })
+);
+// 四张卡的点击协调（跨 book / agent 两个 store）只在这一处：
+function onWorkbenchPick(id: WorkbenchCardId): void {
+  const target = workbenchTarget({ id, docs: book.docs, activeChapter: book.activeDocTab });
+  if (target === null) return; // disabled 卡点不到；防御性早退。
+  if (id === "chief-write") {
+    void book.openDocTab(target); // 右栏进文稿态，线程随 threadKeyFor 绑定
+    agent.prefillComposer(threadKeyFor(target), WORKBENCH_PREFILL); // Task 4 通路
+    return;
+  }
+  const ref = book.refOf(target); // character / world / outline ⇒ 浏览，不动 docTabs / 草稿
+  if (ref) book.browse(ref);
+}
 
 function decide(proposalId: string, decision: ProposalDecision, guidance: string): void {
   void agent.decide(proposalId, decision, guidance);
@@ -175,13 +199,13 @@ onBeforeUnmount(() => {
             type="button"
             :disabled="permissionChip.disabled"
             :title="permissionChip.title"
-            :aria-expanded="book.meta !== null && book.permissionMenuOpen"
+            :aria-expanded="book.hasBook && book.permissionMenuOpen"
             @click="book.togglePermissionMenu()"
           >
             {{ permissionChip.text }}
           </button>
           <PermissionMenu
-            v-if="book.meta !== null && book.permissionMenuOpen"
+            v-if="book.hasBook && book.permissionMenuOpen"
             @close="book.closePermissionMenu()"
           />
         </div>
@@ -214,14 +238,12 @@ onBeforeUnmount(() => {
           "
           class="conversation-empty"
         >
-          <span class="empty-agent-mark">
-            <img :src="brandMark" alt="" width="52" height="52" />
-          </span>
-          <h1>{{ agentLabel }}</h1>
-          <p>
-            说人话就行——它会自己读文档、给出逐条待审的改稿提案；
-            你不点批准，它一个字也写不进作品目录。
-          </p>
+          <BookWorkbench
+            :has-book="book.hasBook"
+            :agent-label="agentLabel"
+            :cards="cards"
+            @pick="onWorkbenchPick"
+          />
           <p v-if="orphanError" class="error-line">{{ orphanError }}</p>
         </div>
 
