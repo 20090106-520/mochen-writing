@@ -9,7 +9,6 @@
  * 三条裁定一并反向钉：A 计数条常态不占位、超限才有可见理由；B 忙态 textarea 绝不 disabled、Tab 通路不动；
  * C 附件(+)与麦克风没有通道，两枚控件连同其类名不得出现在本卡里。
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { USER_TEXT_MAX_LEN } from "@mochen/contracts";
 import {
@@ -18,33 +17,22 @@ import {
   composerCounter,
   type ComposerChipSlot
 } from "../utils/composer-chips";
-import { countNeedle, scriptSource, templateSource, vueSource } from "../utils/vue-source-reader";
+// styleSource / cardSection / ruleBlock 三株读 CSS 的助手原先在这里与 inline-reference-menu-wiring 各抄一份（铁律 6）。
+import {
+  cardSection,
+  countNeedle,
+  ruleBlock,
+  scriptSource,
+  styleSource,
+  templateSource,
+  vueSource
+} from "../utils/vue-source-reader";
 
 const COMPOSER = "components/ComposerBox.vue";
 const CENTER = "components/CenterColumn.vue";
-const CARD_MARKER = "deepwrite-composer-card";
 
 function markup(): string {
   return templateSource(COMPOSER);
-}
-
-function styleSource(file: string): string {
-  return readFileSync(new URL(`../styles/${file}`, import.meta.url), "utf8");
-}
-
-/** 从分段标记切到文件末尾：#105 新增的样式全部住在这一段，色值字面量关卡只扫这一段。 */
-function cardSection(file: string): string {
-  const css = styleSource(file);
-  const at = css.indexOf(CARD_MARKER);
-  expect(at, `styles/${file} 里必须有 ${CARD_MARKER} 分段标记`).toBeGreaterThan(-1);
-  return css.slice(at);
-}
-
-function ruleBlock(css: string, selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css);
-  expect(m, `样式表里找不到规则 ${selector}`).not.toBeNull();
-  return m?.[1] ?? "";
 }
 
 function chipInput(over: Partial<Parameters<typeof composerChips>[0]> = {}) {

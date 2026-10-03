@@ -1,6 +1,6 @@
 /// <reference types="node" />
 /**
- * `.vue` 源码读取器（铁律 6：同一件事不留第二份实现）。
+ * 源码读取器（铁律 6：同一件事不留第二份实现）：`.vue` 的三段与 `styles/` 下的样式表都从这里读。
  * 本仓零 jsdom / @vue/test-utils，模板与接线的正确性只能靠「读源文件断言字符串」的源码契约测试来钉；
  * 这类读取原先在 utils/hotkey-markers.test.ts 与 components/left-sidebar-nav.test.ts 各写了一份，
  * 后一份还不剥注释——于是**只活在注释里的字符串也能让断言变绿**。这里收为一份，行为以 hotkey 那份为准：
@@ -50,4 +50,39 @@ export function scriptSource(componentPathRelativeToRendererSrc: string): string
 export function countNeedle(needle: string, haystack: string): number {
   if (needle === "") throw new Error("空针串数不出意义");
   return haystack.split(needle).length - 1;
+}
+
+/** 读 `styles/` 下的一份样式表原文（`file` 只写文件名）。CSS 没有类型关卡，规则只能这样钉。 */
+export function styleSource(file: string): string {
+  return readFileSync(new URL(`../styles/${file}`, import.meta.url), "utf8");
+}
+
+/**
+ * 一条规则的正文（大括号以内）。原先 composer-card-wiring 与 inline-reference-menu-wiring 各写一份，
+ * 这里收为第三份之前的那一份（铁律 6）。
+ * 找不到规则一律抛错：返回空串会让后面每条 `toContain` 一起变绿，看不出缺的是哪条规则。
+ */
+export function ruleBlock(css: string, selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css);
+  if (match === null || match[1] === undefined) {
+    throw new Error(`样式表里找不到规则 ${selector}`);
+  }
+  return match[1];
+}
+
+/** #105 起从 deepwrite 照搬的输入卡样式全部住在这一枚分段标记之后。 */
+export const CARD_STYLE_MARKER = "deepwrite-composer-card";
+
+/**
+ * 从分段标记切到文件末尾：照搬段的色值字面量关卡只扫这一段。
+ * 标记不在文件里就抛错：静默返回整份 CSS 会让「这一段没有写死色值」的断言假绿。
+ */
+export function cardSection(file: string, marker: string = CARD_STYLE_MARKER): string {
+  const css = styleSource(file);
+  const at = css.indexOf(marker);
+  if (at === -1) {
+    throw new Error(`styles/${file} 里必须有 ${marker} 分段标记`);
+  }
+  return css.slice(at);
 }

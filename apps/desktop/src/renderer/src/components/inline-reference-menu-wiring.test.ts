@@ -13,7 +13,16 @@
  */
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { countNeedle, scriptSource, templateSource, vueSource } from "../utils/vue-source-reader";
+// 读 CSS 的三株助手住在 utils/vue-source-reader（原先与本文件各抄一份，铁律 6）。
+import {
+  cardSection,
+  countNeedle,
+  ruleBlock,
+  scriptSource,
+  styleSource,
+  templateSource,
+  vueSource
+} from "../utils/vue-source-reader";
 
 const MENU = "components/ComposerReferenceMenu.vue";
 const COMPOSER = "components/ComposerBox.vue";
@@ -23,27 +32,7 @@ const UTIL = "utils/inline-reference-menu.ts";
 const HOTKEYS = "utils/hotkeys.ts";
 const ESCAPE = "utils/escape-policy.ts";
 const SHELL = "composables/useHotkeys.ts";
-const CARD_MARKER = "deepwrite-composer-card";
 const COMPONENT_DIR = new URL("../components/", import.meta.url);
-
-function styleSource(file: string): string {
-  return readFileSync(new URL(`../styles/${file}`, import.meta.url), "utf8");
-}
-
-/** #105 起卡片样式段从标记切到文件末尾：本任务新增的菜单 CSS 也住这一段，色值关卡跟着扫这一段。 */
-function cardSection(file: string): string {
-  const css = styleSource(file);
-  const at = css.indexOf(CARD_MARKER);
-  expect(at, `styles/${file} 里必须有 ${CARD_MARKER} 分段标记`).toBeGreaterThan(-1);
-  return css.slice(at);
-}
-
-function ruleBlock(css: string, selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css);
-  expect(m, `样式表里找不到规则 ${selector}`).not.toBeNull();
-  return m?.[1] ?? "";
-}
 
 /** 全组件目录的 .vue 原文（跳过测试文件：契约测试自己写着 needle，不该被自己数进去）。 */
 function componentSources(): { file: string; text: string }[] {
