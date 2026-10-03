@@ -23,6 +23,8 @@ export interface DocRef {
   relPath: string;
   kind: BookKind;
   title: string;
+  /** 正文第一段纯文本（≤80 码点），由 scan 顺路带出；跨 IPC 消费处一律 `?? ""`。 */
+  excerpt?: string;
 }
 
 const stageSchema = z.object({ id: z.string().min(1), name: z.string().min(1) });
