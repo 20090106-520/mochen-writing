@@ -3,6 +3,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import type { ProviderDraft, ProviderView } from "@mochen/contracts";
+import { presentableProviderError } from "../utils/provider-error";
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -17,10 +18,12 @@ async function load(): Promise<void> {
   try {
     view.value = await window.mochen.providerView();
   } catch (reason) {
-    // provider:get 的读侧确实会抛（provider-settings.ts:37-59：配置文件被占用/缺字段都是中文句子），
+    // provider:get 的读侧确实会抛（配置被占用、缺字段、密钥解不开都是主进程抛出的中文单句），
     // 这里不接住就是一条未处理的 rejection + 弹窗永远停在「读取中」。
     view.value = null;
-    error.value = reason instanceof Error ? reason.message : String(reason);
+    error.value = presentableProviderError(
+      reason instanceof Error ? reason.message : String(reason)
+    );
     return;
   }
   baseURL.value = view.value.baseURL;
@@ -39,7 +42,9 @@ async function save(): Promise<void> {
     view.value = await window.mochen.providerSave(draft);
     apiKey.value = "";
   } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : String(reason);
+    error.value = presentableProviderError(
+      reason instanceof Error ? reason.message : String(reason)
+    );
   }
 }
 
@@ -85,7 +90,9 @@ onMounted(() => {
             <input v-model="apiKey" type="password" autocomplete="off" />
           </label>
           <p class="dialog-description">
-            当前：{{ view ? `${view.baseURL} · ${view.model}` : "读取中" }}
+            当前：{{
+              view ? `${view.baseURL} · ${view.model}` : error ? "未能读取当前配置" : "读取中"
+            }}
             {{ view && view.hasKey ? ` · 密钥 ${view.keyMask}` : " · 尚未存密钥" }}
           </p>
           <p v-if="error" class="provider-error">{{ error }}</p>
