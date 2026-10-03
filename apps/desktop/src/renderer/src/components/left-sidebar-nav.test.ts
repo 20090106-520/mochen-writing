@@ -58,3 +58,20 @@ describe("LeftSidebar · 三段主操作各调一个真身（F-C，§2.7）", ()
     expect(center).not.toContain("showSettings.value = ");
   });
 });
+
+describe("LeftSidebar · 书名与工作目录这一行（#103b：示意稿 B 顶栏的两条事实）", () => {
+  // 载体钉（M5 同律）：值在 script 里算好不等于进了 DOM，所以来源与插值各钉一次。
+  it("开书才有这一行：书名与绝对路径都读 store，且它是字不是按钮", () => {
+    expect(script).toContain("book.meta && book.rootPath");
+    const block = /<div v-if="workspace"[\s\S]*?<\/div>/.exec(template)?.[0] ?? "";
+    expect(block).toContain('class="sidebar-workdir"');
+    expect(block).toContain("{{ workspace.title }}");
+    expect(block).toContain("工作目录：{{ workspace.rootPath }}");
+    expect(block).toContain(':title="workspace.rootPath"');
+    // 这一行没有动作可谈 ⇒ 不许长出按钮或链接（点了没反应的 button 就是摆设）。
+    expect(block).not.toMatch(/<(button|a)\b/);
+    // 反向：没开书时整行不进 DOM，也不许预先糊一个假路径上去。
+    expect(template).toContain('v-if="workspace"');
+    expect(template).not.toContain("墨宸AI\\");
+  });
+});

@@ -126,6 +126,30 @@ describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F
     expect(paneScript).toContain('from "../utils/right-pane-labels"');
     expect(paneTemplate).toContain(':label="BAND_LABELS[mode]"');
   });
+
+  // #103b：保存态那句话此前是 `<script setup>` 里的四个中文字面量——改坏它全仓不红。
+  // 这里钉的是「句子中不在 .vue + 入参齐 + 头脚同源」：把 `{{ saveStateText }}` 退回字面量、
+  // 或者只喂三个入参（漏掉 hasOpenDoc ⇒ 没开稿子也说「已保存到本机」），这条都要红。
+  it("保存态句子不在 .vue 里拼：判定交给 utils/save-state，头与脚读同一个值", () => {
+    for (const sentence of [
+      "外部已改动",
+      "正在保存到本机",
+      "有未保存修改",
+      "已保存到本机",
+      "未打开文稿"
+    ]) {
+      expect(paneScript).not.toContain(sentence);
+      expect(paneTemplate).not.toContain(sentence);
+    }
+    expect(paneScript).toContain('from "../utils/save-state"');
+    expect(paneScript).toContain("saveStateLabel({");
+    for (const key of ["conflict:", "saving:", "dirty:", "hasOpenDoc:"]) {
+      expect(paneScript).toContain(key);
+    }
+    expect(paneTemplate).toContain("{{ saveStateText }}");
+    expect(paneTemplate).toContain("book.notice || saveStateText");
+    expect(paneTemplate.match(/saveStateText/g)?.length).toBe(2);
+  });
 });
 
 describe("DocumentTabBar · 抽出后闸门与文案不许漂移（Ruling T10-3）", () => {

@@ -83,6 +83,39 @@ html[data-platform="darwin"] .sidebar-brand-row {
   padding: 4px 7px 11px;
 }
 
+/* 书名 + 工作目录（示意稿 B 顶栏的两条事实；deepwrite 也把工作目录放侧栏而非自绘标题栏）。
+   住在 `.primary-nav` 这一格里：侧栏的 grid 行模板是按子元素顺序定位的，
+   多一个顶层子元素会把文稿树那一格挤成 auto ⇒ 没开书时布局先塌，所以不占独立行。
+   绝对路径通常很长：省略号截断，悬停 title 给全文。 */
+.sidebar-workdir {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin-bottom: 5px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.workdir-book,
+.workdir-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workdir-book {
+  color: var(--text-primary);
+  font-size: 0.785714rem;
+  font-weight: 600;
+}
+
+.workdir-path {
+  color: var(--text-tertiary);
+  font-size: 0.714286rem;
+}
+
 .new-book-nav {
   padding-bottom: 4px;
 }

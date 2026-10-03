@@ -63,6 +63,15 @@ async function pickBook(): Promise<void> {
   await book.pickAndOpen();
 }
 
+/**
+ * 「我在改哪本书、它落在哪个盘」——示意稿 B 顶栏的两条事实，落到左栏（deepwrite 也把工作目录放侧栏，
+ * 且这里没有切书的 IPC，所以是字不是下拉）。两个字段齐了才出现：只有 rootPath 没 meta 是开书瞬间的过渡态，
+ * 那时宁可什么都不说。
+ */
+const workspace = computed(() =>
+  book.meta && book.rootPath ? { title: book.meta.title, rootPath: book.rootPath } : null
+);
+
 // 段②：与中栏头部两处入口同一个真身（设计决定 2 之后 showSettings 是唯一路径）。
 function openModelSettings(): void {
   layout.showSettings();
@@ -88,6 +97,12 @@ function newThreadForActiveChapter(): void {
     </header>
 
     <nav class="primary-nav new-book-nav" aria-label="主操作">
+      <div v-if="workspace" class="sidebar-workdir">
+        <strong class="workdir-book" :title="workspace.title">{{ workspace.title }}</strong>
+        <span class="workdir-path" :title="workspace.rootPath">
+          工作目录：{{ workspace.rootPath }}
+        </span>
+      </div>
       <button class="nav-row" type="button" data-nav-id="open-book" @click="pickBook">
         <AppIcon name="directory" :size="17" />
         <span>打开作品目录</span>

@@ -12,6 +12,7 @@ import { dossierSummary, groupDocsForDossier } from "../utils/book-dossier";
 import { BOOK_KIND_LABELS } from "../utils/book-kinds";
 import { readingTimeLabel as formatReadingTime } from "../utils/reading-time";
 import { BAND_LABELS, VIEW_TABS } from "../utils/right-pane-labels";
+import { saveStateLabel } from "../utils/save-state";
 
 const emit = defineEmits<{ collapse: [] }>();
 const book = useBookStore();
@@ -59,12 +60,14 @@ const prose = computed(() => splitFrontmatter(book.draft).body);
 const characterCount = computed(() => proseCharCount(prose.value));
 const readingTimeLabel = computed(() => formatReadingTime(prose.value));
 
-const saveStateLabel = computed(() => {
-  if (book.conflict) return "外部已改动，已拒绝覆盖";
-  if (book.saving) return "正在保存到本机";
-  if (book.dirty) return "有未保存修改";
-  return book.activeDocTab ? "已保存到本机" : "未打开文稿";
-});
+const saveStateText = computed(() =>
+  saveStateLabel({
+    conflict: book.conflict !== null,
+    saving: book.saving,
+    dirty: book.dirty,
+    hasOpenDoc: book.activeDocTab !== null
+  })
+);
 
 const tabs = computed(() =>
   mode.value === "manuscript"
@@ -120,7 +123,7 @@ function switchMode(next: RightPaneMode): void {
       <div class="editor-header-actions">
         <span class="save-state" :class="{ 'is-dirty': book.dirty }">
           <AppIcon :name="book.dirty ? 'edit' : 'check'" :size="13" />
-          {{ saveStateLabel }}
+          {{ saveStateText }}
         </span>
         <button
           class="icon-button"
@@ -197,7 +200,7 @@ function switchMode(next: RightPaneMode): void {
           <span>正文 {{ characterCount.toLocaleString("zh-CN") }} 字</span>
           <span class="reading-time">{{ readingTimeLabel }}</span>
         </template>
-        <span class="editor-save-status">{{ book.notice || saveStateLabel }}</span>
+        <span class="editor-save-status">{{ book.notice || saveStateText }}</span>
       </div>
       <button
         class="save-button"
