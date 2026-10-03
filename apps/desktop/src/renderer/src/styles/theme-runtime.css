@@ -20,6 +20,7 @@ html[data-theme] select {
 html[data-theme] .document-title-input,
 html[data-theme] .document-editor,
 html[data-theme] .document-preview,
+html[data-theme] .dossier-doc-excerpt,
 html[data-theme] .dialog-content textarea,
 html[data-theme] .long-document-title-input,
 html[data-theme] .long-document-title,

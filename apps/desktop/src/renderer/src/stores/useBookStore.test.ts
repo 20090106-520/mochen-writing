@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { computed } from "vue";
+import { computed, toRaw } from "vue";
 import {
   DEFAULT_PERMISSION_MODE,
   type BookMeta,
@@ -496,12 +496,14 @@ describe("useBookStore", () => {
     await store.openDocTab("chapters/01-a.md");
     store.onEdit("还没保存的一段\n");
     saveMeta.mockClear();
-    const draftBefore = store.draft;
+    // 全量快照比对：openDossier 只要多写任何一个状态字段（notice / saving / browseTabs…）就当场红
+    const before = structuredClone(toRaw(store.$state));
     store.openDossier();
+    expect(store.$state).toEqual({ ...before, rightPaneMode: "dossier" });
     expect(store.rightPaneMode).toBe("dossier");
     expect(store.docTabs).toEqual(["chapters/01-a.md"]);
     expect(store.activeDocTab).toBe("chapters/01-a.md");
-    expect(store.draft).toBe(draftBefore);
+    expect(store.draft).toBe("还没保存的一段\n");
     expect(store.dirty).toBe(true);
     expect(saveMeta).not.toHaveBeenCalled();
   });
@@ -511,8 +513,13 @@ describe("useBookStore", () => {
     await store.openBook("/book");
     await store.openDocTab("chapters/01-a.md");
     store.openDossier();
+    store.rightPaneMode = "browse";
+    expect(store.rightPaneMode).toBe("browse");
+    expect(store.docTabs).toEqual(["chapters/01-a.md"]);
+    expect(store.browseTabs).toEqual([]);
     store.rightPaneMode = "manuscript";
     expect(store.rightPaneMode).toBe("manuscript");
+    expect(store.docTabs).toEqual(["chapters/01-a.md"]);
     expect(store.activeDocTab).toBe("chapters/01-a.md");
     expect(store.draft).toBe("正文\n");
   });

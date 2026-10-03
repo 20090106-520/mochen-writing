@@ -33,6 +33,15 @@ html[data-platform="darwin"] .editor-pane.has-section-tabs {
   grid-template-rows: 52px 42px 40px minmax(0, 1fr) 36px;
 }
 
+/* 作品资料态整条标签带不渲染（评审 T6-4）：五行轨收成四行，剩余四格各归位，不留 42px 空带。 */
+.editor-pane.has-section-tabs:has(.editor-document.is-dossier) {
+  grid-template-rows: 50px 40px minmax(0, 1fr) 36px;
+}
+
+html[data-platform="darwin"] .editor-pane.has-section-tabs:has(.editor-document.is-dossier) {
+  grid-template-rows: 52px 40px minmax(0, 1fr) 36px;
+}
+
 .editor-header {
   display: flex;
   align-items: center;

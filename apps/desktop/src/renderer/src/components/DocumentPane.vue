@@ -12,6 +12,8 @@ const book = useBookStore();
 
 /** 文稿 / 浏览 / 作品资料共用右栏这一格：后两者只读，且永不改写文稿标签与草稿。 */
 const mode = computed(() => book.rightPaneMode);
+/** 标签带的名字跟着右栏三态走；作品资料态整条不渲染，不留「浏览标签」的假名。 */
+const BAND_LABELS = { manuscript: "文稿标签", browse: "浏览标签", dossier: "作品资料" } as const;
 
 const activeDoc = computed(() => (book.activeDocTab ? book.refOf(book.activeDocTab) : null));
 const browseDoc = computed(
@@ -54,9 +56,7 @@ const tabs = computed(() =>
         id: relPath,
         title: book.refOf(relPath)?.title ?? relPath
       }))
-    : mode.value === "browse"
-      ? book.browseTabs.map((doc) => ({ id: doc.relPath, title: doc.title }))
-      : []
+    : book.browseTabs.map((doc) => ({ id: doc.relPath, title: doc.title }))
 );
 
 const activeTabId = computed(() =>
@@ -112,7 +112,7 @@ function switchMode(next: "manuscript" | "browse"): void {
       </div>
     </header>
 
-    <nav class="section-tabs-bar" :aria-label="mode === 'manuscript' ? '文稿标签' : '浏览标签'">
+    <nav v-if="mode !== 'dossier'" class="section-tabs-bar" :aria-label="BAND_LABELS[mode]">
       <div class="section-tabs-scroll" role="tablist">
         <button
           v-for="tab in tabs"
