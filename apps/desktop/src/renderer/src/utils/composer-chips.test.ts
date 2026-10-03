@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { permissionChipView } from "./permission-chip";
-import { composerChips } from "./composer-chips";
+import { composerChips, CHIP_EMIT } from "./composer-chips";
 
 describe("composer-chips · 只放真开关，排队不做按钮（F-D）", () => {
   it("恰好两枚 chip，id 逐字 permission/palette（第三枚排队按钮不许长出来）", () => {
@@ -46,5 +46,13 @@ describe("composer-chips · 只放真开关，排队不做按钮（F-D）", () =
     const chips = composerChips({ hasBook: true, mode: "read-only", saving: false });
     expect(chips.every((chip) => !chip.text.includes("排队"))).toBe(true);
     expect(Object.keys(chips[0] ?? {}).sort()).toEqual(["disabled", "id", "text", "title"]);
+  });
+
+  it("CHIP_EMIT 与 ComposerChipId 同集且事件名逐字（修复轮 1 F1：运行时反向钉，与 .ts 侧 tsc 穷尽关卡配套）", () => {
+    // 键集必须与 ComposerChipId 完全一致：将来扩 chip 漏了 CHIP_EMIT 键，
+    // emit(CHIP_EMIT[id]) 会静默发 undefined——这枚「按了没反应的 chip」正是红线。
+    expect(Object.keys(CHIP_EMIT).sort()).toEqual(["palette", "permission"]);
+    expect(CHIP_EMIT.permission).toBe("open-permission-menu");
+    expect(CHIP_EMIT.palette).toBe("open-palette");
   });
 });

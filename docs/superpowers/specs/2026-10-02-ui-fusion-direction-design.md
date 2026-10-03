@@ -147,7 +147,11 @@
   权限档（`useBookStore.openPermissionMenu()`，菜单真身是 Task 9 的 `PermissionMenu.vue`，
   文案读 `PERMISSION_LABELS`）、
   `/` 命令（emit 一个 `open-palette` 事件，由 `CenterColumn.vue:38` 的 `paletteOpen` 接，
-  与 `Ctrl K` 走同一个 `openPalette`，不复制打开逻辑）。
+  与裸 `/` 键走同一个 `openPalette`，不复制打开逻辑）。
+  勘误（2026-10-03 核对 `utils/hotkeys.ts:78-96` 键位表后修正原句「与 `Ctrl K` 走同一个 `openPalette`」：
+  全局 Ctrl 族只有 `b`/`,`/`o`/PageUp/PageDown/`1-9`/`j`，全仓无 Ctrl+K，面板真身在 `:98-100` 的裸 `/` 键）；
+  「是否给面板新增真 Ctrl+K 键位」登记为独立开放项（task #91：那是键位表变更，要动 `resolveHotkey`
+  穷尽分支 + 键位矩阵测试），不在波 1.5 范围。
 - **2026-10-03 追加三枚**（同一判据：报得出函数名与通道名才进 UI）：
   **当前模型**（值 = `ProviderView.model`，点开走新的模型枚举通道 `{baseURL}/v1/models`，见 §2.1）、
   **思考等级**（档位映射一份 `as const`，出站字段名待厂商格式范围定案 ⇒ **定案前只做主进程侧，不发 chip**）、

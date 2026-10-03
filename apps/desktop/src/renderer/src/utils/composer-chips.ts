@@ -10,6 +10,16 @@ export interface ComposerChipView {
   title: string;
 }
 
+// CHIP_EMIT 住在这一 `.ts` 文件而不是 ComposerBox.vue：本仓 verify 链用裸 tsc，
+// tsconfig.web.json 的 include 只收 `.ts`/`.d.ts`，`.vue` 的 `<script setup>` 永远不进类型程序——
+// `Record<ComposerChipId, …>` 的穷尽性关卡只有放在 `.ts` 才咬得住：将来给 ComposerChipId 扩一枚
+// 新 id 而漏了这里的键，tsc 当场报 TS2741；同一份代码写在 `.vue` 里则静默通过，
+// 后果是 emit(CHIP_EMIT[id]) 发出 undefined 事件、长出一枚「按了没反应的 chip」（实测变异证实）。
+export const CHIP_EMIT: Record<ComposerChipId, "open-permission-menu" | "open-palette"> = {
+  permission: "open-permission-menu",
+  palette: "open-palette"
+};
+
 export function composerChips(input: {
   hasBook: boolean;
   mode: PermissionMode | null;
@@ -34,5 +44,5 @@ export function composerChips(input: {
     }
   ];
   // 裁定 C：这里**不返回**队列数字。排队列数唯一的可见真身是 useAgentStore 的 composeStatusLine
-  // （useAgentStore.ts:144，「排队 N 条」，波 1 已有单测与真机观察）；chip 行再显示一次就是同一个数两份文案。
+  // （useAgentStore.ts:146，「排队 N 条」，波 1 已有单测与真机观察）；chip 行再显示一次就是同一个数两份文案。
 }

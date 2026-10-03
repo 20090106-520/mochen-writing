@@ -3,7 +3,7 @@
 import { computed } from "vue";
 import type { PermissionMode } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
-import { composerChips, type ComposerChipId } from "../utils/composer-chips";
+import { composerChips, CHIP_EMIT, type ComposerChipId } from "../utils/composer-chips";
 
 const props = defineProps<{
   running: boolean;
@@ -39,11 +39,8 @@ const chips = computed(() =>
   })
 );
 
-// 模板不做判定、不出现第二份事件字面量（T9-4③）：id→事件的映射表由 Record 的穷尽性当编译关卡。
-const CHIP_EMIT: Record<ComposerChipId, "open-permission-menu" | "open-palette"> = {
-  permission: "open-permission-menu",
-  palette: "open-palette"
-};
+// 模板不做判定、不出现第二份事件字面量（T9-4③）。CHIP_EMIT 映射表住在 composer-chips.ts：
+// 本仓 verify 用裸 tsc，`.vue` 不进类型程序，穷尽性关卡只有落在 `.ts` 才咬得住（定义处注释有 WHY 与变异实测）。
 function onChipClick(id: ComposerChipId): void {
   emit(CHIP_EMIT[id]);
 }
