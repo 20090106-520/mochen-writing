@@ -1,11 +1,15 @@
 <!-- 右栏：结构、类名与标签/工具栏/页脚 markup 取自 deepwrite（Apache-2.0）的 RightEditorPane.vue -->
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import AppIcon from "./AppIcon.vue";
 import BookDossier from "./BookDossier.vue";
-import { useBookStore } from "../stores/useBookStore";
+import DocumentTabBar from "./DocumentTabBar.vue";
+import SnippetToolbar from "./SnippetToolbar.vue";
+import { useSnippetToolbar } from "../composables/useSnippetToolbar";
+import { useBookStore, type RightPaneMode } from "../stores/useBookStore";
 import { dossierSummary, groupDocsForDossier } from "../utils/book-dossier";
 import { BOOK_KIND_LABELS } from "../utils/book-kinds";
+import { readingMinutes } from "../utils/reading-time";
 
 const emit = defineEmits<{ collapse: [] }>();
 const book = useBookStore();
@@ -14,6 +18,13 @@ const book = useBookStore();
 const mode = computed(() => book.rightPaneMode);
 /** 标签带的名字跟着右栏三态走；作品资料态整条不渲染，不留「浏览标签」的假名。 */
 const BAND_LABELS = { manuscript: "文稿标签", browse: "浏览标签", dossier: "作品资料" } as const;
+
+/** 右栏三枚页签的唯一标签表（模板不再各写一遍字面量）。 */
+const viewTabs: { mode: RightPaneMode; label: string }[] = [
+  { mode: "manuscript", label: "文稿" },
+  { mode: "browse", label: "浏览" },
+  { mode: "dossier", label: "作品资料" }
+];
 
 const activeDoc = computed(() => (book.activeDocTab ? book.refOf(book.activeDocTab) : null));
 const browseDoc = computed(
@@ -41,7 +52,17 @@ const documentClasses = computed(() => ({
   "is-dossier": mode.value === "dossier"
 }));
 
+const editorEl = ref<HTMLTextAreaElement | null>(null);
+/** 「读真实选区 → 纯函数 → book.onEdit → 回设光标」这段有行为的接线住 composables/，才谈得上被单测钉住。 */
+const { snippetToolbar, applyToSelection } = useSnippetToolbar(editorEl);
+
 const characterCount = computed(() => book.draft.length);
+
+/** 页脚那一格只拼文案：字数与时长都算 book.draft，且两格都只在文稿态出现——只读态报当前文稿的进度是假话。 */
+const readingTimeLabel = computed(() => {
+  const minutes = readingMinutes(book.draft);
+  return minutes === null ? "— 分钟" : `约 ${minutes} 分钟阅读`;
+});
 
 const saveStateLabel = computed(() => {
   if (book.conflict) return "外部已改动，已拒绝覆盖";
@@ -83,7 +104,12 @@ function onContentInput(event: Event): void {
   book.onEdit(target.value);
 }
 
-function switchMode(next: "manuscript" | "browse"): void {
+/** 三枚页签同一个入口：dossier 的判定住在这里，不留到模板（附录 F-F 的「表驱动」）。 */
+function switchMode(next: RightPaneMode): void {
+  if (next === "dossier") {
+    book.openDossier();
+    return;
+  }
   book.rightPaneMode = next;
 }
 </script>
@@ -112,64 +138,32 @@ function switchMode(next: "manuscript" | "browse"): void {
       </div>
     </header>
 
-    <nav v-if="mode !== 'dossier'" class="section-tabs-bar" :aria-label="BAND_LABELS[mode]">
-      <div class="section-tabs-scroll" role="tablist">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          class="section-tab"
-          :class="{ 'is-active': tab.id === activeTabId }"
-          type="button"
-          role="tab"
-          :aria-selected="tab.id === activeTabId"
-          :title="tab.title"
-          @click="selectTab(tab.id)"
-        >
-          {{ tab.title }}
-        </button>
-      </div>
-      <button
-        v-if="tabs.length"
-        class="section-tabs-remove"
-        type="button"
-        :aria-label="mode === 'manuscript' ? '关闭当前文稿标签' : '关闭当前浏览标签'"
-        @click="closeActiveTab"
-      >
-        <AppIcon name="minus" :size="16" />
-      </button>
-    </nav>
+    <DocumentTabBar
+      v-if="mode !== 'dossier'"
+      :label="BAND_LABELS[mode]"
+      :close-label="mode === 'manuscript' ? '关闭当前文稿标签' : '关闭当前浏览标签'"
+      :tabs="tabs"
+      :active-id="activeTabId"
+      @select="selectTab"
+      @close="closeActiveTab"
+    />
 
     <div class="editor-toolbar">
       <div class="view-tabs" role="tablist" aria-label="右栏内容来源">
         <button
+          v-for="tab in viewTabs"
+          :key="tab.mode"
           type="button"
           role="tab"
-          :aria-selected="mode === 'manuscript'"
-          :class="{ 'is-active': mode === 'manuscript' }"
-          @click="switchMode('manuscript')"
+          :aria-selected="mode === tab.mode"
+          :class="{ 'is-active': mode === tab.mode }"
+          @click="switchMode(tab.mode)"
         >
-          文稿
-        </button>
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="mode === 'browse'"
-          :class="{ 'is-active': mode === 'browse' }"
-          @click="switchMode('browse')"
-        >
-          浏览
-        </button>
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="mode === 'dossier'"
-          :class="{ 'is-active': mode === 'dossier' }"
-          @click="book.openDossier()"
-        >
-          作品资料
+          {{ tab.label }}
         </button>
       </div>
       <span class="toolbar-spacer" />
+      <SnippetToolbar :state="snippetToolbar" @pick="applyToSelection" />
     </div>
 
     <div class="editor-document" :class="documentClasses">
@@ -184,6 +178,7 @@ function switchMode(next: "manuscript" | "browse"): void {
       <BookDossier v-if="mode === 'dossier'" :summary="dossier" :groups="dossierGroups" />
       <textarea
         v-else-if="mode === 'manuscript'"
+        ref="editorEl"
         class="document-editor transient-scrollbar"
         :value="book.draft"
         :readonly="!book.activeDocTab"
@@ -203,7 +198,10 @@ function switchMode(next: "manuscript" | "browse"): void {
 
     <footer class="editor-footer">
       <div class="editor-footer-meta">
-        <span>{{ characterCount.toLocaleString("zh-CN") }} 字</span>
+        <template v-if="mode === 'manuscript'">
+          <span>{{ characterCount.toLocaleString("zh-CN") }} 字</span>
+          <span class="reading-time">{{ readingTimeLabel }}</span>
+        </template>
         <span class="editor-save-status">{{ book.notice || saveStateLabel }}</span>
       </div>
       <button

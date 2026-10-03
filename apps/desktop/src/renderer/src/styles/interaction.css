@@ -214,3 +214,17 @@
   color: var(--text-faint);
   font-size: 12px;
 }
+
+/* 右栏 md 片段工具栏（Task 10 / F-F）：复用 editor-pane.css 的 .format-button 尺寸与 token，
+   只把「两个汉字标签」需要的字号与内边距补上。不新开样式文件、不写死色值（Ruling T10-7：用既有 0.75rem 档）。 */
+.editor-text-tools .format-button {
+  width: auto;
+  min-width: 27px;
+  padding: 0 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.editor-footer .reading-time {
+  flex: 0 0 auto;
+}

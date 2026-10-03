@@ -14,6 +14,12 @@ interface DocState {
   conflict: { currentFingerprint: string } | null;
 }
 
+/**
+ * 右栏同一格的三态（铁律 6：这条联合只有一份实现）。
+ * 原先是 `state` 里的内联字面量联合，`markdown-snippets.ts` 与 `DocumentPane.vue` 还要各抄一遍 ⇒ 一律 import 这个类型。
+ */
+export type RightPaneMode = "manuscript" | "browse" | "dossier";
+
 const EMPTY_DOC: DocState = {
   draft: "",
   savedFingerprint: "",
@@ -38,7 +44,7 @@ export const useBookStore = defineStore("book", {
     activeBrowse: null as string | null,
     browseContents: {} as Record<string, string>,
     /** 右栏这一格当前展示文稿 / 浏览 / 作品资料；后两者永不改写文稿侧状态。 */
-    rightPaneMode: "manuscript" as "manuscript" | "browse" | "dossier",
+    rightPaneMode: "manuscript" as RightPaneMode,
     /** 权限档菜单是否展开；`/permissions` 与头部按钮共用的唯一开关。 */
     permissionMenuOpen: false,
     /** 切换权限档是否正在落盘——只管这条通路，与右栏文稿保存 `saving` 是两件事。 */
