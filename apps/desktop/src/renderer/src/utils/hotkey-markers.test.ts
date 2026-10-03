@@ -19,19 +19,10 @@ import {
   COMPOSER_MARKER,
   GUIDANCE_MARKER
 } from "./hotkey-markers";
+import { scriptSource, templateSource } from "./vue-source-reader";
 
 /** src/renderer/src —— 本文件所在 utils 的上一级。 */
 const SRC_DIR = fileURLToPath(new URL("../", import.meta.url));
-
-/** 读 SFC 顶层 <template> 并剥掉 HTML 注释：标记只有出现在真标记属性里才算数。 */
-function templateMarkup(relPath: string): string {
-  const source = readFileSync(join(SRC_DIR, relPath), "utf8");
-  const match = /<template>([\s\S]*)<\/template>/.exec(source);
-  if (match === null || match[1] === undefined) {
-    throw new Error(`${relPath} 里没有 <template> 块`);
-  }
-  return match[1].replace(/<!--[\s\S]*?-->/g, "");
-}
 
 /** 以「属性名」形态命中：前界为行首/空白/冒号（:data-* 绑定），后界为空白/=/>。 */
 function hasAttribute(markup: string, name: string): boolean {
@@ -40,17 +31,9 @@ function hasAttribute(markup: string, name: string): boolean {
 
 /** 取 <textarea> 的开标签：只有真绑在这里的属性才算数（注释与脚本里的同名字串都不算）。 */
 function textareaTag(relPath: string): string {
-  const tag = /<textarea\b[^>]*>/.exec(templateMarkup(relPath))?.[0];
+  const tag = /<textarea\b[^>]*>/.exec(templateSource(relPath))?.[0];
   if (tag === undefined) throw new Error(`${relPath} 的模板里没有 <textarea>`);
   return tag;
-}
-
-/** 取 <script setup> 并剥掉注释：注释里写着 needle 不等于真做了这件事。 */
-function scriptSource(relPath: string): string {
-  const source = readFileSync(join(SRC_DIR, relPath), "utf8");
-  const body = /<script setup lang="ts">([\s\S]*?)<\/script>/.exec(source)?.[1];
-  if (body === undefined) throw new Error(`${relPath} 里没有 <script setup lang="ts"> 块`);
-  return body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 }
 
 /** 递归列渲染层源码；跳过 *.test.ts——契约测试自己写着 needle 字符串，不该被自己数进去。 */
@@ -92,11 +75,11 @@ describe("hotkey-markers · 模板必须真的带着这些标记名（评审 X4a
   });
 
   it("ComposerBox 的模板属性里有 data-mochen-composer", () => {
-    expect(hasAttribute(templateMarkup("components/ComposerBox.vue"), COMPOSER_MARKER)).toBe(true);
+    expect(hasAttribute(templateSource("components/ComposerBox.vue"), COMPOSER_MARKER)).toBe(true);
   });
 
   it("ProposalCard 的模板属性里有卡/id/status/guidance 四枚标记", () => {
-    const markup = templateMarkup("components/ProposalCard.vue");
+    const markup = templateSource("components/ProposalCard.vue");
     for (const name of [CARD_MARKER, CARD_ID_ATTR, CARD_STATUS_ATTR, GUIDANCE_MARKER]) {
       expect(hasAttribute(markup, name)).toBe(true);
     }

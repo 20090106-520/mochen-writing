@@ -68,7 +68,8 @@ function openModelSettings(): void {
   layout.showSettings("general");
 }
 
-// 段③：只清渲染层视图，不碰 JSONL、不碰 pending —— clearThreadView 的真实边界。
+// 段③：只清渲染层视图，不碰 JSONL、不碰主进程 pending —— clearThreadView 的真实边界。
+// 渲染层这一份提案视图确实会随本页清空（store 会给出带条数的警告文案），动不到的只有主进程那一份。
 function newThreadForActiveChapter(): void {
   agent.clearThreadView(threadKeyFor(book.activeDocTab));
 }
@@ -86,7 +87,7 @@ function newThreadForActiveChapter(): void {
       </button>
     </header>
 
-    <nav class="primary-nav new-book-nav" aria-label="作品">
+    <nav class="primary-nav new-book-nav" aria-label="主操作">
       <button class="nav-row" type="button" data-nav-id="open-book" @click="pickBook">
         <AppIcon name="directory" :size="17" />
         <span>打开作品目录</span>
@@ -105,7 +106,7 @@ function newThreadForActiveChapter(): void {
         @click="newThreadForActiveChapter"
       >
         <AppIcon name="plus" :size="17" />
-        <span>本章新对话</span>
+        <span>{{ book.activeDocTab === null ? "本章新对话（先打开一章）" : "本章新对话" }}</span>
       </button>
     </nav>
 
