@@ -1,8 +1,7 @@
 /**
- * 「有多少字」的唯一口径：按**码点**数，不按 UTF-16 码元。
- * 一个表情是一个字——按码元数会给出「🐋 = 2 字」，与页脚时长自相矛盾（本仓教训见 timeline 的 Array.from 注释）。
- * 住在 contracts 而不是渲染层 utils：`fs-store` 扫描要按它算 `DocRef.chars`，页脚要按它算「正文 N 字」，
- * 两处各数一遍就会出现「同一篇稿子两个字数」。
+ * 裸码点数（含空白）：「你敲进去多少字符」这一格的口径，也是截断/上限检查用的口径。
+ * 一个表情算一个——按 UTF-16 码元会数成 2，用户看到的是一格，报出来是两格（本仓教训见 timeline 的 Array.from 注释）。
+ * 别拿它当「字数」：那是下面 `proseCharCount` 的活，两者差的就是空白。
  */
 export function codePointLength(text: string): number {
   return Array.from(text).length;
