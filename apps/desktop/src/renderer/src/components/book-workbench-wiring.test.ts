@@ -6,7 +6,7 @@
  * ① hero 用的是**品牌原图整幅**（CSS 里 object-fit 必须是 contain，cover 就是裁切，违「原图原样用」）；
  * ② 五张卡的图标表与预填句**不在 .vue 里重抄**，一律从 utils/workbench-state 读（铁律 6）；
  * ③ 能力气泡是静态说明，不假造时间戳、不冒充一条真发过的对话；
- * ④ 建议 pill 的两条出路各有真身：prefill ⇒ agent.prefillComposer(...)，palette ⇒ 同一个 paletteOpen 开关。
+ * ④ 建议 pill 的两条出路各有真身：prefill ⇒ agent.prefillComposer(...)，palette ⇒ 同一个行内菜单入口。
  */
 import { describe, expect, it } from "vitest";
 import { scriptSource, templateSource, vueSource } from "../utils/vue-source-reader";
@@ -83,12 +83,14 @@ describe("BookWorkbench · 建议 pill 的两条出路接到真身", () => {
     expect(script).toContain("WORKBENCH_SUGGESTION_TITLES");
   });
 
-  it("装配处：prefill 一类调 agent.prefillComposer(threadKeyFor(target), ...)，palette 一类开同一个 paletteOpen", () => {
+  it("装配处：prefill 一类调 agent.prefillComposer(threadKeyFor(target), ...)，palette 一类走同一个行内菜单入口", () => {
     expect(center).toContain("WORKBENCH_CARD_PREFILL");
     expect(center).toMatch(
       /agent\.prefillComposer\(threadKeyFor\(target\), (?:suggestion\.prefill|text)\)/
     );
-    expect(center).toMatch(/kind === "palette"[\s\S]{0,120}paletteOpen\.value = true/);
+    // #106 裁定 D1：第二块命令面板（SlashPalette + 其 paletteOpen ref）已退役，
+    // pill 的出路仍与裸 / 键、`/ 命令` chip 共用同一处入口 ⇒ 钉子跟着搬到 summonSlash，语义一字未松。
+    expect(center).toMatch(/kind === "palette"[\s\S]{0,120}referenceMenu\.summonSlash\(\)/);
     // 反向：装配处不重抄句子——中栏里出现的预填字面量只该是 import 来的常量名。
     expect(center).not.toContain("给我三个能接着往下写的点子");
     expect(center).not.toContain("我想改这一章：");

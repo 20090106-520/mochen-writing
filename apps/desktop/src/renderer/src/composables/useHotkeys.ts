@@ -18,6 +18,7 @@ import { resolveEscape } from "../utils/escape-policy";
 import { threadKeyFor, useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
 import { useLayoutStore } from "../stores/layoutStore";
+import { useReferenceMenuStore } from "../stores/useReferenceMenuStore";
 
 export interface HotkeyHandlers {
   openPalette(): void;
@@ -33,6 +34,8 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
   const agent = useAgentStore();
   const book = useBookStore();
   const layout = useLayoutStore();
+  // #106：行内引用菜单的开合与高亮是 store 态，正是为了让这一处键位裁决能够派到它头上（裁定 D2）。
+  const reference = useReferenceMenuStore();
 
   function elementOf(target: EventTarget | null): HTMLElement | null {
     return target instanceof HTMLElement ? target : null;
@@ -59,7 +62,9 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
       guidanceIsDirty: (guidance?.value.trim() ?? "") !== "",
       turnRunning: runningNow(),
       // 唯一喂入点：设置浮层的真身是 layout.currentView === "settings"（设计决定 2）。
-      settingsIsOpen: layout.currentView === "settings"
+      settingsIsOpen: layout.currentView === "settings",
+      // #106 菜单是最内一层：Esc 先收它，绝不越级打断正在跑的那一轮（一层一层收）。
+      referenceMenuIsOpen: reference.isOpen
     });
     // 评审 X3（与 dispatch 里的 never 穷尽守卫同律，G1/X3 同法一条）：switch + never 穷尽性守卫——
     // EscapeAction 新增成员没在此接线 ⇒ 编译失败，杜绝「静默死键」。
@@ -73,6 +78,11 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
         if (cardId === "") return;
         event.preventDefault();
         void agent.decide(cardId, "cancel", "");
+        return;
+      case "close-reference-menu":
+        // #106 目标形态 2：Esc 只收菜单，不打断、不撤卡、不关设置浮层。
+        event.preventDefault();
+        reference.close();
         return;
       case "close-overlay":
         event.preventDefault();
@@ -163,8 +173,23 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
         void book.pickAndOpen();
         return;
       case "open-palette":
+        // #106 裁定 D1：这条动作的落点已从「第二块命令面板」改成输入卡里的行内引用菜单（唤起在 CenterColumn）。
         event.preventDefault();
         handlers.openPalette();
+        return;
+      case "reference-move-up":
+      case "reference-move-down": {
+        // ↑↓ 挪高亮：环绕与夹住由 utils/inline-reference-menu.ts 算，这里只派方向。
+        // 滚动进视野不在这里做——那是 DOM，归菜单组件（本文件只碰 targets 已有的那一枚 textarea）。
+        event.preventDefault();
+        reference.move(action === "reference-move-down" ? 1 : -1);
+        return;
+      }
+      case "reference-insert":
+        // 菜单开着时 Enter 归菜单：`@` 把引用文本写进草稿、`/` 交唯一派发口执行，两条都不发送（裁定 D2）。
+        // 光标与焦点由菜单组件按 caretRequest 口信摆好（deepwrite 在同一处用 nextTick 做这件事）。
+        event.preventDefault();
+        reference.select();
         return;
       case "delegated":
         escape(event, targets.card);
@@ -197,7 +222,8 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
       turnRunning: runningNow(),
       isComposing: event.isComposing,
       hasBook: book.hasBook,
-      tabCount: book.docTabs.length
+      tabCount: book.docTabs.length,
+      referenceMenuIsOpen: reference.isOpen
     };
     const { action, tabIndex } = resolveHotkey(deriveHotkeyFocus(sources), event.key, mods);
     dispatch(event, action, targets, tabIndex);

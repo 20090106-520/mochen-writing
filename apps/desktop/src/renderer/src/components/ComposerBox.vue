@@ -8,6 +8,7 @@
 import { computed } from "vue";
 import type { PermissionMode, ThinkingLevel } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
+import ComposerReferenceMenu from "./ComposerReferenceMenu.vue";
 import PermissionMenu from "./PermissionMenu.vue";
 import {
   composerChips,
@@ -93,6 +94,10 @@ function submit(): void {
   <footer class="composer-wrap">
     <div class="composer" :class="{ 'is-disabled': running }">
       <div class="composer-input-surface">
+        <!-- #106：行内引用菜单锚在这层 surface（它本就 position:relative），整卡宽、向上开——
+             与 deepwrite 的 .composer-stack + .composer-reference-menu 同一形态（裁定 D4）。
+             刻意不放进 .composer-toolbar-right：那是权限弹层的定位祖先，抢了它弹层就会跟着菜单跑。 -->
+        <ComposerReferenceMenu />
         <textarea
           v-model="draft"
           data-mochen-composer

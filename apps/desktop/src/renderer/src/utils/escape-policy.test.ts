@@ -8,6 +8,7 @@ function state(overrides: Partial<EscapeFocusState> = {}): EscapeFocusState {
     guidanceIsDirty: false,
     turnRunning: false,
     settingsIsOpen: false,
+    referenceMenuIsOpen: false,
     ...overrides
   };
 }
@@ -84,6 +85,36 @@ describe("resolveEscape 收设置浮层优先级（缺陷①）", () => {
         })
       )
     ).toBe("keep-guidance");
+  });
+
+  it("菜单开着且回合在跑：先收菜单，绝不越级打断（#106 目标形态 2「Esc 只收菜单」）", () => {
+    expect(resolveEscape(state({ referenceMenuIsOpen: true, turnRunning: true }))).toBe(
+      "close-reference-menu"
+    );
+  });
+
+  it("菜单与设置浮层同开：一层一层收，先收菜单（内层优先）", () => {
+    expect(
+      resolveEscape(state({ referenceMenuIsOpen: true, settingsIsOpen: true, turnRunning: true }))
+    ).toBe("close-reference-menu");
+  });
+
+  it("聚焦待审卡优先于收菜单：卡上按 Esc 撤的是卡", () => {
+    expect(
+      resolveEscape(
+        state({ hasFocusedProposal: true, focusedProposalPending: true, referenceMenuIsOpen: true })
+      )
+    ).toBe("cancel-proposal");
+  });
+
+  it("菜单没开时一律维持既有裁决（反向用例：多一个字段不能改变旧行为）", () => {
+    expect(resolveEscape(state({ referenceMenuIsOpen: false, turnRunning: true }))).toBe(
+      "interrupt"
+    );
+    expect(resolveEscape(state({ referenceMenuIsOpen: false, settingsIsOpen: true }))).toBe(
+      "close-overlay"
+    );
+    expect(resolveEscape(state({}))).toBe("none");
   });
 
   it("浮层没开、回合在跑：照旧打断", () => {

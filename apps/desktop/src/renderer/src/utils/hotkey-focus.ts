@@ -36,6 +36,8 @@ export interface HotkeyFocusSources {
   readonly isComposing: boolean;
   readonly hasBook: boolean;
   readonly tabCount: number;
+  /** 行内引用菜单是否开着（#106）：接线处从 store 的匹配态读，不在这里看 DOM、也不在这里算匹配。 */
+  readonly referenceMenuIsOpen: boolean;
 }
 
 const TEXT_TAGS: readonly string[] = ["TEXTAREA", "INPUT", "SELECT"];
@@ -68,6 +70,7 @@ export function deriveHotkeyFocus(sources: HotkeyFocusSources): HotkeyFocus {
     turnRunning: sources.turnRunning,
     isComposing: sources.isComposing,
     hasBook: sources.hasBook,
-    tabCount: sources.tabCount
+    tabCount: sources.tabCount,
+    referenceMenuIsOpen: sources.referenceMenuIsOpen
   };
 }

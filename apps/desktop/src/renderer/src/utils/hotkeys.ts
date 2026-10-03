@@ -23,6 +23,8 @@ export interface HotkeyFocus {
   isComposing: boolean;
   hasBook: boolean;
   tabCount: number;
+  /** 行内引用菜单（`/` 与 `@`）正开着（#106）。真身在 utils/inline-reference-menu.ts 的匹配态，由 store 提供。 */
+  referenceMenuIsOpen: boolean;
 }
 
 export type HotkeyAction =
@@ -41,7 +43,10 @@ export type HotkeyAction =
   | "toggle-left"
   | "open-settings"
   | "open-book"
-  | "open-palette";
+  | "open-palette"
+  | "reference-insert"
+  | "reference-move-up"
+  | "reference-move-down";
 
 export interface HotkeyResult {
   action: HotkeyAction;
@@ -95,7 +100,9 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
     return { action: "none" }; // 其余 Ctrl 组合不在键位表
   }
 
-  // / 开面板：composer 无焦点且不在文本框、无修饰键
+  // / 召唤命令菜单：composer 无焦点且不在文本框、无修饰键。
+  // #106 起这条动作的落点从「另一块面板」改成行内引用菜单（唤起处见 CenterColumn），
+  // 动作名不动：它是键位表的成员，改名会牵动 #105 的 chip 表与其测试，收益只有好听。
   if (k === "/" && noMods && !focus.composerIsFocused && !focus.textInputIsFocused)
     return { action: "open-palette" };
 
@@ -106,6 +113,16 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
     return focus.turnRunning && focus.composerHasText && !focus.textInputIsFocused
       ? { action: "queue" }
       : { action: "none" };
+
+  // 行内引用菜单（#106 裁定 D2）：菜单开着且焦点仍在 composer 时，↑↓ 挪高亮、Enter 交给你看中的那一条。
+  // 位置刻意排在 Tab 之后、Enter 之前——Tab 排队的既有通路不许被菜单吃掉（裁定 D3），
+  // 而 Enter 必须在这里改道：菜单开着时它既不是发送也不是换行。带任何修饰都不进菜单（Shift+Enter 照旧换行）。
+  // Esc 不在这里：它仍走 delegated ⇒ utils/escape-policy.ts 的同一条裁决链。
+  if (focus.referenceMenuIsOpen && noMods && focus.composerIsFocused) {
+    if (k === "ArrowUp") return { action: "reference-move-up" };
+    if (k === "ArrowDown") return { action: "reference-move-down" };
+    if (k === "Enter") return { action: "reference-insert" };
+  }
 
   // Enter / Shift+Enter（composer 焦点）
   if (k === "Enter" && focus.composerIsFocused && bare) {

@@ -8,7 +8,6 @@ import AgentTimeline from "./AgentTimeline.vue";
 import ProposalCard from "./ProposalCard.vue";
 import ComposerBox from "./ComposerBox.vue";
 import ProviderSettings from "./ProviderSettings.vue";
-import SlashPalette from "./SlashPalette.vue";
 import ToolRoster from "./ToolRoster.vue";
 import ModelSelect from "./ModelSelect.vue";
 import BookWorkbench from "./BookWorkbench.vue";
@@ -25,6 +24,7 @@ import { useGlobalHotkeys } from "../composables/useHotkeys";
 import { useBookStore } from "../stores/useBookStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useProviderStore } from "../stores/useProviderStore";
+import { useReferenceMenuStore } from "../stores/useReferenceMenuStore";
 import {
   composeStatusLine,
   threadKeyFor,
@@ -41,9 +41,9 @@ const agent = useAgentStore();
 const layout = useLayoutStore();
 const provider = useProviderStore();
 const showSettings = computed(() => layout.currentView === "settings");
-/** `/` 面板的开关是瞬时 UI 态，不进 store（计划决定 6）；Task 8 的 SlashPalette 挂这里。 */
-const paletteOpen = ref(false);
-/** 工具 ▾ 的浮层同上：瞬时 UI 态，关掉不带走任何状态（它本来就没有可改的东西）。 */
+/** #106 裁定 D1：`/` 的真身只剩行内引用菜单一处，唤起态也跟着它住进 store（键位层要能派下来）。 */
+const referenceMenu = useReferenceMenuStore();
+/** 工具 ▾ 的浮层是瞬时 UI 态，不进 store（计划决定 6），关掉不带走任何状态。 */
 const rosterOpen = ref(false);
 /** 模型 ▾ 也是瞬时 UI 态；名单本身归 useProviderStore（切完模型它还活着，关掉浮层不该重拉）。 */
 const modelsOpen = ref(false);
@@ -155,7 +155,8 @@ function onWorkbenchPick(id: WorkbenchCardId): void {
 // pill 的两条出路（表在 workbench-state）：palette ⇒ 与 Ctrl+/, / 键同一个开关；prefill ⇒ 填进当前章线程。
 function onWorkbenchSuggestion(suggestion: WorkbenchSuggestion): void {
   if (suggestion.kind === "palette") {
-    paletteOpen.value = true;
+    // 裁定 D1：出路仍是「与裸 / 键、`/ 命令` chip 同一个入口」，真身换成行内菜单。
+    referenceMenu.summonSlash();
     return;
   }
   const target = workbenchTarget({
@@ -197,7 +198,7 @@ function onComposerSend(text: string): void {
  * 这里删掉了原先的 onGlobalEscape —— 它的「Esc = 打断」已被 resolveEscape 的裁决（含收浮层那一支）取代，
  * 保留两处监听会变成两份 Esc 裁决（裁定 G5）。判断一律在 utils，本组件只接线。
  */
-useGlobalHotkeys({ openPalette: () => (paletteOpen.value = true) });
+useGlobalHotkeys({ openPalette: () => referenceMenu.summonSlash() });
 
 // 设置浮层可见性的唯一真身是 layout.currentView === "settings"（设计决定 2）：
 // 按钮、Ctrl+,、/model、Esc 收浮层全部读写同一个 currentView，不再有两处真相。
@@ -359,12 +360,13 @@ onBeforeUnmount(() => {
       @toggle-web-search="agent.toggleWebSearch()"
       @open-tool-roster="rosterOpen = true"
       @open-model-select="openModelSelect"
-      @open-palette="paletteOpen = true"
+      @open-palette="referenceMenu.summonSlash()"
     />
 
     <ProviderSettings v-if="showSettings" @close="closeSettings" />
 
-    <SlashPalette v-if="paletteOpen" @close="paletteOpen = false" />
+    <!-- #106 裁定 D1：`/` 的真身只剩输入卡里那份行内菜单（ComposerBox 挂的 ComposerReferenceMenu），
+         旧的第二块命令面板连同它的样式段一并退役——留着它就是同一张命令表两份渲染。 -->
     <ToolRoster v-if="rosterOpen" @close="rosterOpen = false" />
     <ModelSelect
       v-if="modelsOpen"

@@ -1,6 +1,9 @@
 /**
- * `/` 命令面板的判定层（spec §6）：命令表、运行期可用性、输入解析、面板自己吃的键。
- * SlashPalette.vue 只画这张表并把选中的命令交出去，本文件以外不允许判断「这条命令现在能不能用」。
+ * `/` 命令面板的判定层（spec §6）：命令表、运行期可用性、权限档名反查、弹层自己吃的键。
+ * 行内引用菜单只画这张表并把选中的命令交给 useAgentStore.runSlashCommand，本文件以外不允许判断「这条命令现在能不能用」。
+ * Task 106 裁定 D1：退役面板专用的 `parseSlashInput` / `filterCommands` / `paletteOwnsKey` 三枚 helper
+ * 随 SlashPalette.vue 一起删——过滤的真身现在是 utils/inline-reference-menu.ts 的 filterReferenceOptions，
+ * 键→动作的真身现在是 utils/hotkeys.ts，留着就是第二份实现（铁律 6）。
  */
 import { PERMISSION_LABELS, type PermissionMode } from "@mochen/contracts";
 import { hasNoMods, type HotkeyMods } from "./hotkeys";
@@ -51,31 +54,6 @@ export function availableCommands(focus: PaletteFocus): SlashCommand[] {
     if (focus.turnRunning) return DURING_TURN_COMMANDS.includes(command);
     return true;
   });
-}
-
-export function parseSlashInput(text: string): { command: SlashCommand | null; argument: string } {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith("/")) return { command: null, argument: "" };
-  const body = trimmed.slice(1).trim();
-  if (body === "") return { command: null, argument: "" };
-  const [head = "", ...rest] = body.split(/\s+/);
-  const matched = SLASH_COMMANDS.find((command) => command === head.toLowerCase());
-  return { command: matched ?? null, argument: rest.join(" ").trim() };
-}
-
-/** 面板列表：过滤发生在 availableCommands 的结果上，输入里的前缀既认 "sta" 也认 "/sta"。 */
-export function filterCommands(text: string, focus: PaletteFocus): SlashCommand[] {
-  const pool = availableCommands(focus);
-  const typed = text.trim().replace(/^\//, "").trim().toLowerCase();
-  if (typed === "") return pool;
-  const [head = ""] = typed.split(/\s+/);
-  return pool.filter((command) => command.startsWith(head));
-}
-
-/** 面板自处理这四个键（spec §5 护栏 5）；合成期间一律不接，与 utils/hotkeys.ts 的闸门同口径。 */
-export function paletteOwnsKey(key: string, isComposing: boolean): boolean {
-  if (isComposing) return false;
-  return key === "ArrowUp" || key === "ArrowDown" || key === "Enter" || key === "Escape";
 }
 
 /**

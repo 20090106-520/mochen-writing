@@ -12,6 +12,7 @@ function focus(overrides: Partial<HotkeyFocus> = {}): HotkeyFocus {
     isComposing: false,
     hasBook: false,
     tabCount: 0,
+    referenceMenuIsOpen: false,
     ...overrides
   };
 }
@@ -160,6 +161,74 @@ describe("resolveHotkey · 全局 Ctrl 族", () => {
     expect(
       resolveHotkey(focus({ hasBook: true, tabCount: 3 }), "0", mods({ ctrl: true })).action
     ).toBe("none");
+  });
+});
+
+describe("resolveHotkey · 行内引用菜单（#106 裁定 D2/D3）", () => {
+  it("菜单开着：Enter 归菜单插入，不再是 submit（连 turnRunning 时也不发）", () => {
+    const open = focus({
+      composerIsFocused: true,
+      composerHasText: true,
+      referenceMenuIsOpen: true
+    });
+    expect(resolveHotkey(open, "Enter", mods()).action).toBe("reference-insert");
+    expect(resolveHotkey({ ...open, turnRunning: true }, "Enter", mods()).action).toBe(
+      "reference-insert"
+    );
+  });
+
+  it("菜单开着：↑↓ 是移动高亮；菜单关着时同一对键什么都不是", () => {
+    const open = focus({ composerIsFocused: true, referenceMenuIsOpen: true });
+    expect(resolveHotkey(open, "ArrowUp", mods()).action).toBe("reference-move-up");
+    expect(resolveHotkey(open, "ArrowDown", mods()).action).toBe("reference-move-down");
+    expect(resolveHotkey(focus({ composerIsFocused: true }), "ArrowUp", mods()).action).toBe(
+      "none"
+    );
+    expect(resolveHotkey(focus({ composerIsFocused: true }), "Enter", mods()).action).toBe(
+      "submit"
+    );
+  });
+
+  it("裁定 D3：菜单开着 Tab 仍是排队（运行中有草稿），菜单不吃这条既有通路", () => {
+    expect(
+      resolveHotkey(
+        focus({
+          composerIsFocused: true,
+          composerHasText: true,
+          turnRunning: true,
+          referenceMenuIsOpen: true
+        }),
+        "Tab",
+        mods()
+      ).action
+    ).toBe("queue");
+    // 非运行态的 Tab 保留焦点移动，菜单同样不劫持。
+    expect(
+      resolveHotkey(focus({ composerIsFocused: true, referenceMenuIsOpen: true }), "Tab", mods())
+        .action
+    ).toBe("none");
+  });
+
+  it("修饰键仍归原语义：Shift+Enter 换行、Alt+↑ 不动高亮（反向用例）", () => {
+    const open = focus({ composerIsFocused: true, referenceMenuIsOpen: true });
+    expect(resolveHotkey(open, "Enter", mods({ shift: true })).action).toBe("newline");
+    expect(resolveHotkey(open, "ArrowUp", mods({ alt: true })).action).toBe("none");
+  });
+
+  it("护栏 1 仍最高：输入法合成期间菜单开着也一律 none（候选框回车不吞键）", () => {
+    expect(
+      resolveHotkey(
+        focus({ composerIsFocused: true, isComposing: true, referenceMenuIsOpen: true }),
+        "Enter",
+        mods()
+      ).action
+    ).toBe("none");
+  });
+
+  it("焦点不在 composer：菜单即使没关也不接管 Enter（那是别人的输入现场）", () => {
+    expect(resolveHotkey(focus({ referenceMenuIsOpen: true }), "Enter", mods()).action).toBe(
+      "none"
+    );
   });
 });
 

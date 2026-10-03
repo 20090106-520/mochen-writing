@@ -39,6 +39,7 @@ function sources(overrides: Partial<HotkeyFocusSources> = {}): HotkeyFocusSource
     isComposing: false,
     hasBook: false,
     tabCount: 0,
+    referenceMenuIsOpen: false,
     ...overrides
   };
 }
@@ -122,15 +123,22 @@ describe("deriveHotkeyFocus · 提案卡状态", () => {
 });
 
 describe("deriveHotkeyFocus · store 侧标志原样透传", () => {
-  it("turnRunning / isComposing / hasBook / tabCount 一字不改", () => {
+  it("turnRunning / isComposing / hasBook / tabCount / referenceMenuIsOpen 一字不改", () => {
     const focus = deriveHotkeyFocus(
-      sources({ turnRunning: true, isComposing: true, hasBook: true, tabCount: 7 })
+      sources({
+        turnRunning: true,
+        isComposing: true,
+        hasBook: true,
+        tabCount: 7,
+        referenceMenuIsOpen: true
+      })
     );
     expect(focus).toMatchObject({
       turnRunning: true,
       isComposing: true,
       hasBook: true,
-      tabCount: 7
+      tabCount: 7,
+      referenceMenuIsOpen: true
     });
   });
 
@@ -144,7 +152,8 @@ describe("deriveHotkeyFocus · store 侧标志原样透传", () => {
       turnRunning: false,
       isComposing: false,
       hasBook: false,
-      tabCount: 0
+      tabCount: 0,
+      referenceMenuIsOpen: false
     });
   });
 });

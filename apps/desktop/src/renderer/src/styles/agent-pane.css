@@ -549,3 +549,164 @@ html[data-platform="darwin"] .conversation-pane {
     display: none;
   }
 }
+
+/* ==== Task 106 deepwrite-composer-card（同一分段标记之内，零色值字面量关卡继续咬得住）====
+   Task 106：行内引用菜单照搬 deepwrite（Apache-2.0）styles.css 的 composer-reference-* 段——
+   圆角 16 与 18/48px 分层阴影按原值搬，色与面全部换成 token（菜单面 --editor、选中面 --selected、
+   强调色 --focus、键帽面 --sidebar、阴影走 --shadow-color 的 color-mix 档），
+   参考段里那些硬编码的面色与阴影数值一律不带进来。
+   锚点（裁定 D4）：deepwrite 挂在 .composer-stack 上，本卡没有那一层——.composer-input-surface 本就
+   position:relative 且 overflow:visible，于是整卡宽、向上开这一形态原样成立，且与权限弹层的锚点各归各。 */
+
+.composer-reference-menu {
+  position: absolute;
+  z-index: 40;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--editor);
+  box-shadow:
+    0 18px 48px color-mix(in srgb, var(--shadow-color) 58%, transparent),
+    0 3px 10px color-mix(in srgb, var(--shadow-color) 30%, transparent);
+}
+
+.composer-reference-heading {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.composer-reference-heading > div,
+.composer-reference-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.composer-reference-heading strong {
+  color: var(--text);
+  font-size: 0.857143rem;
+  font-weight: 650;
+}
+
+.composer-reference-heading span:not(.composer-reference-trigger),
+.composer-reference-copy small {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 0.714286rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-reference-trigger,
+.composer-reference-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--selected);
+  color: var(--text-soft);
+}
+
+.composer-reference-trigger {
+  font-family: var(--code-font);
+  font-size: 1.071429rem;
+  font-weight: 700;
+}
+
+/* 键帽：本仓没有 kbd 的既有规则（deepwrite 有），照它补一枚——这是本任务唯一新增的通用元素样式。 */
+.composer-reference-menu kbd {
+  min-width: 24px;
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--sidebar);
+  color: var(--text-faint);
+  font-family: var(--ui-font);
+  font-size: 0.642857rem;
+  font-weight: 550;
+  text-align: center;
+}
+
+.composer-reference-options {
+  overflow-y: auto;
+  max-height: min(360px, calc(100vh - 320px));
+  padding: 6px;
+}
+
+.composer-reference-options button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.composer-reference-options button:hover,
+.composer-reference-options button.is-selected {
+  background: var(--selected);
+}
+
+.composer-reference-options button.is-selected .composer-reference-icon {
+  background: var(--editor);
+  color: var(--focus);
+}
+
+.composer-reference-copy strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.857143rem;
+  font-weight: 580;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-reference-token {
+  color: var(--text-faint);
+  font-family: var(--code-font);
+  font-size: 0.785714rem;
+  font-weight: 650;
+}
+
+.composer-reference-empty {
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  padding: 20px;
+  color: var(--text-faint);
+  font-size: 0.821429rem;
+  text-align: center;
+}
+
+.composer-reference-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text-faint);
+  font-size: 0.642857rem;
+}
+
+.composer-reference-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
