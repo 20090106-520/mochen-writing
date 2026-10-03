@@ -51,7 +51,10 @@ async function run(
     tools: [
       { name: "read_doc", description: "读文稿", parameters: { type: "object", properties: {} } }
     ],
-    signal
+    signal,
+    // 本文件管的是流式解析与打断，每轮两枚恒为默认态；它们到字节的那一段住在 per-run-fields.test.ts。
+    thinkingLevel: "off",
+    webSearchEnabled: false
   }))
     out.push(event);
   return out;
@@ -268,7 +271,9 @@ describe("streamChat", () => {
       model: "m",
       messages: [chatMessage("user", "x")],
       tools: [],
-      signal: controller.signal
+      signal: controller.signal,
+      thinkingLevel: "off",
+      webSearchEnabled: false
     })) {
       events.push(event);
       if (event.kind === "text-delta") controller.abort();
@@ -409,7 +414,9 @@ describe("streamChat", () => {
       model: "m",
       messages: [chatMessage("user", "x")],
       tools: [],
-      signal: controller.signal
+      signal: controller.signal,
+      thinkingLevel: "off",
+      webSearchEnabled: false
     })) {
       events.push(event);
       if (event.kind === "text-delta") controller.abort();
@@ -493,7 +500,9 @@ describe("streamChat", () => {
       model: "m",
       messages: [chatMessage("user", "x")],
       tools: [],
-      signal: controller.signal
+      signal: controller.signal,
+      thinkingLevel: "off",
+      webSearchEnabled: false
     })) {
       events.push(event);
       if (event.kind === "reasoning-delta") controller.abort();

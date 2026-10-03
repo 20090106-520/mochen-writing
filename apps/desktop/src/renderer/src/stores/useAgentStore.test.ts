@@ -234,7 +234,9 @@ describe("useAgentStore", () => {
       threadKey: UNBOUND,
       docRelPath: null,
       stageId: "draft",
-      userText: "写点啥"
+      userText: "写点啥",
+      thinkingLevel: "off",
+      webSearchEnabled: false
     });
     await openChapter();
     store().send("改这一章");
@@ -242,10 +244,33 @@ describe("useAgentStore", () => {
       threadKey: CH,
       docRelPath: CH,
       stageId: "draft",
-      userText: "改这一章"
+      userText: "改这一章",
+      thinkingLevel: "off",
+      webSearchEnabled: false
     });
     expect(threadKeyFor(null)).toBe(UNBOUND);
     expect(threadKeyFor(CH)).toBe(CH);
+  });
+
+  it("两枚每轮开关的态在 store，send 把当下值原样塞进出站输入（漏一层就到这里露头）", async () => {
+    await openChapter();
+    expect(store().thinkingLevel).toBe("off");
+    expect(store().webSearchEnabled).toBe(false);
+
+    store().toggleWebSearch();
+    store().cycleThinking();
+    store().send("想一想再改");
+    expect(started.at(-1)).toMatchObject({ thinkingLevel: "low", webSearchEnabled: true });
+
+    // 四步必须回到 off：枚举里少一格或多一格，这条先红。
+    store().cycleThinking();
+    store().cycleThinking();
+    store().cycleThinking();
+    expect(store().thinkingLevel).toBe("off");
+    store().toggleWebSearch();
+    expect(store().webSearchEnabled).toBe(false);
+    store().send("不用想");
+    expect(started.at(-1)).toMatchObject({ thinkingLevel: "off", webSearchEnabled: false });
   });
 
   it("stop 打的是 turn-start 推来的那个 turnId；没有活动 turn 就不发", async () => {
@@ -559,7 +584,10 @@ describe("useAgentStore", () => {
       threadKey: UNBOUND,
       docRelPath: null,
       stageId: "draft",
-      userText: "没开标签也问一句"
+      userText: "没开标签也问一句",
+      // 没开书也照样发得出这一轮，两枚每轮开关仍是默认关档 —— 字段一个都不缺。
+      thinkingLevel: "off",
+      webSearchEnabled: false
     });
     expect(threadKeyFor(null)).toBe(UNBOUND);
   });

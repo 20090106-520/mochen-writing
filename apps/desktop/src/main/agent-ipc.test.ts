@@ -115,7 +115,9 @@ describe("registerAgentIpc", () => {
       threadKey: "chapters/01.md",
       docRelPath: "chapters/01.md",
       stageId: "draft",
-      userText: "改紧"
+      userText: "改紧",
+      thinkingLevel: "off",
+      webSearchEnabled: false
     };
     expect(await fire(fns, IPC_CHANNELS.agentStartTurn, startTurnInput)).toEqual({ turnId: "t1" });
     expect(await fire(fns, IPC_CHANNELS.agentInterrupt, "t1")).toBe(true);

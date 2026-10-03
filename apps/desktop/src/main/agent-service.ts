@@ -468,7 +468,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
             threadKey,
             systemPrompt: deps.promptFor(context),
             history,
-            userText: input.userText
+            userText: input.userText,
+            thinkingLevel: input.thinkingLevel,
+            webSearchEnabled: input.webSearchEnabled
           }
         );
         deps.emit({

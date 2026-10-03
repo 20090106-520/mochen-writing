@@ -1,5 +1,7 @@
 import { sseDataFrames } from "./sse.js";
 import { toWireMessages, type AssistantToolCall, type ChatMessage } from "./chat-message.js";
+import { thinkingBodyField, webSearchToolEntry } from "./per-run-fields.js";
+import type { ThinkingLevel } from "@mochen/contracts";
 
 export interface ChatToolSpec {
   name: string;
@@ -36,6 +38,9 @@ export interface StreamRequest {
   messages: ChatMessage[];
   tools: ChatToolSpec[];
   signal: AbortSignal;
+  /** 每轮开关：档位与联网，映射集中在 per-run-fields.ts，这里只负责拼进出站 body。 */
+  thinkingLevel: ThinkingLevel;
+  webSearchEnabled: boolean;
 }
 
 export class ProviderError extends Error {}
@@ -139,10 +144,16 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
   if (req.apiKey !== "") headers.Authorization = `Bearer ${req.apiKey}`;
   const payload: Record<string, unknown> = {
     model: req.model,
-    messages: toWireMessages(req.messages)
+    messages: toWireMessages(req.messages),
+    ...thinkingBodyField(req.thinkingLevel)
   };
-  if (req.tools.length > 0) {
-    payload.tools = req.tools.map((tool) => ({ type: "function", function: tool }));
+  // 联网条目挂在 tools 里，所以「一个 function 工具都没有但联网开着」也要发 tools。
+  const wireTools = [
+    ...req.tools.map((tool) => ({ type: "function", function: tool })),
+    ...webSearchToolEntry(req.webSearchEnabled)
+  ];
+  if (wireTools.length > 0) {
+    payload.tools = wireTools;
     payload.tool_choice = "auto";
   }
   payload.stream = true;

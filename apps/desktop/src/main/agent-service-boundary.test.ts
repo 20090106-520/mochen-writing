@@ -12,6 +12,7 @@ import {
   findLatestSession,
   readSession,
   type ProviderFetch,
+  type ProviderFetchInput,
   type ProviderFetchResult
 } from "@mochen/agent-runtime";
 import { createBookService, type BookService } from "./book-service.js";
@@ -40,12 +41,17 @@ afterAll(async () => {
 /**
  * 脚本化 SSE：第 n 次请求回 `rounds[n]`，脚本用完回一条 stop——
  * 一次工具调用要吃掉两个响应位（调用 + 无调用的收尾），不兜底工具循环收不了尾。
+ * 顺带把每次**真正发出去的请求**记进 requests：#101 那两条验的是出站形状，
+ * 「渲染层点了、主进程搬了、body 里有没有」这条链只能在这一层看见。
  */
+const requests: ProviderFetchInput[] = [];
+
 function scriptedFetch(...rounds: Record<string, unknown>[][]): ProviderFetch {
   const enc = new TextEncoder();
   const stop = { choices: [{ delta: {}, finish_reason: "stop" }] };
   let call = 0;
-  return async () => {
+  return async (request) => {
+    requests.push(request);
     const chunks = rounds[call] ?? [stop];
     call += 1;
     const stream = (async function* () {
@@ -103,6 +109,9 @@ async function build(
   const secrets = await mkdtemp(path.join(tmpdir(), "mochen-boundary-secret-"));
   tempDirs.push(dir, secrets);
   root = dir;
+  // 每次装配都清空出站记录：读 requests[0] 的用例要的正是「我这一轮发出去的那一笔」，
+  // 而不是上一条用例留下的残余。
+  requests.length = 0;
   await mkdir(path.join(dir, "chapters"), { recursive: true });
   await writeFile(path.join(dir, CHAPTER), CHAPTER_TEXT, "utf8");
   await writeFile(
@@ -210,7 +219,9 @@ describe("agentService 边界拒绝与线程归一", () => {
       threadKey: CHAPTER,
       docRelPath: CHAPTER,
       stageId: "draft",
-      userText: "写".repeat(20001)
+      userText: "写".repeat(20001),
+      thinkingLevel: "off",
+      webSearchEnabled: false
     };
     expect(await rejectMessage(service.startTurn(input))).toContain("过长");
     expect(writes).toEqual([]);
@@ -225,7 +236,9 @@ describe("agentService 边界拒绝与线程归一", () => {
         threadKey: CHAPTER,
         docRelPath: CHAPTER,
         stageId: "",
-        userText: "写点什么"
+        userText: "写点什么",
+        thinkingLevel: "off",
+        webSearchEnabled: false
       })
     );
     expect(message).toContain("不能为空");
@@ -249,7 +262,9 @@ describe("agentService 边界拒绝与线程归一", () => {
           threadKey,
           docRelPath: CHAPTER,
           stageId: "draft",
-          userText: "写点什么"
+          userText: "写点什么",
+          thinkingLevel: "off",
+          webSearchEnabled: false
         })
       );
       expect(message).toContain("两者不能同时给");
@@ -263,7 +278,14 @@ describe("agentService 边界拒绝与线程归一", () => {
   it("裁定 o：空 threadKey 且 docRelPath 为 null → 合法，独立线程落 unbound", async () => {
     const { service, outbound } = await build();
     await expect(
-      service.startTurn({ threadKey: "", docRelPath: null, stageId: "draft", userText: "随便聊聊" })
+      service.startTurn({
+        threadKey: "",
+        docRelPath: null,
+        stageId: "draft",
+        userText: "随便聊聊",
+        thinkingLevel: "off",
+        webSearchEnabled: false
+      })
     ).resolves.toBeDefined();
     expect(turnStartThreadKeys(outbound)).toEqual(["unbound"]);
     const rel = await findLatestSession(root, "unbound");
@@ -280,7 +302,9 @@ describe("agentService 边界拒绝与线程归一", () => {
         threadKey: CHAPTER,
         docRelPath: CHAPTER,
         stageId: "   ",
-        userText: "随便聊聊"
+        userText: "随便聊聊",
+        thinkingLevel: "off",
+        webSearchEnabled: false
       })
     ).resolves.toBeDefined();
     const rel = await findLatestSession(root, CHAPTER);
@@ -298,7 +322,9 @@ describe("agentService 边界拒绝与线程归一", () => {
         threadKey: "  ",
         docRelPath: null,
         stageId: "draft",
-        userText: "随便聊聊"
+        userText: "随便聊聊",
+        thinkingLevel: "off",
+        webSearchEnabled: false
       })
     ).resolves.toBeDefined();
     expect(turnStartThreadKeys(outbound)).toEqual(["unbound"]);
@@ -316,7 +342,9 @@ describe("agentService 边界拒绝与线程归一", () => {
       threadKey: CHAPTER,
       docRelPath: CHAPTER,
       stageId: "draft",
-      userText: "改紧一点"
+      userText: "改紧一点",
+      thinkingLevel: "off",
+      webSearchEnabled: false
     });
     const id = proposalIdsOf(outbound)[0] ?? "";
     if (id === "") throw new Error("夹具必须先出提案，否则走不到写盘那一步");
@@ -346,6 +374,48 @@ describe("agentService 边界拒绝与线程归一", () => {
       false
     );
     expect(await chapterBytes()).toBe(CHAPTER_TEXT);
+    service.dispose();
+  });
+
+  // ===== #101 每轮两枚开关：这一对字段能不能活着走到出站 body =====
+  // 落在这个文件而不是 agent-service.test.ts，有两条硬理由：① 后者贴着 800 行门禁（实测 808 直接红），
+  // ② 这里已有带装配的假 fetch，只是把它记请求的口子打开——再造第三份 build() 就是抄第三遍装配。
+  it("思考档与联网开关原样抵达出站 body：中间任何一层漏传都在这里露头", async () => {
+    const { service } = await build({ fetchImpl: scriptedFetch(proposePatchChunks) });
+    await service.startTurn({
+      threadKey: CHAPTER,
+      docRelPath: CHAPTER,
+      stageId: "draft",
+      userText: "改紧一点",
+      thinkingLevel: "high",
+      webSearchEnabled: true
+    });
+    const request = requests[0];
+    if (request === undefined) throw new Error("请求必须发出");
+    const body = JSON.parse(request.body) as Record<string, unknown>;
+    expect(body.reasoning_effort).toBe("high");
+    const tools = body.tools as Record<string, unknown>[];
+    expect(tools.some((tool) => tool.type === "web_search")).toBe(true);
+    // 五枚本仓工具一枚不许被联网条目挤掉（TOOL_SPECS 是唯一真身）。
+    expect(tools.filter((tool) => tool.type === "function").length).toBe(5);
+    service.dispose();
+  });
+
+  it("关档 + 不联网时出站一个每轮字段都不带（默认零行为变化）", async () => {
+    const { service } = await build({ fetchImpl: scriptedFetch(proposePatchChunks) });
+    await service.startTurn({
+      threadKey: CHAPTER,
+      docRelPath: CHAPTER,
+      stageId: "draft",
+      userText: "改紧一点",
+      thinkingLevel: "off",
+      webSearchEnabled: false
+    });
+    const body = JSON.parse(requests[0]?.body ?? "{}") as Record<string, unknown>;
+    // 「关」的实现是不发字段，不是发 "off"：严格校验的端点会 400，这条钉住差别。
+    expect(body).not.toHaveProperty("reasoning_effort");
+    const tools = body.tools as Record<string, unknown>[];
+    expect(tools.some((tool) => tool.type === "web_search")).toBe(false);
     service.dispose();
   });
 });

@@ -37,7 +37,14 @@ afterAll(async () => {
 });
 
 function turn(docRelPath: string | null, userText: string): StartTurnInput {
-  return { threadKey: docRelPath ?? "unbound", docRelPath, stageId: "draft", userText };
+  return {
+    threadKey: docRelPath ?? "unbound",
+    docRelPath,
+    stageId: "draft",
+    userText,
+    thinkingLevel: "off",
+    webSearchEnabled: false
+  };
 }
 
 /** 脚本用完后的兜底响应：一条不含工具调用的响应，工具循环因此能收尾。 */

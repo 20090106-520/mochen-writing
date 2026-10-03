@@ -11,6 +11,7 @@ import ComposerBox from "./ComposerBox.vue";
 import PermissionMenu from "./PermissionMenu.vue";
 import ProviderSettings from "./ProviderSettings.vue";
 import SlashPalette from "./SlashPalette.vue";
+import ToolRoster from "./ToolRoster.vue";
 import BookWorkbench from "./BookWorkbench.vue";
 import { cardTurnLabel, splitProposalCards, turnAnchors } from "../utils/timeline";
 import {
@@ -39,6 +40,8 @@ const layout = useLayoutStore();
 const showSettings = computed(() => layout.currentView === "settings");
 /** `/` 面板的开关是瞬时 UI 态，不进 store（计划决定 6）；Task 8 的 SlashPalette 挂这里。 */
 const paletteOpen = ref(false);
+/** 工具 ▾ 的浮层同上：瞬时 UI 态，关掉不带走任何状态（它本来就没有可改的东西）。 */
+const rosterOpen = ref(false);
 const EMPTY_ITEMS: AgentEvent[] = [];
 const EMPTY_TAIL = { reasoning: "", message: "" };
 
@@ -316,16 +319,22 @@ onBeforeUnmount(() => {
       :has-book="book.hasBook"
       :permission-mode="book.meta?.permissionMode ?? null"
       :permission-saving="book.metaSaving"
+      :thinking-level="agent.thinkingLevel"
+      :web-search-enabled="agent.webSearchEnabled"
       @update:model-value="agent.setDraft(threadKey, $event)"
       @send="onComposerSend"
       @stop="agent.stop()"
       @resume="agent.continueTurn()"
       @open-permission-menu="book.togglePermissionMenu()"
+      @cycle-thinking="agent.cycleThinking()"
+      @toggle-web-search="agent.toggleWebSearch()"
+      @open-tool-roster="rosterOpen = true"
       @open-palette="paletteOpen = true"
     />
 
     <ProviderSettings v-if="showSettings" @close="closeSettings" />
 
     <SlashPalette v-if="paletteOpen" @close="paletteOpen = false" />
+    <ToolRoster v-if="rosterOpen" @close="rosterOpen = false" />
   </main>
 </template>

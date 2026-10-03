@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { editProposalSchema, PROPOSAL_DECISIONS } from "./patch.js";
 import { AGENT_TOOL_NAMES } from "./tools.js";
+import { thinkingLevelSchema } from "./per-run.js";
 
 const id = z.string().min(1);
 const ts = z.string().min(1);
@@ -105,6 +106,12 @@ export type AgentOutbound =
     };
 
 /**
+ * userText 的上限。同一个数被三处用：这里的拒绝句、输入区的 `n/20000` 计数条、
+ * 以及测试里的越界用例——写在两处就会差一，所以只住在这一处。
+ */
+export const USER_TEXT_MAX_LEN = 20000;
+
+/**
  * 渲染层可控输入进入服务边界的校验（与 decideInputSchema 同层）：
  * 分工是「业务规则走事件，请求形状与上限走拒绝」——
  * 空/纯空白的 userText、空 threadKey（未打开文稿标签即 unbound 线程）都是合法业务态，
@@ -115,7 +122,8 @@ export type AgentOutbound =
  * 此时 docRelPath 必须为 null——否则有当前章的一轮会被塞进 unbound 会话桶，
  * 造成不同章共用同一份 JSONL 历史、session-meta 自述与提案所改文件互相打脸、
  * accept-session 的自动批准授权跨所有空 threadKey 复用。这类组合走中文拒绝。
- * 字段名与可选性和原 interface 一字不改。
+ * 字段名与可选性和原 interface 一字不改——除了 #101 加的每轮两枚（thinkingLevel / webSearchEnabled），
+ * 它们是新边界，从渲染层到主进程必须逐字同名，否则「开关按了但没送出去」在链路中间查不出来。
  */
 export const startTurnInputSchema = z
   .object({
@@ -123,7 +131,13 @@ export const startTurnInputSchema = z
     /** null = 还没打开文稿标签，此时只能问不能改。 */
     docRelPath: z.string().nullable(),
     stageId: z.string().min(1, "创作阶段标识不能为空").max(200, "创作阶段标识过长（最多 200 字）"),
-    userText: z.string().max(20000, "输入内容过长（最多 20000 字）")
+    userText: z.string().max(USER_TEXT_MAX_LEN, `输入内容过长（最多 ${USER_TEXT_MAX_LEN} 字）`),
+    /**
+     * 每轮开关，无默认值：缺字段就是渲染层忘了传，必须在边界上炸出中文，
+     * 而不是悄悄按「关」发出去——那样真机上「开关坏了」和「用户没打开」就分不出来。
+     */
+    thinkingLevel: thinkingLevelSchema,
+    webSearchEnabled: z.boolean({ error: "联网搜索开关必须是真或假" })
   })
   .superRefine((value, ctx) => {
     if (value.threadKey.trim() === "" && value.docRelPath !== null)

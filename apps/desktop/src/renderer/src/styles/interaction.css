@@ -241,3 +241,132 @@
   color: var(--text-faint);
   font-size: 0.75rem;
 }
+
+/* 输入区 chip 行的按下态（#101）：aria-pressed 由 composerChips 的 active 决定，
+   样式只负责把它画出来——两枚真开关（思考 / 联网）才为真，入口型 chip 永远是假。 */
+.composer-chip[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--focus) 55%, var(--line-soft));
+  background: var(--selected);
+  color: var(--text);
+}
+
+.composer-counter {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-counter--over {
+  color: var(--danger-text);
+}
+
+/* 工具 ▾ 浮层（#101）：与 / 面板同一套毛玻璃与层级，只读清单，没有任何可点掉的行。 */
+.tool-roster-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  padding-top: 12vh;
+  background: color-mix(in srgb, #000 28%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.tool-roster {
+  width: min(560px, 92vw);
+  max-height: 72vh;
+  overflow: auto;
+  align-self: flex-start;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--editor) 92%, transparent);
+  backdrop-filter: blur(18px) saturate(120%);
+  box-shadow: 0 14px 42px var(--shadow-color);
+}
+
+.tool-roster:focus-visible {
+  outline: none;
+}
+
+.tool-roster-title {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tool-roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tool-roster-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.tool-roster-name {
+  color: var(--text);
+  font-family: var(--code-font);
+  font-size: var(--code-font-size);
+}
+
+.tool-roster-kind {
+  padding: 1px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+/* 会写盘的两枚用告警色区分——这是清单里唯一一处颜色差异，读的一律中性。 */
+.tool-roster-kind[data-kind="写"] {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--line-soft));
+  color: var(--warning);
+}
+
+.tool-roster-text strong {
+  display: block;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tool-roster-text p {
+  margin: 2px 0 0;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.tool-roster-foot {
+  margin: 12px 0 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.tool-roster-close {
+  margin-top: 10px;
+  padding: 4px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tool-roster-close:hover {
+  background: var(--hover);
+}
+
+.tool-roster-close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}

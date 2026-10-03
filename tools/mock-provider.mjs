@@ -104,6 +104,26 @@ function slowFrames() {
   return out;
 }
 
+/**
+ * 每轮两个开关（#101）在桩这一侧的回显：思考档与联网工具各自打进 reasoning 一句标记。
+ * 桩不演业务规则，但必须演「服务端看得见的形状」——否则输入区那两枚 chip 在真机上无法证伪。
+ * 关档时没有任何标记：不发 reasoning_effort、tools 里也没有 web_search，回显跟着出站形状走。
+ */
+function webSearchRequested(body) {
+  const tools = Array.isArray(body.tools) ? body.tools : [];
+  return tools.some(
+    (tool) => tool !== null && typeof tool === "object" && tool.type === "web_search"
+  );
+}
+
+function reasoningText(body) {
+  const marks = [];
+  if (typeof body.reasoning_effort === "string") marks.push(`思考档 ${body.reasoning_effort}`);
+  if (webSearchRequested(body)) marks.push("已联网");
+  const head = marks.length === 0 ? "" : `（${marks.join(" · ")}）`;
+  return `${head}先读一遍上下文，再决定动哪一段。`;
+}
+
 function framesFor(body, text) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
   if (isFollowUp(messages)) {
@@ -117,7 +137,7 @@ function framesFor(body, text) {
     return out;
   }
   if (text.includes("慢") || text.includes("打断")) return slowFrames();
-  const out = [{ choices: [{ delta: { reasoning_content: "先读一遍上下文，再决定动哪一段。" } }] }];
+  const out = [{ choices: [{ delta: { reasoning_content: reasoningText(body) } }] }];
   if (text.includes("计划")) out.push(...planBlock());
   if (text.includes("文本块")) {
     out.push(...patchBlock());
@@ -200,7 +220,10 @@ async function handle(req, res) {
     method: req.method,
     hasAuth: Boolean(req.headers.authorization),
     model: parsed.model,
-    messages: Array.isArray(parsed.messages) ? parsed.messages.length : 0
+    messages: Array.isArray(parsed.messages) ? parsed.messages.length : 0,
+    // 每轮两个开关的出站形状如实回显（缺省记 null/false，好让「漏传」与「传了 off」在日志上分得开）
+    reasoningEffort: typeof parsed.reasoning_effort === "string" ? parsed.reasoning_effort : null,
+    webSearch: webSearchRequested(parsed)
   });
   if (!url.endsWith("/chat/completions")) {
     res.writeHead(404, { "content-type": "application/json" });

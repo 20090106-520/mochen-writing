@@ -143,7 +143,14 @@ async function build(): Promise<Built> {
 }
 
 function turn(docRelPath: string | null, userText: string): StartTurnInput {
-  return { threadKey: docRelPath ?? "unbound", docRelPath, stageId: "draft", userText };
+  return {
+    threadKey: docRelPath ?? "unbound",
+    docRelPath,
+    stageId: "draft",
+    userText,
+    thinkingLevel: "off",
+    webSearchEnabled: false
+  };
 }
 
 function eventsOf(list: AgentOutbound[]): AgentEvent[] {

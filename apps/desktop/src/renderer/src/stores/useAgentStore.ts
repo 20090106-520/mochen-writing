@@ -5,6 +5,7 @@ import {
   PERMISSION_LABELS,
   PERMISSION_MODES,
   TURN_END_STATUSES,
+  nextThinkingLevel,
   type AgentDeltaKind,
   type AgentEvent,
   type AgentEventType,
@@ -17,6 +18,7 @@ import {
   type ProposalStatus,
   type SessionLoadResult,
   type StartTurnInput,
+  type ThinkingLevel,
   type TurnEndStatus
 } from "@mochen/contracts";
 import { replayProposalStatuses } from "../utils/timeline";
@@ -232,7 +234,14 @@ export const useAgentStore = defineStore("agent", {
      * 都转成 turn-end{failed}，startTurn 照样 resolve，所以 `.catch` 那条拒绝支到不了。
      * 判据是「该轮有没有发过 user-message」：发过 ⇒ 字已经在中栏转录里，绝不再回填成第二份。
      */
-    pendingSend: {} as Record<string, string>
+    pendingSend: {} as Record<string, string>,
+    /**
+     * 两枚每轮开关（task #101）：放在顶层而不是 ThreadView —— 它们描述「下一条请求长什么样」，
+     * 不是「这一条线程的历史状态」；切章不该悄悄把用户刚调好的档位换掉，也不该按线程各存一份。
+     * 落盘的是会话与稿子，档位是本进程的临时姿态，重启回到 off / false 是刻意的默认零行为变化。
+     */
+    thinkingLevel: "off" as ThinkingLevel,
+    webSearchEnabled: false
   }),
 
   getters: {
@@ -292,6 +301,18 @@ export const useAgentStore = defineStore("agent", {
     /** 发送成功后清这一格（残留会把上一句带进下一次输入）。 */
     clearDraft(threadKey: string): void {
       delete this.composerDrafts[threadKey];
+    },
+
+    /**
+     * 深度思考 chip：走一格。顺序表在 contracts 的 nextThinkingLevel（一处实现，铁律 6），
+     * 这里只负责「点了就换」，不重排枚举。
+     */
+    cycleThinking(): void {
+      this.thinkingLevel = nextThinkingLevel(this.thinkingLevel);
+    },
+
+    toggleWebSearch(): void {
+      this.webSearchEnabled = !this.webSearchEnabled;
     },
 
     /** 中栏唯一的订阅入口：装配处挂载时调一次，重复调用不叠加监听。 */
@@ -490,7 +511,10 @@ export const useAgentStore = defineStore("agent", {
         threadKey: threadKeyFor(book.activeDocTab),
         docRelPath: book.activeDocTab,
         stageId: book.meta?.activeStage ?? "draft",
-        userText: text
+        userText: text,
+        // 每轮开关的当下值：字段是必填的，主进程边界缺一个就整轮拒收（不静默按 off 发）。
+        thinkingLevel: this.thinkingLevel,
+        webSearchEnabled: this.webSearchEnabled
       };
       // startTurn 的 promise 要等整轮跑完才兑现；turnId 走 turn-start 推送，这里不等。
       // running 只由 turn-start / turn-end 拥有，被拒的这一轮从未开始，自然不会停在「工作中」。

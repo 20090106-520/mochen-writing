@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentEvent, EditProposal } from "@mochen/contracts";
 import { chatMessage, type ChatMessage } from "../src/chat-message.js";
 import { ProviderError, type StreamEvent } from "../src/provider-client.js";
-import { runTurn } from "../src/tool-loop.js";
+import { runTurn, type TurnInput } from "../src/tool-loop.js";
 import type { ToolHost, ToolOutcome } from "../src/tools.js";
 
 function proposal(id: string): EditProposal {
@@ -73,12 +73,16 @@ function makeDeps(script: StreamEvent[][], hostOutcome: ToolOutcome, abortAfter?
   return { deps, harness, controller };
 }
 
-const input = {
+const input: TurnInput = {
   turnId: "t1",
   threadKey: "chapters/01.md",
   systemPrompt: "你是墨宸·主笔。",
   history: [chatMessage("user", "上一轮的审批结果：已写入")],
-  userText: "把开头改紧"
+  userText: "把开头改紧",
+  // 每轮两枚在这里只是夹具的默认态（关 + 不联网）。字段是必填的，缺了会炸在类型层，
+  // 于是「循环把档位弄丢」只可能表现为断言红，不可能表现为悄悄不发。
+  thinkingLevel: "off",
+  webSearchEnabled: false
 };
 
 describe("runTurn", () => {

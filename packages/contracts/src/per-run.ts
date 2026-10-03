@@ -1,0 +1,57 @@
+import { z } from "zod";
+
+/**
+ * 每轮请求的两个开关（task #101）：深度思考档位与联网搜索。
+ *
+ * 这里只放**枚举与文案**，不放任何出站字段名——字段映射的唯一真身在
+ * `packages/agent-runtime/src/per-run-fields.ts`。分工的理由是渲染层不许知道 URL/密钥，
+ * 但它必须知道档位集合与中文标签；主进程反过来只需要字段名，不需要标签。
+ *
+ * 档位定成四档而不是 deepwrite 目录里的 low/high/max/xhigh：本仓只有一个 OpenAI 兼容出口，
+ * `off|low|medium|high` 是 OpenAI `reasoning_effort` 公开文档里那三档加一个「不发字段」的关闭态，
+ * 每一档都能被 `per-run-fields` 的测试钉死；多出来的 max/xhigh 属于厂商目录，本仓没有可验证的落点。
+ */
+export const THINKING_LEVELS = ["off", "low", "medium", "high"] as const;
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
+
+export const thinkingLevelSchema = z.enum(THINKING_LEVELS, {
+  message: "思考档位只能是关、低、中、高四档之一"
+});
+
+/** chip 上那枚中文标签；键集与 THINKING_LEVELS 完全一致（测试逐字钉死）。 */
+export const THINKING_LEVEL_LABELS: Record<ThinkingLevel, string> = {
+  off: "关",
+  low: "低",
+  medium: "中",
+  high: "高"
+};
+
+/**
+ * 两个开关各自实际发出去的那对键值名（唯一一份，主进程与输入区都读它）。
+ *
+ * 为什么名字放在共享层而不是只留在 agent-runtime：本仓有条铁律——**报不出出站字段名的控件
+ * 不进 UI**。输入区的 title 必须能告诉用户「这一档发的是 reasoning_effort=medium」，
+ * 而渲染层不许 import agent-runtime（那是主进程侧的运行时）。于是字段名下沉到这里：
+ * `per-run-fields.ts` 用它拼 body，chip 文案用它拼 title，改名只需要动这一行。
+ */
+export const THINKING_WIRE_FIELD = "reasoning_effort";
+export const WEB_SEARCH_WIRE_TYPE = "web_search";
+
+/**
+ * 下一档：chip 每点一次走一格，走到 high 再点回到 off。
+ * 用穷尽 switch 而不是数组下标回绕——`noUncheckedIndexedAccess` 会让下标版本报
+ * "可能是 undefined"，而这里每一档都必须给出下一档：将来枚举加了第五档却忘了改这张表，
+ * tsc 直接在缺 case 的那一行拒绝编译（TS2366），比一个悄悄返回 undefined 的循环诚实得多。
+ */
+export function nextThinkingLevel(level: ThinkingLevel): ThinkingLevel {
+  switch (level) {
+    case "off":
+      return "low";
+    case "low":
+      return "medium";
+    case "medium":
+      return "high";
+    case "high":
+      return "off";
+  }
+}

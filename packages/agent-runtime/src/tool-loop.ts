@@ -4,6 +4,7 @@ import type {
   AgentToolName,
   EditProposal,
   ProposalDecision,
+  ThinkingLevel,
   TurnEndStatus
 } from "@mochen/contracts";
 import { AGENT_TOOL_NAMES } from "@mochen/contracts";
@@ -25,6 +26,9 @@ export interface TurnInput {
   systemPrompt: string;
   history: ChatMessage[];
   userText: string;
+  /** 每轮开关，由主进程从已校验的 StartTurnInput 原样搬来；循环不认识字段名，只负责往下传。 */
+  thinkingLevel: ThinkingLevel;
+  webSearchEnabled: boolean;
 }
 
 export interface StreamRequestLike {
@@ -34,6 +38,8 @@ export interface StreamRequestLike {
   messages: ChatMessage[];
   tools: ChatToolSpec[];
   signal: AbortSignal;
+  thinkingLevel: ThinkingLevel;
+  webSearchEnabled: boolean;
 }
 
 export interface TurnDeps {
@@ -117,7 +123,9 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
         model: deps.provider.model,
         messages,
         tools: TOOL_SPECS,
-        signal: deps.signal
+        signal: deps.signal,
+        thinkingLevel: input.thinkingLevel,
+        webSearchEnabled: input.webSearchEnabled
       })) {
         if (event.kind === "reasoning-delta") {
           collected.reasoning += event.text;

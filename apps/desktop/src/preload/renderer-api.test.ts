@@ -32,7 +32,14 @@ function harness() {
 describe("createRendererApi", () => {
   it("每个方法只走自己的通道", async () => {
     const { api, calls } = harness();
-    await api.startTurn({ threadKey: "a", docRelPath: "a", stageId: "draft", userText: "改" });
+    await api.startTurn({
+      threadKey: "a",
+      docRelPath: "a",
+      stageId: "draft",
+      userText: "改",
+      thinkingLevel: "off",
+      webSearchEnabled: false
+    });
     await api.interruptTurn("t1");
     await api.decideProposal({ proposalId: "p1", decision: "cancel", guidance: "" });
     await api.proposalDiff("p1");
@@ -76,7 +83,9 @@ describe("createRendererApi", () => {
       threadKey: "chapters/01-开局.md",
       docRelPath: "chapters/01-开局.md",
       stageId: "draft",
-      userText: "改紧一点"
+      userText: "改紧一点",
+      thinkingLevel: "off",
+      webSearchEnabled: false
     };
     const decideInput: DecideInput = { proposalId: "p-1", decision: "cancel", guidance: "" };
     const draft: ProviderDraft = {

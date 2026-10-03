@@ -63,6 +63,9 @@ function baseRequest(overrides = {}) {
     model: "mochen-mock",
     messages: [chatMessage("user", "改紧一点")],
     tools: [],
+    // StreamRequest 的每轮字段是必填的：夹具也按真实形状给，别让「漏传」在桩这一侧看起来正常。
+    thinkingLevel: "off",
+    webSearchEnabled: false,
     signal: new AbortController().signal,
     ...overrides
   };
@@ -212,5 +215,38 @@ describe("mock provider 与 streamChat 的真实 socket", () => {
     expect((await unknown.json()).error.message).toBe("未知路径");
     const log = await (await fetch(`http://127.0.0.1:${port}/__requests`)).json();
     expect(JSON.stringify(log)).not.toContain(KEY);
+  });
+
+  // #101：桩是这条链的终点，也是**唯一能在真机上看见出站形状**的地方——两个开关必须在桩这一侧留下痕迹，
+  // 否则「chip 点了有用」在实机上是一句无法证伪的话。
+  it("思考档与联网开关真的抵达 body：桩把两者回显进思考与请求日志", async () => {
+    const events = await collect(baseRequest({ thinkingLevel: "high", webSearchEnabled: true }));
+    const reasoning = events
+      .filter((event) => event.kind === "reasoning-delta")
+      .map((event) => event.text)
+      .join("");
+    expect(reasoning).toContain("思考档 high");
+    expect(reasoning).toContain("已联网");
+
+    const log = await (await fetch(`http://127.0.0.1:${port}/__requests`)).json();
+    const post = log.filter((item) => item.url.endsWith("/chat/completions")).at(-1);
+    expect(post.reasoningEffort).toBe("high");
+    expect(post.webSearch).toBe(true);
+    expect(JSON.stringify(log)).not.toContain(KEY);
+  });
+
+  it("两枚开关都关着时：body 里没有 reasoning_effort、tools 里没有 web_search，思考里也没有标记", async () => {
+    const events = await collect(baseRequest({ thinkingLevel: "off", webSearchEnabled: false }));
+    const reasoning = events
+      .filter((event) => event.kind === "reasoning-delta")
+      .map((event) => event.text)
+      .join("");
+    expect(reasoning).not.toContain("思考档");
+    expect(reasoning).not.toContain("已联网");
+
+    const log = await (await fetch(`http://127.0.0.1:${port}/__requests`)).json();
+    const post = log.filter((item) => item.url.endsWith("/chat/completions")).at(-1);
+    expect(post.reasoningEffort).toBe(null);
+    expect(post.webSearch).toBe(false);
   });
 });
