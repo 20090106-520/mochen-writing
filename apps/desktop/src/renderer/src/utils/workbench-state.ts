@@ -35,6 +35,14 @@ const CARD_HINTS: Record<WorkbenchCardId, string> = {
   outline: "浏览大纲分组第一篇，落到右栏浏览态。"
 };
 
+/** 该卡的目标分组在本书里不存在时的实话：不承诺动作，只说明缺什么。 */
+export const WORKBENCH_EMPTY_HINTS: Record<WorkbenchCardId, string> = {
+  "chief-write": "这本书还没有章节，先在左栏新建一篇。",
+  character: "这本书还没有人物分组。",
+  world: "这本书还没有素材库分组。",
+  outline: "这本书还没有大纲分组。"
+};
+
 /** 无书 ⇒ false：整块降级成引导，不显示任何死卡。 */
 export function workbenchVisible(hasBook: boolean): boolean {
   return hasBook;
@@ -60,10 +68,14 @@ export function workbenchCards(input: {
   activeChapter: string | null;
 }): WorkbenchCard[] {
   if (!workbenchVisible(input.hasBook)) return [];
-  return CARD_ORDER.map((id) => ({
-    id,
-    label: WORKBENCH_CARD_LABELS[id],
-    hint: CARD_HINTS[id],
-    enabled: workbenchTarget({ id, docs: input.docs, activeChapter: input.activeChapter }) !== null
-  }));
+  return CARD_ORDER.map((id) => {
+    const target = workbenchTarget({ id, docs: input.docs, activeChapter: input.activeChapter });
+    return {
+      id,
+      label: WORKBENCH_CARD_LABELS[id],
+      // target 为 null（本书里没有该分组）⇒ 发实话；有目标才发动作说明。
+      hint: target === null ? WORKBENCH_EMPTY_HINTS[id] : CARD_HINTS[id],
+      enabled: target !== null
+    };
+  });
 }

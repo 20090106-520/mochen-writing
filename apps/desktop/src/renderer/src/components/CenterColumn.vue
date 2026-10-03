@@ -67,6 +67,8 @@ function turnLabel(card: ProposalView): string {
 // 水合时机（spec §4.4）：开书后（rootPath 落定）与切文稿标签（threadKey 变）各触发一次。
 // 判定与取数全在 store；immediate 让「已开书状态下重新挂载」也能回放。
 // （/resume 走 Task 8 的面板动作，调同一个 ensureHydrated，靠规则1 幂等。）
+// 这里必须 watch rootPath 本身，不能换成 book.hasBook 布尔源：从书 A 直接切到书 B 时
+// hasBook 恒为 true 不触发，ensureHydrated 会被静默跳过——那是行为回归，不是重复谓词。
 watch(
   [() => book.rootPath, threadKey],
   ([root]) => {

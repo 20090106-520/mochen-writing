@@ -253,7 +253,6 @@ html[data-platform="darwin"] .conversation-header {
 }
 
 .workbench-card:hover:not(:disabled) {
-  border-color: var(--text-faint);
   background: var(--surface-hover);
 }
 
@@ -261,6 +260,7 @@ html[data-platform="darwin"] .conversation-header {
   border-color: var(--line-soft);
   background: var(--surface-muted);
   color: var(--text-tertiary);
+  cursor: default;
 }
 
 .workbench-card-label {

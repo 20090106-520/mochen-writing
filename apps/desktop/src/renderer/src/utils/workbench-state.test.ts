@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DocRef } from "@mochen/contracts";
 import {
   WORKBENCH_CARD_LABELS,
+  WORKBENCH_EMPTY_HINTS,
   WORKBENCH_PREFILL,
   workbenchCards,
   workbenchTarget,
@@ -77,6 +78,14 @@ describe("workbench-state · 四张卡是真动作", () => {
       "world",
       "outline"
     ]);
+    // F1：disabled ⇒ 说实话，不承诺此刻不存在的「浏览…」动作
+    const disabledHint = cards.find((card) => card.id === "character")?.hint;
+    expect(disabledHint).toBe(WORKBENCH_EMPTY_HINTS.character);
+    expect(disabledHint).not.toBe("浏览人物分组第一篇，落到右栏浏览态。");
+    // F1：enabled ⇒ 动作说明（chief-write 在 chapters 里有真目标）
+    expect(cards.find((card) => card.id === "chief-write")?.hint).toBe(
+      "打开当前章，预填一句改稿指令，再交给你逐条审批。"
+    );
   });
 
   it("WORKBENCH_PREFILL 与 WORKBENCH_CARD_LABELS 逐字（Task 4 预填通路消费同一串）", () => {

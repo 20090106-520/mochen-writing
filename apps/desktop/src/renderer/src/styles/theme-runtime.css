@@ -165,6 +165,8 @@ html[data-theme]
     .composer-input-surface,
     .composer-attachment-chip,
     .empty-suggestions button,
+    .workbench-card,
+    .workbench-open-book,
     .workspace-dialog,
     .workspace-settings-panel,
     .model-card,

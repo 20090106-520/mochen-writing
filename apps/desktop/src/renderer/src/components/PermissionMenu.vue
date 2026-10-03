@@ -20,7 +20,7 @@ const menuEl = ref<HTMLElement | null>(null);
 const current = computed<PermissionMode>(
   () => book.meta?.permissionMode ?? DEFAULT_PERMISSION_MODE
 );
-const busy = computed(() => book.metaSaving || book.meta === null);
+const busy = computed(() => book.metaSaving || !book.hasBook);
 
 async function choose(mode: PermissionMode): Promise<void> {
   if (busy.value) return;
