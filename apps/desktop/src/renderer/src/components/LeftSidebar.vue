@@ -7,10 +7,14 @@ import AppIcon from "./AppIcon.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
 import { BOOK_KIND_LABELS, BOOK_KIND_ORDER } from "../utils/book-kinds";
+import { CLEAR_VIEW_SENTENCE, threadKeyFor, useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
+import { useLayoutStore } from "../stores/layoutStore";
 
 const emit = defineEmits<{ collapse: [] }>();
 const book = useBookStore();
+const layout = useLayoutStore();
+const agent = useAgentStore();
 
 // 图标是渲染资产不是业务枚举（设计决定 6）：标签/顺序来自 utils/book-kinds 唯一表，这里只留 icon。
 const KIND_ICON: Record<BookKind, IconName> = {
@@ -58,6 +62,16 @@ onBeforeUnmount(() => sidebarScrollbar.dispose());
 async function pickBook(): Promise<void> {
   await book.pickAndOpen();
 }
+
+// 段②：与中栏头部两处入口同一个真身（设计决定 2 之后 showSettings 是唯一路径）。
+function openModelSettings(): void {
+  layout.showSettings("general");
+}
+
+// 段③：只清渲染层视图，不碰 JSONL、不碰 pending —— clearThreadView 的真实边界。
+function newThreadForActiveChapter(): void {
+  agent.clearThreadView(threadKeyFor(book.activeDocTab));
+}
 </script>
 
 <template>
@@ -77,6 +91,21 @@ async function pickBook(): Promise<void> {
         <AppIcon name="directory" :size="17" />
         <span>打开作品目录</span>
         <kbd>Ctrl O</kbd>
+      </button>
+      <button class="nav-row" type="button" data-nav-id="model-config" @click="openModelSettings">
+        <AppIcon name="settings" :size="17" />
+        <span>模型配置</span>
+      </button>
+      <button
+        class="nav-row"
+        type="button"
+        data-nav-id="new-thread"
+        :disabled="book.activeDocTab === null"
+        :title="CLEAR_VIEW_SENTENCE"
+        @click="newThreadForActiveChapter"
+      >
+        <AppIcon name="plus" :size="17" />
+        <span>本章新对话</span>
       </button>
     </nav>
 
