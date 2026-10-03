@@ -174,3 +174,43 @@
 .status-note-agent {
   color: var(--warning);
 }
+
+/* Task 9（F-D）：输入区 chip 行，两枚真开关 + 一句静态键位提示。
+   T9-4②：chip 基础色用 --text-soft——同一个逻辑控件在中栏头部与输入区必须同色。
+   T9-4④：提示句与 .composer-hint（agent-pane.css:424-428）同一姿态：--text-faint + 12px。 */
+.composer-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px 0;
+}
+
+.composer-chip {
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.composer-chip:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.composer-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.composer-chip:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.composer-chip-hint {
+  color: var(--text-faint);
+  font-size: 12px;
+}

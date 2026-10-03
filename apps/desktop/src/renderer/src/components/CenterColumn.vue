@@ -318,10 +318,15 @@ onBeforeUnmount(() => {
       :ready="ready"
       :can-continue="agent.canContinue(threadKey)"
       :model-value="agent.draftOf(threadKey)"
+      :has-book="book.hasBook"
+      :permission-mode="book.meta?.permissionMode ?? null"
+      :permission-saving="book.metaSaving"
       @update:model-value="agent.setDraft(threadKey, $event)"
       @send="onComposerSend"
       @stop="agent.stop()"
       @resume="agent.continueTurn()"
+      @open-permission-menu="book.togglePermissionMenu()"
+      @open-palette="paletteOpen = true"
     />
 
     <ProviderSettings v-if="showSettings" @close="closeSettings" />
