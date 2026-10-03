@@ -3,6 +3,7 @@ import {
   THINKING_WIRE_FIELD,
   USER_TEXT_MAX_LEN,
   WEB_SEARCH_WIRE_TYPE,
+  codePointLength,
   type PermissionMode,
   type ThinkingLevel
 } from "@mochen/contracts";
@@ -121,8 +122,10 @@ export function composerChips(input: {
  * 上限读 `USER_TEXT_MAX_LEN`——与主进程 `startTurnInputSchema` 里那条边界是同一个常量，
  * 所以「计数条说没超、发出去却被拒」这种分裂不会出现。
  * 计数按**码点**：`text.length` 会把一个 emoji 数成 2，用户看到的是一格，报出来是两格。
+ * 口径用 `codePointLength`（含空白的裸码点数）而不是 `proseCharCount`：这里量的是「你敲进去多少」，
+ * 与主进程那条边界同一个口径；页脚「正文 N 字」量的是「稿子有多少字」，两者本就不同，不许互相冒充。
  */
 export function composerCounter(text: string): { text: string; over: boolean } {
-  const count = Array.from(text).length;
+  const count = codePointLength(text);
   return { text: `${count}/${USER_TEXT_MAX_LEN}`, over: count > USER_TEXT_MAX_LEN };
 }

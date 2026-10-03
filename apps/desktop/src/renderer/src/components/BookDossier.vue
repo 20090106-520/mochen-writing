@@ -15,7 +15,7 @@ defineProps<{ summary: DossierSummary | null; groups: DossierGroup[] }>();
         <h2 class="dossier-title">{{ summary.title }}</h2>
         <p class="dossier-facts">
           当前阶段：{{ summary.stageName }} · 权限档：{{ summary.permissionLabel }} · 章节
-          {{ summary.chapterCount }} 篇
+          {{ summary.chapterCount }} 篇 · 正文 {{ summary.chapterChars.toLocaleString("zh-CN") }} 字
         </p>
       </header>
       <div v-if="groups.length === 0" class="dossier-empty">

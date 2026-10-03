@@ -25,6 +25,11 @@ export interface DocRef {
   title: string;
   /** 正文第一段纯文本（≤80 码点），由 scan 顺路带出；跨 IPC 消费处一律 `?? ""`。 */
   excerpt?: string;
+  /**
+   * 正文字数（剥掉 frontmatter，按 `proseCharCount` 的非空白码点口径），同样由 scan 顺路带出——
+   * 与 `excerpt` 共用那一次 readFile，不额外碰盘。消费处一律 `?? 0`。
+   */
+  chars?: number;
 }
 
 const stageSchema = z.object({ id: z.string().min(1), name: z.string().min(1) });

@@ -10,6 +10,7 @@ import { scriptSource, templateSource, vueSource } from "../utils/vue-source-rea
 const pane = "components/DocumentPane.vue";
 const bar = "components/DocumentTabBar.vue";
 const toolbar = "components/SnippetToolbar.vue";
+const dossier = "components/BookDossier.vue";
 const paneScript = scriptSource(pane);
 const paneTemplate = templateSource(pane);
 
@@ -106,11 +107,17 @@ describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F
     expect(paneTemplate).toContain("{{ readingTimeLabel }}");
   });
 
-  it("「N 字」按码点而不是码元：与同一排的时长同口径", () => {
+  // #103a：字数与时长都只算「剥掉 frontmatter 之后的正文」。钉三件事：围栏切分只有一份真身
+  // （contracts 的 splitFrontmatter）、计数只有一份口径（proseCharCount）、两者吃同一个 prose 派生值。
+  // 名字漂回 codePointLength（含空白、不剥围栏）就是第二套口径，这条必须红。
+  it("「正文 N 字」与时长同源：先剥围栏，再按非空白码点计数", () => {
     expect(paneScript).not.toContain("book.draft.length");
-    expect(paneScript).toContain("codePointLength(book.draft)");
-    // 「字」这个后缀是单一插值字面量，属文案不属判定，留在模板。
-    expect(paneTemplate).toContain("字");
+    expect(paneScript).not.toContain("codePointLength");
+    expect(paneScript).toContain("splitFrontmatter(book.draft).body");
+    expect(paneScript).toContain("proseCharCount(prose.value)");
+    expect(paneScript).toContain("formatReadingTime(prose.value)");
+    // textarea 里围栏行仍然看得见，计数却不含它 ⇒ 标签必须写明「正文」，否则名实不符。
+    expect(paneTemplate).toContain('正文 {{ characterCount.toLocaleString("zh-CN") }} 字');
   });
 
   it("两张 mode 文案表搬进 utils/right-pane-labels：.vue 里不再抄第二份中文", () => {
@@ -145,9 +152,27 @@ describe("DocumentTabBar · 抽出后闸门与文案不许漂移（Ruling T10-3�
   });
 });
 
-describe("右栏三处源文件都不长出 WYSIWYG（附录 §2.2 明写不做）", () => {
+describe("BookDossier · 书卡那句「正文 M 字」的载体（#103a）", () => {
+  // M5 那一课的复用品：判定/求和在 .ts 里改好不等于接通，钉的是「这个值真的走进了模板」。
+  // 把 `{{ summary.chapterChars }}` 删掉、或改回在模板里自己加总，这条都要红。
+  it("求和只发生在 utils：模板只插 summary.chapterChars，不在 .vue 里再算一遍", () => {
+    const markup = templateSource(dossier);
+    const facts = /<p class="dossier-facts">([\s\S]*?)<\/p>/.exec(markup)?.[1] ?? "";
+    expect(facts).toContain("章节");
+    expect(facts).toContain("summary.chapterCount");
+    expect(facts).toContain("正文");
+    expect(facts).toContain("summary.chapterChars");
+    expect(vueSource(dossier)).not.toMatch(/\.reduce\(/);
+    expect(vueSource(dossier)).not.toMatch(/proseCharCount|splitFrontmatter/);
+    // 汇总来自父侧唯一一次 dossierSummary()，子组件不自己从 store 取数。
+    expect(scriptSource(dossier)).not.toContain("useBookStore");
+    expect(paneScript).toContain("dossierSummary(book.meta, book.docs)");
+  });
+});
+
+describe("右栏四株源文件都不长出 WYSIWYG（附录 §2.2 明写不做）", () => {
   it("contenteditable 一次都不许出现：编辑器仍是 textarea，片段只是改字符串", () => {
-    for (const file of [pane, bar, toolbar]) {
+    for (const file of [pane, bar, toolbar, dossier]) {
       expect(vueSource(file)).not.toContain("contenteditable");
     }
     expect(vueSource(pane)).toContain("<textarea");

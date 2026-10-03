@@ -1,6 +1,7 @@
 <!-- 右栏：结构、类名与标签/工具栏/页脚 markup 取自 deepwrite（Apache-2.0）的 RightEditorPane.vue -->
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { proseCharCount, splitFrontmatter } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import BookDossier from "./BookDossier.vue";
 import DocumentTabBar from "./DocumentTabBar.vue";
@@ -9,7 +10,7 @@ import { useSnippetToolbar } from "../composables/useSnippetToolbar";
 import { useBookStore, type RightPaneMode } from "../stores/useBookStore";
 import { dossierSummary, groupDocsForDossier } from "../utils/book-dossier";
 import { BOOK_KIND_LABELS } from "../utils/book-kinds";
-import { codePointLength, readingTimeLabel as formatReadingTime } from "../utils/reading-time";
+import { readingTimeLabel as formatReadingTime } from "../utils/reading-time";
 import { BAND_LABELS, VIEW_TABS } from "../utils/right-pane-labels";
 
 const emit = defineEmits<{ collapse: [] }>();
@@ -48,15 +49,15 @@ const editorEl = ref<HTMLTextAreaElement | null>(null);
 /** 「读真实选区 → 纯函数 → book.onEdit → 回设光标」这段有行为的接线住 composables/，才谈得上被单测钉住。 */
 const { snippetToolbar, applyToSelection } = useSnippetToolbar(editorEl);
 
-/** 字数与时长同读 book.draft、同按码点算：两格并排，一个按码元一个按码点就会自相矛盾。 */
-const characterCount = computed(() => codePointLength(book.draft));
-
 /**
- * 「约 N 分钟阅读」/「— 分钟」的拼串住在 utils/reading-time.ts：`.vue` 既不进类型程序也没有单测覆盖，
- * 文案漂在这里改名字谁也测不到（修复轮 F1）。模板只留这一句插值。
- * 两格都只在文稿态出现——只读态报当前文稿的进度是假话（闸门在 footer）。
+ * 页脚两格读的都是**正文**而不是草稿原文：文稿态那块是可编辑的 `<textarea>`，磁盘上的 frontmatter
+ * （`---` / `title: …`）在里面看得见，但它不是作者写的字。计数口径与剥围栏的规则都只有一份
+ * （`@mochen/contracts` 的 `proseCharCount` / `splitFrontmatter`），于是书卡上的「正文 N 字」
+ * 与打开同一篇时页脚的 N 是同一个数——#103 之前这里是两套口径（页脚把围栏算成字）。
  */
-const readingTimeLabel = computed(() => formatReadingTime(book.draft));
+const prose = computed(() => splitFrontmatter(book.draft).body);
+const characterCount = computed(() => proseCharCount(prose.value));
+const readingTimeLabel = computed(() => formatReadingTime(prose.value));
 
 const saveStateLabel = computed(() => {
   if (book.conflict) return "外部已改动，已拒绝覆盖";
@@ -193,7 +194,7 @@ function switchMode(next: RightPaneMode): void {
     <footer class="editor-footer">
       <div class="editor-footer-meta">
         <template v-if="mode === 'manuscript'">
-          <span>{{ characterCount.toLocaleString("zh-CN") }} 字</span>
+          <span>正文 {{ characterCount.toLocaleString("zh-CN") }} 字</span>
           <span class="reading-time">{{ readingTimeLabel }}</span>
         </template>
         <span class="editor-save-status">{{ book.notice || saveStateLabel }}</span>

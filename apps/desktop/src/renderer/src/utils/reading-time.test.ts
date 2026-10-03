@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  READING_MINUTES_PER_WORD,
-  codePointLength,
-  readingMinutes,
-  readingTimeLabel
-} from "./reading-time";
+import { proseCharCount, splitFrontmatter } from "@mochen/contracts";
+import { READING_MINUTES_PER_WORD, readingMinutes, readingTimeLabel } from "./reading-time";
 
 describe("readingMinutes（附录 F-G：中文 300 字/分钟，向上取整）", () => {
   it("换算常数就是 300，别哪天漂成 200", () => {
@@ -61,17 +57,28 @@ describe("readingTimeLabel（修复轮 F1：分钟文案的唯一拼身处）", 
 });
 
 /**
- * 修复轮 F4：页脚同一排的「N 字」与「约 M 分钟阅读」必须出自同一计数口径，
- * 否则 300 个 🐋 会显示成「600 字 / 约 1 分钟阅读」，当场自证 300 字/分钟是假话。
+ * 修复轮 F4 + #103：页脚同一排的「正文 N 字」与「约 M 分钟阅读」必须出自同一个计数口径，
+ * 而 #103 把那个口径上收到 `@mochen/contracts/proseCharCount`——扫描侧算 `DocRef.chars` 用的也是它，
+ * 于是书卡上的总字数与打开同一篇时页脚的数天然是同一个数。
+ * 本用例钉的就是这条跨层一致性：给一段文本，字数与时长必须互相解释得通。
  */
-describe("codePointLength（修复轮 F4：字数与时长同口径）", () => {
-  it("按码点计数：一个表情算一个字", () => {
-    expect(codePointLength("🐋海雾")).toBe(3);
+describe("proseCharCount 与 readingMinutes 同口径（#103：唯一字数口径）", () => {
+  it("300 个表情：字数 300、时长 1 分钟（按码元数会自证 300 字/分钟是假话）", () => {
+    const text = "🐋".repeat(300);
+    expect(proseCharCount(text)).toBe(300);
+    expect(readingMinutes(text)).toBe(1);
   });
 
-  it("同一段文本：字数 300 与时长 1 分钟出自同一口径，不再一个按码元一个按码点", () => {
-    const text = "🐋".repeat(300);
-    expect(codePointLength(text)).toBe(300);
-    expect(readingMinutes(text)).toBe(1);
+  it("字数里不含空白，时长里也不含空白：900 字夹 900 个换行仍是 3 分钟", () => {
+    const text = Array.from({ length: 900 }, (_, i) => `雾${i % 2 === 0 ? "\n" : " "}`).join("");
+    expect(proseCharCount(text)).toBe(900);
+    expect(readingMinutes(text)).toBe(3);
+  });
+
+  it("页脚那格读的是正文而不是草稿原文：frontmatter 的 `---` 与 `title:` 不进字数", () => {
+    const draft = "---\ntitle: 第一章\n---\n一二三";
+    // 整篇（含围栏与键值行）远多于 3 字；剥完围栏的正文恰好 3 字。
+    expect(proseCharCount(draft)).toBeGreaterThan(3);
+    expect(proseCharCount(splitFrontmatter(draft).body)).toBe(3);
   });
 });

@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { BookKind, DocRef } from "@mochen/contracts";
+import { proseCharCount } from "@mochen/contracts";
 import { parseFrontmatter } from "./frontmatter.js";
 import { toPosixRelPath } from "./paths.js";
 
@@ -38,7 +39,7 @@ async function walk(root: string, dir: string, out: DocRef[]): Promise<void> {
     const kind = kindOf(rel);
     if (!kind) continue;
     const meta = await docMetaOf(full, rel);
-    out.push({ relPath: rel, kind, title: meta.title, excerpt: meta.excerpt });
+    out.push({ relPath: rel, kind, title: meta.title, excerpt: meta.excerpt, chars: meta.chars });
   }
 }
 
@@ -51,19 +52,22 @@ function kindOf(rel: string): BookKind | null {
 /** 摘录正文按码点截这么长，超出加一个省略号（与 timeline.ts 的 Array.from 同律：按码点不按 UTF-16 码元）。 */
 const EXCERPT_MAX = 80;
 
-async function docMetaOf(full: string, rel: string): Promise<{ title: string; excerpt: string }> {
+async function docMetaOf(
+  full: string,
+  rel: string
+): Promise<{ title: string; excerpt: string; chars: number }> {
   const base = path.basename(rel, ".md");
   const fallback = (base.match(/^\d*[-_]?(.*)$/)?.[1] ?? "").trim() || rel;
   try {
-    // 只读这一次：frontmatter 出 title，body 出 excerpt，与旧 titleOf 的 readFile 次数完全一致。
+    // 只读这一次：frontmatter 出 title，body 出 excerpt 与 chars，与旧 titleOf 的 readFile 次数完全一致。
     // 逃逸口提醒：IO 计数护栏（scan-excerpt.test.ts 的 readFile spy）只认这条 readFile——
     // 若改用 readFileSync / createReadStream 读，护栏的调用计数看不见，读放大就悄悄溜过。
     const { data, body } = parseFrontmatter(await readFile(full, "utf8"));
     const raw = data.title;
     const title = typeof raw === "string" && raw.trim() ? raw.trim() : fallback;
-    return { title, excerpt: excerptOf(body) };
+    return { title, excerpt: excerptOf(body), chars: proseCharCount(body) };
   } catch {
-    return { title: fallback, excerpt: "" };
+    return { title: fallback, excerpt: "", chars: 0 };
   }
 }
 
