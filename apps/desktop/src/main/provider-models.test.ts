@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { spawn } from "node:child_process";
+import { createServer } from "node:net";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   modelListResultSchema,
   type ModelListResult,
@@ -236,5 +240,72 @@ describe("createModelLister().list", () => {
       }).list();
       expect(JSON.stringify(result)).not.toContain(KEY);
     }
+  });
+});
+
+/**
+ * #104：上面整段用的是自记调用的假 fetch，于是「去重与排序」只在纯函数那一层被验过。
+ * 这里把 `tools/mock-provider.mjs` 当**真对手**跑一遍真实 socket：桩给的名单是乱序且带重复的
+ * （见 MOCK_MODELS），所以这一发同时钉住「解析器真的在链路上做了它该做的事」与「拼接出来的
+ * `{baseURL}/models` 能被一个活的服务认」。端口/进程口径与 turn-e2e.test.ts 同一套。
+ */
+describe("createModelLister 对 mock provider 真 socket", () => {
+  const ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  let port = 0;
+  let child: ReturnType<typeof spawn> | null = null;
+
+  beforeAll(async () => {
+    port = await new Promise<number>((resolve, reject) => {
+      const probe = createServer();
+      probe.once("error", reject);
+      probe.listen(0, "127.0.0.1", () => {
+        const address = probe.address();
+        const value = typeof address === "object" && address ? address.port : 0;
+        probe.close(() => resolve(value));
+      });
+    });
+    child = spawn(
+      process.execPath,
+      [join(ROOT, "tools", "mock-provider.mjs"), "--port", String(port)],
+      {
+        stdio: "ignore"
+      }
+    );
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      try {
+        if ((await fetch(`http://127.0.0.1:${port}/__health`)).ok) return;
+      } catch {
+        // 还没起来
+      }
+      await sleep(50);
+    }
+    throw new Error(`mock provider 没能在端口 ${port} 起来`);
+  });
+
+  afterAll(() => {
+    child?.kill();
+  });
+
+  it("桩给乱序含重复的四条 ⇒ 通道回来的是去重升序的三条，密钥只在头里", async () => {
+    const result = await createModelLister({
+      settings: settingsStub({ baseURL: `http://127.0.0.1:${port}/v1`, model: "旧模型" }, KEY)
+    }).list();
+    expect(result).toEqual({
+      ok: true,
+      models: ["aether-7b-instruct", "mochen-mock", "mochen-mock-long"]
+    });
+
+    const log = (await (await fetch(`http://127.0.0.1:${port}/__requests`)).json()) as {
+      url: string;
+      method: string;
+      hasAuth: boolean;
+    }[];
+    const got = log.find((item) => item.url.endsWith("/models"));
+    expect(got?.method).toBe("GET");
+    expect(got?.hasAuth).toBe(true);
+    expect(got?.url).not.toContain(KEY);
+    expect(JSON.stringify(log)).not.toContain(KEY);
   });
 });

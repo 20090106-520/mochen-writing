@@ -17,6 +17,11 @@ const port = Number(flag("port", "8787"));
 const doc = process.env.MOCHEN_MOCK_DOC ?? flag("doc", "chapters/01-开局.md");
 const requests = [];
 
+// #104：桩扮的远端模型名单。刻意**乱序**并让 mochen-mock **出现两次**——
+// 去重与排序归主进程 provider-models.ts 的解析器，桩要是替它排好了，
+// 那条链在真机上就永远测不出「解析器没做这件事」。
+const MOCK_MODELS = ["mochen-mock-long", "mochen-mock", "aether-7b-instruct", "mochen-mock"];
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function lastUserText(body) {
@@ -225,6 +230,11 @@ async function handle(req, res) {
     reasoningEffort: typeof parsed.reasoning_effort === "string" ? parsed.reasoning_effort : null,
     webSearch: webSearchRequested(parsed)
   });
+  if (url.endsWith("/models")) {
+    res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    res.end(JSON.stringify({ object: "list", data: MOCK_MODELS.map((id) => ({ id })) }));
+    return;
+  }
   if (!url.endsWith("/chat/completions")) {
     res.writeHead(404, { "content-type": "application/json" });
     res.end(JSON.stringify({ error: { message: "未知路径" } }));

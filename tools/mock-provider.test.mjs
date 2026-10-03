@@ -249,4 +249,25 @@ describe("mock provider 与 streamChat 的真实 socket", () => {
     expect(post.reasoningEffort).toBe(null);
     expect(post.webSearch).toBe(false);
   });
+
+  // #104：桩是 `{baseURL}/models` 这一侧的真对手。名单**故意**乱序且带重复——
+  // 去重与排序是主进程 provider-models.ts 的活，桩替它做齐就等于把那条链测虚了。
+  it("GET /v1/models 返回乱序含重复的名单，且这次 GET 也进日志（密钥只在 header）", async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/v1/models`, {
+      method: "GET",
+      headers: { authorization: `Bearer ${KEY}` }
+    });
+    expect(response.status).toBe(200);
+    const ids = (await response.json()).data.map((item) => item.id);
+    expect(ids).toContain("mochen-mock");
+    expect(new Set(ids).size).toBeLessThan(ids.length);
+    expect(ids).not.toEqual([...ids].sort());
+
+    const log = await (await fetch(`http://127.0.0.1:${port}/__requests`)).json();
+    const got = log.find((item) => item.url.endsWith("/models"));
+    expect(got.method).toBe("GET");
+    expect(got.hasAuth).toBe(true);
+    expect(got.url).not.toContain(KEY);
+    expect(JSON.stringify(log)).not.toContain(KEY);
+  });
 });
