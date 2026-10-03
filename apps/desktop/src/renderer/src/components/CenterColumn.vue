@@ -12,6 +12,7 @@ import PermissionMenu from "./PermissionMenu.vue";
 import ProviderSettings from "./ProviderSettings.vue";
 import SlashPalette from "./SlashPalette.vue";
 import ToolRoster from "./ToolRoster.vue";
+import ModelSelect from "./ModelSelect.vue";
 import BookWorkbench from "./BookWorkbench.vue";
 import { cardTurnLabel, splitProposalCards, turnAnchors } from "../utils/timeline";
 import {
@@ -25,6 +26,7 @@ import {
 import { useGlobalHotkeys } from "../composables/useHotkeys";
 import { useBookStore } from "../stores/useBookStore";
 import { useLayoutStore } from "../stores/layoutStore";
+import { useProviderStore } from "../stores/useProviderStore";
 import {
   composeStatusLine,
   threadKeyFor,
@@ -39,11 +41,14 @@ const emit = defineEmits<{ toggleLeft: []; toggleRight: [] }>();
 const book = useBookStore();
 const agent = useAgentStore();
 const layout = useLayoutStore();
+const provider = useProviderStore();
 const showSettings = computed(() => layout.currentView === "settings");
 /** `/` 面板的开关是瞬时 UI 态，不进 store（计划决定 6）；Task 8 的 SlashPalette 挂这里。 */
 const paletteOpen = ref(false);
 /** 工具 ▾ 的浮层同上：瞬时 UI 态，关掉不带走任何状态（它本来就没有可改的东西）。 */
 const rosterOpen = ref(false);
+/** 模型 ▾ 也是瞬时 UI 态；名单本身归 useProviderStore（切完模型它还活着，关掉浮层不该重拉）。 */
+const modelsOpen = ref(false);
 const EMPTY_ITEMS: AgentEvent[] = [];
 const EMPTY_TAIL = { reasoning: "", message: "" };
 
@@ -174,6 +179,20 @@ function decide(proposalId: string, decision: ProposalDecision, guidance: string
   void agent.decide(proposalId, decision, guidance);
 }
 
+/**
+ * 模型 ▾（#104）：打开即拉一次名单。缓存判定（「这一版配置拉过没有」）在 useProviderStore，
+ * 这里只负责「什么时候要」；重试是同一件事的强制版，故传 true。
+ */
+function openModelSelect(): void {
+  modelsOpen.value = true;
+  void provider.loadModels();
+}
+
+/** 选中一条 = 只改 model 那一个字段（baseURL 与密钥原样留在主进程），写回成功才关浮层。 */
+async function chooseModel(name: string): Promise<void> {
+  if (await provider.select(name)) modelsOpen.value = false;
+}
+
 /** 发送 = 投递这一轮 + 清掉这一格草稿（值已进对话流，留着会把上一句带进下一次输入）。
  * 这里的清空是乐观的：那一轮若被边界拒绝，`useAgentStore.send` 的 catch 是真身，会把这一格原样还回来。 */
 function onComposerSend(text: string): void {
@@ -197,6 +216,8 @@ function closeSettings(): void {
 let timer: number | undefined;
 onMounted(() => {
   agent.startListening();
+  // 模型 chip 一挂出来就要报得出当前模型名：配置读一次，失败由 store 收成一句中文理由。
+  void provider.refresh();
   timer = window.setInterval(() => agent.tick(), 1000);
 });
 onBeforeUnmount(() => {
@@ -347,6 +368,8 @@ onBeforeUnmount(() => {
       :permission-saving="book.metaSaving"
       :thinking-level="agent.thinkingLevel"
       :web-search-enabled="agent.webSearchEnabled"
+      :model-label="provider.modelLabel"
+      :base-url="provider.view?.baseURL ?? ''"
       @update:model-value="agent.setDraft(threadKey, $event)"
       @send="onComposerSend"
       @stop="agent.stop()"
@@ -355,6 +378,7 @@ onBeforeUnmount(() => {
       @cycle-thinking="agent.cycleThinking()"
       @toggle-web-search="agent.toggleWebSearch()"
       @open-tool-roster="rosterOpen = true"
+      @open-model-select="openModelSelect"
       @open-palette="paletteOpen = true"
     />
 
@@ -362,5 +386,15 @@ onBeforeUnmount(() => {
 
     <SlashPalette v-if="paletteOpen" @close="paletteOpen = false" />
     <ToolRoster v-if="rosterOpen" @close="rosterOpen = false" />
+    <ModelSelect
+      v-if="modelsOpen"
+      :result="provider.models"
+      :loading="provider.modelsLoading"
+      :current="provider.modelLabel"
+      :switching="provider.switching"
+      @close="modelsOpen = false"
+      @retry="provider.loadModels(true)"
+      @select="(name) => void chooseModel(name)"
+    />
   </main>
 </template>

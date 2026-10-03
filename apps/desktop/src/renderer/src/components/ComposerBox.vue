@@ -20,6 +20,8 @@ const props = defineProps<{
   permissionSaving: boolean;
   thinkingLevel: ThinkingLevel;
   webSearchEnabled: boolean;
+  modelLabel: string;
+  baseURL: string;
 }>();
 const emit = defineEmits<{
   "update:modelValue": [value: string];
@@ -30,6 +32,7 @@ const emit = defineEmits<{
   "cycle-thinking": [];
   "toggle-web-search": [];
   "open-tool-roster": [];
+  "open-model-select": [];
   "open-palette": [];
 }>();
 
@@ -39,14 +42,16 @@ const draft = computed({
   set: (value: string) => emit("update:modelValue", value)
 });
 
-// F-D chip 行：五枚真开关/入口，判定全部下沉 composerChips（权限侧内部只调 permissionChipView 一次）。
+// F-D chip 行：六枚真开关/入口，判定全部下沉 composerChips（权限侧内部只调 permissionChipView 一次）。
 const chips = computed(() =>
   composerChips({
     hasBook: props.hasBook,
     mode: props.permissionMode,
     saving: props.permissionSaving,
     thinkingLevel: props.thinkingLevel,
-    webSearchEnabled: props.webSearchEnabled
+    webSearchEnabled: props.webSearchEnabled,
+    modelLabel: props.modelLabel,
+    baseURL: props.baseURL
   })
 );
 // 计数条与主进程边界共用 USER_TEXT_MAX_LEN：这里说没超，发出去就不会被拒。

@@ -10,7 +10,8 @@ import {
 import { permissionChipView } from "./permission-chip";
 import { toolRoster } from "./tool-roster";
 
-export type ComposerChipId = "permission" | "thinking" | "web-search" | "tools" | "palette";
+export type ComposerChipId =
+  "permission" | "thinking" | "web-search" | "tools" | "model" | "palette";
 
 export interface ComposerChipView {
   id: ComposerChipId;
@@ -26,6 +27,7 @@ export type ComposerChipEvent =
   | "cycle-thinking"
   | "toggle-web-search"
   | "open-tool-roster"
+  | "open-model-select"
   | "open-palette";
 
 // CHIP_EMIT 住在这一 `.ts` 文件而不是 ComposerBox.vue：本仓 verify 链用裸 tsc，
@@ -38,6 +40,7 @@ export const CHIP_EMIT: Record<ComposerChipId, ComposerChipEvent> = {
   thinking: "cycle-thinking",
   "web-search": "toggle-web-search",
   tools: "open-tool-roster",
+  model: "open-model-select",
   palette: "open-palette"
 };
 
@@ -73,12 +76,42 @@ function webSearchChip(enabled: boolean): ComposerChipView {
   };
 }
 
+/**
+ * 模型 chip 是一枚**入口**，不是开关：亮出当前模型名，点开走 `provider:list-models`
+ * 拉 `{baseURL}/models` 的候选名单。
+ * 恒 `disabled:false`——能不能拉名单只取决于地址，与有没有开书无关，禁用只会造出一枚摆设；
+ * 恒 `active:false`——弹层是瞬态而非按下态，`aria-pressed` 用它只会撒谎。
+ * title 必须报出真实通道名与被访问的地址（铁律：报不出通道名的控件不进 UI），
+ * 同时把「改地址/密钥」这条它自己办不到的事指回模型设置，不让 chip 冒充设置面板。
+ */
+function modelChip(modelLabel: string, baseURL: string): ComposerChipView {
+  const endpoint = `${baseURL}/models`;
+  let title: string;
+  if (baseURL === "") {
+    title =
+      "配置里还没有 API 地址，provider:list-models 此刻拉不到名单。先在模型设置里填好 baseURL（或手填模型名）。";
+  } else if (modelLabel === "") {
+    title = `还没读出当前模型名。点开试拉 ${endpoint}（走 provider:list-models 通道，密钥只在主进程发出）；也可在模型设置里手填。`;
+  } else {
+    title = `当前模型 ${modelLabel}。点开试拉 ${endpoint}（走 provider:list-models 通道，密钥只在主进程发出）；改地址或密钥请到模型设置。`;
+  }
+  return {
+    id: "model",
+    text: modelLabel === "" ? "未配置模型" : modelLabel,
+    disabled: false,
+    title,
+    active: false
+  };
+}
+
 export function composerChips(input: {
   hasBook: boolean;
   mode: PermissionMode | null;
   saving: boolean;
   thinkingLevel: ThinkingLevel;
   webSearchEnabled: boolean;
+  modelLabel: string;
+  baseURL: string;
 }): ComposerChipView[] {
   // 权限 chip 只调 permissionChipView 一次，不重算（设计决定 4）。
   const permission = permissionChipView(input);
@@ -102,6 +135,7 @@ export function composerChips(input: {
       title: `看它带哪 ${roster.length} 枚工具（只读清单，工具由模型自己挑，这里不能单独禁用）`,
       active: false
     },
+    modelChip(input.modelLabel, input.baseURL),
     {
       id: "palette",
       text: "/ 命令",

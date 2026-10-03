@@ -370,3 +370,135 @@
   outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
+
+/* 模型 ▾ 浮层（#104）：与工具清单同一套毛玻璃与层级；行集来自 provider:list-models，
+   当前项只有徽章没有按钮，所以这里不存在「点了没反应」的行。 */
+.model-select-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  padding-top: 12vh;
+  background: color-mix(in srgb, #000 28%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.model-select {
+  width: min(460px, 92vw);
+  max-height: 72vh;
+  overflow: auto;
+  align-self: flex-start;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--editor) 92%, transparent);
+  backdrop-filter: blur(18px) saturate(120%);
+  box-shadow: 0 14px 42px var(--shadow-color);
+}
+
+.model-select:focus-visible {
+  outline: none;
+}
+
+.model-select-title {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.model-select-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model-select-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+
+.model-select-row:hover {
+  background: var(--hover);
+}
+
+.model-select-name {
+  color: var(--text);
+  font-family: var(--code-font);
+  font-size: var(--code-font-size);
+  word-break: break-all;
+}
+
+.model-select-badge {
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--success) 45%, var(--line-soft));
+  border-radius: 999px;
+  color: var(--success);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.model-select-pick,
+.model-select-retry,
+.model-select-close {
+  padding: 4px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.model-select-pick:hover:not(:disabled),
+.model-select-retry:hover,
+.model-select-close:hover {
+  background: var(--hover);
+}
+
+/* 写回期间的禁用行不装成还能点：手势与按下态一起收回（与 chip 行同一律）。 */
+.model-select-pick:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.model-select-pick:focus-visible,
+.model-select-retry:focus-visible,
+.model-select-close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.model-select-note {
+  margin: 6px 0 0;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.model-select-error {
+  margin: 6px 0 0;
+  color: var(--danger-text);
+  font-size: 12px;
+}
+
+.model-select-retry {
+  margin-top: 8px;
+}
+
+.model-select-close {
+  margin-top: 10px;
+}
+
+.model-select-foot {
+  margin: 12px 0 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}

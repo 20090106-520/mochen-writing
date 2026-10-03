@@ -11,6 +11,8 @@ function input(over: Partial<Parameters<typeof composerChips>[0]> = {}) {
     saving: false,
     thinkingLevel: "off" as const,
     webSearchEnabled: false,
+    modelLabel: "mochen-mock",
+    baseURL: "http://127.0.0.1:8787/v1",
     ...over
   };
 }
@@ -19,13 +21,14 @@ function chip(id: string, over: Partial<Parameters<typeof composerChips>[0]> = {
   return composerChips(input(over)).find((item) => item.id === id);
 }
 
-describe("composer-chips · 五枚真开关，排队不做按钮（F-D + #101）", () => {
-  it("id 顺序逐字钉死：permission/thinking/web-search/tools/palette（第三枚排队按钮不许长出来）", () => {
+describe("composer-chips · 六枚真开关/入口，排队不做按钮（F-D + #101 + #104）", () => {
+  it("id 顺序逐字钉死：permission/thinking/web-search/tools/model/palette（第三枚排队按钮不许长出来）", () => {
     expect(composerChips(input()).map((c) => c.id)).toEqual([
       "permission",
       "thinking",
       "web-search",
       "tools",
+      "model",
       "palette"
     ]);
   });
@@ -114,32 +117,70 @@ describe("composer-chips · 联网搜索与工具清单", () => {
     expect(tools?.active).toBe(false);
   });
 
-  it("三枚新 chip 都不 disabled——它们是请求形状开关，不依赖是否开书", () => {
+  it("入口 chip 永不 disabled——它们只看请求形状与本机配置，不依赖是否开书", () => {
     const chips = composerChips(input({ hasBook: false, mode: null }));
-    for (const id of ["thinking", "web-search", "tools"])
+    for (const id of ["thinking", "web-search", "tools", "model"])
       expect(chips.find((c) => c.id === id)?.disabled).toBe(false);
   });
 });
 
+describe("composer-chips · 模型入口（#104）", () => {
+  it("有配置 ⇒ 文案就是 ProviderView.model 本身，不缀中文译名也不塞地址", () => {
+    const model = chip("model");
+    expect(model?.text).toBe("mochen-mock");
+    expect(model?.text).not.toContain("http");
+    expect(model?.text).not.toContain("•"); // 掩码属于密钥，不属于这枚 chip
+  });
+
+  it("没有模型名 ⇒ 老实说「未配置模型」，不冒充任何模型名", () => {
+    expect(chip("model", { modelLabel: "" })?.text).toBe("未配置模型");
+  });
+
+  it("title 报出通道名 provider:list-models 与被访问的 {baseURL}/models（铁律：报不出通道名不进 UI）", () => {
+    const title = chip("model")?.title ?? "";
+    expect(title).toContain("provider:list-models");
+    expect(title).toContain("http://127.0.0.1:8787/v1/models");
+    expect(title).toContain("当前模型 mochen-mock");
+  });
+
+  it("改地址/密钥不是这枚 chip 能做的事 ⇒ title 把它指回模型设置", () => {
+    expect(chip("model")?.title).toContain("模型设置");
+    expect(chip("model", { modelLabel: "", baseURL: "" })?.title).toContain("模型设置");
+  });
+
+  it("没配 baseURL 时 title 不谎称能拉到名单，也不拼出「/models」这种半截地址", () => {
+    const title = chip("model", { modelLabel: "", baseURL: "" })?.title ?? "";
+    expect(title).toContain("还没有 API 地址");
+    expect(title).not.toContain("/models");
+  });
+
+  it("active 恒假：弹层打开是瞬态，不是按下态（aria-pressed 用它只会撒谎）", () => {
+    expect(chip("model")?.active).toBe(false);
+    expect(chip("model", { modelLabel: "", baseURL: "" })?.active).toBe(false);
+  });
+});
+
 describe("composer-chips · CHIP_EMIT 与 ComposerChipId 同集", () => {
-  it("五枚 chip 各有唯一事件名，漏一键就会发出 undefined 事件长成死按钮", () => {
+  it("六枚 chip 各有唯一事件名，漏一键就会发出 undefined 事件长成死按钮", () => {
     // 键集必须与 ComposerChipId 完全一致：这枚「按了没反应的 chip」正是红线。
     expect(Object.keys(CHIP_EMIT).sort()).toEqual([
+      "model",
       "palette",
       "permission",
       "thinking",
       "tools",
       "web-search"
     ]);
-    expect(new Set(Object.values(CHIP_EMIT)).size).toBe(5);
+    expect(new Set(Object.values(CHIP_EMIT)).size).toBe(6);
     expect(CHIP_EMIT.permission).toBe("open-permission-menu");
     expect(CHIP_EMIT.palette).toBe("open-palette");
     expect(CHIP_EMIT.thinking).toBe("cycle-thinking");
     expect(CHIP_EMIT["web-search"]).toBe("toggle-web-search");
     expect(CHIP_EMIT.tools).toBe("open-tool-roster");
+    expect(CHIP_EMIT.model).toBe("open-model-select");
   });
 
-  it("五枚 chip 的 id 都能在 CHIP_EMIT 里取到事件名（穷尽性运行时钉）", () => {
+  it("六枚 chip 的 id 都能在 CHIP_EMIT 里取到事件名（穷尽性运行时钉）", () => {
     for (const c of composerChips(input())) expect(CHIP_EMIT[c.id]).toBeTypeOf("string");
   });
 });

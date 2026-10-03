@@ -2,50 +2,35 @@
 <!-- 密钥设置的唯一入口（spec §8）：明文只进主进程，渲染层永远拿不回已存的密钥。 -->
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import type { ProviderDraft, ProviderView } from "@mochen/contracts";
-import { presentableProviderError } from "../utils/provider-error";
+import type { ProviderDraft } from "@mochen/contracts";
+import { useProviderStore } from "../stores/useProviderStore";
 
 const emit = defineEmits<{ close: [] }>();
+// ProviderView 的唯一真身在 useProviderStore：这里再持一份，浮层保存后模型 chip 就会读旧值。
+const provider = useProviderStore();
 
 const baseURL = ref("");
 const model = ref("");
 const apiKey = ref("");
-const view = ref<ProviderView | null>(null);
-const error = ref("");
 
 async function load(): Promise<void> {
-  error.value = "";
-  try {
-    view.value = await window.mochen.providerView();
-  } catch (reason) {
-    // provider:get 的读侧确实会抛（配置被占用、缺字段、密钥解不开都是主进程抛出的中文单句），
-    // 这里不接住就是一条未处理的 rejection + 弹窗永远停在「读取中」。
-    view.value = null;
-    error.value = presentableProviderError(
-      reason instanceof Error ? reason.message : String(reason)
-    );
-    return;
-  }
-  baseURL.value = view.value.baseURL;
-  model.value = view.value.model;
+  await provider.refresh();
+  const view = provider.view;
+  // 读失败时输入格留空、当前那行退回「未能读取当前配置」；理由由 store 收成一句中文。
+  if (view === null) return;
+  baseURL.value = view.baseURL;
+  model.value = view.model;
 }
 
 async function save(): Promise<void> {
-  error.value = "";
   const draft: ProviderDraft = {
     baseURL: baseURL.value.trim(),
     model: model.value.trim(),
     // 空串 = 保留现有密钥：渲染层永远拿不回已存的明文。
     apiKey: apiKey.value.trim() === "" ? null : apiKey.value.trim()
   };
-  try {
-    view.value = await window.mochen.providerSave(draft);
-    apiKey.value = "";
-  } catch (reason) {
-    error.value = presentableProviderError(
-      reason instanceof Error ? reason.message : String(reason)
-    );
-  }
+  // 写回成功才擦掉密钥输入格；失败时留着一把没存进去的密钥，比让用户重打一次诚实。
+  if (await provider.save(draft)) apiKey.value = "";
 }
 
 onMounted(() => {
@@ -91,11 +76,19 @@ onMounted(() => {
           </label>
           <p class="dialog-description">
             当前：{{
-              view ? `${view.baseURL} · ${view.model}` : error ? "未能读取当前配置" : "读取中"
+              provider.view
+                ? `${provider.view.baseURL} · ${provider.view.model}`
+                : provider.error
+                  ? "未能读取当前配置"
+                  : "读取中"
             }}
-            {{ view && view.hasKey ? ` · 密钥 ${view.keyMask}` : " · 尚未存密钥" }}
+            {{
+              provider.view && provider.view.hasKey
+                ? ` · 密钥 ${provider.view.keyMask}`
+                : " · 尚未存密钥"
+            }}
           </p>
-          <p v-if="error" class="provider-error">{{ error }}</p>
+          <p v-if="provider.error" class="provider-error">{{ provider.error }}</p>
           <div class="dialog-actions">
             <button class="dialog-secondary-button" type="button" @click="emit('close')">
               关闭

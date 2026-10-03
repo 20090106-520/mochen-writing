@@ -62,6 +62,7 @@ const api = {
   loadSession: offLimits("loadSession"),
   providerView: offLimits("providerView"),
   providerSave: offLimits("providerSave"),
+  listModels: offLimits("listModels"),
   // onAgentEvent 要同步返回取消函数，async 夹具类型不符——这里同步抛错。
   onAgentEvent: vi.fn(() => {
     throw new Error("useBookStore 不该订阅 agent");
