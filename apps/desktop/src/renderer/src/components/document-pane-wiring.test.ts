@@ -143,8 +143,21 @@ describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F
     }
     expect(paneScript).toContain('from "../utils/save-state"');
     expect(paneScript).toContain("saveStateLabel({");
-    for (const key of ["conflict:", "saving:", "dirty:", "hasOpenDoc:"]) {
-      expect(paneScript).toContain(key);
+    // 只钉键名等于没钉：`hasOpenDoc: true` 一样能过，而那正是「没开稿子也说已保存」的 bug 形状。
+    // 所以四个键各自钉回收它的 store 字段。
+    const call = paneScript.match(/saveStateLabel\(\{[\s\S]*?\}\)/);
+    expect(call, "保存态必须走 utils/save-state 的决策表").not.toBeNull();
+    const feeds: Record<string, RegExp> = {
+      conflict: /book\.conflict !== null/,
+      saving: /book\.saving\b/,
+      dirty: /book\.dirty\b/,
+      hasOpenDoc: /book\.activeDocTab !== null/
+    };
+    for (const [key, feed] of Object.entries(feeds)) {
+      expect(
+        new RegExp(`${key}:\\s*${feed.source}`).test(call![0]),
+        `${key} 没接住 store 字段`
+      ).toBe(true);
     }
     expect(paneTemplate).toContain("{{ saveStateText }}");
     expect(paneTemplate).toContain("book.notice || saveStateText");
