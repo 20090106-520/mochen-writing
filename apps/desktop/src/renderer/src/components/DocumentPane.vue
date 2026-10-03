@@ -9,22 +9,14 @@ import { useSnippetToolbar } from "../composables/useSnippetToolbar";
 import { useBookStore, type RightPaneMode } from "../stores/useBookStore";
 import { dossierSummary, groupDocsForDossier } from "../utils/book-dossier";
 import { BOOK_KIND_LABELS } from "../utils/book-kinds";
-import { readingMinutes } from "../utils/reading-time";
+import { codePointLength, readingTimeLabel as formatReadingTime } from "../utils/reading-time";
+import { BAND_LABELS, VIEW_TABS } from "../utils/right-pane-labels";
 
 const emit = defineEmits<{ collapse: [] }>();
 const book = useBookStore();
 
 /** 文稿 / 浏览 / 作品资料共用右栏这一格：后两者只读，且永不改写文稿标签与草稿。 */
 const mode = computed(() => book.rightPaneMode);
-/** 标签带的名字跟着右栏三态走；作品资料态整条不渲染，不留「浏览标签」的假名。 */
-const BAND_LABELS = { manuscript: "文稿标签", browse: "浏览标签", dossier: "作品资料" } as const;
-
-/** 右栏三枚页签的唯一标签表（模板不再各写一遍字面量）。 */
-const viewTabs: { mode: RightPaneMode; label: string }[] = [
-  { mode: "manuscript", label: "文稿" },
-  { mode: "browse", label: "浏览" },
-  { mode: "dossier", label: "作品资料" }
-];
 
 const activeDoc = computed(() => (book.activeDocTab ? book.refOf(book.activeDocTab) : null));
 const browseDoc = computed(
@@ -56,13 +48,15 @@ const editorEl = ref<HTMLTextAreaElement | null>(null);
 /** 「读真实选区 → 纯函数 → book.onEdit → 回设光标」这段有行为的接线住 composables/，才谈得上被单测钉住。 */
 const { snippetToolbar, applyToSelection } = useSnippetToolbar(editorEl);
 
-const characterCount = computed(() => book.draft.length);
+/** 字数与时长同读 book.draft、同按码点算：两格并排，一个按码元一个按码点就会自相矛盾。 */
+const characterCount = computed(() => codePointLength(book.draft));
 
-/** 页脚那一格只拼文案：字数与时长都算 book.draft，且两格都只在文稿态出现——只读态报当前文稿的进度是假话。 */
-const readingTimeLabel = computed(() => {
-  const minutes = readingMinutes(book.draft);
-  return minutes === null ? "— 分钟" : `约 ${minutes} 分钟阅读`;
-});
+/**
+ * 「约 N 分钟阅读」/「— 分钟」的拼串住在 utils/reading-time.ts：`.vue` 既不进类型程序也没有单测覆盖，
+ * 文案漂在这里改名字谁也测不到（修复轮 F1）。模板只留这一句插值。
+ * 两格都只在文稿态出现——只读态报当前文稿的进度是假话（闸门在 footer）。
+ */
+const readingTimeLabel = computed(() => formatReadingTime(book.draft));
 
 const saveStateLabel = computed(() => {
   if (book.conflict) return "外部已改动，已拒绝覆盖";
@@ -151,7 +145,7 @@ function switchMode(next: RightPaneMode): void {
     <div class="editor-toolbar">
       <div class="view-tabs" role="tablist" aria-label="右栏内容来源">
         <button
-          v-for="tab in viewTabs"
+          v-for="tab in VIEW_TABS"
           :key="tab.mode"
           type="button"
           role="tab"

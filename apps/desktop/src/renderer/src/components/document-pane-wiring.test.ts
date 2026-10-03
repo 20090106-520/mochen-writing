@@ -47,7 +47,7 @@ describe("DocumentPane · 片段工具栏的接线形状（F-F）", () => {
 describe("DocumentPane · 三枚页签共用一个入口（Ruling T10-4）", () => {
   it("页签是表驱动：模板里只有一处 @click，且没有裸调 openDossier()", () => {
     expect(paneTemplate.match(/@click="switchMode\(tab\.mode\)"/g)?.length).toBe(1);
-    expect(paneTemplate).toContain('v-for="tab in viewTabs"');
+    expect(paneTemplate).toContain('v-for="tab in VIEW_TABS"');
     expect(paneTemplate).not.toContain("openDossier()");
     expect(paneScript).toContain("book.openDossier()");
     expect(paneScript).toContain('if (next === "dossier")');
@@ -72,6 +72,33 @@ describe("DocumentPane · 页脚两格只对文稿态成立（Ruling T10-5）", 
     // 时长文案是拼好的字符串，模板里不再做三元与算术。
     expect(paneTemplate).toContain("{{ readingTimeLabel }}");
     expect(paneTemplate).not.toContain("分钟阅读");
+  });
+});
+
+/**
+ * 修复轮 F1/F4/F5：页脚那句分钟文案、字数口径、两张右栏文案表都不许住在 `<script setup>` 里。
+ * 判据一律是「`.vue` 里不出现该字面量 + 只 import 那一个真身」，与上面「模板不出现第二个加粗」同族。
+ */
+describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F4/F5）", () => {
+  it("分钟文案不在 .vue 里拼装：拼串函数只从 utils/reading-time 进口", () => {
+    expect(paneScript).not.toContain("分钟阅读");
+    expect(paneScript).not.toContain("— 分钟");
+    expect(paneScript).toContain("formatReadingTime");
+    expect(paneTemplate).toContain("{{ readingTimeLabel }}");
+  });
+
+  it("「N 字」按码点而不是码元：与同一排的时长同口径", () => {
+    expect(paneScript).not.toContain("book.draft.length");
+    expect(paneScript).toContain("codePointLength(book.draft)");
+    // 「字」这个后缀是单一插值字面量，属文案不属判定，留在模板。
+    expect(paneTemplate).toContain("字");
+  });
+
+  it("两张 mode 文案表搬进 utils/right-pane-labels：.vue 里不再抄第二份中文", () => {
+    expect(paneScript).not.toContain("文稿标签");
+    expect(paneScript).not.toContain("浏览标签");
+    expect(paneScript).toContain('from "../utils/right-pane-labels"');
+    expect(paneTemplate).toContain(':label="BAND_LABELS[mode]"');
   });
 });
 

@@ -126,6 +126,38 @@ describe("applySnippet · 下标归一化（反向与越界先能红）", () => 
   });
 });
 
+/**
+ * 修复轮 F2/F3：两条行首边界。
+ * F2 选区正好止于下一行行首时（末位是换行），下一行没有被选中，不该被牵连加前缀。
+ * F3 标题的去重判据要认出已有的 `#`——`#` 与 `## ` 在 markdown 里都是标题，
+ *     只比整条 `"## "` 字面量会把 `# 手记` 顶成 `## # 手记`（渲染错乱的正文）。
+ */
+describe("applySnippet · 行首与已有标记的边界（修复轮 F2/F3）", () => {
+  it("选区止于下一行行首：只有首行加“- ”，第二行没被选中就不许被碰", () => {
+    expect(applySnippet("list", { value: "第一段\n第二段", start: 0, end: 4 })).toEqual({
+      value: "- 第一段\n第二段",
+      start: 2,
+      end: 6
+    });
+  });
+
+  it("行首已有 `# ` 视为已加过标题：原样返回，不叠成 `## # 手记`", () => {
+    expect(applySnippet("heading", { value: "# 手记", start: 0, end: 4 })).toEqual({
+      value: "# 手记",
+      start: 0,
+      end: 4
+    });
+  });
+
+  it("行首已有 `## ` 也原样返回：只插入，不反解析也不改写既有层级", () => {
+    expect(applySnippet("heading", { value: "## 手记", start: 3, end: 5 })).toEqual({
+      value: "## 手记",
+      start: 3,
+      end: 5
+    });
+  });
+});
+
 describe("snippetToolbarState（附录 F-F：浏览态隐藏）", () => {
   it("浏览态与作品资料态都不显示工具栏——只读视图里点得出事的按钮不存在", () => {
     for (const mode of ["browse", "dossier"] as const) {

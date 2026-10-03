@@ -47,9 +47,10 @@ describe("useSnippetToolbar（接线住 .ts：本仓 .vue 零类型检查零运�
     applyToSelection("list");
 
     expect(onEdit).toHaveBeenCalledTimes(1);
-    expect(onEdit).toHaveBeenCalledWith("- 雾从海面涌上来。\n- 海雾涌上来，铁锈味很冲。");
+    // 选区 [0,9) 的末位正好是第二行的行首（下标 9）：第二行没被选中一个字 ⇒ 修复轮 F2 后不再被牵连加前缀。
+    expect(onEdit).toHaveBeenCalledWith("- 雾从海面涌上来。\n海雾涌上来，铁锈味很冲。");
     // 改完的草稿确实进了 store：dirty 是 onEdit 置的，不是这里另写的。
-    expect(book.draft).toBe("- 雾从海面涌上来。\n- 海雾涌上来，铁锈味很冲。");
+    expect(book.draft).toBe("- 雾从海面涌上来。\n海雾涌上来，铁锈味很冲。");
     expect(book.dirty).toBe(true);
   });
 

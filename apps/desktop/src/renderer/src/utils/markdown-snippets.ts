@@ -7,6 +7,7 @@ import type { RightPaneMode } from "../stores/useBookStore";
  * 2. 内容按码点算：一个表情是一个字，绝不把代理对劈成两半（本仓同类教训的原文见 timeline.ts 的 Array.from 注释）。
  * 3. 只插入、不反解析：已有前缀的行不再重复加，但点第二下不把标记摘掉——按钮文案是「列表」，
  *    不是「列表开关」（附录 §2.7：名字与动作不符也算摆设）。
+ *    标题的去重按 markdown 语义认「行首已有 1–6 级 #」，因为 `# 手记` 再叠一层就成了 `## # 手记` 这种坏正文。
  */
 
 export const SNIPPET_KINDS = ["bold", "heading", "list", "quote"] as const;
@@ -119,6 +120,8 @@ function clamp(index: number, length: number): number {
  * 与选区相交的行首（码元下标，升序，至少一个）。
  * everyLine=false 只要首行；空选区只要光标那一行。
  * 只按 "\n" 找行首：换行永远是一个码元，代理对里不可能含它，故这条通路不会因码点/码元混用而错位。
+ * 终点正好落在某行行首（选区末位是换行，`end > start`）时**不含该行**：那一行没被选中一个字，
+ * 牵连进去就会把「选中第一段回车」变成给第二段也加前缀（修复轮 F2）。
  */
 function lineHeads(value: string, start: number, end: number, everyLine: boolean): number[] {
   const first = start === 0 ? 0 : value.lastIndexOf("\n", start - 1) + 1;
@@ -127,11 +130,29 @@ function lineHeads(value: string, start: number, end: number, everyLine: boolean
   let cursor = first;
   while (cursor < end) {
     const newline = value.indexOf("\n", cursor);
-    if (newline === -1 || newline >= end) break;
+    if (newline === -1 || newline + 1 >= end) break;
     heads.push(newline + 1);
     cursor = newline + 1;
   }
   return heads;
+}
+
+/** 标题行的形状：`#` 到 `######` 后跟空格或制表符——`#` 与 `## ` 在 markdown 里都是标题。 */
+const HEADING_LINE = /^#{1,6}[ \t]/;
+
+/**
+ * 这一行是否已经带这类行首标记（去重判据，修复轮 F3）。
+ * 列表与引用：整条 mark 字面量相等才算已有。`-手记`（`-` 后没有空格）里的 `-` 视为普通文本字符、不识别，
+ * 于是点「列表」得到 `- -手记`——这条边界本轮不动，只把判据写清。
+ * 标题额外认 `#` 层级：只比整条 `"## "` 会让 `# 手记` 被顶成 `## # 手记`（渲染错乱的正文）。
+ * 认出已有层级后原样返回：不叠加，也不改写既有层级（口径 3「只插入、不反解析」）。
+ */
+function hasLineMark(kind: SnippetKind, mark: string, value: string, head: number): boolean {
+  if (value.slice(head, head + mark.length) === mark) return true;
+  if (kind !== "heading") return false;
+  const newline = value.indexOf("\n", head);
+  const line = newline === -1 ? value.slice(head) : value.slice(head, newline);
+  return HEADING_LINE.test(line);
 }
 
 /**
@@ -169,7 +190,7 @@ export function applySnippet(kind: SnippetKind, sel: SnippetSelection): SnippetR
   let addedBeforeStart = 0;
   // 从后往前插：前面的插入会把后面的行首下标顶歪，倒着走就不必重算。
   for (const head of heads.slice().reverse()) {
-    if (nextValue.slice(head, head + mark.length) === mark) continue;
+    if (hasLineMark(kind, mark, nextValue, head)) continue;
     nextValue = `${nextValue.slice(0, head)}${mark}${nextValue.slice(head)}`;
     addedTotal += mark.length;
     if (head <= start) addedBeforeStart += mark.length;
