@@ -148,7 +148,14 @@ describe("裁定 D2 · 键位裁决只在 utils，组件里一份都不许留", 
 
   it("裁决链的先后：Esc 收菜单排在收设置浮层与打断之前（一层一层收，Esc 不越级打断）", () => {
     const escape = readFileSync(new URL(`../${ESCAPE}`, import.meta.url), "utf8");
-    expect(escape.indexOf("referenceMenuIsOpen")).toBeLessThan(escape.indexOf("settingsIsOpen"));
+    // 钉的是**裁决语句**的先后，不是字段名：字段在 interface 里的声明顺序先于任何 return，
+    // 用 indexOf("referenceMenuIsOpen") 会一直命中那行声明 ⇒ 把两支 return 对调也照样绿（变异轮实测）。
+    expect(escape.indexOf('return "close-reference-menu"')).toBeLessThan(
+      escape.indexOf('return "close-overlay"')
+    );
+    expect(escape.indexOf('return "close-overlay"')).toBeLessThan(
+      escape.indexOf('return "interrupt"')
+    );
   });
 
   it("接线层把三个动作与收菜单派到 store：dispatch 的 switch 里都有分支", () => {
