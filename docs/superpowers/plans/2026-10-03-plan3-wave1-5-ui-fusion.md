@@ -2691,7 +2691,7 @@ git commit -m "feat(左栏): primary-nav 扩为三段主操作（模型配置与
   - `utils/permission-chip.ts`（Task 2 新建）：`permissionChipView(input: { hasBook: boolean; mode: PermissionMode | null; saving: boolean }): PermissionChipView`（`PermissionChipView { text; disabled; title }`）、`NO_BOOK_CHIP_LABEL = "未打开作品目录"`。**权限 chip 内部只调它一次，绝不算第二遍**（设计决定 4）。
   - `packages/contracts/src/permission.ts` 的 `PermissionMode`（`:2`）；档位文案唯一来源 `PERMISSION_LABELS`（`:5`）——本模块不出现第二份中文档名。
   - `useBookStore.togglePermissionMenu()`（`:237`）：弹层真身仍只有一处、仍挂在 `CenterColumn.vue:185` 的头部 `PermissionMenu`，**不复制第二个 `PermissionMenu` 实例**。
-  - `CenterColumn.vue` 的 `paletteOpen`（`:40`）与 `openPalette`（`:131`），与 `Ctrl+K` 同源。
+  - `CenterColumn.vue` 的 `paletteOpen`（`:40`）与 `openPalette`（`:131`），与**裸 `/` 键**同源（`utils/hotkeys.ts:98-100`）。2026-10-03 勘误：原写「与 `Ctrl+K` 同源」是假键位——`:78-96` 的全局 Ctrl 族只有 `b`/`,`/`o`/`PageDown`/`PageUp`/`1-9`/`j`，全仓无 `Ctrl+K`；「是否补真 `Ctrl+K`」是键位表变更，登记为独立开放项，不在本波。
   - 图标（AppIcon.vue 已绘制）：`/` chip 用 `terminal`:191；权限 chip 无图标（与头部 `permissionLabel` 按钮同姿态，`:176-184` 也是纯文本）。
 - Produces：
   - `utils/composer-chips.ts`：`ComposerChipId`（`"permission" | "palette"`）、`ComposerChipView { id; text; disabled; title }`、`composerChips({ hasBook, mode, saving }) => ComposerChipView[]`（裁定 C：返回值就是数组，不含队列字段）。
@@ -2790,7 +2790,7 @@ export function composerChips(input: {
       id: "palette",
       text: "/ 命令",
       disabled: false,
-      title: "打开 / 命令面板（与 Ctrl+K 同一个入口）"
+      title: "打开 / 命令面板（与直接按 / 键同一个入口）"
     }
   ];
   // 裁定 C：这里**不返回**队列数字。排队列数唯一的可见真身是 useAgentStore 的 composeStatusLine
@@ -2931,12 +2931,12 @@ corepack pnpm exec eslint apps/desktop/src/renderer/src/utils/composer-chips.ts 
 
 ```
 git add apps/desktop/src/renderer/src/utils/composer-chips.ts apps/desktop/src/renderer/src/utils/composer-chips.test.ts apps/desktop/src/renderer/src/components/ComposerBox.vue apps/desktop/src/renderer/src/components/CenterColumn.vue apps/desktop/src/renderer/src/styles/interaction.css
-git commit -m "feat(输入区): chip 行只放权限与斜杠两枚真开关，排队改为徽标（F-D）"
+git commit -m "feat(输入区): chip 行只放权限与斜杠两枚真开关，排队只做静态提示不做徽标（F-D）"
 ```
 
 - [ ] **Step 8：变异归属**
 
-本任务无独立变异编号（本波 W1–W8 已在别处占满，chip 无对应号）。联动用例见 Step 1 的「联动用例：permission chip 与 permissionChipView 逐字段同值」——它钉的是「两份权限判定必然漂移」这条铁律（若 `composerChips` 里另算一遍 text/disabled，三组输入里至少一组对不上）；配合「无书 ⇒ 文案不是任何档位名」把波 1 缺陷②的反例也挡在 chip 侧。真机验证在 Task 11 冒烟矩阵第 3 行（两枚 chip 各点一次：权限 chip 弹出且**只有一处** `PermissionMenu`、改档真写 `book.json` 重启保持；`/` chip 打开面板与 `Ctrl+K` 同源；chip 行末尾那句静态提示读得出 `运行中按 Tab 可排队指令`、**不是 `<button>`、不带数字**）。
+本任务无独立变异编号（本波 W1–W8 已在别处占满，chip 无对应号）。联动用例见 Step 1 的「联动用例：permission chip 与 permissionChipView 逐字段同值」——它钉的是「两份权限判定必然漂移」这条铁律（若 `composerChips` 里另算一遍 text/disabled，三组输入里至少一组对不上）；配合「无书 ⇒ 文案不是任何档位名」把波 1 缺陷②的反例也挡在 chip 侧。真机验证在 Task 11 冒烟矩阵第 3 行（两枚 chip 各点一次：权限 chip 弹出且**只有一处** `PermissionMenu`、改档真写 `book.json` 重启保持；`/` chip 打开面板与**裸 `/` 键**同源；chip 行末尾那句静态提示读得出 `运行中按 Tab 可排队指令`、**不是 `<button>`、不带数字**）。
 
 **裁定 C（控制方拍定，执行者不再自行判断）**：草稿指出接口总表的 `composerChips({hasBook, mode, saving})` 与 `ComposerBox` props 都不含队列计数，`queueBadge` 取不到真数。裁定：**chip 行不做排队徽标**，`composerChips` 直接返回 `ComposerChipView[]`（不加 `queueCount` 入参、不加徽标 prop）。理由三条——① 排队计数已经有唯一可见真身 `composeStatusLine`（「排队 N 条」，`useAgentStore.ts:144`，波 1 有单测、真机拍到过），再显示一次就是同一个数字两份「数字→文案」实现，触铁律 6；② 附录 F-D 的原话是「chip 行只放真开关」，从没要求把状态行的数字搬一份过来；③ 加 `queueCount` 入参等于给一个纯视图函数塞进它判定不了的输入，是让摆设长得更像真开关。**替代做法（本波落地的就是它）**：chip 行尾放一句**静态**说明 `<span class="composer-chip-hint">运行中按 Tab 可排队指令</span>`——不读计数、不带 click、不是徽标，只做键位可发现性；反向钉是 Step 1 第四条用例（任何 chip 文案里出现「排队」二字即红）。
 
@@ -3807,7 +3807,7 @@ CDP_PORT=9225 node scratch/cdp.cjs eval 'JSON.stringify({title:document.title,ha
 | 1 | 打开书 ⇒ 工作台四卡逐张点 | `CDP_PORT=9225 node scratch/cdp.cjs eval-file scratch/open-book.js`（改 root 指向 `wave15-book`）⇒ 中栏空分支变 `BookWorkbench` | 四张卡是 主笔创作 / 角色塑造 / 世界构建 / 大纲规划（`WORKBENCH_CARD_LABELS`）。逐张点一次：主笔创作 ⇒ 右栏进文稿态、`docTabs` 多一条、中栏线程随 `threadKeyFor` 绑定；其余三张 ⇒ `browse(ref)` 把右栏切浏览并出现只读徽标。**每张都要报出函数名并真的改到屏幕** | | 真机 | |
 | 2 | 无书 ⇒ 一张卡都不出 | 起 9226 第三实例（独立 `--user-data-dir=scratch/wave15-nobook`），不 `openBook` | `workbenchVisible(false)===false` ⇒ 屏上只有引导句 + 「打开作品目录」按钮；`grep` 屏上文本无「主笔创作」。同名判定另有 W7 单测在钉 | | 真机 + 单测 | |
 | 3 | 右栏「作品资料」五类分组 + 摘要 | 点第三枚页签「作品资料」⇒ 读分组标题与摘要；再点回「文稿」 | 五类都在（章节 / 大纲 / 人物 / 剧情 / 素材，标签读 `BOOK_KIND_LABELS`），每类下有摘要（来自 `DocRef.excerpt`，≤80 码点）；切回文稿后 `draft` 逐字未变、`docTabs` 与 `activeDocTab` 一字不变、`dirty` 不变 | | 真机 | |
-| 4 | 两枚 chip 可点且反映真状态 | 点权限档 chip ⇒ 菜单选「可改当前章」；点 `/` chip ⇒ 面板弹出 | 权限档：`book.json` 回读 `permissionMode: "chapter-write"`（`node -e` 读盘）；**关掉实例重开、重选同一本书，档位仍是「可改当前章」**；chip 文案跟着变。`/` chip：面板出现且与 `Ctrl+K` 同一条 `openPalette` | | 真机 + 磁盘 | |
+| 4 | 两枚 chip 可点且反映真状态 | 点权限档 chip ⇒ 菜单选「可改当前章」；点 `/` chip ⇒ 面板弹出 | 权限档：`book.json` 回读 `permissionMode: "chapter-write"`（`node -e` 读盘）；**关掉实例重开、重选同一本书，档位仍是「可改当前章」**；chip 文案跟着变。`/` chip：面板出现且与**裸 `/` 键**（`utils/hotkeys.ts:98-100`）同一条 `openPalette` | | 真机 + 磁盘 | |
 | 5 | md 片段插入 ⇒ 真提案 ⇒ 审批 ⇒ 备份 | 文稿态选中一句话点「加粗」⇒ 输入「用文本块提案」发一轮 ⇒ 聚焦新卡按 `y` | draft 变 `**…**` 且 `dirty=true` ⇒ 提案卡出现 ⇒ 批准后磁盘出现 `.mochen/changes/<时间戳>/chapters/*.md.bak`，正文按锚点改写；`ls scratch/wave15-book/.mochen/changes` 行数比操作前 **+1** | | 真机 + 磁盘 | |
 | 6 | 页脚阅读时长 | 点「列表」把选区跨三行 ⇒ 再看页脚 | 页脚同排出现「N 字」与「约 M 分钟阅读」；把正文清空 ⇒「— 分钟」。字数与时长都随 `onEdit` 实时变（不保存也变） | | 真机 | |
 | 7 | 新组件无硬编码色值 | `grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" apps/desktop/src/renderer/src/components/BookWorkbench.vue apps/desktop/src/renderer/src/components/BookDossier.vue apps/desktop/src/renderer/src/components/ComposerBox.vue apps/desktop/src/renderer/src/components/DocumentPane.vue apps/desktop/src/renderer/src/styles/interaction.css` | 期望**无输出**（`--focus` 之类 token 不算）。若 `interaction.css` 的既有 `.slash-mask` 命中（`color-mix(... #000 28% ...)`，波 1 留下的遮罩），如实记成「本波未引入的既有命中」并给出行号，不许偷偷改规则 | | 静态 + 肉眼（明暗两套都看一眼 `--focus` 跟着变） | |
