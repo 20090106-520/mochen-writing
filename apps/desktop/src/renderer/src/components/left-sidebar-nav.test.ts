@@ -7,7 +7,8 @@
  * ① 三段各自的 data-nav-id 与 <kbd> 键标在模板里真实存在；② handler 调的是**真身函数名**
  * （layout.showSettings / agent.clearThreadView / book.pickAndOpen），不是另捏一份打开逻辑（§2.7）；
  * ③ 第三段的 disabled 判定以属性形态出现，不是恒可点；④「同源」不止是说明文字——
- * 中栏头部也必须调同一个 layout.showSettings()，且不得退回私有的 `showSettings.value = true` 局部开关。
+ * 设置入口在 #113d 之后只剩左栏这一处（中栏头部那枚自造钮已退役），且中栏不得退回私有的
+ * `showSettings.value = true` 局部开关。
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -56,12 +57,13 @@ describe("LeftSidebar · 三段主操作各调一个真身（F-C，§2.7）", ()
     expect(template).toContain('aria-label="主操作"');
   });
 
-  it("同源断言：中栏头部也只调 layout.showSettings()，没有私有浮层（评审 T8-2）", () => {
+  it("同源断言（#113d 改口径）：设置入口只剩左栏一处，中栏不持有第二份开关（评审 T8-2）", () => {
     const center = vueSource("components/CenterColumn.vue");
-    // 正向：头部按钮走同一个真身动作（左栏与头部都调无实参的 showSettings()，同源）。
-    expect(center).toContain("layout.showSettings()");
-    // 反向：头部不得再有自己的局部开关——`const showSettings = computed(...)` 是只读视图判定，
-    // 钉的是写形式 `showSettings.value = `，只读那一处不该被误伤。
+    // 正向：左栏那一处仍是同一个真身动作（入口没有因为头部那枚被删而变成零处）。
+    expect(script).toContain("layout.showSettings()");
+    // 反向：中栏不再挂第二枚入口，也不许有自己的局部开关——
+    // `const showSettings = computed(...)` 是只读视图判定，钉的是写形式 `showSettings.value = `。
+    expect(center).not.toContain("layout.showSettings(");
     expect(center).not.toContain("showSettings.value = ");
   });
 });

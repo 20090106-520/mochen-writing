@@ -27,6 +27,7 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { useProviderStore } from "../stores/useProviderStore";
 import { useReferenceMenuStore } from "../stores/useReferenceMenuStore";
 import {
+  CLEAR_VIEW_SENTENCE,
   composeStatusLine,
   threadKeyFor,
   useAgentStore,
@@ -218,9 +219,20 @@ function onComposerSend(text: string): void {
 useGlobalHotkeys({ openPalette: () => referenceMenu.summon("/") });
 
 // 设置浮层可见性的唯一真身是 layout.currentView === "settings"（设计决定 2）：
-// 按钮、Ctrl+,、/model、Esc 收浮层全部读写同一个 currentView，不再有两处真相。
+// 左栏的两枚入口、Ctrl+,、/model、Esc 收浮层全部读写同一个 currentView，不再有两处真相。
+// #113d：中栏头部原先也挂一枚「模型设置」——那是自造的（deepwrite 头部那一格是「历史对话 + 新建对话」），
+// 入口退回左栏后这里只剩浮层真身。
 function closeSettings(): void {
   layout.showWorkspace();
+}
+
+/**
+ * 头部「新建对话」（照他的钮，动作走本仓已有的唯一真身）：清空**本页**显示，
+ * 与左栏「本章新对话」调的是同一个 store action、同一个 threadKey computed，不另起第二份判据。
+ * 没有开章时 threadKey 就是独立线程那一格——清的正是在看的那一条，所以这一枚不必禁用。
+ */
+function startNewConversation(): void {
+  agent.clearThreadView(threadKey.value);
 }
 
 let timer: number | undefined;
@@ -255,10 +267,16 @@ onBeforeUnmount(() => {
       </div>
       <div class="conversation-header-actions">
         <!-- #105：权限档 chip 与 PermissionMenu 弹层真身一起搬进输入卡右端（deepwrite 的「更多」那一端）；
-             头部再挂一枚就是同一个开关两份真身，故整块退役。 -->
-        <button class="header-text-button" type="button" @click="layout.showSettings()">
-          <AppIcon name="settings" :size="15" />
-          <span>模型设置</span>
+             头部再挂一枚就是同一个开关两份真身，故整块退役。
+             #113d：同一格里改挂他的「新建对话」（AgentConversation.vue:281-288）。 -->
+        <button
+          class="header-text-button"
+          type="button"
+          :title="CLEAR_VIEW_SENTENCE"
+          @click="startNewConversation"
+        >
+          <AppIcon name="plus" :size="16" />
+          新建对话
         </button>
         <button
           v-if="rightCollapsed"
