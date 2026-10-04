@@ -12,6 +12,7 @@ import type {
   ModelListResult,
   ProviderView,
   RendererApi,
+  SessionListItem,
   SessionLoadResult,
   StartTurnInput
 } from "@mochen/contracts";
@@ -153,6 +154,8 @@ export const writeDoc = vi.fn(async (): Promise<DocWriteResult> => ({
   backupRelPath: null
 }));
 export const loadSession = vi.fn(async (): Promise<SessionLoadResult> => sessionResult);
+/** 历史对话面板的数据源桩：默认空列表，用例用 mockResolvedValue 塞自己的行。 */
+export const listSessions = vi.fn(async (): Promise<SessionListItem[]> => []);
 /**
  * 写盘桩提成模块级导出常量：Task 8/9 的用例要查它的调用次数。
  * 签名走 vi.fn 的泛型参数而不是简报裁定的 `_meta: BookMeta` 形参——本仓 eslint 没有配 argsIgnorePattern，
@@ -172,6 +175,7 @@ export const api = {
   decideProposal,
   proposalDiff,
   loadSession,
+  listSessions,
   providerView: vi.fn(async (): Promise<ProviderView> => view),
   providerSave: vi.fn(async (): Promise<ProviderView> => view),
   listModels: vi.fn(async (): Promise<ModelListResult> => ({

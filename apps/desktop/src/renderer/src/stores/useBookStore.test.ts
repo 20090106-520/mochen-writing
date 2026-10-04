@@ -60,6 +60,7 @@ const api = {
   decideProposal: offLimits("decideProposal"),
   proposalDiff: offLimits("proposalDiff"),
   loadSession: offLimits("loadSession"),
+  listSessions: offLimits("listSessions"),
   providerView: offLimits("providerView"),
   providerSave: offLimits("providerSave"),
   listModels: offLimits("listModels"),

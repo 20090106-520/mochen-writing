@@ -9,6 +9,8 @@ import {
   type StartTurnInput
 } from "@mochen/contracts";
 import {
+  appendAgentEvent,
+  createSession,
   findLatestSession,
   type ProviderFetch,
   type ProviderFetchInput,
@@ -309,6 +311,113 @@ describe("agentService.loadSession 只读（全局约束：模型永不直接写
       "tool-call",
       "proposal"
     ]);
+    service.dispose();
+  });
+});
+
+describe("agentService.listSessions（#113e 历史对话面板的数据源）", () => {
+  it("跑过一轮的书列出一行：四个字段来自首行 meta，标题是首条用户输入", async () => {
+    const { service } = await build(sseFetch(proposeChunks));
+    await service.startTurn(turn(CHAPTER, "改紧一点"));
+    const items = await service.listSessions();
+    expect(items).toHaveLength(1);
+    const [only] = items;
+    if (!only) throw new Error("夹具没列出会话");
+    // sessionId 走 randomUUID（agent-service.ts:199 的理由：它会被拼进文件路径），测试只能钉「非空串」。
+    expect(only.sessionId).toMatch(/^[A-Za-z0-9._-]+$/);
+    expect(only).toMatchObject({
+      docRelPath: CHAPTER,
+      model: "test-model",
+      startedAt: "2026-10-01T08:00:00.000Z",
+      title: "改紧一点"
+    });
+    service.dispose();
+  });
+
+  it("没开书返回空数组，不抛（面板那颗钮无书时禁用，通路这边也不许谎报）", async () => {
+    const { service, book } = await build(sseFetch());
+    await book.close();
+    expect(await service.listSessions()).toEqual([]);
+    service.dispose();
+  });
+});
+
+describe("agentService.loadSession 指名 sessionId（面板点开某一条历史）", () => {
+  /**
+   * 在同一章上手工再建一条**更早**的会话：threadFor 只会复用「最近那条」，
+   * 第二条会话在真实使用里由面板指名读回，夹具只能自己写出来。
+   */
+  async function addEarlierSession(userText: string): Promise<string> {
+    const rel = await createSession(root, {
+      type: "session-meta",
+      sessionId: "s-earlier",
+      docRelPath: CHAPTER,
+      stageId: "draft",
+      model: "test-model",
+      startedAt: "2026-09-01T08:00:00.000Z"
+    });
+    await appendAgentEvent(root, rel, {
+      id: "e-old",
+      ts: "2026-09-01T08:00:01.000Z",
+      turnId: "t-old",
+      type: "user-message",
+      text: userText
+    });
+    return rel;
+  }
+  const read = (rel: string): Promise<string> =>
+    readFile(path.join(root, ...rel.split("/")), "utf8");
+
+  it("指名读回较早那条：meta 与事件都是它自己的，不是最近那条", async () => {
+    const { service } = await build(sseFetch(proposeChunks));
+    await service.startTurn(turn(CHAPTER, "这一轮属于最近那条"));
+    const earlierRel = await addEarlierSession("较早那一轮说的话");
+
+    const loaded = await service.loadSession(CHAPTER, "s-earlier");
+    if (!loaded.found) throw new Error("指名的那条必须读得回来");
+    expect(loaded.meta.sessionId).toBe("s-earlier");
+    expect(loaded.relPath).toBe(earlierRel);
+    expect(loaded.events.map((event) => event.type)).toEqual(["user-message"]);
+    // 不串味：带 id 的读法只拿那一条，最近那条的内容一个字都不许混进来。
+    expect(loaded.events[0]).toMatchObject({ text: "较早那一轮说的话" });
+    service.dispose();
+  });
+
+  it("选中较早那条之后发轮 ⇒ 新事件追加到那一份，最近那份一字不动（选中即改写入目标）", async () => {
+    const { service } = await build(sseFetch(proposeChunks));
+    await service.startTurn(turn(CHAPTER, "第一轮"));
+    const earlierRel = await addEarlierSession("较早那一轮");
+    const latestRel = await findLatestSession(root, CHAPTER);
+    if (latestRel === null || latestRel === earlierRel) throw new Error("夹具必须有两份不同的会话");
+    const latestBefore = await read(latestRel);
+
+    await service.loadSession(CHAPTER, "s-earlier");
+    await service.startTurn(turn(CHAPTER, "接着较早那条聊"));
+
+    const earlierAfter = await read(earlierRel);
+    expect(earlierAfter).toContain("接着较早那条聊");
+    // 反向钉：若 threadFor 仍复用「最近那条」，这句话就会被拼进 latestRel——两份内容互相污染。
+    expect(await read(latestRel)).toBe(latestBefore);
+    service.dispose();
+  });
+
+  it("指一个盘上没有的 id：found:false / no-session，且不把线程缓存带偏", async () => {
+    const { service } = await build(sseFetch(proposeChunks));
+    await service.startTurn(turn(CHAPTER, "第一轮"));
+    const latestRel = await findLatestSession(root, CHAPTER);
+    if (latestRel === null) throw new Error("会话没落盘，夹具坏了");
+    const latestBefore = await read(latestRel);
+
+    expect(await service.loadSession(CHAPTER, "s-ghost")).toEqual({
+      found: false,
+      reason: "no-session",
+      message: "这本书里没有这条线程的历史。"
+    });
+    // 缓存没被那次失败改动：这一轮仍然追加到最近那份。
+    await service.startTurn(turn(CHAPTER, "又一轮"));
+    const latestAfter = await read(latestRel);
+    expect(latestAfter).toContain("又一轮");
+    expect(latestAfter.length).toBeGreaterThan(latestBefore.length);
     service.dispose();
   });
 });

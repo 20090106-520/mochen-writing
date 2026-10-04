@@ -12,6 +12,7 @@ import {
   type DocRef,
   type EditProposal,
   type ProposalDecision,
+  type SessionListItem,
   type SessionLoadResult,
   type StartTurnInput
 } from "@mochen/contracts";
@@ -22,6 +23,8 @@ import {
   createSession,
   eventsToMessages,
   findLatestSession,
+  findSessionById,
+  listSessions as listRolloutSessions,
   protocolBlockHint,
   readSession,
   runTurn,
@@ -80,7 +83,9 @@ export interface AgentService {
   decide(input: DecideInput): Promise<DecisionResult>;
   diffOf(proposalId: string): string;
   /** 只读回放：读这条线程落盘的 JSONL；no-book/no-session 返回 found:false，首行坏/超长抛中文。 */
-  loadSession(threadKey: string): Promise<SessionLoadResult>;
+  loadSession(threadKey: string, sessionId?: string): Promise<SessionLoadResult>;
+  /** 本书全部会话的总览（#113e 历史对话面板）；没开书返回空数组。 */
+  listSessions(): Promise<SessionListItem[]>;
   dispose(): void;
 }
 
@@ -518,22 +523,30 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
       return diffs.get(proposalId) ?? "";
     },
 
-    async loadSession(threadKey: string): Promise<SessionLoadResult> {
+    async loadSession(threadKey: string, sessionId?: string): Promise<SessionLoadResult> {
       // 入参守卫与 startTurnInputSchema 同口径（spec §4.1，裁定 n 延续）：越界抛单句中文，
       // 非字符串（畸形 preload/被改写的载荷）归一成空串走 unbound，绝不崩在 .trim() 上。
       const raw = typeof threadKey === "string" ? threadKey : "";
       if (raw.length > 200) throw new Error("会话线程标识过长（最多 200 字），历史读不回来。");
       const key = raw.trim() === "" ? UNBOUND : raw.trim();
+      // sessionId 与 threadKey 同一口径归一：非字符串/空白都当成「没指名」，走下面「最近那条」的老路径。
+      const id = typeof sessionId === "string" ? sessionId.trim() : "";
       const current = deps.book.current();
       if (current === null)
         return { found: false, reason: "no-book", message: "还没打开作品目录，历史读不回来。" };
       // 先查缓存：threads 只在拿到真实相对路径时才写入（threadFor 同口径），不存在「缓存了查不到的线程」。
       const cached = threads.get(key);
-      const rel = cached ?? (await findLatestSession(current.root, key));
+      // 指名回放只认这一条 id 对应的文件，找不到就 no-session，**绝不退化成「最近那条」**：
+      // 面板点的 A 却回放 B，比读不到更糟。
+      const rel =
+        id !== ""
+          ? await findSessionById(current.root, key, id)
+          : (cached ?? (await findLatestSession(current.root, key)));
       if (rel === null)
         return { found: false, reason: "no-session", message: "这本书里没有这条线程的历史。" };
       // 读到即缓存，与 threadFor 用同一个 Map：随后这一章第一次发轮会 append 到同一份 JSONL。
-      if (cached === undefined) threads.set(key, rel);
+      // 指名的那一条要**覆盖**缓存——选中即改写入目标，否则下一轮又被 threadFor 拉回最近那条。
+      if (id !== "" || cached === undefined) threads.set(key, rel);
       // 首行坏：readSession 直接抛中文（rollout.ts:77-80 原文），这里不吞、不转 found:false。
       const stored = await readSession(current.root, rel);
       return {
@@ -543,6 +556,13 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         events: stored.events,
         droppedLines: stored.droppedLines
       };
+    },
+
+    async listSessions(): Promise<SessionListItem[]> {
+      const current = deps.book.current();
+      // 无书返回空数组而不是抛错：面板那颗钮在无书时禁用，通路这边也不许谎报有会话。
+      if (current === null) return [];
+      return listRolloutSessions(current.root);
     },
 
     dispose(): void {

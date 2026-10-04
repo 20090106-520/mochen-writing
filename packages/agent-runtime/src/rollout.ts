@@ -186,6 +186,27 @@ export async function listSessions(root: string): Promise<SessionListItem[]> {
 }
 
 /**
+ * 按 sessionId 定位某条线程的会话文件（#113e：面板点开某一条历史）。
+ * 必须同时匹配 docRelPath——会话归属以盘上的 meta 为准，不能让 A 章的那一行去打开 B 章的会话；
+ * 首行坏的文件只跳过，与 findLatestSession / listSessions 同口径。
+ */
+export async function findSessionById(
+  root: string,
+  docRelPath: string,
+  sessionId: string
+): Promise<string | null> {
+  if (sessionId === "") return null;
+  for await (const file of walkJsonl(path.join(root, ...SESSIONS_DIR.split("/")))) {
+    const raw = await readFile(file, "utf8").catch(() => "");
+    const parsed = sessionMetaSchema.safeParse(safeJson(raw.split("\n")[0] ?? ""));
+    if (!parsed.success) continue;
+    if (parsed.data.docRelPath !== docRelPath || parsed.data.sessionId !== sessionId) continue;
+    return path.relative(root, file).replaceAll("\\", "/");
+  }
+  return null;
+}
+
+/**
  * 事件序列 → 下一轮请求的 messages。设计决定 3：审批结果与带说明的拒绝都以 user 角色回喂，
  * plan / error / interrupted 只供 UI，不进模型历史（它们不是对话内容）。
  */

@@ -68,7 +68,7 @@ describe("createRendererApi", () => {
     expect(listeners.size).toBe(0);
   });
 
-  it("14 个方法各调一次：通道与参数逐条钉死（期望值全是字面量，不从 IPC_CHANNELS 派生）", async () => {
+  it("15 个方法各调一次：通道与参数逐条钉死（期望值全是字面量，不从 IPC_CHANNELS 派生）", async () => {
     const { api, calls } = harness();
     const meta: BookMeta = {
       id: "b1",
@@ -104,12 +104,13 @@ describe("createRendererApi", () => {
     await api.decideProposal(decideInput);
     await api.proposalDiff("p-1");
     await api.loadSession("chapters/01-开局.md");
+    await api.listSessions();
     await api.providerView();
     await api.providerSave(draft);
     await api.listModels();
     api.onAgentEvent(() => {});
 
-    expect(calls.length).toBe(14);
+    expect(calls.length).toBe(15);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -123,6 +124,7 @@ describe("createRendererApi", () => {
       "agent:decide",
       "agent:diff",
       "agent:load-session",
+      "agent:list-sessions",
       "provider:get",
       "provider:save",
       "provider:list-models",
@@ -138,17 +140,21 @@ describe("createRendererApi", () => {
       ["t-1"],
       [decideInput],
       ["p-1"],
-      ["chapters/01-开局.md"],
+      // 没指名的那一趟也把第二实参的位置留出来（值是 undefined）：preload 里偷偷丢掉 sessionId，
+      // 这条断言就会红——面板点第几条却读回最近那条，是只有码流层才抓得到的错。
+      ["chapters/01-开局.md", undefined],
+      [],
       [],
       [draft],
       [],
       ["subscribe"]
     ]);
-    // 渲染层只拿到这 14 个方法：invoke/on/ipcRenderer 一个字都不许泄漏成键。
+    // 渲染层只拿到这 15 个方法：invoke/on/ipcRenderer 一个字都不许泄漏成键。
     expect(Object.keys(api).sort()).toEqual([
       "decideProposal",
       "interruptTurn",
       "listModels",
+      "listSessions",
       "loadSession",
       "onAgentEvent",
       "openBook",
@@ -160,6 +166,14 @@ describe("createRendererApi", () => {
       "saveMeta",
       "startTurn",
       "writeDoc"
+    ]);
+  });
+
+  it("loadSession 指名 sessionId：两个实参按顺序原样出网", async () => {
+    const { api, calls } = harness();
+    await api.loadSession("chapters/02-潮信.md", "s-9");
+    expect(calls).toEqual([
+      { channel: "agent:load-session", args: ["chapters/02-潮信.md", "s-9"] }
     ]);
   });
 });

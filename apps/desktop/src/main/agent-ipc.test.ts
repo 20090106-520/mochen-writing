@@ -62,13 +62,18 @@ function stubService(seen: unknown[]): AgentService {
       seen.push(proposalId);
       return `diff:${proposalId}`;
     },
-    async loadSession(threadKey: string) {
-      seen.push(threadKey);
+    async loadSession(threadKey: string, sessionId?: string) {
+      // 两个实参一起记：只记 threadKey 的话，handler 把 sessionId 悄悄丢掉照样绿。
+      seen.push([threadKey, sessionId ?? null]);
       return {
         found: false as const,
         reason: "no-session",
         message: "这本书里没有这条线程的历史。"
       };
+    },
+    async listSessions() {
+      seen.push("list-sessions");
+      return [];
     },
     dispose() {
       seen.push("dispose");
@@ -105,7 +110,7 @@ function stubLister(seen: unknown[]): ModelLister {
 }
 
 describe("registerAgentIpc", () => {
-  it("注册五条 agent 通道，一条都不漏也不多余", () => {
+  it("注册六条 agent 通道，一条都不漏也不多余", () => {
     const { order, handle } = registry();
     registerAgentIpc(handle, stubService([]));
     expect(order).toEqual([
@@ -113,7 +118,8 @@ describe("registerAgentIpc", () => {
       IPC_CHANNELS.agentInterrupt,
       IPC_CHANNELS.agentDecide,
       IPC_CHANNELS.agentDiff,
-      IPC_CHANNELS.agentLoadSession
+      IPC_CHANNELS.agentLoadSession,
+      IPC_CHANNELS.agentListSessions
     ]);
   });
 
@@ -143,7 +149,23 @@ describe("registerAgentIpc", () => {
       reason: "no-session",
       message: "这本书里没有这条线程的历史。"
     });
-    expect(seen).toEqual([startTurnInput, "t1", decideInput, "p1", "chapters/01.md"]);
+    expect(await fire(fns, IPC_CHANNELS.agentListSessions)).toEqual([]);
+    expect(seen).toEqual([
+      startTurnInput,
+      "t1",
+      decideInput,
+      "p1",
+      ["chapters/01.md", null],
+      "list-sessions"
+    ]);
+  });
+
+  it("指名 sessionId 的那条通道参数原样带过去：面板点第几条就读第几条", async () => {
+    const seen: unknown[] = [];
+    const { fns, handle } = registry();
+    registerAgentIpc(handle, stubService(seen));
+    await fire(fns, IPC_CHANNELS.agentLoadSession, "chapters/02-潮信.md", "s-9");
+    expect(seen).toEqual([["chapters/02-潮信.md", "s-9"]]);
   });
 });
 

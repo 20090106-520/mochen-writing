@@ -3,6 +3,7 @@ import type {
   AgentOutbound,
   DecideInput,
   DecisionResult,
+  SessionListItem,
   SessionLoadResult,
   StartTurnInput
 } from "./agent-event.js";
@@ -22,7 +23,8 @@ export const IPC_CHANNELS = {
   providerGet: "provider:get",
   providerSave: "provider:save",
   providerListModels: "provider:list-models",
-  agentLoadSession: "agent:load-session"
+  agentLoadSession: "agent:load-session",
+  agentListSessions: "agent:list-sessions"
 } as const;
 
 export interface BookOpenResult {
@@ -53,8 +55,14 @@ export interface RendererApi {
   decideProposal(input: DecideInput): Promise<DecisionResult>;
   /** 提案的统一 diff 文本；主进程算好，渲染层不 import agent-runtime（见 Task 1 的 agentDiff 说明）。 */
   proposalDiff(proposalId: string): Promise<string>;
-  /** 只读回放：把这条线程落盘的 JSONL 读回来，永不动盘、永不重建可批准的待审队列（D1）。 */
-  loadSession(threadKey: string): Promise<SessionLoadResult>;
+  /**
+   * 只读回放：把这条线程落盘的 JSONL 读回来，永不动盘、永不重建可批准的待审队列（D1）。
+   * 传 sessionId 时精确读那一条（历史对话面板点开某次会话），并把这条线程的写入目标改到它；
+   * 读不到就 found:false，绝不退化成「最近那条」。
+   */
+  loadSession(threadKey: string, sessionId?: string): Promise<SessionLoadResult>;
+  /** 本书全部会话的一行概览（时间倒序）；没打开作品目录时是空数组。 */
+  listSessions(): Promise<SessionListItem[]>;
   providerView(): Promise<ProviderView>;
   providerSave(draft: ProviderDraft): Promise<ProviderView>;
   /** 拉远端可选模型名（`{baseURL}/models`，只在主进程出网）；失败回一句中文理由，不抛过 IPC。 */

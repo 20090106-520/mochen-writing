@@ -37,6 +37,7 @@ const api = {
   decideProposal: offLimits("decideProposal"),
   proposalDiff: offLimits("proposalDiff"),
   loadSession: offLimits("loadSession"),
+  listSessions: offLimits("listSessions"),
   providerView,
   providerSave,
   listModels,

@@ -9,6 +9,7 @@ import {
   createSession,
   eventsToMessages,
   findLatestSession,
+  findSessionById,
   listSessions,
   readSession,
   sessionRelPath
@@ -259,7 +260,8 @@ describe("listSessions", () => {
       ...turn,
       id: "e1",
       type: "message",
-      text: "先回一句"
+      text: "先回一句",
+      interrupted: false
     });
     await appendAgentEvent(book, newerRel, {
       ...turn,
@@ -345,5 +347,36 @@ describe("listSessions", () => {
     }
     const items = await listSessions(book);
     expect(items.map((item) => item.sessionId)).toEqual(["s-zzz", "s-aaa"]);
+  });
+});
+
+describe("findSessionById（#113e 面板点开某一条历史）", () => {
+  it("同一线程的两条会话里按 id 定位到较早那条，返回它的相对路径", async () => {
+    const book = await mkdtemp(path.join(root, "byid-"));
+    const older = await createSession(book, { ...meta, sessionId: "s-older" });
+    const newer = await createSession(book, {
+      ...meta,
+      sessionId: "s-newer",
+      startedAt: "2026-10-09T08:00:00.000Z"
+    });
+    expect(await findSessionById(book, meta.docRelPath, "s-older")).toBe(older);
+    expect(await findSessionById(book, meta.docRelPath, "s-newer")).toBe(newer);
+  });
+
+  it("id 属于别的线程 ⇒ null：会话归属以盘上的 meta 为准，不让 A 章的行打开 B 章的会话", async () => {
+    const book = await mkdtemp(path.join(root, "byid-scope-"));
+    await createSession(book, { ...meta, sessionId: "s-other", docRelPath: "chapters/02-潮线.md" });
+    expect(await findSessionById(book, meta.docRelPath, "s-other")).toBeNull();
+    // 空 id 什么都不是：不许被当成「匹配第一个」的通配。
+    expect(await findSessionById(book, meta.docRelPath, "")).toBeNull();
+  });
+
+  it("首行坏的会话文件只跳过，不抛（坏一份文件不该让整个面板点不开）", async () => {
+    const book = await mkdtemp(path.join(root, "byid-broken-"));
+    const rel = sessionRelPath(new Date("2026-10-04T12:00:00.000Z"), "s-broken");
+    const abs = path.join(book, ...rel.split("/"));
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, "{ not json\n", "utf8");
+    await expect(findSessionById(book, meta.docRelPath, "s-broken")).resolves.toBeNull();
   });
 });
