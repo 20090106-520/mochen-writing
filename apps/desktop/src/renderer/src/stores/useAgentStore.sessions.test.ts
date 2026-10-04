@@ -8,6 +8,7 @@ import {
   listSessions,
   loadSession,
   openChapter,
+  proposal,
   push,
   setSessionResult,
   setupAgentFixture,
@@ -117,6 +118,24 @@ describe("useAgentStore.showSession（点一行 = 切过去接着聊）", () => 
     expect(itemsOf(CH).map((e) => e.id)).toEqual(["e-old"]);
     expect(store().viewOf(CH).sessionId).toBe("s-old");
     expect(store().notice).toBe("");
+  });
+
+  /** 覆盖式切换的另一半：上一条会话的提案卡不许还挂在这一页上——那是一张能点、点了必错的假卡。 */
+  it("切换覆盖旧视图：上一条会话留下的提案卡不再可点", async () => {
+    await openChapter();
+    store().startListening();
+    push({
+      type: "event",
+      turnId: "t1",
+      threadKey: CH,
+      event: eventOf("proposal", { proposal: proposal("pOld") })
+    });
+    expect(store().proposals["pOld"]).toBeDefined();
+    loadSession.mockImplementationOnce(async () =>
+      named("s-old", [eventOf("user-message", { id: "e-old", text: "较早那条" })])
+    );
+    await store().showSession(rowOf("s-old", CH));
+    expect(store().proposals["pOld"]).toBeUndefined();
   });
 
   it("另一章的那条：先开那一章的标签，再指名读它", async () => {
