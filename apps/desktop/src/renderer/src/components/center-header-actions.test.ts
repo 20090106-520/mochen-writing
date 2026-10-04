@@ -35,6 +35,11 @@ describe("照搬他的头部钮 · 「新建对话」取代自造的「模型设
   it("动作区只有一枚 header-text-button，内容是 plus 图标 + 「新建对话」，几何照他的 16px 图标", () => {
     const actions = headerActions();
     expect(countNeedle('class="header-text-button"', actions)).toBe(1);
+    // 切片只看得见头部：同一份样式名在文件别处再挂一次，切片计数抓不到——全文件再数一遍。
+    expect(
+      countNeedle('class="header-text-button"', templateSource(CENTER)),
+      "整份模板只允许一枚"
+    ).toBe(1);
     expect(actions).toContain('@click="startNewConversation"');
     expect(actions).toContain('<AppIcon name="plus" :size="16" />');
     expect(actions).toContain("新建对话");
@@ -76,6 +81,13 @@ describe("照搬他的头部钮 · 「新建对话」取代自造的「模型设
       expect(codeOf(file)).not.toContain("hydrated = true");
       expect(codeOf(file)).not.toContain("items = []");
     }
+  });
+
+  it("禁用口径按各自判据分家：左栏缺章禁用，头部那枚恒可点（R1）", () => {
+    // 头部清的是「屏上这一页」——没开章时 threadKey 是 unbound，钮仍然说实话，所以不该跟着禁用。
+    // 反过来若给头部补上缺章判据，就是把两栏的语义又混回一份。
+    expect(headerActions()).not.toContain("disabled");
+    expect(templateSource(LEFT)).toContain(':disabled="book.activeDocTab === null"');
   });
 
   it("样式没跟着入口一起被删：.header-text-button 的规则还在（新钮复用同一条）", () => {
