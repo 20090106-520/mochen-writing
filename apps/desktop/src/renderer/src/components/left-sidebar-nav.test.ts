@@ -10,7 +10,14 @@
  * 中栏头部也必须调同一个 layout.showSettings()，且不得退回私有的 `showSettings.value = true` 局部开关。
  */
 import { describe, expect, it } from "vitest";
-import { scriptSource, templateSource, vueSource } from "../utils/vue-source-reader";
+import {
+  countNeedle,
+  ruleBlock,
+  scriptSource,
+  styleSource,
+  templateSource,
+  vueSource
+} from "../utils/vue-source-reader";
 
 const script = scriptSource("components/LeftSidebar.vue");
 const template = templateSource("components/LeftSidebar.vue");
@@ -73,5 +80,79 @@ describe("LeftSidebar · 书名与工作目录这一行（#103b：示意稿 B �
     // 反向：没开书时整行不进 DOM，也不许预先糊一个假路径上去。
     expect(template).toContain('v-if="workspace"');
     expect(template).not.toContain("墨宸AI\\");
+  });
+});
+
+describe("LeftSidebar · 底部齿轮行（#113b：照搬 deepwrite 的 .sidebar-footer，作者那一格缺契约不搬）", () => {
+  const footer = /<footer class="sidebar-footer">[\s\S]*?<\/footer>/.exec(template)?.[0] ?? "";
+
+  it("footer 真挂在滚动区之后——它填的正是 .left-sidebar 预留的那格 58px 行", () => {
+    expect(footer).not.toBe("");
+    expect(template.indexOf('class="sidebar-scroll')).toBeLessThan(template.indexOf("<footer"));
+    expect(template.indexOf("<footer")).toBeLessThan(template.lastIndexOf("</aside>"));
+  });
+
+  it("齿轮是钮不是装饰：类名、无障碍标签、字形、真身动作一次钉全", () => {
+    expect(footer).toContain('class="icon-button account-settings-button"');
+    expect(footer).toContain('aria-label="打开设置"');
+    expect(footer).toContain('title="设置"');
+    expect(footer).toContain('<AppIcon name="settings" :size="16" />');
+    expect(footer).toContain('@click="openSettingsOverlay"');
+  });
+
+  it("同源：footer 与段②共用一个 handler，且那个 handler 调的就是 layout.showSettings()", () => {
+    expect(countNeedle('@click="openSettingsOverlay"', template)).toBe(2);
+    const body = /function openSettingsOverlay\(\): void \{[\s\S]*?\}/.exec(script)?.[0] ?? "";
+    expect(body).toContain("layout.showSettings()");
+    // 反向：不许为底部另捏一份打开逻辑（第二处真相）。
+    expect(countNeedle("layout.showSettings()", script)).toBe(1);
+  });
+
+  it("作者那一格缺契约 ⇒ 不搬：footer 里只许有一枚齿轮，不许长出头像、账号菜单或「作者」字样", () => {
+    // 反向鉴别：不先钉「footer 有且只有一枚按钮」，下面这几条 notMatch 在 footer 根本不存在时会空转通过
+    // （第一次跑就是这样——它 PASS 得毫无意义）。
+    expect(countNeedle("<button", footer)).toBe(1);
+    expect(footer).not.toMatch(/avatar|account-profile|account-menu|account-identity|account-copy/);
+    expect(footer).not.toContain("作者");
+    expect(footer).not.toMatch(/<(a|input|select)\b/);
+  });
+
+  it("CSS 逐条对值（deepwrite left-nav.css 原值）：footer 的 7px 内边距与上分隔线、controls 的 1fr+32px 两列", () => {
+    const css = styleSource("left-nav.css");
+    const footerRule = ruleBlock(css, ".sidebar-footer");
+    expect(footerRule).toContain("display: flex;");
+    expect(footerRule).toContain("align-items: center;");
+    expect(footerRule).toContain("padding: 7px;");
+    expect(footerRule).toContain("border-top: 1px solid var(--line-soft);");
+    const controlsRule = ruleBlock(css, ".account-controls");
+    expect(controlsRule).toContain("display: grid;");
+    expect(controlsRule).toContain("grid-template-columns: minmax(0, 1fr) 32px;");
+    expect(controlsRule).toContain("gap: 4px;");
+    expect(controlsRule).toContain("width: 100%;");
+    // 作者那一格不进 DOM ⇒ 齿轮必须自己钉回第二列，否则它会掉进 1fr 那列、离右边缘差 36px。
+    expect(ruleBlock(css, ".account-settings-button")).toContain("grid-column: 2;");
+  });
+
+  it("齿轮只留给设置：段②「模型配置」换参考稿那枚立方图标，左栏模板里 settings 字形只出现一次", () => {
+    const navRow = /data-nav-id="model-config"[\s\S]*?<\/button>/.exec(template)?.[0] ?? "";
+    expect(navRow).toContain('<AppIcon name="model" :size="17" />');
+    expect(countNeedle('name="settings"', template)).toBe(1);
+  });
+
+  it("化石清账：作者那一格那五条规则连同 theme-runtime 的 :where 条目一起删净", () => {
+    const css = styleSource("left-nav.css");
+    const runtime = styleSource("theme-runtime.css");
+    for (const dead of [
+      "account-profile",
+      "account-row",
+      "account-copy",
+      "account-menu",
+      "avatar"
+    ]) {
+      // 只钉「规则形」（选择器后面跟 { 或 ,）：styleSource 不剥注释，我在台账注释里提这些名字是说明，
+      // 不是死样式——按裸串钉会让自己的注释把断言弄红。
+      expect([dead, new RegExp(`\\.${dead}\\s*[{,]`).test(css)]).toEqual([dead, false]);
+      expect([dead, new RegExp(`\\.${dead}\\b`).test(runtime)]).toEqual([dead, false]);
+    }
   });
 });

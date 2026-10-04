@@ -72,8 +72,8 @@ const workspace = computed(() =>
   book.meta && book.rootPath ? { title: book.meta.title, rootPath: book.rootPath } : null
 );
 
-// 段②：与中栏头部两处入口同一个真身（设计决定 2 之后 showSettings 是唯一路径）。
-function openModelSettings(): void {
+// 段②与底部齿轮共用这一个入口：与中栏头部同一个真身（设计决定 2 之后 showSettings 是唯一路径）。
+function openSettingsOverlay(): void {
   layout.showSettings();
 }
 
@@ -108,8 +108,8 @@ function newThreadForActiveChapter(): void {
         <span>打开作品目录</span>
         <kbd>Ctrl O</kbd>
       </button>
-      <button class="nav-row" type="button" data-nav-id="model-config" @click="openModelSettings">
-        <AppIcon name="settings" :size="17" />
+      <button class="nav-row" type="button" data-nav-id="model-config" @click="openSettingsOverlay">
+        <AppIcon name="model" :size="17" />
         <span>模型配置</span>
       </button>
       <button
@@ -172,5 +172,21 @@ function newThreadForActiveChapter(): void {
         </section>
       </div>
     </div>
+
+    <!-- 底部这一格照搬 deepwrite 的 .sidebar-footer：他左格是「作者」头像 + 账号菜单，右格才是齿轮。
+         我们没有账号体系、没有更新通道、没有作者联系方式 ⇒ 左格按缺契约不搬，齿轮仍钉在第二列同一位置。 -->
+    <footer class="sidebar-footer">
+      <div class="account-controls">
+        <button
+          class="icon-button account-settings-button"
+          type="button"
+          aria-label="打开设置"
+          title="设置"
+          @click="openSettingsOverlay"
+        >
+          <AppIcon name="settings" :size="16" />
+        </button>
+      </div>
+    </footer>
   </aside>
 </template>

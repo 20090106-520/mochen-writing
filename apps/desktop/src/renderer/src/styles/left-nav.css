@@ -708,106 +708,11 @@ html[data-platform="darwin"] .sidebar-brand-row {
   min-width: 0;
 }
 
-.account-profile {
-  position: relative;
-  min-width: 0;
-}
-
-.account-row {
-  display: grid;
-  grid-template-columns: 31px minmax(0, 1fr);
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 5px 7px;
-  border-radius: 8px;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.account-row:hover,
-.account-row[aria-expanded="true"] {
-  background: var(--hover);
-}
-
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--text-tertiary);
-  color: var(--accent-contrast, #ffffff);
-  font-size: 0.785714rem;
-  font-weight: 650;
-}
-
-.account-copy {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.account-copy strong,
-.account-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.account-copy strong {
-  color: var(--text-primary);
-  font-size: 0.892857rem;
-  font-weight: 590;
-}
-
-.account-copy small {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-tertiary);
-  font-size: 0.678571rem;
-}
-
-.account-menu {
-  position: absolute;
-  z-index: 70;
-  bottom: calc(100% + 7px);
-  left: 0;
-  display: grid;
-  width: 190px;
-  padding: 5px;
-  border: 1px solid var(--theme-line, #dededb);
-  border-radius: 10px;
-  background: var(--surface-raised, #fbfbf9);
-  box-shadow:
-    0 12px 32px color-mix(in srgb, var(--theme-foreground) 16%, transparent),
-    0 2px 7px color-mix(in srgb, var(--theme-foreground) 8%, transparent);
-}
-
-.account-menu button {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  align-items: center;
-  gap: 7px;
-  min-height: 34px;
-  padding: 6px 9px;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-primary, #303338);
-  font-size: 0.857143rem;
-  font-weight: 540;
-  text-align: left;
-  cursor: pointer;
-}
-
-.account-menu button:hover,
-.account-menu button:focus-visible {
-  outline: none;
-  background: var(--surface-hover, #ececea);
-}
-
-.account-menu button > svg {
-  color: var(--text-secondary, #60646a);
+/* 作者那一格（头像 + 账号菜单）缺契约不搬 ⇒ deepwrite 那 5 条规则（.account-profile / .account-row /
+   .avatar / .account-copy / .account-menu）连同 theme-runtime.css 里的三处 :where 条目一并删净：
+   留着就是一堆永远匹配不到节点的死样式，而 DOM 里唯一活下来的是右下角这枚齿轮。
+   grid-column: 2 是补回来的那一格——他左格有内容时齿轮自然落在第二列，我们左格空着，
+   不钉这一行齿轮会掉进 1fr 那列，离右边缘差出 36px。 */
+.account-settings-button {
+  grid-column: 2;
 }
