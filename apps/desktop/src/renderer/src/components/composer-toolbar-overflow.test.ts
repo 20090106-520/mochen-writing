@@ -72,23 +72,38 @@ describe("chip 行 · 收缩截断代替折行（deepwrite 的 toolbar 没有 fl
     expect(body).not.toContain("flex-wrap");
   });
 
-  it("左端非模型 chip 钉住不缩（他那行除模型入口外只有 `flex:0 0 auto` 的圆钮）", () => {
+  it("左端每一枚都可让位：flex:0 1 auto + max-width:100%（钉成 0 0 auto 会在窄档溢出压到右端头上）", () => {
     const chip = ruleBlock(CARD, ".composer-toolbar-left .composer-chip");
-    expect(chip).toContain("flex: 0 0 auto");
-    expect(chip).not.toContain("flex: 0 1 auto");
-  });
-
-  it("只有模型那一枚参与收缩：flex:0 1 auto + max-width:100% + min-width:0（他那条 config 规则的原值）", () => {
-    const chip = ruleBlock(CARD, ".composer-toolbar-left .composer-chip--model");
     expect(chip).toContain("flex: 0 1 auto");
     expect(chip).toContain("max-width: 100%");
-    expect(chip).toContain("min-width: 0");
+    // 真机读数（t113f-smoke9.log 第 3 行）：把非模型四枚钉成 `flex: 0 0 auto` 后，
+    // 1120 窗口下左端 scrollWidth 比 clientWidth 多出 97px ⇒ 「/ 命令」画在「只读参考」上（m113f-window-1120.jpg）。
+    expect(chip).not.toContain("flex: 0 0 auto");
   });
 
-  it("label 层非零不可：min-width:0 才让 flex 把它压到 min-content 以下，nowrap 的文字才有省略号可出——且只落在模型那一枚", () => {
-    expect(
-      ruleBlock(CARD, ".composer-toolbar-left .composer-chip--model .composer-chip-label")
-    ).toContain("min-width: 0");
+  it("地板分两档：文字可以让光，图标与下拉三角不能让（基链 min-width:0 会一路压穿）", () => {
+    // 真机读数（t113f-smoke12.log）：只给模型那一枚配地板时，1120 窗口下「工具」被压到 37.9（内容溢出 4px）、
+    // 「/ 命令」41.1（溢出 1px）⇒ 图标与三角画出盒子贴上下一个 chip。
+    // 28 = 内边距 7+7 + 图标 14；44 = 再加间隙 5 + 下拉三角 11（`:has` 那条特异性更高才压得住）。
+    const floorOf = (sel: string) => {
+      const m = ruleBlock(CARD, sel).match(/min-width:\s*(\d+(?:\.\d+)?)px/);
+      return m ? Number(m[1]) : 0;
+    };
+    expect(floorOf(".composer-toolbar-left .composer-chip")).toBeGreaterThanOrEqual(28);
+    expect(floorOf(".composer-toolbar-left .composer-chip:has(.composer-chip-caret)")).toBe(44);
+  });
+
+  it("让位有先后：模型那一枚的 flex-shrink 远大于 1，13px 的小缺额全落在它身上，其余四枚保持自然宽", () => {
+    const chip = ruleBlock(CARD, ".composer-toolbar-left .composer-chip--model");
+    const factor = chip.match(/flex-shrink:\s*(\d+)/);
+    expect(factor).not.toBeNull();
+    expect(Number(factor?.[1])).toBeGreaterThanOrEqual(50);
+  });
+
+  it("label 层非零不可：min-width:0 才让 flex 把它压到 min-content 以下，nowrap 的文字才有省略号可出", () => {
+    expect(ruleBlock(CARD, ".composer-toolbar-left .composer-chip-label")).toContain(
+      "min-width: 0"
+    );
   });
 
   it("图形与下拉三角不参与收缩（interaction.css 基链），右端容器整组不缩（他的 .composer-actions 是 0 0 auto）", () => {

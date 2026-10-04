@@ -499,24 +499,38 @@ html[data-platform="darwin"] .conversation-pane {
   gap: 4px;
 }
 
-/* Task 113f 照搬 deepwrite 的收缩件，且收缩范围也照他：他那三条只落在 `.conversation-model-config*`
-   一枚（他 styles.css 2623-2640），行里其余件是 `flex: 0 0 auto` 的圆钮（2569-2575）。
-   本仓左端多四枚短标签开关，若把 `flex: 0 1 auto` 铺到全部 chip，13px 缺额会被摊平到每枚 2~4px，
-   而 `text-overflow: ellipsis` 差 1px 就吃一个汉字 ⇒「关…」「联网…」「工…」「/…」齐出。
-   所以钉住其余四枚，只让模型那一枚（唯一随数据变长的标签）出省略号。 */
+/* Task 113f 照搬 deepwrite 的收缩三件（他 styles.css 2623-2640 那三条 `.composer-tools .conversation-model-config*`），
+   但**收缩范围**不能照抄：他那一行只有两枚（ConversationComposer.vue 293-323，模型入口 + 发送组），
+   我们左端是六枚（波1.5 #79 的名册）。范围按真机读数分两步定：
+   - 只让模型那一枚缩：1120 窗口下缺额 167px 远超它一根标签的 122px，其余四枚钉死 ⇒ 左端 scrollWidth 比
+     clientWidth 多出 97px，「/ 命令」直接画在右端「只读参考」头上（t113f-smoke9.log / m113f-window-1120.jpg）。
+   - 六枚平手一起缩：1426 窗口下 13px 缺额被摊成每枚 2~4px，而 `text-overflow: ellipsis` 差 1px 就吃一个汉字
+     ⇒「关…」「联网…」「工…」「/…」齐出。
+   ⇒ 两条都要：全员可缩兜住大缺额（永不出盒），但给模型那一枚加权——flex 的收缩量按 `flex-shrink × basis` 分配，
+   100×122 对 1×276 ⇒ 小缺额的 99.8% 落在它身上；它让到没有之后，其余四枚才跟着让。 */
+/* 全员可缩 + 地板：`min-width` 基链给的是 0（interaction.css:96-110），所以收缩能一路压到图标身上——
+   真机读数（t113f-smoke12.log）：1120 窗口下「工具」被压到 37.9（内容溢出 4px）、「/ 命令」41.1（溢出 1px），
+   图标与下拉三角画出盒子贴上下一个 chip。⇒ 文字可以让光，图标与三角不能让：
+   28 = 内边距 7+7 + 图标 14；44 = 再加间隙 5 + 下拉三角 11（`:has` 的那一条特异性更高，压得住上面一条）。 */
 .composer-toolbar-left .composer-chip {
-  flex: 0 0 auto;
-}
-
-.composer-toolbar-left .composer-chip--model {
   flex: 0 1 auto;
   max-width: 100%;
-  min-width: 0;
+  min-width: 28px;
+}
+
+.composer-toolbar-left .composer-chip:has(.composer-chip-caret) {
+  min-width: 44px;
+}
+
+/* 让位有先后：flex 的收缩量按 `flex-shrink × basis` 分配，100×122 对 1×276 ⇒ 1426 那 13px 缺额的 99.8%
+   落在模型这一枚（唯一随数据变长的标签），其余四枚保持自然宽；它压到地板之后，剩下的缺额才轮到别人。 */
+.composer-toolbar-left .composer-chip--model {
+  flex-shrink: 100;
 }
 
 /* label 的 `min-width: 0` 是这一整套能成立的那一颗螺丝：flex 项目默认 min-width:auto，
    而 chip 是 `white-space: nowrap`——不放开就压不到 min-content 以下，收缩无处可去，只能把整行撑成两行。 */
-.composer-toolbar-left .composer-chip--model .composer-chip-label {
+.composer-toolbar-left .composer-chip-label {
   min-width: 0;
 }
 
