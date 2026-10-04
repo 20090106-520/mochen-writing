@@ -227,3 +227,48 @@ html[data-platform="darwin"] .desktop-shell {
 .desktop-shell.is-left-collapsed.is-right-collapsed {
   grid-template-columns: 0 minmax(var(--center-pane-min), 1fr) 0;
 }
+
+/* Task 113f 窄屏收窄（deepwrite styles.css 5071-5080 原值，Apache-2.0）。位置本身就是这条规则的一半：
+   他把这块写在自己那份 styles.css 的末尾，靠**顺序**赢过文件上方的 286 / clamp(410px, 34vw, 650px) 默认值
+   （同一特异性的平手只由先后裁决）。本仓的样式表是 `@import` 进来的，而 @import 全在文件头部——
+   写在 theme-runtime.css 里的这一块永远排在下面这些本文件规则之前，于是它从来没赢过一次
+   （真机实测：视口 1120、`matchMedia("(max-width:1220px)")` 为 true 时，`--left-pane-width` 仍读 286px）。
+   所以这块整段搬到这里，一份实现（铁律 6），不在 theme-runtime.css 留副本。 */
+@media (max-width: 1220px) {
+  :root {
+    --left-pane-width: 262px;
+    --right-pane-width: 395px;
+    --center-pane-min: 320px;
+  }
+
+  .desktop-shell,
+  .desktop-shell.is-left-collapsed,
+  .desktop-shell.is-right-collapsed,
+  .desktop-shell.is-left-collapsed.is-right-collapsed {
+    grid-template-columns:
+      var(--left-pane-width) minmax(var(--center-pane-min), 1fr)
+      var(--right-pane-width);
+  }
+
+  .desktop-shell.is-left-collapsed {
+    grid-template-columns: 0 minmax(var(--center-pane-min), 1fr) var(--right-pane-width);
+  }
+
+  .desktop-shell.is-right-collapsed {
+    grid-template-columns:
+      var(--left-pane-width) minmax(var(--center-pane-min), 1fr)
+      0;
+  }
+
+  .desktop-shell.is-left-collapsed.is-right-collapsed {
+    grid-template-columns: 0 minmax(var(--center-pane-min), 1fr) 0;
+  }
+
+  .message-list {
+    width: calc(100% - 34px);
+  }
+
+  .context-caption {
+    display: none;
+  }
+}

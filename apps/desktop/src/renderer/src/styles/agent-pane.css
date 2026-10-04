@@ -494,10 +494,30 @@ html[data-platform="darwin"] .conversation-pane {
 .composer-toolbar-left {
   display: flex;
   flex: 1 1 0;
-  flex-wrap: wrap;
   align-items: center;
   min-width: 0;
   gap: 4px;
+}
+
+/* Task 113f 照搬 deepwrite 的收缩件，且收缩范围也照他：他那三条只落在 `.conversation-model-config*`
+   一枚（他 styles.css 2623-2640），行里其余件是 `flex: 0 0 auto` 的圆钮（2569-2575）。
+   本仓左端多四枚短标签开关，若把 `flex: 0 1 auto` 铺到全部 chip，13px 缺额会被摊平到每枚 2~4px，
+   而 `text-overflow: ellipsis` 差 1px 就吃一个汉字 ⇒「关…」「联网…」「工…」「/…」齐出。
+   所以钉住其余四枚，只让模型那一枚（唯一随数据变长的标签）出省略号。 */
+.composer-toolbar-left .composer-chip {
+  flex: 0 0 auto;
+}
+
+.composer-toolbar-left .composer-chip--model {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* label 的 `min-width: 0` 是这一整套能成立的那一颗螺丝：flex 项目默认 min-width:auto，
+   而 chip 是 `white-space: nowrap`——不放开就压不到 min-content 以下，收缩无处可去，只能把整行撑成两行。 */
+.composer-toolbar-left .composer-chip--model .composer-chip-label {
+  min-width: 0;
 }
 
 .composer-toolbar-right {
@@ -580,10 +600,17 @@ html[data-platform="darwin"] .conversation-pane {
   bottom: calc(100% + 6px);
 }
 
-/* 窄栏响应（deepwrite 用 composer 容器查询收 toolbar）：chip 与发送键保序，提示行只缩字号。 */
+/* 窄栏响应（deepwrite 用 composer 容器查询收 toolbar）：chip 与发送键保序，提示行只缩字号。
+   Task 113f 补上他同一段里那条 `max-width: 8em`（`.composer-tools .conversation-model-config-label`）：
+   他没有「副文案」那一层可藏（我们的 chip 只剩图标 + 文字），所以这里收到 8em 而不是 display:none——
+   藏控件等于少功能，缩文字才是他的原意。 */
 @container composer (max-width: min(32rem, 560px)) {
   .composer-hint {
     font-size: 11px;
+  }
+
+  .composer-toolbar-left .composer-chip--model .composer-chip-label {
+    max-width: 8em;
   }
 }
 

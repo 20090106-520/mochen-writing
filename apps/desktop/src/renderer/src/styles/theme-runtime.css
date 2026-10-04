@@ -316,45 +316,6 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
   background-clip: padding-box;
 }
 
-@media (max-width: 1220px) {
-  :root {
-    --left-pane-width: 262px;
-    --right-pane-width: 395px;
-    --center-pane-min: 320px;
-  }
-
-  .desktop-shell,
-  .desktop-shell.is-left-collapsed,
-  .desktop-shell.is-right-collapsed,
-  .desktop-shell.is-left-collapsed.is-right-collapsed {
-    grid-template-columns:
-      var(--left-pane-width) minmax(var(--center-pane-min), 1fr)
-      var(--right-pane-width);
-  }
-
-  .desktop-shell.is-left-collapsed {
-    grid-template-columns: 0 minmax(var(--center-pane-min), 1fr) var(--right-pane-width);
-  }
-
-  .desktop-shell.is-right-collapsed {
-    grid-template-columns:
-      var(--left-pane-width) minmax(var(--center-pane-min), 1fr)
-      0;
-  }
-
-  .desktop-shell.is-left-collapsed.is-right-collapsed {
-    grid-template-columns: 0 minmax(var(--center-pane-min), 1fr) 0;
-  }
-
-  .message-list {
-    width: calc(100% - 34px);
-  }
-
-  .context-caption {
-    display: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

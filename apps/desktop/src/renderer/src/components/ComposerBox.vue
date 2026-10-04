@@ -147,6 +147,7 @@ function submit(): void {
               v-for="chip in chipsLeft"
               :key="chip.id"
               class="composer-chip"
+              :class="{ 'composer-chip--model': chip.id === 'model' }"
               type="button"
               :disabled="chip.disabled || running"
               :title="chip.title"
