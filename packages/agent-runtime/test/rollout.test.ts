@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -9,6 +9,7 @@ import {
   createSession,
   eventsToMessages,
   findLatestSession,
+  listSessions,
   readSession,
   sessionRelPath
 } from "../src/rollout.js";
@@ -220,3 +221,129 @@ function proposalFixture() {
     createdAt: "2026-10-01T08:00:00.000Z"
   };
 }
+
+/** #113e 历史对话面板的数据源：一本书里的全部会话，从新到旧。 */
+describe("listSessions", () => {
+  /** 手写一份会话文件（要控制文件名与坏行，createSession 做不到）；路径仍走 sessionRelPath，不另立布局。 */
+  async function writeRawSession(book: string, sessionId: string, body: string[]): Promise<void> {
+    const rel = sessionRelPath(new Date("2026-10-04T12:00:00.000Z"), sessionId);
+    const abs = path.join(book, ...rel.split("/"));
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, `${body.join("\n")}\n`, "utf8");
+  }
+  const metaLine = (sessionId: string, startedAt: string, docRelPath = meta.docRelPath): string =>
+    JSON.stringify({ ...meta, sessionId, docRelPath, startedAt });
+  /** 给 appendAgentEvent 的对象版：它内部自己 stringify，喂字符串会得到双重编码的假事件行。 */
+  const userEvent = (text: string, id = "e1"): AgentEvent => ({
+    ...turn,
+    id,
+    type: "user-message",
+    text
+  });
+  /** 给 writeRawSession 的行版：坏首行那种「不是对象事件」的写法只能从这里来。 */
+  const userLine = (text: string, id = "e1"): string =>
+    JSON.stringify({ ...turn, id, type: "user-message", text });
+
+  it("列出本书全部会话，按 startedAt 从新到旧，字段取自首行 meta 与首条 user-message", async () => {
+    const book = await mkdtemp(path.join(root, "list-"));
+    const older = await createSession(book, { ...meta, sessionId: "s-old" });
+    await appendAgentEvent(book, older, userEvent("先把开头收紧"));
+    const newerRel = await createSession(book, {
+      ...meta,
+      sessionId: "s-new",
+      docRelPath: "chapters/02-潮线.md",
+      startedAt: "2026-10-02T09:00:00.000Z"
+    });
+    // 先落一条 assistant 再落 user-message：标题必须跳过非用户行，取「首条」用户输入而不是最后一条。
+    await appendAgentEvent(book, newerRel, {
+      ...turn,
+      id: "e1",
+      type: "message",
+      text: "先回一句"
+    });
+    await appendAgentEvent(book, newerRel, {
+      ...turn,
+      id: "e2",
+      type: "user-message",
+      text: "第二段再狠一点"
+    });
+
+    const items = await listSessions(book);
+    expect(items.map((item) => item.sessionId)).toEqual(["s-new", "s-old"]);
+    expect(items[0]).toEqual({
+      sessionId: "s-new",
+      docRelPath: "chapters/02-潮线.md",
+      model: "test-model",
+      startedAt: "2026-10-02T09:00:00.000Z",
+      title: "第二段再狠一点"
+    });
+    expect(items[1]?.title).toBe("先把开头收紧");
+  });
+
+  it("标题折叠空白、按 60 字截断（面板靠 CSS 省略号，这里不加省略号）", async () => {
+    const book = await mkdtemp(path.join(root, "list-wrap-"));
+    const short = await createSession(book, { ...meta, sessionId: "s-wrap" });
+    await appendAgentEvent(book, short, userEvent("  第一行\n第二行\t尾   "));
+    const long = await createSession(book, {
+      ...meta,
+      sessionId: "s-long",
+      startedAt: "2026-10-05T00:00:00.000Z"
+    });
+    await appendAgentEvent(book, long, userEvent("字".repeat(80)));
+
+    const items = await listSessions(book);
+    expect(items.find((item) => item.sessionId === "s-wrap")?.title).toBe("第一行 第二行 尾");
+    expect(items.find((item) => item.sessionId === "s-long")?.title).toBe("字".repeat(60));
+  });
+
+  it("一条用户输入都没有的会话 title 是空串，不拿章名或模型名冒充标题", async () => {
+    const book = await mkdtemp(path.join(root, "list-empty-"));
+    await createSession(book, { ...meta, sessionId: "s-no-user" });
+    const items = await listSessions(book);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.title).toBe("");
+  });
+
+  it("首行坏的会话文件不进列表也不抛，好文件照旧全收（与 findLatestSession 同口径）", async () => {
+    const book = await mkdtemp(path.join(root, "list-broken-"));
+    const good = await createSession(book, { ...meta, sessionId: "s-ok" });
+    await appendAgentEvent(book, good, userEvent("能用"));
+    await writeRawSession(book, "s-broken", ["{ not json", userLine("这句读不到")]);
+    // 首行是合法 JSON 但过不了 sessionMetaSchema（缺 model）：同样只跳过，不整本抛。
+    await writeRawSession(book, "s-ghost", [
+      JSON.stringify({ type: "session-meta", sessionId: "s-ghost", docRelPath: "x.md" }),
+      userLine("也读不到")
+    ]);
+
+    const items = await listSessions(book);
+    expect(items.map((item) => item.sessionId)).toEqual(["s-ok"]);
+  });
+
+  it("只扫会话目录：书里别的 .jsonl 不算会话", async () => {
+    const book = await mkdtemp(path.join(root, "list-scope-"));
+    await mkdir(path.join(book, "notes"), { recursive: true });
+    await writeFile(
+      path.join(book, "notes", "outline.jsonl"),
+      `${metaLine("s-outside", "2026-10-06T00:00:00.000Z")}\n`,
+      "utf8"
+    );
+    expect(await listSessions(book)).toEqual([]);
+  });
+
+  it("没有会话目录的书返回空数组，不抛", async () => {
+    const empty = await mkdtemp(path.join(root, "list-none-"));
+    expect(await listSessions(empty)).toEqual([]);
+  });
+
+  it("startedAt 相同用相对路径决胜：遍历顺序不受 readdir 保证，不能靠它定「最近」", async () => {
+    const book = await mkdtemp(path.join(root, "list-tie-"));
+    for (const sessionId of ["s-aaa", "s-zzz"]) {
+      await writeRawSession(book, sessionId, [
+        metaLine(sessionId, "2026-10-04T12:00:00.000Z"),
+        userLine(`${sessionId} 的第一句`)
+      ]);
+    }
+    const items = await listSessions(book);
+    expect(items.map((item) => item.sessionId)).toEqual(["s-zzz", "s-aaa"]);
+  });
+});

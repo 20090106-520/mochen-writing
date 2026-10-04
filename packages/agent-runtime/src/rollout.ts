@@ -4,6 +4,7 @@ import {
   agentEventSchema,
   sessionMetaSchema,
   type AgentEvent,
+  type SessionListItem,
   type SessionMeta
 } from "@mochen/contracts";
 import type { ChatMessage } from "./chat-message.js";
@@ -136,6 +137,52 @@ export async function findLatestSession(root: string, docRelPath: string): Promi
     if (best === null || isMoreRecent(candidate, best)) best = candidate;
   }
   return best?.rel ?? null;
+}
+
+/** 标题只有一行：面板宽度照他的 370px，超长交给 CSS ellipsis，这里按字符数硬截。 */
+const TITLE_MAX = 60;
+
+/** 首条 user-message 折成一行做标题；这条会话里没有用户输入时是空串，不拿章名或模型名冒充。 */
+function titleFromLines(lines: string[]): string {
+  for (const line of lines.slice(1)) {
+    const parsed = agentEventSchema.safeParse(safeJson(line));
+    if (parsed.success && parsed.data.type === "user-message") {
+      const flat = parsed.data.text.replace(/\s+/g, " ").trim();
+      return flat.length > TITLE_MAX ? flat.slice(0, TITLE_MAX) : flat;
+    }
+  }
+  return "";
+}
+
+/**
+ * 书内会话总览（#113e「历史对话」面板的数据源）：扫 `.mochen/sessions` 下全部 rollout，
+ * 首行过不了 sessionMetaSchema 的文件只跳过、不抛——与 findLatestSession 同口径，
+ * 一份坏会话不该让整个面板打不开。
+ */
+export async function listSessions(root: string): Promise<SessionListItem[]> {
+  const found: { rel: string; item: SessionListItem }[] = [];
+  for await (const file of walkJsonl(path.join(root, ...SESSIONS_DIR.split("/")))) {
+    const rel = path.relative(root, file).replaceAll("\\", "/");
+    const raw = await readFile(file, "utf8").catch(() => "");
+    const lines = raw.split("\n").filter((line) => line.trim() !== "");
+    const parsed = sessionMetaSchema.safeParse(safeJson(lines[0] ?? ""));
+    if (!parsed.success) continue;
+    const { sessionId, docRelPath, model, startedAt } = parsed.data;
+    found.push({
+      rel,
+      item: { sessionId, docRelPath, model, startedAt, title: titleFromLines(lines) }
+    });
+  }
+  // 排序复用 isMoreRecent：「谁更新」的比较口径只许有一份实现（铁律 6），
+  // 否则面板的「最近」和 threadFor 复用的那一条迟早会判给不同的会话。
+  found.sort((a, b) => {
+    const left = { rel: a.rel, startedAt: a.item.startedAt };
+    const right = { rel: b.rel, startedAt: b.item.startedAt };
+    if (isMoreRecent(left, right)) return -1;
+    if (isMoreRecent(right, left)) return 1;
+    return 0;
+  });
+  return found.map((entry) => entry.item);
 }
 
 /**

@@ -200,3 +200,19 @@ export const sessionLoadResultSchema = z.discriminatedUnion("found", [
   })
 ]);
 export type SessionLoadResult = z.infer<typeof sessionLoadResultSchema>;
+
+/**
+ * 书内会话总览的一行（#113e「历史对话」面板的数据源）。
+ * 五个字段全部来自盘上真数据：前四个是 rollout 首行的 SessionMeta，title 是该文件里
+ * **第一条** user-message 事件（折叠空白后截断）；这条会话一句用户输入都没有时为空串，
+ * 不拿章名或模型名冒充标题。
+ */
+export const sessionListItemSchema = z.object({
+  sessionId: id,
+  /** 这条会话属于哪条线程：章节相对路径，或 UNBOUND（发轮时没开任何标签页）。 */
+  docRelPath: z.string().min(1),
+  model: z.string().min(1),
+  startedAt: ts,
+  title: z.string()
+});
+export type SessionListItem = z.infer<typeof sessionListItemSchema>;

@@ -9,6 +9,7 @@ import {
   PROPOSAL_STATUSES,
   PROPOSAL_STATUS_LABELS,
   providerDraftSchema,
+  sessionListItemSchema,
   sessionLoadResultSchema,
   sessionMetaSchema,
   WRITE_TOOLS,
@@ -299,5 +300,30 @@ describe("error 事件的可选 proposalId（缺陷③）", () => {
     });
     if (parsed.type !== "error") throw new Error("error 事件未被解析为 error");
     expect(parsed.proposalId).toBeUndefined();
+  });
+});
+
+describe("sessionListItemSchema（#113e 历史对话面板的一行）", () => {
+  const item = {
+    sessionId: "s1",
+    docRelPath: "chapters/01-开局.md",
+    model: "mochen-mock",
+    startedAt: "2026-10-01T08:00:00.000Z",
+    title: "先把开头收紧"
+  };
+
+  it("五样齐了才收；title 允许空串（这条会话确实没有用户输入）", () => {
+    expect(sessionListItemSchema.parse(item)).toEqual(item);
+    expect(sessionListItemSchema.parse({ ...item, title: "" }).title).toBe("");
+  });
+
+  it("半成品一律拒：空 docRelPath / 缺 model / 缺 title 都进不了面板", () => {
+    expect(sessionListItemSchema.safeParse({ ...item, docRelPath: "" }).success).toBe(false);
+    const noModel: Record<string, unknown> = { ...item };
+    delete noModel.model;
+    expect(sessionListItemSchema.safeParse(noModel).success).toBe(false);
+    const noTitle: Record<string, unknown> = { ...item };
+    delete noTitle.title;
+    expect(sessionListItemSchema.safeParse(noTitle).success).toBe(false);
   });
 });
