@@ -90,10 +90,24 @@ describe("照搬他的头部钮 · 「新建对话」取代自造的「模型设
     expect(templateSource(LEFT)).toContain(':disabled="book.activeDocTab === null"');
   });
 
-  it("样式没跟着入口一起被删：.header-text-button 的规则还在（新钮复用同一条）", () => {
+  it("样式照他的原值：基态与 :hover 的声明逐条对上（deepwrite styles.css:501-517）", () => {
     const css = styleSource("conversation-pane.css");
-    for (const selector of [".header-text-button", ".header-text-button:hover"]) {
-      expect(ruleBlock(css, selector), `${selector} 必须真有一条规则`).not.toBe("");
+    const base = ruleBlock(css, ".header-text-button");
+    for (const decl of [
+      "display: inline-flex",
+      "align-items: center",
+      "gap: 6px",
+      "min-height: 30px",
+      "padding: 0 9px",
+      "border-radius: 7px",
+      "cursor: pointer"
+    ]) {
+      expect(base, `基态少了 ${decl}`).toContain(decl);
     }
+    // 空壳规则不算数（`{\n}` 曾被 not.toBe("") 放过，故 ruleBlock 现在返回 trim 后的正文）。
+    const hover = ruleBlock(css, ".header-text-button:hover");
+    expect(hover, ":hover 不许留空壳").not.toBe("");
+    expect(hover).toContain("background: var(--surface-hover)");
+    expect(hover).toContain("color: var(--text-primary)");
   });
 });

@@ -74,9 +74,11 @@ export function styleSource(file: string): string {
 }
 
 /**
- * 一条规则的正文（大括号以内）。原先 composer-card-wiring 与 inline-reference-menu-wiring 各写一份，
- * 这里收为第三份之前的那一份（铁律 6）。
+ * 一条规则的正文（大括号以内，**首尾空白已剥**）。原先 composer-card-wiring 与 inline-reference-menu-wiring
+ * 各写一份，这里收为第三份之前的那一份（铁律 6）。
  * 找不到规则一律抛错：返回空串会让后面每条 `toContain` 一起变绿，看不出缺的是哪条规则。
+ * 为什么要 trim：`not.toBe("")` 这类「规则不许是空壳」的断言，挡不住 `selector {\n}`——正文是换行不是空串，
+ * 空壳照样绿（#113d 的 M12 实测就是这样活下来的）。trim 之后空壳读出 `""`，断言才有鉴别力。
  */
 export function ruleBlock(css: string, selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -84,7 +86,7 @@ export function ruleBlock(css: string, selector: string): string {
   if (match === null || match[1] === undefined) {
     throw new Error(`样式表里找不到规则 ${selector}`);
   }
-  return match[1];
+  return match[1].trim();
 }
 
 /** #105 起从 deepwrite 照搬的输入卡样式全部住在这一枚分段标记之后。 */
