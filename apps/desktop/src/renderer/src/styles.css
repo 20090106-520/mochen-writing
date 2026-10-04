@@ -1,6 +1,7 @@
 /* 源自 deepwrite（Apache-2.0）：https://github.com/20090106-520/deepwrite —— 原样移植的布局与主题层，未自造类名。 */
 @import "./styles/left-nav.css";
 @import "./styles/conversation-pane.css";
+@import "./styles/conversation-history.css";
 @import "./styles/editor-pane.css";
 @import "./styles/dialog.css";
 @import "./styles/agent-pane.css";

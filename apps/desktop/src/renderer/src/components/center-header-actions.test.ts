@@ -36,6 +36,7 @@ describe("照搬他的头部钮 · 「新建对话」取代自造的「模型设
     const actions = headerActions();
     expect(countNeedle('class="header-text-button"', actions)).toBe(1);
     // 切片只看得见头部：同一份样式名在文件别处再挂一次，切片计数抓不到——全文件再数一遍。
+    // 「历史对话」那枚住在 ConversationHistoryMenu.vue 自己的模板里（#113e），不数进这里。
     expect(
       countNeedle('class="header-text-button"', templateSource(CENTER)),
       "整份模板只允许一枚"

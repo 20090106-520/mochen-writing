@@ -11,6 +11,7 @@ import ProviderSettings from "./ProviderSettings.vue";
 import ToolRoster from "./ToolRoster.vue";
 import ModelSelect from "./ModelSelect.vue";
 import BookWorkbench from "./BookWorkbench.vue";
+import ConversationHistoryMenu from "./ConversationHistoryMenu.vue";
 import { cardTurnLabel, splitProposalCards, turnAnchors } from "../utils/timeline";
 import { activeStageOf, showContextBar } from "../utils/composer-context";
 import {
@@ -266,6 +267,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div class="conversation-header-actions">
+        <!-- #113e：他的头部动作区第一枚就是「历史对话」（AgentConversation.vue:274），排在「新建对话」之前。 -->
+        <ConversationHistoryMenu />
         <!-- #105：权限档 chip 与 PermissionMenu 弹层真身一起搬进输入卡右端（deepwrite 的「更多」那一端）；
              头部再挂一枚就是同一个开关两份真身，故整块退役。
              #113d：同一格里改挂他的「新建对话」（AgentConversation.vue:281-288）。 -->
