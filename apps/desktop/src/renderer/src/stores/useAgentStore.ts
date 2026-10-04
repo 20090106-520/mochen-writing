@@ -16,6 +16,7 @@ import {
   type PermissionMode,
   type ProposalDecision,
   type ProposalStatus,
+  type SessionListItem,
   type SessionLoadResult,
   type StartTurnInput,
   type ThinkingLevel,
@@ -26,6 +27,7 @@ import { matchPermissionMode, type SlashCommand } from "../utils/slash-commands"
 import { stageLabelOf } from "../utils/composer-context";
 import { permissionChipView } from "../utils/permission-chip";
 import { prefillText } from "../utils/composer-draft";
+import { sessionRowAction, type SessionRowAction } from "../utils/session-row-action";
 import { useLayoutStore } from "./layoutStore";
 import { useBookStore } from "./useBookStore";
 
@@ -58,6 +60,8 @@ export interface ThreadView {
   hydrating: boolean;
   /** 运行中按 Tab 排好的后续指令，本轮结束后自动发队首（spec §5.1）。 */
   queued: string[];
+  /** 这一条视图当前显示的是哪一条会话（回放载荷里的 sessionId）；空串 = 渲染层还不知道，面板靠它标「正在看这一条」。 */
+  sessionId: string;
 }
 
 export interface ProposalView {
@@ -80,7 +84,8 @@ export function newThread(): ThreadView {
     endedAs: "",
     hydrated: false,
     hydrating: false,
-    queued: []
+    queued: [],
+    sessionId: ""
   };
 }
 
@@ -221,6 +226,8 @@ export function composeStatusReport(facts: StatusFacts): string {
 export const useAgentStore = defineStore("agent", {
   state: () => ({
     threads: {} as Record<string, ThreadView>,
+    /** 历史对话面板的数据源：这本书全部会话的一行概览（主进程按时间倒序给）。 */
+    sessions: [] as SessionListItem[],
     proposals: {} as Record<string, ProposalView>,
     notice: "",
     seconds: 0,
@@ -604,8 +611,13 @@ export const useAgentStore = defineStore("agent", {
         if (result.reason === "no-session") thread.hydrated = true;
         return;
       }
-      // 规则4：只归约 items 里不存在该事件 id 的那些；回放路径既关 diff 取数（M1），
-      // 也关写盘回吸收与实时提示覆盖（D1）——重启回放绝不 spam 文档重读。
+      this.applyReplay(thread, result);
+      thread.hydrated = true;
+    },
+
+    /** 回放载荷落进线程视图的共用一段（`/resume` 与面板指名切换同一条通路）：按事件 id 去重（规则4）、派生扫描覆盖卡片状态（规则6）、只有 interrupted 结尾才复活「继续」（规则8）、坏行如实播报（规则7）；回放路径既关 diff 取数（M1），也关写盘回吸收与实时提示覆盖（D1）。 */
+    applyReplay(thread: ThreadView, result: Extract<SessionLoadResult, { found: true }>): void {
+      // 规则4：只归约 items 里不存在该事件 id 的那些
       const known = new Set(thread.items.map((item) => item.id));
       for (const event of result.events) {
         if (known.has(event.id)) continue;
@@ -621,10 +633,79 @@ export const useAgentStore = defineStore("agent", {
       // 规则8：只有最后一条是 interrupted 才复活「继续」；error 保守不标 failed
       const last = result.events[result.events.length - 1];
       if (last?.type === "interrupted") thread.endedAs = "interrupted";
+      thread.sessionId = result.meta.sessionId;
       // 规则7：坏行如实播报，不伪造事件、不静默
       if (result.droppedLines.length > 0)
         this.notice = `这条线程有 ${result.droppedLines.length} 行没能读回，其余内容已恢复。`;
-      thread.hydrated = true;
+    },
+
+    /** 面板打开时的取数：失败只写 notice、不清空已显示的行——把「读不到」伪装成「没有历史」比报错更坏。 */
+    async refreshSessions(): Promise<void> {
+      try {
+        this.sessions = await window.mochen.listSessions();
+      } catch (err) {
+        this.notice = `历史对话没有读回来：${reasonOf(err)}`;
+      }
+    },
+
+    /**
+     * 面板每一行的当下判定。判定本体在 utils/session-row-action.ts（一处实现），
+     * 这里是唯一的上下文装配点：`unbound` 用的是本文件那份 UNBOUND 口径，组件不许自己猜。
+     */
+    rowActionFor(item: SessionListItem): SessionRowAction {
+      const book = useBookStore();
+      const viewed = this.threads[threadKeyFor(book.activeDocTab)];
+      return sessionRowAction(item, {
+        currentSessionId: viewed?.sessionId ?? "",
+        existingDocPaths: book.docs.map((doc) => doc.relPath),
+        responding: viewed?.running === true,
+        unbound: item.docRelPath === UNBOUND
+      });
+    },
+
+    /** 覆盖式切换用的清空：显示态归零，并删掉这一条线程名下的提案卡（旧会话的卡不许留在新视图上）。 */
+    resetThreadView(threadKey: string): void {
+      const thread = this.viewOf(threadKey);
+      thread.items = [];
+      thread.streaming = { ...EMPTY_STREAM };
+      thread.lastError = "";
+      thread.endedAs = "";
+      thread.sessionId = "";
+      for (const id of Object.keys(this.proposals)) {
+        if (this.proposals[id]?.proposal.threadKey === threadKey) delete this.proposals[id];
+      }
+    },
+
+    /** 点面板一行 = 切到那条会话接着聊。与 `/resume` 的分别是「最近那条」对「指名的那条」：主进程 loadSession 收到 sessionId 会把这一条线程的写入目标改过去，下一轮就续在它后面。 */
+    async showSession(item: SessionListItem): Promise<void> {
+      const action = this.rowActionFor(item);
+      if (action.kind !== "open") {
+        this.notice = action.reason;
+        return;
+      }
+      const threadKey = item.docRelPath; // 裁定 o：绑定线程的键恒等于文稿路径
+      const book = useBookStore();
+      // 抢在换标签之前置位：openDocTab 会让组件补一次「最近那条」的自动水合，那一读若先回来就把
+      // 用户亲手点开的这一条盖掉了；读失败再照原值退回，`/resume` 还能重试。
+      const wasHydrated = this.viewOf(threadKey).hydrated;
+      this.viewOf(threadKey).hydrated = true;
+      if (book.activeDocTab !== threadKey) await book.openDocTab(threadKey);
+      let result: SessionLoadResult;
+      try {
+        result = await window.mochen.loadSession(threadKey, item.sessionId);
+      } catch (err) {
+        this.viewOf(threadKey).hydrated = wasHydrated;
+        this.notice = `这条线程的历史没有读回来：${reasonOf(err)}`;
+        return;
+      }
+      this.resetThreadView(threadKey);
+      this.notice = "";
+      if (!result.found) {
+        // 主进程那句中文就是全部实话：不假装切过去了，也不留下上一条会话的显示。
+        this.notice = result.message;
+        return;
+      }
+      this.applyReplay(this.viewOf(threadKey), result);
     },
 
     /**
@@ -692,14 +773,8 @@ export const useAgentStore = defineStore("agent", {
       const pendingCards = Object.values(this.proposals).filter(
         (view) => view.proposal.threadKey === threadKey && view.status === "pending"
       ).length;
-      thread.items = [];
-      thread.streaming = { ...EMPTY_STREAM };
-      thread.lastError = "";
-      thread.endedAs = "";
       thread.hydrated = true;
-      for (const id of Object.keys(this.proposals)) {
-        if (this.proposals[id]?.proposal.threadKey === threadKey) delete this.proposals[id];
-      }
+      this.resetThreadView(threadKey);
       this.notice =
         pendingCards === 0
           ? CLEAR_VIEW_SENTENCE

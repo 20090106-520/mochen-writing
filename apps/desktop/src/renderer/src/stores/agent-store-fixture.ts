@@ -153,7 +153,10 @@ export const writeDoc = vi.fn(async (): Promise<DocWriteResult> => ({
   fingerprint: "fp-b",
   backupRelPath: null
 }));
-export const loadSession = vi.fn(async (): Promise<SessionLoadResult> => sessionResult);
+/** 泛型签名带得上 sessionId 形参：用例要钉 `mock.lastCall` 的第二格有没有真的传过来。 */
+export const loadSession = vi.fn<
+  (threadKey: string, sessionId?: string) => Promise<SessionLoadResult>
+>(async () => sessionResult);
 /** 历史对话面板的数据源桩：默认空列表，用例用 mockResolvedValue 塞自己的行。 */
 export const listSessions = vi.fn(async (): Promise<SessionListItem[]> => []);
 /**
@@ -218,6 +221,10 @@ export function setupAgentFixture(): void {
     decided.length = 0;
     setNextDecision(DEFAULT_DECISION);
     setSessionResult(DEFAULT_SESSION_RESULT);
+    // 每个用例都从桩的默认实现起步：`mockImplementation` / `mockResolvedValue` 会跨用例留着（本夹具不 clearMocks），
+    // 不在这里复位，上一个用例塞的实现就决定了这一个用例读回什么——顺序一改结果就变，红得毫无道理。
+    loadSession.mockImplementation(async () => sessionResult);
+    listSessions.mockImplementation(async () => []);
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-01T00:00:00.000Z"));
   });
