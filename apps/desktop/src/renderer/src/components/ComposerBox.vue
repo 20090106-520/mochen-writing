@@ -10,6 +10,7 @@
 import { computed } from "vue";
 import type { PermissionMode, ThinkingLevel } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
+import ComposerContextBar from "./ComposerContextBar.vue";
 import ComposerReferenceMenu from "./ComposerReferenceMenu.vue";
 import PermissionMenu from "./PermissionMenu.vue";
 import {
@@ -26,6 +27,8 @@ const props = defineProps<{
   canContinue: boolean;
   modelValue: string;
   hasBook: boolean;
+  // #113c：绑定条只在「已开书 + 这一格还没消息」时显形，判定住装配处（CenterColumn 用 utils 的 showContextBar）。
+  contextBarVisible: boolean;
   permissionMode: PermissionMode | null; // 档位联合一律从 contracts 来，不在组件里手抄三元（铁律 6）
   permissionSaving: boolean;
   // #105：权限档弹层真身挂到卡右端（deepwrite 的「更多」那一端）；开合仍由装配处的 useBookStore 裁决。
@@ -98,6 +101,9 @@ function submit(): void {
 <template>
   <footer class="composer-wrap">
     <div class="composer" :class="{ 'is-disabled': running }">
+      <!-- #113c 照搬 deepwrite 的挂载点：绑定条是 .composer 的第一个孩子，住在输入面之上、卡片圆角之内，
+           且只在空线程时显形（他的 v-if="messagesEmpty"）。它自己读 store，这里只交出可见性与忙态。 -->
+      <ComposerContextBar v-if="contextBarVisible" :running="running" />
       <div class="composer-input-surface">
         <!-- #106：行内引用菜单锚在这层 surface（它本就 position:relative），整卡宽、向上开——
              与 deepwrite 的 .composer-stack + .composer-reference-menu 同一形态（裁定 D4）。

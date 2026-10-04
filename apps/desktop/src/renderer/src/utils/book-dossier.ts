@@ -1,5 +1,6 @@
 import { PERMISSION_LABELS, type BookKind, type BookMeta, type DocRef } from "@mochen/contracts";
 import { BOOK_KIND_LABELS, BOOK_KIND_ORDER } from "./book-kinds";
+import { activeStageOf } from "./composer-context";
 
 export interface DossierGroup {
   kind: BookKind;
@@ -32,7 +33,8 @@ export interface DossierSummary {
 /** 没开书 ⇒ null，不捏造书名/阶段/档位（缺陷②「无书时档位捏造」的同一条纪律）。 */
 export function dossierSummary(meta: BookMeta | null, docs: DocRef[]): DossierSummary | null {
   if (!meta) return null;
-  const stage = meta.stages.find((item) => item.id === meta.activeStage);
+  // 阶段查表收口在 composer-context.ts（#113c 起第三处消费者是输入卡上方的绑定条）——这里不再自己 find。
+  const stage = activeStageOf(meta);
   const chapters = docs.filter((doc) => doc.kind === "chapter");
   return {
     title: meta.title,

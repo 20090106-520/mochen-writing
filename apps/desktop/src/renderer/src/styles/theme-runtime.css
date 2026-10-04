@@ -256,8 +256,12 @@ html[data-theme] .composer-wrap {
   background: linear-gradient(to bottom, transparent, var(--surface-main) 20px);
 }
 
+/* #113c 绑定条显形了（三件套自 Task 14 起零消费者，今天接上 ComposerContextBar）。
+   几何与透明度照 deepwrite styles.css:2497-2498 原值，只把他的 rgba(25,28,31,.04) 换成主题前景色的
+   color-mix——卡片分段有「零色值字面量」硬门禁，本仓所有浅阴影都是这么落的。 */
 html[data-theme] .composer-context-bar {
   background: var(--surface-muted);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--theme-foreground) 4%, transparent);
 }
 
 html[data-theme] .composer-context-item > svg {

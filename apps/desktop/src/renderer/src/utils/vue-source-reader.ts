@@ -30,6 +30,11 @@ export function templateSource(componentPathRelativeToRendererSrc: string): stri
   return match[1].replace(/<!--[\s\S]*?-->/g, "");
 }
 
+/** 剥掉块注释与行注释：SFC 的 script 段与散装 `.ts` 共用这一份剥法（铁律 6）。 */
+function stripJsComments(body: string): string {
+  return body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
 /** `<script setup lang="ts">` 内容，块注释与行注释已剥掉：注释里写着 needle 不等于真做了这件事。 */
 export function scriptSource(componentPathRelativeToRendererSrc: string): string {
   const body = /<script setup lang="ts">([\s\S]*?)<\/script>/.exec(
@@ -38,7 +43,18 @@ export function scriptSource(componentPathRelativeToRendererSrc: string): string
   if (body === undefined) {
     throw new Error(`${componentPathRelativeToRendererSrc} 里没有 <script setup lang="ts"> 块`);
   }
-  return body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  return stripJsComments(body);
+}
+
+/**
+ * 散装 `.ts`（store、utils、composable）的代码本体，注释已剥掉——和 `scriptSource` 同一条理由：
+ * 用整份原文去做 `not.toContain` 会被注释反咬（「这里没有 recent-books」这句话本身就写着 recent-books），
+ * 而做 `toContain` 时注释里的宣称又能把没做的事判成绿。
+ * 局限照抄 `scriptSource`：行注释剥法是 `//` 到行尾，源文件里带 `//` 的字符串（URL）会被吃掉后半行——
+ * 现有断言涉及的 `.ts` 都没有这种字符串（加之前先 grep）。
+ */
+export function typeScriptSource(pathRelativeToRendererSrc: string): string {
+  return stripJsComments(vueSource(pathRelativeToRendererSrc));
 }
 
 /**

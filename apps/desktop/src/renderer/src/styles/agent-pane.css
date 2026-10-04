@@ -747,3 +747,316 @@ html[data-platform="darwin"] .conversation-pane {
   align-items: center;
   gap: 4px;
 }
+
+/* ==== Task 113c 输入卡上方的「书 / 阶段」绑定条 + 阶段弹层 ====
+   真身：deepwrite styles.css 的 .composer-context-* 全局段（2486-2528）、ComposerContextBar.vue 的
+   scoped 段、以及 components/composer-context-menu.css 全文（Apache-2.0）。
+   合并口径：他的 scoped 段 specificity 高于全局段，撞到的属性以 scoped 为准 ⇒ 这里落成一份净效果
+   （bar 的 gap 8 / padding 5 10 20、item 的 min-height 34 / 圆角 9 / 透明描边都来自 scoped）。
+   底色不在这里：他把 bar 的底色写成 html[data-theme] 形态，那一类规则本仓归 theme-runtime.css
+   （三条 bar 规则在 Task 105 就随全局表搬进来了，一直没有消费者，今天才接上），卡片分段有「零色值字面量」硬门禁。 */
+
+.composer-context-bar {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 28px);
+  min-height: 58px;
+  margin: 0 14px -15px;
+  padding: 5px 10px 20px;
+  border-radius: 21px;
+}
+
+.composer-context-item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--ui-font);
+  font-size: 0.857143rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 120ms,
+    border-color 120ms,
+    transform 120ms;
+}
+
+.composer-context-item > svg {
+  flex: 0 0 auto;
+}
+
+.composer-context-item > strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 520;
+  text-overflow: ellipsis;
+}
+
+.composer-book-context {
+  max-width: min(58%, 360px);
+  flex: 0 1 auto;
+}
+
+.composer-stage-context {
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+
+.composer-context-item:hover:not(:disabled),
+.composer-context-item[aria-expanded="true"] {
+  background: var(--surface-hover);
+  border-color: var(--theme-line);
+}
+
+.composer-context-item:active:not(:disabled) {
+  transform: translateY(1px);
+  background: var(--surface-selected);
+}
+
+.composer-context-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 忙态一格都不许按：disabled 不给 pointer 手势（与 .round-tool-button:disabled 同一条裁定）；
+   他这里本来就写的 cursor: default，照搬。 */
+.composer-context-item:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.composer-context-item .context-chevron {
+  color: var(--text-tertiary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-context-item {
+    transition: none;
+  }
+}
+
+@container composer (max-width: min(32rem, 560px)) {
+  .composer-context-bar {
+    gap: 12px;
+    padding-inline: 12px;
+  }
+
+  .composer-stage-context {
+    flex: 0 1 auto;
+  }
+}
+
+/* ---- 阶段弹层：composer-context-menu.css 全文照搬（Teleport 到 body，fixed 定位由 composable 给） ---- */
+
+.composer-context-menu {
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 9px;
+  border: 1px solid var(--theme-line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-raised) 96%, transparent);
+  box-shadow:
+    0 18px 46px color-mix(in srgb, var(--theme-foreground) 16%, transparent),
+    0 3px 10px color-mix(in srgb, var(--theme-foreground) 10%, transparent);
+  backdrop-filter: blur(18px) saturate(1.15);
+  color: var(--text-primary);
+  font-family: var(--ui-font);
+}
+
+.context-picker-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 0 7px 5px 11px;
+}
+
+.context-picker-heading strong {
+  font-size: 0.928571rem;
+  font-weight: 620;
+}
+
+.context-picker-close {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.context-picker-close:hover {
+  background: var(--surface-hover);
+}
+
+.context-picker-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.context-search {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+  margin: 0 3px 5px;
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--theme-line-soft);
+  color: var(--text-tertiary);
+}
+
+.context-search:focus-within {
+  border-bottom-color: var(--accent);
+}
+
+.context-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.857143rem;
+}
+
+.context-search input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.context-picker-list {
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px;
+}
+
+.context-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-option:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.context-option:active:not(:disabled),
+.context-option.is-current {
+  background: var(--surface-selected);
+}
+
+.context-option:focus-visible,
+.context-picker-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.context-option:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.context-option-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.context-option-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.context-option-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-size: 0.928571rem;
+  font-weight: 540;
+  line-height: 1.45;
+}
+
+.context-option-copy small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+  line-height: 1.4;
+}
+
+.context-option > svg {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+.context-current {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.context-picker-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px 10px;
+  color: var(--text-tertiary);
+  font-size: 0.857143rem;
+  text-align: center;
+}
+
+.context-picker-empty strong {
+  color: var(--text-secondary);
+}
+
+/* 他那份住在 scoped 段里，深色覆写要包一层 global 伪选择器才出得去；本仓样式表是普通全局表，
+   选择器直接落平（同一份值）。卡片分段有「不许出现 global 伪选择器」的源码契约在咬，写回来就红。 */
+html[data-theme="dark"] .composer-context-menu {
+  box-shadow:
+    0 20px 52px color-mix(in srgb, var(--theme-foreground) 38%, transparent),
+    0 3px 12px color-mix(in srgb, var(--theme-foreground) 28%, transparent);
+}

@@ -6,6 +6,7 @@ import {
   type DocRef,
   type PermissionMode
 } from "@mochen/contracts";
+import { activeStageOf } from "../utils/composer-context";
 
 interface DocState {
   draft: string;
@@ -301,6 +302,43 @@ export const useBookStore = defineStore("book", {
 
     closePermissionMenu(): void {
       this.permissionMenuOpen = false;
+    },
+
+    /**
+     * #113c 切阶段：与 setPermissionMode 同一条落盘通路（book.json 里唯一另一个可写字段），
+     * 所以形状逐条照它——忙态圈住 saveMeta、失败一个字不改、成功先写后回读。
+     * 刻意**不**碰 permissionMenuOpen：那是权限弹层，切阶段没资格替用户收它。
+     */
+    async setActiveStage(stageId: string): Promise<void> {
+      if (!this.meta) {
+        this.notice = "还没打开作品目录，阶段改不了。";
+        return;
+      }
+      if (!this.meta.stages.some((stage) => stage.id === stageId)) {
+        // 主进程的 bookSchema 会拒「activeStage 不在 stages 中」；先在渲染层说明白，省一次无谓写盘。
+        this.notice = "这一档不在本书的阶段列表里，没去改。";
+        return;
+      }
+      if (this.meta.activeStage === stageId) {
+        // 走同一条查表通路取档名（这一支里 stageId 就是当前档 ⇒ activeStageOf 正是它），不再抄第四份 find。
+        this.notice = `已经是这个阶段了：「${activeStageOf(this.meta)?.name ?? "无"}」。`;
+        return;
+      }
+      const next: BookMeta = { ...toRaw(this.meta), activeStage: stageId };
+      this.metaSaving = true;
+      try {
+        await window.mochen.saveMeta(next);
+      } catch (err) {
+        const reason = err instanceof Error && err.message !== "" ? err.message : String(err);
+        this.notice = `阶段没改过来：${reason}`;
+        return;
+      } finally {
+        this.metaSaving = false;
+      }
+      this.meta = next;
+      // 先写后回读（与切权限档同一坑，见上面 setPermissionMode 的注释）：裸 next 与 this.meta 是
+      // 同一 target 的两套拦截，绑定条那个 computed 只认回读到的这一份。
+      this.notice = `阶段已切到「${activeStageOf(this.meta)?.name ?? "无"}」，下一轮对话按这一档装配上下文。`;
     }
   }
 });

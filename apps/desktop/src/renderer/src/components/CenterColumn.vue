@@ -12,6 +12,7 @@ import ToolRoster from "./ToolRoster.vue";
 import ModelSelect from "./ModelSelect.vue";
 import BookWorkbench from "./BookWorkbench.vue";
 import { cardTurnLabel, splitProposalCards, turnAnchors } from "../utils/timeline";
+import { activeStageOf, showContextBar } from "../utils/composer-context";
 import {
   WORKBENCH_CARD_PREFILL,
   workbenchCards,
@@ -69,6 +70,22 @@ const cardSplit = computed(() => splitProposalCards(threadCards.value, anchors.v
 const openCards = computed(() => cardSplit.value.open);
 const settledCards = computed(() => cardSplit.value.settled);
 const expiredCards = computed(() => cardSplit.value.expired);
+/**
+ * 「这一格还是空的」的唯一判据：时间线没有事件、本轮没在跑、没在水合，且三类提案卡全为空。
+ * 两个消费者共用它——工作台式的空状态（原先这串条件裸写在模板里）与 #113c 输入卡上方的绑定条。
+ */
+const messagesEmpty = computed(
+  () =>
+    items.value.length === 0 &&
+    !running.value &&
+    !hydrating.value &&
+    openCards.value.length === 0 &&
+    settledCards.value.length === 0 &&
+    expiredCards.value.length === 0
+);
+const contextBarVisible = computed(() =>
+  showContextBar({ hasBook: book.hasBook, threadEmpty: messagesEmpty.value })
+);
 function turnLabel(card: ProposalView): string {
   return cardTurnLabel(anchors.value, card.proposal.turnId);
 }
@@ -95,7 +112,7 @@ const statusLine = computed(() =>
 const ready = computed(() => book.hasBook);
 
 const agentLabel = computed(() => {
-  const stage = book.meta?.stages.find((item) => item.id === book.meta?.activeStage);
+  const stage = activeStageOf(book.meta);
   return stage ? `${stage.name}智能体` : "未选择作品";
 });
 const contextTitle = computed(() => {
@@ -257,17 +274,7 @@ onBeforeUnmount(() => {
 
     <div class="conversation-scroll-shell">
       <div class="conversation-scroll transient-scrollbar">
-        <div
-          v-if="
-            items.length === 0 &&
-            !running &&
-            !hydrating &&
-            openCards.length === 0 &&
-            settledCards.length === 0 &&
-            expiredCards.length === 0
-          "
-          class="conversation-empty"
-        >
+        <div v-if="messagesEmpty" class="conversation-empty">
           <BookWorkbench
             :has-book="book.hasBook"
             :agent-label="agentLabel"
@@ -343,6 +350,7 @@ onBeforeUnmount(() => {
       :can-continue="agent.canContinue(threadKey)"
       :model-value="agent.draftOf(threadKey)"
       :has-book="book.hasBook"
+      :context-bar-visible="contextBarVisible"
       :permission-mode="book.meta?.permissionMode ?? null"
       :permission-saving="book.metaSaving"
       :permission-menu-open="book.hasBook && book.permissionMenuOpen"

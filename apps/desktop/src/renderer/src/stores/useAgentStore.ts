@@ -23,6 +23,7 @@ import {
 } from "@mochen/contracts";
 import { replayProposalStatuses } from "../utils/timeline";
 import { matchPermissionMode, type SlashCommand } from "../utils/slash-commands";
+import { stageLabelOf } from "../utils/composer-context";
 import { permissionChipView } from "../utils/permission-chip";
 import { prefillText } from "../utils/composer-draft";
 import { useLayoutStore } from "./layoutStore";
@@ -663,8 +664,7 @@ export const useAgentStore = defineStore("agent", {
             pending: this.pendingOf(threadKey),
             hasBook: book.hasBook,
             permissionMode: book.meta?.permissionMode ?? null,
-            stageName:
-              book.meta?.stages.find((stage) => stage.id === book.meta?.activeStage)?.name ?? "无"
+            stageName: stageLabelOf(book.meta)
           });
           return;
         }

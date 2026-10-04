@@ -534,3 +534,138 @@ describe("useBookStore", () => {
     expect(store.hasBook).toBe(true);
   });
 });
+
+/**
+ * #113c 切阶段：setPermissionMode 的同一条通路（book.json 里唯一另一个可写字段）。
+ * 夹具的共享 `result.meta` 只声明一档，切阶段需要两档 ⇒ 用 mockImplementationOnce 换一本书，
+ * 动公共夹具会牵连整文件的 toEqual(result.meta) 断言（blast radius 不对）。
+ */
+describe("setActiveStage · 切阶段（#113c）", () => {
+  const twoStageMeta: BookMeta = {
+    ...result.meta,
+    stages: [
+      { id: "draft", name: "正文" },
+      { id: "revise", name: "修订" }
+    ],
+    activeStage: "draft"
+  };
+
+  async function openTwoStage(store: ReturnType<typeof useBookStore>): Promise<void> {
+    api.openBook.mockImplementationOnce(async () => ({ ...result, meta: twoStageMeta }));
+    await store.openBook("/book");
+    saveMeta.mockClear();
+  }
+
+  it("切档成功：写一次盘、本地 activeStage 跟着换，并把生效范围说清楚", async () => {
+    const store = useBookStore();
+    await openTwoStage(store);
+    await store.setActiveStage("revise");
+    expect(saveMeta).toHaveBeenCalledTimes(1);
+    expect(saveMeta.mock.calls[0]?.[0]).toEqual({ ...twoStageMeta, activeStage: "revise" });
+    expect(store.meta?.activeStage).toBe("revise");
+    expect(store.notice).toBe("阶段已切到「修订」，下一轮对话按这一档装配上下文。");
+  });
+
+  it("除 meta / notice 外一个状态字段都不许多改（含权限弹层开关与右栏模式）", async () => {
+    const store = useBookStore();
+    await openTwoStage(store);
+    store.openPermissionMenu();
+    store.rightPaneMode = "dossier";
+    const before = structuredClone(toRaw(store.$state));
+    await store.setActiveStage("revise");
+    expect(store.$state).toEqual({
+      ...before,
+      meta: { ...twoStageMeta, activeStage: "revise" },
+      notice: "阶段已切到「修订」，下一轮对话按这一档装配上下文。"
+    });
+    // 上一条靠整体 toEqual 兜，这两句单独钉住最容易被顺手改坏的两格（弹层与页签）。
+    expect(store.permissionMenuOpen).toBe(true);
+    expect(store.rightPaneMode).toBe("dossier");
+  });
+
+  it("交给主进程的是可结构化克隆的裸对象：嵌套 stages 数组的代理过不了 IPC", async () => {
+    const store = useBookStore();
+    await openTwoStage(store);
+    saveMeta.mockImplementationOnce(async (meta) => {
+      structuredClone(meta);
+    });
+    await store.setActiveStage("revise");
+    expect(store.notice).toBe("阶段已切到「修订」，下一轮对话按这一档装配上下文。");
+    expect(store.meta?.activeStage).toBe("revise");
+  });
+
+  it("同档重复点：不写盘，给一句实话", async () => {
+    const store = useBookStore();
+    await openTwoStage(store);
+    await store.setActiveStage("draft");
+    expect(saveMeta).not.toHaveBeenCalled();
+    expect(store.notice).toBe("已经是这个阶段了：「正文」。");
+  });
+
+  it("没开书时切档：既不写盘也不假装成功", async () => {
+    const store = useBookStore();
+    saveMeta.mockClear();
+    await store.setActiveStage("revise");
+    expect(saveMeta).not.toHaveBeenCalled();
+    expect(store.meta).toBeNull();
+    expect(store.notice).toBe("还没打开作品目录，阶段改不了。");
+  });
+
+  it("名单外的档 id：不写盘——bookSchema 会拒「activeStage 不在 stages 中」，渲染层先把话说明白", async () => {
+    const store = useBookStore();
+    await openTwoStage(store);
+    await store.setActiveStage("nope");
+    expect(saveMeta).not.toHaveBeenCalled();
+    expect(store.meta?.activeStage).toBe("draft");
+    expect(store.notice).toBe("这一档不在本书的阶段列表里，没去改。");
+  });
+
+  it("主进程拒绝：中文原因原样可见，本地阶段保持不变", async () => {
+    const store = useBookStore();
+    await openTwoStage(store);
+    saveMeta.mockRejectedValueOnce(new Error("无法写入 book.json：文件正被占用"));
+    await store.setActiveStage("revise");
+    expect(store.meta?.activeStage).toBe("draft");
+    expect(store.notice).toBe("阶段没改过来：无法写入 book.json：文件正被占用");
+  });
+
+  it("切档在途时 metaSaving 为真，resolve 与 reject 都落回 false", async () => {
+    const store = useBookStore();
+    await openTwoStage(store);
+    let release = () => {};
+    saveMeta.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          release = () => resolve();
+        })
+    );
+    const pending = store.setActiveStage("revise");
+    expect(store.metaSaving).toBe(true);
+    release();
+    await pending;
+    expect(store.metaSaving).toBe(false);
+    saveMeta.mockRejectedValueOnce(new Error("无法写入 book.json"));
+    await store.setActiveStage("draft");
+    expect(store.metaSaving).toBe(false);
+  });
+
+  it("切档后视图侧 computed 与真值一致（绑定条读的是 computed，不是直读 store）", async () => {
+    const store = useBookStore();
+    await openTwoStage(store);
+    const viewStage = computed(
+      () => store.meta?.stages.find((s) => s.id === store.meta?.activeStage)?.name ?? "无"
+    );
+    expect(viewStage.value).toBe("正文");
+    await store.setActiveStage("revise");
+    expect(store.meta?.activeStage).toBe("revise");
+    expect(viewStage.value).toBe("修订");
+  });
+
+  it("权限弹层开着时切阶段：弹层不归它管，不替用户收起", async () => {
+    const store = useBookStore();
+    await openTwoStage(store);
+    store.openPermissionMenu();
+    await store.setActiveStage("revise");
+    expect(store.permissionMenuOpen).toBe(true);
+  });
+});
