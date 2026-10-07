@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_TOOL_NAMES, type AgentToolName, type EditProposal } from "@mochen/contracts";
+import { AGENT_TOOL_NAMES, type EditProposal } from "@mochen/contracts";
 import {
   TOOL_SPECS,
   dispatchToolCall,
@@ -13,7 +13,7 @@ function fakeHost(
   outcome: ToolOutcome
 ): ToolHost {
   return {
-    context: () => ({ docRelPath: "chapters/01.md", permissionMode: "read-only" }),
+    context: () => ({ docRelPath: "chapters/01.md", permissionMode: "read-only", workMode: "act" }),
     call: async (name, args) => {
       log.push({ name, args });
       return outcome;
@@ -64,7 +64,7 @@ describe("dispatchToolCall", () => {
   it("host 不认识的第六个工具名被拦在派发层", async () => {
     const out = await dispatchToolCall(
       {
-        context: () => ({ docRelPath: null, permissionMode: "read-only" }),
+        context: () => ({ docRelPath: null, permissionMode: "read-only", workMode: "act" }),
         call: async () => ({ ok: true, text: "", proposals: [] })
       },
       { id: "c1", name: "delete_book", args: "{}" }
@@ -100,17 +100,33 @@ describe("dispatchToolCall", () => {
     expect(out).toBe(outcome);
   });
 
-  it("工具名收窄只在注册表边界发生：host 收到的是 AgentToolName", async () => {
-    const seen: AgentToolName[] = [];
+  it("【改钉新决定】host 收到的是 string；花名册那五个仍被逐个校验过", async () => {
+    const seen: string[] = [];
     const host: ToolHost = {
-      context: () => ({ docRelPath: null, permissionMode: "full-access" }),
+      context: () => ({ docRelPath: null, permissionMode: "full-access", workMode: "act" }),
+      extraSpecs: () => [
+        {
+          name: "rhythm_check",
+          description: "插件给的工具。",
+          parameters: { type: "object", properties: { text: { type: "string" } } }
+        }
+      ],
       call: async (name, args) => {
         seen.push(name);
         expect(args).toEqual({});
         return { ok: true, text: "", proposals: [] };
       }
     };
-    await dispatchToolCall(host, { id: "c3", name: "search_docs", args: "{}" });
-    expect(seen).toEqual(["search_docs"]);
+    // 花名册里的：名字仍然是闭集里的那一个。
+    await dispatchToolCall(host, { id: "1", name: "read_doc", args: "" });
+    expect(seen).toEqual(["read_doc"]);
+    // 插件注册的：放行。
+    await dispatchToolCall(host, { id: "2", name: "rhythm_check", args: "" });
+    expect(seen).toEqual(["read_doc", "rhythm_check"]);
+    // 没人注册过的：仍然被中文拒掉——闸没松，只是闸后名单从 5 个变成 5+N 个。
+    const denied = await dispatchToolCall(host, { id: "3", name: "rm_rf", args: "" });
+    expect(denied.ok).toBe(false);
+    expect(denied.text).toContain("rm_rf");
+    expect(seen).toHaveLength(2);
   });
 });

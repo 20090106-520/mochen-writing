@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { editProposalSchema, PROPOSAL_DECISIONS } from "./patch.js";
-import { AGENT_TOOL_NAMES } from "./tools.js";
 import { thinkingLevelSchema } from "./per-run.js";
+import { skillPathsSchema } from "./skill.js";
 
 const id = z.string().min(1);
 const ts = z.string().min(1);
@@ -31,6 +31,21 @@ export const sessionMetaSchema = z.object({
 });
 export type SessionMeta = z.infer<typeof sessionMetaSchema>;
 
+/**
+ * 一条联网搜索的来源（2026-10-06 批次 5-⑨）。
+ *
+ * 为什么是结构化的一条独立字段，而不是从 `resultText` 里把 URL 抠出来再拼：
+ * 那是把「这轮搜了谁」这件事在渲染层**第二次**猜一遍。回执文本是人读的排版，改个版式
+ * 抠出来的链接就全错；来源是数据，就该一路带着走。url 只收 http/https——这是要交给
+ * 渲染层去点开的地址，不是随便什么 scheme。
+ */
+export const webSourceSchema = z.object({
+  title: z.string(),
+  url: z.string().regex(/^https?:\/\//),
+  snippet: z.string()
+});
+export type WebSource = z.infer<typeof webSourceSchema>;
+
 export const agentEventSchema = z.discriminatedUnion("type", [
   z.object({ ...turn, type: z.literal("user-message"), text: z.string() }),
   z.object({ ...turn, type: z.literal("reasoning"), text: z.string(), interrupted: z.boolean() }),
@@ -44,10 +59,20 @@ export const agentEventSchema = z.discriminatedUnion("type", [
     ...turn,
     type: z.literal("tool-call"),
     callId: id,
-    tool: z.enum(AGENT_TOOL_NAMES),
+    // 【2026-10-07 批次 5-㉘：改成钉新形状】原来是 z.enum(AGENT_TOOL_NAMES)。
+    // 插件注册进来的工具名**运行时才知道**，枚举装不下它们，于是这一轮事件根本发不出去。
+    // 保证没变小的部分：派发前仍然过 `isCallableTool`——花名册那五个照旧是闭集，
+    // 不在闭集里、又没被任何插件注册的名字，仍然被中文回执拒掉（见 tool-loop）。
+    // 也就是说「叫不叫得动」这道闸没有松，只是闸后面的名单从 5 个变成 5 + N 个。
+    tool: z.string(),
     args: z.string(),
     ok: z.boolean(),
-    resultText: z.string()
+    resultText: z.string(),
+    // 只有 web_search 会带：那一轮搜到的来源（标题/链接/摘要）。可选，老会话里没有这个字段。
+    sources: z.array(webSourceSchema).optional(),
+    // 跑通了但没东西可给（2026-10-06 批次 5-⑮）。只有 web_search 会带，老会话里没有。
+    // 刻意**不**并进 ok：ok 答的是「有没有出错」，而「源都能用、只是没搜着」不是错。
+    empty: z.boolean().optional()
   }),
   z.object({ ...turn, type: z.literal("proposal"), proposal: editProposalSchema }),
   z.object({
@@ -137,7 +162,12 @@ export const startTurnInputSchema = z
      * 而不是悄悄按「关」发出去——那样真机上「开关坏了」和「用户没打开」就分不出来。
      */
     thinkingLevel: thinkingLevelSchema,
-    webSearchEnabled: z.boolean({ error: "联网搜索开关必须是真或假" })
+    webSearchEnabled: z.boolean({ error: "联网搜索开关必须是真或假" }),
+    /**
+     * 本轮显式挂入的技能（spec §11）。必填、无默认值：与两枚每轮开关同一条理由——
+     * 缺字段就是渲染层忘了传，在边界上炸中文，比悄悄按「没挂技能」发出去好查得多。
+     */
+    skillPaths: skillPathsSchema
   })
   .superRefine((value, ctx) => {
     if (value.threadKey.trim() === "" && value.docRelPath !== null)
@@ -200,6 +230,16 @@ export const sessionLoadResultSchema = z.discriminatedUnion("found", [
   })
 ]);
 export type SessionLoadResult = z.infer<typeof sessionLoadResultSchema>;
+
+/**
+ * 会话线程键的「未绑定」哨兵（裁定 o：threadKey 恒等于 docRelPath，没开任何文稿标签时就是它）。
+ *
+ * 住在 contracts 而不是两边各写一份：主进程按 `threadKey === UNBOUND` 判「审批时没有当前章」，
+ * 渲染层按它认「这一轮不属于任何文稿」。两侧是**同一个跨进程契约**——
+ * 曾经各有一份 `const UNBOUND = "unbound"`，只靠渲染层那句「与主进程同名常量必须一致」维系，
+ * 而那句注释里写的行号当场就漂了（写着 agent-service.ts:38，实际在 50 行）。注释不是类型系统。
+ */
+export const UNBOUND = "unbound";
 
 /**
  * 书内会话总览的一行（#113e「历史对话」面板的数据源）。

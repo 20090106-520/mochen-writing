@@ -9,7 +9,15 @@ export const DOC_DIRS = {
   chapter: "chapters",
   outline: "outline",
   character: "characters",
-  plot: "plot"
+  plot: "plot",
+  worldview: "worldview",
+  faction: "factions",
+  location: "locations",
+  timeline: "timeline",
+  glossary: "glossary",
+  volume: "volumes",
+  foreshadow: "foreshadow",
+  skill: "skills"
 } as const satisfies Record<Exclude<BookKind, "material">, string>;
 
 const KIND_BY_DIR: Record<string, BookKind> = Object.fromEntries(

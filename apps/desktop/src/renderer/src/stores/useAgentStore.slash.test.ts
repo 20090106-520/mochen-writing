@@ -205,8 +205,20 @@ describe("useAgentStore · / 面板动作", () => {
     expect(bookStore.permissionMenuOpen).toBe(false);
   });
 
-  it("绕过面板直接叫 stage：给一句实话，不假装切了", () => {
+  it("叫了一个不存在的阶段：给一句实话并列出可选值，不假装切了", () => {
+    // 2026-10-05 起 stage 已有真通路（setActiveStage），所以「叫不到」时的回复
+    // 必须换成「没有这个阶段 + 可选值」，而不是旧的「波 2 接通」那句已过期的话。
     store().runSlashCommand("stage", "正文");
-    expect(store().notice).toBe("切换创作阶段要连同智能体档案一起切，这一条通路在波 2 接通。");
+    expect(store().notice).toBe("没有这个阶段：「正文」。可选：（无）。");
+    expect(store().notice).not.toContain("波 2");
+  });
+
+  it("/stage 不带参数：给一句关于阶段的话，不是「按了没反应」", () => {
+    // 本夹具的书没有配 stages，所以走的是「这本书还没有任何阶段」那一支。
+    // 守的不变量是「永远回一句实话」：有空阶段时它报当前阶段 + 可选值，
+    // 没阶段时它说没有——两条都不许变成空 notice。
+    store().runSlashCommand("stage", "");
+    expect(store().notice).not.toBe("");
+    expect(store().notice).toContain("阶段");
   });
 });

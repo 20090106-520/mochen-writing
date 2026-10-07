@@ -24,8 +24,14 @@ html[data-platform="darwin"] .conversation-pane {
   gap: 18px;
 }
 
+/* 时间线上每一块的共同祖先。批次 5-㉔：断长词写在这里，一份实现盖住 user / message /
+   thinking / plan / tool / proposal / 来源清单八种块——它们此前是一个都没写。
+   真机量到的那一格：用户粘过来的长链接（200 字符无空格）把 .user-text 撑到 1442px，
+   而对话区只有 730px；`.conversation-scroll` 是 overflow-x:hidden，于是右半截**被裁掉
+   且无法横向查看**（不是溢出到窗口外，是内容不可达——这两种在 d4 里长得一样，得分开判）。 */
 .agent-block {
   min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .user-line {
@@ -47,9 +53,14 @@ html[data-platform="darwin"] .conversation-pane {
   color: var(--text);
   font-weight: 500;
   white-space: pre-wrap;
+  /* 【机制必需，不是风格选择】.user-line 是 flex，.user-text 是 flex item，
+     它的地板是**内容的 min-content 尺寸**。而 `overflow-wrap: break-word` 按规范
+     **不参与 min-content 计算**（`anywhere` 才参与）——只把祖先那条 break-word 加上，
+     这一格照样撑到 1442px，缺额纹丝不动。必须配 min-width: 0 掀掉自动地板，
+     两样一起才是「能缩 + 缩了会断」。 */
+  min-width: 0;
 }
 
-.thinking-card,
 .plan-card,
 .tool-card,
 .proposal-card {
@@ -60,23 +71,63 @@ html[data-platform="darwin"] .conversation-pane {
   box-shadow: 0 10px 26px -18px var(--shadow-color);
 }
 
+/* 思考摘要（批次 5-⑪）：**折起来时不是一张卡**。
+   原来它与工具卡/提案卡共用那套卡框，于是折叠态就是一条 36px 的空壳标题栏，
+   一轮里出现两次，看上去像两张卡卡住了、或者像还没加载出来——真机截图就是这感觉。
+   它是**过程注脚**，不是内容：折起来就该退回一行安静的灰字，展开时（`[open]`）才恢复成卡。
+   卡框、背景、阴影、圆角一律移到 `[open]` 上去，避免和上面那组共用一份。 */
 .thinking-card {
   padding: 0;
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+.thinking-card[open] {
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sidebar) 62%, transparent);
+  backdrop-filter: blur(10px) saturate(115%);
+  box-shadow: 0 10px 26px -18px var(--shadow-color);
+  color: var(--text-soft);
+  font-size: 13px;
 }
 
 .thinking-card summary {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 9px 12px;
-  color: var(--text-soft);
+  padding: 4px 12px;
+  color: inherit;
   cursor: pointer;
-  font-size: 13px;
+  font-size: inherit;
   list-style: none;
+}
+
+/* 展开后 summary 回到原来那档内边距，别贴着卡框上沿。 */
+.thinking-card[open] summary {
+  padding: 9px 12px;
 }
 
 .thinking-card summary::-webkit-details-marker {
   display: none;
+}
+
+/* 批次 5-⑭：折起来时在标签后面露一行摘要。
+   真机量到的问题是它**一个字都不露**——一整轮三行「思考摘要」每行 24px，
+   三行加起来信息量是零，看着像卡住了。这行就是把那三个字换成有内容的一行。
+   显不显示全交给状态选择器：展开时正文已经写着同样的字，summary 里不必再重复一遍。 */
+.thinking-peek {
+  display: none;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thinking-card:not([open]) .thinking-peek {
+  display: block;
 }
 
 .thinking-text {
@@ -137,6 +188,18 @@ html[data-platform="darwin"] .conversation-pane {
   background: var(--danger-soft);
 }
 
+/* 「跑通了却没搜到」（批次 5-⑮）：**不涂错误色**。
+   源是好的，只是这个说法没搜着东西——涂成红的等于把「换个词再搜」说成「出错了」，
+   而模型下一步动作恰恰是换词。给它一个比正常卡**更淡**的调子：
+   扫一眼能分出「这张没结果」，又不会让人以为要处理什么故障。 */
+.tool-card.is-empty {
+  background: color-mix(in srgb, var(--sidebar) 40%, transparent);
+}
+
+.tool-card.is-empty .card-head em {
+  color: var(--text-faint);
+}
+
 .tool-label {
   color: var(--text);
   font-weight: 500;
@@ -152,6 +215,25 @@ html[data-platform="darwin"] .conversation-pane {
   word-break: break-all;
 }
 
+/* 参数行的人话版（2026-10-07 用户裁定：只显示文字，不用显示代码）。
+   转成人话的那一行**是句子**，上面那条等宽 + `break-all` 的规则是给字串用的：
+   等宽让汉字笔画挤成一团，`break-all` 会在标点与汉字之间乱劈（真机：整句被劈成一列单字）。
+   所以人话版把字体交回正文（`inherit`）、换成正文行高，断行规则**两条一起换**：
+   `word-break: normal` 与 `overflow-wrap: break-word`。
+   【为什么必须两条都写】只写 overflow-wrap 是不够的（2026-10-07 真机实测）：
+   上面那条共享规则里的 `word-break: break-all` 仍然生效，而 break-all 的优先级更高——
+   量到的读数是 `word-break: break-all` + `overflow-wrap: break-word` 并存，
+   于是「只设了 overflow-wrap」等于什么都没改，句子照旧被逐字劈开。
+   只有 `.tool-result`（原始回执）仍是代码体，它本来就是给人查的机器输出。 */
+.tool-args.is-plain {
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
 .tool-result {
   max-height: 180px;
   overflow: auto;
@@ -159,6 +241,231 @@ html[data-platform="darwin"] .conversation-pane {
   border-radius: 8px;
   background: color-mix(in srgb, var(--editor) 80%, transparent);
   color: var(--text-soft);
+}
+
+/* 原始回执的折行（批次 5-⑪）。summary 做成一枚安静的文字钮而不是第二张卡头：
+   它是「多看一眼」而不是「这一块是什么」，不该跟工具名/完成态抢同一级视觉。 */
+.tool-raw {
+  margin: 8px 12px 0;
+}
+
+.tool-raw > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px 2px 4px;
+  border-radius: 6px;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: var(--code-font-size);
+  list-style: none;
+}
+
+.tool-raw > summary::-webkit-details-marker {
+  display: none;
+}
+
+.tool-raw > summary:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text-soft);
+}
+
+/* 展开时三角转向：details[open] 命中 summary 里的那枚 chevron（旋转，不换图标——换图标要多一个分支）。 */
+.tool-raw[open] > summary .composer-chip-caret,
+.tool-raw[open] > summary > svg {
+  transform: rotate(90deg);
+}
+
+.tool-raw > summary > svg {
+  transition: transform 0.12s ease;
+}
+
+.tool-raw .tool-result {
+  margin: 6px 0 0;
+}
+
+/* 联网来源（批次 5-⑨）：来源列表与回执里的那份纯文本是同一批数据，但这里要的是
+   「能一条条点开核对」，所以排版成清单而不是再抄一遍文本。
+   回执那份仍然保留——它是给模型读的，折叠与否不影响它出现在工具事件里。 */
+.tool-sources {
+  /* 批次 5-⑰：容器查询的基准就是这张清单自己——量的是它的**内容盒**（5-⑪ 的纪律：
+     @container 量内容盒，clientWidth 含 padding，拿它当阈值会整条阶梯偏移）。 */
+  container: sources / inline-size;
+  margin: 8px 12px 12px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--editor) 55%, transparent);
+}
+
+.tool-sources-head {
+  margin: 0 0 6px;
+  color: var(--text-faint);
+  font-size: var(--code-font-size);
+}
+
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+
+.source-open {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.source-open:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.source-open:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/*
+ * 来源键（批次 5-⑩）：回执里给模型的编号与这里显示的是同一个（都调 contracts 的 sourceKey），
+ * 所以模型写「据 baike.baidu.com/darkforest-2c1」时用户能一眼对上号。
+ * 键比序号长得多，所以给它留一半宽度并在超长时截断——键被截了还能靠点开后的完整地址认出来，
+ * 而序号被截了就只剩一个没意义的 1、2、3。
+ */
+.source-key {
+  flex: none;
+  max-width: 52%;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-family: var(--code-font);
+  font-size: var(--code-font-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 窄了就**竖着排**：键一整行、标题一整行。
+ *
+ * 缺陷是什么（批次 5-⑰ 真机量到）：
+ * `.source-key` 写死 `max-width: 52%`，横排时键恒定吃掉一半宽度——不管清单多宽。
+ * 键是模型引用的那个身份（5-⑮ 量过模型真的按键引用），截了就等于这条认不出来；
+ * 键占掉的一半又直接转嫁给标题。清单一窄，两头一起废掉。
+ *
+ * 阈值 520px 是**A/B 量出来的，不是猜的**（注入同一份声明造出竖排态，
+ * 两个视口各量一次横竖两种；十条真实长度的来源，前五条）：
+ *
+ *   清单内容盒  横排：截键/截标题     竖排：截键/截标题   卡高
+ *     623px      0/5 · 0/5          0/5 · 0/5          463 → 549   平手，横排省 86px
+ *     583px      0/5 · 0/5          0/5 · 0/5          463 → 549   同上
+ *     543px      0/5 · 0/5          0/5 · 0/5          463 → 549   同上
+ *     503px      0/5 · 1/5          0/5 · 0/5          463 → 549   **竖排开始更好**
+ *     463px      2/5 · 2/5          0/5 · 0/5          463 → 549   竖排明显更好
+ *     423px      2/5 · 3/5          0/5 · 0/5          463 → 549
+ *     377px      2/5 · 3/5          0/5 · 0/5          463 → 549
+ *     357px      4/5 · 4/5          0/5 · 0/5          463 → 549
+ *     317px      5/5 · 5/5          0/5 · 1/5          463 → 549   横排已经全废
+ *
+ * 分界落在 (503, 543] 这段：543 打平，503 竖排赢。520 取在中间，两侧都留了十几像素余量。
+ * 横排在任何宽度上都没赢过截断，唯一优势是每条省 17px（48 vs 65，卡高 463 vs 549）——
+ * 够宽的时候这笔省下来的地方留给对话，比让一条来源占两行划算（5-⑭ 刚为此砍掉一半条目）。
+ *
+ * ⚠️ 这块**必须排在上面 .source-open / .source-key 之后**（第一版写在它们前面）：
+ * 容器查询只是「条件成立时用这一份」，**不加分**——同特异度下仍是后来者赢。
+ * 写在前面的话 `align-items: flex-start` 被下面的 baseline 吃掉、`max-width: 100%`
+ * 被下面的 52% 吃掉，竖排只剩一条孤零零的 flex-direction，看起来「生效了」其实半残。
+ * 真机那次的症状正是这样：1200px 档看着像命中了，键却仍被截在 52%。
+ *
+ * ⚠️ 别再拍一个数：第一版写 330px，理由是「309px 时标题只剩 149px」。那是**现象**不是边界——
+ * 331–503 这整段横排都在截标题，却因为阈值在下面而没人管。
+ */
+@container sources (max-width: 520px) {
+  .source-open {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .source-key {
+    max-width: 100%;
+  }
+
+  /* 竖排后键和标题各占一整行，标题按容器封顶，别让长 token 顶破。 */
+  .source-title {
+    max-width: 100%;
+  }
+}
+
+/* 批次 5-⑭：摘要收成**一行**。真机量到每条 69px 里摘要占 42px（三行），
+   十条就是 420px。收条数已经砍掉一半，再把摘要压一行，每条才回到能一眼扫过去的体量。
+   摘要本来就是给人「认出这条是什么」的线索，不是给人读的正文——要读就点开原文。 */
+.source-snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+  margin: 0 0 4px;
+  color: var(--text-faint);
+  font-size: var(--code-font-size);
+  line-height: 1.6;
+}
+
+/* 「展开其余 N 条」：跟原始回执那个折叠件同一套观感，别让两种折叠长得不一样。 */
+.source-more {
+  margin-top: 4px;
+}
+
+.source-more > summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px;
+  border-radius: 6px;
+  color: var(--text-faint);
+  font-size: var(--code-font-size);
+  cursor: pointer;
+  list-style: none;
+}
+
+.source-more > summary:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text-soft);
+}
+
+.source-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.source-more > summary::before {
+  content: "›";
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1;
+  transition: transform 140ms ease;
+}
+
+.source-more[open] > summary::before {
+  transform: rotate(90deg);
 }
 
 .message-line .message-body {
@@ -277,6 +584,16 @@ html[data-platform="darwin"] .conversation-pane {
   font-size: 12px;
 }
 
+/* 七态配色的判据是「这张卡现在要你做什么」，不是状态名本身：
+   待审批 = 唯一等你回应的 ⇒ 强调色（行动号召）；已写入 = 成了 ⇒ 绿；
+   已拒绝/已取消 = 你自己的决定、已成定局 ⇒ 灰（不该再刺眼）；
+   文件已变动/写入失败 = 有问题要处理 ⇒ 红；上次会话未处理 = 悬着但不是错 ⇒ 琥珀。
+   早先只配了后五态，pending / expired 一直走基线灰——「等你点同意」和「你已拒绝」
+   在视觉上一样安静，是把最该被看见的一态藏了。 */
+.proposal-card.is-pending .proposal-status {
+  color: var(--accent);
+}
+
 .proposal-card.is-written .proposal-status {
   color: var(--success);
 }
@@ -291,23 +608,14 @@ html[data-platform="darwin"] .conversation-pane {
   color: var(--danger);
 }
 
+.proposal-card.is-expired .proposal-status {
+  color: var(--warning);
+}
+
 .proposal-why {
   padding: 10px 12px 0;
   color: var(--text);
   font-size: 13px;
-}
-
-.proposal-diff {
-  max-height: 300px;
-  margin: 10px 12px;
-  padding: 10px;
-  overflow: auto;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--editor) 82%, transparent);
-  font-family: var(--code-font);
-  font-size: var(--code-font-size);
-  line-height: 1.7;
-  white-space: pre;
 }
 
 .proposal-diff-empty {
@@ -410,6 +718,23 @@ html[data-platform="darwin"] .conversation-pane {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--editor);
+}
+
+/*
+ * <select> 跟 input 在同一列里必须齐平。
+ * 2026-10-06 真机量出来的：不给 select 上 padding，浏览器原生高度只有 19px，
+ * 而上面那条 input 是 33px——「供应商」和「密钥放在哪个请求头」两格看上去是塌的。
+ * 本仓目前没有自动钉这一项的守卫（`.vue` 零类型检查），改回select 时请顺手量一次。
+ */
+.provider-field select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--editor);
+  color: var(--text);
+  font: inherit;
 }
 
 .provider-error {
@@ -522,10 +847,18 @@ html[data-platform="darwin"] .conversation-pane {
   min-width: 44px;
 }
 
-/* 让位有先后：flex 的收缩量按 `flex-shrink × basis` 分配，100×122 对 1×276 ⇒ 1426 那 13px 缺额的 99.8%
+/* 让位有先后：flex 的收缩量按 `flex-shrink × basis` 分配，100×122 对 1×276 ⇒ 小缺额的 99.8%
    落在模型这一枚（唯一随数据变长的标签），其余四枚保持自然宽；它压到地板之后，剩下的缺额才轮到别人。 */
 .composer-toolbar-left .composer-chip--model {
   flex-shrink: 100;
+}
+
+/* 批次 5-⑪：上面那条「模型先让」没有地板，于是它一路让到 5.6px（真机读数）——
+   那不是省略号，是几乎归零，连「这是一个模型名」都看不出来，比四枚一起出省略号更糟。
+   4.5em 是「还能认出是模型名」的下限；正常布局下轮不到它生效（阶梯重算后 664 容器一行不出省略号），
+   它只负责兜住那些极窄窗口。 */
+.composer-toolbar-left .composer-chip--model .composer-chip-label {
+  min-width: 4.5em;
 }
 
 /* label 的 `min-width: 0` 是这一整套能成立的那一颗螺丝：flex 项目默认 min-width:auto，
@@ -585,27 +918,14 @@ html[data-platform="darwin"] .conversation-pane {
   cursor: not-allowed;
 }
 
-/* 卡下常驻键位提示（Task 112 照参考图那一行，文案真身是 composer-chips.ts 的 COMPOSER_HINT）。
-   它同时是那枚禁用的麦克风**看得见**的理由（Chromium 不给 disabled 元素弹 title），
-   所以窄栏也只许缩字号、不许整句收掉。 */
-.composer-hint {
-  margin: 6px 2px 0;
-  color: var(--text-faint);
-  font-size: 12px;
-  line-height: 1.5;
-  text-align: center;
-}
-
-.composer-resume {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border: 1px solid color-mix(in srgb, var(--focus) 40%, var(--line));
-  border-radius: 999px;
-  background: var(--hover);
-  color: var(--text);
-  font-size: 12px;
+/* 麦克风的录音态（2026-10-06 语音输入）：听中时这一枚是红的 + 有个底。
+   走既有 token（--danger-text 与计数条超限同色，底用 --line-soft 这个中性描边色），不新造颜色变量。
+   选择器是 .is-recording 而不是 :active：录音中按钮拿不到焦点，:active 那会儿早过去了。
+   它与 :disabled 不会同时成立——voiceButtonView 从不同时给出 recording 与 disabled
+   （忙态那条先返回，recording 为假），所以这里不需要再叠一条覆盖。 */
+.round-tool-button.is-recording {
+  background: var(--line-soft);
+  color: var(--danger-text);
 }
 
 /* 弹层真身挂卡右端：.permission-menu 默认朝下开（头部时代的锚点），输入卡在视口底部，必须翻到上方。 */
@@ -614,17 +934,168 @@ html[data-platform="darwin"] .conversation-pane {
   bottom: calc(100% + 6px);
 }
 
-/* 窄栏响应（deepwrite 用 composer 容器查询收 toolbar）：chip 与发送键保序，提示行只缩字号。
-   Task 113f 补上他同一段里那条 `max-width: 8em`（`.composer-tools .conversation-model-config-label`）：
-   他没有「副文案」那一层可藏（我们的 chip 只剩图标 + 文字），所以这里收到 8em 而不是 display:none——
-   藏控件等于少功能，缩文字才是他的原意。 */
-@container composer (max-width: min(32rem, 560px)) {
-  .composer-hint {
-    font-size: 11px;
+/* 窄栏响应（deepwrite 用 composer 容器查询收 toolbar）：chip 与发送键保序。
+   2026-10-05 用户裁定改版：原方案只在 min(32rem,560px) 把模型 label 收到 8em，
+   再窄就全员压到 28/44px 地板，整排糊成「关…/联网搜…/工…」的省略号泥浆（用户截图）
+   ——那不算适配。改法是**逐级收标签、保图标**：控件（按钮本体/图标/下拉三角）一个不藏，
+   只藏文字，功能与 tooltip 全程都在；权限档只收宽度（它是状态，永远看得见图标与按下色）。
+
+   2026-10-05 用户再裁定（截图实锤「怎么切换模型看不见」）：阶梯的**收标签次序换掉**。
+   原来的判据是「谁最长先收谁」——模型名最长且随数据变长，于是它第一个被收掉。
+   但排序该问的是「**藏掉文字还剩下多少信息**」，不是「它有多宽」：
+     · 模型 chip 的立方体是**纯装饰**——任何模型都是同一个立方体，图标不携带任何状态。
+       藏掉文字 = 这枚控件变成一枚什么都不告诉你的图标 ⇒ 用户连自己在用哪个模型都看不见。
+     · 联网 🌐 / 工具 list / 命令 sparkles / 思考 brain 四个图形**各自自解释**：
+       藏了文字仍认得出这个控件是干什么的，tooltip 补细节。
+   所以次序倒过来：图标自解释的四枚先收，模型名最后只**截断**、永不 display:none。
+
+   2026-10-06 批次 5-⑪ 整条阶梯重算（真机读数，1440 窗口 / 三栏全开）：
+   旧值 680/620/560/500/440 是**只按左端算的**，而容器查询量的是整个 `.composer-wrap`。
+   这中间右端长了一摞东西（工作模式 chip、麦克风、权限文案从 3 字变 5 字），
+   真机实测右端 249px、左端只剩 354px，于是**整条梯子偏了约 80px**：
+   容器 628 只触发第一级，三枚一起出省略号，而模型名被 `flex-shrink:100` 压到 **5.6px**
+   （不是省略号，是几乎归零——那比泥浆更糟，因为认不出自己在用哪个模型）。
+
+   重算依据（都是量出来的，不是估的）：
+     · 查询匹配的是 `.composer-wrap` 的**内容盒** 628px。`clientWidth` 是 664（含左右各 18px 内边距），
+       **拿 clientWidth 当阈值会整体偏 36px**——这正是第一次重算又算歪的原因。
+     · `left = 内容盒 − 274`（右端 249 + 卡内边距 17 + 间隙 8），实测 628 − 274 = 354 ✓。
+     · 左端五枚自然宽合计 **448.3**（＋30、四道 4px 间隙）。
+   阈值 = 「藏到这一枚之后仍装不下」的那个内容盒宽，于是：
+     722.3 装不下全套 → 藏工具；696.3 装不下「藏工具后」→ 藏 / 命令；
+     662.7 装不下「再藏命令后」→ 藏联网；615.7 装不下「再藏联网后」→ 藏思考；
+     589.7 装不下「再藏思考后」→ 只截模型名。
+   内容盒 628 落在 722/696/662 三级内 ⇒ 工具、/ 命令、联网三枚只留图标，
+   行宽降到 341.7 ≤ 354 ⇒ **一枚省略号都不出，思考档与模型名都整条显示**。
+   对照旧值 628 只触发 680 一级，省下 26px，剩下 34.7px 全砸在模型名上。 */
+@container composer (max-width: 722px) {
+  .composer-toolbar-left .composer-chip[data-chip="tools"] .composer-chip-label {
+    display: none;
+  }
+}
+
+@container composer (max-width: 696px) {
+  .composer-toolbar-left .composer-chip[data-chip="palette"] .composer-chip-label {
+    display: none;
+  }
+}
+
+@container composer (max-width: 662px) {
+  .composer-toolbar-left .composer-chip[data-chip="web-search"] .composer-chip-label {
+    display: none;
+  }
+}
+
+@container composer (max-width: 615px) {
+  .composer-toolbar-left .composer-chip[data-chip="thinking"] .composer-chip-label {
+    display: none;
+  }
+}
+
+/* 最狠的一级：五枚标签已全收完，只剩模型名——它不隐藏，只把 132px 收到 9em。
+   这里是「看得见但看不全」与「完全看不见」的分界，判据是 2026-10-05 用户截图那句
+   「怎么切换模型看不见」：控制权还在（点开/hover title 都在），但状态不用猜。
+   注释写在块外：本文件的块级断言按花括号切原文，块内写字会让 display:none 那条误判。 */
+@container composer (max-width: 589px) {
+  .composer-toolbar-left .composer-chip--model .composer-chip-label {
+    max-width: 9em;
   }
 
-  .composer-toolbar-left .composer-chip--model .composer-chip-label {
+  .composer-toolbar-right .composer-chip-label {
     max-width: 8em;
+  }
+}
+
+/* 最后的兜底（窗口已到 1000px 下限、三栏全挤）：右端也参与收缩，
+   权限档 label 出省略号；圆钮与发送键仍钉死（0 0 auto），再窄也不出盒。
+   收缩顺序仍由 flex 分配——左端先到地板（28/44），右端跟着让。 */
+@container composer (max-width: 380px) {
+  .composer-toolbar-right {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .composer-toolbar-right .composer-chip {
+    flex: 0 1 auto;
+    min-width: 44px;
+  }
+
+  .composer-toolbar-right .composer-chip-label {
+    min-width: 0;
+  }
+}
+
+/*
+ * 窄档的最后一处缺陷（批次 5-⑱）：真机 1280 视口下容器 534px 时工具栏就开始压在一起，
+ * 1024 视口（容器 284px）整排控件**叠成不可读的一团**——模型名、关闭、联网搜索、
+ * 工具、命令、直接动手、权限档的图标与文字互相压住，量到 17 处矩形相交、左端溢出 228px。
+ *
+ * 成因不是「空间不够」，是**分配错了**，两处：
+ * ① `.composer-toolbar-left` 是 `flex: 1 1 0`——收缩权重 = `flex-shrink × flex-basis`，
+ *    basis 为 0 ⇒ **权重为 0**，缺额却全落在它头上：容器 354 时它被压到 **80px**
+ *    （1024 时 10px），而内容要 238px。于是内容画到框外，压在右端与兄弟 chip 上。
+ * ② `.composer-chip--model .composer-chip-label` 有 `min-width: 4.5em`（上面那条），
+ *    而 chip 自己的地板是 44px —— **内容永远比地板宽**，label 永远画到 chip 框外。
+ *
+ * 修法两级，门槛都是量出来的（真机逐档扫，判据是「全树两两矩形相交数 = 0」，
+ * 且**发送键必须仍有可见宽度**——第一版候选把右端饿成 0px，判据若不含这条就会放行）：
+ *
+ *   容器   改前相交/左溢   改后（alloc@620 + wrap@560）
+ *    694      0 /   0        0 /   0   （未命中，一行不变）
+ *    574      0 /   0        0 /   0   （未命中，一行不变）
+ *    534      1 /   0        0 /   0   ← 改前这一档就已经在压了
+ *    494      2 /  18        0 /   0
+ *    454      4 /  58        0 /   0
+ *    394      8 / 118        0 /   0
+ *    354     10 / 158        0 /   0
+ *    284     17 / 228        0 /   0
+ *
+ * 620 这一级只改分配（左右都可缩、chip 守自己的地板、模型名不再被 4.5em 钉住）。
+ * 560 以下**分配已经救不回来**——左端地板 188 + 右端地板 112 + 间隙 8 = 308px，
+ * 容器 534 那档离放不下只差 226px 却在压，说明真正卡住的是「模型名 + 右端标签」两块同时要宽。
+ * 那就换形态：工具栏折成两行，左端独占一行、右端靠右。**宁可两行，不可叠字。**
+ *
+ * 2026-10-05 用户裁定「控件一个不藏，只藏文字」在这两级仍然成立：
+ * 五枚 chip 的图标与下拉三角全在，模型名在 354/284 两档仍有 63px / 24px 可读。
+ */
+@container composer (max-width: 620px) {
+  .composer-toolbar-left {
+    /* 不再是 basis:0 的「无权重」项——缺额曾经全砸在它头上 */
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  /* 标签藏掉之后 chip 就是它的地板宽，不许再往下压（压了就是内容画到框外） */
+  .composer-toolbar-left .composer-chip {
+    flex: 0 1 auto;
+    min-width: 28px;
+  }
+
+  .composer-toolbar-left .composer-chip:has(.composer-chip-caret) {
+    min-width: 44px;
+  }
+
+  /* 与其余标签一样出省略号：4.5em 的地板比 chip 自己的地板还大，内容注定画到框外 */
+  .composer-toolbar-left .composer-chip--model .composer-chip-label {
+    min-width: 0;
+    max-width: 6em;
+  }
+}
+
+/* 放不下就别挤：两行。放在 620 之后，靠 `justify-content` 区分主次而不是靠顺序。 */
+@container composer (max-width: 560px) {
+  .composer-toolbar {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .composer-toolbar-left {
+    flex: 1 0 100%;
+    justify-content: flex-start;
+  }
+
+  .composer-toolbar-right {
+    margin-left: auto;
   }
 }
 
@@ -813,12 +1284,18 @@ html[data-platform="darwin"] .conversation-pane {
 .composer-context-item {
   display: flex;
   align-items: center;
-  min-width: 0;
+  /* 5-㉓：地板 = 图标 16 + 内边距 16 + 边框 2。没有它，缺额按 basis 比例分，
+     短标签的胶囊先塌到比自己的图标还窄（真机 1440 量到档案那枚只剩 ~20px，
+     放大了只剩一个「：」）。宁可它只剩图标，也不要一个图标都装不下。 */
+  min-width: 34px;
   gap: 8px;
   min-height: 34px;
   padding: 6px 8px;
   border: 1px solid transparent;
   border-radius: 9px;
+  /* 装到地板 34px 时，里面的图标 + 尾巴仍可能比胶囊宽（真机 1024 量到 +10 / +19px）。
+     不写 overflow 时尾巴画到胶囊外——那是 5-㉓ 这一格最初那副叠印相机的近亲。 */
+  overflow: hidden;
   background: transparent;
   color: var(--text-primary);
   font-family: var(--ui-font);
@@ -835,12 +1312,16 @@ html[data-platform="darwin"] .conversation-pane {
   flex: 0 0 auto;
 }
 
+/* 5-㉓：`overflow: hidden` 已经把 strong 的自动最小尺寸压到 0（所以它能被缩成 0 宽），
+   但没锁 `white-space: nowrap` 时中文会按字断行而不是出省略号——这里补上，
+   窄栏那一级由 @container 决定是「省略号」还是「整段不显示」。 */
 .composer-context-item > strong {
   overflow: hidden;
   color: inherit;
   font-size: inherit;
   font-weight: 520;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .composer-book-context {
@@ -848,9 +1329,20 @@ html[data-platform="darwin"] .conversation-pane {
   flex: 0 1 auto;
 }
 
+/* 5-㉓ 收缩次序：**缺额只砸在两个标题上**。
+   档案 / 计量 / 阶段是控件，钉死不缩（超出 12em 才由省略号收），两个长标题让位。
+   之前五枚一律 `flex: 0 1 auto`，缺额按 basis 比例摊——短标题的胶囊反而先塌，
+   真机 1440 放大图里档案那枚只剩一个「：」、计量只剩「1 …」。 */
+.composer-profile-context,
 .composer-stage-context {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  max-width: 12em;
   overflow: hidden;
+}
+
+.context-meter {
+  flex: 0 0 auto;
+  max-width: 12em;
 }
 
 .composer-context-item:hover:not(:disabled),
@@ -880,6 +1372,46 @@ html[data-platform="darwin"] .conversation-pane {
   color: var(--text-tertiary);
 }
 
+/* 文档绑定胶囊：与书/阶段两枚同构（composer-context-item），仅多一段类型＋字数的副文。 */
+/* 5-㉓：副文原先是 `flex: 0 0 auto`，**钉死不缩**——真机 1024 量到胶囊被分到 47px，
+   副文要 74px，于是从胶囊里溢出画到下一枚上。改成可缩 + 省略号：
+   装不下时收成「章节 · 24…」而不是把字压到下一枚身上。
+   （自动最小尺寸这一步是必需的：没写 overflow:hidden 时 flex 子项的 min-width:auto
+   等于内容宽度，加了 flex:0 1 auto 也缩不下去。） */
+.composer-doc-context .doc-context-kind {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 5-㉓：计量读数这一段原先**根本没有规则**。没有 overflow:hidden，它的自动最小尺寸
+   就是内容宽度（真机量到 107px），被分到 30px 的胶囊里就盖在末尾图标上（放大图里
+   「≈1.9k tokens」的 t 与图标叠印）。同一处补齐：可缩 + 省略号。 */
+.context-meter .context-meter-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-doc-context:hover .doc-context-kind,
+.composer-doc-context:active .doc-context-kind {
+  color: var(--text-secondary);
+}
+.composer-doc-context .context-chevron {
+  color: var(--text-tertiary);
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+.composer-doc-context:hover .context-chevron {
+  opacity: 1;
+  color: var(--text-secondary);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .composer-context-item {
     transition: none;
@@ -894,6 +1426,56 @@ html[data-platform="darwin"] .conversation-pane {
 
   .composer-stage-context {
     flex: 0 1 auto;
+  }
+}
+
+/* 批次 5-㉓ · 上下文条窄栏三档。
+   上一条那级（≤560）把 gap 从 8 抬到 12、内边距从 10 抬到 12——在工具栏那几级上是对的
+   （那一格有余量），可这一格在真机 1024 分栏只剩 284px 内容盒，抬完间隙的固定开销就到：
+     图标 127（5 枚主图标 16 + 3 枚尾巴 12）+ 胶囊内边距与边框 5×18=90 + 间隙 12×4=48 + 条内边距 24 = 289 > 284。
+   也就是说**把文字全藏光也装不下**。所以窄档要一路往回收间隙与内边距，
+   顺序沿用 5-⑱ 工具栏梯子的老裁定：**控件一个不藏，只藏文字，从次要的先藏**。
+   ① 副文「章节 · N字」先走；② 再走计量读数；③ 最后走主标题，只剩图标。
+   ⚠️ 这三个数是照固定开销算出来的，真机量过 1024（284）/1100/1280（408）/1440 三档；
+   改之前先量，改完必须复验「该藏的藏了、不该藏的一个字没少」。 */
+@container composer (max-width: 460px) {
+  .composer-context-bar {
+    gap: 10px;
+    padding-inline: 10px;
+  }
+
+  .composer-doc-context .doc-context-kind {
+    display: none;
+  }
+}
+
+@container composer (max-width: 380px) {
+  .composer-context-bar {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+
+  .context-meter .context-meter-text {
+    display: none;
+  }
+}
+
+@container composer (max-width: 300px) {
+  .composer-context-bar {
+    gap: 6px;
+    padding-inline: 6px;
+  }
+
+  .composer-context-item > strong {
+    display: none;
+  }
+
+  /* 5-㉓ 末一档再收尾巴：五枚地板胶囊 5×34 + 间隙 24 + 内边距 12 = 206，
+     而内容盒只有 236 上下浮动——尾巴（✕ / ›）不收就还差 5×19。
+     尾巴是**字形不是热区**：解除绑定靠整枚胶囊的 @click、展开靠 aria-haspopup，
+     藏掉它不拿走任何功能，title 上那句「点击解除绑定」也还在。 */
+  .composer-context-item .context-chevron {
+    display: none;
   }
 }
 
@@ -1100,4 +1682,38 @@ html[data-theme="dark"] .composer-context-menu {
   box-shadow:
     0 20px 52px color-mix(in srgb, var(--theme-foreground) 38%, transparent),
     0 3px 12px color-mix(in srgb, var(--theme-foreground) 28%, transparent);
+}
+
+/* ---- 提案卡上的「切档后再批准」入口（Plan 2 冒烟 P3）。
+       与卡内其它提示同一档排版：左窄条是它与「只报信不动作」的 proposal-message 的区别——
+       这条带一颗真按钮，所以底色要让人一眼看出「这里能点」。 ---- */
+
+.proposal-permission-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 12px 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--warning-soft);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.proposal-permission-switch {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-main);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.proposal-permission-switch:disabled {
+  cursor: default;
+  opacity: 0.6;
 }

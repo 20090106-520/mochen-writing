@@ -1,0 +1,286 @@
+/* 卷纲 → 章纲浮层（2026-10-05，批次 5-②）。骨架与 timeline / foreshadow 同款：
+   Teleport 到 body、贴着锚点定位。
+   结构同样是三段式（头固定 / 中间自己滚 / 盲区块在滚动区内）——批次 4-② 的教训：
+   整个浮层滚动 + 按钮 sticky 会让 sticky 浮在内容上压住它。 */
+
+.volume-outline {
+  position: fixed;
+  z-index: 60;
+  width: 480px;
+  max-height: min(620px, 80vh);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.volume-outline-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.volume-outline-head strong {
+  margin-right: auto;
+}
+
+.volume-outline-count {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.volume-outline-note,
+.volume-outline-empty,
+.volume-outline-verdict {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 12px;
+}
+
+.volume-outline-note {
+  flex: none;
+}
+
+.volume-outline-note code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-dim, #f0f1f4);
+  font-size: 11px;
+}
+
+.volume-outline-error {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: var(--danger-soft, rgb(214 69 69 / 12%));
+  color: var(--danger, #d64545);
+  font-size: 12px;
+}
+
+.volume-outline-verdict.is-clean {
+  color: var(--ok, #2f855a);
+}
+
+/* 滚动区只包住章列表与盲区块：行内按钮跟着每一行走，浮层本身不滚。
+   `min-height` 不是装饰——窗口矮的时候（实测 475px 高）固定文案会把滚动区挤到几十像素，
+   「能滚」等于「看不见」。给一个下限，保证任何高度下都至少露出两行。 */
+.volume-outline-body {
+  flex: 1 1 auto;
+  min-height: 150px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.volume-outline-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.outline-chapter {
+  padding: 8px 9px;
+  border: 1px solid var(--line, #dedfdf);
+  border-left: 2px solid var(--accent, #339cff);
+  border-radius: 0 8px 8px 0;
+  background: var(--surface-dim, #f6f7f9);
+}
+
+/* 一个字段都没写：虚线 + 淡一点，和「写了一部分」在视觉上分开——
+   它多半是个分组标题而不是一章，但**由作者定**，这里只如实标出来。 */
+.outline-chapter.is-loose {
+  border-left-style: dashed;
+  border-left-color: var(--line-strong, #c9ccd2);
+}
+
+.outline-chapter-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.outline-order {
+  flex: none;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dedfdf);
+  color: var(--text-dim, #6b6f76);
+  font-size: 10px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.outline-chapter-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-primary, #23262b);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 完整度条：读得出「还差几项」，不是打分。--fill 由组件按已写字段数算好传进来。 */
+.outline-meter {
+  flex: none;
+  width: 46px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line, #dedfdf);
+  overflow: hidden;
+}
+
+.outline-meter::before {
+  content: "";
+  display: block;
+  width: calc(var(--fill, 0) * 1%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent, #339cff);
+}
+
+.outline-loose-note {
+  margin: 5px 0 0;
+  color: var(--warn, #a8791f);
+  font-size: 11px;
+}
+
+.outline-fields {
+  margin: 6px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.outline-field {
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dedfdf);
+  min-width: 0;
+}
+
+/* 没写：虚线 + 淡色，和写了的两态必须**长得不一样**，
+   不能只靠「有没有文字」区分——扫一眼看不出哪几项是空的。 */
+.outline-field.is-blank {
+  border-style: dashed;
+  background: transparent;
+  opacity: 0.7;
+}
+
+.outline-field dt {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 10px;
+}
+
+.outline-field dd {
+  margin: 0;
+  color: var(--text-primary, #23262b);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-field.is-blank dd {
+  color: var(--text-dim, #6b6f76);
+  font-style: italic;
+}
+
+.outline-chapter-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+}
+
+.outline-missing {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-generate {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #23262b);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.outline-generate:hover:not(:disabled) {
+  border-color: var(--accent, #339cff);
+  color: var(--accent, #339cff);
+}
+
+.outline-generate:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.volume-outline-last {
+  flex: none;
+  margin: 0;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+}
+
+.volume-outline-last.is-failed {
+  background: var(--danger-soft, rgb(214 69 69 / 12%));
+  color: var(--danger, #d64545);
+}
+
+/* 算不出来的那几件事：单列一块虚线框，与「算得出的」在视觉上分开。 */
+.volume-outline-blind {
+  flex: none;
+  padding: 7px 8px;
+  border: 1px dashed var(--line-strong, #c9ccd2);
+  border-radius: 7px;
+}
+
+.volume-outline-blind-title {
+  margin: 0 0 3px;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.volume-outline-blind ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+}

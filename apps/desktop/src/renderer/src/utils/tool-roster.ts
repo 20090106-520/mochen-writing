@@ -8,7 +8,7 @@ import { AGENT_TOOL_NAMES, isWriteTool, type AgentToolName } from "@mochen/contr
  * contracts 加了第六个工具而这里漏了一行，裸 tsc 当场报 TS2741（缺键），
  * 比一枚「清单里没有这个工具」的假面板诚实得多。
  *
- * 这一格是**只读清单**，不是开关：本仓的运行时对五个工具一视同仁地交给模型自选
+ * 这一格是**只读清单**，不是开关：本仓的运行时对六枚工具一视同仁地交给模型自选
  * （`tool_choice: "auto"`），没有任何「单独禁用某一枚工具」的通路。
  * 画成可点掉的开关就是「按了没反应的按钮」，违本仓铁律。
  */
@@ -34,6 +34,13 @@ const TOOL_LABELS: Record<AgentToolName, { label: string; effect: string }> = {
   write_doc: {
     label: "写全篇",
     effect: "新建或整篇重写一份文稿，同样要你逐条批准，并受权限档约束。"
+  },
+  web_search: {
+    label: "联网搜索",
+    effect:
+      "免费联网搜索（无需 API key）：先试 DuckDuckGo，再退到必应，最后 360 搜索，回执写明是谁答的。" +
+      "query 请用 2–4 个关键词，别把整句问题塞进去——源只认开头的词，整句会被拆成词义查询。" +
+      "标题/链接/摘要带编号返回，工具卡里能逐条点开核对；要保存需再整理写进文稿。"
   }
 };
 

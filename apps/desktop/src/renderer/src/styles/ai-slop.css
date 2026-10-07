@@ -1,0 +1,149 @@
+/* 去 AI 味浮层（2026-10-05）。骨架与 change-history 同款：Teleport 到 body、贴着锚点定位。
+   宽度更宽一档——每条要同时摆下「行号 / 命中的词 / 为什么 / 那一行」，340px 挤不下。 */
+
+.ai-slop {
+  position: fixed;
+  z-index: 60;
+  width: 420px;
+  max-height: min(560px, 76vh);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ai-slop-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-slop-head strong {
+  margin-right: auto;
+}
+
+/* 总体评价：读数，不是判决，所以用中性色系，重的才转 danger。 */
+.ai-slop-verdict {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+}
+
+.ai-slop-verdict.is-heavy {
+  background: var(--danger-soft, rgb(214 69 69 / 12%));
+  color: var(--danger, #d64545);
+}
+
+.ai-slop-note,
+.ai-slop-caveat,
+.ai-slop-empty {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 12px;
+}
+
+.ai-slop-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-slop-section-title {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #23262b);
+}
+
+.ai-slop-section-title.is-mild {
+  color: var(--text-dim, #6b6f76);
+  font-weight: 500;
+}
+
+.ai-slop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-slop-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--danger, #d64545);
+  border-radius: 0 7px 7px 0;
+  background: var(--surface-dim, #f6f7f9);
+}
+
+.ai-slop-item.is-mild {
+  border-left-color: var(--line-strong, #c9ccd2);
+  opacity: 0.82;
+}
+
+.ai-slop-line {
+  grid-row: 1;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ai-slop-word {
+  grid-row: 1;
+  justify-self: start;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--danger-soft, rgb(214 69 69 / 12%));
+  color: var(--danger, #d64545);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ai-slop-why {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+}
+
+.ai-slop-excerpt {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  color: var(--text-primary, #23262b);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.ai-slop-hand {
+  /* 吸底：这一格是本浮层的正事，列表再长也不许把它推到折叠线以下。 */
+  position: sticky;
+  bottom: 0;
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 10px;
+  border: 1px solid var(--accent, #339cff);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: var(--accent, #339cff);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ai-slop-hand:hover {
+  background: var(--accent-soft, rgb(51 156 255 / 10%));
+}

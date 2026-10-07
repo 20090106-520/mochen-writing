@@ -69,18 +69,22 @@ describe("useAgentStore 水合（ensureHydrated 八规则）", () => {
     await openChapter();
     store().startListening();
     proposalDiff.mockClear();
-    push({
-      type: "event",
-      turnId: "t1",
-      threadKey: CH,
-      event: eventOf("message", { id: "e-message", text: "实时正文", interrupted: false })
-    });
     setSessionResult(
       loaded([
         eventOf("message", { id: "e-message", text: "实时正文", interrupted: false }),
         eventOf("proposal", { proposal: proposal("pOld") })
       ])
     );
+    push({
+      type: "event",
+      turnId: "t1",
+      threadKey: CH,
+      event: eventOf("message", { id: "e-message", text: "实时正文", interrupted: false })
+    });
+    // 实时那一轮已经跑完（真实链路：turn-start → event → turn-end）。两步都不能省：
+    // ① 不收束的话规则2 让水合整段跳过，测的就不是「回放去重」而是「压根没回放」；
+    // ② turn-end 本身会触发自动水合，所以回放桩必须**先**摆好，否则它拿着默认载荷就把 hydrated 置了位。
+    push({ type: "turn-end", turnId: "t1", threadKey: CH, status: "done", message: "" });
     await store().ensureHydrated(CH);
     expect(itemsOf(CH).filter((e) => e.id === "e-message").length).toBe(1);
     expect(store().proposals["pOld"]!.status).toBe("expired");
@@ -140,7 +144,7 @@ describe("useAgentStore 水合（ensureHydrated 八规则）", () => {
     expect(store().viewOf(CH).items.length).toBe(1);
   });
 
-  it("规则8（M3）只有 interrupted 结尾才复活「继续」；error 结尾不标 failed", async () => {
+  it("规则8（M3）interrupted 结尾标 interrupted；error 结尾不标 failed", async () => {
     await openChapter();
     setSessionResult(
       loaded([
@@ -150,8 +154,7 @@ describe("useAgentStore 水合（ensureHydrated 八规则）", () => {
     );
     await store().ensureHydrated(CH);
     expect(store().viewOf(CH).endedAs).toBe("interrupted");
-    expect(store().canContinue(CH)).toBe(true);
-    // 换 error 结尾：lastError 保留但不 failed，canContinue 必须为假。
+    // 换 error 结尾：lastError 保留但不 failed。
     store().threads[CH]!.hydrated = false;
     store().threads[CH]!.endedAs = "";
     setSessionResult(
@@ -162,7 +165,6 @@ describe("useAgentStore 水合（ensureHydrated 八规则）", () => {
     );
     await store().ensureHydrated(CH);
     expect(store().viewOf(CH).endedAs).toBe("");
-    expect(store().canContinue(CH)).toBe(false);
     expect(store().viewOf(CH).lastError).toBe("模型服务端返回 503：上游繁忙");
   });
 

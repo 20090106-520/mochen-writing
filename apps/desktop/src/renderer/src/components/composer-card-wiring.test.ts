@@ -1,13 +1,14 @@
 /**
- * 输入卡 #105 · 照搬 deepwrite 那张卡的源码接线契约。
- * 结构真身（deepwrite ConversationComposer.vue + styles.css 的 composer 段，Apache-2.0）：
+ * 输入卡 #105 · 对齐 deepwrite 那张卡的源码接线契约。
+ * 结构真身（deepwrite ConversationComposer.vue + styles.css 的 composer 段）：
  * 圆角卡 composer-wrap/composer/composer-input-surface、rows=1 + field-sizing: content 自增高、
  * toolbar 左右分栏、同一位置的 发送↔stop 形变、忙态整卡 is-disabled 压暗。
  * 本仓 `.vue` 不进类型程序（裸 tsc + vue-shim），CSS 段更不在任何类型关卡覆盖内，
  * 所以这些只能靠读源断言钉死（先例：model-select-wiring.test.ts、hotkey-markers.test.ts）。
  * vue-source-reader 会剥注释：只在注释里宣称的结构不算数。
  * 三条裁定一并反向钉：A 计数条常态不占位、超限才有可见理由；B 忙态 textarea 绝不 disabled、Tab 通路不动；
- * C 附件(+)与麦克风没有通道，两枚控件连同其类名不得出现在本卡里。
+ * C 两枚圆钮进卡后各接自己真有的通路（＋ 接引用素材；麦克风 2026-10-06 起接 Web Speech 语音输入，
+ * 不再是 disabled 占位——它的接线细则与「降级理由必须看得见」在 composer-voice-wiring.test.ts）。
  */
 import { describe, expect, it } from "vitest";
 import { USER_TEXT_MAX_LEN } from "@mochen/contracts";
@@ -39,6 +40,8 @@ function chipInput(over: Partial<Parameters<typeof composerChips>[0]> = {}) {
   return {
     hasBook: true,
     mode: "read-only" as const,
+    // 2026-10-05 批次 4：工作模式必填（老书默认动手档），底座固定在这里。
+    workMode: "act" as const,
     saving: false,
     thinkingLevel: "off" as const,
     webSearchEnabled: false,
@@ -56,7 +59,7 @@ function tagOf(classNeedle: string): string {
   return new RegExp(`<button[^>]*class="${classNeedle}"[^>]*>`).exec(markup())?.[0] ?? "";
 }
 
-describe("composer 卡骨架 · 照搬 deepwrite 的圆角卡", () => {
+describe("composer 卡骨架 · 对齐 deepwrite 的圆角卡", () => {
   it("textarea 在卡内自增高：rows=1 + field-sizing: content + max-height，封顶 150px，不许留 rows=3", () => {
     const m = markup();
     const ta = /<textarea[\s\S]*?>/.exec(m)?.[0] ?? "";
@@ -79,38 +82,54 @@ describe("composer 卡骨架 · 照搬 deepwrite 的圆角卡", () => {
   });
 
   it("旧竖排 footer 的类名全部退役：agent-composer/composer-box/composer-chips 容器不再出现", () => {
-    // #112 起 composer-hint 与 composer-chip-hint 不是一回事：前者是卡下那行常驻提示（活的），
-    // 后者是 toolbar 里那句「运行中按 Tab 可排队指令」（已被 COMPOSER_HINT 取代，才是化石）。
+    // #112 的两行提示都已按裁定退役（2026-10-04）：composer-chip-hint 是 toolbar 里那句
+    // 「运行中按 Tab 可排队指令」，composer-hint 是卡下键位提示行——连同样式段一起删净。
     const m = markup();
     for (const dead of [
       "agent-composer",
       "composer-box",
       'class="composer-chips"',
       "composer-chip-hint",
+      "composer-hint",
       "composer-send",
       "composer-stop"
     ]) {
       expect(m, `旧类名 ${dead} 必须已被卡片结构取代`).not.toContain(dead);
     }
     for (const file of ["agent-pane.css", "interaction.css"]) {
-      expect(styleSource(file), `styles/${file} 里 .composer-chip-hint 无人消费`).not.toContain(
-        ".composer-chip-hint"
-      );
+      for (const dead of [".composer-chip-hint", ".composer-hint"]) {
+        expect(styleSource(file), `styles/${file} 里 ${dead} 无人消费`).not.toContain(dead);
+      }
     }
   });
 
-  it("裁定 C（#112 改判）：`＋` 与麦克风照参考图进卡，各自带着自己真有的通路或禁用的理由", () => {
+  /**
+   * 裁定 C（#112 改判 → 2026-10-06 二次改判）：`＋` 与麦克风照参考图进卡，各带自己真有的通路或看得见的理由。
+   *
+   * **本轮撤销的旧钉（不是放宽，是它断言的东西已被用户裁定撤销）**：
+   * 旧断言是「麦克风恒 `disabled`、理由写在 aria-label 里」——那正是 `ComposerBox.vue`
+   * 顶部注释里「麦克风仍是参考仓自己那一枚 disabled 占位」所描述的形态。
+   * 用户要求把它接成真通路（Web Speech API 语音输入），那枚死按钮连同它断言的东西一起退役了。
+   * 保留一个「它必须恒 disabled」的断言，等于逼着实现继续装样子。
+   *
+   * **换成更强的钉**（细节在 components/composer-voice-wiring.test.ts）：麦克风的 `:disabled`
+   * 必须绑到 voice 判定的那份输出、不许再是写死的 `disabled`，且降级理由必须落在
+   * 卡下那行看得见的提示里——Chromium 不给 disabled 元素弹 title，靠 title 兜就是没有理由。
+   */
+  it("裁定 C（2026-10-06 二次改判）：`＋` 与麦克风照参考图进卡，各接自己真有的通路", () => {
     const m = markup();
     const plus = /<button[^>]*class="round-tool-button"[\s\S]*?<\/button>/.exec(m)?.[0] ?? "";
     expect(plus).toContain('aria-label="引用素材"');
     expect(plus).toContain(`@click="emit('open-mention')"`);
     expect(plus).toContain('name="plus"');
-    // 麦克风仍是占位：它 disabled，而禁用的理由写在卡下那行看得见的提示里（Chromium 不弹 disabled 的 title）。
-    const mic = /<button[^>]*aria-label="语音功能后续开放"[\s\S]*?<\/button>/.exec(m)?.[0] ?? "";
-    expect(mic).toContain("disabled");
+    // 麦克风：接的是语音判定，不再是写死的 disabled 占位（详见 composer-voice-wiring.test.ts）。
+    const mic =
+      /<button[^>]*:disabled="voice\.button\.disabled"[\s\S]*?<\/button>/.exec(m)?.[0] ?? "";
     expect(mic).toContain('name="mic"');
-    expect(m).toContain('class="composer-hint"');
-    expect(m).toContain("COMPOSER_HINT");
+    expect(mic).toContain('@click="voice.toggle()"');
+    expect(mic).not.toMatch(/(^|\s)disabled(\s|$|=)/);
+    // 旧形态的 aria-label 不许回来：它说的是「后续开放」，与真通路并存就是两个矛盾的说法。
+    expect(m).not.toContain("语音功能后续开放");
   });
 
   // 档位 chip 搬进卡右端后，头部那套 `.permission-chip` 就成了零消费者的化石（评审 F1）。
@@ -149,13 +168,14 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     expect(sendTag).toContain("v-else");
   });
 
-  it("slot 是 .ts 表的新字段：左=运行配置五枚，右=只有权限（#112 照参考图定栏）", () => {
+  it("slot 是 .ts 表的新字段：左=运行配置五枚，右=工作模式与权限（#112 定栏，批次 4 扩右端）", () => {
     const want: Record<string, ComposerChipSlot> = {
       model: "left",
       thinking: "left",
       "web-search": "left",
       tools: "left",
       palette: "left",
+      "work-mode": "right",
       permission: "right"
     };
     const slots = composerChips(chipInput()).map((c) => [c.id, c.slot]);
@@ -166,6 +186,7 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
       ["web-search", want["web-search"]],
       ["tools", want.tools],
       ["palette", want.palette],
+      ["work-mode", want["work-mode"]],
       ["permission", want.permission]
     ]);
   });
@@ -210,13 +231,6 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     // 合并口径与 badge 字段一起退役：模型名里再不许缀思考等级，也不许挂地球角标。
     expect(chip("model", { thinkingLevel: "high" })?.text).toBe("mochen-mock");
     expect(m).not.toContain("chip.badge");
-  });
-
-  it("卡下提示行的文案真身在 composer-chips.ts：模板只渲染 COMPOSER_HINT，不抄第二份键位表", () => {
-    const m = markup();
-    expect(m).toContain("{{ COMPOSER_HINT }}");
-    expect(m).not.toContain("Shift + Enter 换行");
-    expect(scriptSource(COMPOSER)).toContain("COMPOSER_HINT");
   });
 });
 
@@ -264,7 +278,7 @@ describe("样式硬门禁 · #105 新增段零色值字面量", () => {
     expect(block).toContain("var(--neutral-solid-contrast)");
   });
 
-  it("#112 圆钮照搬 deepwrite 的原值（30×30 / 圆角 50% / disabled 0.42），但 disabled 不许画 pointer 手势", () => {
+  it("#112 圆钮对齐 deepwrite 的原值（30×30 / 圆角 50% / disabled 0.42），但 disabled 不许画 pointer 手势", () => {
     const pane = cardSection("agent-pane.css");
     const round = ruleBlock(pane, ".round-tool-button");
     expect(round).toContain("width: 30px");

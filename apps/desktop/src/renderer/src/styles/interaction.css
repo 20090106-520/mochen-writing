@@ -43,13 +43,6 @@
   font-weight: 600;
 }
 
-.permission-hint {
-  margin: 6px 9px 2px;
-  color: var(--text-soft);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
 /* Task 5 的模板引用这些类（样式随本任务落地，中间一提交只有裸文本、不影响门禁与判读） */
 .hydrating-line {
   color: var(--text-soft);
@@ -89,7 +82,7 @@
 }
 
 /* Task 9（F-D）落地，#112 照参考图重画：chip 不再是描边药丸，而是卡内一枚无边框的「图形 + 文字 + 下拉三角」。
-   数值照搬 deepwrite 的 .conversation-model-config-trigger（高 29、gap 5、padding 0 7、圆角 7、
+   数值对齐 deepwrite 的 .conversation-model-config-trigger（高 29、gap 5、padding 0 7、圆角 7、
    字号 0.75rem、透明面配 --text-secondary、hover 才上 --surface-hover 并把字提到 --text-primary）；
    token 映射沿用本仓别名层：--text-secondary→--text-soft、--surface-hover→--hover、--text-primary→--text。
    T9-4② 的口径不变：同一个逻辑控件在中栏头部与输入区同色。 */
@@ -203,24 +196,26 @@
 .tool-roster-title {
   margin: 0 0 10px;
   color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 0.928571rem;
+  font-weight: 620;
 }
 
+/* 2026-10-05 修版：整张名单是**一个** grid（max-content / auto / 1fr 三列），
+   行本身 display:contents——上一版每行各自成 grid，名字列宽随行变，读/写徽标齐不了一列
+   （用户截图：六枚徽标六个起点）。列对齐交给同一份网格，行间节奏走 row-gap。
+   字号全部 rem（原 12/13px 写死，外观里调「界面字号」它不跟着缩）。 */
 .tool-roster-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: max-content auto 1fr;
+  gap: 12px 10px;
+  align-items: baseline;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .tool-roster-row {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  gap: 8px;
-  align-items: baseline;
+  display: contents;
 }
 
 .tool-roster-name {
@@ -234,7 +229,7 @@
   border: 1px solid var(--line-soft);
   border-radius: 999px;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 /* 会写盘的两枚用告警色区分——这是清单里唯一一处颜色差异，读的一律中性。 */
@@ -246,20 +241,20 @@
 .tool-roster-text strong {
   display: block;
   color: var(--text);
-  font-size: 13px;
+  font-size: 0.928571rem;
   font-weight: 600;
 }
 
 .tool-roster-text p {
   margin: 2px 0 0;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .tool-roster-foot {
   margin: 12px 0 0;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .tool-roster-close {
@@ -269,7 +264,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
   cursor: pointer;
 }
 
@@ -282,28 +277,21 @@
   outline-offset: 1px;
 }
 
-/* 模型 ▾ 浮层（#104）：与工具清单同一套毛玻璃与层级；行集来自 provider:list-models，
-   当前项只有徽章没有按钮，所以这里不存在「点了没反应」的行。 */
-.model-select-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  justify-content: center;
-  padding-top: 12vh;
-  background: color-mix(in srgb, #000 28%, transparent);
-  backdrop-filter: blur(2px);
-}
+/* 模型 ▾ 下拉（2026-10-07 用户裁定）。
+   原先是全屏遮罩 + 变暗 + 居中模态：为了换一个模型先打断整窗，一行一行地点「改用」。
+   现在贴在那枚 chip 下面，点哪一行就切哪一行，当前那行带 ✓。
 
+   定位与收起用共用的 `useComposerContextPopover`（它按锚点算 fixed 坐标、夹进视口、收尾把焦点还给 chip），
+   所以几何（position / left / top / width / max-height）由它以**行内样式**交给这个类名，
+   本段一个也不许再写——写了两份就会有一份悄悄不生效，浮层飞到屏幕角落时看不出是哪一份的锅。 */
 .model-select {
-  width: min(460px, 92vw);
-  max-height: 72vh;
+  position: fixed;
+  z-index: 60;
   overflow: auto;
-  align-self: flex-start;
-  padding: 14px 16px 16px;
+  padding: 6px;
   border: 1px solid var(--line-soft);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--editor) 92%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--editor) 96%, transparent);
   backdrop-filter: blur(18px) saturate(120%);
   box-shadow: 0 14px 42px var(--shadow-color);
 }
@@ -312,54 +300,69 @@
   outline: none;
 }
 
-.model-select-title {
-  margin: 0 0 10px;
-  color: var(--text);
-  font-size: 13px;
+.model-select-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 6px 6px;
+  color: var(--text-soft);
+  font-size: 12px;
   font-weight: 600;
 }
 
 .model-select-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* 整行可点（参考图那一版）：宽度、左右两端的对齐都交给这一行自己撑，
+   勾在右端靠 `margin-left: auto` 推开——不写死像素偏移，名字长短变了勾也不会歪。 */
 .model-select-row {
   display: flex;
   gap: 8px;
   align-items: center;
-  justify-content: space-between;
-  padding: 4px 6px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
   border-radius: 8px;
-}
-
-.model-select-row:hover {
-  background: var(--hover);
-}
-
-.model-select-name {
+  background: transparent;
   color: var(--text);
   font-family: var(--code-font);
   font-size: var(--code-font-size);
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-select-row:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.model-select-row.is-current {
+  color: var(--text);
+}
+
+.model-select-name {
+  /* 模型名是不分词的 ASCII 串（`claude-3-5-sonnet`、带 vendor 前缀的长名都有），
+     所以断行交给 break-all；这一格仍用等宽体——用户比对的正是这些字面的差别。 */
+  min-width: 0;
   word-break: break-all;
 }
 
-.model-select-badge {
-  padding: 1px 8px;
-  border: 1px solid color-mix(in srgb, var(--success) 45%, var(--line-soft));
-  border-radius: 999px;
+.model-select-check {
+  margin-left: auto;
+  flex: none;
   color: var(--success);
-  font-size: 12px;
-  white-space: nowrap;
 }
 
-.model-select-pick,
 .model-select-retry,
-.model-select-close {
+.model-select-settings,
+.model-select-retry,
+.model-select-settings {
   padding: 4px 12px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
@@ -369,20 +372,60 @@
   cursor: pointer;
 }
 
-.model-select-pick:hover:not(:disabled),
+/* 关闭是浮层头那一枚图标钮（2026-10-07 从底部那颗描边文字钮搬上来的）：
+   下拉贴在输入卡上沿下方，关闭钮留在面板底部会掉到视口外，点它要先滚动半屏。
+   所以它进头部、跟标题同一行、跟着头一起横向排——形状也照图标钮做，不套文字钮那套 padding。 */
+.model-select-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
 .model-select-retry:hover,
+.model-select-settings:hover,
 .model-select-close:hover {
   background: var(--hover);
 }
 
-/* 写回期间的禁用行不装成还能点：手势与按下态一起收回（与 chip 行同一律）。 */
-.model-select-pick:disabled {
+/* 「去模型设置」是失败态里**唯一能真正解决**的那个动作（重试治不了坏密钥/空地址），
+   所以它是实心主按钮，「再试一次」退为次要描边——主次跟文案说的事实对齐。 */
+.model-select-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.model-select-settings {
+  border-color: transparent;
+  background: var(--neutral-solid);
+  color: var(--neutral-solid-contrast);
+  font-weight: 500;
+}
+
+.model-select-settings:hover {
+  background: var(--neutral-solid);
+  color: var(--neutral-solid-contrast);
+  filter: brightness(1.08);
+}
+
+/* 写回期间整列禁用：手势与文字一起退（与 chip 行同一律），别让「按了没反应」出现。 */
+.model-select-row:disabled {
   color: var(--text-faint);
   cursor: default;
 }
 
-.model-select-pick:focus-visible,
+.model-select-row:focus-visible,
 .model-select-retry:focus-visible,
+.model-select-settings:focus-visible,
 .model-select-close:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
@@ -400,16 +443,8 @@
   font-size: 12px;
 }
 
-.model-select-retry {
-  margin-top: 8px;
-}
-
-.model-select-close {
-  margin-top: 10px;
-}
-
 .model-select-foot {
-  margin: 12px 0 0;
+  margin: 8px 6px 2px;
   color: var(--text-faint);
   font-size: 12px;
 }
@@ -426,5 +461,21 @@
 }
 
 .composer-counter--over {
+  color: var(--danger-text);
+}
+
+/* 语音输入的提示行（2026-10-06）：与计数条同一形态、同一个理由——
+   「为什么按不了 / 刚才为什么没接住」不能靠 title（Chromium 不给 disabled 元素弹 title），
+   必须是卡下看得见的一行文字。常态不占位（模板空串时 v-if 不渲染）。
+   色值仍走既有 token：普通态复用计数条的 --text-faint，出错/降级复用它的 --danger-text，
+   **不新造颜色变量**（新变量会被 theme-token-guard 当成孤儿或要进白名单）。 */
+.composer-voice-hint {
+  padding: 0 17px;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.composer-voice-hint--warn {
   color: var(--danger-text);
 }

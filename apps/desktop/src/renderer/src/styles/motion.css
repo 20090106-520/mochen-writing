@@ -1,0 +1,87 @@
+/**
+ * 质感层（2026-10-05）：动效 token + 弹层出场 + 档位卡按压反馈 + 「减少动效」总闸。
+ *
+ * 定位：**只做增量**——浮层自己的阴影/圆角在各自动效文件里（interaction.css 等），
+ * 这里不抄第二份；本文件只回答「它怎么出现、按下去什么手感、整个层怎么一键关掉」。
+ * 总闸是外观页「减少动效」那档偏好（utils/motion-preference.ts）：App.vue 把状态写成
+ * `html[data-reduced-motion="true"]`，下面最后一段据此让全部动效退场——与 OS 级
+ * prefers-reduced-motion 媒体查询（theme-runtime.css）并行的第二通路，一份 CSS 两个开关。
+ */
+
+:root {
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur-pop: 170ms;
+}
+
+@keyframes mochen-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 弹层出场：浮层根类都挂同一张动画表（transform 只动 6px，不抢戏）。
+   这张表由 components/overlay-chrome.test.ts 从「谁用了 useComposerContextPopover」反推校验：
+   新加一个浮层却忘了写进这里，那条测试会红（2026-10-05 批次 3——本轮补进来之前，
+   改稿历史 / 去 AI 味 / 伏笔台账 / 上下文计量 / 技能库这五个全都漏了，弹出来是硬的）。 */
+.tool-roster,
+.model-select,
+.permission-menu,
+.composer-context-menu,
+.composer-reference-menu,
+.conversation-history-panel,
+.tree-node-action-menu,
+.workspace-dialog,
+.context-meter-panel,
+.change-history,
+.ai-slop,
+.review-score,
+.timeline-check,
+.volume-outline,
+.foreshadow-ledger {
+  animation: mochen-pop-in var(--dur-pop) var(--ease-out-soft);
+}
+
+/* 档位卡（权限档/发送键/自动保存/行距/字号共用的那张可选卡）：hover 有回应、按下去有下沉。 */
+.agent-mode-card {
+  transition:
+    background-color var(--dur-fast) var(--ease-out-soft),
+    border-color var(--dur-fast) var(--ease-out-soft),
+    transform var(--dur-fast) var(--ease-out-soft);
+}
+
+.agent-mode-card:active {
+  transform: translateY(1px);
+}
+
+.agent-mode-card:focus-visible {
+  outline-offset: 2px;
+}
+
+/* 设置页的分段按钮（appearance-segment-button）同一份按压手感。 */
+.appearance-segment-button {
+  transition:
+    background-color var(--dur-fast) var(--ease-out-soft),
+    color var(--dur-fast) var(--ease-out-soft),
+    transform var(--dur-fast) var(--ease-out-soft);
+}
+
+.appearance-segment-button:active {
+  transform: translateY(1px);
+}
+
+/* 应用内「减少动效」总闸：属性一挂，整层退场（含上面的出场动画与全部过渡）。 */
+html[data-reduced-motion="true"] *,
+html[data-reduced-motion="true"] *::before,
+html[data-reduced-motion="true"] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

@@ -40,24 +40,44 @@ export const WORKBENCH_CARD_PREFILL: Record<WorkbenchCardId, string | null> = {
   inspire: "给我三个能接着往下写的点子，各写一句代价；先别动我的稿子。"
 };
 
+/**
+ * 每张卡归属的文稿类型（唯一真身）：既决定「没有现成目标时去哪一类分组新建」，
+ * 也是 workbenchTarget 取目标的依据——一张表的两份用途，不抄第二份。
+ * 2026-10-05 裁定：空卡不再 disabled（与侧边栏「全部可点」同源），点击引导到这一类去建一篇。
+ */
+export const WORKBENCH_CARD_KIND: Record<WorkbenchCardId, BookKind> = {
+  "chief-write": "chapter",
+  character: "character",
+  world: "material",
+  outline: "outline",
+  inspire: "chapter"
+};
+
 export interface WorkbenchCard {
   id: WorkbenchCardId;
   label: string;
   hint: string;
-  enabled: boolean;
+  /** 点了直接做的目标；null ⇒ 这一类还没有文档，点击走引导（展开左栏分组并新建一篇）。 */
+  target: string | null;
+  /** 该卡归属的文稿类型（引导用）。 */
+  kind: BookKind;
 }
+
+/** 空卡悬停时补的那一句：点了会发生什么，不承诺此刻做不到的动作。 */
+export const WORKBENCH_GUIDE_SUFFIX = "点一下去左栏新建一篇。";
 
 const CARD_ORDER: WorkbenchCardId[] = ["chief-write", "character", "world", "outline", "inspire"];
 
 // world 卡落 materials/ 分组（scan.ts:45 把 materials/ 归 material kind）；character→characters、outline→outline。
 // chief-write 与 inspire 都落在章节上：前者提改稿，后者要点子，动作同一条通路、句子不同。
 const CARD_TARGET_KIND: Record<Exclude<WorkbenchCardId, "chief-write" | "inspire">, BookKind> = {
-  character: "character",
-  world: "material",
-  outline: "outline"
+  character: WORKBENCH_CARD_KIND.character,
+  world: WORKBENCH_CARD_KIND.world,
+  outline: WORKBENCH_CARD_KIND.outline
 };
 
-const CARD_HINTS: Record<WorkbenchCardId, string> = {
+/** 有目标时的动作说明（与 WORKBENCH_EMPTY_HINTS 成对：一句说动作，一句说缺什么）。 */
+export const WORKBENCH_CARD_HINTS: Record<WorkbenchCardId, string> = {
   "chief-write": "打开当前章，预填一句改稿指令，再交给你逐条审批。",
   character: "浏览人物分组第一篇，落到右栏浏览态。",
   world: "浏览素材库分组第一篇，落到右栏浏览态。",
@@ -165,10 +185,19 @@ export function workbenchCards(input: {
       id,
       label: WORKBENCH_CARD_LABELS[id],
       // target 为 null（本书里没有该分组）⇒ 发实话；有目标才发动作说明。
-      hint: target === null ? WORKBENCH_EMPTY_HINTS[id] : CARD_HINTS[id],
-      enabled: target !== null
+      hint: target === null ? WORKBENCH_EMPTY_HINTS[id] : WORKBENCH_CARD_HINTS[id],
+      target,
+      kind: WORKBENCH_CARD_KIND[id]
     };
   });
+}
+
+/**
+ * 卡的悬停文案：有目标就是动作说明；没有就在实话后面补一句「点了会带你去建一篇」。
+ * 判定只有这一处（组件不抄第二份 `target === null`）。
+ */
+export function workbenchCardTitle(card: WorkbenchCard): string {
+  return card.target === null ? `${card.hint}${WORKBENCH_GUIDE_SUFFIX}` : card.hint;
 }
 
 /**

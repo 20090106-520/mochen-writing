@@ -4,19 +4,21 @@ import {
   THINKING_WIRE_FIELD,
   USER_TEXT_MAX_LEN,
   WEB_SEARCH_WIRE_TYPE,
+  WORK_MODE_LABELS,
   codePointLength,
   type PermissionMode,
-  type ThinkingLevel
+  type ThinkingLevel,
+  type WorkMode
 } from "@mochen/contracts";
 import type { IconName } from "../types/icons";
-import { permissionChipView } from "./permission-chip";
+import { NO_BOOK_CHIP_LABEL, permissionChipView } from "./permission-chip";
 import { toolRoster } from "./tool-roster";
 
 export type ComposerChipId =
-  "permission" | "thinking" | "web-search" | "tools" | "model" | "palette";
+  "permission" | "work-mode" | "thinking" | "web-search" | "tools" | "model" | "palette";
 
 /**
- * chip 住在卡内 toolbar 的哪一端（#105 照搬 deepwrite 的左右分栏）。
+ * chip 住在卡内 toolbar 的哪一端（#105 对齐 deepwrite 的左右分栏）。
  * 分栏是决策不是样式：它是这张决策表的字段，模板只按它过滤（铁律 6，模板里不许出现第二份顺序表）。
  * #112 照参考图定栏：左端=这一轮怎么跑（模型 / 思考等级 / 联网 / 工具清单 / 命令），
  * 右端=权限档（它挨着发送键，与 deepwrite 的 composer-actions 同一位置）。
@@ -43,6 +45,7 @@ export interface ComposerChipView {
 
 export type ComposerChipEvent =
   | "open-permission-menu"
+  | "toggle-work-mode"
   | "cycle-thinking"
   | "toggle-web-search"
   | "open-tool-roster"
@@ -56,12 +59,55 @@ export type ComposerChipEvent =
 // 后果是 emit(CHIP_EMIT[id]) 发出 undefined 事件、长出一枚「按了没反应的 chip」（实测变异证实）。
 export const CHIP_EMIT: Record<ComposerChipId, ComposerChipEvent> = {
   permission: "open-permission-menu",
+  "work-mode": "toggle-work-mode",
   thinking: "cycle-thinking",
   "web-search": "toggle-web-search",
   tools: "open-tool-roster",
   model: "open-model-select",
   palette: "open-palette"
 };
+
+/**
+ * 工作模式 chip 的图标（2026-10-05 批次 4）。
+ * 两枚不撞：计划=账本式的清单，动手=笔。工具那枚占的是 `list`，所以这里刻意避开它——
+ * 两枚并排长成一个样，用户分不出自己按的是哪颗（composer-chips.test.ts 有反向钉）。
+ */
+export const WORK_MODE_CHIP_ICON: Record<WorkMode, IconName> = {
+  plan: "ledger",
+  act: "pen"
+};
+
+function workModeChip(input: { hasBook: boolean; workMode: WorkMode }): ComposerChipView {
+  if (!input.hasBook) {
+    return {
+      id: "work-mode",
+      text: NO_BOOK_CHIP_LABEL,
+      disabled: true,
+      title: "还没打开作品目录，工作模式改不了（它是这本书的设置）。",
+      active: false,
+      slot: "right",
+      icon: "folder",
+      caret: false
+    };
+  }
+  const label = WORK_MODE_LABELS[input.workMode];
+  return {
+    id: "work-mode",
+    text: label,
+    disabled: false,
+    title:
+      input.workMode === "plan"
+        ? `工作模式：${label}。这一轮它只讲打算、不动稿，提案批了也不落盘。点击切到「${WORK_MODE_LABELS.act}」。`
+        : `工作模式：${label}。提案经你批准就会写入磁盘。点击切到「${WORK_MODE_LABELS.plan}」先看计划。`,
+    // 真开关：计划档是「按下去生效」的两态，aria-pressed 用它才不撒谎。
+    active: input.workMode === "plan",
+    // 与权限档同属右端「能碰多大」那一摞（分栏是决策表的字段，铁律 6）。
+    slot: "right",
+    icon: WORK_MODE_CHIP_ICON[input.workMode],
+    // 点一下就切换，没有第二层弹层可展开。
+    caret: false
+  };
+}
 
 /**
  * 深度思考那一格的文案与提示。
@@ -145,6 +191,7 @@ function modelChip(input: { modelLabel: string; baseURL: string }): ComposerChip
 export function composerChips(input: {
   hasBook: boolean;
   mode: PermissionMode | null;
+  workMode: WorkMode;
   saving: boolean;
   thinkingLevel: ThinkingLevel;
   webSearchEnabled: boolean;
@@ -183,6 +230,7 @@ export function composerChips(input: {
       icon: "sparkles",
       caret: true
     },
+    workModeChip({ hasBook: input.hasBook, workMode: input.workMode }),
     {
       id: "permission",
       text: permission.text,
@@ -199,18 +247,6 @@ export function composerChips(input: {
   // 裁定 C：这里**不返回**队列数字。排队列数唯一的可见真身是 useAgentStore 的 composeStatusLine
   // （「排队 N 条」，波 1 已有单测与真机观察）；chip 行再显示一次就是同一个数两份文案。
 }
-
-/**
- * 卡下那一行常驻提示（#112 照参考图：他把这行印在卡片正下方，不是塞进 title）。
- * 住在 `.ts` 有两个理由：① 铁律 6——同一句键位说明只许有一份，模板里再抄一遍就是两份；
- * ② 本仓 `.vue` 不进类型程序，字符串落在这一层才可能被测试逐字钉住（改一个键名就红）。
- *
- * 与参考图的唯一差别是诚实的：他的 `＋` 是「附件」（我们有附件通道才照抄），
- * 我们的 `＋` 打开的是本书素材引用菜单 ⇒ 提示写「＋ 引用素材」；
- * 末列「语音输入后续开放」是那枚禁用的麦克风**看得见**的理由（Chromium 不给 disabled 元素弹 title）。
- */
-export const COMPOSER_HINT =
-  "Enter 发送 · Shift + Enter 换行 · ＋ 引用素材 · / 命令 · @ 素材 · 运行中 Tab 排队 · 语音输入后续开放";
 
 /**
  * 输入区字数计数。

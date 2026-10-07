@@ -1,19 +1,25 @@
 <!-- 中栏骨架（conversation-pane / conversation-header / conversation-scroll-shell / conversation-empty）
-     取自 deepwrite（Apache-2.0）；卡片与时间线为自有。 -->
+     取自 deepwrite；卡片与时间线为自有。 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { PROPOSAL_STATUS_LABELS, type AgentEvent, type ProposalDecision } from "@mochen/contracts";
+import {
+  PROPOSAL_STATUS_LABELS,
+  workModeOf,
+  type AgentEvent,
+  type ProposalDecision
+} from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import AgentTimeline from "./AgentTimeline.vue";
 import ProposalCard from "./ProposalCard.vue";
 import ComposerBox from "./ComposerBox.vue";
-import ProviderSettings from "./ProviderSettings.vue";
 import ToolRoster from "./ToolRoster.vue";
 import ModelSelect from "./ModelSelect.vue";
 import BookWorkbench from "./BookWorkbench.vue";
 import ConversationHistoryMenu from "./ConversationHistoryMenu.vue";
 import { cardTurnLabel, splitProposalCards, turnAnchors } from "../utils/timeline";
-import { activeStageOf, showContextBar } from "../utils/composer-context";
+import { showContextBar } from "../utils/composer-context";
+import { clearComposerAfterSend } from "../utils/auto-behavior-preference";
+import { conversationTitleLabel } from "../utils/profile-options";
 import {
   WORKBENCH_CARD_PREFILL,
   workbenchCards,
@@ -22,7 +28,6 @@ import {
   type WorkbenchCardId,
   type WorkbenchSuggestion
 } from "../utils/workbench-state";
-import { useGlobalHotkeys } from "../composables/useHotkeys";
 import { useBookStore } from "../stores/useBookStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useProviderStore } from "../stores/useProviderStore";
@@ -37,19 +42,34 @@ import {
 } from "../stores/useAgentStore";
 
 defineProps<{ leftCollapsed: boolean; rightCollapsed: boolean }>();
+/**
+ * 头部动作区（2026-10-07 用户裁定）：原先这里还挂着一枚「写作目标环」——圆圈里写着 0%，
+ * 常年 0%（今天一个字没写时它是 0%，点开才是面板）。用户裁定不要它，于是整枚退役。
+ *
+ * 目标**面板本身没动**，它仍由 App.vue 的 `panelShortcut("goals")`（Ctrl+Shift+G）开合，
+ * `<WritingGoalPanel>` 也仍挂在 App.vue。退役的只是那一枚常驻的圆环按钮与它的 openGoal 事件——
+ * 留着一条没人 emit 的监听，就是本仓反复吃过的那种「零写者的死接线」。
+ */
 const emit = defineEmits<{ toggleLeft: []; toggleRight: [] }>();
 
 const book = useBookStore();
 const agent = useAgentStore();
 const layout = useLayoutStore();
 const provider = useProviderStore();
-const showSettings = computed(() => layout.currentView === "settings");
 /** #106 裁定 D1：`/` 的真身只剩行内引用菜单一处，唤起态也跟着它住进 store（键位层要能派下来）。 */
 const referenceMenu = useReferenceMenuStore();
 /** 工具 ▾ 的浮层是瞬时 UI 态，不进 store（计划决定 6），关掉不带走任何状态。 */
 const rosterOpen = ref(false);
 /** 模型 ▾ 也是瞬时 UI 态；名单本身归 useProviderStore（切完模型它还活着，关掉浮层不该重拉）。 */
 const modelsOpen = ref(false);
+/**
+ * 下拉浮层的锚点 = 点开它的那枚 chip（2026-10-07 用户裁定：贴 chip 弹，不居中遮罩）。
+ *
+ * 元素住在 ComposerBox 的模板里，所以随 `open-model-select` 事件一起交上来。
+ * 拿不到元素就不开浮层——弹一个没有锚点的下拉，它会飞到屏幕左上角，
+ * 而「模型选择器跑到左上角」这种 bug 从代码上完全看不出原因（#5-㉔ 同族的坑：量对了图不对）。
+ */
+const modelAnchor = ref<HTMLElement | null>(null);
 const EMPTY_ITEMS: AgentEvent[] = [];
 const EMPTY_TAIL = { reasoning: "", message: "" };
 
@@ -113,10 +133,10 @@ const statusLine = computed(() =>
 );
 const ready = computed(() => book.hasBook);
 
-const agentLabel = computed(() => {
-  const stage = activeStageOf(book.meta);
-  return stage ? `${stage.name}智能体` : "未选择作品";
-});
+// 顶栏标题报的是**当前档案的名字**（墨宸 · 主笔 / 墨宸 · 审稿…），
+// 不再是「正文智能体」那种 `${stage.name}智能体` 的功能泛称——
+// 泛称回答不了「现在是谁在写」。判定在 utils/profile-options 的 conversationTitleLabel。
+const agentLabel = computed(() => conversationTitleLabel(book.meta));
 const contextTitle = computed(() => {
   if (!book.meta) return "无";
   const chapter = book.docs.find((doc) => doc.relPath === book.activeDocTab);
@@ -159,10 +179,17 @@ function prefillChapterThread(target: string, text: string): void {
   void book.openDocTab(target); // 右栏进文稿态，线程随 threadKeyFor 绑定；预填才看得见
   agent.prefillComposer(threadKeyFor(target), text); // Task 4 通路
 }
-// 卡的点击协调（跨 book / agent 两个 store）只在这一处：填字卡 ⇒ 开章 + 预填，其余 ⇒ 浏览。
+// 卡的点击协调（跨 book / agent 两个 store）只在这一处：空卡 ⇒ 引导去建，填字卡 ⇒ 开章 + 预填，其余 ⇒ 浏览。
+// 2026-10-05 裁定：目标取卡片自带的 target（workbenchCards 算好的那一份），这里不重算第二遍。
 function onWorkbenchPick(id: WorkbenchCardId): void {
-  const target = workbenchTarget({ id, docs: book.docs, activeChapter: book.activeDocTab });
-  if (target === null) return; // disabled 卡点不到；防御性早退。
+  const card = cards.value.find((item) => item.id === id);
+  if (card === undefined) return;
+  const target = card.target;
+  if (target === null) {
+    // 这一类还没有文档：不再灰着点不动，而是请左栏展开该分组并进入行内新建（真身 guideToDoc）。
+    layout.requestDocGroup(card.kind);
+    return;
+  }
   const text = WORKBENCH_CARD_PREFILL[id];
   if (text !== null) {
     prefillChapterThread(target, text);
@@ -194,38 +221,51 @@ function decide(proposalId: string, decision: ProposalDecision, guidance: string
 /**
  * 模型 ▾（#104）：打开即拉一次名单。缓存判定（「这一版配置拉过没有」）在 useProviderStore，
  * 这里只负责「什么时候要」；重试是同一件事的强制版，故传 true。
+ *
+ * 2026-10-07：随事件收下触发它的那枚 chip，下拉浮层贴在它下面（原先是居中模态遮罩）。
  */
-function openModelSelect(): void {
+function openModelSelect(anchor: HTMLElement): void {
+  modelAnchor.value = anchor;
   modelsOpen.value = true;
   void provider.loadModels();
 }
 
-/** 选中一条 = 只改 model 那一个字段（baseURL 与密钥原样留在主进程），写回成功才关浮层。 */
+/** 选中一条 = 加一条模型档案并启用（互斥在主进程），写回成功才关浮层。 */
 async function chooseModel(name: string): Promise<void> {
   if (await provider.select(name)) modelsOpen.value = false;
 }
 
+/**
+ * 失败态的「去模型设置」出口（2026-10-05）：名单拉不到的原因多半是地址/密钥不对，
+ * 而重试治不了它。走 layout 的唯一真身 showSettings（默认页就是 model），不另捏一条开设置的路。
+ * 浮层随之关闭——设置中心是整页视图，浮层留着也没有宿主（App.vue 会把中栏整块换掉）。
+ */
+function openModelSettings(): void {
+  modelsOpen.value = false;
+  layout.showSettings("model");
+}
+
 /** 发送 = 投递这一轮 + 清掉这一格草稿（值已进对话流，留着会把上一句带进下一次输入）。
- * 这里的清空是乐观的：那一轮若被边界拒绝，`useAgentStore.send` 的 catch 是真身，会把这一格原样还回来。 */
+ * 这里的清空是乐观的：那一轮若被边界拒绝，`useAgentStore.send` 的 catch 是真身，会把这一格原样还回来。
+ *
+ * 「送出后清空输入框」那枚开关关掉时不清（2026-10-06 批次 5-⑧）：消息照发，
+ * 字留在格子里由自己删。清空点只有这一处与 useHotkeys 的 submit 分支，两处读同一枚偏好。 */
 function onComposerSend(text: string): void {
   agent.send(text);
-  agent.clearDraft(threadKey.value);
+  if (clearComposerAfterSend()) {
+    agent.clearDraft(threadKey.value);
+  }
 }
 
 /**
- * 键位接线（spec §5）：全局 keydown 有且只有一处，就在 useGlobalHotkeys 里。
+ * 键位接线（spec §5）：全局 keydown 有且只有一处——现在住 App.vue（设置中心整页化后
+ * 本组件在设置视图会被卸载，监听上移才能让 Ctrl+, / Esc 在设置页继续活着），这里不再装。
  * 这里删掉了原先的 onGlobalEscape —— 它的「Esc = 打断」已被 resolveEscape 的裁决（含收浮层那一支）取代，
- * 保留两处监听会变成两份 Esc 裁决（裁定 G5）。判断一律在 utils，本组件只接线。
+ * 保留两处监听会变成两份 Esc 裁决（裁定 G5）。
  */
-useGlobalHotkeys({ openPalette: () => referenceMenu.summon("/") });
 
-// 设置浮层可见性的唯一真身是 layout.currentView === "settings"（设计决定 2）：
-// 左栏的两枚入口、Ctrl+,、/model、Esc 收浮层全部读写同一个 currentView，不再有两处真相。
-// #113d：中栏头部原先也挂一枚「模型设置」——那是自造的（deepwrite 头部那一格是「历史对话 + 新建对话」），
-// 入口退回左栏后这里只剩浮层真身。
-function closeSettings(): void {
-  layout.showWorkspace();
-}
+// 设置的可见性真身是 layout.currentView（设计决定 2）：
+// 左栏的两枚入口、Ctrl+,、/model、Esc 全部读写同一个 currentView；整页视图挂载在 App.vue。
 
 /**
  * 头部「新建对话」（照他的钮，动作走本仓已有的唯一真身）：清空**本页**显示，
@@ -263,7 +303,9 @@ onBeforeUnmount(() => {
         </button>
         <div>
           <strong>{{ agentLabel }}</strong>
-          <span class="context-caption">主上下文：{{ contextTitle }}</span>
+          <!-- 无书时不渲染这一行：没有书就没有「主上下文」，写个「无」只是把
+               上面那句「未选择作品」再说一遍（恒真的空信息比没有更误导）。 -->
+          <span v-if="book.meta" class="context-caption">主上下文：{{ contextTitle }}</span>
         </div>
       </div>
       <div class="conversation-header-actions">
@@ -279,7 +321,8 @@ onBeforeUnmount(() => {
           @click="startNewConversation"
         >
           <AppIcon name="plus" :size="16" />
-          新建对话
+          <!-- 批次 5-㉓：与历史对话那枚同一件事——文案包一层，窄栏只藏文字留图标。 -->
+          <span class="header-text-button-label">新建对话</span>
         </button>
         <button
           v-if="rightCollapsed"
@@ -368,23 +411,23 @@ onBeforeUnmount(() => {
     <ComposerBox
       :running="running"
       :ready="ready"
-      :can-continue="agent.canContinue(threadKey)"
       :model-value="agent.draftOf(threadKey)"
       :has-book="book.hasBook"
       :context-bar-visible="contextBarVisible"
       :permission-mode="book.meta?.permissionMode ?? null"
+      :work-mode="workModeOf(book.meta ?? {})"
       :permission-saving="book.metaSaving"
       :permission-menu-open="book.hasBook && book.permissionMenuOpen"
       :thinking-level="agent.thinkingLevel"
       :web-search-enabled="agent.webSearchEnabled"
       :model-label="provider.modelLabel"
-      :base-url="provider.view?.baseURL ?? ''"
+      :base-url="provider.activeBaseURL"
       @update:model-value="agent.setDraft(threadKey, $event)"
       @send="onComposerSend"
       @stop="agent.stop()"
-      @resume="agent.continueTurn()"
       @open-permission-menu="book.togglePermissionMenu()"
       @close-permission-menu="book.closePermissionMenu()"
+      @toggle-work-mode="void book.toggleWorkMode()"
       @cycle-thinking="agent.cycleThinking()"
       @toggle-web-search="agent.toggleWebSearch()"
       @open-tool-roster="rosterOpen = true"
@@ -393,19 +436,21 @@ onBeforeUnmount(() => {
       @open-mention="referenceMenu.summon('@')"
     />
 
-    <ProviderSettings v-if="showSettings" @close="closeSettings" />
-
     <!-- #106 裁定 D1：`/` 的真身只剩输入卡里那份行内菜单（ComposerBox 挂的 ComposerReferenceMenu），
          旧的第二块命令面板连同它的样式段一并退役——留着它就是同一张命令表两份渲染。 -->
     <ToolRoster v-if="rosterOpen" @close="rosterOpen = false" />
+    <!-- 贴 chip 的下拉（2026-10-07）：锚点是点开它的那枚 chip，元素随事件一起交上来。
+         v-if 上多一个 modelAnchor —— 没有锚点就不渲染，绝不弹一个飞到屏幕角落的黑盒。 -->
     <ModelSelect
-      v-if="modelsOpen"
+      v-if="modelsOpen && modelAnchor"
+      :anchor="modelAnchor"
       :result="provider.models"
       :loading="provider.modelsLoading"
       :current="provider.modelLabel"
       :switching="provider.switching"
       @close="modelsOpen = false"
       @retry="provider.loadModels(true)"
+      @open-settings="openModelSettings"
       @select="(name) => void chooseModel(name)"
     />
   </main>

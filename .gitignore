@@ -9,3 +9,21 @@ out/
 .mochen/
 # 冒烟与实验用的临时书目录（Plan 3 Task 10 Step 5）
 scratch/
+
+# ---- 2026-10-08 首次推到 GitHub 私有仓时补上的忽略 ----
+# 背景：待推条目 477 项里有 62 项是本地产物。逐项看过内容确认，全部可再生产或不属于项目。
+#   `.workbuddy/` —— 助手记忆（memory/*.md），是**工具的本地状态**，不是项目内容，也不该跟着代码走。
+#   `.mavis/`    —— 画布批注资源。
+#   `.designkit-history-delivery/` —— 设计工具的历史投递 JSON。
+#   `_tmp_*`     —— 一次工具调用留下的临时目录。
+#   `nul`        —— Windows 保留设备名，git 在 NTFS 上根本建不出同名文件（它不是普通文件）。
+# 根目录那 55 张 PNG（shot-*.png / mochen-*.png，合计 12.8 MB）是历轮真机巡检的**调试截图**：
+# 可再生产（探针脚本还在 .mochen-tmp 里），且推上去就进 git 历史、事后删不干净。
+# 文档正文里引用的 p536*/p536n* 截图本来就在已忽略的 .mochen-tmp 下，不受这一条影响。
+.workbuddy/
+.mavis/
+.designkit-history-delivery/
+_tmp_*
+nul
+shot-*.png
+mochen-*.png

@@ -1,0 +1,141 @@
+/**
+ * 通知 Toast 的样式（2026-10-05 批次 3，从 NotificationToast.vue 的 <style scoped> 搬来）。
+ *
+ * 搬家的理由不是「顺手」：本仓规矩是样式全在 `styles/` 下、`.vue` 零样式块，
+ * 这一个组件是漏网的。搬过来之后它才受 dead-css-guard 扫得到——
+ * 之前它在 .vue 里，写死了没人管，改类名不会有人拦。
+ *
+ * **落点从右上挪到左上**，这是这次搬家真正的理由：
+ * 本仓所有浮层都从右栏锚点向右展开，右上角是浮层的地盘，
+ * toast 钉在 `top: 16px; right: 16px` 会把浮层标题连同关闭按钮整个盖住
+ * （2026-10-05 真机截图：批准一次改稿，toast 正压在「改稿历史」标题上，关不掉也读不全）。
+ * 左上是全应用唯一没有浮层会去的角，所以往那儿挪。
+ * 入场方向也跟着改：从左滑入（`translateX(-20px)`），锚点在左，进场就该从左来。
+ * z-index 保持 9999 不动——提示要压得住任何浮层，只是不该压它们的**标题**。
+ */
+
+.toast-stack {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  min-width: 260px;
+  max-width: 360px;
+  background: var(--dropdown-bg, #1e1e2a);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.toast.is-success {
+  border-left: 3px solid #50c878;
+}
+
+.toast.is-error {
+  border-left: 3px solid #f06060;
+}
+
+.toast.is-warning {
+  border-left: 3px solid #f0a040;
+}
+
+.toast.is-info {
+  border-left: 3px solid var(--accent, #6c9eff);
+}
+
+.toast-icon {
+  flex-shrink: 0;
+}
+
+.toast.is-success .toast-icon {
+  color: #50c878;
+}
+
+.toast.is-error .toast-icon {
+  color: #f06060;
+}
+
+.toast.is-warning .toast-icon {
+  color: #f0a040;
+}
+
+.toast.is-info .toast-icon {
+  color: var(--accent, #6c9eff);
+}
+
+.toast-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-title {
+  font-size: 12px;
+  color: var(--text-primary, #e8e8e8);
+  font-weight: 500;
+}
+
+.toast-msg {
+  font-size: 11px;
+  color: var(--text-secondary, #999);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast-time {
+  font-size: 10px;
+  color: var(--text-muted, #777);
+  flex-shrink: 0;
+}
+
+.toast-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-muted, #777);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toast-close:hover {
+  color: var(--text-secondary, #999);
+}
+
+/* Transition：锚点在左，进出场都从左滑（原来锚右时是 +20px）。 */
+.toast-enter-active {
+  transition: all 0.3s ease;
+}
+
+.toast-leave-active {
+  transition: all 0.2s ease;
+}
+
+.toast-enter-from {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}

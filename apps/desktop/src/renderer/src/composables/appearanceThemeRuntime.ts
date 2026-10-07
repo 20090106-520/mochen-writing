@@ -1,8 +1,12 @@
-// 源自 deepwrite（Apache-2.0），原样移植：https://github.com/20090106-520/deepwrite
+// 结构出处见 docs/ATTRIBUTION.md。
 // 仅把 @deepwrite/contracts/renderer 换成 @mochen/contracts。
 
 import {
+  APPEARANCE_BACKDROPS,
   APPEARANCE_FONT_SIZE_LIMITS,
+  APPEARANCE_GLASSES,
+  APPEARANCE_GRIDS,
+  APPEARANCE_SURFACES,
   createDefaultAppearanceTheme,
   resolveAppearanceEditorFontStack,
   resolveAppearanceUiFontStack,
@@ -11,6 +15,12 @@ import {
   type AppearanceThemeConfig,
   type AppearanceUiFontSelection
 } from "@mochen/contracts";
+
+/* 颜色换算的真身在 appearanceColor.ts。这里 import 供本文件用，并 re-export 出去，
+   让既有调用方（守卫的 __testingMixRgba 等）**一行都不用改**。
+   依赖方向因此是单向的：appearanceColor ← appearanceThemeRuntime ← appearanceSkinVisual。 */
+import { hexToRgb, mix, mixChannels, mixRgba, rgba } from "./appearanceColor";
+export { mixChannels, mixRgba, rgba };
 
 export interface ThemePreset {
   id: string;
@@ -21,26 +31,50 @@ export interface ThemePreset {
 
 export const FONT_SIZE_LIMITS = APPEARANCE_FONT_SIZE_LIMITS;
 
-export const themePresets: ThemePreset[] = [
-  {
-    id: "codex",
-    label: "Codex",
-    light: { accent: "#339CFF", background: "#FFFFFF", foreground: "#1A1C1F" },
-    dark: { accent: "#5EACFF", background: "#17191C", foreground: "#F3F4F6" }
-  },
-  {
-    id: "paper",
-    label: "暖纸",
-    light: { accent: "#B5683B", background: "#FBF7EF", foreground: "#2E2823" },
-    dark: { accent: "#E49B66", background: "#201C19", foreground: "#F7EFE5" }
-  },
-  {
-    id: "ocean",
-    label: "海雾",
-    light: { accent: "#257F8B", background: "#F4FAFA", foreground: "#193135" },
-    dark: { accent: "#5CC3CF", background: "#102124", foreground: "#E5F3F4" }
-  }
-];
+/* 皮肤表是配色的真身（见 themePresets 那段注释）。这里只 import 投影要用的那两件；
+   OWN_SKIN_ORIGIN 由皮肤表导出——出处判定是那张表的事，不在这里另写一个字面量。 */
+import { OWN_SKIN_ORIGIN, appearanceSkins } from "./appearanceSkins";
+
+/**
+ * 主题配色预设（2026-10-06 批次 5-⑧：由 4 条扩到 10 条）。
+ *
+ * **挑色的三条硬要求**，每一条都由 `appearance-theme-presets.test.ts` 里的对比度计算守着，
+ * 不是「看着挺舒服」：
+ * ① 正文色对背景色的对比度 **≥ 7:1**（WCAG AAA 正文级）——写长文时眼睛要在这一组上待几小时，
+ *    差一点点就会累；
+ * ② accent 对背景 **≥ 3:1**——accent 铺在按钮上，按钮文字与底色之间要读得清；
+ * ③ 深色版的背景不是纯黑、浅色版不是纯白：纯黑配纯白对比度 21:1 但长时间看刺眼，
+ *    所以最深到 `#0A0A0A`、最浅到 `#FDFDFD`，把最刺的那一档让出去。
+ *
+ * 每套都配**深浅两版**，因为 mode 可以是 system——只做好看的一套等于有一半时间在用不配套的那版。
+ */
+/**
+ * 主题配色预设——**从皮肤表派生**（2026-10-07 批次 5-㊴）。
+ *
+ * 【为什么这里不再自己写一份】
+ * 批次 5-㊴ 之前，十套配色的三色只写在 themePresets 这一张表里。
+ * 加入皮肤之后，「配色」与「质感」合成了一条皮肤，于是同一组三色会出现在两个地方：
+ * 皮肤表（有质感）与这里（没质感）。两份表迟早会漂移——
+ * 守卫钉的是这一份，用户在皮肤广场看到的是那一份，红的绿的都说不清是谁的。
+ *
+ * ⇒ 真身移到 appearanceSkins.ts，这里只做一次投影：
+ *   皮肤表里有视觉四层、没视觉层的都有（十套出厂配色是素面的），
+ *   而这份预设表**只暴露配色三色**——它的消费者（AppearancePanel、
+ *   导入导出主题文件、可读性守卫）要的就是三色，多给视觉层只会让它们各自去 ignore。
+ *
+ * 【为什么投影只保留出厂那十条】
+ * 十套出厂配色的顺序是 5-⑧ 定下的，有用户按位置记它；
+ * 后面五条改编皮肤不进来投影（它们只在皮肤广场出现），
+ * 否则「主题配色」里会混进两套含义不同的东西。
+ */
+export const themePresets: ThemePreset[] = appearanceSkins
+  .filter((skin) => skin.origin === OWN_SKIN_ORIGIN)
+  .map((skin) => ({
+    id: skin.id,
+    label: skin.label,
+    light: { ...skin.light },
+    dark: { ...skin.dark }
+  }));
 
 export function defaultAppearanceTheme(scheme: AppearanceColorScheme): AppearanceThemeConfig {
   return createDefaultAppearanceTheme(scheme);
@@ -63,6 +97,20 @@ function sanitizeFontSize(
     : fallback;
 }
 
+/**
+ * 四层的 sanitize：取值必须落在 contracts 的枚举里，否则退回出厂值。
+ *
+ * **为什么不用 `includes()` 就完事**：那需要一个字符串数组，而那份数组的真身在
+ * contracts 里（`APPEARANCE_BACKDROPS` 等）。在这里另写一份字面量，
+ * 就是同一份清单写两遍——加一档时改了一处漏了另一处，
+ * 漏的那一处会静默地把所有新档判成「非法、退回平涂」（铁律 6）。
+ */
+function sanitizeEnum<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : fallback;
+}
+
 export function sanitizeAppearanceTheme(
   value: unknown,
   scheme: AppearanceColorScheme
@@ -72,6 +120,7 @@ export function sanitizeAppearanceTheme(
   const candidate = value as Partial<AppearanceThemeConfig>;
   return {
     preset: typeof candidate.preset === "string" ? candidate.preset : fallback.preset,
+    skin: typeof candidate.skin === "string" ? candidate.skin : fallback.skin,
     accent: isHexColor(candidate.accent) ? candidate.accent.toUpperCase() : fallback.accent,
     background: isHexColor(candidate.background)
       ? candidate.background.toUpperCase()
@@ -92,53 +141,67 @@ export function sanitizeAppearanceTheme(
     translucentSidebar:
       typeof candidate.translucentSidebar === "boolean"
         ? candidate.translucentSidebar
-        : fallback.translucentSidebar
+        : fallback.translucentSidebar,
+    backdrop: sanitizeEnum(candidate.backdrop, APPEARANCE_BACKDROPS, fallback.backdrop),
+    glass: sanitizeEnum(candidate.glass, APPEARANCE_GLASSES, fallback.glass),
+    surface: sanitizeEnum(candidate.surface, APPEARANCE_SURFACES, fallback.surface),
+    grid: sanitizeEnum(candidate.grid, APPEARANCE_GRIDS, fallback.grid)
   };
 }
 
-function hexToRgb(hex: string): [number, number, number] {
-  return [
-    Number.parseInt(hex.slice(1, 3), 16),
-    Number.parseInt(hex.slice(3, 5), 16),
-    Number.parseInt(hex.slice(5, 7), 16)
-  ];
+/** WCAG 相对亮度：sRGB 八位 → 线性化 → 加权。守卫也用它判「深色版够暗、浅色版够亮」。 */
+export function relativeLuminance(hex: string): number {
+  const [r8, g8, b8] = hexToRgb(hex);
+  const lin = (v: number): number => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin(r8) + 0.7152 * lin(g8) + 0.0722 * lin(b8);
 }
 
-function mixChannels(
-  background: string,
-  foreground: string,
-  foregroundRatio: number
-): [number, number, number] {
-  const bg = hexToRgb(background);
-  const fg = hexToRgb(foreground);
-  return bg.map((channel, index) =>
-    Math.round(channel * (1 - foregroundRatio) + fg[index]! * foregroundRatio)
-  ) as [number, number, number];
+/** WCAG 对比度，1 ~ 21。 */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
-function mix(background: string, foreground: string, foregroundRatio: number): string {
-  return `rgb(${mixChannels(background, foreground, foregroundRatio).join(" ")})`;
-}
+const ACCENT_TEXT_LIGHT = "#FFFFFF";
+const ACCENT_TEXT_DARK = "#17191C";
 
-function rgba(hex: string, alpha: number): string {
-  const [r, g, b] = hexToRgb(hex);
-  return `rgb(${r} ${g} ${b} / ${alpha})`;
-}
-
+/**
+ * accent 上那行字用白还是用深色。
+ *
+ * **2026-10-06 换掉了魔法阈值**：原来按感知亮度 158 二选一
+ * （`(r*299 + g*587 + b*114)/1000 > 158`），量出来有三处不合格，而且**两处就在出厂默认里**：
+ * Codex 浅色的白字压 `#339CFF` 只有 2.86:1、暖纸浅色 4.19:1，都不到 AA 的 4.5:1。
+ * 感知亮度那条公式对**蓝色系统性地高估**——蓝在亮度里权重只有 0.114，
+ * 于是「挺亮的蓝」被判成该用深字，落到白字上就花了。
+ *
+ * 改成**两个候选各算一遍对比度，谁高用谁**：这不依赖任何阈值，
+ * 将来调 accent 也不会再出现「阈值没错但结果不可读」。
+ */
 function readableAccentText(hex: string): string {
-  const [r, g, b] = hexToRgb(hex);
-  const perceivedBrightness = (r * 299 + g * 587 + b * 114) / 1000;
-  return perceivedBrightness > 158 ? "#17191C" : "#FFFFFF";
+  const onLight = contrastRatio(hex, ACCENT_TEXT_LIGHT);
+  const onDark = contrastRatio(hex, ACCENT_TEXT_DARK);
+  return onLight >= onDark ? ACCENT_TEXT_LIGHT : ACCENT_TEXT_DARK;
 }
 
-function mixRgba(
-  background: string,
-  foreground: string,
-  foregroundRatio: number,
-  alpha: number
-): string {
-  return `rgb(${mixChannels(background, foreground, foregroundRatio).join(" ")} / ${alpha})`;
-}
+/**
+ * 同一个判定，导出一份给守卫用（2026-10-06 批次 5-⑧）。
+ *
+ * **为什么要有这个别名**：配色可读性那条守卫要验「按钮上那行字读不读得清」，
+ * 而那行字是 `readableAccentText` 挑的。守卫里**重新实现一遍**等于出现第二份判定
+ * （铁律 6）——它会跟着主实现漂移，主实现改了阈值守卫还按旧的算，结论全错。
+ * 这里只是把私有函数原样再导出一份，没有第二份逻辑。
+ */
+export { readableAccentText as readableAccentTextForTest };
+
+/* 视觉四层（背景 / 玻璃 / 表面 / 图案 → `--skin-*`）搬到 appearanceSkinVisual.ts 了。
+   理由与那边的文件头一致：行数预算 + 那些是**要跟上游对账**的常量，不该与主题上色混在一处。
+   这里 re-export 是为了**既有调用方一行都不用改**（皮肤广场的 .vue 与守卫都从这里 import）。 */
+import { skinStyleVariables } from "./appearanceSkinVisual";
+export { skinStyleVariables };
 
 export function applyAppearanceThemeToDocument(input: {
   scheme: AppearanceColorScheme;
@@ -150,6 +213,61 @@ export function applyAppearanceThemeToDocument(input: {
   const root = document.documentElement;
   root.dataset.theme = scheme;
   root.style.colorScheme = scheme;
+
+  /* 视觉四层。先于颜色写：卡面与边框的观感由它们决定，
+     而它们的浓度又依赖 accent/foreground——那两组在下面立刻就写。
+     图案底色取主题前景色：图案要长在自己的色系上，
+     暖纸那套的图案就该是暖的，青金那套就该偏青。
+
+     **这一族是循环 setProperty 的，名字在 `skinStyleVariables()` 那个对象里**——
+     于是 `theme-token-guard.test.ts` 的两条正则（`setProperty("--x"` 与
+     顶格 `"--x":`）都扫不到它们，会把这一族整族报成「消费了却从没定义」。
+     那张表在 `appearanceSkinVisual.ts`，而守卫只读本文件。
+
+     ⇒ 这里把这一族的**名字**在本文件列一遍：既让守卫扫得到，
+       也让「本文件到底往 <html> 上写了哪些 token」在一处可读。
+     只列名字不参与运行时——真正写进去的还是上面那个循环（**值的真身只有一处**）。 */
+  const skinTokenNames = [
+    "--skin-backdrop",
+    "--skin-glass-blur",
+    "--skin-glass-alpha",
+    "--skin-glass-saturate",
+    "--skin-glass-sidebar-blur",
+    "--skin-glass-sidebar-alpha",
+    "--skin-glass-sidebar-content-alpha",
+    "--skin-glass-floater-blur",
+    "--skin-glass-floater-alpha",
+    "--skin-glass-capsule-blur",
+    "--skin-glass-sheen",
+    "--skin-glass-sidebar-fill",
+    "--skin-glass-card-fill",
+    "--skin-radius-sm",
+    "--skin-radius-md",
+    "--skin-radius-lg",
+    "--skin-surface",
+    "--skin-grid-image",
+    "--skin-grid-blend",
+    "--skin-dialogue-gradient",
+    "--skin-dialogue-underline"
+  ] as const;
+  const skinTokens = skinStyleVariables({
+    backdrop: theme.backdrop,
+    glass: theme.glass,
+    surface: theme.surface,
+    grid: theme.grid,
+    accent: theme.accent,
+    ink: theme.foreground,
+    paper: theme.background,
+    scheme,
+    // 「半透明侧栏」折进 token，而不是留给 CSS 用 data 属性判 ——
+    // CSS 那边那条规则与皮肤那条同特异性且写在后面，永远赢（见 theme-runtime.css 那段注释）。
+    translucentSidebar: theme.translucentSidebar
+  });
+  for (const name of skinTokenNames) {
+    root.style.setProperty(name, skinTokens[name] ?? "none");
+  }
+  root.dataset.skinSurface = theme.surface;
+
   root.style.setProperty("--accent", theme.accent);
   root.style.setProperty("--accent-contrast", readableAccentText(theme.accent));
   root.style.setProperty("--accent-soft", rgba(theme.accent, scheme === "dark" ? 0.18 : 0.12));
@@ -172,6 +290,19 @@ export function applyAppearanceThemeToDocument(input: {
     "--surface-selected",
     mix(theme.background, theme.foreground, scheme === "dark" ? 0.2 : 0.12)
   );
+  /* 表面阶梯的第四级：卡片比 --surface-raised 再高半级。此前卡片与编辑区同用 raised，
+     又只靠 1px 描边区分，整屏所有东西挤在同一高度上（"干净但没感觉"的来源）。 */
+  root.style.setProperty(
+    "--surface-card",
+    mix(theme.background, theme.foreground, scheme === "dark" ? 0.075 : 0.028)
+  );
+  /* 阴影色按明暗分家：暗色下 foreground 接近白（#F3F4F6 之类），拿它混出来的"阴影"
+     是一圈发光而不是纵深。深色用纯黑压，浅色才用前景色压。 */
+  const shadow = scheme === "dark" ? "rgb(0 0 0 / 0.55)" : rgba(theme.foreground, 0.16);
+  root.style.setProperty("--shadow-color", shadow);
+  root.style.setProperty("--shadow-sm", `0 1px 2px ${shadow}`);
+  root.style.setProperty("--shadow-md", `0 3px 12px -2px ${shadow}, 0 1px 2px ${shadow}`);
+  root.style.setProperty("--shadow-lg", `0 16px 40px -10px ${shadow}, 0 3px 10px ${shadow}`);
   root.style.setProperty(
     "--theme-line",
     mix(theme.background, theme.foreground, scheme === "dark" ? 0.2 : 0.14)
@@ -189,41 +320,117 @@ export function applyAppearanceThemeToDocument(input: {
     "--text-tertiary",
     mix(theme.background, theme.foreground, scheme === "dark" ? 0.52 : 0.5)
   );
-  root.style.setProperty("--ui-font-size", `${theme.uiFontSize}px`);
-  root.style.setProperty("--code-font-size", `${theme.codeFontSize}px`);
-  root.style.setProperty("--ui-font", resolveAppearanceUiFontStack(input.uiFontFamily));
-  root.style.setProperty("--editor-font", resolveAppearanceEditorFontStack(input.editorFontFamily));
+
+  /**
+   * 旧别名层（2026-10-06 真机撞出来的）。
+   *
+   * **问题**：约 250 处样式消费的这批名字（`--surface` / `--surface-dim` / `--dropdown-bg` /
+   * `--border` / `--border-light` / `--text-muted` / `--text-dim` …）**全仓从未被定义过**。
+   * 它们全都带着硬编码兜底值，于是主题换了、这些值不换：
+   * ① `--dropdown-bg: #1e1e2a` 是**深色**，而面板的文字走 `--text-primary`（跟主题走）——
+   *    浅色主题下就是**深字压深底**：字数、导出、搜索、笔记、版本历史、模板、新手引导、
+   *    切书、写作目标、toast 十一处一起中招（真机截图里标题几乎看不见）。
+   * ② `--surface: #fff` / `--surface-dim: #f0f1f4` 是**浅色**，暗色主题下六个浮层会反过来
+   *    变成浅底浅字。
+   * ③ `--border*` 的兜底是半透明白，浅色主题下描边直接隐形。
+   *
+   * ⇒ 这一段把它们**统一指向**上面那批真身。
+   *
+   * **两条形状上的硬要求**（5-㊵ 改写这段时踩过，`theme-token-guard.test.ts` 立刻红）：
+   * ① **必须是这张 `const legacyAliases` 表**，不能摊成一串 `setProperty(...)` 调用——
+   *    守卫要静态读它的字面量，好验「每条别名指向的 token 自己有没有定义」。
+   * ② **值必须整体写成 CSS 的别名函数形式**（形如「引用某个已有 token 的那个写法」），
+   *    不能只存裸 token 名再由循环拼前缀。
+   *    守卫的正则量的是「键后面紧跟一个值字面量」——值里自己带那层包装才量得到；
+   *    存裸名的话那条正则数出 0 条，断言报「expected 0 to be greater than 0」，
+   *    而红的原因离病因隔了三层。
+   * ③ **每条指向的 token 必须真的存在**。`--warn` / `--ok` 这两个旧名对应的是
+   *    `styles.css` 里已经定过的 `--warning` / `--success`——
+   *    我第一版图省事指向了两个自己编的名字，守卫立刻报
+   *    「它自己也没有定义」。守卫在这里是对的：**指向一个没人定义的 token
+   *    比不指向更糟**，它会让整条声明在计算值阶段作废，而那正是这条守卫存在的理由。
+   *
+   *    （注：这一段注释里刻意不写出那几个「假 token 名」的完整写法——
+   *      `theme-token-guard.test.ts` 扫的是**原文**，
+   *      注释里出现的消费形状照样会被算成「消费了却从没定义」。
+   *      同一个坑在 `legacyAliases` 那张表的注释里已经踩过一次。）
+   */
+  const legacyAliases: Record<string, string> = {
+    "--surface": "var(--surface-main)",
+    "--surface-dim": "var(--surface-muted)",
+    "--dropdown-bg": "var(--surface-raised)",
+    "--bg-secondary": "var(--surface-muted)",
+    "--border": "var(--theme-line)",
+    "--border-light": "var(--theme-line-soft)",
+    "--border-hover": "var(--theme-line)",
+    "--line-strong": "var(--theme-line)",
+    "--hover-bg": "var(--surface-hover)",
+    "--text-muted": "var(--text-secondary)",
+    "--text-dim": "var(--text-tertiary)",
+    "--warn": "var(--warning)",
+    "--ok": "var(--success)"
+  };
+  for (const [alias, value] of Object.entries(legacyAliases)) {
+    root.style.setProperty(alias, value);
+  }
+
+  /* 侧栏底色。**半透还是实心由用户那个「半透明侧栏」开关决定**，不是皮肤的一部分。
+     5-㊵ 重写这个文件时把这一段连同下面两行一起漏掉了，守卫立刻报
+     `--sidebar-surface 裸用 2 / 带兜底 1` —— styles.css 里
+     `--sidebar: var(--sidebar-surface, #f5f5f3)` 退回兜底，而深色主题下
+     那个 `#f5f5f3` 是浅色 ⇒ 侧栏整条变成浅底浅字（与 2026-10-06 那次同一族）。 */
   root.style.setProperty(
     "--sidebar-surface",
     theme.translucentSidebar
       ? mixRgba(theme.background, theme.foreground, scheme === "dark" ? 0.08 : 0.035, 0.84)
       : mix(theme.background, theme.foreground, scheme === "dark" ? 0.08 : 0.035)
   );
+  /* 这枚 data 属性是 theme-runtime.css 里 `[data-translucent-sidebar="true"]` 的开关。
+     漏了它 ⇒ 侧栏的 `backdrop-filter: blur(22px)` 那一档再也不生效。 */
   root.dataset.translucentSidebar = String(theme.translucentSidebar);
+  /* 窗口标题栏/任务栏颜色（Windows 上跟着主题色变）。 */
   document
     .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
     ?.setAttribute("content", theme.background);
+
+  /* 字体四件的**名字不能改**：`--ui-font` / `--editor-font` / `--ui-font-size` /
+     `--code-font-size` 是约 40 处样式消费的名字。
+     5-㊵ 重写这个文件时我按「先主题后字体」的语序把它们改成了
+     `--font-ui` / `--font-editor` / `--font-size-ui` / `--font-size-code` ——
+     改名的当天就被 `theme-token-guard.test.ts` 报成孤儿：
+     「消费了却从没定义」。
+     **改一个 token 的名字等于改全仓所有消费它的地方**，而这份文件是它的真身，
+     真身换了名字、其余没换 ⇒ 那批样式当场退回各自的兜底值，
+     而且**界面只是「字号不太对」，不会报错**（与 5-㊴ 那个 rgb(#hex) 同一族）。 */
+  const uiStack = resolveAppearanceUiFontStack(input.uiFontFamily);
+  const editorStack = resolveAppearanceEditorFontStack(input.editorFontFamily);
+  root.style.setProperty("--ui-font", uiStack);
+  root.style.setProperty("--editor-font", editorStack);
+  root.style.setProperty("--ui-font-size", `${theme.uiFontSize}px`);
+  root.style.setProperty("--code-font-size", `${theme.codeFontSize}px`);
 }
 
-export function serializeAppearanceThemeFile(
-  scheme: AppearanceColorScheme,
-  theme: AppearanceThemeConfig
+export function applyAppearanceSettingsToDocument(settings: {
+  scheme: AppearanceColorScheme;
+  light: AppearanceThemeConfig;
+  dark: AppearanceThemeConfig;
+  uiFontFamily: AppearanceUiFontSelection;
+  editorFontFamily: AppearanceEditorFontSelection;
+}): void {
+  const theme = settings.scheme === "dark" ? settings.dark : settings.light;
+  applyAppearanceThemeToDocument({
+    scheme: settings.scheme,
+    theme,
+    uiFontFamily: settings.uiFontFamily,
+    editorFontFamily: settings.editorFontFamily
+  });
+}
+
+export function __testingMixRgba(
+  background: string,
+  foreground: string,
+  foregroundRatio: number,
+  alpha: number
 ): string {
-  return JSON.stringify({ version: 2, scheme, theme }, null, 2);
-}
-
-export function parseAppearanceThemeFile(value: string): {
-  scheme?: AppearanceColorScheme;
-  theme: unknown;
-} {
-  const parsed: unknown = JSON.parse(value);
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("主题文件格式无效");
-  }
-  const record = parsed as { scheme?: unknown; theme?: unknown };
-  const scheme = record.scheme === "light" || record.scheme === "dark" ? record.scheme : undefined;
-  return {
-    ...(scheme ? { scheme } : {}),
-    theme: record.theme ?? parsed
-  };
+  return mixRgba(background, foreground, foregroundRatio, alpha);
 }

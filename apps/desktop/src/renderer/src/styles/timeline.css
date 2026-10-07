@@ -1,0 +1,226 @@
+/* 时间线核对浮层（2026-10-05，批次 5-①）。骨架与 foreshadow / ai-slop 同款：
+   Teleport 到 body、贴着锚点定位。
+   结构是三段式（头固定 / 中间自己滚 / 盲区块在滚动区内）——批次 4-② 的教训：
+   整个浮层滚动 + 按钮 sticky 会让 sticky 浮在内容上压住它，sticky 只保证不滚出视口。 */
+
+.timeline-check {
+  position: fixed;
+  z-index: 60;
+  width: 420px;
+  max-height: min(560px, 76vh);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.timeline-check-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.timeline-check-head strong {
+  margin-right: auto;
+}
+
+.timeline-check-count {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-check-note,
+.timeline-check-empty,
+.timeline-check-verdict {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 12px;
+}
+
+.timeline-check-note {
+  flex: none;
+}
+
+.timeline-check-note code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-dim, #f0f1f4);
+  font-size: 11px;
+}
+
+.timeline-check-error {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: var(--danger-soft, rgb(214 69 69 / 12%));
+  color: var(--danger, #d64545);
+  font-size: 12px;
+}
+
+/* 结论：干净时转中性色，有问题时转琥珀——只是「要核一核」，不是判你写错了。 */
+.timeline-check-verdict {
+  color: var(--warn, #a8791f);
+  font-weight: 600;
+}
+
+.timeline-check-verdict.is-clean {
+  color: var(--text-dim, #6b6f76);
+  font-weight: 400;
+}
+
+.timeline-check-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.timeline-check-issues,
+.timeline-check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.timeline-issue {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--warn, #d9a441);
+  border-radius: 0 7px 7px 0;
+  background: var(--surface-dim, #f6f7f9);
+}
+
+.timeline-issue-text {
+  color: var(--text-primary, #23262b);
+  font-size: 12px;
+}
+
+.timeline-issue-reading {
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-issue-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 问题牵涉到哪几篇：直接能点回去看，比让人自己去找路径强。 */
+.timeline-issue-link {
+  padding: 1px 6px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--text-dim, #6b6f76);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.timeline-issue-link:hover {
+  border-color: var(--accent, #339cff);
+  color: var(--accent, #339cff);
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 8px;
+  padding: 5px 8px;
+  border-left: 2px solid transparent;
+  border-radius: 0 7px 7px 0;
+  background: var(--surface-dim, #f6f7f9);
+}
+
+/* 读不出日期：琥珀（要核）；没写日期：虚线（还没排期，不是错）。两种不能混。 */
+.timeline-row.is-unknown {
+  border-left-color: var(--warn, #d9a441);
+}
+
+.timeline-row.is-undated {
+  border-left-style: dashed;
+  border-left-color: var(--line-strong, #c9ccd2);
+  opacity: 0.85;
+}
+
+.timeline-date {
+  grid-row: 1;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.timeline-title {
+  grid-row: 1;
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-primary, #23262b);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.timeline-title:hover {
+  color: var(--accent, #339cff);
+  text-decoration: underline;
+}
+
+.timeline-gist,
+.timeline-problem {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.timeline-problem {
+  color: var(--warn, #a8791f);
+}
+
+/* 查不出那部分：单列一块虚线框，与「查得出的」在视觉上分开——
+   混在问题列表里会被读成"这些也有问题"。 */
+.timeline-blind {
+  flex: none;
+  padding: 7px 8px;
+  border: 1px dashed var(--line-strong, #c9ccd2);
+  border-radius: 7px;
+}
+
+.timeline-blind-title {
+  margin: 0 0 3px;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.timeline-blind ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+}

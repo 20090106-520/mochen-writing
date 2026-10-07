@@ -40,6 +40,7 @@ function sources(overrides: Partial<HotkeyFocusSources> = {}): HotkeyFocusSource
     hasBook: false,
     tabCount: 0,
     referenceMenuIsOpen: false,
+    submitKey: "enter",
     ...overrides
   };
 }
@@ -123,14 +124,15 @@ describe("deriveHotkeyFocus · 提案卡状态", () => {
 });
 
 describe("deriveHotkeyFocus · store 侧标志原样透传", () => {
-  it("turnRunning / isComposing / hasBook / tabCount / referenceMenuIsOpen 一字不改", () => {
+  it("turnRunning / isComposing / hasBook / tabCount / referenceMenuIsOpen / submitKey 一字不改", () => {
     const focus = deriveHotkeyFocus(
       sources({
         turnRunning: true,
         isComposing: true,
         hasBook: true,
         tabCount: 7,
-        referenceMenuIsOpen: true
+        referenceMenuIsOpen: true,
+        submitKey: "ctrl-enter"
       })
     );
     expect(focus).toMatchObject({
@@ -138,7 +140,8 @@ describe("deriveHotkeyFocus · store 侧标志原样透传", () => {
       isComposing: true,
       hasBook: true,
       tabCount: 7,
-      referenceMenuIsOpen: true
+      referenceMenuIsOpen: true,
+      submitKey: "ctrl-enter"
     });
   });
 
@@ -153,7 +156,8 @@ describe("deriveHotkeyFocus · store 侧标志原样透传", () => {
       isComposing: false,
       hasBook: false,
       tabCount: 0,
-      referenceMenuIsOpen: false
+      referenceMenuIsOpen: false,
+      submitKey: "enter"
     });
   });
 });

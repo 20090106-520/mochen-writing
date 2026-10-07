@@ -7,6 +7,7 @@ function state(overrides: Partial<EscapeFocusState> = {}): EscapeFocusState {
     focusedProposalPending: false,
     guidanceIsDirty: false,
     turnRunning: false,
+    findReplaceIsOpen: false,
     settingsIsOpen: false,
     referenceMenuIsOpen: false,
     ...overrides

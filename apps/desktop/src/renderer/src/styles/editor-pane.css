@@ -1,11 +1,29 @@
-/* 源自 deepwrite（Apache-2.0），原样移植。 */
+/* 源自 deepwrite，同源实现。 */
 
 /* Right editor */
 
+/*
+ * 行模板必须与**实际子元素个数**对上（2026-10-05 批次 3 尾巴真机撞出来的严重布局 bug）。
+ *
+ * 原来 `.editor-pane.has-section-tabs` 写的是 5 行 `50 / 42 / 40 / 1fr / 36`，
+ * 可实际子元素有 6 个：页头、文稿标签条、工具条、查找替换条（v-if）、
+ * 视图切换条（编辑/分栏/预览）、`.editor-document`、页脚。
+ * 第 4 根（`1fr`）被**视图切换条**占去，它是个透明盒子，撑满 707px——
+ * 屏幕上那片"空着的正文区"其实是它。真正的 `.editor-document` 落到第 5 行
+ * （`36px` 的固定行），塌成 46px，里面的 textarea 被顶到 y=948，
+ * 而视口只有 902px —— **正文一直就没显示过**。
+ *
+ * 修法两条一起：
+ * ① 模板补两根 `auto` 行，容得下「查找替换条 + 视图切换条」这两根条件条（同时在场也不会错位）；
+ * ② 文档与页脚**写死行号**，不再靠「第几个子元素」顺推——
+ *    前面的条件条增删都动不到它们。
+ */
 .editor-pane {
   grid-column: 3;
+  /* 同上：五处各钉一行，落格才是判定（详见 conversation-pane.css 与 extensions.css 那两段）。 */
+  grid-row: 1;
   display: grid;
-  grid-template-rows: 50px 40px minmax(0, 1fr) 36px;
+  grid-template-rows: 50px 42px 40px auto auto minmax(0, 1fr) 36px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -13,16 +31,25 @@
   background: var(--editor);
 }
 
-.editor-pane.is-script-workspace {
-  border-left-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+.editor-pane > .editor-document {
+  grid-row: 6;
 }
 
-.editor-pane.is-script-workspace .editor-header {
-  background: color-mix(in srgb, var(--accent-soft) 48%, var(--editor));
+.editor-pane > .editor-footer {
+  grid-row: 7;
 }
 
-.editor-pane.has-section-tabs {
-  grid-template-rows: 50px 42px 40px minmax(0, 1fr) 36px;
+/* 作品资料页不渲染文稿标签条与视图切换条，行数相应减两（其余照旧）。 */
+.editor-pane.is-dossier {
+  grid-template-rows: 50px 40px minmax(0, 1fr) 36px;
+}
+
+.editor-pane.is-dossier > .editor-document {
+  grid-row: 3;
+}
+
+.editor-pane.is-dossier > .editor-footer {
+  grid-row: 4;
 }
 
 html[data-platform="darwin"] .editor-pane {
@@ -51,6 +78,9 @@ html[data-platform="darwin"] .editor-pane.has-section-tabs:has(.editor-document.
   gap: 10px;
   min-width: 0;
   padding: 7px 9px 7px 15px;
+  /* 无边框窗口：栏头在最右列，右侧让出窗控叠加区（—□×）的地盘。
+     env() 相消式 fallback：不支持 titlebar-area-* 时 100vw - 0px - 100vw = 0，退回原 padding。 */
+  padding-right: calc(9px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
   border-bottom: 1px solid var(--line-soft);
   -webkit-app-region: drag;
 }
@@ -66,9 +96,22 @@ html[data-platform="darwin"] .editor-header {
   -webkit-app-region: no-drag;
 }
 
+/* 批次 5-㉓：这一格原先把三段都钉成 `flex: 0 0 auto`，于是省略号一位都没画出来过。
+   两处机理要分开记，它们叠在一起才出了「当前章节整段不可见」：
+     ① `text-overflow` 只裁**元素自己的行盒内文本**，对 flex **子项**无效——
+        写在容器上的那个 ellipsis 从来裁不到 span 上，裁出来是硬切（断在字中间，没有「…」）；
+     ② 末段虽然单独立了 `text-overflow: ellipsis`，可 `flex: 0 0 auto` 让它永不收缩，
+        那个省略号一辈子没有机会画。
+   真机 1024 分栏的账：容器内容盒 130，内容 732（书名 439 + 「章节」37 + 章名 255），
+   屏幕上只剩「真澈复验书·第一卷雾海灯塔」半截，**当前章节整段看不见**——
+   用户不知道自己在写哪一章。5-⑳ 的注释里那句「面包屑被压成 0px 宽度（路径从不显示）」
+   腾出了 79px，但那轮没碰根因，这一格仍在塌。
+   改法：容器吃掉栏头剩余宽度，各段可收缩并各自带省略号；前两段留 3em 地板、
+   末段吃剩余——让位的应该是书名，不是当前章节。 */
 .editor-breadcrumbs {
   display: flex;
   align-items: center;
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   color: var(--text-tertiary);
@@ -78,15 +121,23 @@ html[data-platform="darwin"] .editor-header {
 }
 
 .editor-breadcrumbs span {
-  flex: 0 0 auto;
-}
-
-.editor-breadcrumbs span:last-child {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 前两段（书名、「章节」）各留 3em 地板：没有地板时缺额按 basis 比例分，末段照样被挤没。 */
+.editor-breadcrumbs span:not(:last-child) {
+  min-width: 3em;
+}
+
+/* 末段吃剩余宽度：路径条末端才是用户此刻最需要看见的那一段。 */
+.editor-breadcrumbs span:last-child {
+  flex: 1 1 auto;
+  min-width: 4em;
   color: var(--text-secondary);
   font-weight: 560;
-  text-overflow: ellipsis;
 }
 
 .editor-breadcrumbs i {
@@ -165,7 +216,6 @@ html[data-platform="darwin"] .editor-header {
   background: var(--accent, #7c5c3e);
 }
 
-.section-tabs-add,
 .section-tabs-remove {
   display: grid;
   place-items: center;
@@ -184,8 +234,6 @@ html[data-platform="darwin"] .editor-header {
   margin-left: 2px;
 }
 
-.section-tabs-add:hover,
-.section-tabs-add:focus-visible,
 .section-tabs-remove:hover:not(:disabled),
 .section-tabs-remove:focus-visible:not(:disabled) {
   outline: none;
@@ -198,23 +246,14 @@ html[data-platform="darwin"] .editor-header {
   color: var(--danger);
 }
 
-.section-tabs-add:disabled,
 .section-tabs-remove:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
 
-.save-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-tertiary);
-  font-size: 0.678571rem;
-}
-
-.save-state.is-dirty {
-  color: var(--warning);
-}
+/* 批次 5-⑳：这里原来有 `.save-state` / `.save-state.is-dirty` 两条——栏头那份保存状态去掉后已成死规则。
+   告警色没有跟着消失，而是搬到了底栏那一处：`.editor-save-status.is-dirty` 见下。
+   若只删元素不搬颜色，「有未保存修改」就只剩字面变化、丢掉原本的告警色。 */
 
 .editor-toolbar {
   position: relative;
@@ -301,7 +340,7 @@ html[data-platform="darwin"] .editor-header {
   color: var(--text-tertiary);
 }
 
-/* #113a 图标化之后按钮里没有文字可描边，键盘焦点只能靠这一圈：照搬 deepwrite .text-tool-button 的同一条。 */
+/* #113a 图标化之后按钮里没有文字可描边，键盘焦点只能靠这一圈：对齐 deepwrite .text-tool-button 的同一条。 */
 .format-button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -336,7 +375,6 @@ html[data-platform="darwin"] .editor-header {
   font-size: 0.714286rem;
 }
 
-.document-format,
 .readonly-badge {
   padding: 2px 6px;
   border: 1px solid var(--theme-line);
@@ -344,24 +382,21 @@ html[data-platform="darwin"] .editor-header {
   font-size: 0.607143rem;
 }
 
+/* 「Markdown 格式」图标座：与上面的格式钮同一套边框语言，里面装 file 字形（不再装「md」两个字）。 */
+.document-format {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border: 1px solid var(--theme-line);
+  border-radius: 7px;
+  color: var(--text-tertiary);
+}
+
 .readonly-badge {
   border-color: color-mix(in srgb, var(--warning) 28%, var(--theme-line));
   background: color-mix(in srgb, var(--warning) 10%, var(--surface-raised));
   color: var(--warning);
-}
-
-.skill-format-error-badge {
-  min-width: 0;
-  max-width: min(360px, 48%);
-  overflow: hidden;
-  padding: 2px 6px;
-  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--theme-line));
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--danger) 10%, var(--surface-raised));
-  color: var(--danger-text);
-  font-size: 0.607143rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .document-title-input {
@@ -395,9 +430,21 @@ html[data-platform="darwin"] .editor-header {
   background: transparent;
   color: var(--text-primary);
   font-family: var(--editor-font);
-  font-size: 1.07143rem;
-  line-height: 1.95;
+  /* 字号档（设置页「写作」）：DocumentPane 挂 --editor-font-size；变量缺席时 1.07143rem 是原值。 */
+  font-size: var(--editor-font-size, 1.07143rem);
+  /* 行距档（设置页「写作」）：DocumentPane 挂 --editor-leading；变量缺席时 1.95 就是原值。 */
+  line-height: var(--editor-leading, 1.95);
   letter-spacing: 0.025em;
+  /* 表单控件被 UA 从全局排版里踢出去了：:root 上的 text-rendering: optimizeLegibility
+     对 textarea 不生效（UA 给表单控件强制 auto），于是**编辑器成了全文唯一一块不跟全局
+     排版的字**——拉丁词的字距与预览态、mirror 都不一致，断行点因此对不齐（真机逐行量到
+     每隔 5 行 mirror 就多塞进一个字）。写回 inherit，把它接回同一条继承链。
+     写 inherit 而不是抄一份 optimizeLegibility：根上那个值改了，这里自动跟着改。 */
+  text-rendering: inherit;
+  /* 5-㉓：把 Chromium 给 textarea 的 UA 默认值（`overflow-wrap: break-word`）显式钉在这里。
+     预览面与浏览面写在各自的规则里，三面 + 查找 mirror 四处同名同值：
+     编辑面在断长词、读稿面也在断，5-㉓ 之前只有编辑面断。 */
+  overflow-wrap: break-word;
 }
 
 .document-editor {
@@ -419,8 +466,96 @@ html[data-theme="dark"] .document-editor:focus-visible {
   color: var(--text-secondary);
 }
 
-.document-preview .markdown-content {
-  white-space: normal;
+/* 开着查找时，textarea 的字要让位给 mirror：用户读的是 mirror 画的那一份，
+   真实的那份只留光标与选区框，免得两层字叠着印。
+   【这里必须带 .editor-textarea-wrap 前缀】theme-runtime.css 里有一条
+     html[data-theme] :where(…, .document-editor, …) { color: var(--text-primary) }
+   :where() 贡献 0 分，可外层的 html[data-theme] 仍给到 (0,1,1)，压得住裸的 (0,1,0)。
+   少了这一层前缀，color: transparent 永远不生效——查找面板一开、超一屏的稿子
+   两层字叠印，整屏糊成乱码（真机截图验过，不是推演）。 */
+.editor-textarea-wrap .document-editor--with-find {
+  color: transparent;
+  caret-color: var(--text-primary, #26292d);
+}
+
+/* 文稿 textarea + 高亮 mirror 的公共容器：mirror behind, textarea on top，
+   两者尺寸/字体/行高/padding 全部保持一致，scroll 同步由 onEditorScroll 在 .ts 里做。
+   尺寸一致的**前提**是下面 .find-replace-mirror 那条 overflow-y:auto——滚动条占位也算尺寸，
+   那一格的来龙去脉写在那边。 */
+.editor-textarea-wrap {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 1fr;
+  /* 列宽档（设置页「写作」）：DocumentPane 挂 --editor-measure；变量缺席时 none 就是原值——
+     原版式没有 max-width，none 正是无限值，于是没设置过时这一格一字不变。
+     width:100% + margin-inline:auto 是为了让收窄之后那列居中：不限宽时没有余量可分，
+     auto 外边距算出来是 0，与改动前逐像素相同。挂在 wrap 上（不是 textarea）是为了
+     和 inset:0 的高亮 mirror 同步收窄。 */
+  width: 100%;
+  max-width: var(--editor-measure, none);
+  margin-inline: auto;
+}
+
+/* 高亮 mirror 必须与 textarea 的**内容框**逐像素同宽，否则断行点分家：
+   textarea overflow-y:auto，内容超一屏时经典滚动条会占掉一格（全局 ::-webkit-scrollbar 的 8px），
+   而 mirror 若是 overflow:hidden 就永远不占——两层列宽差 8px，约每行多塞一个字，
+   于是同一处匹配的行列在两层指向不同的字，光标与选中框就离开了它下面的字。
+   做法：mirror 也用 auto，让它自己按内容高度占出同一条滚动条位（宽度继承全局那条，
+   不在这里写死数字）；占位画不出来即可。 */
+.find-replace-mirror {
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 var(--document-inline-padding) 80px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary, #e8e8e8);
+  font-family: var(--editor-font);
+  font-size: var(--editor-font-size, 1.07143rem);
+  line-height: var(--editor-leading, 1.95);
+  letter-spacing: 0.025em;
+  white-space: pre-wrap;
+  /* 与上面那条同一个理由：mirror 是 div，本来就继承得到 optimizeLegibility；写明是为了
+     两层的声明逐项对得上（守卫按声明逐项比），哪一层被谁改了一眼能看出来。 */
+  text-rendering: inherit;
+  /* 折行规则逐项对齐 textarea 的计算值：UA 给 textarea 的是
+     word-break:normal + overflow-wrap:break-word，多写一条 break-word 只会让两层分家。 */
+  word-break: normal;
+  overflow-wrap: break-word;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+/* 占位留着（那是上面 8px 的由来），但别画出来：mirror 不接受指针，也不该有第二条滚动条。 */
+.find-replace-mirror::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+.editor-textarea-wrap .document-editor {
+  position: relative;
+  z-index: 1;
+  background-color: transparent;
+}
+
+/* 高亮样式：find = 全部匹配，find-highlight-current = 当前选中的那枚。
+   颜色走 accent 主题下的暖黄 / 高饱和橙，暗色下都看得见。 */
+.find-replace-mirror :where(.find-highlight, .find-highlight-current) {
+  border-radius: 2px;
+  padding: 0.5px 0;
+  color: inherit;
+  background-color: transparent;
+}
+
+.find-replace-mirror .find-highlight {
+  background-color: color-mix(in srgb, var(--accent, #7c5c3e) 42%, transparent);
+}
+
+.find-replace-mirror .find-highlight-current {
+  background-color: var(--accent, #7c5c3e);
+  color: var(--neutral-solid-contrast, #fff);
 }
 
 .document-preview-empty {
@@ -488,7 +623,8 @@ html[data-theme="dark"] .document-editor:focus-visible {
   padding: 9px 11px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
-  background: var(--surface-raised);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-sm);
 }
 
 .dossier-doc-title {
@@ -533,7 +669,6 @@ html[data-theme="dark"] .document-editor:focus-visible {
   flex: 0 0 auto;
 }
 
-.editor-footer .library-entry-limit-hint,
 .editor-footer .editor-save-status {
   flex: 0 1 auto;
   min-width: 0;
@@ -541,12 +676,12 @@ html[data-theme="dark"] .document-editor:focus-visible {
   text-overflow: ellipsis;
 }
 
-.editor-footer .library-entry-limit-hint {
-  flex-shrink: 2;
-}
-
-.editor-footer .limit-warning {
-  color: var(--danger);
+/* 批次 5-⑳：从栏头那份 `.save-state.is-dirty` 搬过来的告警色。
+   特异度 (0,3,0) 是有意的：theme-runtime.css 里那条 `html[data-theme] :where(…)` 的
+   `:where()` 贡献 0 特异度，压根压不过 `.save-state.is-dirty`（0,2,0）——它一直没生效过。
+   这次把类名换掉时顺手把颜色放在压得住的那一层，免得又写一条量不出效果的规则。 */
+.editor-footer .editor-save-status.is-dirty {
+  color: var(--warning);
 }
 
 .save-button {
@@ -566,4 +701,269 @@ html[data-theme="dark"] .document-editor:focus-visible {
 .save-button:disabled {
   background: var(--surface-selected);
   color: var(--text-tertiary);
+}
+
+/* ── 编辑视图切换（编辑 / 分栏 / 预览） ─────────────────────── */
+.editor-view-switch {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  padding: 2px;
+  margin-left: 4px;
+  border-radius: 7px;
+  background: var(--surface-hover);
+}
+
+.editor-view-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 25px;
+  padding: 0 9px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 0.714286rem;
+  cursor: pointer;
+}
+
+.editor-view-switch button.is-active {
+  background: var(--surface-main);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(24, 26, 28, 0.08);
+}
+
+/* ── 分栏 / 预览模式布局 ─────────────────────────────────────── */
+
+/* edit 模式：无需额外类，单栏自然占满。 */
+
+/* split 模式：左右两栏等宽。 */
+.editor-document--split {
+  grid-template-rows: auto auto minmax(0, 1fr);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--line);
+}
+
+/* preview 模式：单栏占满，仅渲染预览区。 */
+.editor-document--preview {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.editor-pane-left {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface-main);
+}
+
+.editor-pane-right {
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--surface-main);
+}
+
+.editor-pane-left .editor-textarea-wrap {
+  height: 100%;
+}
+
+/* ── 读稿骨架与空态（2026-10-05 批次 3 尾巴） ─────────────────────────────
+   为什么要有：切标签时标题先换、正文后换，那一瞬摆旧正文等于「新标题配旧稿」。
+   骨架的作用不是好看，是**不撒谎**——它明说「还没读回来」，
+   而旧正文会让人以为那就是这一篇。 */
+
+.editor-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  padding: 20px 28px;
+  overflow: hidden;
+}
+
+.editor-skeleton-label {
+  margin: 0 0 4px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.editor-skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--line-soft, #e9e9e7);
+  /* 逐行错开，起步就有「正在来」的呼吸感，而不是一块死板。 */
+  animation: editor-skeleton-pulse 1.4s var(--ease-out-soft) infinite alternate;
+}
+
+/* 模拟段落的行长：每行收窄一点，读起来才像稿子而不像进度条。 */
+.editor-skeleton-line:nth-child(3n) {
+  width: 72%;
+}
+
+.editor-skeleton-line:nth-child(4n) {
+  width: 88%;
+}
+
+.editor-skeleton-line:nth-child(5n) {
+  width: 54%;
+}
+
+.editor-skeleton-line:nth-child(2n) {
+  animation-delay: 120ms;
+}
+
+.editor-skeleton-line:nth-child(3n) {
+  animation-delay: 240ms;
+}
+
+@keyframes editor-skeleton-pulse {
+  from {
+    opacity: 0.55;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* 空态：说清「去哪点」，不是「你写空了」。
+   跨满所有轨道 + 双向居中，**不靠 margin 定位**：
+   `.editor-document` 是 grid，第 3 行那条 `minmax(0, 1fr)` 会把自由空间吃光，
+   落在后面那条隐式行的元素再带 `margin-top`，就被容器底边裁掉了——
+   2026-10-05 真机截图就是这样：DOM 里挂着、读得到文字、屏幕上什么都没有。 */
+.editor-empty {
+  grid-row: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  max-width: 30ch;
+  margin: 0;
+  padding: 0 24px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+/* ── Markdown 预览区样式（dark 主题） ─────────────────────────── */
+/* 批次 5-㉓：`overflow-wrap: break-word` 与 textarea 的 Chromium UA 默认值同名同值。
+   不写这一条时两面不是一回事：textarea 由 UA 断长词，预览面断不了——
+   真机分栏态量到罪魁段 client=192 / scroll=2619（307 字符），
+   而整段被 `.markdown-body` 的 overflow-x: hidden 裁掉，长 URL / 哈希 / base64
+   在读稿那一面只能看见前十几个字母。写 break-word 而不是 anywhere：
+   它只改断点、不改内在尺寸，不会动 5-㉑ 量过的 textarea↔mirror 断行对齐。 */
+.markdown-body {
+  min-height: 0;
+  width: 100%;
+  padding: 0 var(--document-inline-padding) 80px;
+  color: var(--text-primary);
+  font-family: var(--editor-font);
+  font-size: var(--editor-font-size, 1.07143rem);
+  line-height: var(--editor-leading, 1.95);
+  letter-spacing: 0.025em;
+  overflow-wrap: break-word;
+}
+
+.markdown-body h1 {
+  margin: 1.6em 0 0.6em;
+  font-size: 1.8em;
+  font-weight: 600;
+  line-height: 1.3;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 0.3em;
+}
+
+.markdown-body h2 {
+  margin: 1.5em 0 0.5em;
+  font-size: 1.5em;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.markdown-body h3 {
+  margin: 1.4em 0 0.4em;
+  font-size: 1.25em;
+  font-weight: 600;
+}
+
+.markdown-body h4 {
+  margin: 1.3em 0 0.4em;
+  font-size: 1.1em;
+  font-weight: 500;
+}
+
+.markdown-body p {
+  margin: 0.7em 0;
+}
+
+.markdown-body strong {
+  font-weight: 600;
+}
+
+.markdown-body em {
+  font-style: italic;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--line-soft);
+  margin: 2em 0;
+}
+
+.markdown-body ul {
+  margin: 0.7em 0;
+  padding-left: 1.6em;
+  list-style-type: disc;
+}
+
+.markdown-body ol {
+  margin: 0.7em 0;
+  padding-left: 1.6em;
+  list-style-type: decimal;
+}
+
+.markdown-body li {
+  margin: 0.3em 0;
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid var(--accent, #7c5c3e);
+  margin: 1em 0;
+  padding: 0.4em 1em;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent, #7c5c3e) 6%, transparent);
+  border-radius: 0 4px 4px 0;
+}
+
+.markdown-body pre {
+  /* 5-㉓：正文那条 `overflow-wrap: break-word` 会继承进来，把这里原本的
+     「长代码行横向滚动」顶成折行——那是这一格早先定下的形态，不许顺带改掉。
+     继承属性要在子元素上显式写回，否则「改一处、坏一处」。 */
+  overflow-wrap: normal;
+  background: color-mix(in srgb, var(--text-primary) 5%, var(--surface-main));
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 1em;
+  margin: 1em 0;
+  overflow-x: auto;
+  font-family: "Fira Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.88em;
+  line-height: 1.55;
+}
+
+.markdown-body code {
+  font-family: "Fira Code", "SFMono-Regular", Consolas, monospace;
+}
+
+.markdown-body :not(pre) > code {
+  background: color-mix(in srgb, var(--text-primary) 8%, var(--surface-main));
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.88em;
+}
+
+.markdown-body > :first-child {
+  margin-top: 0;
 }

@@ -1,4 +1,4 @@
-// 源自 deepwrite（Apache-2.0），原样移植：无 UI 逻辑改动。
+// 源自 deepwrite，同源实现：无 UI 逻辑改动。
 export const TRANSIENT_SCROLLBAR_ACTIVE_CLASS = "is-scrollbar-active";
 export const TRANSIENT_SCROLLBAR_HIDE_DELAY_MS = 800;
 

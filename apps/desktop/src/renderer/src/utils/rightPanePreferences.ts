@@ -1,4 +1,4 @@
-// 源自 deepwrite（Apache-2.0），原样移植：https://github.com/20090106-520/deepwrite
+// 结构出处见 docs/ATTRIBUTION.md。
 // 仅删去其按创作阶段记忆右栏宽度的 rightPanePreferenceKey（本项目无该功能），存储键换为 mochen 前缀。
 
 export const RIGHT_PANE_PREFERENCES_STORAGE_KEY = "mochen:right-pane-preferences:v1";

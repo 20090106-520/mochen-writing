@@ -1,4 +1,4 @@
-/* 源自 deepwrite（Apache-2.0），原样移植。 */
+/* 源自 deepwrite，同源实现。 */
 
 .icon-button {
   display: grid;
@@ -21,8 +21,23 @@
 
 .conversation-pane {
   grid-column: 2;
+  /* 【2026-10-07 批次 5-㊴ 真机撞出来并修掉的真缺陷，详见 extensions.css 那段完整记录】
+     `.desktop-shell` 是**三列**网格，五个直接子元素各自只钉了 `grid-column`、没钉 `grid-row`。
+     网格于是按「自动放置」把它们依次排下去：左栏与 extensions-page 落到第一行，
+     而 `.conversation-pane` 与 `.editor-pane` 被挤到**第二行** ⇒ shell 变成两行。
+
+     那一页（技能库/插件/皮肤广场）钉了 `grid-row: 1` 之后，剩下这两个跟着掉下来，
+     于是「点左栏那枚钮进去」时中栏根本不在视口里 —— 探针量到 `.conversation-pane`
+     的 y=459（视口 902），`.left-sidebar` 被压到 459px 高、y=428 往下的五枚钮点不到。
+
+     ⇒ 三栏各钉一行。这是「同一处判定只留一份」的另一个面：
+     落格也是判定，五处各写一半就等于没写。 */
+  grid-row: 1;
   display: grid;
   grid-template-rows: 50px minmax(0, 1fr) auto;
+  /* 5-㉓：栏头动作区钉死不缩之后，得有一条退路——窄到装不下时只藏文字、留图标。
+     基准是**这一格自己的内容盒**（5-⑪ 的纪律：clientWidth 含 padding，拿它当阈值整条阶梯偏移）。 */
+  container: conversation / inline-size;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -55,12 +70,34 @@ html[data-platform="darwin"] .conversation-header {
   -webkit-app-region: no-drag;
 }
 
+/* 右编辑栏收起时对话栏成为最右列：栏头右侧让出窗控叠加区（—□×）的地盘（同 editor-header）。 */
+.is-right-collapsed .conversation-header {
+  padding-right: calc(10px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+}
+
+/* 批次 5-㉓：动作区原先和标题区共用一条规则，只写了 `min-width: 0`，
+   于是它作为 `.conversation-header` 的 flex 子项默认 `flex: 0 1 auto`——**会被标题挤扁**。
+   挤扁之后中文按字断行，而不是出省略号：
+     真机 1440 预览态：动作区 x=797 **y=-5 h=59**，而栏头只有 50 高 ⇒ 整块向上溢出到窗口外；
+       两枚按钮 w=52，`Range.getClientRects()` 数出行宽 [7,12,12,12,12] ⇒ **每字一行**。
+     真机 1024 分栏态：按钮 w=84，行宽 [16,35,12] ⇒ 同样是三行（内容要 88，差 4px 就断行）。
+   控件不是文字，标题才是可以压缩的那一侧：动作区钉死不缩，标题改成省略号让位。
+   窄到连钉死都装不下时，梯子只藏文字、留图标——沿用 5-⑱ 工具栏那级的老裁定。 */
 .conversation-heading-start,
 .conversation-header-actions {
   display: flex;
   align-items: center;
   min-width: 0;
   gap: 8px;
+}
+
+.conversation-header-actions {
+  flex: 0 0 auto;
+}
+
+.conversation-heading-start {
+  flex: 0 1 auto;
+  overflow: hidden;
 }
 
 .conversation-heading-start > div {
@@ -70,16 +107,22 @@ html[data-platform="darwin"] .conversation-header {
   gap: 8px;
 }
 
+/* 产品名不许被挤没，也绝不许折成两行——真机那格它就是「墨宸 · 主 / 笔」。 */
 .conversation-heading-start strong {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
   font-size: 0.928571rem;
   font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .context-caption {
   overflow: hidden;
   color: var(--text-faint);
-  font-size: 0.75rem;
+  /* 2026-10-05 质感：0.75rem 在 14px 基准下只有 10.5px，屏上发虚；提到 0.8rem 并保持单行省略。 */
+  font-size: 0.8rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -88,12 +131,16 @@ html[data-platform="darwin"] .conversation-header {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex: 0 0 auto;
   min-height: 30px;
   padding: 0 9px;
   border-radius: 7px;
   background: transparent;
   color: var(--text-secondary);
   font-size: 0.821429rem;
+  /* 5-㉓：没有这一行时，按钮被挤到比文字还窄就按字断行（真机量到三行、五行）。
+     断行的是中文，实测一行「历史对话」要 46px + 图标 16 + 间隙 6 + 内边距 18 + 边框 2 = 88px。 */
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -105,6 +152,19 @@ html[data-platform="darwin"] .conversation-header {
 .header-text-button.is-active {
   background: var(--surface-selected, #e7e7e4);
   color: var(--text-primary, #26292d);
+}
+
+/* 5-㉓ 窄栏这一级：控件一个不藏，只藏文字（沿用 5-⑱ 工具栏梯子的老裁定）。
+   阈值 320 不是拍的，是算出来的——两枚带文字的按钮实测要
+   图标环 36 + 间隙 8×2 + 「历史对话」88 + 「新建对话」88 = 228；
+   产品名「墨宸 · 主笔」58；栏头内边距 24、间隙 12 ⇒ 两边都要 322。
+   所以内容盒 322 以下动作区就装不下，320 这一刀落在真机量到的 296 那档上。
+   ⚠️ 改这个数之前先量：把 320 往下挪，296 那档就会退回每字一行；
+   往上挪，白白早一档把还能显示的文字藏了。 */
+@container conversation (max-width: 320px) {
+  .header-text-button-label {
+    display: none;
+  }
 }
 
 .conversation-scroll-shell {
@@ -142,19 +202,10 @@ html[data-platform="darwin"] .conversation-header {
   justify-content: center;
   flex-direction: column;
   width: min(520px, calc(100% - 48px));
-  min-height: 100%;
   margin: auto;
-  padding: 48px 0 150px;
+  /* 用户裁定：不留大空白——上下收窄，内容自然居中即可。 */
+  padding: 12px 0 24px;
   text-align: center;
-}
-
-.assistant-avatar {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  border: 1px solid var(--theme-line);
-  background: var(--surface-muted);
-  color: var(--text-secondary);
 }
 
 .conversation-empty h1 {
@@ -193,6 +244,7 @@ html[data-platform="darwin"] .conversation-header {
   border: 1px solid var(--theme-line);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  box-shadow: var(--shadow-sm);
 }
 
 /* 品牌原图整幅显示：cover 会裁掉龙首与落款，违「原图原样用」。 */
@@ -204,9 +256,38 @@ html[data-platform="darwin"] .conversation-header {
   object-fit: contain;
 }
 
+/* canvas-ui 粒子画布版：容器要有确定尺寸（canvas 绝对定位撑满），显示区域与原图等宽。 */
+.workbench-hero-art.is-particle {
+  width: 118px;
+  height: 118px;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
 .workbench-hero-text {
   min-width: 0;
   flex: 1 1 auto;
+}
+
+/* 无书时这一段不再当「主视觉卡」用（2026-10-05 实机截图）。
+   两个问题：
+   ① hero 里那个 h1 读的是 agentLabel（=「未选择作品」），顶栏已经报过同一句状态了 ——
+      同一个词在屏幕上出现两次，第二次再小也是噪音。压成 eyebrow 只是把噪音变轻，没消掉。
+   ② 带边框 + 底面 + 阴影的卡里只装着两段话，右侧还空着 118px（品牌粒子图），
+      整块读起来是「空壳」；而真正要用户点的「打开作品目录」在卡外面，权重反而更低。
+   所以无书时把卡面撤掉、logo 提到上方居中、重复的状态词去掉：
+   状态归顶栏、介绍归这段、下一步归那颗主 CTA，三层各说各的。 */
+.workbench-hero.is-no-book {
+  flex-direction: column;
+  gap: 13px;
+  padding: 6px 0 2px;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.workbench-hero.is-no-book h1 {
+  display: none;
 }
 
 .workbench-quote {
@@ -221,7 +302,8 @@ html[data-platform="darwin"] .conversation-header {
   padding: 14px 16px;
   border: 1px solid var(--line-soft);
   border-radius: 14px;
-  background: var(--surface-raised);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-sm);
 }
 
 .workbench-intro-head {
@@ -293,10 +375,15 @@ html[data-platform="darwin"] .conversation-header {
   padding: 12px 14px;
   border: 1px solid var(--theme-line);
   border-radius: 12px;
-  background: var(--surface-raised);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-sm);
   color: var(--text-primary);
   text-align: left;
   cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out-soft),
+    box-shadow var(--dur-fast) var(--ease-out-soft),
+    transform var(--dur-fast) var(--ease-out-soft);
 }
 
 .workbench-card-icon {
@@ -311,11 +398,18 @@ html[data-platform="darwin"] .conversation-header {
 
 .workbench-card:hover:not(:disabled) {
   background: var(--surface-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.workbench-card:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .workbench-card:disabled {
   border-color: var(--line-soft);
   background: var(--surface-muted);
+  box-shadow: none;
   color: var(--text-tertiary);
   cursor: default;
 }
@@ -358,6 +452,21 @@ html[data-platform="darwin"] .conversation-header {
   color: var(--text-primary);
 }
 
+/* 空状态的主 CTA：与 .dialog-primary-button 同一套口径（实心面 + 反色字），不另起一套。
+   浅色走 --neutral-solid，深色那一层由 theme-runtime.css 统一把它转成 accent（那边有一张表）。 */
+.workbench-open-book.is-primary {
+  border-color: var(--neutral-solid);
+  background: var(--neutral-solid);
+  color: var(--neutral-solid-contrast);
+  font-weight: 600;
+}
+
+.workbench-open-book.is-primary:hover {
+  border-color: color-mix(in srgb, var(--neutral-solid) 84%, var(--text-primary));
+  background: color-mix(in srgb, var(--neutral-solid) 84%, var(--text-primary));
+  color: var(--neutral-solid-contrast);
+}
+
 .message-list {
   width: min(760px, calc(100% - 48px));
   margin: 0 auto;
@@ -381,29 +490,15 @@ html[data-platform="darwin"] .conversation-header {
   min-width: 0;
 }
 
-.message.is-empty-error {
-  display: none;
-}
-
-.message-copy {
-  color: var(--text-primary);
-  font-size: 1rem;
-  line-height: 1.78;
-}
-
-.message-copy.is-streaming .message-markdown > :last-child::after {
-  display: inline-block;
-  width: 1px;
-  height: 1em;
-  margin-left: 3px;
-  background: var(--neutral-solid);
-  content: "";
-  vertical-align: -0.12em;
-  animation: stream-caret 900ms steps(1, end) infinite;
-}
-
 @keyframes stream-caret {
   50% {
     opacity: 0;
   }
+}
+
+/* 无书降级区两枚入口并排（打开 / 新建），样式与既有 workbench-open-book 一致 */
+.workbench-empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }

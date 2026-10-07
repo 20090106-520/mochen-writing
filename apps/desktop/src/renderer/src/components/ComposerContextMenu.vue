@@ -1,5 +1,5 @@
 <!-- #113c 阶段选择弹层。真身：deepwrite components/ComposerContextMenu.vue + composer-context-menu.css
-     （Apache-2.0），DOM 结构、类名与键盘操作逐条照搬：搜索过滤、当前项打勾、上下键在可用项间环移、
+     ，DOM 结构、类名与键盘操作逐条对齐：搜索过滤、当前项打勾、上下键在可用项间环移、
      Enter 选中第一条、Tab 触边交还焦点、Esc 关闭。
      删掉的只有他那份的 book / library 两个分支——本仓没有书目/资料库注册表（无 book:list 通道），
      留着就是永不为真的判断；类名与 CSS 一律沿用他的，日后对上游 diff 是机械活。
@@ -71,7 +71,12 @@ function keydown(event: KeyboardEvent): void {
 
 onMounted(async () => {
   await nextTick();
-  search.value?.focus();
+  // 【5-㊵ 退役】原先这里还有一句 search.value?.focus()，已删。
+  // 它落在一个**看不见**的窗口里：面板的 style 初值是 { visibility: "hidden" }，由 composable 的
+  // position() 换掉，而对 visibility:hidden 的元素调 focus() 是静默失败——p536nb 逐帧量到
+  // t≈40ms 时 computed visibility 仍是 hidden、t≈120ms 才 visible，一次都没进去且无人重试。
+  // 「焦点进层」的真身现在是 useComposerContextPopover.focusFirstWhenVisible()，那一族共用它；
+  // 留着这里就是同一件事的第二份实现，而且偏偏是那个不生效的。
   panel.value?.querySelector(".is-current")?.scrollIntoView({ block: "nearest" });
 });
 </script>
@@ -82,6 +87,7 @@ onMounted(async () => {
       ref="panel"
       class="composer-context-menu"
       :style="style"
+      tabindex="-1"
       role="dialog"
       :aria-labelledby="titleId"
       :aria-busy="busy"

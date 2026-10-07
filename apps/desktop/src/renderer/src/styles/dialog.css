@@ -1,4 +1,4 @@
-/* 源自 deepwrite（Apache-2.0），原样移植。 */
+/* 源自 deepwrite，同源实现。 */
 
 /* Dialogs */
 
@@ -9,55 +9,25 @@
   display: grid;
   place-items: center;
   padding: 30px;
-  background: color-mix(in srgb, var(--theme-foreground) 28%, transparent);
-  backdrop-filter: blur(2px);
+  /* 背板原来是 28% + blur(2px)：把后面整个界面压成一片死灰，纵深全丢了，弹窗不像"浮起来"。
+     降到 20% 并把模糊加到 10px，读起来是"界面还在玻璃后面"，而不是"界面被关掉了"。
+     暗色那份覆写在 theme-runtime.css（html[data-theme="dark"]），这边只管浅色。 */
+  background: color-mix(in srgb, var(--theme-foreground) 20%, transparent);
+  backdrop-filter: blur(10px) saturate(1.05);
 }
 
 .workspace-dialog {
   display: flex;
   flex-direction: column;
   width: min(560px, calc(100vw - 48px));
-  max-height: min(720px, calc(100vh - 60px));
+  max-height: min(860px, calc(100vh - 48px));
   overflow: hidden;
   border: 1px solid var(--theme-line);
   border-radius: 15px;
-  background: var(--surface-main);
-  box-shadow:
-    0 24px 70px rgba(27, 29, 31, 0.2),
-    0 2px 8px rgba(27, 29, 31, 0.08);
-}
-
-.workspace-dialog.is-model-config {
-  width: min(820px, calc(100vw - 48px));
-}
-
-.workspace-settings-panel {
-  display: flex;
-  flex-direction: column;
-  width: min(680px, 100%);
-  min-height: min(560px, calc(100vh - 104px));
-  overflow: hidden;
-  border: 1px solid var(--theme-line);
-  border-radius: 15px;
-  background: var(--surface-raised);
-  box-shadow: 0 14px 42px rgb(0 0 0 / 8%);
-}
-
-.workspace-settings-panel.is-model-config {
-  width: min(960px, 100%);
-  min-height: min(680px, calc(100vh - 104px));
-}
-
-.workspace-settings-panel.is-model-config.is-embedded {
-  width: 100%;
-  min-height: 0;
-  overflow: visible;
-  box-shadow: none;
-}
-
-.workspace-settings-panel .dialog-content {
-  flex: 1 1 auto;
-  padding: 24px 26px 28px;
+  background: var(--surface-main, #ffffff);
+  /* 原来写死 rgba(27,29,31,…) —— 换主题不跟、深色下也偏淡。统一收进 --shadow-lg，
+     高程三档与明暗分家都在 appearanceThemeRuntime 一处算。 */
+  box-shadow: var(--shadow-lg);
 }
 
 .workspace-dialog > header {
@@ -71,9 +41,12 @@
 }
 
 .dialog-eyebrow {
+  display: block;
+  margin-bottom: 6px;
   color: var(--text-tertiary);
   font-size: 0.642857rem;
   font-weight: 650;
+  line-height: 1.4;
   letter-spacing: 0.11em;
   text-transform: uppercase;
 }
@@ -134,14 +107,34 @@
 
 .dialog-content textarea:focus {
   border-color: color-mix(in srgb, var(--accent) 28%, var(--theme-line));
-  background: var(--surface-main);
+  background: var(--surface-main, #ffffff);
 }
 
-.dialog-actions {
+/*
+ * 动作条是 `.workspace-dialog` 的**直接子元素**，不在 `.dialog-content` 里面。
+ *
+ * 这不是洁癖，是两条实测出来的硬伤（2026-10-06）：
+ *  ① 它在 `.dialog-content` 里面时，内容一长它就被顶到滚动区外——「保存并启用」
+ *     实测落在 y 904~936，而对话框底边只有 811、视口 902，**不滚根本点不到**。
+ *  ② 改成 `position: sticky` 之后更糟：它带着 z-index 压在内容上，
+ *     `elementFromPoint` 落在 `.dialog-actions` 上，**模型名单那几颗按钮点不动了**。
+ * sticky 只保证自己不被滚走，不保证不压住别人（批次 4-② 在审稿浮层踩过同一条）。
+ * 所以唯一的解法是让按钮**待在滚动区之外**——就是批次 4-② 那个三段式。
+ */
+.workspace-dialog > .dialog-content {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.workspace-dialog > .dialog-actions {
   display: flex;
+  flex: 0 0 auto;
   justify-content: flex-end;
   gap: 7px;
-  margin-top: 13px;
+  margin: 0;
+  padding: 13px 22px 20px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--surface-main, #ffffff);
 }
 
 .dialog-primary-button,
@@ -170,7 +163,7 @@
 
 .dialog-secondary-button {
   border: 1px solid var(--theme-line);
-  background: var(--surface-main);
+  background: var(--surface-main, #ffffff);
   color: var(--text-secondary);
 }
 
@@ -185,4 +178,239 @@
 
 .dialog-primary-button.is-danger:hover {
   background: var(--danger);
+}
+
+/* —— 设置浮层：外观页 —— */
+.appearance-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.appearance-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.appearance-field-label {
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+  font-weight: 620;
+  letter-spacing: 0.04em;
+}
+
+.appearance-segment {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.appearance-segment-button {
+  min-height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.821429rem;
+  cursor: pointer;
+}
+
+.appearance-segment-button:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.appearance-segment-button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-weight: 620;
+}
+
+.appearance-select {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+}
+
+.appearance-error {
+  color: var(--danger);
+  font-size: 0.821429rem;
+}
+
+/* —— 外观页：双列字号行与半透明开关 —— */
+.appearance-mode-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.appearance-twin-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.appearance-toggle-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.appearance-toggle {
+  appearance: none;
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 20px;
+  border: 1px solid var(--theme-line);
+  border-radius: 999px;
+  background: var(--surface-hover);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.appearance-toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition: transform 0.15s ease;
+}
+
+.appearance-toggle:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.appearance-toggle:checked::after {
+  transform: translateX(14px);
+  background: var(--accent-contrast);
+}
+
+/* —— 外观页：键盘焦点态（评审建议：光晕描边，触达即清晰） —— */
+.appearance-select:focus-visible,
+.appearance-segment-button:focus-visible,
+.appearance-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.hotkeys-group-title {
+  margin-bottom: 6px;
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.hotkeys-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.hotkeys-table th,
+.hotkeys-table td {
+  padding: 5px 8px 5px 0;
+  border-bottom: 1px solid var(--line-soft);
+  text-align: left;
+  vertical-align: top;
+}
+
+.hotkeys-table tr:last-child th,
+.hotkeys-table tr:last-child td {
+  border-bottom: none;
+}
+
+.hotkeys-keys {
+  width: 30%;
+  white-space: nowrap;
+}
+
+.hotkeys-keys kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--theme-line);
+  border-radius: 5px;
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  font-family: var(--ui-font);
+  font-size: 0.785714rem;
+}
+
+.hotkeys-label {
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+}
+
+.hotkeys-when {
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+}
+
+.hotkeys-escape-note {
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+  line-height: 1.6;
+}
+
+/* —— 设置浮层：关于页 —— */
+.about-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+
+.about-fact {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 10px;
+}
+
+.about-term {
+  color: var(--text-tertiary);
+  font-size: 0.821429rem;
+  font-weight: 650;
+}
+
+.about-detail {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  line-height: 1.65;
+}
+
+/* —— 新建作品对话框：目录选择行 —— */
+.new-book-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.new-book-dir-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.892857rem;
+}
+
+.new-book-dir-input:focus {
+  outline: none;
+  border-color: var(--focus);
 }

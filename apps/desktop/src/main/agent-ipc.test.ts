@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   IPC_CHANNELS,
+  type ConnectionDraft,
+  type ContextPreviewQuery,
   type DecideInput,
-  type ProviderDraft,
+  type ProfileDraft,
   type ProviderView,
   type StartTurnInput
 } from "@mochen/contracts";
@@ -13,11 +15,22 @@ import type { ProviderSettings } from "./provider-settings.js";
 
 type Fn = (...args: unknown[]) => unknown;
 
+const CONNECTION_ID = "c-1";
+
+/** 一条连接 + 一条挂在它上面的档案：地址与密钥都按连接取（config.json v3）。 */
 const view: ProviderView = {
-  hasKey: true,
-  baseURL: "http://mock/v1",
-  model: "test-model",
-  keyMask: "••••2c9f"
+  connections: [
+    {
+      id: CONNECTION_ID,
+      providerId: "custom",
+      label: "自定义（自己填地址）",
+      baseURL: "http://mock/v1",
+      authHeader: "bearer",
+      hasKey: true,
+      keyMask: "••••2c9f"
+    }
+  ],
+  profiles: [{ id: "p-1", connectionId: CONNECTION_ID, model: "test-model", enabled: true }]
 };
 
 function registry(): {
@@ -75,6 +88,18 @@ function stubService(seen: unknown[]): AgentService {
       seen.push("list-sessions");
       return [];
     },
+    async contextPreview(query: ContextPreviewQuery) {
+      // 整个 query 一起记：只记 docRelPath 的话，handler 把 profileId 悄悄丢掉照样绿。
+      seen.push(query);
+      return {
+        profileId: query.profileId ?? "",
+        profileName: "",
+        items: [],
+        chars: 0,
+        approxTokens: 0,
+        empty: true
+      };
+    },
     dispose() {
       seen.push("dispose");
     }
@@ -88,13 +113,45 @@ function stubSettings(seen: unknown[]): ProviderSettings {
       return view;
     },
     async config() {
-      return { baseURL: view.baseURL, model: view.model };
+      const connection = view.connections[0];
+      if (connection === undefined) throw new Error("夹具里少了一条连接");
+      return {
+        baseURL: connection.baseURL,
+        model: view.profiles[0]?.model ?? "",
+        authHeader: connection.authHeader
+      };
     },
     async apiKey() {
       return "sk-never-crosses-ipc";
     },
-    async save(draft: ProviderDraft) {
+    async connectionTarget(connectionId: string) {
+      seen.push(["connectionTarget", connectionId]);
+      const connection = view.connections.find((item) => item.id === connectionId);
+      if (connection === undefined) return null;
+      return {
+        baseURL: connection.baseURL,
+        authHeader: connection.authHeader,
+        key: "sk-never-crosses-ipc"
+      };
+    },
+    async saveConnection(draft: ConnectionDraft) {
       seen.push(draft);
+      return { ...view, connectionId: view.connections[0]?.id ?? "conn-new" };
+    },
+    async removeConnection(connectionId: string) {
+      seen.push(["removeConnection", connectionId]);
+      return view;
+    },
+    async upsertProfile(draft: ProfileDraft) {
+      seen.push(draft);
+      return view;
+    },
+    async removeProfile(id: string) {
+      seen.push(id);
+      return view;
+    },
+    async enableProfile(id: string, enabled: boolean) {
+      seen.push([id, enabled]);
       return view;
     }
   };
@@ -102,15 +159,15 @@ function stubSettings(seen: unknown[]): ProviderSettings {
 
 function stubLister(seen: unknown[]): ModelLister {
   return {
-    async list() {
-      seen.push("list");
+    async list(query?: { baseURL?: string; apiKey?: string }) {
+      seen.push(query === undefined ? "list" : ["list", query]);
       return { ok: true, models: ["mochen-8B"] };
     }
   };
 }
 
 describe("registerAgentIpc", () => {
-  it("注册六条 agent 通道，一条都不漏也不多余", () => {
+  it("注册七条 agent 通道，一条都不漏也不多余", () => {
     const { order, handle } = registry();
     registerAgentIpc(handle, stubService([]));
     expect(order).toEqual([
@@ -119,7 +176,8 @@ describe("registerAgentIpc", () => {
       IPC_CHANNELS.agentDecide,
       IPC_CHANNELS.agentDiff,
       IPC_CHANNELS.agentLoadSession,
-      IPC_CHANNELS.agentListSessions
+      IPC_CHANNELS.agentListSessions,
+      IPC_CHANNELS.agentContextPreview
     ]);
   });
 
@@ -133,7 +191,8 @@ describe("registerAgentIpc", () => {
       stageId: "draft",
       userText: "改紧",
       thinkingLevel: "off",
-      webSearchEnabled: false
+      webSearchEnabled: false,
+      skillPaths: []
     };
     expect(await fire(fns, IPC_CHANNELS.agentStartTurn, startTurnInput)).toEqual({ turnId: "t1" });
     expect(await fire(fns, IPC_CHANNELS.agentInterrupt, "t1")).toBe(true);
@@ -170,33 +229,75 @@ describe("registerAgentIpc", () => {
 });
 
 describe("registerProviderIpc", () => {
-  it("注册三条 provider 通道并按白名单转交，返回的视图里没有密钥字段", async () => {
+  it("注册九条 provider 通道并按白名单转交，返回的视图里没有密钥字段", async () => {
     const seen: unknown[] = [];
     const reg = registry();
     registerProviderIpc(reg.handle, stubSettings(seen), stubLister(seen));
     expect(reg.order).toEqual([
       IPC_CHANNELS.providerGet,
       IPC_CHANNELS.providerSave,
-      IPC_CHANNELS.providerListModels
+      IPC_CHANNELS.providerConnectionRemove,
+      IPC_CHANNELS.providerListModels,
+      IPC_CHANNELS.providerVerify,
+      IPC_CHANNELS.providerProfileUpsert,
+      IPC_CHANNELS.providerProfileRemove,
+      IPC_CHANNELS.providerProfileEnable,
+      // 密钥页那条也在这份白名单里：它走 electron 的 shell，不是转交 settings/lister，
+      // 本仓没有 electron 桩，所以这里只钉「注册了这一条、位置没变」。
+      IPC_CHANNELS.appOpenExternal
     ]);
     expect(await fire(reg.fns, IPC_CHANNELS.providerGet)).toEqual(view);
-    const draft: ProviderDraft = { baseURL: "http://mock/v1", model: "test-model", apiKey: null };
-    expect(await fire(reg.fns, IPC_CHANNELS.providerSave, draft)).toEqual(view);
+    const draft: ConnectionDraft = {
+      providerId: "custom",
+      baseURL: "http://mock/v1",
+      authHeader: "bearer",
+      apiKey: null
+    };
+    // 存连接的回执比视图多一个 connectionId（刚存那条是谁）——别把它当成裸视图。
+    expect(await fire(reg.fns, IPC_CHANNELS.providerSave, draft)).toEqual({
+      ...view,
+      connectionId: CONNECTION_ID
+    });
+    expect(await fire(reg.fns, IPC_CHANNELS.providerConnectionRemove, CONNECTION_ID)).toEqual(view);
     expect(await fire(reg.fns, IPC_CHANNELS.providerListModels)).toEqual({
       ok: true,
       models: ["mochen-8B"]
     });
-    expect(Object.keys(view).sort()).toEqual(["baseURL", "hasKey", "keyMask", "model"]);
+    // 体检是软校验：走 connectionTarget + 名单那一趟，只回答「连不连得上」。
+    expect(await fire(reg.fns, IPC_CHANNELS.providerVerify, CONNECTION_ID)).toMatchObject({
+      state: "ok",
+      modelCount: 1
+    });
+    const profileDraft: ProfileDraft = { model: "深渊-8B", connectionId: CONNECTION_ID };
+    expect(await fire(reg.fns, IPC_CHANNELS.providerProfileUpsert, profileDraft)).toEqual(view);
+    expect(await fire(reg.fns, IPC_CHANNELS.providerProfileRemove, "p-1")).toEqual(view);
+    expect(await fire(reg.fns, IPC_CHANNELS.providerProfileEnable, "p-1", true)).toEqual(view);
+    expect(Object.keys(view).sort()).toEqual(["connections", "profiles"]);
     expect(JSON.stringify(view)).not.toContain("sk-never-crosses-ipc");
-    expect(seen).toEqual(["view", draft, "list"]);
+    expect(seen).toEqual([
+      "view",
+      draft,
+      ["removeConnection", CONNECTION_ID],
+      "list",
+      ["connectionTarget", CONNECTION_ID],
+      ["list", { connectionId: CONNECTION_ID }],
+      profileDraft,
+      "p-1",
+      ["p-1", true]
+    ]);
   });
 
-  it("枚举通道不传任何参数：远端地址与密钥由主进程自己从配置里取", async () => {
+  it("list-models 的草稿参数原样转交：守卫在 resolveModelListTarget（存好的密钥只发往存好的地址）", async () => {
     const seen: unknown[] = [];
     const reg = registry();
     registerProviderIpc(reg.handle, stubSettings(seen), stubLister(seen));
-    // 渲染层哪怕硬塞一个对象进来（旧签名残留、或有人想传 baseURL），也不许变成参数落到 lister。
-    await fire(reg.fns, IPC_CHANNELS.providerListModels, { baseURL: "http://evil.test/v1" });
-    expect(seen).toEqual(["list"]);
+    await fire(reg.fns, IPC_CHANNELS.providerListModels, {
+      baseURL: "http://draft.test/v1",
+      apiKey: "sk-draft"
+    });
+    expect(seen).toEqual([["list", { baseURL: "http://draft.test/v1", apiKey: "sk-draft" }]]);
+    // 不传草稿 = undefined 原样到 lister（走已存配置那一条路）。
+    await fire(reg.fns, IPC_CHANNELS.providerListModels);
+    expect(seen[1]).toBe("list");
   });
 });

@@ -1,233 +1,78 @@
 import { defineStore } from "pinia";
 import {
-  AGENT_DELTA_KINDS,
-  AGENT_EVENT_TYPES,
   PERMISSION_LABELS,
   PERMISSION_MODES,
-  TURN_END_STATUSES,
   nextThinkingLevel,
-  type AgentDeltaKind,
   type AgentEvent,
-  type AgentEventType,
   type AgentOutbound,
   type DecideInput,
   type DecisionResult,
-  type EditProposal,
-  type PermissionMode,
   type ProposalDecision,
-  type ProposalStatus,
   type SessionListItem,
   type SessionLoadResult,
   type StartTurnInput,
-  type ThinkingLevel,
-  type TurnEndStatus
+  type ContextPreview,
+  type ContextPreviewQuery,
+  type SkillContent,
+  type SkillRef
 } from "@mochen/contracts";
+import { SKILL_FILE_NAME, splitSkillId } from "@mochen/contracts";
+import {
+  CLEAR_VIEW_SENTENCE,
+  EMPTY_STREAM,
+  ProposalView,
+  QUEUED_FULL_NOTICE,
+  QUEUED_MAX,
+  ThreadView,
+  UNBOUND,
+  composeStatusReport,
+  malformedPush,
+  newThread,
+  plainList,
+  reasonOf,
+  threadKeyFor
+} from "../utils/agent-thread";
 import { replayProposalStatuses } from "../utils/timeline";
 import { matchPermissionMode, type SlashCommand } from "../utils/slash-commands";
-import { stageLabelOf } from "../utils/composer-context";
-import { permissionChipView } from "../utils/permission-chip";
+import { stageLabelOf, matchStageName } from "../utils/composer-context";
 import { prefillText } from "../utils/composer-draft";
+import { clearComposerAfterSend } from "../utils/auto-behavior-preference";
 import { sessionRowAction, type SessionRowAction } from "../utils/session-row-action";
+import {
+  loadWebSearchDefault,
+  saveWebSearchDefault,
+  webSearchPreferenceStorage
+} from "../utils/web-search-preference";
+import {
+  initialThinkingLevel,
+  loadThinkingRemember,
+  persistThinkingRemember,
+  saveThinkingLevel,
+  thinkingPreferenceStorage
+} from "../utils/thinking-preference";
 import { useLayoutStore } from "./layoutStore";
 import { useBookStore } from "./useBookStore";
 
-/** 与主进程 agent-service.ts:38 的同名常量必须一致（裁定 o）。 */
-export const UNBOUND = "unbound";
-
-/** 「继续」按钮发出的固定指令：残字已随 interrupted 事件进历史，模型接着写而不是重来。 */
-const CONTINUE_TEXT = "接着上一轮未写完的地方继续，不要重复已经写出的内容。";
-
-/** 运行中 Tab 排队的上限（spec §5.1）；满则拒入队并写中文。 */
-export const QUEUED_MAX = 5;
-
-/** 排队满额的中文提示（spec §5.1 定稿整句；数字取自 QUEUED_MAX，不留第二份「5」）。 */
-const QUEUED_FULL_NOTICE = `排队指令最多 ${QUEUED_MAX} 条，先等这一轮结束。`;
-
-export interface ThreadView {
-  turnId: string | null;
-  running: boolean;
-  startedAt: number;
-  /** 已落盘的持久事件，按到达顺序渲染。 */
-  items: AgentEvent[];
-  /** 流式残字：对应事件落库后归零，永不与定稿正文重复显示。 */
-  streaming: { reasoning: string; message: string };
-  lastError: string;
-  /** 上一轮怎么收场的——决定「继续」按钮是否出现（spec §9 第 4 行）。 */
-  endedAs: "" | TurnEndStatus;
-  /** 历史是否已回放过（幂等闸门，spec §4.3 第 1/5 条）。 */
-  hydrated: boolean;
-  /** 是否有一次在途取数（并发合流，spec §4.3 第 3 条）。 */
-  hydrating: boolean;
-  /** 运行中按 Tab 排好的后续指令，本轮结束后自动发队首（spec §5.1）。 */
-  queued: string[];
-  /** 这一条视图当前显示的是哪一条会话（回放载荷里的 sessionId）；空串 = 渲染层还不知道，面板靠它标「正在看这一条」。 */
-  sessionId: string;
-}
-
-export interface ProposalView {
-  proposal: EditProposal;
-  status: ProposalStatus;
-  message: string;
-  diff: string;
-}
-
-const EMPTY_STREAM = { reasoning: "", message: "" };
-
-export function newThread(): ThreadView {
-  return {
-    turnId: null,
-    running: false,
-    startedAt: 0,
-    items: [],
-    streaming: { ...EMPTY_STREAM },
-    lastError: "",
-    endedAs: "",
-    hydrated: false,
-    hydrating: false,
-    queued: [],
-    sessionId: ""
-  };
-}
-
-/** 裁定 o：线程键恒等于 `docRelPath ?? UNBOUND`，渲染层不许自己拼别的口径。 */
-export function threadKeyFor(activeDocTab: string | null): string {
-  // 与主进程 agent-service.ts:385 同口径：trim 后为空即独立线程，避免 "   " 绑出与主进程不同名的键。
-  const trimmed = activeDocTab?.trim() ?? "";
-  return trimmed === "" ? UNBOUND : trimmed;
-}
-
-/** 跨 IPC 的 rejection 一律收成中文句子（裁定 n 保证 message 已是单句中文）。 */
-function reasonOf(err: unknown): string {
-  return err instanceof Error && err.message !== "" ? err.message : String(err);
-}
-
-/**
- * 裁定 m2：preload 的 `onAgentEvent` 只做 `payload as AgentOutbound`，运行时一字未校验，
- * 所以主进程之外的一切（含被改写的推送通道）都可能在渲染层露出畸形形状。
- * 这里补齐形状闸门：返回空串表示可安全归约，否则返回中文原因，调用处忽略并留痕。
- * 闸门只挡「会让中栏掉线/污染线程」的字段：threadKey、turnId、type、event 载荷、
- * deltaKind、delta text、turn-end status；其余字段缺失只会退化成空文案，不致命。
- */
-function malformedPush(raw: unknown): string {
-  if (typeof raw !== "object" || raw === null) return "推送不是一个对象";
-  const value = raw as Record<string, unknown>;
-  if (typeof value.threadKey !== "string" || value.threadKey === "") return "推送缺少会话线程键";
-  if (typeof value.turnId !== "string") return "推送缺少轮次标识";
-  switch (value.type) {
-    case "turn-start":
-      return "";
-    case "delta": {
-      const kind = value.deltaKind;
-      if (typeof kind !== "string" || !AGENT_DELTA_KINDS.includes(kind as AgentDeltaKind))
-        return `无法识别的增量类型：${String(kind)}`;
-      if (typeof value.text !== "string") return "增量文本不是字符串";
-      return "";
-    }
-    case "event": {
-      const event = value.event;
-      if (typeof event !== "object" || event === null) return "事件载荷不是一个对象";
-      const type = (event as Record<string, unknown>).type;
-      if (typeof type !== "string" || !AGENT_EVENT_TYPES.includes(type as AgentEventType))
-        return `无法识别的智能体事件类型：${String(type)}`;
-      return "";
-    }
-    case "turn-end": {
-      const status = value.status;
-      if (typeof status !== "string" || !(TURN_END_STATUSES as readonly string[]).includes(status))
-        return `无法识别的收尾状态：${String(status)}`;
-      return "";
-    }
-    default:
-      return `未知推送类型：${String(value.type)}`;
-  }
-}
-
-/** 状态行文案（spec §7 的运行态、§6.3 的打断残留、§9 第 4 行的中断原因、§5.1 的排队数）。 */
-export function composeStatusLine(
-  thread: ThreadView | undefined,
-  seconds: number,
-  pending: number,
-  queued: number
-): string {
-  // 排队数只在运行中出现：那条队列要等这一轮结束才生效，状态行必须如实说明（spec §5.1）。
-  if (thread?.running)
-    return `工作中 · ${seconds}s · Esc 打断${queued > 0 ? ` · 排队 ${queued} 条` : ""}`;
-  if (thread && thread.endedAs !== "" && thread.endedAs !== "done") {
-    const head =
-      thread.endedAs === "failed"
-        ? thread.lastError === ""
-          ? "上一轮失败"
-          : thread.lastError
-        : "已打断";
-    return `${head} · ${pending > 0 ? `${pending} 条待审` : "可点「继续」"}`;
-  }
-  if (pending > 0) return `${pending} 条待审`;
-  return "就绪";
-}
-
-/** `/clear` 的确认文案（spec §6 定稿整句）：真实的边界就是「只动渲染层」，一个字都不许夸张。 */
-export const CLEAR_VIEW_SENTENCE = "这只清空本页显示；盘上的会话历史不动，重启后仍会完整回放。";
-
-/** 收尾态文案表：`Record<TurnEndStatus, string>` 是编译期闸，加状态不写文案就过不了 tsc（铁律 6）。 */
-const END_STATE_LINES: Record<TurnEndStatus, string> = {
-  done: "上一轮已完成",
-  interrupted: "上一轮已打断，可继续",
-  failed: "上一轮失败，可继续"
-};
-
-/** 空串是「这一条线程还没收场过」，不是 TurnEndStatus 的成员，所以单独一档，不塞进表里当第四键。 */
-function endStateLine(endedAs: "" | TurnEndStatus): string {
-  if (endedAs === "") return "尚无收尾记录";
-  return END_STATE_LINES[endedAs];
-}
-
-export interface StatusFacts {
-  threadKey: string;
-  thread: ThreadView | undefined;
-  cards: number;
-  pending: number;
-  /** 档位那一格的真相只有 permissionChipView 一份：状态条不接已渲染好的中文标签，只接「有没有书 + 真实档位」。 */
-  hasBook: boolean;
-  permissionMode: PermissionMode | null;
-  stageName: string;
-}
-
-/** `/status` 的报告：纯函数，好测也好核对；「已回放」与「未回放」必须分开说，否则用户以为看到的是全部历史。 */
-export function composeStatusReport(facts: StatusFacts): string {
-  const { thread } = facts;
-  // 档位文案的唯一一份判定（缺陷②）：无书 ⇒ NO_BOOK_CHIP_LABEL，这里不兜底 DEFAULT_PERMISSION_MODE、不捏造档位名。
-  // saving 传 false：状态条是一次播报而不是按钮忙态，permissionChipView 的 text 也不读它。
-  const permission = permissionChipView({
-    hasBook: facts.hasBook,
-    mode: facts.permissionMode,
-    saving: false
-  });
-  const events = thread?.items.length ?? 0;
-  const replay =
-    thread?.hydrating === true
-      ? "历史正在回放"
-      : thread?.hydrated === true
-        ? `历史已回放（${events} 条）`
-        : `历史未回放（本页 ${events} 条）`;
-  const ended = thread === undefined ? "还没有这一条线程" : endStateLine(thread.endedAs);
-  const label = facts.threadKey === UNBOUND ? "未绑定文稿" : facts.threadKey;
-  const parts = [
-    `线程 ${label}`,
-    replay,
-    `提案 ${facts.cards} 张（待审 ${facts.pending} 张）`,
-    `排队 ${thread?.queued.length ?? 0} 条`,
-    `权限档：${permission.text}`,
-    `阶段：${facts.stageName}`,
-    ended
-  ];
-  return `状态 · ${parts.join(" · ")}`;
-}
+export * from "../utils/agent-thread";
 
 export const useAgentStore = defineStore("agent", {
   state: () => ({
     threads: {} as Record<string, ThreadView>,
     /** 历史对话面板的数据源：这本书全部会话的一行概览（主进程按时间倒序给）。 */
     sessions: [] as SessionListItem[],
+    /** 上下文占用条的数据源；null = 还没问过主进程（占用条不显形，不是「0 条」）。 */
+    contextPreview: null as ContextPreview | null,
+    /**
+     * 技能库那张表（spec §11）。空数组 = 还没列过，与「列了但一个都没有」由 `skillsListed` 区分。
+     */
+    skills: [] as SkillRef[],
+    skillsListed: false,
+    /**
+     * 每条线程显式挂入的技能 id（spec §11）。
+     * **内存态**：重启清空，UI 上如实说明「挂入的技能不跨重启」——
+     * 落盘它就得进 book.json，而挂入是每轮临时的事，不该占用户作品的配置位。
+     */
+    skillPathsByThread: {} as Record<string, string[]>,
     proposals: {} as Record<string, ProposalView>,
     notice: "",
     seconds: 0,
@@ -243,13 +88,11 @@ export const useAgentStore = defineStore("agent", {
      * 判据是「该轮有没有发过 user-message」：发过 ⇒ 字已经在中栏转录里，绝不再回填成第二份。
      */
     pendingSend: {} as Record<string, string>,
-    /**
-     * 两枚每轮开关（task #101）：放在顶层而不是 ThreadView —— 它们描述「下一条请求长什么样」，
-     * 不是「这一条线程的历史状态」；切章不该悄悄把用户刚调好的档位换掉，也不该按线程各存一份。
-     * 落盘的是会话与稿子，档位是本进程的临时姿态，重启回到 off / false 是刻意的默认零行为变化。
-     */
-    thinkingLevel: "off" as ThinkingLevel,
-    webSearchEnabled: false
+    /** 两枚每轮开关（task #101）：描述「下一条请求长什么样」，住顶层不进 ThreadView，切章不换档。 */
+    thinkingLevel: initialThinkingLevel(thinkingPreferenceStorage()),
+    webSearchEnabled: loadWebSearchDefault(webSearchPreferenceStorage()),
+    /** 「记住思考档」开关（设置页那枚）：默认关 = 原行为，切档不留痕。 */
+    thinkingRemembered: loadThinkingRemember(thinkingPreferenceStorage())
   }),
 
   getters: {
@@ -258,16 +101,7 @@ export const useAgentStore = defineStore("agent", {
       (threadKey: string): number =>
         Object.values(state.proposals).filter(
           (view) => view.proposal.threadKey === threadKey && view.status === "pending"
-        ).length,
-
-    /** 只有「上一轮断了且现在没在跑」才允许继续；正在跑时点继续会并发两轮。 */
-    canContinue:
-      (state) =>
-      (threadKey: string): boolean => {
-        const thread = state.threads[threadKey];
-        if (!thread || thread.running) return false;
-        return thread.endedAs === "interrupted" || thread.endedAs === "failed";
-      }
+        ).length
   },
 
   actions: {
@@ -311,16 +145,28 @@ export const useAgentStore = defineStore("agent", {
       delete this.composerDrafts[threadKey];
     },
 
-    /**
-     * 深度思考 chip：走一格。顺序表在 contracts 的 nextThinkingLevel（一处实现，铁律 6），
-     * 这里只负责「点了就换」，不重排枚举。
-     */
+    /** 深度思考 chip：走一格（顺序表在 contracts 的 nextThinkingLevel）；记着档就顺手写记忆档。 */
     cycleThinking(): void {
       this.thinkingLevel = nextThinkingLevel(this.thinkingLevel);
+      if (!this.thinkingRemembered) return;
+      const storage = thinkingPreferenceStorage();
+      if (storage !== null) saveThinkingLevel(storage, this.thinkingLevel);
     },
 
+    /** 「记住思考档」开关（设置页）：落库真身 persistThinkingRemember（关掉连档位记忆一起清）。 */
+    toggleThinkingRemember(): void {
+      this.thinkingRemembered = !this.thinkingRemembered;
+      const storage = thinkingPreferenceStorage();
+      if (storage !== null) {
+        persistThinkingRemember(storage, this.thinkingRemembered, this.thinkingLevel);
+      }
+    },
+
+    /** 联网开关：切一格并顺手记住（记忆档住 utils/web-search-preference；无存储只切不记）。 */
     toggleWebSearch(): void {
       this.webSearchEnabled = !this.webSearchEnabled;
+      const storage = webSearchPreferenceStorage();
+      if (storage !== null) saveWebSearchDefault(storage, this.webSearchEnabled);
     },
 
     /** 中栏唯一的订阅入口：装配处挂载时调一次，重复调用不叠加监听。 */
@@ -352,10 +198,16 @@ export const useAgentStore = defineStore("agent", {
         this.seconds = 0;
         return;
       }
-      // Important 2：同线程连发两轮时，thread.turnId 已由最新一次 turn-start 占位；
-      // 迟到的旧轮 delta / event / turn-end 与当前 turnId 不一致即忽略，绝不清空当前轮的流式缓冲或状态。
-      // turn-start 是唯一的设置入口，上面已先行处理，故这里不会把新一轮也挡掉。
-      if (thread.turnId !== null && thread.turnId !== outbound.turnId) return;
+      // Important 2：迟到的旧轮推送一律忽略。判据是**本轮推送的 turnId 必须等于当前轮的 turnId**，
+      // 不一致就 return——同线程连发两轮时新 turnId 已被 turn-start 占位，旧轮的就会撞在这里；
+      // 迟到的 turn-end 同理。
+      //
+      // 这里**不能**写成 `thread.turnId !== null && ...`：turn-end 会把 turnId 置 null（见下），
+      // 于是「轮次已收束」这个最该防迟到 delta 的时刻，前半段为 false、整个守卫短路，
+      // 迟到的 delta 照旧累积进 streaming、迟到的 event 照旧落进 items——
+      // 用户在流式输出中按 Esc 之后，屏幕上会凭空多出一段没人写过的字。
+      // turn-end 自身到达时 turnId 仍等于本轮，过得了这道门，收束逻辑照常走。
+      if (thread.turnId !== outbound.turnId) return;
       if (outbound.type === "delta") {
         thread.streaming[outbound.deltaKind] += outbound.text;
         return;
@@ -515,6 +367,9 @@ export const useAgentStore = defineStore("agent", {
     /** 裁定 m1：startTurn 被边界拒绝时单句中文进 notice 与该线程 lastError，绝不静默、绝不留悬空 promise。 */
     send(text: string): void {
       const book = useBookStore();
+      // userText 只放用户敲的那一句，一字不多。上下文包（当前章/大纲/人物/前情提要）
+      // 由主进程按档案装配后并进**系统提示**——渲染层再拼一份前缀就成了同一份上下文的两个实现，
+      // 而且那串东西会被原样写进会话 JSONL，往后每一轮回放都跟着重发一遍。
       const input: StartTurnInput = {
         threadKey: threadKeyFor(book.activeDocTab),
         docRelPath: book.activeDocTab,
@@ -522,28 +377,31 @@ export const useAgentStore = defineStore("agent", {
         userText: text,
         // 每轮开关的当下值：字段是必填的，主进程边界缺一个就整轮拒收（不静默按 off 发）。
         thinkingLevel: this.thinkingLevel,
-        webSearchEnabled: this.webSearchEnabled
+        webSearchEnabled: this.webSearchEnabled,
+        // 本线程显式挂入的技能（spec §11）：只传 id，正文由主进程按同一套读取守卫取。
+        // 摊一份再递 —— 见 utils/agent-thread.ts 的 plainList，那段记着为什么这条路不通过一次。
+        skillPaths: plainList(this.skillPathsOf(threadKeyFor(book.activeDocTab)))
       };
       // startTurn 的 promise 要等整轮跑完才兑现；turnId 走 turn-start 推送，这里不等。
       // running 只由 turn-start / turn-end 拥有，被拒的这一轮从未开始，自然不会停在「工作中」。
-      // 「继续」发的是机器文案，它不进 pendingSend：那一轮失败也不该把内置句子塞回用户的地盘。
-      if (text !== CONTINUE_TEXT) this.pendingSend[input.threadKey] = text;
+      //
+      // 还字账只在「入口把这一格清空了」时才记（2026-10-06 批次 5-⑧）：设置页那枚
+      // 「送出后清空输入框」关掉时字还在格子里，根本不需要还。不记这条账的原因不是省事——
+      // 记了的话，用户手动删掉那段字之后迟到的失败回执会把它**又填回去**，
+      // 变成「我没点发送，它自己又出现了」。
+      const clearedByEntry = clearComposerAfterSend();
+      if (clearedByEntry) this.pendingSend[input.threadKey] = text;
       window.mochen.startTurn(input).catch((err: unknown) => {
         const reason = reasonOf(err);
         this.viewOf(input.threadKey).lastError = reason;
         this.notice = `这一轮没能启动：${reason}`;
+        if (!clearedByEntry) return;
         // 发送被拒：把用户这一格刚被入口乐观清掉的文本原样还回去（清空是乐观的，失败才回写）。
         // 仅当该线程当前草稿仍是空——失败回执回来前用户可能又打了字，绝不覆盖新输入（本波「不吞字」承诺）。
         // 这条支路一旦还过字，事件路径那份账就地销掉，免得迟到的 turn-end 再还一次把新打的字盖掉。
         delete this.pendingSend[input.threadKey];
         if (this.draftOf(input.threadKey) === "") this.setDraft(input.threadKey, text);
       });
-    },
-
-    /** spec §9 第 4 行「支持继续」：只在断了的那条线程上生效。 */
-    continueTurn(): void {
-      if (!this.canContinue(threadKeyFor(useBookStore().activeDocTab))) return;
-      this.send(CONTINUE_TEXT);
     },
 
     /** 运行中按 Tab：把 composer 文本 trim 后入队，不发 IPC；满 5 条拒收并写中文（spec §5.1）。 */
@@ -645,6 +503,73 @@ export const useAgentStore = defineStore("agent", {
         this.sessions = await window.mochen.listSessions();
       } catch (err) {
         this.notice = `历史对话没有读回来：${reasonOf(err)}`;
+      }
+    },
+
+    /**
+     * 技能库的取数（spec §11）。失败只写 notice、**不清空已显示的那张表**：
+     * 与 refreshSessions 同一策略——读不到就还摆着上一次读到的，不装作「一个技能都没有」。
+     */
+    async refreshSkills(): Promise<void> {
+      try {
+        this.skills = await window.mochen.listSkills();
+        this.skillsListed = true;
+      } catch (err) {
+        this.notice = `技能库没有列出来：${reasonOf(err)}`;
+      }
+    },
+
+    /** 读一份技能正文（只读）。读不到时把主进程那句中文原样摆出来，不留一张空卡。 */
+    async readSkill(id: string): Promise<SkillContent | null> {
+      const parsed = splitSkillId(id);
+      if (parsed === null) {
+        this.notice = `认不出这份技能：${id}。`;
+        return null;
+      }
+      try {
+        return await window.mochen.readSkill(parsed.source, `${parsed.dirName}/${SKILL_FILE_NAME}`);
+      } catch (err) {
+        this.notice = `这份技能没有读出来：${reasonOf(err)}`;
+        return null;
+      }
+    },
+
+    /**
+     * 挂入 / 取下本线程的技能（spec §11）。**这是唯一让技能进入上下文的动作**：
+     * 点技能行、浏览技能库都不产生任何装配效果（spec §10 第 4 条）。
+     */
+    toggleSkillForThread(threadKey: string, id: string): void {
+      const current = this.skillPathsOf(threadKey);
+      const next = current.includes(id) ? current.filter((one) => one !== id) : [...current, id];
+      if (next.length === 0) delete this.skillPathsByThread[threadKey];
+      else this.skillPathsByThread[threadKey] = next;
+    },
+
+    /** 本线程挂入的技能 id。判定与增删全在本 store，组件不许自己拿那份数组去 filter。 */
+    skillPathsOf(threadKey: string): string[] {
+      return this.skillPathsByThread[threadKey] ?? [];
+    },
+
+    /**
+     * 上下文占用条的数据源（spec §5）。与 startTurn 在主进程走同一条装配路径，
+     * 所以这里显示的条目与字数就是这一轮真会发出去的那些。
+     * 失败静默：占用条是辅助信息，为它弹一句 notice 只会打断正在写的东西（与 refreshSessions 相反——
+     * 那条读的是用户主动点开的面板，读不到必须说）。
+     */
+    async refreshContextPreview(query: ContextPreviewQuery): Promise<void> {
+      try {
+        // pinned 摊一份再出网（见 utils/agent-thread.ts 的 plainList）：占用条那份来自
+        // computed，数组是响应式的；这里若原样递，contextBridge 会在进 preload 之前就拒掉。
+        this.contextPreview = await window.mochen.contextPreview({
+          ...query,
+          // `?? []` 不是可有可无的：pinned 在契约里是**可选**的，
+          // 而 plainList(undefined) 会抛（展开 undefined）——
+          // 偏偏这个 try 是静默的，抛了就只是「数字不更新」，
+          // 占用条于是悄悄留着上一次那份，看起来像「没挂任何技能」。
+          pinned: plainList(query.pinned ?? [])
+        });
+      } catch {
+        // 留住上一次读到的：旧数字仍然大致对得上，比整条消失诚实。
       }
     },
 
@@ -755,10 +680,42 @@ export const useAgentStore = defineStore("agent", {
         case "clear":
           this.clearThreadView(threadKey);
           return;
-        case "stage":
-          // availableCommands 已在波 1 把它滤掉；走到这里只可能是有人绕过面板直接调用，给实话而不是假装成功。
-          this.notice = "切换创作阶段要连同智能体档案一起切，这一条通路在波 2 接通。";
+        case "skills":
+          // 与左栏那枚「技能库」钮同一条真身：layout.showCenter("skills")。
+          // 命令面板不许在组件里各派发一次，命令落到哪个动作上只在这里决定一次。
+          // 5-㉜ 起它们换的是**中栏那一格**（左栏恒定），所以这里也切中栏——
+          // 两处指同一处，否则会出现「命令进来落在整页、钮进来落在中栏」的两处真身。
+          useLayoutStore().showCenter("skills");
           return;
+        case "plugins":
+          // 与左栏那枚「插件」钮同一条真身：layout.showCenter("plugins")。
+          // 插件与技能都是「装在应用里的东西」，与当前书/线程都无关，
+          // 而中栏显示什么是与书无关的布局状态，正是 layout 的作用域。
+          useLayoutStore().showCenter("plugins");
+          return;
+        case "stage": {
+          // 无参：报当前阶段 + 可选值（回一句实话，而不是「按了没反应」）。
+          if (argument.trim() === "") {
+            const options = (book.meta?.stages ?? []).map((s) => s.name).join(" / ");
+            this.notice =
+              options === ""
+                ? "这本书还没有任何阶段。"
+                : `当前阶段：${stageLabelOf(book.meta)}。可选：${options}（例：/stage ${(book.meta?.stages ?? [])[0]!.name}）。`;
+            return;
+          }
+          const stage = matchStageName(book.meta, argument);
+          if (stage === null) {
+            const options = (book.meta?.stages ?? []).map((s) => s.name).join(" / ");
+            this.notice = `没有这个阶段：「${argument}」。可选：${options || "（无）"}。`;
+            return;
+          }
+          if (stage.id === book.meta?.activeStage) {
+            this.notice = `已经在「${stage.name}」这一阶段。`;
+            return;
+          }
+          void book.setActiveStage(stage.id);
+          return;
+        }
       }
     },
 

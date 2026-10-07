@@ -13,6 +13,7 @@ function focus(overrides: Partial<HotkeyFocus> = {}): HotkeyFocus {
     hasBook: false,
     tabCount: 0,
     referenceMenuIsOpen: false,
+    submitKey: "enter",
     ...overrides
   };
 }
@@ -130,7 +131,7 @@ describe("resolveHotkey · 全局 Ctrl 族", () => {
       "prev-tab"
     );
   });
-  it("Ctrl+O ⇒ open-book（左栏那颗按钮一直标着这个键位，键必须真的能用）", () => {
+  it("Ctrl+O ⇒ open-book（书架空态钮与输入卡书格同走这条通路，键必须真的能用）", () => {
     // 没开书时更要能按——这正是「打开作品目录」唯一有用的场合。
     expect(resolveHotkey(focus({ hasBook: false }), "o", mods({ ctrl: true })).action).toBe(
       "open-book"
@@ -140,7 +141,11 @@ describe("resolveHotkey · 全局 Ctrl 族", () => {
       resolveHotkey(focus({ textInputIsFocused: true, hasBook: true }), "o", mods({ ctrl: true }))
         .action
     ).toBe("open-book");
-    expect(resolveHotkey(focus(), "o", mods({ ctrl: true, shift: true })).action).toBe("none");
+    // Ctrl+Shift+O 归大纲面板，但绝不能被当成 Ctrl+O 的开书动作（这层断言的原意）。
+    expect(resolveHotkey(focus(), "o", mods({ ctrl: true, shift: true }))).toEqual({
+      action: "panel-shortcut",
+      panel: "outline"
+    });
     expect(resolveHotkey(focus({ isComposing: true }), "o", mods({ ctrl: true })).action).toBe(
       "none"
     );
@@ -263,11 +268,42 @@ describe("resolveHotkey · 修饰键必须参与判定", () => {
       ).action
     ).toBe("none");
   });
-  it("Ctrl+Shift+B ⇒ none（左栏开关只认纯 Ctrl+B）", () => {
-    expect(resolveHotkey(focus(), "b", mods({ ctrl: true, shift: true })).action).toBe("none");
+  it("Ctrl+Shift+B ⇒ 故事圣经面板，且绝不是左栏开关（左栏只认纯 Ctrl+B）", () => {
+    expect(resolveHotkey(focus(), "b", mods({ ctrl: true, shift: true }))).toEqual({
+      action: "panel-shortcut",
+      panel: "story-bible"
+    });
+    expect(resolveHotkey(focus(), "b", mods({ ctrl: true })).action).toBe("toggle-left");
   });
   it("Shift+/ （问号）空闲态也不开面板 ⇒ none", () => {
     expect(resolveHotkey(focus({ hasBook: true }), "/", mods({ shift: true })).action).toBe("none");
+  });
+  it("Ctrl+Shift 族七枚各自落到对应面板，且都报得出是哪一枚", () => {
+    const expected: Array<[string, string]> = [
+      ["f", "search"],
+      ["n", "notes"],
+      ["t", "templates"],
+      ["o", "outline"],
+      ["g", "goals"],
+      ["b", "story-bible"],
+      ["p", "editor-view"]
+    ];
+    for (const [key, panel] of expected) {
+      expect(resolveHotkey(focus(), key, mods({ ctrl: true, shift: true }))).toEqual({
+        action: "panel-shortcut",
+        panel
+      });
+    }
+  });
+  it("Ctrl+Shift 族不认没登记的键 ⇒ none（不许静默吞掉）", () => {
+    expect(resolveHotkey(focus(), "q", mods({ ctrl: true, shift: true })).action).toBe("none");
+    expect(resolveHotkey(focus(), "k", mods({ ctrl: true, shift: true })).action).toBe("none");
+  });
+  it("Ctrl+Alt 组合无登记 ⇒ none（专注模式的 Ctrl+Alt+F 已随该功能一起下线）", () => {
+    // 反向钉：F 曾是「专注模式」的登记键，功能下线后这里必须回到 none，
+    // 而不是留一条指向已删面板的 panel-shortcut（那会 dispatch 到 default 的 never 守卫）。
+    expect(resolveHotkey(focus(), "f", mods({ ctrl: true, alt: true })).action).toBe("none");
+    expect(resolveHotkey(focus(), "n", mods({ ctrl: true, alt: true })).action).toBe("none");
   });
   it("Ctrl+J 护栏：composer 无焦点 ⇒ none（换行键属于 composer）", () => {
     expect(
@@ -287,5 +323,45 @@ describe("resolveHotkey · 结果对象不共享可变状态", () => {
     expect(a).not.toBe(b);
     a.action = "submit";
     expect(b.action).toBe("none");
+  });
+});
+
+describe("resolveHotkey · 发送键第二档（2026-10-05 设置页新增）", () => {
+  it("ctrl-enter 档：裸 Enter ⇒ newline（回车整档让给换行，含 Shift+Enter）", () => {
+    const ctrlMode = focus({ composerIsFocused: true, submitKey: "ctrl-enter" });
+    expect(resolveHotkey(ctrlMode, "Enter", mods()).action).toBe("newline");
+    expect(resolveHotkey(ctrlMode, "Enter", mods({ shift: true })).action).toBe("newline");
+  });
+  it("ctrl-enter 档：Ctrl+Enter ⇒ submit；turnRunning 时 ⇒ none（与 enter 档同一护栏）", () => {
+    const running = focus({ composerIsFocused: true, submitKey: "ctrl-enter", turnRunning: true });
+    expect(
+      resolveHotkey(
+        focus({ composerIsFocused: true, submitKey: "ctrl-enter" }),
+        "Enter",
+        mods({
+          ctrl: true
+        })
+      ).action
+    ).toBe("submit");
+    expect(resolveHotkey(running, "Enter", mods({ ctrl: true })).action).toBe("none");
+  });
+  it("ctrl-enter 档：composer 无焦点时 Ctrl+Enter ⇒ none（发送键属于 composer）", () => {
+    expect(
+      resolveHotkey(focus({ submitKey: "ctrl-enter" }), "Enter", mods({ ctrl: true })).action
+    ).toBe("none");
+  });
+  it("默认 enter 档：Ctrl+Enter 仍是 none（键位表没有这一条，不因偏好模块引入新语义）", () => {
+    expect(
+      resolveHotkey(focus({ composerIsFocused: true }), "Enter", mods({ ctrl: true })).action
+    ).toBe("none");
+  });
+  it("ctrl-enter 档不影响引用菜单：菜单开着时 Enter 仍先改道 reference-insert", () => {
+    expect(
+      resolveHotkey(
+        focus({ composerIsFocused: true, submitKey: "ctrl-enter", referenceMenuIsOpen: true }),
+        "Enter",
+        mods()
+      ).action
+    ).toBe("reference-insert");
   });
 });

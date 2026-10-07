@@ -10,7 +10,7 @@
  * ESM 没有 __dirname，路径一律由 import.meta.url 解出：`../` 回到 renderer/src，
  * 调用方传的是相对 src 的片段（如 "components/LeftSidebar.vue"）。
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /** 整份 SFC 原文，不剥注释：普查型断言（数出现次数、比对整文件字面量）用这个。 */
@@ -58,6 +58,27 @@ export function typeScriptSource(pathRelativeToRendererSrc: string): string {
 }
 
 /**
+ * SFC 里 `<style scoped>`（或 `<style>`）的正文，注释已剥。
+ *
+ * **为什么需要**：16 个历史组件把样式内联在 SFC 里（55 个里占 16），它们的样式正确性同样钉不到，
+ * 而 `styleSource` 只读 `styles/` 目录下的表——对着内联块它会直接抛错。CSS 没有类型关卡，
+ * 「模板里用了某个 class、规则忘了写」这类错只有把两边对着读才抓得到
+ * （批次 4-② 的 `.review-score-fineprint` 就是这么抓出来的：删了模板留了 CSS，反过来也一样）。
+ *
+ * 注释要剥的理由与 `ruleBlock` 相同：CSS 注释里那句「padding 是必须的」会把
+ * 「规则里真的写了 padding」这条断言喂饱。
+ */
+export function scopedStyleSource(componentPathRelativeToRendererSrc: string): string {
+  const body = /<style[^>]*>([\s\S]*?)<\/style>/.exec(
+    vueSource(componentPathRelativeToRendererSrc)
+  )?.[1];
+  if (body === undefined) {
+    throw new Error(`${componentPathRelativeToRendererSrc} 里没有 <style> 块`);
+  }
+  return stripJsComments(body);
+}
+
+/**
  * 数 needle 出现的次数（铁律 6：原先 inline-reference-menu-wiring.test.ts 里自带一份）。
  * 存在的理由：`toContain` 只证明「至少一处写过」，两栏各渲染一次同一件东西时，
  * 其中一栏漏掉那件东西它照样绿——变异实验实测过（左栏 chip 循环的下拉三角整行删掉，
@@ -74,11 +95,30 @@ export function styleSource(file: string): string {
 }
 
 /**
- * 一条规则的正文（大括号以内，**首尾空白已剥**）。原先 composer-card-wiring 与 inline-reference-menu-wiring
+ * 同一张样式表，**块注释已剥**——给「整份否定断言」用。
+ *
+ * **为什么需要**：`styleSource` 给的是原文，于是「这里没有 X」会被注释里那句
+ * 「这里以前是 X，5-⑳ 删了」直接反咬。2026-10-06 批次 5-⑳ 实测：
+ * 刚把 `.save-state` 两条规则删干净、并顺手在原地留了一段说明为什么删的注释，
+ * `expect(css).not.toContain(".save-state.is-dirty")` 立刻红——红的正是那句注释。
+ * 典型症状是断言信息里打出来的是一段人话而不是选择器。
+ *
+ * 为什么不在调用方写 `replace(/\/\*[\s\S]*?\*\//g, "")`：那是剥法的第二份实现
+ * （铁律 6）。剥法只有 `stripJsComments` 这一份，这里只是把它暴露出去。
+ */
+export function strippedStyleSource(file: string): string {
+  return stripJsComments(styleSource(file));
+}
+
+/**
+ * 一条规则的正文（大括号以内，**注释已剥、首尾空白已剥**）。原先 composer-card-wiring 与 inline-reference-menu-wiring
  * 各写一份，这里收为第三份之前的那一份（铁律 6）。
  * 找不到规则一律抛错：返回空串会让后面每条 `toContain` 一起变绿，看不出缺的是哪条规则。
  * 为什么要 trim：`not.toBe("")` 这类「规则不许是空壳」的断言，挡不住 `selector {\n}`——正文是换行不是空串，
  * 空壳照样绿（#113d 的 M12 实测就是这样活下来的）。trim 之后空壳读出 `""`，断言才有鉴别力。
+ * 为什么连注释一起剥：`styleSource` 读的是原文，规则正文里那几行「flex: none 是必须的」
+ * 会把「规则里真的写了 flex: none」这条断言喂饱——2026-10-05 实测：把真的那行删掉，13 条断言照样全绿。
+ * 剥法直接复用上面那个 `stripJsComments`（CSS 里 `//` 本来就不是注释，剥了也无害）。
  */
 export function ruleBlock(css: string, selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -86,14 +126,70 @@ export function ruleBlock(css: string, selector: string): string {
   if (match === null || match[1] === undefined) {
     throw new Error(`样式表里找不到规则 ${selector}`);
   }
-  return match[1].trim();
+  return stripJsComments(match[1]).trim();
 }
 
-/** #105 起从 deepwrite 照搬的输入卡样式全部住在这一枚分段标记之后。 */
-export const CARD_STYLE_MARKER = "deepwrite-composer-card";
+/**
+ * 模板里带某个 class 的标签，其**属性串**（`<tag …>` 的 `…`，不含标签名与尖括号）。
+ *
+ * **为什么需要它**：`toContain(整个模板, ":disabled 里要有 chapter.isLoose")` 这种写法分辨不出
+ * 「在按钮的禁用条件里」和「在旁边的提示文案里」——同一个字符串在别处出现一次，断言就饱了。
+ * 2026-10-06 变异实测就是这样活下来的：把 `chapter.isLoose` 从 `:disabled` 里删掉，
+ * 面板照样把 loose 节标出来（提示文案还在），`volume-outline-wiring.test.ts` 22 条全绿。
+ * 而且 prettier 会把 `:disabled` 折成多行，按行 grep 同样不成立——只有「按标签切开取属性」才稳。
+ *
+ * 切标签时**跳过引号内的 `>`**：属性值里出现比较符（`:disabled="a > b"`）不该把标签截断。
+ * 一个标签都没找到就抛错：返回空数组会让「至少有一个」这类断言假绿。
+ */
+export function tagAttributes(template: string, className: string): string[] {
+  const out: string[] = [];
+  for (const m of template.matchAll(/<([a-zA-Z][\w-]*)\b/g)) {
+    if (m.index === undefined) continue;
+    let i = m.index + m[0].length;
+    let quote = "";
+    while (i < template.length) {
+      const ch = template[i];
+      if (quote !== "") {
+        if (ch === quote) quote = "";
+      } else if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === ">") {
+        break;
+      }
+      i += 1;
+    }
+    const attrs = template.slice(m.index + m[0].length, i);
+    if (new RegExp(`class="[^"]*\\b${className}\\b`).test(attrs)) out.push(attrs);
+  }
+  if (out.length === 0) {
+    throw new Error(`模板里找不到 class 含 ${className} 的标签`);
+  }
+  return out;
+}
 
 /**
- * 从分段标记切到文件末尾：照搬段的色值字面量关卡只扫这一段。
+ * `components/` 下的全部 `.vue`，**按文件名排序**。
+ *
+ * 【为什么需要它】有些问题只有**枚举整族**才答得上来：批次 5-㊵ 要问的是
+ * 「凡是宣称 role="dialog" / aria-modal 的组件，焦点与 Esc 的真身接上了没有」。
+ * 手写一份名单的写法，恰恰是 5-㊱ 与 5-㊲ 漏掉 ToolRoster 与八份贴 chip 下拉的原因——
+ * 那两批都是按**族**扫的，而族是按根类名（`.dialog-backdrop` / `.xxx-overlay`）认的，
+ * 于是根类名 `.tool-roster-mask` 的那一枚与 `.change-history` 那一族两批都不属于。
+ * 名单只认名单里有的；目录不会。
+ *
+ * 返回值是**相对 src 的片段**（与 `vueSource` 的入参同一形状），所以调用方读文件时仍走本模块。
+ */
+export function listComponentFiles(): string[] {
+  return readdirSync(fileURLToPath(new URL("../components/", import.meta.url)))
+    .filter((name) => name.endsWith(".vue"))
+    .sort()
+    .map((name) => `components/${name}`);
+}
+
+/** #105 起从 deepwrite 对齐的输入卡样式全部住在这一枚分段标记之后。 */
+export const CARD_STYLE_MARKER = "deepwrite-composer-card";
+/**
+ * 从分段标记切到文件末尾：对齐段的色值字面量关卡只扫这一段。
  * 标记不在文件里就抛错：静默返回整份 CSS 会让「这一段没有写死色值」的断言假绿。
  */
 export function cardSection(file: string, marker: string = CARD_STYLE_MARKER): string {

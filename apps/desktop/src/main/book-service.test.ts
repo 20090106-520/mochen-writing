@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DEFAULT_PERMISSION_MODE } from "@mochen/contracts";
+import { DEFAULT_CHANGE_RETENTION, DEFAULT_PERMISSION_MODE } from "@mochen/contracts";
+
 import { createBookService } from "./book-service.js";
 
 let root = "";
@@ -38,7 +39,7 @@ afterAll(async () => {
 
 describe("bookService", () => {
   it("open 返回 meta 与按 chapterOrder 排好的文档列表", async () => {
-    const service = createBookService();
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
     const opened = await service.open(root);
     expect(opened.rootPath).toBe(root);
     expect(opened.meta.title).toBe("测试书");
@@ -48,13 +49,13 @@ describe("bookService", () => {
 
   it("book.json 非法时 open 抛中文可读错误", async () => {
     await writeFile(path.join(other, "book.json"), "{ not json");
-    const service = createBookService();
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
     await expect(service.open(other)).rejects.toThrow(/book\.json/);
     await service.close();
   });
 
   it("未打开书时 writeDoc 返回 io-error 且不崩", async () => {
-    const service = createBookService();
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
     const result = await service.writeDoc("chapters/01-a.md", "x", "fp");
     expect(result).toEqual({
       ok: false,
@@ -75,19 +76,19 @@ describe("bookService", () => {
         chapterOrder: []
       })
     );
-    const service = createBookService();
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
     await expect(service.open(other)).rejects.toThrow(/activeStage/);
     await service.close();
   });
 
   it("未打开书时 readDoc 与 saveMeta 抛「尚未打开作品目录」", async () => {
-    const service = createBookService();
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
     await expect(service.readDoc("chapters/01-a.md")).rejects.toThrow("尚未打开作品目录");
     await expect(service.saveMeta({} as never)).rejects.toThrow("尚未打开作品目录");
   });
 
   it("saveMeta 刷新 current().meta，权限档改了审批时立刻查得到", async () => {
-    const service = createBookService();
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
     const opened = await service.open(root);
     const before = service.current();
     if (before === null) throw new Error("打开后必须有快照");
@@ -101,7 +102,7 @@ describe("bookService", () => {
   });
 
   it("writeDoc 走指纹冲突：外部改动后拒绝", async () => {
-    const service = createBookService();
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
     await service.open(root);
     const first = await service.readDoc("chapters/01-a.md");
     await writeFile(path.join(root, "chapters/01-a.md"), "外部改过\n");
@@ -109,6 +110,80 @@ describe("bookService", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("不该走到这里");
     expect(result.reason).toBe("stale");
+    await service.close();
+  });
+
+  it("createDoc 建出新文档且快照 docs 立刻含它（不用重开书）", async () => {
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    await service.open(root);
+    const result = await service.createDoc("chapters/02-新章.md", "02-新章");
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("不该走到这里");
+    expect(service.current()?.docs.map((doc) => doc.relPath)).toContain("chapters/02-新章.md");
+    const opened = service.current();
+    const title = opened?.docs.find((doc) => doc.relPath === "chapters/02-新章.md")?.title;
+    expect(title).toBe("02-新章");
+    await service.close();
+  });
+
+  it("createDoc 同名已存在被拒且带人话理由", async () => {
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    await service.open(root);
+    const again = await service.createDoc("chapters/02-新章.md", "02-新章");
+    expect(again.ok).toBe(false);
+    if (again.ok) throw new Error("不该走到这里");
+    expect(again.reason).toBe("already-exists");
+    expect(again.message).toContain("已经存在");
+    await service.close();
+  });
+
+  it("未打开书时 createDoc 报 no-book", async () => {
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    const result = await service.createDoc("chapters/x.md", "x");
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("不该走到这里");
+    expect(result.reason).toBe("no-book");
+  });
+
+  it("createBook 在空目录建出骨架并直接返回 open 结果", async () => {
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    const empty = await mkdtemp(path.join(tmpdir(), "mochen-new-"));
+    const result = await service.createBook({ directory: empty, title: "全新作品" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("不该走到这里");
+    expect(result.book.meta.title).toBe("全新作品");
+    expect(result.book.rootPath).toBe(empty);
+    // 建完即开：current() 指向新书。
+    expect(service.current()?.root).toBe(empty);
+    await service.close();
+    await rm(empty, { recursive: true, force: true });
+  });
+
+  it("新书默认档位跟 contracts 的裁定走，且真的落进 book.json", async () => {
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    const empty = await mkdtemp(path.join(tmpdir(), "mochen-default-"));
+    const result = await service.createBook({ directory: empty, title: "默认档" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("不该走到这里");
+    // 用户裁定「新书默认全开」写在 contracts；主进程不许自己捏一个档位名。
+    expect(result.book.meta.permissionMode).toBe(DEFAULT_PERMISSION_MODE);
+    // 只看返回值不够：写盘的那份也得是同一档，否则重启后档位会跳。
+    const onDisk = JSON.parse(await readFile(path.join(empty, "book.json"), "utf8")) as {
+      permissionMode: string;
+    };
+    expect(onDisk.permissionMode).toBe(DEFAULT_PERMISSION_MODE);
+    await service.close();
+    await rm(empty, { recursive: true, force: true });
+  });
+
+  it("createBook 拒绝非空目录与空书名", async () => {
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    const occupied = await service.createBook({ directory: root, title: "想盖到别人头上" });
+    expect(occupied.ok).toBe(false);
+    if (occupied.ok) throw new Error("不该走到这里");
+    expect(occupied.message).toContain("不是空的");
+    const noTitle = await service.createBook({ directory: root, title: "   " });
+    expect(noTitle.ok).toBe(false);
     await service.close();
   });
 });

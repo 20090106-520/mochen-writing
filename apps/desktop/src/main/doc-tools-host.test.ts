@@ -3,8 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { scanBook } from "@mochen/fs-store";
-import type { DocRef, EditProposal, PermissionMode } from "@mochen/contracts";
+import { sourceKey, type DocRef, type EditProposal, type PermissionMode } from "@mochen/contracts";
 import { createDocToolHost } from "./doc-tools-host.js";
+import type { WebSearchResult } from "./web-search.js";
+import { WebSearchError } from "./web-search.js";
 
 let root = "";
 let docs: DocRef[] = [];
@@ -19,6 +21,13 @@ const OUTSIDE_TEXT = "盘外之书：这段正文不属于本书，host 永远�
 let collected: EditProposal[] = [];
 let baselines: string[] = [];
 let mode: PermissionMode = "read-only";
+// web_search 的假实现按用例换装：默认空手而归；要测失败就置 webSearchError / webSearchRawError。
+let webSearchResults: WebSearchResult[] = [];
+let webSearchAttempted = 1;
+let webSearchError: string | null = null;
+let webSearchErrorKind: "unavailable" | "empty" = "unavailable";
+/** 非 WebSearchError 的异常（模拟将来有人在源链里 new Error("fetch failed")）。 */
+let webSearchRawError: Error | null = null;
 
 beforeAll(async () => {
   root = await mkdtemp(path.join(tmpdir(), "mochen-host-"));
@@ -36,13 +45,18 @@ beforeEach(async () => {
   collected = [];
   baselines = [];
   mode = "read-only";
+  webSearchResults = [];
+  webSearchAttempted = 1;
+  webSearchError = null;
+  webSearchErrorKind = "unavailable";
+  webSearchRawError = null;
 });
 
 function host() {
   return createDocToolHost({
     root: () => root,
     docs: () => docs,
-    context: () => ({ docRelPath: CHAPTER, permissionMode: mode }),
+    context: () => ({ docRelPath: CHAPTER, permissionMode: mode, workMode: "act" }),
     onProposal: (proposal, baseline) => {
       collected.push(proposal);
       baselines.push(baseline);
@@ -51,7 +65,19 @@ function host() {
       let n = 0;
       return () => `p${(n += 1)}`;
     })(),
-    now: () => "2026-10-01T08:00:00.000Z"
+    now: () => "2026-10-01T08:00:00.000Z",
+    webSearch: async () => {
+      if (webSearchRawError !== null) throw webSearchRawError;
+      if (webSearchError !== null) throw new WebSearchError(webSearchError, webSearchErrorKind);
+      return {
+        sourceId: "test",
+        sourceLabel: "测试源",
+        results: webSearchResults,
+        attempted: webSearchAttempted,
+        skipped: [],
+        deduped: 0
+      };
+    }
   });
 }
 
@@ -104,6 +130,98 @@ describe("read_doc / list_docs / search_docs", () => {
     expect(out.ok).toBe(false);
     expect(out.text).toContain("非空");
     expect(out.proposals).toEqual([]);
+  });
+});
+
+describe("web_search", () => {
+  it("空 query 拒绝（与 search_docs 同一条守门逻辑）", async () => {
+    const out = await host().call("web_search", {});
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("非空");
+    expect(out.proposals).toEqual([]);
+  });
+
+  it("成功回执按来源键列出标题/链接/摘要，只读、零提案，并把来源一并交给界面", async () => {
+    webSearchResults = [
+      {
+        title: "修真世界的灵气设定",
+        url: "https://example.com/a",
+        snippet: "灵气复苏的常见写法……"
+      },
+      { title: "无摘要的结果", url: "https://example.com/b", snippet: "" }
+    ];
+    const out = await host().call("web_search", { query: "灵气复苏 写法" });
+    expect(out.ok).toBe(true);
+    expect(out.text).toContain("来源：测试源");
+    // 编号是来源键而不是序号：同一轮里模型可能换词重搜好几次，两张回执各自从 [1]
+    // 数起就会让模型写出的「据来源[1]」指代不明（批次 5-⑩）。
+    expect(out.text).toContain(`[${sourceKey("https://example.com/a")}] 修真世界的灵气设定`);
+    expect(out.text).toContain("https://example.com/a");
+    expect(out.text).toContain("灵气复苏的常见写法……");
+    expect(out.text).toContain(`[${sourceKey("https://example.com/b")}] 无摘要的结果`);
+    expect(out.text).toContain("来源键");
+    expect(out.proposals).toEqual([]);
+    // sources 是给界面点的数据，与 text 同源：少传一份，工具卡就只剩一坨纯文本。
+    expect(out.sources).toEqual(webSearchResults);
+  });
+
+  it("首选源没答上时，回执如实说明是第几个源、前面几个用不了", async () => {
+    webSearchAttempted = 2;
+    webSearchResults = [{ title: "命中", url: "https://example.com/c", snippet: "s" }];
+    const out = await host().call("web_search", { query: "随便" });
+    expect(out.text).toContain("来源：测试源（试了 2 个源，前面几个用不了）");
+  });
+
+  it("一无所获时不是报错，而是如实说「没有搜到」", async () => {
+    const out = await host().call("web_search", { query: "冷门词条" });
+    expect(out.ok).toBe(true);
+    expect(out.text).toContain("没搜到「冷门词条」的相关结果");
+    expect(out.text).toContain("换几个关键词再搜一次");
+  });
+
+  it("「源都能用只是没搜着」是 ok 的正常回执，不是失败（模型的下一个动作是换词）", async () => {
+    webSearchError = "搜索源都能用，但没搜到「冷门词条」的相关结果——换几个关键词再搜一次。";
+    webSearchErrorKind = "empty";
+    const out = await host().call("web_search", { query: "冷门词条" });
+    expect(out.ok).toBe(true);
+    expect(out.text).toContain("换几个关键词再搜一次");
+    expect(out.text).not.toContain("联网搜索失败");
+  });
+
+  it("源坏了回中文理由（可重试/可继续干活），不让模型拿到裸异常", async () => {
+    webSearchError = "DuckDuckGo 连不上；360 搜索 触发了访问频控。";
+    const out = await host().call("web_search", { query: "随便" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("联网搜索失败");
+    expect(out.text).toContain("DuckDuckGo 连不上");
+  });
+
+  it("句子只收一个句号（真机截出来过「继续工作。。」，源侧那句自带句号）", async () => {
+    // 判据是「以一个终结符收尾」，不是「以 . 收尾」：源侧的消息有的以「。」结尾、
+    // 有的以「…」结尾，两种都不该再被补一刀。
+    const endsCleanly = (text: string) => {
+      expect(text.endsWith("。。")).toBe(false);
+      expect(text).toMatch(/[。.…！？!?]$/);
+    };
+    webSearchError = "DuckDuckGo 连不上；360 搜索 触发了访问频控。可以换个说法再搜。";
+    endsCleanly((await host().call("web_search", { query: "随便" })).text);
+
+    webSearchError = "DuckDuckGo 连不上；360 搜索 触发了访问频控……";
+    endsCleanly((await host().call("web_search", { query: "随便" })).text);
+
+    // 没有终结符的那条（兜底文案）照补一个，句子照样是完整的。
+    webSearchRawError = new TypeError("fetch failed");
+    endsCleanly((await host().call("web_search", { query: "随便" })).text);
+  });
+
+  it("非 WebSearchError 的异常一律换成中文兜底，英文技术串一个字都不许漏到界面", async () => {
+    // 这条钉的是「有人将来在源链里 new Error(\"fetch failed\")」这个场景。
+    webSearchRawError = new TypeError("fetch failed");
+    const out = await host().call("web_search", { query: "随便" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("联网搜索失败");
+    expect(out.text).not.toContain("fetch failed");
+    expect(out.text).not.toContain("TypeError");
   });
 });
 

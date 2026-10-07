@@ -8,7 +8,7 @@ import {
   maskApiKey,
   PROPOSAL_STATUSES,
   PROPOSAL_STATUS_LABELS,
-  providerDraftSchema,
+  connectionDraftSchema,
   sessionListItemSchema,
   sessionLoadResultSchema,
   sessionMetaSchema,
@@ -150,14 +150,21 @@ describe("decideInputSchema", () => {
 
 describe("provider 与掩码", () => {
   it("baseURL 必须是 http(s) 绝对地址，密钥不进 URL", () => {
+    // 2026-10-06 批次 5-⑤：草稿拆成两条——连接草稿（地址 + 密钥 + 头形态）与
+    // 档案草稿（模型名挂哪条连接）。地址这一段的判据搬到了 connectionDraftSchema。
     expect(
-      providerDraftSchema.safeParse({ baseURL: "127.0.0.1:8787/v1", model: "m", apiKey: null })
-        .success
+      connectionDraftSchema.safeParse({
+        providerId: "custom",
+        baseURL: "127.0.0.1:8787/v1",
+        authHeader: "bearer",
+        apiKey: null
+      }).success
     ).toBe(false);
     expect(
-      providerDraftSchema.safeParse({
+      connectionDraftSchema.safeParse({
+        providerId: "custom",
         baseURL: "http://127.0.0.1:8787/v1",
-        model: "m",
+        authHeader: "bearer",
         apiKey: "sk-abcdef"
       }).success
     ).toBe(true);
@@ -170,24 +177,27 @@ describe("provider 与掩码", () => {
     expect(maskApiKey("ab")).toBe("••••");
   });
 
-  it("五个工具名固定，多一个少一个都算违约", () => {
+  it("六个工具名固定，多一个少一个都算违约", () => {
     expect([...AGENT_TOOL_NAMES].sort()).toEqual([
       "list_docs",
       "propose_patch",
       "read_doc",
       "search_docs",
+      "web_search",
       "write_doc"
     ]);
   });
 
-  it("五个工具名的排列顺序同样是契约（上一条先排序再比对，钉不住原序）", () => {
+  it("六个工具名的排列顺序同样是契约（上一条先排序再比对，钉不住原序）", () => {
     // 注册表顺序决定提示词与工具卡的展示顺序；被重排必须转红。
+    // 2026-10-04 追加 web_search（免费联网搜索，主进程出网）排在末尾。
     expect([...AGENT_TOOL_NAMES]).toEqual([
       "read_doc",
       "list_docs",
       "search_docs",
       "propose_patch",
-      "write_doc"
+      "write_doc",
+      "web_search"
     ]);
   });
 

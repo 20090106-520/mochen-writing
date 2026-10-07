@@ -1,4 +1,4 @@
-// 源自 deepwrite（Apache-2.0），原样移植：https://github.com/20090106-520/deepwrite
+// 结构出处见 docs/ATTRIBUTION.md。
 
 /** Keep resize gestures from hovering controls in the adjacent panes. */
 export function createPanePointerCapture(onLostCapture: () => void) {

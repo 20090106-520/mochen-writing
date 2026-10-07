@@ -3,7 +3,7 @@
  * 真身：deepwrite `AgentConversation.vue:272-297` 的 `.conversation-header-actions`——
  * 那一格里有「历史对话」+「新建对话」（`:281-288` 就是照抄的钮），**没有**「模型设置」。
  * 我们原先反过来：头部挂一枚自造的「模型设置」，新建对话只住在左栏。本文件钉这次的对调：
- * 钮照搬他的，动作走本仓已有的唯一真身（`agent.clearThreadView`），设置浮层的入口退回左栏。
+ * 钮对齐他的，动作走本仓已有的唯一真身（`agent.clearThreadView`），设置浮层的入口退回左栏。
  * 本仓 `.vue` 不进类型程序（裸 tsc + vue-shim），所以接线只能读源断言（先例：composer-card-wiring）。
  */
 import { describe, expect, it } from "vitest";
@@ -31,7 +31,7 @@ function headerActions(): string {
   return m.slice(at, m.indexOf("</header>", at));
 }
 
-describe("照搬他的头部钮 · 「新建对话」取代自造的「模型设置」", () => {
+describe("对齐他的头部钮 · 「新建对话」取代自造的「模型设置」", () => {
   it("动作区只有一枚 header-text-button，内容是 plus 图标 + 「新建对话」，几何照他的 16px 图标", () => {
     const actions = headerActions();
     expect(countNeedle('class="header-text-button"', actions)).toBe(1);
@@ -59,24 +59,37 @@ describe("照搬他的头部钮 · 「新建对话」取代自造的「模型设
     const actions = headerActions();
     expect(actions).toContain(':title="CLEAR_VIEW_SENTENCE"');
     expect(scriptSource(CENTER)).toContain("CLEAR_VIEW_SENTENCE,");
-    expect(templateSource(LEFT)).toContain(':title="CLEAR_VIEW_SENTENCE"');
+    // 左栏侧边栏化（2026-10-04）后判定收进 script 的 childState：常量在 script 消费，
+    // 模板只挂 title=hint 载体——同一句常量仍然只有一份。
+    expect(scriptSource(LEFT)).toContain("CLEAR_VIEW_SENTENCE");
+    expect(templateSource(LEFT)).toContain(':title="childState(child).hint"');
   });
 
-  it("「模型设置」整块退役：代码里找不到头部的设置入口，但浮层真身与它的开关都还在", () => {
+  it("「模型设置」整块退役：代码里找不到头部的设置入口，浮层骨架也已让位整页设置中心", () => {
     const code = codeOf(CENTER);
-    expect(code).not.toContain("layout.showSettings(");
+    // 2026-10-05：模型浮层的失败态新增了「去模型设置」出口（openModelSettings → layout.showSettings("model")），
+    // 所以中栏第一次合法地出现 layout.showSettings( —— 判据从「一个字符都不许有」改成
+    // **只许这一处，且必须走 layout 真身**：自己另捏一份开关（showSettings.value = ）仍然禁止。
+    expect(code).not.toContain("showSettings.value = ");
     expect(code).not.toContain('name="settings"');
     expect(code).not.toContain("模型设置");
-    // 浮层照旧由 layout.currentView 决定可见——删的是入口，不是通路。
-    expect(templateSource(CENTER)).toContain('<ProviderSettings v-if="showSettings"');
-    expect(scriptSource(CENTER)).toContain(
-      'const showSettings = computed(() => layout.currentView === "settings");'
+    // 正面钉住那唯一一处的形状：它在 ModelSelect 的 open-settings 事件上，不是常驻头部入口。
+    expect(code).toContain('@open-settings="openModelSettings"');
+    const fn = /function openModelSettings\(\): void \{[\s\S]*?\}/.exec(code)?.[0] ?? "";
+    expect(fn).toContain('layout.showSettings("model")');
+    // 设置中心整页化（对齐上游 SettingsPage 的承载方式）：中栏不再挂浮层，
+    // 可见性与分类真身都在 layout.currentView / layout.settingsTab，整页视图挂载在 App.vue。
+    expect(code).not.toContain("<ProviderSettings");
+    expect(templateSource("App.vue")).toContain(
+      "<SettingsPage v-if=\"currentView === 'settings'\""
     );
   });
 
-  it("左栏那一格不受影响：仍然缺章即禁用，且两栏都不绕过 store 自己改视图", () => {
-    const left = templateSource(LEFT);
-    expect(left).toContain(':disabled="book.activeDocTab === null"');
+  it("左栏那一格不受影响：缺章不再是禁用而是引导（全部可点裁定），且两栏都不绕过 store 自己改视图", () => {
+    // 2026-10-04 二次裁定：侧边栏全部可点、点哪都有真响应——左栏缺章时点击引导去开一章
+    // （childState 报 need-doc，onChildAction → guideToDoc），判定真身仍在 script 的 childState。
+    expect(scriptSource(LEFT)).toMatch(/new-thread[\s\S]*?book\.activeDocTab === null/);
+    expect(scriptSource(LEFT)).toContain("guideToDoc");
     for (const file of [CENTER, LEFT]) {
       expect(countNeedle("clearThreadView(", codeOf(file)), `${file} 只调一次`).toBe(1);
       expect(codeOf(file)).not.toContain("hydrated = true");
@@ -84,14 +97,25 @@ describe("照搬他的头部钮 · 「新建对话」取代自造的「模型设
     }
   });
 
-  it("禁用口径按各自判据分家：左栏缺章禁用，头部那枚恒可点（R1）", () => {
+  it("禁用口径按各自判据分家：头部那枚恒可点，左栏缺章走引导不走禁用（R1，2026-10-04 修订）", () => {
     // 头部清的是「屏上这一页」——没开章时 threadKey 是 unbound，钮仍然说实话，所以不该跟着禁用。
     // 反过来若给头部补上缺章判据，就是把两栏的语义又混回一份。
     expect(headerActions()).not.toContain("disabled");
-    expect(templateSource(LEFT)).toContain(':disabled="book.activeDocTab === null"');
+    /* 【5-㊳ 改钉】原来是 `toMatch(/book\.activeDocTab === null[\s\S]*?mode: "need-doc"/)`——
+       它钉的是**两段文本在文件里相邻**。而 5-㊳ 把「去开一章 / 先建一章」那三种引导收进了
+       needChapterState 一处真身，need-doc 那个字面量因此跑到了**触发条件之前**，不相邻了。
+
+       决定一个字没变：**左栏缺章的响应是引导，不是禁用**。变的是它现在由哪一处提供，
+       所以判据跟着改成「触发条件在」+「引导那一份在」+「模板里没有 disabled」，
+       而不再是把两段文本绑在一起——那种写法对实现的重排毫无容忍度，
+       下一次有人整理一下函数顺序它就红，而产品一点问题都没有。 */
+    expect(scriptSource(LEFT)).toContain("book.activeDocTab === null");
+    expect(scriptSource(LEFT)).toContain("function needChapterState");
+    expect(scriptSource(LEFT)).toContain('mode: "need-doc", docKind: "chapter"');
+    expect(templateSource(LEFT)).not.toContain(':disabled="childState(child).disabled"');
   });
 
-  it("样式照他的原值：基态与 :hover 的声明逐条对上（deepwrite styles.css:501-517）", () => {
+  it("样式照他的原值：基态与 :hover 的声明逐条对上（参考稿 styles.css 501-517）", () => {
     const css = styleSource("conversation-pane.css");
     const base = ruleBlock(css, ".header-text-button");
     for (const decl of [
@@ -110,5 +134,28 @@ describe("照搬他的头部钮 · 「新建对话」取代自造的「模型设
     expect(hover, ":hover 不许留空壳").not.toBe("");
     expect(hover).toContain("background: var(--surface-hover)");
     expect(hover).toContain("color: var(--text-primary)");
+  });
+});
+
+/**
+ * 顶栏标题（2026-10-05 用户裁定）：原先是 `${stage.name}智能体` 拼出来的「正文智能体」，
+ * 那是功能泛称——不论哪枚档案在干活都这么写，看不出「现在是谁在写」。
+ * 改为报档案名，判定下沉 utils（`.vue` 不进类型程序，判定写在模板里等于没钉）。
+ */
+describe("顶栏标题 · 报当前 AI 的名字而不是功能泛称", () => {
+  it("标题读 utils 的 conversationTitleLabel，组件里不再自己拼标题", () => {
+    const code = codeOf(CENTER);
+    expect(code).toContain("conversationTitleLabel(book.meta)");
+    // 反向钉：拼法退回 `${stage.name}智能体` 时这里立刻红（codeOf 已剥注释，防注释自证）。
+    expect(code).not.toMatch(/\$\{stage\.name\}智能体/);
+  });
+
+  it("头部与工作台 hero 共用同一个 agentLabel，不许各自再拼一份标题", () => {
+    const tpl = templateSource(CENTER);
+    expect(tpl).toContain("<strong>{{ agentLabel }}</strong>");
+    expect(tpl).toContain(':agent-label="agentLabel"');
+    // 两处是**同一个真身的两个消费者**（无书时 hero 的 h1 靠 CSS 撤掉，值仍来自这里），
+    // 所以此处钉的是「都读它」，不是「只出现一次」。
+    expect(countNeedle("agentLabel", tpl), "模板里的 agentLabel 只许是这两个消费者").toBe(2);
   });
 });

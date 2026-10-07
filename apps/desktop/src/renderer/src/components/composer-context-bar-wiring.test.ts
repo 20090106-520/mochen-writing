@@ -1,9 +1,9 @@
 /**
  * #113c 输入卡上方「书 / 阶段」绑定条 + 阶段弹层 · 源码接线契约。
  * 真身：deepwrite ComposerContextBar.vue / ComposerContextMenu.vue / useComposerContextPopover.ts
- * 与 styles.css 的 .composer-context-* 段 + composer-context-menu.css（Apache-2.0）。
+ * 与 styles.css 的 .composer-context-* 段 + composer-context-menu.css。
  * 本仓 `.vue` 不进类型程序（裸 tsc + vue-shim），CSS 段更不在任何关卡覆盖内，所以结构、类名、
- * 接线与照搬的数值只能靠读源断言钉（先例：composer-card-wiring.test.ts、hotkey-markers.test.ts）。
+ * 接线与对齐的数值只能靠读源断言钉（先例：composer-card-wiring.test.ts、hotkey-markers.test.ts）。
  * vue-source-reader 会剥注释：只在注释里宣称「已经接上」不算数。
  *
  * 三条裁定一并反向钉：
@@ -79,12 +79,12 @@ describe("挂载点 · 条住在 .composer 的第一个子节点（照他的 v-i
 });
 
 describe("绑定条两格 · 有真契约的那一格才许挂弹层（裁定 R1）", () => {
-  it("条是 role=group 的一条两枚，直接读 store，不再套一层 inject", () => {
+  it("条是 role=group 的一条三枚（书/阶段/文档），直接读 store，不再套一层 inject", () => {
     const m = barMarkup();
     const s = scriptSource(BAR);
     expect(m).toContain('class="composer-context-bar"');
     expect(m).toContain('role="group"');
-    expect(countNeedle('class="composer-context-item', m)).toBe(2);
+    expect(countNeedle('class="composer-context-item', m)).toBe(3);
     expect(s).toContain("useBookStore()");
     expect(s).not.toContain("inject(");
     expect(m).toContain(':aria-label="`当前绑定：书籍 ${bookTitle}，阶段 ${stageLabel}`"');
@@ -94,9 +94,7 @@ describe("绑定条两格 · 有真契约的那一格才许挂弹层（裁定 R1
     const book = tagOf("composer-book-context");
     expect(book).toContain('class="composer-context-item composer-book-context"');
     expect(book).toContain('@click="void openAnotherBook()"');
-    expect(book).toContain(
-      'title="打开另一部作品目录（与左栏「打开作品目录」、Ctrl+O 同一个入口）"'
-    );
+    expect(book).toContain('title="打开另一部作品目录（与书架空态钮、Ctrl+O 同一个入口）"');
     expect(book).toContain('<AppIcon name="book" :size="16" />');
     expect(book).not.toContain("aria-haspopup");
     expect(book).not.toContain("aria-expanded");
@@ -118,7 +116,7 @@ describe("绑定条两格 · 有真契约的那一格才许挂弹层（裁定 R1
     expect(m).toContain('@close="menuOpen = false"');
   });
 
-  it("忙态两枚一起禁用（落盘在途或本轮在跑），disabled 判定只有一份来源", () => {
+  it("忙态两枚一起禁用（书/阶段两枚，落盘在途或本轮在跑），disabled 判定只有一份来源", () => {
     const m = barMarkup();
     expect(countNeedle(':disabled="busy"', m)).toBe(2);
     expect(scriptSource(BAR)).toContain("book.metaSaving || props.running");
@@ -139,7 +137,7 @@ describe("绑定条两格 · 有真契约的那一格才许挂弹层（裁定 R1
   });
 });
 
-describe("阶段弹层真身 · 照搬他的 DOM 与键盘，删干净永不为真的分支（裁定 R3）", () => {
+describe("阶段弹层真身 · 对齐他的 DOM 与键盘，删干净永不为真的分支（裁定 R3）", () => {
   it("Teleport 到 body 的 role=dialog：标题、搜索、列表、空态四段类名沿用他的", () => {
     const m = templateSource(MENU);
     expect(m).toContain('<Teleport to="body">');
@@ -192,8 +190,17 @@ describe("阶段弹层真身 · 照搬他的 DOM 与键盘，删干净永不为�
 });
 
 describe("裁定 R2 · 阶段查表全仓只留 composer-context.ts 一份", () => {
-  it("stages.find 只出现一次，其余消费方一律调 activeStageOf / stageLabelOf", () => {
-    expect(countNeedle("stages.find(", typeScriptSource(CONTEXT))).toBe(1);
+  it("stages.find 只住在 composer-context.ts 一份，消费者一律调命名查表", () => {
+    // 裁定的本意是「查表只有一处实现」，不是「整个文件只许 find 一次」。
+    // 2026-10-05 起本模块有两处具名查表：activeStageOf（当前阶段）与 matchStageName（按名反查，
+    // 给 /stage 用）。两者都对外具名，所以真正要守的是下面那条：消费者一律不许自己 find。
+    expect(countNeedle("stages.find(", typeScriptSource(CONTEXT))).toBeGreaterThanOrEqual(1);
+    for (const name of ["activeStageOf", "matchStageName"]) {
+      expect(
+        typeScriptSource(CONTEXT),
+        `阶段查表 ${name} 必须留在 composer-context.ts 并对外具名`
+      ).toContain(`export function ${name}(`);
+    }
     for (const file of [
       CENTER,
       BAR,
@@ -204,7 +211,13 @@ describe("裁定 R2 · 阶段查表全仓只留 composer-context.ts 一份", () 
     ]) {
       expect(codeOf(file), `${file} 不许自己再 find 一次`).not.toContain("stages.find(");
     }
-    expect(scriptSource(CENTER)).toContain("activeStageOf(book.meta)");
+    // 2026-10-05：顶栏标题改报**档案名**（`profile-options.conversationTitleLabel`）之后，
+    // CenterColumn 彻底不再消费阶段查表——它与阶段无关了。
+    // 「标题不许退回 `${stage.name}智能体`」由 center-header-actions.test.ts 的顶栏那组钉着；
+    // 这里只留它在名单里的事实：既没自己 find，也没把阶段拼回任何地方。
+    expect(codeOf(CENTER), "CenterColumn 已与阶段无关，不该再出现 activeStageOf").not.toContain(
+      "activeStageOf"
+    );
     expect(typeScriptSource("utils/book-dossier.ts")).toContain("activeStageOf(meta)");
     expect(typeScriptSource("stores/useAgentStore.ts")).toContain(
       "stageName: stageLabelOf(book.meta)"
@@ -219,7 +232,7 @@ describe("裁定 R2 · 阶段查表全仓只留 composer-context.ts 一份", () 
   });
 });
 
-describe("样式硬门禁 · 照搬他的原值，色值一律走 token", () => {
+describe("样式硬门禁 · 对齐他的原值，色值一律走 token", () => {
   it("绑定条的几何一字不改（scoped 与全局段撞到的属性落成净效果）", () => {
     const pane = cardSection("agent-pane.css");
     const bar = ruleBlock(pane, ".composer-context-bar");

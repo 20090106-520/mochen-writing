@@ -69,7 +69,9 @@ describe("useReferenceMenuStore · 条目来源与可用性闸", () => {
 
   it("无书那一格只列接得通的命令：/stage 被通路闸掉，/permissions 与 /resume 因无书不列", () => {
     menu().summon("/");
-    expect(labels()).toEqual(["model", "status", "clear"]);
+    // 【plugins 留下】它没有书内来源，面板列的是应用的插件目录，与当前书无关，
+    // 所以没开书也接得通（理由见 slash-commands.test.ts 那条同样的改动）。
+    expect(labels()).toEqual(["model", "status", "plugins", "clear"]);
   });
 
   it("那一轮正在跑：只剩 model / permissions / status / clear（与 slash-commands 同一道闸，不在这里再写一份）", async () => {
@@ -79,15 +81,26 @@ describe("useReferenceMenuStore · 条目来源与可用性闸", () => {
     expect(labels()).toEqual(["model", "permissions", "status", "clear"]);
   });
 
-  it("前缀过滤吃的是闸后的集合：有书空闲时打 sta 只剩 status，被闸掉的 stage 搜也搜不出来", async () => {
+  it("前缀过滤吃的是闸后的集合：有书空闲时 /sta 命中 status 与 stage，/stag 只剩 stage", async () => {
+    // 2026-10-05 起 stage 不再被闸门滤掉（已随六档案接通），所以前缀命中集合变了：
+    // 这里守的是「过滤发生在闸后」这条不变量，不是某一个具体命令在不在表里。
     await openChapter();
     store().setDraft(CH, "/sta");
     menu().syncFrom("/sta", 4, true);
-    expect(labels()).toEqual(["status"]);
+    expect(labels()).toEqual(["status", "stage"]);
     store().setDraft(CH, "/stag");
     menu().syncFrom("/stag", 5, true);
+    expect(labels()).toEqual(["stage"]);
+    store().setDraft(CH, "/stagex");
+    menu().syncFrom("/stagex", 7, true);
     expect(labels()).toEqual([]);
     expect(menu().emptyText).toBe("没有匹配的命令");
+  });
+
+  it("无书时 stage 不出现在候选里（阶段来自 book.json，没书就没有可切）", async () => {
+    store().setDraft(CH, "/sta");
+    menu().syncFrom("/sta", 4, true);
+    expect(labels()).not.toContain("stage");
   });
 
   it("`@` 的池就是 book store 的文档：标题来自 DocRef，kind 中文名来自 book-kinds 那张表", async () => {

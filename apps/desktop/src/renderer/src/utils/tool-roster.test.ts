@@ -35,3 +35,27 @@ describe("tool-roster · 工具 ▾ 的唯一名单来自 contracts", () => {
       expect(Object.keys(row).sort()).toEqual(["effect", "kind", "label", "name"]);
   });
 });
+
+describe("tool-roster · 联网搜索那条要说清怎么发 query（2026-10-06 批次 5-⑬）", () => {
+  /**
+   * 工具清单这一列是**用户**看的，说明写错会让用户以为这功能坏了（实际是模型在发整句）。
+   * 更要紧的是：源链里已经接了必应，但它只认 query 开头的词，
+   * 覆盖率闸门会把整句判成没搜着——所以两处文案都得说清「用关键词」。
+   * 顺带钉住源链顺序，免得回执里「是谁答的」那一段跟实际跑的不一样。
+   */
+  const web = toolRoster().find((row) => row.name === "web_search");
+
+  it("有这一枚，且说明要求用 2–4 个关键词", () => {
+    expect(web).toBeDefined();
+    expect(web?.effect).toContain("2–4 个关键词");
+  });
+
+  it("说清代价：整句会被拆成词义查询", () => {
+    expect(web?.effect).toContain("拆成词义查询");
+  });
+
+  it("源链顺序照实写：必应排在 360 前面（回执要报是谁答的）", () => {
+    expect(web?.effect).toContain("必应");
+    expect(web?.effect.indexOf("必应")).toBeLessThan(web?.effect.indexOf("360") ?? -1);
+  });
+});

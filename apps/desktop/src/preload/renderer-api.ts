@@ -1,8 +1,12 @@
 import {
   IPC_CHANNELS,
   type AgentOutbound,
+  type ConnectionDraft,
+  type ContextPreviewQuery,
   type DecideInput,
-  type ProviderDraft,
+  type ExportResult,
+  type ModelListQuery,
+  type ProfileDraft,
   type RendererApi,
   type StartTurnInput
 } from "@mochen/contracts";
@@ -33,10 +37,12 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
   return {
     pickBookDirectory: () => invoke(IPC_CHANNELS.bookPick),
     openBook: (rootPath) => invoke(IPC_CHANNELS.bookOpen, rootPath),
+    createBook: (input) => invoke(IPC_CHANNELS.bookCreate, input),
     saveMeta: (meta) => invoke(IPC_CHANNELS.bookSaveMeta, meta),
     readDoc: (relPath) => invoke(IPC_CHANNELS.docRead, relPath),
     writeDoc: (relPath, content, expectedFingerprint) =>
       invoke(IPC_CHANNELS.docWrite, relPath, content, expectedFingerprint),
+    createDoc: (relPath, title) => invoke(IPC_CHANNELS.docCreate, relPath, title),
     startTurn: (input: StartTurnInput) => invoke(IPC_CHANNELS.agentStartTurn, input),
     interruptTurn: (turnId) => invoke(IPC_CHANNELS.agentInterrupt, turnId),
     decideProposal: (input: DecideInput) => invoke(IPC_CHANNELS.agentDecide, input),
@@ -44,9 +50,63 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     loadSession: (threadKey, sessionId) =>
       invoke(IPC_CHANNELS.agentLoadSession, threadKey, sessionId),
     listSessions: () => invoke(IPC_CHANNELS.agentListSessions),
+    contextPreview: (query: ContextPreviewQuery) => invoke(IPC_CHANNELS.agentContextPreview, query),
     providerView: () => invoke(IPC_CHANNELS.providerGet),
-    providerSave: (draft: ProviderDraft) => invoke(IPC_CHANNELS.providerSave, draft),
-    listModels: () => invoke(IPC_CHANNELS.providerListModels),
+    providerSave: (draft: ConnectionDraft) => invoke(IPC_CHANNELS.providerSave, draft),
+    providerConnectionRemove: (connectionId: string) =>
+      invoke(IPC_CHANNELS.providerConnectionRemove, connectionId),
+    // 第二实参永远留位（没传草稿是 undefined）：preload 偷偷丢参，census 一测就红。
+    listModels: (query?: ModelListQuery) => invoke(IPC_CHANNELS.providerListModels, query),
+    providerVerify: (connectionId: string) => invoke(IPC_CHANNELS.providerVerify, connectionId),
+    // 只递 providerId，密钥页地址由主进程从预设表查——渲染层递不了任意 URL 出去。
+    openProviderKeyPage: (providerId: string) => invoke(IPC_CHANNELS.appOpenExternal, providerId),
+    // 唯一递 URL 的一条：主进程按 http/https 白名单放行，别的 scheme 一律拒
+    // （策略与理由见 main/web-source-link.ts）。
+    openWebSource: (url: string) => invoke(IPC_CHANNELS.appOpenWebSource, url),
+    profileUpsert: (draft: ProfileDraft) => invoke(IPC_CHANNELS.providerProfileUpsert, draft),
+    profileRemove: (id: string) => invoke(IPC_CHANNELS.providerProfileRemove, id),
+    profileEnable: (id: string, enabled: boolean) =>
+      invoke(IPC_CHANNELS.providerProfileEnable, id, enabled),
+    appearanceGet: () => invoke(IPC_CHANNELS.appearanceGet),
+    appearanceSave: (settings) => invoke(IPC_CHANNELS.appearanceSave, settings),
+    listSkills: () => invoke(IPC_CHANNELS.skillsList),
+    readSkill: (source, relPath) => invoke(IPC_CHANNELS.skillsRead, source, relPath),
+    // 技能市场三条（2026-10-07）。装/卸只传清单里的 dirName 字符串，
+    // 路径一律由主进程按清单自己拼——渲染层碰不到绝对路径（见 skill-market-service.ts）。
+    listMarket: () => invoke(IPC_CHANNELS.marketList),
+    installMarketSkill: (dirName) => invoke(IPC_CHANNELS.marketInstall, dirName),
+    uninstallMarketSkill: (dirName) => invoke(IPC_CHANNELS.marketUninstall, dirName),
+    // 插件四条（2026-10-07 批次 5-㉚）。与技能市场同一条：渲染层只递安装名，
+    // 路径由主进程拼——它碰不到绝对路径，也就没有「传个 ../ 就能读到别处」这条路。
+    listPlugins: () => invoke(IPC_CHANNELS.pluginsList),
+    togglePlugin: (dirName, enabled) => invoke(IPC_CHANNELS.pluginsToggle, dirName, enabled),
+    uninstallPlugin: (dirName) => invoke(IPC_CHANNELS.pluginsUninstall, dirName),
+    readPluginSource: (dirName) => invoke(IPC_CHANNELS.pluginsSource, dirName),
+    // 改稿历史五枚。回滚那条的第二实参是**盘上此刻**的指纹（与 docWrite 同一口径），
+    // 少传一个不封 new Error：主进程边界自己会拒，渲染层不该在这里造第二套规则。
+    listChanges: () => invoke(IPC_CHANNELS.changesList),
+    readChange: (backupRelPath) => invoke(IPC_CHANNELS.changesRead, backupRelPath),
+    restoreChange: (backupRelPath, expectedFingerprint) =>
+      invoke(IPC_CHANNELS.changesRestore, backupRelPath, expectedFingerprint),
+    // 保留上限三枚（2026-10-06 批次 5-⑧）。这里只转发：夹范围、判 persisted、挑删哪些
+    // 全在主进程与 fs-store 那边，渲染层再写一遍就等于三处上限可能互不一致。
+    changesRetentionGet: () => invoke(IPC_CHANNELS.changesRetentionGet),
+    changesRetentionSave: (retention) => invoke(IPC_CHANNELS.changesRetentionSave, retention),
+    changesPruneNow: () => invoke(IPC_CHANNELS.changesPruneNow),
+    saveFile: (content, filename, title) =>
+      invoke(
+        IPC_CHANNELS.saveFileExport,
+        content,
+        filename,
+        title ?? "保存文件"
+      ) as Promise<boolean>,
+    // 组装导出内容（2026-10-05 批次 5-②）：EPUB 要 node:zlib，只能在主进程跑。
+    // 这里只做字面转发，不校验形状——与本文件其余方法同一条口径。
+    buildExport: (docs, meta, options) =>
+      invoke(IPC_CHANNELS.buildExport, docs, meta, options) as Promise<ExportResult>,
+    notify: (title, body) => {
+      void invoke(IPC_CHANNELS.appNotify, title, body);
+    },
     onAgentEvent: (listener) =>
       on(IPC_CHANNELS.agentEvent, (payload) => listener(payload as AgentOutbound))
   };

@@ -1,4 +1,4 @@
-// 源自 deepwrite（Apache-2.0），原样移植：https://github.com/20090106-520/deepwrite
+// 结构出处见 docs/ATTRIBUTION.md。
 // 仅裁去其 Envelope 命令段与其 ./envelope 依赖（本项目无该传输层），其余未改。
 import { z } from "zod";
 
@@ -72,7 +72,14 @@ export const AppearanceFontInstallResultSchema = z.discriminatedUnion("status", 
 ]);
 export type AppearanceFontInstallResult = z.infer<typeof AppearanceFontInstallResultSchema>;
 
-export const APPEARANCE_UI_FONT_FAMILIES = ["system", "sans", "yuan"] as const;
+export const APPEARANCE_UI_FONT_FAMILIES = [
+  "system",
+  "sans",
+  "yuan",
+  "serif",
+  "mono",
+  "hei"
+] as const;
 export const AppearanceUiFontFamilySchema = z.enum(APPEARANCE_UI_FONT_FAMILIES);
 export type AppearanceUiFontFamily = z.infer<typeof AppearanceUiFontFamilySchema>;
 export const AppearanceUiFontSelectionSchema = z.union([
@@ -81,7 +88,18 @@ export const AppearanceUiFontSelectionSchema = z.union([
 ]);
 export type AppearanceUiFontSelection = z.infer<typeof AppearanceUiFontSelectionSchema>;
 
-export const APPEARANCE_EDITOR_FONT_FAMILIES = ["song", "kai", "fangsong", "sans", "yuan"] as const;
+export const APPEARANCE_EDITOR_FONT_FAMILIES = [
+  "song",
+  "kai",
+  "fangsong",
+  "sans",
+  "yuan",
+  "hei",
+  "li",
+  "seal",
+  "youyuan",
+  "mono"
+] as const;
 export const AppearanceEditorFontFamilySchema = z.enum(APPEARANCE_EDITOR_FONT_FAMILIES);
 export type AppearanceEditorFontFamily = z.infer<typeof AppearanceEditorFontFamilySchema>;
 export const AppearanceEditorFontSelectionSchema = z.union([
@@ -99,22 +117,55 @@ export const APPEARANCE_FONT_FAMILY_LABELS = {
   song: "宋体",
   kai: "楷体",
   fangsong: "仿宋",
-  yuan: "圆体"
+  yuan: "圆体",
+  serif: "衬线（书卷气）",
+  mono: "等宽",
+  hei: "雅黑（现代）",
+  li: "隶书",
+  seal: "篆体",
+  youyuan: "幼圆"
 } as const;
 
+/* 栈序就是优先级，`Songti SC` / `PingFang SC` 都是 macOS 族名，Windows 上不存在——
+   原栈把 SimSun 排在 Noto Serif SC 前面，于是 Windows 一路掉到宋体，正文发虚发毛；
+   界面同理落到雅黑，偏宽偏重。跨平台族名一律排到本平台族名之前：
+   macOS 上 Noto 缺失，仍落回 Songti/PingFang，行为不变；Windows 上直接吃到 Noto。
+
+   **2026-10-06 补全了每个族的 macOS 与 Windows 两条路**（批次 5-⑧）。
+   原先 `kai` 只写了 `"Kaiti SC", "STKaiti", "KaiTi"`——macOS 有前两个、Windows 只有楷体，
+   而 `KaiTi` 在 Windows 上是**楷体的旧名**（新名 `KaiTi` 同体，另有 `STKaiti` 不存在），
+   缺族名会一路掉到 `serif` 兜底，于是「选楷体」在某些机器上其实显示的是宋体。
+   每条栈都补上「通用中文名 + 常见同义名 + 英文回退」，让认不出族名的那一档也有个像样的落点。 */
 export const APPEARANCE_UI_FONT_STACKS = {
   system:
-    'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
-  sans: '"PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", sans-serif',
-  yuan: '"Yuanti SC", "YouYuan", "PingFang SC", "Microsoft YaHei", sans-serif'
+    'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif',
+  sans: '"Noto Sans SC", "Source Han Sans SC", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", "Heiti SC", sans-serif',
+  yuan: '"Yuanti SC", "YouYuan", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif',
+  // 界面里的衬线：给长文工具、批注类页面用；中文回退到宋体族，英文回退到 Georgia。
+  serif: '"Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, "SimSun", "宋体", serif',
+  // 等宽界面：写作用得不多，但看时间线/JSON/日志时数字不跳。
+  mono: '"JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, Consolas, "Noto Sans Mono CJK SC", "Sarasa Mono SC", "Microsoft YaHei Mono", monospace',
+  // 雅黑：比黑体更紧、字面更小，正文栏窄时用着更省地方。
+  hei: '"Microsoft YaHei", "微软雅黑", "PingFang SC", "Noto Sans SC", "Segoe UI", sans-serif'
 } as const satisfies Record<AppearanceUiFontFamily, string>;
 
 export const APPEARANCE_EDITOR_FONT_STACKS = {
-  song: '"Songti SC", "SimSun", "Noto Serif SC", Georgia, serif',
-  kai: '"Kaiti SC", "STKaiti", "KaiTi", serif',
-  fangsong: '"STFangsong", "FangSong", "KaiTi", serif',
+  song: '"Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif',
+  kai: '"Kaiti SC", "STKaiti", "KaiTi", "楷体", "TW-Kai", "Noto Serif SC", serif',
+  fangsong: '"STFangsong", "FangSong", "仿宋", "FangSong_GB2312", "KaiTi", serif',
   sans: APPEARANCE_UI_FONT_STACKS.sans,
-  yuan: APPEARANCE_UI_FONT_STACKS.yuan
+  yuan: APPEARANCE_UI_FONT_STACKS.yuan,
+  hei: APPEARANCE_UI_FONT_STACKS.hei,
+  // 隶书：横画蚕头燕尾，古文、碑帖一类。Windows 有 `LiSu`/`STLiti`，macOS 没有，
+  // 所以 macOS 上会掉到楷体——比掉到宋体像得多。
+  li: '"LiSu", "STLiti", "隶书", "华文隶书", "Kaiti SC", "KaiTi", "Noto Serif SC", serif',
+  // 篆体：几乎只作装饰（扉页、标题）。两平台都极少预装，掉到楷体是合理落点。
+  seal: '"STZhongsong", "华文中宋", "方正小篆体", "Kaiti SC", "Noto Serif SC", serif',
+  // 幼圆：圆润、字面大，适合儿童读物或轻松向的稿子。`YouYuan` 是 Windows 的族名。
+  youyuan:
+    '"YouYuan", "幼圆", "Yuanti SC", "Yuanti TC", "Noto Sans SC", "Microsoft YaHei", sans-serif',
+  // 等宽正文：写代码或刻意要「一格一字」时用；中文回退到等宽 CJK，缺了会掉到黑体。
+  mono: APPEARANCE_UI_FONT_STACKS.mono
 } as const satisfies Record<AppearanceEditorFontFamily, string>;
 
 export interface AppearanceFontFamilyOption<T extends string> {
@@ -191,6 +242,77 @@ function fontSizeSchema(limits: { min: number; max: number }) {
     .transform((value) => Math.round(value * 2) / 2);
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   皮肤的「视觉层」（2026-10-07 批次 5-㊴ 建，5-㊵ 按上游真身重做）。
+
+   【5-㊴ 的做法错在哪，用户一句话点破了】
+   那一批把上游的视觉语言**概括成四个离散档**（texture/radius/outline/glow 各三四档），
+   等于自己发明了一套目录；而上游真正在做的事是**连续参数 + 具体手法**：
+   端场的玻璃是 `blur 8 / 14 / 22px` 三档配 alpha 与 sheen 渐变，
+   壁纸引擎的玻璃是**分区域**给参数（侧栏 / 设置窗 / 浮层 各有自己的 alpha 与 blur），
+   梦境的背景是四层 `radial-gradient` 逐条叠出来的弥散光。
+   「四档离散值」丢掉的正是这些——所以换出来的皮肤「跟他的那些不一样」。
+
+   【这一批改成什么】
+   不再自造档位，改成**从上游源码里搬真实数值**：
+   ① `backdrop` 背景层：梦境那 8 套 `radial-gradient` 弥散光整条搬过来（逐字节），落 `--skin-backdrop`。
+   ② `glass`    玻璃层：端场 8/14/22px 三档 + 壁纸引擎分区域参数（侧栏/正文/浮层），落 `--skin-glass-*`。
+   ③ `surface`  表面处理：端场全直角 `[class]{border-radius:0}` / 常规 / galgame 对话框渐变，落 `--skin-surface-*`。
+   ④ `grid`     图案层：端场工业网格（1px 横线@4px 间距 + 1px 竖线@120px）与 galgame 网格，落 `--skin-grid-*`。
+
+   【仍然用 z.enum 的理由不变】
+   枚举让「非法值」在**落盘那一刻**就被 zod 拒掉，而不是让它流进 CSS。
+   而每一档**背后的具体数值**在渲染层从上游真身取（appearanceThemeRuntime 里的
+   UPSTREAM_* 常量，逐条注明出处文件与原值），加一档只改 contracts 一处。
+   ⇒ 档位是墨宸的**接口**，数值是上游的**真身**，两者分开记，注释里写清哪一条来自哪个文件。
+   */
+export const APPEARANCE_BACKDROPS = [
+  "plain",
+  "abyss",
+  "aurora",
+  "nebula",
+  "ember",
+  "midnight"
+] as const;
+export const AppearanceBackdropSchema = z.enum(APPEARANCE_BACKDROPS);
+export type AppearanceBackdrop = z.infer<typeof AppearanceBackdropSchema>;
+
+/**
+ * 玻璃档。
+ * `subtle / standard / strong` 与上游 `docs/glass.md` 的三档**同名**，数值（blur 8/14/22px、
+ * alpha .68/.8/.9）也逐条来自那里；`regions` 是壁纸引擎那种**分区域**给参数的做法。
+ */
+export const APPEARANCE_GLASSES = ["none", "subtle", "standard", "strong", "regions"] as const;
+export const AppearanceGlassSchema = z.enum(APPEARANCE_GLASSES);
+export type AppearanceGlass = z.infer<typeof AppearanceGlassSchema>;
+
+/**
+ * 表面处理。
+ * `square` 用的是端场 theme.css:423-438 的真实手法（`[class]{border-radius:0!important}` 再恢复圆形元素），
+ * `round-none` 是公海皮 26px/20px 的胶囊面板，`dialogue` 是 gal-view 对话框的
+ * `linear-gradient(180deg, …)` 底 + 底部 4px 实心压边。
+ */
+export const APPEARANCE_SURFACES = ["plain", "square", "round-none", "dialogue"] as const;
+export const AppearanceSurfaceSchema = z.enum(APPEARANCE_SURFACES);
+export type AppearanceSurface = z.infer<typeof AppearanceSurfaceSchema>;
+
+/** 图案层：`none` 平涂；`industrial` 端场网格；`stage` galgame 舞台网格。 */
+export const APPEARANCE_GRIDS = ["none", "industrial", "stage"] as const;
+export const AppearanceGridSchema = z.enum(APPEARANCE_GRIDS);
+export type AppearanceGrid = z.infer<typeof AppearanceGridSchema>;
+
+/**
+ * 出厂取值的四条。
+ *
+ * **为什么全是「素」**：老用户盘上的 appearance.json 没有这些字段，
+ * `AppearanceThemeConfigSchema` 会给它们补上这个默认值——补成花哨的那一档，
+ * 等于应用一次升级就把人家的界面改了，而用户什么也没点。
+ */
+export const DEFAULT_APPEARANCE_BACKDROP: AppearanceBackdrop = "plain";
+export const DEFAULT_APPEARANCE_GLASS: AppearanceGlass = "none";
+export const DEFAULT_APPEARANCE_SURFACE: AppearanceSurface = "plain";
+export const DEFAULT_APPEARANCE_GRID: AppearanceGrid = "none";
+
 export const AppearanceThemeConfigSchema = z.object({
   preset: z.string().trim().min(1),
   accent: HexColorSchema,
@@ -198,7 +320,15 @@ export const AppearanceThemeConfigSchema = z.object({
   foreground: HexColorSchema,
   uiFontSize: fontSizeSchema(APPEARANCE_FONT_SIZE_LIMITS.uiFontSize),
   codeFontSize: fontSizeSchema(APPEARANCE_FONT_SIZE_LIMITS.codeFontSize),
-  translucentSidebar: z.boolean()
+  translucentSidebar: z.boolean(),
+  /* 视觉四层。全部带 default：老 JSON 缺它们时补出厂值，见上面那条注释。
+     `skin` 是皮肤 id（与 themePresets 那张表同一个 id 空间），
+     没有它就没法在皮肤广场上标出「现在用的是哪一套」。 */
+  skin: z.string().trim().min(1).default("plain"),
+  backdrop: AppearanceBackdropSchema.default(DEFAULT_APPEARANCE_BACKDROP),
+  glass: AppearanceGlassSchema.default(DEFAULT_APPEARANCE_GLASS),
+  surface: AppearanceSurfaceSchema.default(DEFAULT_APPEARANCE_SURFACE),
+  grid: AppearanceGridSchema.default(DEFAULT_APPEARANCE_GRID)
 });
 export type AppearanceThemeConfig = z.infer<typeof AppearanceThemeConfigSchema>;
 
@@ -228,7 +358,12 @@ export function createDefaultAppearanceTheme(scheme: AppearanceColorScheme): App
       foreground: "#F3F4F6",
       uiFontSize: DEFAULT_APPEARANCE_UI_FONT_SIZE,
       codeFontSize: DEFAULT_APPEARANCE_CODE_FONT_SIZE,
-      translucentSidebar: true
+      translucentSidebar: true,
+      skin: "plain",
+      backdrop: DEFAULT_APPEARANCE_BACKDROP,
+      glass: DEFAULT_APPEARANCE_GLASS,
+      surface: DEFAULT_APPEARANCE_SURFACE,
+      grid: DEFAULT_APPEARANCE_GRID
     };
   }
   return {
@@ -238,7 +373,12 @@ export function createDefaultAppearanceTheme(scheme: AppearanceColorScheme): App
     foreground: "#1A1C1F",
     uiFontSize: DEFAULT_APPEARANCE_UI_FONT_SIZE,
     codeFontSize: DEFAULT_APPEARANCE_CODE_FONT_SIZE,
-    translucentSidebar: true
+    translucentSidebar: true,
+    skin: "plain",
+    backdrop: DEFAULT_APPEARANCE_BACKDROP,
+    glass: DEFAULT_APPEARANCE_GLASS,
+    surface: DEFAULT_APPEARANCE_SURFACE,
+    grid: DEFAULT_APPEARANCE_GRID
   };
 }
 

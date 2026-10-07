@@ -1,4 +1,4 @@
-// 源自 deepwrite（Apache-2.0），原样移植其分栏测试：https://github.com/20090106-520/deepwrite
+// 源自 deepwrite，同源实现其分栏测试：docs/ATTRIBUTION.md
 // 仅删去本项目没有的功能导航用例（主功能高亮/视图切换）。
 
 import { createPinia, setActivePinia, storeToRefs } from "pinia";
@@ -7,9 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RIGHT_PANE_PREFERENCES_STORAGE_KEY } from "../utils/rightPanePreferences";
 import {
   LEFT_PANE_MAX,
+  NARROW_AUTO_COLLAPSE_WIDTH,
   RIGHT_PANE_MAX,
   defaultLeftPaneWidth,
   defaultRightPaneWidth,
+  shouldAutoCollapseRightPane,
   useLayoutStore
 } from "./layoutStore";
 
@@ -117,6 +119,118 @@ describe("layout store", () => {
     expect(refs.leftCollapsed.value).toBe(true);
     expect(refs.rightCollapsed.value).toBe(true);
     await nextTick();
+    store.$dispose();
+  });
+
+  /**
+   * 2026-10-05 窄窗自动折叠右栏。分三段钉，每段管一条边界：
+   * 阈值本身 / 初始态 / 手动优先。只测阈值的话，把 reconcile 里的那行删掉照样全绿。
+   */
+  it("窄窗阈值是个纯函数：低于 NARROW_AUTO_COLLAPSE_WIDTH 才收，且阈值不小于两栏固定宽之和", () => {
+    expect(shouldAutoCollapseRightPane(NARROW_AUTO_COLLAPSE_WIDTH - 1)).toBe(true);
+    expect(shouldAutoCollapseRightPane(NARROW_AUTO_COLLAPSE_WIDTH)).toBe(false);
+    expect(shouldAutoCollapseRightPane(1920)).toBe(false);
+    // 判据是「中栏还剩得下」，所以阈值必须大于 左 262 + 右 395。
+    expect(NARROW_AUTO_COLLAPSE_WIDTH).toBeGreaterThan(262 + 395);
+  });
+
+  it("窄窗一进来右栏就是收起的；宽窗不受影响", () => {
+    installRuntime(1000);
+    expect(useLayoutStore().rightCollapsed).toBe(true);
+
+    // 换宽窗重来一个干净的 store —— pinia 是 active 单例，不重建会拿到上面那个。
+    setActivePinia(createPinia());
+    installRuntime(1600);
+    expect(useLayoutStore().rightCollapsed).toBe(false);
+  });
+
+  it("用户手动动过右栏就把闸门上锁：此后窗口再窄也不自动干预（只收不展那条同理——reconcile 里没有展开分支）", async () => {
+    installRuntime(1000);
+    const store = useLayoutStore();
+    const refs = storeToRefs(store);
+    expect(refs.rightCollapsed.value, "窄窗初始应自动收起").toBe(true);
+    expect(refs.rightPaneManuallyToggled.value, "初始不该算手动").toBe(false);
+
+    // 用户自己把它展开 —— 即使视口仍窄，也不再被按回去。
+    store.togglePane("right");
+    expect(refs.rightCollapsed.value).toBe(false);
+    expect(refs.rightPaneManuallyToggled.value).toBe(true);
+
+    store.reconcilePaneWidths();
+    await nextTick();
+    expect(refs.rightCollapsed.value, "手动意图优先，自动策略不得推翻").toBe(false);
+    store.$dispose();
+  });
+
+  it("按**真实布局宽度**判，不按 window.innerWidth：Electron 缩放下两者能差一倍以上（真机 1280 vs 877）", async () => {
+    // innerWidth 报 1280（看起来很宽，不该收），但 shell 实测只有 900 —— 实际是窄窗。
+    installRuntime(1280);
+    const store = useLayoutStore();
+    const refs = storeToRefs(store);
+    expect(refs.rightCollapsed.value, "1280 起步时按 innerWidth 判为宽窗").toBe(false);
+
+    store.desktopShell = shell(900, 0);
+    await nextTick();
+    await nextTick();
+    expect(refs.rightCollapsed.value, "shell 挂上后必须按实测宽度改为收起").toBe(true);
+    store.$dispose();
+  });
+
+  it("shell 变宽也不自动展开（只收不展），且手动意图依旧优先", async () => {
+    installRuntime(900);
+    const store = useLayoutStore();
+    const refs = storeToRefs(store);
+    expect(refs.rightCollapsed.value).toBe(true);
+
+    // 窗口拉宽 —— 右栏保持收起，不擅自把用户眼前的视图改回去。
+    store.desktopShell = shell(1600, 0);
+    await nextTick();
+    await nextTick();
+    expect(refs.rightCollapsed.value, "变宽不自动展开").toBe(true);
+
+    // 手动展开后，闸门继续压着自动策略。
+    store.togglePane("right");
+    store.desktopShell = shell(800, 0);
+    await nextTick();
+    await nextTick();
+    expect(refs.rightCollapsed.value, "手动意图优先").toBe(false);
+    store.$dispose();
+  });
+
+  // 【5-㊳ 真机量到的】从皮肤广场点齿轮进设置：屏幕上是设置中心，
+  // 左栏「皮肤广场」那枚却还亮着——active 唯一的工作是说「你在这儿」，说错了比不说更糟。
+  // showSettings 原来只切 currentView，centerView 留在原地，于是那一枚就一直亮着。
+  it("showSettings 顺手复位 centerView：左栏不许停在原地亮着", async () => {
+    installRuntime();
+    const store = useLayoutStore();
+    const refs = storeToRefs(store);
+
+    store.showCenter("skins");
+    expect(refs.centerView.value).toBe("skins");
+    store.showSettings();
+    expect(refs.currentView.value).toBe("settings");
+    // 复位之后一枚都不亮是对的：设置视图的指示器是左下角那颗齿轮，它不在 nav-row 里。
+    expect(refs.centerView.value).toBe("chat");
+    // 回程落点与 showWorkspace 同一口径（都是对话），不因从哪一页进设置而变。
+    store.showWorkspace();
+    expect(refs.centerView.value).toBe("chat");
+    store.$dispose();
+  });
+
+  it("showSettings 可指名页签：不带参默认模型页，外观入口显式传 appearance", async () => {
+    installRuntime();
+    const store = useLayoutStore();
+    const refs = storeToRefs(store);
+
+    expect(refs.settingsTab.value).toBe("model");
+    store.showSettings();
+    expect(refs.currentView.value).toBe("settings");
+    expect(refs.settingsTab.value).toBe("model");
+
+    store.showWorkspace();
+    store.showSettings("appearance");
+    expect(refs.currentView.value).toBe("settings");
+    expect(refs.settingsTab.value).toBe("appearance");
     store.$dispose();
   });
 

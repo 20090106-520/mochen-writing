@@ -2,24 +2,66 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
+  DEFAULT_PERMISSION_MODE,
   PROPOSAL_MODE_LABELS,
   PROPOSAL_STATUS_LABELS,
+  WORK_MODE_LABELS,
+  workModeOf,
   type ProposalDecision
 } from "@mochen/contracts";
 import type { ProposalView } from "../stores/useAgentStore";
 import AppIcon from "./AppIcon.vue";
+import DiffHighlighter from "./DiffHighlighter.vue";
+import { permissionHint } from "../utils/proposal-permission";
+import { useBookStore } from "../stores/useBookStore";
 
 const props = defineProps<{ view: ProposalView; turnLabel: string }>();
 const emit = defineEmits<{
   decide: [decision: ProposalDecision, guidance: string];
 }>();
 
+const book = useBookStore();
 const guidance = ref("");
 const pending = computed(() => props.view.status === "pending");
 const expired = computed(() => props.view.status === "expired");
 const statusLabel = computed(() => PROPOSAL_STATUS_LABELS[props.view.status]);
 // 模式文案的唯一来源是 contracts 的穷尽表（铁律 6）：这里不写三元链，加模式不写文案直接编译不过。
 const modeLabel = computed(() => PROPOSAL_MODE_LABELS[props.view.proposal.mode]);
+/**
+ * 「切档后再批准」的入口（Plan 2 冒烟 P3）。判定在 utils/proposal-permission.ts，
+ * 判据用的就是主进程批准时那一份 writeVerdict——所以这里指的那一档，主进程一定认。
+ * 「当前章」取活动标签：与主进程 `threadKey` 即文稿路径的裁定 o 同一口径。
+ * 没开书时兜 DEFAULT_PERMISSION_MODE，不在组件里捏一个档位名——主进程那边
+ * （agent-service 的 context 与 PermissionMenu）兜的是同一个常量，兜底一旦分叉，
+ * 卡上就会说「切档就能批」而主进程拿着另一档在批。
+ */
+const permission = computed(() =>
+  permissionHint({
+    status: props.view.status,
+    docRelPath: props.view.proposal.docRelPath,
+    currentChapter: book.activeDocTab,
+    mode: book.meta?.permissionMode ?? DEFAULT_PERMISSION_MODE,
+    // 工作模式：老书没这一格时 workModeOf 兜成「直接动手」，与主进程同一份解析（铁律 6）。
+    workMode: workModeOf(book.meta ?? {})
+  })
+);
+const permissionSaving = computed(() => book.metaSaving);
+
+/** 切档走 useBookStore.setPermissionMode（它带落盘与失败回退），不是这里直接改状态。 */
+function switchPermissionMode(): void {
+  if (permission.value.kind !== "switch") return;
+  void book.setPermissionMode(permission.value.mode);
+}
+
+/**
+ * 切工作模式（2026-10-05 批次 4）：同样走 store，落盘与失败回退都在那里。
+ * 目标档位是**定死的** act——不是从视图反推，反推的话哪天 `permissionHint`
+ * 多出一种模式分支，这里就会跟着指向一个不存在的档。
+ */
+function switchToAct(): void {
+  if (permission.value.kind !== "switch-work-mode") return;
+  void book.setWorkMode("act");
+}
 
 function decide(decision: ProposalDecision): void {
   if (decision === "deny-with-guidance" && guidance.value.trim() === "") return;
@@ -48,7 +90,9 @@ function decide(decision: ProposalDecision): void {
     </header>
 
     <p class="proposal-why">{{ view.proposal.why }}</p>
-    <pre v-if="view.diff" class="proposal-diff">{{ view.diff }}</pre>
+    <!-- 逐条人审批是全案最硬的铁律，diff 看得清是这套铁律的地基：
+         新增行染绿、删除行染红、@@ 头单独着色，见 DiffHighlighter。 -->
+    <DiffHighlighter v-if="view.diff" :diff="view.diff" />
     <p v-else-if="expired" class="proposal-diff-empty">这条历史提案的 diff 不再取回。</p>
     <p v-else class="proposal-diff-empty">diff 尚未取回</p>
     <p
@@ -58,6 +102,42 @@ function decide(decision: ProposalDecision): void {
       锚点：{{ view.proposal.anchor }}
     </p>
     <p v-if="view.message" class="proposal-message">{{ view.message }}</p>
+
+    <!-- 切档入口：档位挡住的提案**不删 pending**，放开后这条还能直接批准（spec §5.1 约束 3），
+         所以这里给的是一条真动作（setPermissionMode 落盘），不是一句安慰话。
+         blocked 那一档只摆原因不给按钮——切档解决不了的事，给按钮是骗人（§2.7）。 -->
+    <div v-if="permission.kind !== 'none'" class="proposal-permission-hint">
+      <template v-if="permission.kind === 'switch'">
+        <span>{{ permission.detail }}</span>
+        <button
+          class="proposal-permission-switch"
+          type="button"
+          :disabled="permissionSaving"
+          :title="`切档并落盘；切完这张卡可以直接批准`"
+          @click="switchPermissionMode"
+        >
+          {{ permission.label }}
+        </button>
+      </template>
+      <!-- 先计划后动手（2026-10-05 批次 4）：这一颗走的是工作模式，不是档位。
+           两者视觉刻意共用 `.proposal-permission-switch`（它们是同一族问题的两个闸），
+           但事件不同——接到 setPermissionMode 上会让用户点完发现什么都没变。 -->
+      <template v-else-if="permission.kind === 'switch-work-mode'">
+        <span>{{ permission.detail }}</span>
+        <button
+          class="proposal-permission-switch"
+          type="button"
+          :disabled="permissionSaving"
+          :title="`切到「${WORK_MODE_LABELS.act}」并落盘；切完这张卡可以直接批准`"
+          @click="switchToAct"
+        >
+          {{ permission.label }}
+        </button>
+      </template>
+      <template v-else>
+        <span>{{ permission.detail }}</span>
+      </template>
+    </div>
 
     <footer v-if="pending" class="proposal-actions">
       <textarea

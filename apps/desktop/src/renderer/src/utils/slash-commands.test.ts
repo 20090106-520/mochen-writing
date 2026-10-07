@@ -13,12 +13,16 @@ const NO_GATE = { hasBook: true, turnRunning: false };
 const NO_MODS: HotkeyMods = { ctrl: false, shift: false, alt: false, meta: false };
 
 describe("slash-commands · 枚举与说明表（铁律 6：一张表，穷尽键）", () => {
-  it("波 1 落 6 条，顺序即面板顺序", () => {
+  it("终态 8 条，顺序即面板顺序（spec §6：`skills` 随技能库一起进表；`plugins` 随插件面板进表）", () => {
+    // 【改成钉新决定，不放宽断言】2026-10-07 批次 5-㉚ 加了插件面板，于是加一条 `plugins`。
+    // 位置放在 `skills` 之后：两者都是「装在应用里的东西」，摆在一起说得通。
     expect([...SLASH_COMMANDS]).toEqual([
       "model",
       "permissions",
       "status",
       "stage",
+      "skills",
+      "plugins",
       "resume",
       "clear"
     ]);
@@ -33,11 +37,14 @@ describe("slash-commands · 枚举与说明表（铁律 6：一张表，穷尽�
 });
 
 describe("slash-commands · 运行期可用性", () => {
-  it("有书、空闲：5 条（stage 被波 1 的闸门滤掉，绝不列出一个按下去只会报错的命令）", () => {
+  it("有书、空闲：8 条（stage 随六档案接通、skills 随技能库接通、plugins 随插件面板接通）", () => {
     expect(availableCommands(NO_GATE)).toEqual([
       "model",
       "permissions",
       "status",
+      "stage",
+      "skills",
+      "plugins",
       "resume",
       "clear"
     ]);
@@ -52,10 +59,16 @@ describe("slash-commands · 运行期可用性", () => {
     ]);
   });
 
-  it("没开书：要读书目录的 resume 与 permissions 一起拿掉，其余三条仍然可用", () => {
+  it("没开书：要读书目录的 resume / permissions / stage / skills 一起拿掉，plugins **留下**", () => {
+    // 【plugins 刻意不设书闸，与 skills 不同】
+    // skills 被闸是因为它有**书内**来源（`.mochen/skills/`），没书就少一半。
+    // 插件只有全局那一份，面板列的是应用的插件目录，与当前书毫无关系——
+    // 给它加书闸就等于「没开书时不让用户管理插件」，而那正是他最想管的时候
+    // （先装好插件，再去开书写）。
     expect(availableCommands({ hasBook: false, turnRunning: false })).toEqual([
       "model",
       "status",
+      "plugins",
       "clear"
     ]);
     // DURING_TURN_COMMANDS 是「运行中仍可用」的白名单，不是「无书也放行」的通行证：hasBook 这道闸在前。

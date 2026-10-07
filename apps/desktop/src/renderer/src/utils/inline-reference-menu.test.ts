@@ -1,6 +1,6 @@
 /**
  * 行内引用菜单的判定层用例（#106，纯函数，无 DOM）。
- * 脑子照搬 deepwrite（Apache-2.0）：`utils/composerReferences.ts` 的触发/插入判定 +
+ * 脑子对齐 deepwrite：`utils/composerReferences.ts` 的触发/插入判定 +
  * `composables/useConversationComposer.ts` 的过滤/上下键/空态口径。
  * 本文件同时是「Enter 只插入/执行、绝不发送」这条裁定的证据：结果联合里根本没有 send 这一型。
  */
@@ -137,7 +137,7 @@ describe("referenceVisibleOptions · 过滤（大小写、中文、上限）", (
     expect(list.map((option) => option.label)).toEqual(["开篇"]);
   });
 
-  it("拉丁标题大小写不敏感（zh-CN 口径照搬 deepwrite）", () => {
+  it("拉丁标题大小写不敏感（zh-CN 口径对齐 deepwrite）", () => {
     const pool = docPool([doc({ title: "Chapter One" })]);
     expect(referenceVisibleOptions(findReferenceMatch("@chapter", 8)!, pool)).toHaveLength(1);
     expect(referenceVisibleOptions(findReferenceMatch("@CHAPTER", 8)!, pool)).toHaveLength(1);

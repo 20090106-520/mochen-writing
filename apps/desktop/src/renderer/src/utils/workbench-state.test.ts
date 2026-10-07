@@ -3,11 +3,14 @@ import { USER_TEXT_MAX_LEN } from "@mochen/contracts";
 import type { DocRef } from "@mochen/contracts";
 import {
   WORKBENCH_CAPABILITIES,
+  WORKBENCH_CARD_HINTS,
   WORKBENCH_CARD_ICONS,
   WORKBENCH_CARD_LABELS,
   WORKBENCH_CARD_PREFILL,
   WORKBENCH_EMPTY_HINTS,
+  WORKBENCH_GUIDE_SUFFIX,
   WORKBENCH_HERO_QUOTE,
+  workbenchCardTitle,
   workbenchCards,
   workbenchSuggestions,
   workbenchTarget
@@ -54,7 +57,15 @@ describe("workbench-state · 五张能力卡是真动作（示意稿 A）", () =
       "大纲规划",
       "灵感激发"
     ]);
-    expect(cards.every((card) => card.enabled)).toBe(true);
+    expect(cards.every((card) => card.target !== null)).toBe(true);
+    // 卡的归属类型与 workbenchTarget 同源：world 是 material（素材库），不是它自己编的第二种口径。
+    expect(cards.map((card) => card.kind)).toEqual([
+      "chapter",
+      "character",
+      "material",
+      "outline",
+      "chapter"
+    ]);
   });
 
   it("world 卡取 materials/（material kind）第一篇，而不是 character/outline", () => {
@@ -83,23 +94,38 @@ describe("workbench-state · 五张能力卡是真动作（示意稿 A）", () =
     }
   });
 
-  it("缺对应分组 ⇒ 目标 null 且该卡 disabled（反向鉴别：不是恒 enabled）", () => {
+  it("缺对应分组 ⇒ target 为 null，但卡照样可点（2026-10-05：引导而非死卡）", () => {
     const cards = workbenchCards({ hasBook: true, docs: [], activeChapter: null });
-    expect(cards.every((card) => !card.enabled)).toBe(true);
-    const disabledHint = workbenchCards({
+    expect(cards).toHaveLength(5); // 一张都不许消失：灰着点不动比没有更糟
+    expect(cards.every((card) => card.target === null)).toBe(true);
+    const emptyHint = workbenchCards({
       hasBook: true,
       docs: chapters,
       activeChapter: null
     }).find((card) => card.id === "character")?.hint;
-    // F1：disabled ⇒ 说实话，不承诺此刻不存在的「浏览…」动作
-    expect(disabledHint).toBe(WORKBENCH_EMPTY_HINTS.character);
-    expect(disabledHint).not.toBe("浏览人物分组第一篇，落到右栏浏览态。");
-    // F1：enabled ⇒ 动作说明（chief-write 在 chapters 里有真目标）
+    // F1：没有目标 ⇒ 说实话，不承诺此刻不存在的「浏览…」动作
+    expect(emptyHint).toBe(WORKBENCH_EMPTY_HINTS.character);
+    expect(emptyHint).not.toBe("浏览人物分组第一篇，落到右栏浏览态。");
+    // F1：有目标 ⇒ 动作说明（chief-write 在 chapters 里有真目标）
     expect(
       workbenchCards({ hasBook: true, docs: chapters, activeChapter: null }).find(
         (card) => card.id === "chief-write"
       )?.hint
     ).toBe("打开当前章，预填一句改稿指令，再交给你逐条审批。");
+  });
+
+  it("悬停文案：空卡在实话后面补「点一下去左栏新建一篇」，有目标的不许画蛇添足", () => {
+    const empty = workbenchCards({ hasBook: true, docs: [], activeChapter: null })[0];
+    if (empty === undefined) throw new Error("空书也该有卡");
+    expect(workbenchCardTitle(empty)).toBe(
+      `${WORKBENCH_EMPTY_HINTS["chief-write"]}${WORKBENCH_GUIDE_SUFFIX}`
+    );
+    const ready = workbenchCards({ hasBook: true, docs: fullDocs, activeChapter: null }).find(
+      (card) => card.id === "character"
+    );
+    if (ready === undefined) throw new Error("有目标卡必须在");
+    expect(workbenchCardTitle(ready)).toBe(WORKBENCH_CARD_HINTS.character);
+    expect(workbenchCardTitle(ready)).not.toContain(WORKBENCH_GUIDE_SUFFIX);
   });
 
   it("只有两张卡往输入区填字，其余三张是浏览；填的那句是人话且报得出发出去的原话", () => {

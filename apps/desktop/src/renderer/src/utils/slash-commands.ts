@@ -13,6 +13,8 @@ export const SLASH_COMMANDS = [
   "permissions",
   "status",
   "stage",
+  "skills",
+  "plugins",
   "resume",
   "clear"
 ] as const;
@@ -28,29 +30,27 @@ export const SLASH_COMMAND_DESCRIPTIONS: Record<SlashCommand, string> = {
   model: "打开模型设置：baseURL、模型名与密钥",
   permissions: "打开权限档选择器（当前档显示在中栏头部）",
   status: "把这条线程的现状写进状态条",
-  stage: "切换创作阶段（要连同智能体档案一起切，波 2 接通）",
+  stage: "切换创作阶段（带阶段名可直接切，如 /stage 大纲）",
+  skills: "打开技能库浏览（只读；选中技能不装配，要挂入得按卡片上的「加入当前上下文」）",
+  plugins: "打开插件面板（看装了哪些、它们加了哪些能力；可停用或卸载）",
   resume: "重新读取这条线程的历史",
   clear: "只清空本页显示，不动盘上的会话历史"
 };
 
-/**
- * 波 1 里按下去还没有通路可走的命令：`stage` 的切阶段要连档案一起切（spec §6 的 profilesReady 缘由），
- * 档案是波 2 的产物。波 2 的 Task 18 删掉这一行、改由 PaletteFocus.profilesReady 驱动。
- * 枚举与说明表仍含 stage——被列出来却只会报错的命令才禁止，被滤掉不列出来是合规的。
- */
-const GATED_COMMANDS: readonly SlashCommand[] = ["stage"];
-
 /** turn 运行中仍可用的命令（换上下文/重建视图的那几条会和进行中的一轮抢状态）。 */
 const DURING_TURN_COMMANDS: readonly SlashCommand[] = ["model", "permissions", "status", "clear"];
 
+/**
+ * 需要已打开一本书的命令。
+ * 阶段来自 book.json 的 stages，没书时列出来就是一条按下 Enter 什么都不发生的命令——
+ * 项目律「拒绝一律回单句中文原因，不静默丢弃」，而「不列出来」正是这里合规的拒绝形式。
+ * （波 1 的 GATED_COMMANDS 曾把 stage 整条门控掉，等的就是档案落地；那条门控已随六档案删除。）
+ */
+const NEEDS_BOOK: readonly SlashCommand[] = ["resume", "permissions", "stage", "skills"];
+
 export function availableCommands(focus: PaletteFocus): SlashCommand[] {
   return SLASH_COMMANDS.filter((command) => {
-    if (GATED_COMMANDS.includes(command)) return false;
-    if (command === "resume" && !focus.hasBook) return false;
-    // 与 resume 同一条闸：无书时 PermissionMenu 不挂载（CenterColumn 的挂载条件要求 book.meta 非 null），
-    // 列出 /permissions 就是一条按下 Enter 什么都不发生的命令——项目律「拒绝一律回单句中文原因，不静默丢弃」，
-    // 而「不列出来」正是这里合规的拒绝形式（见 GATED_COMMANDS 那条不变量）。
-    if (command === "permissions" && !focus.hasBook) return false;
+    if (NEEDS_BOOK.includes(command) && !focus.hasBook) return false;
     if (focus.turnRunning) return DURING_TURN_COMMANDS.includes(command);
     return true;
   });

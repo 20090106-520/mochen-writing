@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { permissionChipView } from "./permission-chip";
-import { COMPOSER_HINT, CHIP_EMIT, composerChips, composerCounter } from "./composer-chips";
-import { USER_TEXT_MAX_LEN } from "@mochen/contracts";
+import { CHIP_EMIT, composerChips, composerCounter } from "./composer-chips";
+import { USER_TEXT_MAX_LEN, WORK_MODE_LABELS } from "@mochen/contracts";
 
 /** chip 行的入参默认值：只关心某一枚时，其余按「什么都没开」传。 */
 function input(over: Partial<Parameters<typeof composerChips>[0]> = {}) {
   return {
     hasBook: true,
     mode: "read-only" as const,
+    workMode: "act" as const,
     saving: false,
     thinkingLevel: "off" as const,
     webSearchEnabled: false,
@@ -22,7 +23,15 @@ function chip(id: string, over: Partial<Parameters<typeof composerChips>[0]> = {
 }
 
 /** #112 照参考图定的数组序 = 左端从左到右的渲染序，权限档落在右端。 */
-const CHIP_ORDER = ["model", "thinking", "web-search", "tools", "palette", "permission"];
+const CHIP_ORDER = [
+  "model",
+  "thinking",
+  "web-search",
+  "tools",
+  "palette",
+  "work-mode",
+  "permission"
+];
 
 describe("composer-chips · 六枚真开关/入口，排队不做按钮（F-D + #101 + #104）", () => {
   it("id 顺序逐字钉死：model/thinking/web-search/tools/palette/permission（第三枚排队按钮不许长出来）", () => {
@@ -32,6 +41,41 @@ describe("composer-chips · 六枚真开关/入口，排队不做按钮（F-D + 
   it("T9-1 反向钉：palette chip 的 title 不得再宣传不存在的 Ctrl+K 键位", () => {
     // 实测 hotkeys.ts 的全局 Ctrl 族没有 k，面板真身是裸 / 键。
     expect(chip("palette")?.title).not.toContain("Ctrl");
+  });
+
+  // ── 先计划后动手（2026-10-05 批次 4） ────────────────────────────────────
+  it("工作模式 chip 文案读 WORK_MODE_LABELS，不手抄标签", () => {
+    expect(chip("work-mode", { workMode: "plan" })?.text).toBe(WORK_MODE_LABELS.plan);
+    expect(chip("work-mode", { workMode: "act" })?.text).toBe(WORK_MODE_LABELS.act);
+  });
+
+  // 落在右端那一摞：它和权限档是同一族问题（「能碰多大」），分栏表是它的一部分（铁律 6）。
+  it("工作模式 chip 落在右端、挨着权限档", () => {
+    expect(chip("work-mode")?.slot).toBe("right");
+  });
+
+  it("两枚都是真开关，所以带按下态、不带下拉三角", () => {
+    // 计划档是**按下去生效**的两态，`aria-pressed` 用 active 才不撒谎；
+    // 点一下就切换、没有第二层可展开 ⇒ caret 恒假。
+    expect(chip("work-mode", { workMode: "plan" })?.active).toBe(true);
+    expect(chip("work-mode", { workMode: "act" })?.active).toBe(false);
+    expect(chip("work-mode")?.caret).toBe(false);
+    // 事件名走 CHIP_EMIT 这张穷尽表（铁律 6）：少一格 tsc 当场报，少一个事件这里报。
+    expect(CHIP_EMIT["work-mode"]).toBe("toggle-work-mode");
+  });
+
+  // 没开书时这一格不存在意义：工作模式是**书级**设置，没书就没有它。
+  it("没打开作品目录 ⇒ 禁用并说清为什么（不假装自己开着某个模式）", () => {
+    const c = chip("work-mode", { hasBook: false, mode: null });
+    expect(c?.disabled).toBe(true);
+    expect(c?.active).toBe(false);
+    expect(c?.title).toContain("作品目录");
+  });
+
+  // 反向钉：图标不许和「工具」那枚撞成同一个（两枚并排长一样，用户分不出按的是哪颗）。
+  it("工作模式的图标与工具 chip 不撞", () => {
+    expect(chip("work-mode", { workMode: "plan" })?.icon).not.toBe(chip("tools")?.icon);
+    expect(chip("work-mode", { workMode: "act" })?.icon).not.toBe(chip("tools")?.icon);
   });
 
   it("联动用例：permission chip 与 permissionChipView 的五个显示字段逐字段同值（防两份判定漂移）", () => {
@@ -122,12 +166,12 @@ describe("composer-chips · 联网搜索与工具清单", () => {
     expect(chip("web-search", { webSearchEnabled: true })?.title).toContain("本轮已带 web_search");
   });
 
-  it("工具 chip 永远不 disabled，且文案里的数量就是从 contracts 数出来的那五枚", () => {
+  it("工具 chip 永远不 disabled，且文案里的数量就是从 contracts 数出来的那六枚", () => {
     const tools = chip("tools");
     expect(tools?.disabled).toBe(false);
     // #112：下拉三角是 icon/caret 两枚字段渲染出来的，不再混进 text（同一件事两份真身）。
     expect(tools?.text).toBe("工具");
-    expect(tools?.title).toContain("5 枚");
+    expect(tools?.title).toContain("6 枚");
     expect(tools?.active).toBe(false);
   });
 
@@ -209,37 +253,26 @@ describe("composer-chips · #112 撤销合并口径，两枚控件各说各的",
     expect(chip("permission", { hasBook: false, mode: null })?.icon).toBe("folder");
   });
 
-  it("只有打开弹层的入口带下拉三角：两枚真开关（思考循环 / 联网开关）没有「更多」可展开", () => {
+  it("只有打开弹层的入口带下拉三角：真开关（思考循环 / 联网开关 / 工作模式）没有「更多」可展开", () => {
     for (const id of ["model", "tools", "palette", "permission"])
       expect(chip(id)?.caret, `${id} 是入口，该带三角`).toBe(true);
-    for (const id of ["thinking", "web-search"])
+    for (const id of ["thinking", "web-search", "work-mode"])
       expect(chip(id)?.caret, `${id} 是开关，不该带三角`).toBe(false);
   });
 
-  it("分栏照他那张卡：左端全是运行配置，右端只有权限（发送键由模板自己管）", () => {
+  // 2026-10-05 批次 4：右端从「只有权限」扩到「工作模式 + 权限」——
+  // 两者同属「能碰多大」这一族，分在同一端才看得出它们是一件事的两道闸。
+  it("分栏：左端全是运行配置，右端是工作模式与权限（发送键由模板自己管）", () => {
     const chips = composerChips(input());
     const left = chips.filter((c) => c.slot === "left").map((c) => c.id);
     const right = chips.filter((c) => c.slot === "right").map((c) => c.id);
     expect(left).toEqual(["model", "thinking", "web-search", "tools", "palette"]);
-    expect(right).toEqual(["permission"]);
-  });
-});
-
-describe("composer-chips · 卡下键位提示（#112）", () => {
-  it("提示里的每一段都对应这张卡真有的通路：没有附件通道就不许写「附件」", () => {
-    expect(COMPOSER_HINT).toContain("Enter 发送");
-    expect(COMPOSER_HINT).toContain("Shift + Enter 换行");
-    expect(COMPOSER_HINT).toContain("＋ 引用素材");
-    expect(COMPOSER_HINT).toContain("/ 命令");
-    expect(COMPOSER_HINT).toContain("@ 素材");
-    // 那枚禁用的麦克风必须有看得见的理由（Chromium 不给 disabled 元素弹 title）。
-    expect(COMPOSER_HINT).toContain("语音输入后续开放");
-    expect(COMPOSER_HINT).not.toContain("附件");
+    expect(right).toEqual(["work-mode", "permission"]);
   });
 });
 
 describe("composer-chips · CHIP_EMIT 与 ComposerChipId 同集", () => {
-  it("六枚 chip 各有唯一事件名，漏一键就会发出 undefined 事件长成死按钮", () => {
+  it("七枚 chip 各有唯一事件名，漏一键就会发出 undefined 事件长成死按钮", () => {
     // 键集必须与 ComposerChipId 完全一致：这枚「按了没反应的 chip」正是红线。
     expect(Object.keys(CHIP_EMIT).sort()).toEqual([
       "model",
@@ -247,9 +280,10 @@ describe("composer-chips · CHIP_EMIT 与 ComposerChipId 同集", () => {
       "permission",
       "thinking",
       "tools",
-      "web-search"
+      "web-search",
+      "work-mode"
     ]);
-    expect(new Set(Object.values(CHIP_EMIT)).size).toBe(6);
+    expect(new Set(Object.values(CHIP_EMIT)).size).toBe(7);
     expect(CHIP_EMIT.permission).toBe("open-permission-menu");
     expect(CHIP_EMIT.palette).toBe("open-palette");
     expect(CHIP_EMIT.thinking).toBe("cycle-thinking");

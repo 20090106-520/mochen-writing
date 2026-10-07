@@ -61,13 +61,49 @@ const api = {
   proposalDiff: offLimits("proposalDiff"),
   loadSession: offLimits("loadSession"),
   listSessions: offLimits("listSessions"),
+  contextPreview: offLimits("contextPreview"),
   providerView: offLimits("providerView"),
   providerSave: offLimits("providerSave"),
+  providerConnectionRemove: offLimits("providerConnectionRemove"),
+  providerVerify: offLimits("providerVerify"),
+  openProviderKeyPage: offLimits("openProviderKeyPage"),
+  openWebSource: offLimits("openWebSource"),
   listModels: offLimits("listModels"),
+  createBook: offLimits("createBook"),
+  createDoc: offLimits("createDoc"),
+  profileUpsert: offLimits("profileUpsert"),
+  profileRemove: offLimits("profileRemove"),
+  profileEnable: offLimits("profileEnable"),
+  appearanceGet: offLimits("appearanceGet"),
+  appearanceSave: offLimits("appearanceSave"),
+  saveFile: offLimits("saveFile"),
+  buildExport: offLimits("buildExport"),
+  listChanges: offLimits("listChanges"),
+  readChange: offLimits("readChange"),
+  restoreChange: offLimits("restoreChange"),
+
+  // 2026-10-06 批次 5-⑧ 新增的三个（保留上限）。写 store 用不到它们，
+  // 桩成「越权就抛」：真被调用到时这条用例会立刻炸，而不是悄悄返回 undefined。
+  changesRetentionGet: offLimits("changesRetentionGet"),
+  changesRetentionSave: offLimits("changesRetentionSave"),
+  changesPruneNow: offLimits("changesPruneNow"),
+  notify: offLimits("notify"),
   // onAgentEvent 要同步返回取消函数，async 夹具类型不符——这里同步抛错。
   onAgentEvent: vi.fn(() => {
     throw new Error("useBookStore 不该订阅 agent");
-  })
+  }),
+  listSkills: offLimits("listSkills"),
+  readSkill: offLimits("readSkill"),
+  // 技能市场三枚（2026-10-07 批次 5-㉖）：与上面同一口径，桩成「越权就抛」。
+  listMarket: offLimits("listMarket"),
+  installMarketSkill: offLimits("installMarketSkill"),
+  uninstallMarketSkill: offLimits("uninstallMarketSkill"),
+  // 插件四枚（2026-10-07 批次 5-㉚）：与上面同一口径——这一批测的是书，
+  // 插件是应用级的东西，越权调用就该当场抛而不是静默返回空。
+  listPlugins: offLimits("listPlugins"),
+  togglePlugin: offLimits("togglePlugin"),
+  uninstallPlugin: offLimits("uninstallPlugin"),
+  readPluginSource: offLimits("readPluginSource")
 } satisfies RendererApi;
 
 function docReads() {

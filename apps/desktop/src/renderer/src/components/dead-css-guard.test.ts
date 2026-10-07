@@ -1,0 +1,186 @@
+/// <reference types="node" />
+/**
+ * 死 CSS 守卫（2026-10-05）。
+ *
+ * 问题：CSS 里的类名只要写了规则就算「存在」，可它可能一个元素都匹配不到。
+ * 这层没人报警——删不掉、看不见、改不动，一轮轮攒下来。本仓清过两批：
+ * 「更多功能」面板、分区操作菜单、钉住资源区、设置中心改整页视图前的浮层类、
+ * 消息区改版前的 message-* 族、长文档演示态……合计几十条规则、几十个类名。
+ * 更糟的是覆盖清单守卫 theme-runtime-coverage.test.ts 会把它们判成「有消费者」
+ * （判据之一就是「CSS 里有真规则」），于是死规则反而给死条目发了通行证。
+ *
+ * 口径：styles/*.css 里出现过的每个类名，要么在 .vue/.ts 源码里被用到，
+ * 要么属于「动态拼出来的类名」白名单——白名单不是写死的，是从
+ * PROPOSAL_STATUSES 现场推导的，免得状态枚举变了这里悄悄过期。
+ *
+ * 两个坑写在下面，都是这轮真踩过的：
+ *   ① 动态类名只有一个产生点：ProposalCard.vue 的 `:class="[\`is-${view.status}\`]`"。
+ *      字面量搜不到 is-written / is-rejected / is-stale，删了提案卡状态配色就没了。
+ *   ② `LeftSidebar.vue` 的 `tree-${docKind}` 看着同类，其实是喂 **data-nav-id** 的，
+ *      从不生成 class。别被它骗进保护名单。
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+
+const SRC = fileURLToPath(new URL("../", import.meta.url));
+const STYLES = path.join(SRC, "styles");
+const CONTRACTS = fileURLToPath(
+  new URL("../../../../../../packages/contracts/src/patch.ts", import.meta.url)
+);
+const PROVIDER_CONTRACTS = fileURLToPath(
+  new URL("../../../../../../packages/contracts/src/provider.ts", import.meta.url)
+);
+
+const stripComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, " ");
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(full, out);
+    else out.push(full);
+  }
+  return out;
+}
+
+/**
+ * 动态产出的类名：
+ * 1. 从 PROPOSAL_STATUSES 现场推导 `is-${status}`。
+ * 2. 从 EditorViewMode 现场推导 `editor-document--${mode}`。
+ * 3. 从 NotificationLevel 现场推导 `is-${level}`（NotificationToast 的 `` `is-${n.level}` ``）。
+ * 4. 从 `<transition name="x">` / `<transition-group name="x">` 现场推导 Vue 那七个进出场类名。
+ * 5. 从 contracts 的 VerifyResult 现场推导 `is-${state}`（体检三态，批次 5-⑤）。
+ * 写死名单的话，枚举一改这里就悄悄过期——所以宁可多读两个文件。
+ */
+function dynamicClassNames(): Set<string> {
+  const contracts = fs.readFileSync(CONTRACTS, "utf8");
+  const providerContracts = fs.readFileSync(PROVIDER_CONTRACTS, "utf8");
+  const block = /PROPOSAL_STATUSES\s*=\s*\[([\s\S]*?)\]/.exec(contracts);
+  expect(block, "packages/contracts/src/patch.ts 里找不到 PROPOSAL_STATUSES").toBeDefined();
+  const statuses = [...block![1]!.matchAll(/"([a-z-]+)"/g)].map((m) => m[1]!);
+  expect(statuses.length, "PROPOSAL_STATUSES 解析不出取值").toBeGreaterThan(0);
+
+  const out = new Set(statuses.map((s) => `is-${s}`));
+
+  // DocumentPane 里 `:class="`editor-document--${viewMode}"` 是动态的——字面量搜不到
+  // editor-document--edit / --split / --preview，得从 EditorViewMode 派生。
+  const bookStorePath = path.join(SRC, "stores/useBookStore.ts");
+  const bookStore = fs.existsSync(bookStorePath) ? fs.readFileSync(bookStorePath, "utf8") : "";
+  const viewModeBlock = /EditorViewMode\s*=\s*([\s\S]*?);/.exec(bookStore);
+  if (viewModeBlock) {
+    const modes = [...viewModeBlock[1]!.matchAll(/"([a-z]+)"/g)].map((m) => m[1]!);
+    for (const mode of modes) out.add(`editor-document--${mode}`);
+  }
+
+  // NotificationToast 拼的也是 `is-${n.level}`：info / success / warning / error
+  // 这四个字面量在模板里一个都搜不到（那儿只有 `is-${n.level}`），
+  // 于是那四条配色规则会被判成死 CSS（2026-10-05 批次 3 实际红过一次）。
+  const notifyStore = fs.readFileSync(path.join(SRC, "stores/useNotificationStore.ts"), "utf8");
+  const levelBlock = /NotificationLevel\s*=\s*([\s\S]*?);/.exec(notifyStore);
+  expect(levelBlock, "useNotificationStore.ts 里找不到 NotificationLevel").toBeDefined();
+  for (const level of [...levelBlock![1]!.matchAll(/"([a-z-]+)"/g)].map((m) => m[1]!)) {
+    out.add(`is-${level}`);
+  }
+
+  // Vue 的 <transition> / <transition-group> 在**运行期**生成那七个类名，源码里只有
+  // `name="toast"` 一处——.toast-enter-from 这类字面量一个都搜不到。
+  // 扫出 name 再展开成 Vue 的后缀组合，这份名单就不会随着组件增删而腐坏。
+  for (const file of walk(SRC).filter((f) => f.endsWith(".vue"))) {
+    const tags = fs
+      .readFileSync(file, "utf8")
+      .matchAll(/<transition(?:-group)?\s[^>]*name="([^"]+)"/g);
+    for (const m of tags) {
+      const name = m[1]!;
+      for (const phase of ["enter", "leave"]) {
+        for (const state of ["active", "from", "to"]) out.add(`${name}-${phase}-${state}`);
+      }
+      out.add(`${name}-move`);
+    }
+  }
+
+  // 体检三态（批次 5-⑤）：ProviderSettings.vue 与 ModelProfileDialog.vue 都是
+  // `:class="`is-${verify.state}`"`，源码里没有 is-ok / is-unreachable / is-unverified
+  // 任何一个字面量 ⇒ 三条配色规则会被判成死 CSS。从 contracts 的 VerifyResult 现场推导。
+  //
+  // 截取范围从 `VerifyResult =` 到**下一个顶层 export**：这个联合类型每个分支里
+  // 都有分号（`{ state: "ok"; modelCount: number }`），按 `.*?;` 截会在第一个分支就断掉。
+  const verifyAt = providerContracts.indexOf("VerifyResult");
+  expect(verifyAt, "packages/contracts/src/provider.ts 里找不到 VerifyResult").toBeGreaterThan(-1);
+  const nextExport = providerContracts.indexOf("\nexport ", verifyAt);
+  const verifyBody = providerContracts.slice(verifyAt, nextExport === -1 ? undefined : nextExport);
+  const states = [...verifyBody.matchAll(/state:\s*"([a-z-]+)"/g)].map((m) => m[1]!);
+  expect(states.length, "VerifyResult 解析不出三档取值").toBe(3);
+  for (const state of states) out.add(`is-${state}`);
+
+  return out;
+}
+
+describe("死 CSS 守卫 · 类名不许写了规则却匹配不到任何元素", () => {
+  it("styles/*.css 里的每个类名都有消费者，或属于动态拼出的白名单", () => {
+    const dynamic = dynamicClassNames();
+
+    const cssClasses = new Set<string>();
+    for (const file of fs.readdirSync(STYLES).filter((f) => f.endsWith(".css"))) {
+      const css = stripComments(fs.readFileSync(path.join(STYLES, file), "utf8"));
+      for (const m of css.matchAll(/\.([A-Za-z][A-Za-z0-9_-]*)/g)) cssClasses.add(m[1]!);
+    }
+    expect(cssClasses.size, "CSS 类名一个都没读到，解析口径坏了").toBeGreaterThan(100);
+
+    // 排除 .test.ts：否则本文件提到的类名会把判定喂饱，这条测试就成了永动机。
+    const codeText = walk(SRC)
+      .filter((f) => /\.(ts|vue)$/.test(f) && !f.endsWith(".test.ts"))
+      .map((f) => fs.readFileSync(f, "utf8"))
+      .join("\n");
+
+    const orphans = [...cssClasses].filter((c) => !dynamic.has(c) && !codeText.includes(c));
+
+    expect(
+      orphans.map((c) => `.${c}`).sort(),
+      "CSS 里的孤儿类名：没有任何元素会带上它，规则一行也匹配不到。" +
+        "确认是改版残留就删掉规则；若是有意留的预备样式，先接线再用；" +
+        "若它只出现在 :not() 里（否定要求恒真、规则仍有效），把类名加进本测试的豁免说明再豁免。"
+    ).toEqual([]);
+  });
+
+  // 白名单的地基：动态类名的产生点必须还在，否则上面那条推导出来的名单就是假的
+  // （比如有人把 ProposalCard 的 `is-${view.status}` 改成写死的名字）。
+  it("动态类名的产生点仍在：ProposalCard 用 `is-${view.status}` 拼状态类", () => {
+    const card = fs.readFileSync(path.join(SRC, "components/ProposalCard.vue"), "utf8");
+    expect(
+      card,
+      "ProposalCard.vue 不再拼 `is-${view.status}` 了 —— 本测试从 PROPOSAL_STATUSES 推导的" +
+        "动态类名名单会与真实产生点脱节，请同步更新 dynamicClassNames()"
+    ).toContain("is-${view.status}");
+  });
+
+  // 推导正则坏掉时是**静默**的：少推几条 → 那几条 CSS 被误判成死（红），
+  // 多推几条 → 一律放行（绿，且永动机）。所以这里正反各钉一次。
+  it("推导不是空转：真推出了 toast 的状态类与 Vue 进出场类", () => {
+    const dynamic = dynamicClassNames();
+    for (const expected of [
+      "is-info",
+      "is-success",
+      "is-warning",
+      "is-error",
+      "toast-enter-from",
+      "toast-leave-to",
+      "toast-move"
+    ]) {
+      expect(dynamic.has(expected), `推导没推出 ${expected}`).toBe(true);
+    }
+    // 这条不是推导来的，是写死名单的反向检查：防止有人图省事把一长串类名硬塞进豁免表。
+    expect(dynamic.has("totally-not-a-real-class")).toBe(false);
+  });
+
+  // 反向钉：LeftSidebar 的 `tree-${docKind}` 是 data-nav-id，不是 class。
+  // 一旦有人把它改成真类名，本测试就会漏放一批孤儿——那时这条会红。
+  it("别把 tree-${docKind} 当成动态类名：它喂的是 data-nav-id", () => {
+    const sidebar = fs.readFileSync(path.join(SRC, "components/LeftSidebar.vue"), "utf8");
+    const line = /return `tree-\$\{[^`]*`;/.exec(sidebar)?.[0] ?? "";
+    expect(line, "LeftSidebar.vue 里找不到 `tree-${…}` 的返回语句").toBeTruthy();
+    // 它必须出现在 navIdOf（data-nav-id 的计算）里，而不是 class 绑定上
+    expect(sidebar).toContain(':data-nav-id="navIdOf(group, child)"');
+    expect(sidebar).not.toMatch(/:class="[^"]*navIdOf/);
+  });
+});

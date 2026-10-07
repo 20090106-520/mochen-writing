@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import {
+  DEFAULT_CHANGE_RETENTION,
   DEFAULT_PERMISSION_MODE,
   type AgentEvent,
   type AgentOutbound,
@@ -15,6 +16,7 @@ import {
   type ProviderFetchInput,
   type ProviderFetchResult
 } from "@mochen/agent-runtime";
+
 import { createBookService, type BookService } from "./book-service.js";
 import { createCredentialStore } from "./credential-store.js";
 import { createProviderSettings } from "./provider-settings.js";
@@ -99,7 +101,12 @@ const proposePatchChunks: Record<string, unknown>[] = [
  * 「审批前指纹比对待通过、真正写盘时才发现被改动」这条 TOCTOU 分支只能这样造。
  */
 async function build(
-  options: { fetchImpl?: ProviderFetch; writeDoc?: BookService["writeDoc"] } = {}
+  options: {
+    fetchImpl?: ProviderFetch;
+    writeDoc?: BookService["writeDoc"];
+    /** 挂入技能的读取桩（spec §11）。不给 ⇒ 一条都读不到。 */
+    readSkill?: (relPath: string) => Promise<{ title: string; text: string }>;
+  } = {}
 ): Promise<{
   service: AgentService;
   writes: string[];
@@ -131,7 +138,7 @@ async function build(
     ),
     "utf8"
   );
-  const book = createBookService();
+  const book = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
   const opened = await book.open(dir);
   await book.saveMeta({ ...opened.meta, permissionMode: "full-access" });
   const credentials = createCredentialStore(secrets, {
@@ -139,12 +146,18 @@ async function build(
     encrypt: (plain) => `enc:${Buffer.from(plain, "utf8").toString("base64url")}`,
     decrypt: (text) => Buffer.from(text.slice(4), "base64url").toString("utf8")
   });
-  await credentials.save(API_KEY);
-  await createProviderSettings({ dir: secrets, credentials }).save({
+  const provider = createProviderSettings({ dir: secrets, credentials });
+  // v3：地址与密钥都按连接分份。先把连接建出来拿到 id，密钥再直接写进那一份。
+  const seeded = await provider.saveConnection({
+    providerId: "custom",
     baseURL: "http://mock/v1",
-    model: "test-model",
+    authHeader: "bearer",
     apiKey: null
   });
+  const connectionId = seeded.connections[0]?.id ?? "";
+  if (connectionId === "") throw new Error("连接没建起来，档案挂不上去");
+  await credentials.save(connectionId, API_KEY);
+  await provider.upsertProfile({ model: "test-model", connectionId });
   const outbound: AgentOutbound[] = [];
   const writes: string[] = [];
   const spied: BookService = {
@@ -164,7 +177,8 @@ async function build(
     emit: (payload) => outbound.push(payload),
     newId: () => "id1",
     isoNow: () => "2026-10-01T08:00:00.000Z",
-    promptFor: defaultPromptFor
+    promptFor: defaultPromptFor,
+    readSkill: options.readSkill
   });
   return { service, writes, outbound };
 }
@@ -221,7 +235,8 @@ describe("agentService 边界拒绝与线程归一", () => {
       stageId: "draft",
       userText: "写".repeat(20001),
       thinkingLevel: "off",
-      webSearchEnabled: false
+      webSearchEnabled: false,
+      skillPaths: []
     };
     expect(await rejectMessage(service.startTurn(input))).toContain("过长");
     expect(writes).toEqual([]);
@@ -238,7 +253,8 @@ describe("agentService 边界拒绝与线程归一", () => {
         stageId: "",
         userText: "写点什么",
         thinkingLevel: "off",
-        webSearchEnabled: false
+        webSearchEnabled: false,
+        skillPaths: []
       })
     );
     expect(message).toContain("不能为空");
@@ -264,7 +280,8 @@ describe("agentService 边界拒绝与线程归一", () => {
           stageId: "draft",
           userText: "写点什么",
           thinkingLevel: "off",
-          webSearchEnabled: false
+          webSearchEnabled: false,
+          skillPaths: []
         })
       );
       expect(message).toContain("两者不能同时给");
@@ -284,7 +301,8 @@ describe("agentService 边界拒绝与线程归一", () => {
         stageId: "draft",
         userText: "随便聊聊",
         thinkingLevel: "off",
-        webSearchEnabled: false
+        webSearchEnabled: false,
+        skillPaths: []
       })
     ).resolves.toBeDefined();
     expect(turnStartThreadKeys(outbound)).toEqual(["unbound"]);
@@ -304,7 +322,8 @@ describe("agentService 边界拒绝与线程归一", () => {
         stageId: "   ",
         userText: "随便聊聊",
         thinkingLevel: "off",
-        webSearchEnabled: false
+        webSearchEnabled: false,
+        skillPaths: []
       })
     ).resolves.toBeDefined();
     const rel = await findLatestSession(root, CHAPTER);
@@ -324,7 +343,8 @@ describe("agentService 边界拒绝与线程归一", () => {
         stageId: "draft",
         userText: "随便聊聊",
         thinkingLevel: "off",
-        webSearchEnabled: false
+        webSearchEnabled: false,
+        skillPaths: []
       })
     ).resolves.toBeDefined();
     expect(turnStartThreadKeys(outbound)).toEqual(["unbound"]);
@@ -344,7 +364,8 @@ describe("agentService 边界拒绝与线程归一", () => {
       stageId: "draft",
       userText: "改紧一点",
       thinkingLevel: "off",
-      webSearchEnabled: false
+      webSearchEnabled: false,
+      skillPaths: []
     });
     const id = proposalIdsOf(outbound)[0] ?? "";
     if (id === "") throw new Error("夹具必须先出提案，否则走不到写盘那一步");
@@ -388,7 +409,8 @@ describe("agentService 边界拒绝与线程归一", () => {
       stageId: "draft",
       userText: "改紧一点",
       thinkingLevel: "high",
-      webSearchEnabled: true
+      webSearchEnabled: true,
+      skillPaths: []
     });
     const request = requests[0];
     if (request === undefined) throw new Error("请求必须发出");
@@ -396,8 +418,8 @@ describe("agentService 边界拒绝与线程归一", () => {
     expect(body.reasoning_effort).toBe("high");
     const tools = body.tools as Record<string, unknown>[];
     expect(tools.some((tool) => tool.type === "web_search")).toBe(true);
-    // 五枚本仓工具一枚不许被联网条目挤掉（TOOL_SPECS 是唯一真身）。
-    expect(tools.filter((tool) => tool.type === "function").length).toBe(5);
+    // 六枚本仓工具一枚不许被联网条目挤掉（TOOL_SPECS 是唯一真身；web_search 是第七个类型槽里的第六枚 function）。
+    expect(tools.filter((tool) => tool.type === "function").length).toBe(6);
     service.dispose();
   });
 
@@ -409,13 +431,63 @@ describe("agentService 边界拒绝与线程归一", () => {
       stageId: "draft",
       userText: "改紧一点",
       thinkingLevel: "off",
-      webSearchEnabled: false
+      webSearchEnabled: false,
+      skillPaths: []
     });
     const body = JSON.parse(requests[0]?.body ?? "{}") as Record<string, unknown>;
     // 「关」的实现是不发字段，不是发 "off"：严格校验的端点会 400，这条钉住差别。
     expect(body).not.toHaveProperty("reasoning_effort");
     const tools = body.tools as Record<string, unknown>[];
     expect(tools.some((tool) => tool.type === "web_search")).toBe(false);
+    service.dispose();
+  });
+});
+
+describe("挂入技能（spec §11）", () => {
+  const input = (skillPaths: string[]): StartTurnInput => ({
+    threadKey: CHAPTER,
+    docRelPath: CHAPTER,
+    stageId: "draft",
+    userText: "照技能改",
+    thinkingLevel: "off",
+    webSearchEnabled: false,
+    skillPaths
+  });
+
+  it("挂入的技能正文真的进了这一轮发出去的系统提示", async () => {
+    const { service } = await build({
+      readSkill: async (relPath) => ({ title: relPath, text: "先埋线，三百字后收。" })
+    });
+    await service.startTurn(input(["book:伏笔"]));
+    const sent = JSON.parse(requests[0]?.body ?? "{}") as { messages: { content: string }[] };
+    const system = sent.messages[0]?.content ?? "";
+    expect(system).toContain("先埋线，三百字后收。");
+    expect(system).toContain("伏笔");
+    service.dispose();
+  });
+
+  it("读不到的挂入技能 ⇒ 如实发一条 error 事件说清跳过几个，其余照常开轮", async () => {
+    const { service, outbound } = await build({
+      readSkill: async (relPath) => {
+        if (relPath === "book:好的") return { title: "好的", text: "这一条读到了。" };
+        throw new Error("读不到这份技能");
+      }
+    });
+    await service.startTurn(input(["book:好的", "book:坏的", "book:也坏的"]));
+    const errors = errorEventsOf(outbound);
+    expect(errors.map((e) => e.message)).toContain("有 2 个挂入技能读不到，已跳过。");
+    // 读得到的那一条照样装进去了：不因为另一条坏就整轮都丢
+    const sent = JSON.parse(requests[0]?.body ?? "{}") as { messages: { content: string }[] };
+    expect(sent.messages[0]?.content ?? "").toContain("这一条读到了。");
+    service.dispose();
+  });
+
+  it("没给读取通路（装配处漏接线）⇒ 当成一条都读不到并说出来，不静默当成「没挂技能」", async () => {
+    const { service, outbound } = await build();
+    await service.startTurn(input(["book:伏笔"]));
+    expect(errorEventsOf(outbound).map((e) => e.message)).toContain(
+      "有 1 个挂入技能读不到，已跳过。"
+    );
     service.dispose();
   });
 });

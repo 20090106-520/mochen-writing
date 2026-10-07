@@ -54,12 +54,10 @@ describe("bookMetaSchema", () => {
     );
   });
 
-  it("默认权限档是最保守的一档", () => {
-    expect(DEFAULT_PERMISSION_MODE).toBe("read-only");
+  it("默认权限档是「全开」（用户裁定：智能体可直接落稿，收紧靠显式切档）", () => {
+    expect(DEFAULT_PERMISSION_MODE).toBe("full-access");
     expect(PERMISSION_MODES[0]).toBe("read-only");
-    expect(bookMetaSchema.safeParse({ ...valid, permissionMode: "full-access" }).success).toBe(
-      true
-    );
+    expect(bookMetaSchema.safeParse({ ...valid, permissionMode: "read-only" }).success).toBe(true);
   });
 });
 

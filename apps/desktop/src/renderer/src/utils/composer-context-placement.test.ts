@@ -1,6 +1,6 @@
 /**
  * #113c 阶段弹层的落点判定（纯函数）。
- * 数值全部照搬 deepwrite useComposerContextPopover.ts 的 position()：宽 min(320, 视口-16)、
+ * 数值全部对齐 deepwrite useComposerContextPopover.ts 的 position()：宽 min(320, 视口-16)、
  * 上下留 margin 8 / gap 7、上方够 260 或上方比下方宽才朝上翻、封顶 380。
  * 为什么把这段从 composable 里剥出来：本仓 `.vue` 不进类型程序、也没有组件测试，
  * 只有落在 `.ts` 的判定才咬得住回归（先例：permission-chip.ts、composer-chips.ts、slash-commands.ts）。
@@ -84,6 +84,52 @@ describe("composerPopoverPlacement · 不越出视口", () => {
     });
     // 上方 5-15 与下方 100-200-15 都是负数 ⇒ 钳到 0，且 0>=0 仍判朝下。
     expect(p.side).toBe("top");
+    expect(p.maxHeightPx).toBe(0);
+  });
+});
+
+describe("spacePx · 给「浏览面板」的那条路（2026-10-07 批次 5-㉖）", () => {
+  it("spacePx 是那一侧**未封顶**的可用高度；maxHeightPx 仍然等于 min(380, spacePx)", () => {
+    const cases = [
+      { anchor: anchorAt(30, 70), vp: viewport },
+      { anchor: anchorAt(300, 340), vp: { ...viewport, innerHeight: 520 } },
+      { anchor: anchorAt(30, 70), vp: { ...viewport, innerHeight: 200 } },
+      { anchor: anchorAt(700, 740), vp: viewport }
+    ];
+    for (const { anchor, vp } of cases) {
+      const p = composerPopoverPlacement({ anchor, viewport: vp });
+      // 预期从 side 自己推：朝上开就看 above，朝下开就看 below。
+      // 【为什么不写死哪一侧】我第一版就是写死的，结果把 above=285≥260 判成了朝下——
+      // 数字看着像那么回事，方向却算反，断言红得莫名其妙。方向是判定的产物，不是前提。
+      const expectedSpace =
+        p.side === "bottom"
+          ? anchor.top - POPOVER_GAP - POPOVER_MARGIN
+          : vp.innerHeight - anchor.bottom - POPOVER_GAP - POPOVER_MARGIN;
+      expect(p.spacePx, `side=${p.side} anchor=${JSON.stringify(anchor)}`).toBe(
+        Math.max(0, expectedSpace)
+      );
+      expect(p.maxHeightPx).toBe(Math.min(POPOVER_MAX_HEIGHT, p.spacePx));
+    }
+  });
+
+  it("确实存在「space < 380」这一档：这时 maxHeightPx = spacePx，而 spacePx 仍是真数", () => {
+    // 贴着窗口上沿、下方只剩一百多像素 ⇒ 这一档成立。
+    // 它正是「上限可以更高、底线不能更高」要分两样东西的理由：
+    // 只给一个数的话，浏览面板要么被 380 压住，要么连这点空间也不剩。
+    const p = composerPopoverPlacement({
+      anchor: anchorAt(30, 70),
+      viewport: { innerWidth: 1200, innerHeight: 200 }
+    });
+    expect(p.spacePx).toBeLessThan(POPOVER_MAX_HEIGHT);
+    expect(p.maxHeightPx).toBe(p.spacePx);
+  });
+
+  it("spacePx 也不吐负数：锚点跑出视口时它与 maxHeightPx 一起钳到 0", () => {
+    const p = composerPopoverPlacement({
+      anchor: { left: 5, top: 5, bottom: 200 },
+      viewport: { innerWidth: 100, innerHeight: 100 }
+    });
+    expect(p.spacePx).toBe(0);
     expect(p.maxHeightPx).toBe(0);
   });
 });

@@ -8,12 +8,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  DEFAULT_CHANGE_RETENTION,
   DEFAULT_PERMISSION_MODE,
   type AgentEvent,
   type AgentOutbound,
   type StartTurnInput
 } from "@mochen/contracts";
 import { findLatestSession, readSession, type ProviderFetch } from "@mochen/agent-runtime";
+
 import { createBookService, type BookService } from "./book-service.js";
 import { createCredentialStore } from "./credential-store.js";
 import { createProviderSettings } from "./provider-settings.js";
@@ -72,6 +74,8 @@ afterAll(async () => {
 interface Built {
   dir: string;
   secretDir: string;
+  /** v3：密钥按连接分份，密文落在这条连接名下（`secrets/<id>.enc`）。 */
+  connectionId: string;
   service: AgentService;
   book: BookService;
   settings: Awaited<ReturnType<typeof createProviderSettings>>;
@@ -101,7 +105,7 @@ async function build(): Promise<Built> {
     ),
     "utf8"
   );
-  const book = createBookService();
+  const book = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
   const opened = await book.open(dir);
   // 落到「全开」：只读档下审批这一步根本走不到写盘，验不到备份
   await book.saveMeta({ ...opened.meta, permissionMode: "full-access" });
@@ -114,12 +118,16 @@ async function build(): Promise<Built> {
     decrypt: (text) => Buffer.from(text.slice(4), "base64url").toString("utf8")
   });
   const settings = createProviderSettings({ dir: secretDir, credentials });
-  // 生产形状：密钥随 ProviderDraft 进 settings.save，由它内部走 credentials（先密钥后 config）
-  await settings.save({
+  // 生产形状：密钥随 ConnectionDraft 进 saveConnection，由它内部走 credentials（先密钥后 config.json）
+  const seeded = await settings.saveConnection({
+    providerId: "custom",
     baseURL: `http://127.0.0.1:${port}/v1`,
-    model: "mochen-mock",
+    authHeader: "bearer",
     apiKey: API_KEY
   });
+  const connectionId = seeded.connections[0]?.id ?? "";
+  if (connectionId === "") throw new Error("连接没建起来，档案挂不上去");
+  await settings.upsertProfile({ model: "mochen-mock", connectionId });
   const outbound: AgentOutbound[] = [];
   let counter = 0;
   const fetchImpl: ProviderFetch = toProviderFetch((input) =>
@@ -139,7 +147,7 @@ async function build(): Promise<Built> {
     isoNow: () => "2026-10-01T08:00:00.000Z",
     promptFor: defaultPromptFor
   });
-  return { dir, secretDir, service, book, settings, outbound };
+  return { dir, secretDir, connectionId, service, book, settings, outbound };
 }
 
 function turn(docRelPath: string | null, userText: string): StartTurnInput {
@@ -149,7 +157,8 @@ function turn(docRelPath: string | null, userText: string): StartTurnInput {
     stageId: "draft",
     userText,
     thinkingLevel: "off",
-    webSearchEnabled: false
+    webSearchEnabled: false,
+    skillPaths: []
   };
 }
 
@@ -247,7 +256,7 @@ describe("端到端：模型 → 提案 → 审批 → 写盘", () => {
   });
 
   it("密钥只进 header：书目录、密钥目录与会话 JSONL 都不含明文", async () => {
-    const { dir, secretDir, service, settings, outbound } = await build();
+    const { dir, secretDir, connectionId, service, settings, outbound } = await build();
     await service.startTurn(turn(CHAPTER, "改紧一点"));
     const ids = proposalIds(outbound);
     expect(ids.length).toBe(1);
@@ -261,9 +270,9 @@ describe("端到端：模型 → 提案 → 审批 → 写盘", () => {
     // 主进程确实把它读回来了（否则「盘上没有明文」可能只是因为压根没存）
     expect(await settings.apiKey()).toBe(API_KEY);
     const view = await settings.view();
-    expect(view.keyMask).toBe(`••••${API_KEY.slice(-4)}`);
-    expect(view.keyMask).not.toContain(API_KEY);
-    const encFile = await readFile(path.join(secretDir, "secrets.enc"), "utf8");
+    expect(view.connections[0]?.keyMask).toBe(`••••${API_KEY.slice(-4)}`);
+    expect(view.connections[0]?.keyMask).not.toContain(API_KEY);
+    const encFile = await readFile(path.join(secretDir, "secrets", `${connectionId}.enc`), "utf8");
     expect(encFile.length).toBeGreaterThan(0);
     expect(encFile).not.toContain(API_KEY);
     expect(await allText(dir)).not.toContain(API_KEY);

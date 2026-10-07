@@ -1,5 +1,5 @@
 <!-- 行内引用菜单（#106）：打字时浮在输入卡上方的 `/` 命令与 `@` 素材菜单。
-     DOM 骨架、类名、手势与页脚提示照搬 deepwrite（Apache-2.0）components/ConversationComposer.vue 的
+     DOM 骨架、类名、手势与页脚提示对齐 deepwritecomponents/ConversationComposer.vue 的
      composer-reference-* 段（其标题行放 Esc 的 kbd、页脚只有「↑↓ 选择 / Enter 插入」两枚 span），
      判定与状态在 utils/inline-reference-menu.ts + stores/useReferenceMenuStore.ts——本文件不吃键：
      菜单开着时 ↑↓ / Enter / Esc 全部由 utils/hotkeys.ts 与 utils/escape-policy.ts 那一条既有裁决链派下来（裁定 D2），
@@ -86,18 +86,20 @@ watch(
 </script>
 
 <template>
+  <!-- 根条件用 menu.copy 而不是 menu.isOpen：两者同时为空/非空（copy 表按触发符全量，tsc 钉住），
+       而 copy 非空才能保证下面 title/hint/icon 三处绑定非空——不给 AppIcon 喂可空值（空壳图标防线）。 -->
   <div
-    v-if="menu.isOpen"
+    v-if="menu.copy"
     id="composer-reference-menu"
     class="composer-reference-menu"
     role="listbox"
-    :aria-label="menu.copy?.title"
+    :aria-label="menu.copy.title"
   >
     <div class="composer-reference-heading">
       <span class="composer-reference-trigger">{{ menu.trigger }}</span>
       <div>
-        <strong>{{ menu.copy?.title }}</strong>
-        <span>{{ menu.copy?.hint }}</span>
+        <strong>{{ menu.copy.title }}</strong>
+        <span>{{ menu.copy.hint }}</span>
       </div>
       <kbd>Esc</kbd>
     </div>
@@ -114,7 +116,7 @@ watch(
         @mousedown.prevent="menu.select(option)"
       >
         <span class="composer-reference-icon">
-          <AppIcon :name="menu.copy?.icon" :size="17" />
+          <AppIcon :name="menu.copy.icon" :size="17" />
         </span>
         <span class="composer-reference-copy">
           <strong>{{ option.label }}</strong>

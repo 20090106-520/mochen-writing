@@ -64,12 +64,14 @@ describe("electronCipher", () => {
     expect(fake.decryptInputs[0]).toBeInstanceOf(Buffer);
   });
 
-  it("接上 credential-store 后，secrets.enc 的原始字节里没有明文密钥", async () => {
+  it("接上 credential-store 后，那份密钥的原始字节里没有明文", async () => {
     const cipher = electronCipher(fakeSafeStorage(true).storage);
     const store = createCredentialStore(dir, cipher);
-    await store.save("sk-never-on-disk-42");
-    const raw = await readFile(path.join(dir, "secrets.enc"), "utf8");
+    // 2026-10-06 批次 5-⑤：密钥按连接分份存（`secrets/<ref>.enc`），不再是全局一份 secrets.enc。
+    const REF = "cipher-round-trip";
+    await store.save(REF, "sk-never-on-disk-42");
+    const raw = await readFile(path.join(dir, "secrets", `${REF}.enc`), "utf8");
     expect(raw).not.toContain("sk-never-on-disk-42");
-    expect(await store.read()).toBe("sk-never-on-disk-42");
+    expect(await store.read(REF)).toBe("sk-never-on-disk-42");
   });
 });

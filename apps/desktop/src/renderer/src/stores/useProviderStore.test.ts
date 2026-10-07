@@ -1,23 +1,99 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import type { ModelListResult, ProviderDraft, ProviderView, RendererApi } from "@mochen/contracts";
-import { useProviderStore } from "./useProviderStore";
+import type {
+  ConnectionDraft,
+  ModelListResult,
+  ProfileDraft,
+  ProviderSaveResult,
+  ProviderView,
+  RendererApi,
+  VerifyResult
+} from "@mochen/contracts";
+import { DEFAULT_CHANGE_RETENTION } from "@mochen/contracts";
+import { profilesOfConnection, useProviderStore } from "./useProviderStore";
 
+/**
+ * 连接视图（2026-10-06 批次 5-⑤ 起）：**地址与密钥不再是全局一份**，
+ * 每家供应商一条连接，档案挂在某条连接上。modelLabel / configured 从「启用中的档案」派生。
+ */
 const VIEW: ProviderView = {
-  hasKey: true,
-  baseURL: "http://127.0.0.1:8788/v1",
-  model: "mochen-mock",
-  keyMask: "••••2c9f"
+  connections: [
+    {
+      id: "c-deep",
+      providerId: "deepseek",
+      label: "DeepSeek",
+      baseURL: "https://api.deepseek.com/v1",
+      authHeader: "bearer",
+      hasKey: true,
+      keyMask: "••••2c9f"
+    },
+    {
+      id: "c-mimo",
+      providerId: "mimo",
+      label: "小米 MiMo",
+      baseURL: "https://api.xiaomimimo.com/v1",
+      authHeader: "api-key",
+      hasKey: true,
+      keyMask: "••••ab12"
+    }
+  ],
+  profiles: [
+    { id: "p-1", connectionId: "c-deep", model: "mochen-mock", enabled: true },
+    { id: "p-2", connectionId: "c-deep", model: "mochen-8B", enabled: false },
+    { id: "p-3", connectionId: "c-mimo", model: "mimo-v2.6-pro", enabled: false }
+  ]
 };
 
 const providerView = vi.fn(async (): Promise<ProviderView> => VIEW);
-const providerSave = vi.fn(async (draft: ProviderDraft): Promise<ProviderView> => ({
-  ...VIEW,
-  model: draft.model
+// 真正的实现装在 beforeEach 里；这里只先把类型钉住。
+const providerSave = vi.fn(async (draft: ConnectionDraft): Promise<ProviderSaveResult> => ({
+  connections: VIEW.connections,
+  profiles: VIEW.profiles,
+  connectionId: draft.connectionId ?? "c-new"
+}));
+const providerConnectionRemove = vi.fn(async (id: string): Promise<ProviderView> => ({
+  connections: VIEW.connections.filter((c) => c.id !== id),
+  profiles: VIEW.profiles.filter((p) => p.connectionId !== id)
 }));
 const listModels = vi.fn(async (): Promise<ModelListResult> => ({
   ok: true,
   models: ["mochen-8B", "mochen-mock"]
+}));
+const providerVerify = vi.fn(async (): Promise<VerifyResult> => ({
+  state: "ok",
+  modelCount: 2,
+  checkedAt: "2026-10-06T00:00:00.000Z"
+}));
+const openProviderKeyPage = vi.fn(async (): Promise<boolean> => true);
+const openWebSource = vi.fn(async (): Promise<boolean> => true);
+
+/**
+ * 档案管理三条通道：加一条 / 删一条 / 启停。桩只记调用，断言交给用例。
+ * 桩镜像主进程的**启停互斥**，否则 modelLabel 会因为两条 enabled 都为真而取错档案。
+ */
+const profileUpsert = vi.fn(async (draft: ProfileDraft): Promise<ProviderView> => ({
+  ...VIEW,
+  profiles: [
+    {
+      id: `p-${VIEW.profiles.length + 1}`,
+      connectionId: draft.connectionId,
+      model: draft.model,
+      enabled: true
+    },
+    ...VIEW.profiles.map((profile) => ({ ...profile, enabled: false }))
+  ]
+}));
+const profileRemove = vi.fn(async (id: string): Promise<ProviderView> => ({
+  ...VIEW,
+  profiles: VIEW.profiles.filter((profile) => profile.id !== id)
+}));
+/** 启停互斥也在主进程；桩同步镜像：启用谁，其余自动停用。 */
+const profileEnable = vi.fn(async (id: string, enabled: boolean): Promise<ProviderView> => ({
+  ...VIEW,
+  profiles: VIEW.profiles.map((profile) => ({
+    ...profile,
+    enabled: profile.id === id ? enabled : false
+  }))
 }));
 /** 这条 store 只管模型侧：书与 agent 的通道一旦被打到就是越界。 */
 function offLimits(name: string) {
@@ -38,17 +114,71 @@ const api = {
   proposalDiff: offLimits("proposalDiff"),
   loadSession: offLimits("loadSession"),
   listSessions: offLimits("listSessions"),
+  contextPreview: offLimits("contextPreview"),
+  createDoc: offLimits("createDoc"),
+  createBook: offLimits("createBook"),
   providerView,
   providerSave,
+  providerConnectionRemove,
   listModels,
+  providerVerify,
+  openProviderKeyPage,
+  openWebSource,
+  profileUpsert,
+  profileRemove,
+  profileEnable,
+  appearanceGet: offLimits("appearanceGet"),
+  appearanceSave: offLimits("appearanceSave"),
+  saveFile: offLimits("saveFile"),
+  buildExport: offLimits("buildExport"),
+  notify: offLimits("notify"),
   onAgentEvent: vi.fn(() => {
     throw new Error("useProviderStore 不该订阅 agent");
-  })
+  }),
+  listSkills: offLimits("listSkills"),
+  readSkill: offLimits("readSkill"),
+  listChanges: offLimits("listChanges"),
+  readChange: offLimits("readChange"),
+  restoreChange: offLimits("restoreChange"),
+
+  // 2026-10-06 批次 5-⑧：保留上限的读 / 写 / 立即清理。
+  // 下面这些 store 都用不到它们，桩成「越权就抛」——真被调用到时那条用例会立刻炸，
+  // 而不是悄悄返回 undefined 让断言在别处莫名其妙地红。
+  changesRetentionGet: async () => ({ persisted: false, retention: DEFAULT_CHANGE_RETENTION }),
+  changesRetentionSave: async (r) => r,
+  changesPruneNow: async () => ({ removed: 0, kept: 0, freedBytes: 0, keptBytes: 0 }),
+  // 技能市场三枚（2026-10-07 批次 5-㉖）：satisfies RendererApi 要求它们在场，
+  // 但这些 store 一个都不用。给的是「空表 + 没问过」的默认档，
+  // 真被调到也只会拿到「市场里什么都没有」这一种结果——不会让无关的断言莫名其妙地红。
+  listMarket: async () => ({ entries: [], listed: false, notice: "" }),
+  installMarketSkill: async () => {
+    throw new Error("不该装技能");
+  },
+  uninstallMarketSkill: async () => {
+    throw new Error("不该卸技能");
+  },
+  listPlugins: async () => ({ entries: [], listed: true }),
+  togglePlugin: async () => {
+    throw new Error("不该停用插件");
+  },
+  uninstallPlugin: async () => {
+    throw new Error("不该卸插件");
+  },
+  readPluginSource: async () => {
+    throw new Error("不该读插件源码");
+  }
 } satisfies RendererApi;
 
 function store() {
   return useProviderStore();
 }
+
+const DRAFT: ConnectionDraft = {
+  providerId: "deepseek",
+  baseURL: "https://api.deepseek.com/v1",
+  authHeader: "bearer",
+  apiKey: "sk-x"
+};
 
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -56,12 +186,40 @@ beforeEach(() => {
   providerView.mockClear();
   providerView.mockResolvedValue(VIEW);
   providerSave.mockClear();
-  providerSave.mockImplementation(async (draft: ProviderDraft) => ({
-    ...VIEW,
-    model: draft.model
-  }));
+  // 与主进程一致：改一条连接是**替换**它（不是再追加一条同 id 的），
+  // 新建时每次都铸一个全新 id，并把刚存那条的 id 一起回传——渲染层不许靠地址反查。
+  let minted = 0;
+  providerSave.mockImplementation(async (draft: ConnectionDraft) => {
+    const id = draft.connectionId ?? `c-new-${++minted}`;
+    return {
+      connections: [
+        ...VIEW.connections.filter((connection) => connection.id !== id),
+        {
+          id,
+          providerId: draft.providerId,
+          label: draft.providerId,
+          baseURL: draft.baseURL,
+          authHeader: draft.authHeader,
+          hasKey: draft.apiKey !== null && draft.apiKey !== "",
+          keyMask: "••••9999"
+        }
+      ],
+      profiles: VIEW.profiles,
+      connectionId: id
+    };
+  });
+  providerConnectionRemove.mockClear();
   listModels.mockClear();
   listModels.mockResolvedValue({ ok: true, models: ["mochen-8B", "mochen-mock"] });
+  providerVerify.mockClear();
+  providerVerify.mockResolvedValue({
+    state: "ok",
+    modelCount: 2,
+    checkedAt: "2026-10-06T00:00:00.000Z"
+  });
+  profileUpsert.mockClear();
+  profileRemove.mockClear();
+  profileEnable.mockClear();
 });
 
 describe("useProviderStore · 视图", () => {
@@ -85,17 +243,32 @@ describe("useProviderStore · 视图", () => {
     await s.refresh();
     expect(s.error).toBe("模型配置文件读取失败；请检查该文件是否被占用或有访问权限。");
     expect(s.view).toEqual(VIEW);
-    await s.refresh();
-    expect(s.error).toBe("");
   });
 
-  it("还没配置模型 ⇒ configured 为假、chip 不摆空模型名（configured 判的是 model 非空，不是 view 非空）", async () => {
-    providerView.mockResolvedValueOnce({ ...VIEW, model: "" });
+  it("一条档案都没启用 ⇒ configured 为假、chip 不摆空模型名", async () => {
+    providerView.mockResolvedValueOnce({
+      ...VIEW,
+      profiles: VIEW.profiles.map((profile) => ({ ...profile, enabled: false }))
+    });
     const s = store();
     await s.refresh();
-    expect(s.view).not.toBeNull();
-    expect(s.configured).toBe(false);
     expect(s.modelLabel).toBe("");
+    expect(s.configured).toBe(false);
+  });
+
+  it("**多家并存**：连接与档案各自成表，能按连接归拢（这轮改动的目的）", async () => {
+    const s = store();
+    await s.refresh();
+    expect(s.view?.connections).toHaveLength(2);
+    expect(s.connectionOf("c-mimo")?.label).toBe("小米 MiMo");
+    // 头形态跟着连接走：MiMo 只能走 api-key。
+    expect(s.connectionOf("c-mimo")?.authHeader).toBe("api-key");
+    expect(profilesOfConnection(s.view, "c-deep").map((p) => p.model)).toEqual([
+      "mochen-mock",
+      "mochen-8B"
+    ]);
+    expect(profilesOfConnection(s.view, "c-mimo").map((p) => p.model)).toEqual(["mimo-v2.6-pro"]);
+    expect(profilesOfConnection(s.view, "不存在")).toEqual([]);
   });
 });
 
@@ -127,52 +300,171 @@ describe("useProviderStore · 拉列表", () => {
     expect(s.models).toEqual({ ok: false, reason: "内部炸了" });
     expect(s.modelsLoading).toBe(false);
   });
+
+  /**
+   * 回归钉：并发拉取时**只认最后一次**。
+   * 「边打边拉」会同时在飞两个请求——地址框失焦那个还没密钥、防抖那个已经带上了密钥。
+   * 谁先回谁说了算的话，先发的慢一拍回来就把正确结果盖掉，
+   * 界面上挂着一句「密钥无效」而密钥其实是对的。
+   * 2026-10-06 真机上两次跑出来一次空一次 12 个，就是这个。
+   */
+  it("慢的旧回包不许盖掉新的（密钥无效那条不能留下来）", async () => {
+    const s = store();
+    let releaseSlow: (v: ModelListResult) => void = () => {};
+    listModels.mockImplementationOnce(
+      () =>
+        new Promise<ModelListResult>((resolve) => {
+          releaseSlow = resolve;
+        })
+    );
+    const slow = s.loadModels(true, { baseURL: "u", apiKey: "", authHeader: "bearer" });
+    // 第二个请求（带密钥）先回
+    await s.loadModels(true, { baseURL: "u", apiKey: "sk-good", authHeader: "bearer" });
+    expect(s.models).toEqual({ ok: true, models: ["mochen-8B", "mochen-mock"] });
+    // 旧的（无密钥）这时才回来 —— 必须被丢弃
+    releaseSlow({ ok: false, reason: "密钥无效" });
+    await slow;
+    expect(s.models).toEqual({ ok: true, models: ["mochen-8B", "mochen-mock"] });
+    expect(s.modelsLoading).toBe(false);
+  });
+
+  it("loading 也只由最新那次收：旧的 finally 不许把还在飞的标记收掉", async () => {
+    const s = store();
+    let releaseSlow: () => void = () => {};
+    listModels.mockImplementationOnce(
+      () =>
+        new Promise<ModelListResult>(() => {
+          releaseSlow = () => {};
+        })
+    );
+    const slow = s.loadModels(true, { baseURL: "u", apiKey: "", authHeader: "bearer" });
+    await s.loadModels(true, { baseURL: "u", apiKey: "sk", authHeader: "bearer" });
+    // 第一个请求还挂着，但它过时了：loading 归第二次管，现在已经收完了。
+    expect(s.modelsLoading).toBe(false);
+    void slow;
+    void releaseSlow;
+  });
+
+  it("带草稿的拉取**原样把草稿递下去**（地址/密钥/头形态三样都不许在渲染层被改写）", async () => {
+    const s = store();
+    await s.loadModels(true, {
+      baseURL: "https://api.xiaomimimo.com/v1",
+      apiKey: "sk-mimo",
+      authHeader: "api-key"
+    });
+    expect(listModels).toHaveBeenCalledWith({
+      baseURL: "https://api.xiaomimimo.com/v1",
+      apiKey: "sk-mimo",
+      authHeader: "api-key"
+    });
+  });
 });
 
-describe("useProviderStore · 切模型", () => {
-  it("选一条 ⇒ 走 provider:save，draft 里 apiKey 恒为 null（保留现有密钥），baseURL 原样带上", async () => {
+describe("useProviderStore · 连通性体检（软校验）", () => {
+  it("体检结果**按连接存下来**，卡片上才摆得出「连不连得上」", async () => {
+    const s = store();
+    await s.verifyConnection("c-deep");
+    expect(providerVerify).toHaveBeenCalledWith("c-deep");
+    expect(s.verify["c-deep"]).toEqual({
+      state: "ok",
+      modelCount: 2,
+      checkedAt: "2026-10-06T00:00:00.000Z"
+    });
+  });
+
+  it("连不上也要**存下来并带理由**——不存等于卡片上只剩一句空配置", async () => {
+    providerVerify.mockResolvedValueOnce({
+      state: "unreachable",
+      reason: "密钥无效或没被授权拉取模型列表",
+      checkedAt: "2026-10-06T00:00:00.000Z"
+    });
+    const s = store();
+    const result = await s.verifyConnection("c-deep");
+    expect(result.state).toBe("unreachable");
+    expect(s.verify["c-deep"]?.state).toBe("unreachable");
+  });
+
+  it("通道被拒也收成「连不上」而不是抛出去（体检是附加信息，不该打断设置页）", async () => {
+    providerVerify.mockRejectedValueOnce(new Error("主进程没起来"));
+    const s = store();
+    const result = await s.verifyConnection("c-deep");
+    expect(result.state).toBe("unreachable");
+    expect(s.verify["c-deep"]?.state).toBe("unreachable");
+  });
+
+  it("**改过连接就清掉旧体检结果**（地址/密钥可能全变了，摆着上一次的「连得上」等于骗人）", async () => {
+    const s = store();
+    await s.verifyConnection("c-deep");
+    expect(s.verify["c-deep"]).toBeDefined();
+    await s.saveConnection({ ...DRAFT, connectionId: "c-deep" });
+    expect(s.verify["c-deep"]).toBeUndefined();
+  });
+
+  it("删连接时连它的体检结果一起清（不留下一个指向已删连接的旧状态）", async () => {
     const s = store();
     await s.refresh();
-    const ok = await s.select("mochen-8B");
-    expect(ok).toBe(true);
-    expect(providerSave).toHaveBeenCalledTimes(1);
-    expect(providerSave.mock.calls[0]?.[0]).toEqual({
-      baseURL: "http://127.0.0.1:8788/v1",
-      model: "mochen-8B",
-      apiKey: null
-    });
-    expect(s.view?.model).toBe("mochen-8B");
+    await s.verifyConnection("c-mimo");
+    await s.removeConnection("c-mimo");
+    expect(s.verify["c-mimo"]).toBeUndefined();
+    expect(providerConnectionRemove).toHaveBeenCalledWith("c-mimo");
   });
+});
 
-  it("还没读到配置 ⇒ 不凭空发一次保存，理由可见", async () => {
+describe("useProviderStore · 切模型（走档案：加一条并启用）", () => {
+  it("选一条 ⇒ 把「模型名 + 走哪条连接」一起发下去，不碰连接（不重发密钥、不重发地址）", async () => {
     const s = store();
-    const ok = await s.select("mochen-8B");
-    expect(ok).toBe(false);
+    await s.refresh();
+    const ok = await s.select({ model: "mochen-8B", connectionId: "c-deep" });
+    expect(ok).toBe(true);
     expect(providerSave).not.toHaveBeenCalled();
-    expect(s.error).toContain("模型设置");
+    expect(profileUpsert).toHaveBeenCalledWith({ model: "mochen-8B", connectionId: "c-deep" });
+    expect(s.modelLabel).toBe("mochen-8B");
+    expect(s.configured).toBe(true);
   });
 
-  it("保存被拒 ⇒ error 可见、视图停在原值、switching 复位", async () => {
-    providerSave.mockRejectedValueOnce(
-      new Error("Error invoking remote method 'provider:save': Error: 密钥保管不可用")
+  it("**跨连接切模型**：选 MiMo 那条 ⇒ 发的是它的连接，视图跟着换", async () => {
+    const s = store();
+    await s.refresh();
+    await s.select({ model: "mimo-v2.6-pro", connectionId: "c-mimo" });
+    expect(profileUpsert).toHaveBeenCalledWith({ model: "mimo-v2.6-pro", connectionId: "c-mimo" });
+    expect(s.modelLabel).toBe("mimo-v2.6-pro");
+  });
+
+  it("连接还没配 ⇒ 不本地拦（那是主进程 know 的事），把那句人话原样摆出来并返回假", async () => {
+    profileUpsert.mockRejectedValueOnce(
+      new Error(
+        "Error invoking remote method 'provider:profile-upsert': Error: 还没有配置连接，先在模型设置里填好地址与密钥。"
+      )
     );
     const s = store();
     await s.refresh();
-    const ok = await s.select("mochen-8B");
+    const ok = await s.select({ model: "mochen-8B", connectionId: "c-deep" });
+    expect(ok).toBe(false);
+    expect(s.error).toBe("还没有配置连接，先在模型设置里填好地址与密钥。");
+    expect(s.view).toEqual(VIEW);
+  });
+
+  it("切换被拒 ⇒ error 可见、视图停在原值、switching 复位", async () => {
+    profileUpsert.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'provider:profile-upsert': Error: 密钥保管不可用")
+    );
+    const s = store();
+    await s.refresh();
+    const ok = await s.select({ model: "mochen-8B", connectionId: "c-deep" });
     expect(ok).toBe(false);
     expect(s.error).toBe("密钥保管不可用");
-    expect(s.view?.model).toBe("mochen-mock");
+    expect(s.modelLabel).toBe("mochen-mock");
     expect(s.switching).toBe(false);
   });
 
-  it("保存进行中 switching 为真：弹层不许让你连点第二次", async () => {
+  it("切换进行中 switching 为真：弹层不许让你连点第二次", async () => {
     let release: () => void = () => {};
-    providerSave.mockImplementationOnce(
+    profileUpsert.mockImplementationOnce(
       () => new Promise<ProviderView>((resolve) => (release = () => resolve(VIEW)))
     );
     const s = store();
     await s.refresh();
-    const pending = s.select("mochen-8B");
+    const pending = s.select({ model: "mochen-8B", connectionId: "c-deep" });
     expect(s.switching).toBe(true);
     release();
     await pending;
@@ -180,27 +472,96 @@ describe("useProviderStore · 切模型", () => {
   });
 });
 
-describe("useProviderStore · 设置浮层保存", () => {
-  it("save 成功 ⇒ 用主进程回的视图覆盖本地（渲染层永远拿不回明文密钥）", async () => {
+describe("useProviderStore · 档案管理", () => {
+  it("删一条 ⇒ 收下回包；删的正是启用那条时 modelLabel 老实变空（不假装还有模型）", async () => {
+    profileRemove.mockImplementationOnce(async (id: string): Promise<ProviderView> => ({
+      ...VIEW,
+      profiles: VIEW.profiles.filter((profile) => profile.id !== id)
+    }));
     const s = store();
-    const draft: ProviderDraft = { baseURL: "http://a/v1", model: "b", apiKey: "sk-x" };
-    const ok = await s.save(draft);
-    expect(ok).toBe(true);
-    expect(s.view).toEqual({ ...VIEW, model: "b" });
-    expect(s.error).toBe("");
+    await s.refresh();
+    await s.removeProfile("p-1");
+    expect(profileRemove).toHaveBeenCalledWith("p-1");
+    expect(s.modelLabel).toBe("");
+    expect(s.configured).toBe(false);
   });
 
-  it("save 失败 ⇒ 视图不动、error 是那句可执行中文、返回假", async () => {
-    providerView.mockResolvedValueOnce(VIEW);
+  it("删一条被拒 ⇒ error 可见、视图不动（列表没有被乐观地改掉）", async () => {
+    profileRemove.mockRejectedValueOnce(
+      new Error(
+        "Error invoking remote method 'provider:profile-remove': Error: 没有找到这条模型，可能已经被删除。"
+      )
+    );
+    const s = store();
+    await s.refresh();
+    await s.removeProfile("p-x");
+    expect(s.error).toBe("没有找到这条模型，可能已经被删除。");
+    expect(s.view).toEqual(VIEW);
+  });
+
+  it("启停一条 ⇒ 带 id 与布尔下去，回包里新的启用态说了算", async () => {
+    const s = store();
+    await s.refresh();
+    await s.enableProfile("p-2", true);
+    expect(profileEnable).toHaveBeenCalledWith("p-2", true);
+    expect(s.modelLabel).toBe("mochen-8B");
+    expect(s.error).toBe("");
+  });
+});
+
+describe("useProviderStore · 保存连接", () => {
+  it("成功 ⇒ 用主进程回的视图覆盖本地，渲染层永远拿不回明文密钥", async () => {
+    const s = store();
+    const savedId = await s.saveConnection(DRAFT);
+    expect(savedId).toBe("c-new-1");
+    expect(providerSave).toHaveBeenCalledWith(DRAFT);
+    expect(s.error).toBe("");
+    // 回包里只有掩码：明文 apiKey 一个字都不该留在渲染层状态里。
+    expect(JSON.stringify(s.view)).not.toContain("sk-x");
+  });
+
+  /**
+   * 回归钉：同一地址存两条连接时，回执里的 id 必须是**刚存的那条**。
+   * 曾经对话框是拿地址回头 find 的，于是个人号 + 企业号这种并存配置
+   * 会把模型挂到先存的那条上——用户看到的是「刚配的连接下空着一个模型」。
+   */
+  it("同地址第二条连接：回执给的是新那条的 id，不是视图里先出现的那条", async () => {
+    const s = store();
+    const first = await s.saveConnection(DRAFT);
+    const second = await s.saveConnection(DRAFT);
+    expect(first).not.toBe(second);
+    // 两条地址一模一样 ⇒ 只有回执能区分，回执必须给得出区分。
+    const sameURL = s.view?.connections.filter((c) => c.baseURL === DRAFT.baseURL) ?? [];
+    expect(sameURL.length).toBe(2);
+    expect(second).toBe(sameURL[1]?.id);
+  });
+
+  it("**原样递下头形态**（MiMo 那条是 api-key；渲染层不许自作主张一律 Bearer）", async () => {
+    const s = store();
+    await s.saveConnection({
+      providerId: "mimo",
+      baseURL: "https://api.xiaomimimo.com/v1",
+      authHeader: "api-key",
+      apiKey: null
+    });
+    expect(providerSave).toHaveBeenCalledWith({
+      providerId: "mimo",
+      baseURL: "https://api.xiaomimimo.com/v1",
+      authHeader: "api-key",
+      apiKey: null
+    });
+  });
+
+  it("失败 ⇒ 视图不动、error 是那句可执行中文、返回假", async () => {
+    const s = store();
+    await s.refresh();
     providerSave.mockRejectedValueOnce(
       new Error(
         "Error invoking remote method 'provider:save': Error: baseURL 必须以 http:// 或 https:// 开头"
       )
     );
-    const s = store();
-    await s.refresh();
-    const ok = await s.save({ baseURL: "ftp://a", model: "b", apiKey: null });
-    expect(ok).toBe(false);
+    const savedId = await s.saveConnection({ ...DRAFT, baseURL: "ftp://a" });
+    expect(savedId).toBeNull();
     expect(s.error).toBe("baseURL 必须以 http:// 或 https:// 开头");
     expect(s.view).toEqual(VIEW);
   });
@@ -208,7 +569,7 @@ describe("useProviderStore · 设置浮层保存", () => {
   it("换配置后列表作废：下次 open 必须重新拉，不把旧地址的模型摆给新地址", async () => {
     const s = store();
     await s.loadModels();
-    await s.save({ baseURL: "http://other.test/v1", model: "新", apiKey: null });
+    await s.saveConnection({ ...DRAFT, baseURL: "http://other.test/v1" });
     expect(s.models).toBeNull();
     await s.loadModels();
     expect(listModels).toHaveBeenCalledTimes(2);

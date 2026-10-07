@@ -2,14 +2,14 @@ import type { BookMeta, BookStage } from "@mochen/contracts";
 import type { IconName } from "../types/icons";
 
 /**
- * 输入卡上方「书 / 阶段」绑定条（#113c，结构真身：deepwrite ComposerContextBar.vue，Apache-2.0）的判定层。
+ * 输入卡上方「书 / 阶段」绑定条（#113c，结构真身：deepwrite ComposerContextBar.vue）的判定层。
  *
- * 为什么阶段能照搬而书不能：
+ * 为什么阶段能对齐而书不能：
  * - 阶段有真契约——`BookMeta.stages` 是声明式列表、`activeStage` 可写回盘（bookSaveMeta 通道），
  *   所以那半截「列一个单、点一项、落一次盘」是真通路。
  * - 书没有——本仓全量 grep 无 recent-books / 资料库注册表，也没有 `book:list` 通道，
  *   拿不出任何一份可选书目。照参考图做一枚「点开是空列表」的弹层就是假控件，
- *   所以那一格退化成一个真动作：直接调 `book.pickAndOpen()`（与左栏「打开作品目录」同一真身）。
+ *   所以那一格退化成一个真动作：直接调 `book.pickAndOpen()`（与书架空态钮、Ctrl+O 同一真身）。
  */
 
 /** 弹层/绑定条的一行。字段与 deepwrite ComposerContextOption 同名同义，便于后续继续对照移植。 */
@@ -36,6 +36,22 @@ export function activeStageOf(meta: BookMeta | null): BookStage | null {
 /** 阶段名那一格；与作品资料侧 `dossierSummary` 用同一个「无」，不留空白格。 */
 export function stageLabelOf(meta: BookMeta | null): string {
   return activeStageOf(meta)?.name ?? "无";
+}
+
+/**
+ * 中文档位名反查阶段：先按 name、再按 id 精确匹配（`/stage 正文` 与 `/stage draft` 都认）。
+ * 查不到返回 null，由调用处回一句中文并列出可选值——项目律：拒绝一律回单句中文原因，不静默丢弃。
+ * 与 matchPermissionMode（utils/slash-commands）同一条口径：一个中文字段反查枚举，查不到就报实话。
+ */
+export function matchStageName(meta: BookMeta | null, text: string): BookStage | null {
+  if (!meta) return null;
+  const trimmed = text.trim();
+  if (trimmed === "") return null;
+  return (
+    meta.stages.find((stage) => stage.name === trimmed) ??
+    meta.stages.find((s) => s.id === trimmed) ??
+    null
+  );
 }
 
 /**

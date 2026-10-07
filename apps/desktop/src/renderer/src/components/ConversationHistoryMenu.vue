@@ -1,10 +1,10 @@
-<!-- #113e 中栏头部「历史对话」浮层。真身：deepwrite components/ConversationHistoryMenu.vue（Apache-2.0）——
-     容器/遮罩/section[role=dialog]/行内三件套的 DOM 与 a11y 属性一字照搬，数值住在同名的全局表
+<!-- #113e 中栏头部「历史对话」浮层。真身：deepwrite components/ConversationHistoryMenu.vue——
+     容器/遮罩/section[role=dialog]/行内三件套的 DOM 与 a11y 属性一字对齐，数值住在同名的全局表
      styles/conversation-history.css（他那份也是全局表，不在 scoped 里）。
      三处刻意的不同，都因为本仓没有他那份契约：
      1) 数据源：他从上层传 conversationHistory/currentSessionId/responding 四个 prop；本仓的会话总览
         只有 agent:list-sessions 一条通道，直接读 store 反而少一层同名中转（先例：ComposerContextBar）。
-     2) 删除/恢复/导出/「全部-已删除」页签四件不搬：主进程只有读（listSessions/loadSession），
+     2) 删除/恢复/导出/「全部-已删除」页签四件不复用：主进程只有读（listSessions/loadSession），
         没有软删通道也没有导出通道，搬进来就是点了没反应的假控件（铁律⑥）。
      3) 行的禁用理由不在组件里拼句子：unbound/文稿已删/正在看/正在回复四档只住在
         utils/session-row-action.ts 一份，store 的 rowActionFor 是唯一装配点（铁律①）。
@@ -71,7 +71,9 @@ async function pick(item: SessionListItem): Promise<void> {
       @click="open = !open"
     >
       <AppIcon name="history" :size="16" />
-      历史对话
+      <!-- 批次 5-㉓：文案包一层 span，窄栏那一级才能只藏文字、留下图标。
+           裸文本节点没法被 display:none 选中（CSS 选不中文本节点），所以必须是元素。 -->
+      <span class="header-text-button-label">历史对话</span>
     </button>
     <div
       v-if="open"

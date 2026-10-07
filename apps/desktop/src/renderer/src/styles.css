@@ -1,12 +1,28 @@
-/* 源自 deepwrite（Apache-2.0）：https://github.com/20090106-520/deepwrite —— 原样移植的布局与主题层，未自造类名。 */
+/* 源自 deepwrite：docs/ATTRIBUTION.md —— 同源实现的布局与主题层，未自造类名。 */
 @import "./styles/left-nav.css";
 @import "./styles/conversation-pane.css";
 @import "./styles/conversation-history.css";
 @import "./styles/editor-pane.css";
 @import "./styles/dialog.css";
+@import "./styles/settings-page.css";
 @import "./styles/agent-pane.css";
+@import "./styles/context-meter.css";
+/* 插件/技能整页（批次 5-㉛）。它顶掉了此前的 skill-browser.css 与 plugin-panel.css——
+   那两份是给两个浮层的，浮层退役后一并删掉，这一页承接了它们全部的能力。 */
+@import "./styles/extensions.css";
+/* 皮肤广场（批次 5-㊴）。与 extensions.css 同款网格落点（2 / -1），
+   所以紧挨着它 —— 两页改的是同一格，改一处忘了另一处会立刻看出来。 */
+@import "./styles/skin-gallery.css";
+@import "./styles/change-history.css";
+@import "./styles/ai-slop.css";
+@import "./styles/review.css";
+@import "./styles/timeline.css";
+@import "./styles/outline.css";
+@import "./styles/foreshadow.css";
+@import "./styles/toast.css";
 @import "./styles/theme-runtime.css";
 @import "./styles/interaction.css";
+@import "./styles/motion.css";
 
 :root {
   color: var(--text-primary, #202226);
@@ -21,6 +37,7 @@
     BlinkMacSystemFont,
     "Segoe UI",
     "PingFang SC",
+    "Noto Sans SC",
     "Microsoft YaHei",
     sans-serif
   );
@@ -38,7 +55,11 @@
   --selected: var(--surface-selected, #e3e3e1);
   --sidebar: var(--sidebar-surface, #f5f5f3);
   --editor: var(--surface-raised, #fbfbfa);
-  --focus: var(--accent, #5b82b8);
+  /* accent 运行时由 appearanceThemeRuntime 从主题算出来；这里是 JS 起来前（首帧与
+     静态渲染）的兜底，跟 --focus 同一支。--focus 一律转发到 --accent，不另开一份。 */
+  --accent: #4a76c4;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --focus: var(--accent, #4a76c4);
   --danger: #a94f47;
   --danger-soft: #f8eae8;
   --danger-text: #8f3e37;
@@ -49,13 +70,23 @@
   --warning-soft: color-mix(in srgb, #c28b35 14%, transparent);
   --neutral-solid: #292c30;
   --neutral-solid-contrast: #ffffff;
-  --shadow-color: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 18%, transparent);
+  --shadow-color: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 16%, transparent);
+  /* 高程三档（运行时 appearanceThemeRuntime 按明暗重算，这里是 JS 起来前的兜底）：
+     卡片 sm、悬停 md、浮层 lg。颜色全部收在 --shadow-color 后面，换主题只改一个值。 */
+  --shadow-sm: 0 1px 2px var(--shadow-color);
+  --shadow-md: 0 3px 12px -2px var(--shadow-color), 0 1px 2px var(--shadow-color);
+  --shadow-lg: 0 16px 40px -10px var(--shadow-color), 0 3px 10px var(--shadow-color);
+  --surface-card: color-mix(
+    in srgb,
+    var(--theme-foreground, #1a1c1f) 2.8%,
+    var(--surface-main, #ffffff)
+  );
   --ui-font-size: 14px;
   --code-font-size: 13px;
   --ui-font:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-    "Microsoft YaHei", sans-serif;
-  --editor-font: "Songti SC", "SimSun", "Noto Serif SC", Georgia, serif;
+    "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --editor-font: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif;
   --code-font:
     ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
@@ -228,7 +259,7 @@ html[data-platform="darwin"] .desktop-shell {
   grid-template-columns: 0 minmax(var(--center-pane-min), 1fr) 0;
 }
 
-/* Task 113f 窄屏收窄（deepwrite styles.css 5071-5080 原值，Apache-2.0）。位置本身就是这条规则的一半：
+/* Task 113f 窄屏收窄（deepwrite styles.css 5071-5080 原值）。位置本身就是这条规则的一半：
    他把这块写在自己那份 styles.css 的末尾，靠**顺序**赢过文件上方的 286 / clamp(410px, 34vw, 650px) 默认值
    （同一特异性的平手只由先后裁决）。本仓的样式表是 `@import` 进来的，而 @import 全在文件头部——
    写在 theme-runtime.css 里的这一块永远排在下面这些本文件规则之前，于是它从来没赢过一次

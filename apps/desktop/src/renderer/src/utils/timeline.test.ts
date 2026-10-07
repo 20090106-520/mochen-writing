@@ -6,8 +6,98 @@ import {
   replayProposalStatuses,
   splitProposalCards,
   turnAnchors,
-  TOOL_LABELS
+  SOURCE_LIST_PREVIEW,
+  TOOL_LABELS,
+  toolStatusLabel,
+  toolStatusOf
 } from "./timeline";
+import { ruleBlock, styleSource, templateSource, typeScriptSource } from "./vue-source-reader";
+
+describe("工具卡的第三态：没搜到（2026-10-06 批次 5-⑮）", () => {
+  /**
+   * 改动之前，`ok` 是唯一的判定，而「源都能用、只是这个说法没搜着东西」被记成 `ok: true`
+   * ——那是**对的**（模型据此换关键词，不是出错），可它让界面上那张卡与「搜到了」
+   * 长得一模一样，写着「完成」。真机截图即如此。
+   *
+   * 所以这里钉的是两件事：**归一**（empty+ok → 一态）与**措辞**（三个字各是什么）。
+   */
+  it("ok + empty 归一成三态", () => {
+    expect(toolStatusOf(true, undefined)).toBe("done");
+    expect(toolStatusOf(true, true)).toBe("empty");
+    expect(toolStatusOf(true, false)).toBe("done");
+    expect(toolStatusOf(false, undefined)).toBe("failed");
+  });
+
+  it("**失败优先于空**：ok=false 时哪怕带 empty 也只算失败", () => {
+    // 顺序反了的话，一张真的坏了的卡会被说成「没搜到」——那是把故障说成没结果。
+    expect(toolStatusOf(false, true)).toBe("failed");
+  });
+
+  it("空是三态里**唯一**不说「未通过」的", () => {
+    expect(toolStatusLabel("done")).toBe("完成");
+    expect(toolStatusLabel("empty")).toBe("没搜到");
+    expect(toolStatusLabel("failed")).toBe("未通过");
+  });
+
+  it("那三个字在 utils 里，且只有一处", () => {
+    // 模板自己写一遍就是第二份判据：改一边忘了另一边，卡头就跟实际结果对不上。
+    const tpl = templateSource("components/AgentTimeline.vue");
+    expect(tpl).toContain("toolStatusLabel(block.status)");
+    expect(tpl).not.toContain('"完成"');
+    expect(tpl).not.toContain('"未通过"');
+    // 模板也不许自己判 empty
+    expect(tpl).not.toMatch(/block\.empty/);
+  });
+
+  it("模板按 status 上类，不是按 ok 上类", () => {
+    const tpl = templateSource("components/AgentTimeline.vue");
+    expect(tpl).toContain("'is-failed': block.status === 'failed'");
+    expect(tpl).toContain("'is-empty': block.status === 'empty'");
+    expect(tpl).not.toContain("'is-failed': !block.ok");
+  });
+
+  it("「空」那档样式比正常卡更淡，**不是**错误色", () => {
+    const empty = ruleBlock(styleSource("agent-pane.css"), ".tool-card.is-empty");
+    expect(empty).not.toContain("danger");
+    // 失败那档仍然是红的——不能为了新状态把旧的调子改掉
+    expect(ruleBlock(styleSource("agent-pane.css"), ".tool-card.is-failed")).toContain("danger");
+  });
+
+  it("主进程那两处「跑了但没搜着」都带上了 empty", () => {
+    // 漏掉任何一处，那条路径上的卡就还是写「完成」。
+    const host = typeScriptSource("../../main/doc-tools-host.ts");
+    const marks = host.match(/empty: true/g) ?? [];
+    expect(marks.length).toBe(2);
+  });
+});
+
+describe("SOURCE_LIST_PREVIEW（批次 5-⑭：来源清单默认铺开几条）", () => {
+  /**
+   * 钉的是**不变量**，不是那个 5 本身。「等于 5」是量出来的调参，改成 4 或 6 未必是错；
+   * 可下面两条一旦破了界面上就会出问题，所以它们得红：
+   *   · 预览 ≥ 回执上限 ⇒「展开其余 N 条」永远是死代码
+   *   · 预览 = 0        ⇒ 默认什么都不给，来源清单形同虚设
+   *
+   * 回执上限住在**主进程**那份 web-search.ts 里，渲染层拿不到（也**不该**去 import 主进程），
+   * 所以这里读它的源码把那个数取出来——跨进程的不变量只能这么钉。
+   */
+  const mainSource = typeScriptSource("../../main/web-search.ts");
+  const limit = Number(/WEB_SEARCH_RESULTS_LIMIT\s*=\s*(\d+)/.exec(mainSource)?.[1]);
+
+  it("先确认上限真的取到了（取不到就是读法坏了，那条断言等于空谈）", () => {
+    expect(Number.isInteger(limit)).toBe(true);
+    expect(limit).toBeGreaterThan(0);
+  });
+
+  it("预览必须比回执上限小，否则「展开其余 N 条」永远等不到 N", () => {
+    expect(SOURCE_LIST_PREVIEW).toBeGreaterThan(0);
+    expect(SOURCE_LIST_PREVIEW).toBeLessThan(limit);
+  });
+
+  it("回执上限当前是 10 —— 哪天主进程改了它，这条会提醒人重新看预览数", () => {
+    expect(limit).toBe(10);
+  });
+});
 
 function event(type: AgentEvent["type"], rest: Record<string, unknown> = {}): AgentEvent {
   return {
@@ -123,10 +213,125 @@ describe("buildTimeline", () => {
       id: "e-tool-call",
       label: TOOL_LABELS.search_docs,
       args: '{"query":"雾"}',
+      // 2026-10-07：`search_docs` 不在 tool-args 的人话表里 ⇒ 参数原样摆、`argsPlain` 为假。
+      // 这一格是「只动显示、不动数据」的反向钉：原始 args 仍在块上，一个字没改。
+      argsPlain: false,
       ok: false,
-      resultText: "锚点不唯一"
+      // 三态：ok=false 且没有 empty ⇒ failed（2026-10-06 批次 5-⑮）
+      status: "failed",
+      resultText: "锚点不唯一",
+      // 非联网的工具没有来源这一列，模板照样不必写 ?.（2026-10-06 批次 5-⑨）
+      sources: [],
+      // 没有来源清单 ⇒ 那句回执就是要读的内容，不折（批次 5-⑪）。
+      rawFolded: false
     });
     expect(TOOL_LABELS.search_docs).toBe("全书检索");
+  });
+
+  /**
+   * 2026-10-07 用户裁定「只显示文字，不用显示代码」：登记了人话的工具，卡上那一行要是句子。
+   *
+   * 与上一格是一对：上一格钉「没登记的照原样摆」，这一格钉「登记了的确实转了」。
+   * 只钉一头的话，把 toolArgsText 改成永远返回原文也能全绿。
+   */
+  it("登记了人话的工具：卡上那一行是句子，且明说自己是文字（模板据此不画等宽字体）", () => {
+    const blocks = buildTimeline(
+      [
+        event("tool-call", {
+          callId: "c2",
+          tool: "propose_patch",
+          args: '{"doc":"chapters/01-开局.md","anchor":"雾从海面涌上来。","replace":"海雾涌上来。"}',
+          ok: true,
+          resultText: "已写入"
+        })
+      ],
+      NO_TAIL
+    );
+    const block = blocks[0];
+    if (block === undefined || block.kind !== "tool") throw new Error("工具卡没成卡");
+    expect(block.args).toBe("把《01-开局》里的「雾从海面涌上来。」改成「海雾涌上来。」。");
+    expect(block.argsPlain).toBe(true);
+    // 判定只在这一处发生：模板与本组件都不再自己拼（见 tool-args-wiring.test.ts）。
+    expect(block.args).not.toContain("chapters/01-开局.md");
+  });
+
+  /**
+   * 批次 5-⑪：原始回执**只在有来源清单时**折起来。
+   *
+   * 判据两条都容易错，而错法相反：
+   *   折了没有清单的 ⇒ 「联网搜索失败：……换个词重搜」被藏进 details，用户只看到一张空卡，
+   *     唯一有用的信息没了；不折有清单的 ⇒ 360 的跳转链在回执里摊成几百字符的 base64，
+   *     真机一张工具卡量到 398px 高，真正给人点的清单被压在它下面。
+   */
+  it("有来源清单的工具卡把原始回执折起来，没有的不折", () => {
+    const withSources = buildTimeline(
+      [
+        event("tool-call", {
+          callId: "c1",
+          tool: "web_search",
+          args: '{"query":"雾"}',
+          ok: true,
+          resultText: "来源：360 搜索\n[a.test/1-1111] 甲",
+          sources: [{ title: "甲", url: "https://a.test/1", snippet: "摘要" }]
+        })
+      ],
+      NO_TAIL
+    );
+    expect(withSources[0]).toMatchObject({ kind: "tool", rawFolded: true });
+
+    // sources 给了空数组（老会话里那一列是空的）也照折：判据看的是清单在不在，不是几条。
+    const emptySources = buildTimeline(
+      [
+        event("tool-call", {
+          callId: "c1",
+          tool: "web_search",
+          args: '{"query":"雾"}',
+          ok: true,
+          resultText: "上次搜过同样的结果了",
+          sources: []
+        })
+      ],
+      NO_TAIL
+    );
+    expect(emptySources[0]).toMatchObject({ rawFolded: false });
+  });
+
+  it("web_search 的来源原样带到工具卡上：老会话没有 sources 键时归一成空数组", () => {
+    const sources = [
+      { title: "黑暗森林法则_360百科", url: "https://baike.so.com/doc/5586742.html", snippet: "…" }
+    ];
+    const withSources = buildTimeline(
+      [
+        event("tool-call", {
+          callId: "c2",
+          tool: "web_search",
+          args: '{"query":"黑暗森林法则"}',
+          ok: true,
+          resultText: "来源：360 搜索",
+          sources
+        })
+      ],
+      NO_TAIL
+    );
+    const block = withSources[0];
+    expect(block?.kind).toBe("tool");
+    expect(block?.kind === "tool" ? block.sources : null).toEqual(sources);
+
+    // 老会话（持久事件里根本没这个键）：归一成 []，不许是 undefined。
+    const legacy = buildTimeline(
+      [
+        event("tool-call", {
+          callId: "c3",
+          tool: "web_search",
+          args: "{}",
+          ok: true,
+          resultText: "来源：360 搜索"
+        })
+      ],
+      NO_TAIL
+    );
+    const old = legacy[0];
+    expect(old?.kind === "tool" ? old.sources : "not-a-tool").toEqual([]);
   });
 
   it("未知工具名退回原始名：IPC 闸门不校验 tool，标签不许是 undefined", () => {

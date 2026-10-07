@@ -2,12 +2,12 @@
  * #113e-4 「历史对话」浮层 · 源码接线契约。
  * 真身：deepwrite ConversationHistoryMenu.vue（324 行）+ styles/conversation-history.css（175 行全局表）。
  * 本仓 `.vue` 不进类型程序（裸 tsc + vue-shim），CSS 段更不在任何关卡覆盖内，所以结构、类名、
- * 接线与照搬的数值只能靠读源断言钉（先例：composer-context-bar-wiring.test.ts、hotkey-markers.test.ts）。
+ * 接线与对齐的数值只能靠读源断言钉（先例：composer-context-bar-wiring.test.ts、hotkey-markers.test.ts）。
  * vue-source-reader 会剥注释：只在注释里宣称「已经接上」不算数。
  *
  * 三条裁定一并反向钉：
  * R1 他的面板有 delete / restore / export / 全部-已删除页签四件本仓没有通路的东西（没有软删通道、
- *    没有导出通道），一律不搬；搬进来就是点了没反应的假控件（铁律⑥）。
+ *    没有导出通道），一律不复用；搬进来就是点了没反应的假控件（铁律⑥）。
  * R2 行禁用的四句理由只有 session-row-action.ts 一份真身，组件只转达 `action.reason`，
  *    自己不再拼句子（铁律①）。
  * R3 时间格式化只有 utils/history-time.ts 一份，组件里不许出现第二个 toLocaleTimeString。
@@ -75,7 +75,7 @@ describe("触发钮 · 弹层契约五件齐（这一格有真通路，才许挂
   });
 });
 
-describe("面板真身 · 照搬他的 DOM 与 a11y，删干净永不为真的分支（裁定 R1）", () => {
+describe("面板真身 · 对齐他的 DOM 与 a11y，删干净永不为真的分支（裁定 R1）", () => {
   it("遮罩 + section[role=dialog] + 头部计数 + 关闭钮四件", () => {
     const m = markup();
     expect(m).toContain('class="conversation-history-dismiss"');
@@ -198,7 +198,7 @@ describe("挂载点 · 中栏头部，排在「新建对话」之前", () => {
   });
 });
 
-describe("样式硬门禁 · 照搬他的原值，色值一律走 token", () => {
+describe("样式硬门禁 · 对齐他的原值，色值一律走 token", () => {
   it("面板几何一字不改：宽高上限、圆角、层级、挂载偏移", () => {
     const panel = cssRule(".conversation-history-panel");
     for (const value of [
@@ -258,7 +258,7 @@ describe("样式硬门禁 · 照搬他的原值，色值一律走 token", () => 
     }
   });
 
-  it("没搬的四件不留规则：row / manage / tabs / export 一段都没有", () => {
+  it("未复用的四件不留规则：row / manage / tabs / export 一段都没有", () => {
     const css = styleSource("conversation-history.css");
     for (const dead of [
       ".conversation-history-row",

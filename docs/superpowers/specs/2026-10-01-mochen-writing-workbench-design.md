@@ -95,8 +95,11 @@
 文稿头部用 YAML frontmatter 存结构字段（人物：身份/弧线/关系；章节： POV/涉及人物/关联剧情线），
 正文其余部分保持纯 Markdown，保证创作者用任意编辑器都能改。
 
-技能库：全局 `~/.mochen-writing/skills/<名>/SKILL.md` + 书内 `.mochen/skills/`，
+技能库：全局 `%APPDATA%\mochen-ai\skills/<名>/SKILL.md` + 书内 `.mochen/skills/`，
 frontmatter 声明 `name/description/stage/appliesTo/tools`。
+（旧路径 `%APPDATA%\mochen-writing\skills/` 是品牌改名前的遗留；Plan 3 波 3 的启动迁移只搬
+`config.json`/`secrets.enc`/`appearance.json` 三个文件，**不含** `skills/`，所以用户自己放在那里的技能
+留在旧目录里——旧目录只改名不删除，需要时自取。详见 Plan 3 spec §12。）
 
 会话文件（照 Codex rollout 布局）：JSONL，首行 `SessionMeta`，
 其余为 `reasoning` / `plan` / `message` / `toolCall` / `proposal` / `decision` / `interrupted` 事件。
@@ -247,7 +250,11 @@ Codex 中 Esc 既是 `interrupt_turn` 又是审批 `decline`。桌面端必须�
 
 ## 8. 密钥与配置
 
-- 模型凭据只进主进程：`%APPDATA%\mochen-writing\secrets.enc`，Electron `safeStorage`（Windows DPAPI）。
+- 模型凭据只进主进程：`%APPDATA%\mochen-ai\secrets.enc`，Electron `safeStorage`（Windows DPAPI）。
+  （旧路径 `%APPDATA%\mochen-writing\secrets.enc` 是品牌改名前的遗留，Plan 3 波 3 起由启动时的迁移处理：
+  先把三个已知文件拷到新目录，**用新目录里那份验密**，解得开才把旧目录改名为
+  `mochen-writing.migrated-<日期>`，解不开就原地不动并如实告知——旧目录**永不删除**。
+  密文解不开意味着 API Key 已经取不回来，所以这一步顺序不可调换。）
 - 渲染层拿到的永远是 `hasKey: true` + 掩码串，不接触明文。
 - baseURL/key 不进 URL query（deepwrite 同类教训：commit `7229622` "keep the model list credential out of the request URL"）。
 - provider 配置：OpenAI 兼容 `baseURL + apiKey + model`，可指向 Ollama / LM Studio / DeepSeek 等。

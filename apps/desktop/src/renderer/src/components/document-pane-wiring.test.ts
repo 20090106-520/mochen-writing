@@ -10,7 +10,9 @@ import {
   countNeedle,
   ruleBlock,
   scriptSource,
+  strippedStyleSource,
   styleSource,
+  tagAttributes,
   templateSource,
   vueSource
 } from "../utils/vue-source-reader";
@@ -187,9 +189,15 @@ describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F
   });
 
   // #103b：保存态那句话此前是 `<script setup>` 里的四个中文字面量——改坏它全仓不红。
-  // 这里钉的是「句子中不在 .vue + 入参齐 + 头脚同源」：把 `{{ saveStateText }}` 退回字面量、
-  // 或者只喂三个入参（漏掉 hasOpenDoc ⇒ 没开稿子也说「已保存到本机」），这条都要红。
-  it("保存态句子不在 .vue 里拼：判定交给 utils/save-state，头与脚读同一个值", () => {
+  // 批次 5-⑳ 起，「头与脚读同一个值」的做法改成**只留一处**（底栏），理由是真机量出来的账：
+  // 1440 视口下右栏 490，栏头右侧为系统窗控留 146 ⇒ 内容盒 328px；栏头那一行要
+  // 74（保存状态）+ 288（九枚 32px 按钮）+ 45（九个 5px 间隙）= 407px。缺的 79px 全砸在左端：
+  // 面包屑被压成 0px 宽度，右端两枚按钮画进窗控带里（伏笔台账 / 收起文本内容栏压在最小化、最大化上）。
+  // 去掉重复显示正好腾出 79px，与缺口分毫不差。
+  //
+  // 所以这里钉的不再是「出现两次」，而是**方向反过来**：不许再冒出第二处。
+  // 把「判据放松成不检查」是另一回事——下面三条都比原来的计数更紧。
+  it("保存态句子不在 .vue 里拼：判定交给 utils/save-state，全栏只显示一处（底栏）", () => {
     for (const sentence of [
       "外部已改动",
       "正在保存到本机",
@@ -218,9 +226,51 @@ describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F
         `${key} 没接住 store 字段`
       ).toBe(true);
     }
-    expect(paneTemplate).toContain("{{ saveStateText }}");
+    // 5-⑳ 之前这里还有一条 `toContain("{{ saveStateText }}")`，它是被**栏头**那份满足的。
+    // 栏头那份去掉后唯一一处是 `{{ book.notice || saveStateText }}`——下面这条断言把它盖住了，
+    // 而且盖得更严（连 notice 优先一并钉住），所以不是把保证改小，是把同一份保证换个更强的写法。
     expect(paneTemplate).toContain("book.notice || saveStateText");
-    expect(paneTemplate.match(/saveStateText/g)?.length).toBe(2);
+    // 5-⑳：只剩底栏那一处。多一处就把栏头那 79px 吃回去，按钮重新压到窗控上。
+    expect(paneTemplate.match(/saveStateText/g)?.length).toBe(1);
+    // 栏头不许再有第二份保存状态（`.save-state` 这条链已随它一起删干净）。
+    expect(paneTemplate).not.toContain('class="save-state"');
+    // 副本去掉时，告警色必须跟着搬走——否则「有未保存修改」只剩字面变化、丢掉颜色信号。
+    const saveStatus = paneTemplate.match(/<span class="editor-save-status"[^>]*>/);
+    expect(saveStatus, "底栏那一处必须还在").not.toBeNull();
+    expect(saveStatus![0]).toContain("is-dirty");
+  });
+
+  // 5-⑳：`is-dirty` 这个类名本身不产生任何视觉效果，颜色在样式表里。
+  // 只钉模板上的类名的话，把那条 CSS 删了断言照样全绿——而「有未保存修改」就只剩字面变化。
+  // 所以这里读 styles/editor-pane.css，把那条规则钉住。
+  it("告警色跟着保存状态搬到了底栏那一处（类名不产生颜色，规则得在）", () => {
+    const css = styleSource("editor-pane.css");
+    const dirty = ruleBlock(css, ".editor-footer .editor-save-status.is-dirty");
+    expect(dirty).toContain("color: var(--warning)");
+    // 旧那条已随栏头副本一起删干净：留着会让人以为还有第二处告警色。
+    // 否定断言必须读**剥掉注释**的那份——原地那段「为什么删」的说明里就写着 `.save-state.is-dirty`，
+    // 读原文会被自己的注释反咬（详见 strippedStyleSource 的说明）。
+    const bare = strippedStyleSource("editor-pane.css");
+    expect(bare).not.toContain(".save-state {");
+    expect(bare).not.toContain(".save-state.is-dirty");
+    expect(strippedStyleSource("theme-runtime.css")).not.toContain(".save-state");
+  });
+
+  // 5-⑳：栏头那一行的宽度账。真机 1440 视口量到的是
+  //   右栏 490 = 栏头 489 = 左 15 + 内容 328 + 右 146（为系统窗控预留）
+  //   操作区 407（74 保存状态 + 288 九枚 32px 按钮 + 45 间隙）⇒ 缺 79px
+  // 去掉重复显示后操作区正好 328、缺额 0。这是那笔账的**回归线**：
+  // 往后谁往栏头里再塞一个 32px 以上的控件，缺额就会重新变正，
+  // 右端按钮会再次画进窗控带（伏笔台账 / 收起文本内容栏压在最小化、最大化上）。
+  // 判据只钉「按钮数量」这一个会变且能算得出来的量——宽度本身在样式表里查不到。
+  it("栏头操作区不许重新长出第二份保存状态或第十枚按钮（那 79px 的账）", () => {
+    const header = paneTemplate.slice(
+      paneTemplate.indexOf('<div class="editor-header-actions">'),
+      paneTemplate.indexOf("</header>")
+    );
+    expect(header.match(/class="icon-button"/g)?.length ?? 0).toBeLessThanOrEqual(9);
+    expect(header).not.toContain("saveStateText");
+    expect(header).not.toContain("save-state");
   });
 });
 
@@ -272,5 +322,94 @@ describe("右栏四株源文件都不长出 WYSIWYG（附录 §2.2 明写不做�
       expect(vueSource(file)).not.toContain("contenteditable");
     }
     expect(vueSource(pane)).toContain("<textarea");
+  });
+});
+
+/**
+ * deepwrite 对齐收尾：标题行从只读变可编辑。改的是 frontmatter 的 title 行
+ * （book.renameDocTitle 走指纹链），文件名与 relPath 一概不动。提交唯一路径是 blur——
+ * Enter 只主动移开焦点（避免 Enter+blur 双发），Esc 当场弹回，空名不发请求。
+ */
+describe("DocumentPane · 标题行可编辑（deepwrite 对齐收尾）", () => {
+  const titleInput =
+    /<input\s+class="document-title-input"[\s\S]*?\/>/.exec(paneTemplate)?.[0] ?? "";
+
+  it("只读态收窄到「没开文稿」：readonly 绑 activeTabId === null，提示与 aria 都说明这是可改的标题", () => {
+    expect(titleInput).not.toBe("");
+    expect(titleInput).toContain(':readonly="activeTabId === null"');
+    expect(titleInput).toContain('aria-label="文档标题（回车或移开焦点即保存）"');
+    expect(titleInput).toContain('title="点这里可以改标题（只改 frontmatter，不动文件名）"');
+  });
+
+  it("Enter / Esc / blur 各走各的真身：提交唯一路径是 blur，Enter 只负责失焦", () => {
+    expect(titleInput).toContain('@keydown.enter.prevent="blurTitle($event)"');
+    expect(titleInput).toContain('@keydown.esc.prevent="revertTitle($event)"');
+    expect(titleInput).toContain('@blur="commitTitle($event)"');
+    // 双发防线：blurTitle 的实现就是主动 blur，Enter 分支里不许再摸 commitTitle。
+    const blurBody = /function blurTitle[\s\S]*?\n\}/.exec(paneScript)?.[0] ?? "";
+    expect(blurBody).not.toBe("");
+    expect(blurBody).not.toContain("commitTitle");
+  });
+
+  it("Esc 弹回旧值、提交对齐 store 真相：commitTitle 三道闸与 renameDocTitle 调用逐字钉", () => {
+    const revert = /function revertTitle[\s\S]*?\n\}/.exec(paneScript)?.[0] ?? "";
+    expect(revert).toContain("target.value = title.value");
+    const body = /function commitTitle[\s\S]*?\n\}/.exec(paneScript)?.[0] ?? "";
+    expect(body).toContain("if (relPath === null) return;");
+    expect(body).toContain("if (value === title.value) return;");
+    expect(body).toContain('if (value.trim() === "")');
+    expect(body).toContain("book.renameDocTitle(relPath, value)");
+    // 提交后无论成败都把显示值对齐 store 的真相（成功换新 / 失败弹回）。
+    expect(body).toContain("target.value = title.value");
+  });
+});
+
+/**
+ * 2026-10-05：正文三件套（行距 / 字号 / 拼写检查）落进编辑器。行距与字号是 CSS 变量
+ * （偏好真身在设置页「写作」的 localStorage，样式表 var 缺席即原值），拼写检查直接绑布尔——
+ * 此前写死 spellcheck="false"，这里钉住「绑定存在 + 写死不许回来」，退回写死这条必须红。
+ *
+ * 2026-10-06：变量挂哪一层，挪了两次。从 textarea 挪到 `.editor-textarea-wrap`（5-㉑），
+ * 5-㉒ 又挪到 `.editor-document` —— 那是编辑面 / 分栏预览 / 浏览态 / 查找高亮
+ * 这四个盒子的**共同祖先**。挂在任何一个上，另外几个就读不到、只吃样式表兜底：
+ * 挂 textarea 时 mirror 不跟（18px 对 15px，行数 12 对 14）；挂 wrap 时预览与浏览不跟
+ * （分栏视图左右并排却是两种字号）。所以这条钉的是「共同祖先」这个形状：`.editor-document` 上有，
+ * textarea 与 wrap 上都没有——保证没变小：从禁 1 个盒子扩到禁 2 个。
+ * 拼写检查仍绑在 textarea 上（它是属性不是变量）。
+ */
+describe("DocumentPane · 正文偏好三件套（2026-10-05 建，5-㉑/5-㉒ 两改挂法）", () => {
+  it("拼写检查绑 :spellcheck，写死的 spellcheck=false 不许回来", () => {
+    const editor = /<textarea\b[\s\S]*?\/>/.exec(paneTemplate)?.[0] ?? "";
+    expect(editor).toContain(':spellcheck="editorSpellcheck"');
+    expect(editor).not.toContain('spellcheck="false"');
+    expect(paneScript).toContain("loadEditorSpellcheck(editorTextPreferenceStorage())");
+  });
+
+  it("行距/字号/列宽三档经 :style 绑在 .editor-document 上，textarea 与 wrap 自己都不许带", () => {
+    const editor = /<textarea\b[\s\S]*?\/>/.exec(paneTemplate)?.[0] ?? "";
+    expect(editor, "textarea 上不该再有 :style——兄弟盒子读不到，变量会只作用在一层").not.toContain(
+      ":style="
+    );
+    expect(
+      tagAttributes(paneTemplate, "editor-textarea-wrap").filter((a) => a.includes(":style=")),
+      "wrap 上不该再有 :style"
+    ).toHaveLength(0);
+    expect(
+      tagAttributes(paneTemplate, "editor-document").filter((a) =>
+        a.includes(':style="editorLayoutStyle"')
+      )
+    ).toHaveLength(1);
+    for (const v of ['"--editor-leading"', '"--editor-font-size"', '"--editor-measure"']) {
+      expect(paneScript).toContain(v);
+    }
+    expect(paneScript).toContain("loadEditorLeading(editorLeadingPreferenceStorage())");
+    expect(paneScript).toContain("loadEditorSize(editorTextPreferenceStorage())");
+    expect(paneScript).toContain("loadEditorMeasure(editorMeasurePreferenceStorage())");
+  });
+
+  it("样式表的 var 兜底原值：变量缺席时行距 1.95、字号 1.07143rem，两边不互相冒充默认档", () => {
+    const css = styleSource("editor-pane.css");
+    expect(css).toContain("line-height: var(--editor-leading, 1.95)");
+    expect(css).toContain("font-size: var(--editor-font-size, 1.07143rem)");
   });
 });

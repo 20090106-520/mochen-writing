@@ -3,12 +3,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import {
+  DEFAULT_CHANGE_RETENTION,
   AGENT_TOOL_NAMES,
   DEFAULT_PERMISSION_MODE,
   type AgentEvent,
   type AgentOutbound,
   type BookMeta,
-  type DocRef,
   type StartTurnInput
 } from "@mochen/contracts";
 import {
@@ -48,7 +48,8 @@ function turn(docRelPath: string | null, userText: string): StartTurnInput {
     stageId: "draft",
     userText,
     thinkingLevel: "off",
-    webSearchEnabled: false
+    webSearchEnabled: false,
+    skillPaths: []
   };
 }
 
@@ -284,7 +285,7 @@ async function build(
     ),
     "utf8"
   );
-  const book = createBookService();
+  const book = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
   const opened = await book.open(dir);
   // 默认落到「全开」：只读档下 host 连提案都不会生成，验不到审批→写盘这条链
   await book.saveMeta({ ...opened.meta, permissionMode: "full-access", ...meta });
@@ -294,9 +295,18 @@ async function build(
     decrypt: (text) => Buffer.from(text.slice(4), "base64url").toString("utf8")
   });
   if (withProvider) {
-    await credentials.save(API_KEY);
     const settings = createProviderSettings({ dir: secrets, credentials });
-    await settings.save({ baseURL: "http://mock/v1", model: "test-model", apiKey: null });
+    // v3：地址与密钥都按连接分份。先把连接建出来拿到 id，密钥再直接写进那一份。
+    const seeded = await settings.saveConnection({
+      providerId: "custom",
+      baseURL: "http://mock/v1",
+      authHeader: "bearer",
+      apiKey: null
+    });
+    const connectionId = seeded.connections[0]?.id ?? "";
+    if (connectionId === "") throw new Error("连接没建起来，档案挂不上去");
+    await credentials.save(connectionId, API_KEY);
+    await settings.upsertProfile({ model: "test-model", connectionId });
   }
   outbound = [];
   let counter = 0;
@@ -687,29 +697,6 @@ describe("agentService 全链", () => {
     service.dispose();
   });
 
-  it("defaultPromptFor 把作品名、阶段名、当前文稿与权限档写进系统提示", () => {
-    const chapter: DocRef = { relPath: CHAPTER, kind: "chapter", title: "开局" };
-    const text = defaultPromptFor({
-      title: "深渊之下",
-      stageName: "正文",
-      chapter,
-      permissionLabel: "全开"
-    });
-    expect(text).toContain("《深渊之下》");
-    expect(text).toContain("正文");
-    expect(text).toContain("全开");
-    expect(text).toContain("propose_patch");
-    expect(text).toContain("```mochen-patch");
-    expect(
-      defaultPromptFor({
-        title: "x",
-        stageName: "构思",
-        chapter: null,
-        permissionLabel: "只读参考"
-      })
-    ).toContain("还没打开文稿");
-  });
-
   it("空 userText 走优雅路径而非拒绝：中文错误事件 + turn-end failed，一个字节都没落盘", async () => {
     const { service, writes } = await build(sseFetch(proposeChunks));
     await expect(service.startTurn(turn(CHAPTER, ""))).resolves.toBeDefined();
@@ -767,7 +754,8 @@ describe("agentService 全链", () => {
         stageId: "",
         userText: "写点什么",
         thinkingLevel: "off",
-        webSearchEnabled: false
+        webSearchEnabled: false,
+        skillPaths: []
       })
     ).rejects.toThrow(/创作阶段标识不能为空/);
     service.dispose();

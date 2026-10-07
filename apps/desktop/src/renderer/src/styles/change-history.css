@@ -1,0 +1,178 @@
+/* 改稿历史浮层（2026-10-05）。与 skill-browser 同款骨架：Teleport 到 body、贴着锚点定位。
+   宽度比技能库窄一档——这里每行只有「哪一篇 / 什么时候」，不需要那么宽的标题行。 */
+
+.change-history {
+  position: fixed;
+  z-index: 60;
+  width: 340px;
+  max-height: min(520px, 72vh);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.change-history-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.change-history-head strong {
+  margin-right: auto;
+}
+
+/* 计数紧挨标题：列表是滚动区，滚出视野的几条全靠这一眼交代。 */
+.change-history-count {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.change-history-note,
+.change-history-caveat {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 12px;
+}
+
+.change-history-caveat {
+  margin-top: 6px;
+}
+
+.change-history-empty {
+  margin: 0;
+  padding: 10px 2px;
+  color: var(--text-dim, #6b6f76);
+}
+
+.change-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* flex: none 是必须的：面板本身是可滚的 flex 列，列表默认会被压成「只露一条」的高度
+     （真机截图里 5 条只显示 1 条就是这么来的）。滚动交给列表自己，面板按内容长。
+     132px ≈ 4 行：再多就把下面那颗「回滚」挤出折叠线，而那才是这个浮层的正事。 */
+  flex: none;
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.change-history-row {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.change-history-row:hover {
+  background: var(--hover, rgb(0 0 0 / 4%));
+}
+
+/* 折叠说明（2026-10-05 批次 3）：列表只列最近 60 条，多的在这儿交代一句。
+   语气刻意选「没删、在哪儿」而不是「已清理」——备份还在盘上，这话不能写反。
+   flex: none：它不许被压成零高度，那是这条信息唯一的显示机会。 */
+.change-history-hidden {
+  flex: none;
+  margin: 0;
+  padding: 4px 2px 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.change-history-list .is-selected .change-history-row {
+  border-color: var(--accent, #339cff);
+  background: var(--accent-soft, rgb(51 156 255 / 10%));
+}
+
+.change-history-doc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-history-when {
+  flex: none;
+  color: var(--text-dim, #6b6f76);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.change-history-detail {
+  flex: none;
+  border-top: 1px solid var(--line, #dedfdf);
+  padding-top: 8px;
+}
+
+.change-history-headline {
+  margin: 0 0 6px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.change-history-preview {
+  /* 预览是「看一眼」，不是通读全文：给足 5~6 行，长文自己滚。
+     高度预算要跟 .change-history-list 的 132px 配着算，否则回滚按钮被挤出折叠线。 */
+  max-height: 120px;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  background: var(--surface-dim, #f6f7f9);
+  border-radius: 7px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.change-history-restore {
+  /* 吸底：这个浮层的高度是定位算法按锚点周围的空余给的（`useComposerContextPopover` 行内写
+     `maxHeight`，CSS 里的 520 会被它盖掉），窗口一小就装不下全文。
+     正因为高度不可控，「回滚」这顆主操作必须吸在底边——它掉到折叠线以下，2026-10-05 真机实测差 120px。 */
+  position: sticky;
+  bottom: 0;
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--danger, #d64545);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: var(--danger, #d64545);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.change-history-restore:hover:not(:disabled) {
+  background: var(--danger-soft, rgb(214 69 69 / 10%));
+}
+
+.change-history-restore:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -5,6 +5,8 @@
  * Esc：只有裸键 delegated（带修饰的 Esc 属于 OS 或别人）；Esc 的裁决全在 utils/escape-policy
  * 的 resolveEscape（优先级：保字 > 取消该条 > 收浮层 > 打断 > 无动作），这里绝不复制一份。
  */
+import type { SubmitKey } from "./send-key-preference";
+
 export interface HotkeyMods {
   ctrl: boolean;
   shift: boolean;
@@ -25,6 +27,8 @@ export interface HotkeyFocus {
   tabCount: number;
   /** 行内引用菜单（`/` 与 `@`）正开着（#106）。真身在 utils/inline-reference-menu.ts 的匹配态，由 store 提供。 */
   referenceMenuIsOpen: boolean;
+  /** 发送键档（设置页「智能体」可换）：默认 enter 与原表同值；ctrl-enter 把回车留给换行。 */
+  submitKey: SubmitKey;
 }
 
 export type HotkeyAction =
@@ -32,6 +36,8 @@ export type HotkeyAction =
   | "newline"
   | "queue"
   | "delegated"
+  | "open-find-replace"
+  | "panel-shortcut"
   | "none"
   | "approve-once"
   | "approve-session"
@@ -48,9 +54,19 @@ export type HotkeyAction =
   | "reference-move-up"
   | "reference-move-down";
 
+/**
+ * Ctrl+Shift / Ctrl+Alt 族唤起的面板。
+ * 判定层只报「是哪一枚」——开还是翻转由装配层按那一枚的语义定（App.vue 的 panelShortcut），
+ * 这里不替面板做决定，免得「哪些面板是切换、哪些是常开」在两处各写一份。
+ */
+export type PanelShortcutId =
+  "search" | "notes" | "templates" | "outline" | "goals" | "story-bible" | "editor-view";
+
 export interface HotkeyResult {
   action: HotkeyAction;
   tabIndex?: number;
+  /** 仅 action === "panel-shortcut" 时有值。 */
+  panel?: PanelShortcutId;
 }
 
 /**
@@ -68,6 +84,21 @@ const APPROVAL_KEYS: Record<string, HotkeyAction> = {
   d: "deny-guidance"
 };
 
+/**
+ * Ctrl+Shift 族 → 面板。原先这七枚是 App.vue 里另挂的第二个 keydown 监听自己判的，
+ * 于是它们既不在本表（设置页「快捷键」查不到），也破了「全局 keydown 只有一处」的裁定 G5。
+ * 搬进判定层之后，快捷键页与 hotkey-guide 的 needle 契约同时成立。
+ */
+const PANEL_KEYS: Record<string, PanelShortcutId> = {
+  f: "search",
+  n: "notes",
+  t: "templates",
+  o: "outline",
+  g: "goals",
+  b: "story-bible",
+  p: "editor-view"
+};
+
 export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods): HotkeyResult {
   // 护栏 1（M4）：输入法合成期间一律不截键——候选框回车被吃掉是这类应用最刺眼的错。
   if (focus.isComposing) return { action: "none" };
@@ -82,6 +113,10 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
 
   // 全局 Ctrl 族（先于编辑态判断：即便在文本框里也应放行）
   if (mods.ctrl && !mods.alt && !mods.meta) {
+    if (mods.shift) {
+      const panel = PANEL_KEYS[k];
+      if (panel) return { action: "panel-shortcut", panel };
+    }
     if (!mods.shift) {
       if (k === "b") return { action: "toggle-left" };
       if (k === ",") return { action: "open-settings" };
@@ -96,6 +131,12 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
         return { action: "none" }; // 越界 / 无书
       }
       if (focus.composerIsFocused && k === "j") return { action: "newline" }; // Ctrl+J
+      // 文档内查找（Ctrl+F）：全局，与焦点状态同义，注册表此处落地一处。
+      if (k === "f") return { action: "open-find-replace" };
+      // 发送键第二档（设置页可换）：Ctrl+Enter 发送。必须住在 Ctrl 分支里——
+      // 落到下面裸 Enter 分支的键已经排除了 Ctrl，写那儿就永远轮不到。
+      if (focus.composerIsFocused && focus.submitKey === "ctrl-enter" && k === "Enter")
+        return focus.turnRunning ? { action: "none" } : { action: "submit" };
     }
     return { action: "none" }; // 其余 Ctrl 组合不在键位表
   }
@@ -126,6 +167,8 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
 
   // Enter / Shift+Enter（composer 焦点）
   if (k === "Enter" && focus.composerIsFocused && bare) {
+    // ctrl-enter 档：回车整档让给换行（含 Shift+Enter），发送只走上面 Ctrl 分支那一条。
+    if (focus.submitKey === "ctrl-enter") return { action: "newline" };
     if (mods.shift) return { action: "newline" };
     return focus.turnRunning ? { action: "none" } : { action: "submit" };
   }

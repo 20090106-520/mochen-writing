@@ -38,3 +38,26 @@ export function splitFrontmatter(raw: string): FrontmatterSplit {
     body: lines.slice(close + 1).join("\n")
   };
 }
+
+/**
+ * 从围栏块里取一个标量键；没有围栏、没有这个键、或值为空都回空串。
+ *
+ * **住在这里而不是各自文件里**：伏笔（`planted:`/`paid:`/`status:`）与时间线（`date:`/`order:`）
+ * 读的是同一种形状的键。各写一份就等于两套「带引号的 `key: "v"` 怎么剥」的规则，
+ * 迟早有一边忘了剥引号——铁律 6 说的第二份实现。
+ *
+ * 只认**行首就是 `key:`** 的行（不缩进）：YAML 的嵌套/列表语义仍归 `fs-store` 那一份解析，
+ * 这里刻意只做标量取值，不抢那份活。
+ */
+export function frontmatterField(block: string | null, key: string): string {
+  if (block === null) return "";
+  const prefix = `${key}:`;
+  for (const line of block.split("\n")) {
+    if (!line.startsWith(prefix)) continue;
+    return line
+      .slice(prefix.length)
+      .trim()
+      .replace(/^["']|["']$/g, "");
+  }
+  return "";
+}

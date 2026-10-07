@@ -1,18 +1,22 @@
 <!-- 作品工作台（中栏空状态，示意稿 A）：hero + 五张能力卡 + 能力清单气泡 + 建议 pill。
      判定与文案全在 utils/workbench-state.ts（`.vue` 不过 tsc，表放这里就没有关卡）。 -->
 <script setup lang="ts">
+import { ref } from "vue";
 import AppIcon from "./AppIcon.vue";
+import ParticleObject from "./canvasui/ParticleObject.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
 import {
   WORKBENCH_CAPABILITIES,
   WORKBENCH_CARD_ICONS,
   WORKBENCH_HERO_QUOTE,
   WORKBENCH_SUGGESTION_TITLES,
+  workbenchCardTitle,
   type WorkbenchCard,
   type WorkbenchCardId,
   type WorkbenchSuggestion
 } from "../utils/workbench-state";
 import { useBookStore } from "../stores/useBookStore";
+import { useLayoutStore } from "../stores/layoutStore";
 
 defineProps<{
   hasBook: boolean;
@@ -20,13 +24,18 @@ defineProps<{
   cards: WorkbenchCard[];
   suggestions: WorkbenchSuggestion[];
 }>();
+
+// canvas-ui 品牌粒子：只在无书空状态跑（写作时不耗 GPU）；加载失败回退原图（原图原样用）。
+const particleFailed = ref(false);
 const emit = defineEmits<{
   pick: [id: WorkbenchCardId];
   suggestion: [suggestion: WorkbenchSuggestion];
 }>();
 
 const book = useBookStore();
-// 无书降级的「打开作品目录」走 book.pickAndOpen() —— 与左栏、Ctrl+O 同一真身，不复制逻辑。
+const layout = useLayoutStore();
+// 无书降级的「打开作品目录」走 book.pickAndOpen() —— 与输入卡书格、Ctrl+O 同一真身，不复制逻辑；
+// 「新建作品」开的是 layout.newBookOpen 那一个对话框（开合真身唯一）。
 async function openBook(): Promise<void> {
   await book.pickAndOpen();
 }
@@ -34,8 +43,21 @@ async function openBook(): Promise<void> {
 
 <template>
   <div class="book-workbench">
-    <section class="workbench-hero">
-      <img class="workbench-hero-art" :src="brandMark" alt="墨宸 AI 品牌图" width="118" />
+    <section class="workbench-hero" :class="{ 'is-no-book': !hasBook }">
+      <!-- 无书空状态：品牌图重建为可被光标搅动的粒子（canvas-ui，图片全幅不裁）；失败回退原图。 -->
+      <ParticleObject
+        v-if="!hasBook && !particleFailed"
+        class="workbench-hero-art is-particle"
+        :src="brandMark"
+        :count="5000"
+        :drift="0.5"
+        :float-intensity="0.35"
+        :rotation-intensity="0"
+        :orbit="false"
+        :zoom="false"
+        :on-error="() => (particleFailed = true)"
+      />
+      <img v-else class="workbench-hero-art" :src="brandMark" alt="墨宸 AI 品牌图" width="118" />
       <div class="workbench-hero-text">
         <h1>{{ agentLabel }}</h1>
         <p class="workbench-lead">
@@ -50,9 +72,9 @@ async function openBook(): Promise<void> {
         v-for="card in cards"
         :key="card.id"
         class="workbench-card"
+        :class="{ 'is-empty': card.target === null }"
         type="button"
-        :disabled="!card.enabled"
-        :title="card.hint"
+        :title="workbenchCardTitle(card)"
         @click="emit('pick', card.id)"
       >
         <span class="workbench-card-icon">
@@ -64,11 +86,17 @@ async function openBook(): Promise<void> {
     </nav>
 
     <div v-else class="workbench-empty-book">
-      <p>还没有打开作品目录。先打开一个，工作台的五张卡才会各就各位。</p>
-      <button class="workbench-open-book" type="button" @click="openBook">
-        <AppIcon name="directory" :size="16" />
-        <span>打开作品目录</span>
-      </button>
+      <p>还没有打开作品目录。先打开一个，或者直接建一本新书。</p>
+      <div class="workbench-empty-actions">
+        <button class="workbench-open-book is-primary" type="button" @click="openBook">
+          <AppIcon name="directory" :size="16" />
+          <span>打开作品目录</span>
+        </button>
+        <button class="workbench-open-book" type="button" @click="layout.openNewBook()">
+          <AppIcon name="plus" :size="16" />
+          <span>新建作品</span>
+        </button>
+      </div>
     </div>
 
     <!-- 能力清单：静态说明，不是对话项——本版没有「它先开口」这件事，所以不写时间戳。 -->

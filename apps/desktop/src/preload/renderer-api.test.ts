@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   IPC_CHANNELS,
   type AgentOutbound,
+  type AppearanceSettings,
   type BookMeta,
+  type ContextPreviewQuery,
   type DecideInput,
-  type ProviderDraft,
+  type ExportableDoc,
+  type ExportOptions,
+  type ConnectionDraft,
+  type ProfileDraft,
   type RendererApi,
   type StartTurnInput
 } from "@mochen/contracts";
@@ -38,13 +43,19 @@ describe("createRendererApi", () => {
       stageId: "draft",
       userText: "改",
       thinkingLevel: "off",
-      webSearchEnabled: false
+      webSearchEnabled: false,
+      skillPaths: []
     });
     await api.interruptTurn("t1");
     await api.decideProposal({ proposalId: "p1", decision: "cancel", guidance: "" });
     await api.proposalDiff("p1");
     await api.providerView();
-    await api.providerSave({ baseURL: "http://a/v1", model: "m", apiKey: null });
+    await api.providerSave({
+      providerId: "custom",
+      baseURL: "http://a/v1",
+      authHeader: "bearer",
+      apiKey: null
+    });
     expect(calls.map((call) => call.channel)).toEqual([
       IPC_CHANNELS.agentStartTurn,
       IPC_CHANNELS.agentInterrupt,
@@ -68,7 +79,7 @@ describe("createRendererApi", () => {
     expect(listeners.size).toBe(0);
   });
 
-  it("15 个方法各调一次：通道与参数逐条钉死（期望值全是字面量，不从 IPC_CHANNELS 派生）", async () => {
+  it("45 条通道各调一次：通道与参数逐条钉死（期望值全是字面量，不从 IPC_CHANNELS 派生）", async () => {
     const { api, calls } = harness();
     const meta: BookMeta = {
       id: "b1",
@@ -85,57 +96,186 @@ describe("createRendererApi", () => {
       stageId: "draft",
       userText: "改紧一点",
       thinkingLevel: "off",
-      webSearchEnabled: false
+      webSearchEnabled: false,
+      skillPaths: []
     };
     const decideInput: DecideInput = { proposalId: "p-1", decision: "cancel", guidance: "" };
-    const draft: ProviderDraft = {
+    // 导出那组：三个实参逐个留位。EPUB 的 bytes 走主进程，这层只证明「原样出网、顺序不乱」。
+    const exportDocs: ExportableDoc[] = [
+      { relPath: "chapters/01-开局.md", kind: "chapter", title: "开局", content: "正文一" }
+    ];
+    const exportOptions: Partial<ExportOptions> = { format: "epub" };
+    const contextPreviewQuery: ContextPreviewQuery = {
+      docRelPath: "chapters/01-开局.md",
+      profileId: null,
+      pinned: ["materials/潮汐表.md"]
+    };
+    const draft: ConnectionDraft = {
+      providerId: "custom",
       baseURL: "http://127.0.0.1:8787/v1",
-      model: "深渊-8B",
+      authHeader: "bearer",
       apiKey: null
+    };
+    // 建档按连接走（模型名 + 挂哪条连接），不再是一个裸模型名。
+    const profileDraft: ProfileDraft = { model: "深渊-8B", connectionId: "c-1" };
+    const appearanceSettings: AppearanceSettings = {
+      mode: "system",
+      // 2026-10-07 批次 5-㊴：质感四层与 skin 是 AppearanceThemeConfig 的一部分，
+      // 夹具必须照抄出厂默认（appearance.json 里的老文件也正是这样被补齐的）。
+      light: {
+        preset: "codex",
+        accent: "#339CFF",
+        background: "#FFFFFF",
+        foreground: "#1A1C1F",
+        uiFontSize: 14,
+        codeFontSize: 13,
+        translucentSidebar: true,
+        skin: "plain",
+        backdrop: "plain",
+        glass: "none",
+        surface: "plain",
+        grid: "none"
+      },
+      dark: {
+        preset: "codex",
+        accent: "#5EACFF",
+        background: "#17191C",
+        foreground: "#F3F4F6",
+        uiFontSize: 14,
+        codeFontSize: 13,
+        translucentSidebar: true,
+        skin: "plain",
+        backdrop: "plain",
+        glass: "none",
+        surface: "plain",
+        grid: "none"
+      },
+      uiFontFamily: "system",
+      editorFontFamily: "song"
     };
 
     await api.pickBookDirectory();
     await api.openBook("/book");
+    await api.createBook({ directory: "/new-book", title: "新书" });
     await api.saveMeta(meta);
     await api.readDoc("chapters/01-开局.md");
     await api.writeDoc("chapters/01-开局.md", "正文", "fp-1");
+    await api.createDoc("chapters/02-新章.md", "新章");
     await api.startTurn(startInput);
     await api.interruptTurn("t-1");
     await api.decideProposal(decideInput);
     await api.proposalDiff("p-1");
     await api.loadSession("chapters/01-开局.md");
+    await api.notify("title", "body");
+    await api.saveFile("content", "file.txt");
+    await api.buildExport(exportDocs, meta, exportOptions);
     await api.listSessions();
+    await api.contextPreview(contextPreviewQuery);
     await api.providerView();
     await api.providerSave(draft);
+    await api.providerConnectionRemove("c-1");
     await api.listModels();
+    await api.providerVerify("c-1");
+    await api.openProviderKeyPage("mimo");
+    await api.openWebSource("https://baike.so.com/doc/5586742.html");
+    await api.profileUpsert(profileDraft);
+    await api.profileRemove("m-1");
+    await api.profileEnable("m-1", true);
+    await api.appearanceGet();
+    await api.appearanceSave(appearanceSettings);
+    await api.listSkills();
+    await api.readSkill("book", "伏笔/SKILL.md");
+    await api.listChanges();
+    await api.readChange(".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak");
+    await api.restoreChange(
+      ".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak",
+      "fp-now"
+    );
+    // 保留上限三枚：通道与实参逐条钉死（save 递的是**整个对象**，一个字都不许在 preload 里拆）。
+    await api.changesRetentionGet();
+    await api.changesRetentionSave({ maxCount: 10, maxBytes: 5 * 1024 * 1024 });
+    await api.changesPruneNow();
+    // 技能市场三枚（2026-10-07）：装/卸**只递 dirName**，不递路径也不递技能正文。
+    // 路径由主进程按清单自己拼（skill-market-service.ts），所以这里多递一个参数就该红——
+    // 渲染层拿到路径就意味着它能决定写哪儿，那道闸就没了。
+    await api.listMarket();
+    await api.installMarketSkill("chapter-intent");
+    await api.uninstallMarketSkill("chapter-intent");
+    // 插件四枚（2026-10-07 批次 5-㉚）：与技能市场同一条铁律——
+    // 渲染层只递**安装名**（dirName），不递路径。多递一个参数就该红：
+    // 它拿到路径就能决定读哪、删哪，那道闸就没了。
+    await api.listPlugins();
+    await api.togglePlugin("rhythm", false);
+    await api.uninstallPlugin("rhythm");
+    await api.readPluginSource("rhythm");
     api.onAgentEvent(() => {});
 
-    expect(calls.length).toBe(15);
+    expect(calls.length).toBe(45);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
       "book:pick",
       "book:open",
+      "book:create",
       "book:save-meta",
       "doc:read",
       "doc:write",
+      "doc:create",
       "agent:start-turn",
       "agent:interrupt",
       "agent:decide",
       "agent:diff",
       "agent:load-session",
+      "app:notify",
+      "file:save-export",
+      "file:build-export",
       "agent:list-sessions",
+      "agent:context-preview",
       "provider:get",
       "provider:save",
+      "provider:connection-remove",
       "provider:list-models",
+      "provider:verify",
+      // 密钥页走的是 app:open-external：渲染层递的是 providerId，地址由主进程查预设表。
+      "app:open-external",
+      // 搜索来源点开走 app:open-web-source（2026-10-06 批次 5-⑨）：**本仓唯一递 URL 的一条**，
+      // 主进程按 http/https 白名单放行。它紧挨着上一条不是巧合——两条口径刻意相反，
+      // 理由写在 main/web-source-link.ts 的文件头注释里，改之前先读那段。
+      "app:open-web-source",
+      "provider:profile-upsert",
+      "provider:profile-remove",
+      "provider:profile-enable",
+      "appearance:get",
+      "appearance:save",
+      "skills:list",
+      "skills:read",
+      "changes:list",
+      "changes:read",
+      "changes:restore",
+      // 保留上限三枚的字面通道（2026-10-06 批次 5-⑧）——不许从 IPC_CHANNELS 派生：
+      // 拿被测常量当期望值等于用常量证明常量本身，改错通道照样绿。
+      "changes:retention-get",
+      "changes:retention-save",
+      "changes:prune-now",
+      // 技能市场三枚（2026-10-07）。同样不许从 IPC_CHANNELS 派生，理由同上。
+      "market:list",
+      "market:install",
+      "market:uninstall",
+      // 插件四枚（2026-10-07 批次 5-㉚）。同样不许从 IPC_CHANNELS 派生，理由同上。
+      "plugins:list",
+      "plugins:toggle",
+      "plugins:uninstall",
+      "plugins:source",
       "agent:event"
     ]);
     expect(calls.map((call) => call.args)).toEqual([
       [],
       ["/book"],
+      [{ directory: "/new-book", title: "新书" }],
       [meta],
       ["chapters/01-开局.md"],
       ["chapters/01-开局.md", "正文", "fp-1"],
+      ["chapters/02-新章.md", "新章"],
       [startInput],
       ["t-1"],
       [decideInput],
@@ -143,28 +283,97 @@ describe("createRendererApi", () => {
       // 没指名的那一趟也把第二实参的位置留出来（值是 undefined）：preload 里偷偷丢掉 sessionId，
       // 这条断言就会红——面板点第几条却读回最近那条，是只有码流层才抓得到的错。
       ["chapters/01-开局.md", undefined],
+      ["title", "body"],
+      ["content", "file.txt", "保存文件"],
+      [exportDocs, meta, exportOptions],
       [],
+      [contextPreviewQuery],
       [],
       [draft],
+      ["c-1"],
+      // listModels 的草稿实参留位：没传也是 undefined，preload 丢参这里就红。
+      [undefined],
+      ["c-1"],
+      ["mimo"],
+      // 来源 URL 原样递出去，一个字都不许在 preload 里改写（主进程的白名单只认原串）。
+      ["https://baike.so.com/doc/5586742.html"],
+      [profileDraft],
+      ["m-1"],
+      ["m-1", true],
       [],
+      [appearanceSettings],
+      [],
+      ["book", "伏笔/SKILL.md"],
+      [],
+      [".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak"],
+      [".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak", "fp-now"],
+      // 保留上限三枚：读与立即清理不带实参，存只递**整个对象**（preload 一个字都不许拆）。
+      [],
+      [{ maxCount: 10, maxBytes: 5 * 1024 * 1024 }],
+      [],
+      // 市场三枚的实参：listMarket 不收东西；装/卸各只收一个目录名字符串。
+      [],
+      ["chapter-intent"],
+      ["chapter-intent"],
+      // 插件四枚的实参：listPlugins 不收；toggle 收「目录名 + 一个布尔」；
+      // uninstall 与读源码各只收目录名。**一个路径都不许出现**——
+      // 这一列就是那道闸的形状证明，多一个字符串（比如 "/root/plugins/x"）就说明闸漏了。
+      [],
+      ["rhythm", false],
+      ["rhythm"],
+      ["rhythm"],
       ["subscribe"]
     ]);
-    // 渲染层只拿到这 15 个方法：invoke/on/ipcRenderer 一个字都不许泄漏成键。
+    // 渲染层只拿到这些方法：invoke/on/ipcRenderer 一个字都不许泄漏成键。
     expect(Object.keys(api).sort()).toEqual([
+      "appearanceGet",
+      "appearanceSave",
+      "buildExport",
+      // 保留上限三枚（2026-10-06 批次 5-⑧）。它们决定写盘时删掉多少用户的历史，
+      // 所以和其它改稿通道一样进这份点名册：少一枚 preload 就调不到，多一枚就是多开的口子。
+      "changesPruneNow",
+      "changesRetentionGet",
+      "changesRetentionSave",
+      "contextPreview",
+      "createBook",
+      "createDoc",
       "decideProposal",
+      // 技能市场三枚（2026-10-07 批次 5-㉖）。装/卸是**往用户磁盘写**的两枚通道，
+      // 和其它改稿通道一样进这份点名册：少一枚面板调不到，多一枚就是多开的口子。
+      "installMarketSkill",
       "interruptTurn",
+      "listChanges",
+      "listMarket",
       "listModels",
+      "listPlugins",
       "listSessions",
+      "listSkills",
       "loadSession",
+      "notify",
       "onAgentEvent",
       "openBook",
+      "openProviderKeyPage",
+      "openWebSource",
       "pickBookDirectory",
+      "profileEnable",
+      "profileRemove",
+      "profileUpsert",
       "proposalDiff",
+      "providerConnectionRemove",
       "providerSave",
+      "providerVerify",
       "providerView",
+      "readChange",
       "readDoc",
+      "readPluginSource",
+      "readSkill",
+      "restoreChange",
+      "saveFile",
       "saveMeta",
       "startTurn",
+      "togglePlugin",
+      "uninstallMarketSkill",
+      "uninstallPlugin",
       "writeDoc"
     ]);
   });
@@ -189,7 +398,7 @@ describe("createIpcOn", () => {
       },
       removeListener: (channel: string, listener: (...args: unknown[]) => void) => {
         removedListener = listener;
-        // 只有引用完全一致才真正撤除——照搬 electron 的按引用移除。
+        // 只有引用完全一致才真正撤除——对齐 electron 的按引用移除。
         if (registered.get(channel) === listener) registered.delete(channel);
       }
     };

@@ -2,7 +2,7 @@
  * 行内引用菜单 · 源码契约（#106）。
  * 本仓 `.vue` 不进类型程序（裸 tsc + vue-shim）、没有 jsdom，所以「菜单长在哪、条目从哪来、
  * 键在谁手里」这三件事只能靠读源钉死（先例：composer-card-wiring.test.ts、model-select-wiring.test.ts）。
- * 参考真身：deepwrite（Apache-2.0）components/ConversationComposer.vue 的菜单段 +
+ * 参考真身：deepwritecomponents/ConversationComposer.vue 的菜单段 +
  * composables/useConversationComposer.ts 的判定段 + styles.css 的 composer-reference-* 段。
  * 钉住的裁定：
  * D1 `/` 的真身只有一处——SlashPalette.vue 已删，命令条目与可用性闸（availableCommands）只有一个消费者；
@@ -44,7 +44,7 @@ function componentSources(): { file: string; text: string }[] {
     }));
 }
 
-describe("菜单本体 · 照搬 deepwrite 的 composer-reference-* 骨架", () => {
+describe("菜单本体 · 对齐 deepwrite 的 composer-reference-* 骨架", () => {
   it("宿主组件存在，类名逐段对齐参考源（-menu/-heading/-trigger/-options/-icon/-copy/-token/-empty/-footer）", () => {
     const m = templateSource(MENU);
     for (const cls of [
@@ -90,9 +90,13 @@ describe("菜单本体 · 照搬 deepwrite 的 composer-reference-* 骨架", () 
 
   it("标题/提示/图标全部由 REFERENCE_MENU_COPY 那张表驱动（模板不自行判定触发符）", () => {
     const m = templateSource(MENU);
-    expect(m).toContain("menu.copy?.title");
-    expect(m).toContain("menu.copy?.hint");
-    expect(m).toContain("menu.copy?.icon");
+    // 2026-10-05 起：根条件就是 menu.copy（开着 ⟺ 非空，copy 表按触发符全量），
+    // 绑定全部非空——不许再出现给 AppIcon 喂可空值的 `?.`（空壳图标防线，icons-coverage 同口径）。
+    expect(m).toContain('v-if="menu.copy"');
+    expect(m).toContain("menu.copy.title");
+    expect(m).toContain("menu.copy.hint");
+    expect(m).toContain("menu.copy.icon");
+    expect(m).not.toContain("menu.copy?.");
     expect(m).not.toContain('=== "/"');
     expect(m).not.toContain('=== "@"');
     // 触发符字符本身也从 store 来（标题行与每行右端的 token 共用同一份）。
@@ -191,11 +195,14 @@ describe("裁定 D1 · `/` 的真身只有一个", () => {
 
   it('三个唤起处全部接到行内菜单：chip 事件、裸 / 键、工作台 pill 都走 summon("/")', () => {
     const center = vueSource(CENTER);
-    // 脚本里两处双引号（工作台 pill 的 handler、热键回调）；模板属性里那处被 prettier 收成单引号，
-    // 因为整条属性本身用双引号包裹，嵌套的字符串字面量只能是单引号。
-    expect(countNeedle('summon("/")', center)).toBe(2);
+    const app = vueSource("App.vue");
+    // 热键监听随设置中心整页化上移到 App.vue（设置视图下 CenterColumn 会被卸载）：
+    // 脚本里那处双引号（openPalette 回调）在 App.vue；CenterColumn 保留模板 chip 事件（单引号）
+    // 与脚本里工作台 pill 的 handler（双引号）各一处。
+    expect(countNeedle('summon("/")', center)).toBe(1);
     expect(countNeedle("summon('/')", center)).toBe(1);
-    expect(center).toContain('openPalette: () => referenceMenu.summon("/")');
+    expect(app).toContain("openPalette: () => {");
+    expect(app).toContain('referenceMenu.summon("/")');
     expect(center).toContain(`@open-palette="referenceMenu.summon('/')"`);
   });
 

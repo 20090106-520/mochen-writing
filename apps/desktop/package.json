@@ -13,10 +13,15 @@
     "@mochen/agent-runtime": "workspace:*",
     "@mochen/contracts": "workspace:*",
     "@mochen/fs-store": "workspace:*",
+    "@mochen/plugin-kernel": "workspace:*",
+    "lucide": "^1.51.0",
+    "morphicons": "^1.7.1",
     "pinia": "catalog:",
+    "three": "^0.186.1",
     "vue": "catalog:"
   },
   "devDependencies": {
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-vue": "catalog:",
     "electron": "catalog:",
     "electron-vite": "catalog:",

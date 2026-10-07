@@ -2,8 +2,14 @@
 
 .left-sidebar {
   grid-column: 1;
+  /* 同上：五处各钉一行（详见 conversation-pane.css 与 extensions.css 那两段）。
+     缺了它时，网格的自动放置会把这一栏按内容高度切成一行，
+     于是侧栏被压到第一行的格高（真机量到 302px / 459px，而视口有 902px），
+     后半截导航落在 `overflow: hidden` 之外 —— 看得见，点不到。 */
+  grid-row: 1;
   display: grid;
-  grid-template-rows: 48px auto minmax(0, 1fr) 58px;
+  /* 功能导航与文稿树同住滚动区（演示图形态）：品牌行 / 滚动区 / 底部三行 */
+  grid-template-rows: 48px minmax(0, 1fr) 58px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -13,7 +19,7 @@
 
 /* Mac: keep a blank strip for traffic lights; brand sits on the next row. */
 html[data-platform="darwin"] .left-sidebar {
-  grid-template-rows: 36px 48px auto minmax(0, 1fr) 58px;
+  grid-template-rows: 36px 48px minmax(0, 1fr) 58px;
 }
 
 html[data-platform="darwin"] .left-sidebar::before {
@@ -77,6 +83,21 @@ html[data-platform="darwin"] .sidebar-brand-row {
   white-space: nowrap;
 }
 
+/* 品牌两行：名称 + 副标题（演示图逐字「AI 智能体 · 小说创作系统」）*/
+.brand-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.brand-tagline {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: 0.714286rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .primary-nav {
   display: grid;
   gap: 2px;
@@ -116,13 +137,138 @@ html[data-platform="darwin"] .sidebar-brand-row {
   font-size: 0.714286rem;
 }
 
-.new-book-nav {
-  padding-bottom: 4px;
+/* — 功能导航（演示图形态）：工作台直达 + 分组折叠 + 诚实占位 —
+   全体导航与文稿树同住 .sidebar-scroll 滚动区；分组判定与占位判定的真身在 utils/side-nav.ts。 */
+
+.side-nav {
+  padding: 4px 7px 11px;
 }
 
-.scrollable-primary-nav {
-  padding-top: 2px;
-  padding-bottom: 4px;
+/* 选中态（演示图工作台那一行的浅底高亮）：视图只有工作台 / 设置两种，互相排斥。 */
+.nav-row.is-active {
+  background: var(--selected);
+  color: var(--accent);
+}
+
+.nav-row.is-active svg {
+  color: var(--accent);
+}
+
+.nav-group-head {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.nav-group-head .nav-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-group-chevron {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  transform: rotate(90deg);
+  transition: transform 140ms ease;
+}
+
+.nav-group.is-collapsed .nav-group-chevron {
+  transform: rotate(0);
+}
+
+.nav-group-body {
+  display: grid;
+  gap: 2px;
+  margin: 1px 0 4px;
+}
+
+/* 子项行：比一级项缩进、右端一个箭头（chevron 原向即是 ›，不需旋转）。 */
+.nav-subrow {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 9px 0 30px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.892857rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-subrow > span:nth-child(2) {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-subrow-chevron {
+  color: var(--text-tertiary);
+}
+
+.nav-subrow:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+/* planned 子项仍带徽标（诚实标记没做完），但可点——点击打开占位说明（不再做死按钮）。 */
+.nav-subrow.is-planned {
+  color: var(--text-tertiary);
+}
+
+/* 占位/引导对话框：通知型，比模型对话框窄一档。 */
+.side-nav-notice-dialog {
+  width: min(420px, calc(100vw - 48px));
+}
+
+/* 数据统计表：真实数字（篇数 / 字数来自扫描元数据），右列等宽对齐。 */
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.928571rem;
+}
+
+.stats-table th,
+.stats-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--theme-line);
+  text-align: left;
+}
+
+.stats-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.stats-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-table tfoot td {
+  border-bottom: none;
+  font-weight: 600;
+}
+
+.stats-note {
+  margin: 10px 0 0;
+  color: var(--text-tertiary);
+  font-size: 0.857143rem;
+}
+
+.nav-soon {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  color: var(--text-tertiary);
+  font-size: 0.642857rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .nav-row {
@@ -157,113 +303,10 @@ html[data-platform="darwin"] .sidebar-brand-row {
   font-weight: 450;
 }
 
-.nav-background-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--accent);
-  font-size: 0.714286rem;
-  font-weight: 620;
-  white-space: nowrap;
-}
-
-.nav-background-status i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 0 3px var(--accent-soft);
-  animation: nav-background-pulse 1.4s ease-in-out infinite;
-}
-
 @keyframes nav-background-pulse {
   50% {
     opacity: 0.35;
   }
-}
-
-.more-toggle.is-expanded {
-  background: var(--surface-hover);
-  color: var(--text-primary);
-}
-
-.more-toggle-chevron {
-  color: var(--text-tertiary, #85898e);
-  opacity: 0;
-  transition:
-    opacity 140ms ease,
-    transform 140ms ease;
-}
-
-.more-toggle:hover .more-toggle-chevron {
-  opacity: 1;
-}
-
-.more-toggle.is-expanded .more-toggle-chevron {
-  transform: rotate(90deg);
-}
-
-.more-feature-list {
-  display: grid;
-  gap: 2px;
-  margin: 0 3px 3px 12px;
-  padding: 3px 0 3px 10px;
-  border-left: 1px solid var(--theme-line);
-}
-
-.more-feature-row {
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 7px;
-  width: 100%;
-  min-height: 43px;
-  padding: 5px 7px;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-secondary);
-  text-align: left;
-  cursor: pointer;
-}
-
-.more-feature-row:hover {
-  background: var(--surface-hover);
-  color: var(--text-primary);
-}
-
-.more-feature-icon {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--theme-line);
-  border-radius: 7px;
-  background: var(--surface-muted);
-  color: var(--text-secondary);
-}
-
-.more-feature-copy {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-}
-
-.more-feature-copy strong,
-.more-feature-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.more-feature-copy strong {
-  font-size: 0.892857rem;
-  font-weight: 590;
-}
-
-.more-feature-copy small {
-  color: var(--text-tertiary);
-  font-size: 0.75rem;
-  font-weight: 430;
 }
 
 .sidebar-scroll {
@@ -284,38 +327,10 @@ html[data-platform="darwin"] .sidebar-brand-row {
   margin-top: 7px;
 }
 
-.pinned-resource-section {
-  margin-bottom: 9px;
-}
-
-.pinned-resource-heading {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  padding: 5px 7px;
-  color: var(--text-primary);
-  font-size: 0.964286rem;
-  font-weight: 650;
-}
-
-.pinned-resource-heading > svg {
-  color: var(--text-secondary);
-}
-
-.pinned-resource-tree {
-  margin-top: 2px;
-}
-
 .resource-section-heading {
   display: flex;
   align-items: center;
   min-height: 34px;
-}
-
-.section-action-area {
-  position: relative;
-  flex: 0 0 auto;
 }
 
 .section-toggle {
@@ -348,8 +363,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   flex: 0 0 auto;
 }
 
-.section-toggle:hover,
-.section-action:hover {
+.section-toggle:hover {
   background: var(--hover);
 }
 
@@ -364,82 +378,22 @@ html[data-platform="darwin"] .sidebar-brand-row {
   transform: rotate(0);
 }
 
-.section-action {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-tertiary);
-  cursor: pointer;
-}
-
-.section-action.is-active {
-  background: var(--hover);
-  color: var(--text-primary);
-}
-
-.section-action-menu {
-  position: absolute;
-  z-index: 40;
-  top: calc(100% + 4px);
-  right: 0;
-  display: grid;
-  width: max-content;
-  min-width: 190px;
-  max-height: calc(100vh - 120px);
-  padding: 5px;
-  overflow-y: auto;
-  border: 1px solid var(--theme-line);
-  border-radius: 10px;
-  background: var(--surface-raised);
-  box-shadow:
-    0 10px 28px color-mix(in srgb, var(--theme-foreground) 13%, transparent),
-    0 2px 6px color-mix(in srgb, var(--theme-foreground) 8%, transparent);
-}
-
-.section-action-menu.opens-upward {
-  top: auto;
-  bottom: calc(100% + 4px);
-}
-
-.section-action-menu-item {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  align-items: center;
-  gap: 7px;
-  min-height: 34px;
-  padding: 6px 9px;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 0.928571rem;
-  font-weight: 540;
-  text-align: left;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.section-action-menu-item:hover,
-.section-action-menu-item:focus-visible {
-  outline: none;
-  background: var(--surface-hover);
-  color: var(--text-primary);
-}
-
-.section-action-menu-item > svg {
-  color: var(--text-secondary);
-}
-
-.resource-tree,
-.tree-children {
+/*
+ * 树这一块的行间隙是 **2px，不是 1px**（2026-10-06 批次 5-⑧）。
+ *
+ * 真机量出来的旧值：`gap: 1px` 让树行 pitch 变成 31px（行高 30 + 1）。
+ * 而左栏别处一律是 2px——nav-row 高 34、pitch 36（34 + 2）。于是面板里出现了两种节奏：
+ * 34/36 与 32/31。31 这个奇数既不跟导航对齐，也不是任何整除关系，看起来像手滑而不是取舍。
+ * 改成 2px 之后树 pitch 32，整栏统一在同一个 2px 间隙单位上；行与行的密度差（36 vs 32）
+ * 仍然保留——那是有意的层级（树要能塞下更多章），只是不再靠一个 1px 的怪数实现。
+ *
+ * **顺带把下面那个重复的 .resource-tree 块合并掉**：原来同一选择器在这个文件里出现两次
+ * （一次定 grid/gap、一次定 margin/边框），两块都在用、改一块忘了另一块是这类重复的典型代价。
+ */
+.resource-tree {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1px;
-}
-
-.resource-tree {
+  gap: 2px;
   position: relative;
   margin: 2px 0 4px 16px;
   padding-left: 7px;
@@ -514,9 +468,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   border: 1px solid var(--theme-line);
   border-radius: 9px;
   background: var(--surface-raised);
-  box-shadow:
-    0 10px 28px color-mix(in srgb, var(--theme-foreground) 13%, transparent),
-    0 2px 6px color-mix(in srgb, var(--theme-foreground) 8%, transparent);
+  box-shadow: var(--shadow-lg);
 }
 
 .tree-node-action-menu-item {
@@ -546,12 +498,6 @@ html[data-platform="darwin"] .sidebar-brand-row {
 
 .tree-node-action-menu-item > svg {
   color: var(--text-secondary);
-}
-
-.tree-node-action-menu-divider {
-  height: 1px;
-  margin: 4px 5px;
-  background: var(--surface-selected);
 }
 
 .tree-node-action-menu-item.is-danger {
@@ -589,10 +535,6 @@ html[data-platform="darwin"] .sidebar-brand-row {
   color: var(--text-primary);
 }
 
-.tree-row.is-muted {
-  color: var(--text-tertiary);
-}
-
 .tree-row.is-selected {
   background: var(--selected);
   color: var(--text-primary);
@@ -606,34 +548,57 @@ html[data-platform="darwin"] .sidebar-brand-row {
   cursor: grabbing;
 }
 
-.tree-node:is(.is-creation-book-drop-before, .is-creation-book-drop-after) > .tree-row {
+/* —— 章节拖拽重排 —— */
+
+.tree-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  order: -1;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+  border-radius: 4px;
+  color: var(--text-tertiary);
+  font-size: 0.928571rem;
+  line-height: 1;
+  cursor: grab;
+  opacity: 0;
+  -webkit-app-region: no-drag;
+  transition: opacity 140ms ease;
+}
+
+.tree-node:hover .tree-drag-handle,
+.tree-drag-handle:focus-visible,
+.tree-drag-handle:active {
+  opacity: 0.7;
+}
+
+.tree-drag-handle:active {
+  cursor: grabbing;
+}
+
+.tree-row.dragging {
+  opacity: 0.45;
+}
+
+.tree-row.is-drag-over {
   position: relative;
 }
 
-.tree-node:is(.is-creation-book-drop-before, .is-creation-book-drop-after) > .tree-row::before {
+.tree-row.is-drag-over::before {
   position: absolute;
-  z-index: 25;
-  right: 5px;
-  left: 5px;
+  z-index: 10;
+  top: -1px;
+  left: 0;
+  right: 0;
   height: 2px;
-  border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 0 1px var(--surface-main);
+  background: var(--accent, #4f8cff);
+  border-radius: 1px;
+  box-shadow: 0 0 4px var(--accent, #4f8cff);
   content: "";
   pointer-events: none;
-}
-
-.tree-node.is-creation-book-drop-before > .tree-row::before {
-  top: -1px;
-}
-
-.tree-node.is-creation-book-drop-after > .tree-row::before {
-  bottom: -1px;
-}
-
-.tree-row.is-library-entry-drop-target {
-  background: var(--accent-soft);
-  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .tree-row > svg {
@@ -645,49 +610,11 @@ html[data-platform="darwin"] .sidebar-brand-row {
   color: var(--text-primary);
 }
 
-.tree-chevron {
-  display: grid;
-  place-items: center;
-  flex: 0 0 14px;
-  width: 14px;
-  height: 20px;
-  color: var(--text-tertiary);
-  opacity: 0;
-}
-
-.tree-row:hover .tree-chevron,
-.tree-row:focus-visible .tree-chevron,
-.tree-node:has(> .tree-node-action-area:is(:hover, :focus-within, .is-menu-open))
-  > .tree-row
-  .tree-chevron {
-  opacity: 1;
-}
-
-.tree-chevron svg {
-  transition: transform 120ms ease;
-}
-
-.tree-chevron.is-open svg {
-  transform: rotate(90deg);
-}
-
 .tree-label {
   overflow: hidden;
   min-width: 0;
   flex: 0 1 auto;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tree-category-tag,
-.tree-badge {
-  flex: 0 0 auto;
-  padding: 2px 5px;
-  border: 1px solid var(--theme-line);
-  border-radius: 8px;
-  color: var(--text-tertiary);
-  font-size: 0.642857rem;
-  line-height: 1;
   white-space: nowrap;
 }
 
@@ -701,7 +628,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
 
 .account-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 32px;
+  grid-template-columns: 32px minmax(0, 1fr);
   align-items: center;
   gap: 4px;
   width: 100%;
@@ -714,5 +641,98 @@ html[data-platform="darwin"] .sidebar-brand-row {
    grid-column: 2 是补回来的那一格——他左格有内容时齿轮自然落在第二列，我们左格空着，
    不钉这一行齿轮会掉进 1fr 那列，离右边缘差出 36px。 */
 .account-settings-button {
-  grid-column: 2;
+  grid-column: 1;
+}
+
+.footer-tagline {
+  overflow: hidden;
+  justify-self: end;
+  color: var(--text-tertiary);
+  font-size: 0.714286rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* — 行内新建（分组内「＋」）：判定在 utils/new-doc，样式与 tree-row 同一套 token — */
+
+.section-add {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 27px;
+  height: 27px;
+  margin-right: 3px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.resource-section-heading:hover .section-add,
+.section-add:focus-visible,
+.section-add.is-active {
+  opacity: 1;
+}
+
+.section-add:hover,
+.section-add:focus-visible {
+  outline: none;
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.tree-add-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 2px 7px 2px 3px;
+}
+
+.tree-add-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 26px;
+  padding: 2px 7px;
+  border: 1px solid var(--theme-line);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: 0.892857rem;
+}
+
+.tree-add-input:focus {
+  outline: none;
+  border-color: var(--focus);
+}
+
+.tree-add-confirm {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.tree-add-confirm:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.tree-add-confirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tree-add-error {
+  margin: 2px 0 0;
+  padding-left: 3px;
+  color: var(--danger);
+  font-size: 0.8125rem;
+  line-height: 1.35;
 }

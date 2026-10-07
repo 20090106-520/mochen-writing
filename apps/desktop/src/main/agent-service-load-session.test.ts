@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import {
+  DEFAULT_CHANGE_RETENTION,
   DEFAULT_PERMISSION_MODE,
   type AgentEvent,
   type AgentOutbound,
@@ -16,6 +17,7 @@ import {
   type ProviderFetchInput,
   type ProviderFetchResult
 } from "@mochen/agent-runtime";
+
 import { createBookService, type BookService } from "./book-service.js";
 import { createCredentialStore } from "./credential-store.js";
 import { createProviderSettings } from "./provider-settings.js";
@@ -45,7 +47,8 @@ function turn(docRelPath: string | null, userText: string): StartTurnInput {
     stageId: "draft",
     userText,
     thinkingLevel: "off",
-    webSearchEnabled: false
+    webSearchEnabled: false,
+    skillPaths: []
   };
 }
 
@@ -145,7 +148,7 @@ async function build(fetchImpl: ProviderFetch, bookDir?: string): Promise<Built>
     ),
     "utf8"
   );
-  const book = createBookService();
+  const book = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
   const opened = await book.open(dir);
   await book.saveMeta({ ...opened.meta, permissionMode: "full-access" });
   const credentials = createCredentialStore(secrets, {
@@ -153,12 +156,18 @@ async function build(fetchImpl: ProviderFetch, bookDir?: string): Promise<Built>
     encrypt: (plain) => `enc:${Buffer.from(plain, "utf8").toString("base64url")}`,
     decrypt: (text) => Buffer.from(text.slice(4), "base64url").toString("utf8")
   });
-  await credentials.save(API_KEY);
-  await createProviderSettings({ dir: secrets, credentials }).save({
+  const provider = createProviderSettings({ dir: secrets, credentials });
+  // v3：地址与密钥都按连接分份。先把连接建出来拿到 id，密钥再直接写进那一份。
+  const seeded = await provider.saveConnection({
+    providerId: "custom",
     baseURL: "http://mock/v1",
-    model: "test-model",
+    authHeader: "bearer",
     apiKey: null
   });
+  const connectionId = seeded.connections[0]?.id ?? "";
+  if (connectionId === "") throw new Error("连接没建起来，档案挂不上去");
+  await credentials.save(connectionId, API_KEY);
+  await provider.upsertProfile({ model: "test-model", connectionId });
   outbound = [];
   let counter = 0;
   const writes: string[] = [];

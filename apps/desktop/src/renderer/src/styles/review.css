@@ -1,0 +1,194 @@
+/* 多视角审稿打分浮层（2026-10-05，批次 4-②）。骨架与 ai-slop 同款：Teleport 到 body、贴着锚点定位。
+   配色刻意偏中性——分数量的是「写法有多常规」，不是质量判定，
+   满屏红绿会把这层读数渲染成审判，那正是这个功能不该给人的感觉。 */
+
+/* 浮层本体不滚：头与主操作固定，中间那截自己滚。
+   之前是「整个浮层 overflow-y:auto + 按钮 sticky」，真机截图里 sticky 按钮
+   会跟着内容滚到列表中间，把后两个维度盖住——sticky 只保证自己不滚出视口，
+   不保证它不压内容。改稿历史那次踩的是同一个坑（见 README 批次 3）。 */
+.review-score {
+  position: fixed;
+  z-index: 60;
+  width: 400px;
+  max-height: min(560px, 76vh);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.review-score-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.review-score-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.review-score-head strong {
+  margin-right: auto;
+}
+
+/* 综合读数：中性色，数字用等宽字形免得每次跳字。 */
+.review-score-overall {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.review-score-note,
+.review-score-empty,
+.review-score-summary {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 12px;
+}
+
+.review-score-summary {
+  color: var(--text-primary, #23262b);
+}
+
+.review-score-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.review-score-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  background: var(--surface-dim, #f6f7f9);
+}
+
+.review-score-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.review-score-label {
+  font-weight: 600;
+  color: var(--text-primary, #23262b);
+}
+
+.review-score-band {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dedfdf);
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+}
+
+.review-score-num {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #23262b);
+  font-weight: 600;
+}
+
+/* 分数条：60 分处画一道刻度，免得把「离 60 还差多少」看成「离及格还差多少」。 */
+.review-score-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line, #dedfdf);
+  overflow: hidden;
+}
+
+.review-score-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent, #339cff);
+}
+
+.review-score-item.is-low .review-score-fill {
+  background: var(--warn, #d9a441);
+}
+
+.review-score-mark {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: var(--text-dim, #6b6f76);
+  opacity: 0.55;
+}
+
+.review-score-reading,
+.review-score-hint {
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 算不出的那几项：单列一块，视觉上就与「有分数的」分开——
+   混在分数条里会让作者以为系统给它们打了 0 分。 */
+.review-score-missing {
+  padding: 7px 8px;
+  border: 1px dashed var(--line-strong, #c9ccd2);
+  border-radius: 7px;
+}
+
+.review-score-missing-title {
+  margin: 0 0 3px;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.review-score-missing ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+}
+
+.review-score-hand {
+  /* 不再 sticky：它已经不在滚动区里了（见 .review-score-body 的注释）。
+     sticky 留在身上反而会浮在列表上压住内容。 */
+  flex: none;
+  width: 100%;
+  margin-top: 2px;
+  padding: 7px 10px;
+  border: 1px solid var(--accent, #339cff);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: var(--accent, #339cff);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.review-score-hand:hover {
+  background: var(--accent-soft, rgb(51 156 255 / 10%));
+}
+
+.review-score-fineprint {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+}

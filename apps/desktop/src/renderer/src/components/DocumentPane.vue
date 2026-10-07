@@ -1,26 +1,136 @@
-<!-- 右栏：结构、类名与标签/工具栏/页脚 markup 取自 deepwrite（Apache-2.0）的 RightEditorPane.vue -->
+<!-- 右栏：结构、类名与标签/工具栏/页脚 markup 取自 deepwrite的 RightEditorPane.vue -->
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+import { storeToRefs } from "pinia";
 import { proseCharCount, splitFrontmatter } from "@mochen/contracts";
+import { markdownToSimpleHtml } from "@mochen/fs-store/export-shared";
 import AppIcon from "./AppIcon.vue";
 import BookDossier from "./BookDossier.vue";
 import DocumentTabBar from "./DocumentTabBar.vue";
+import ChangeHistoryPanel from "./ChangeHistoryPanel.vue";
+import SlopPanel from "./SlopPanel.vue";
+import ReviewScorePanel from "./ReviewScorePanel.vue";
+import ForeshadowPanel from "./ForeshadowPanel.vue";
+import TimelineCheckPanel from "./TimelineCheckPanel.vue";
+import VolumeOutlinePanel from "./VolumeOutlinePanel.vue";
 import SnippetToolbar from "./SnippetToolbar.vue";
+import FindReplacePanel from "./FindReplacePanel.vue";
 import { useSnippetToolbar } from "../composables/useSnippetToolbar";
-import { useBookStore, type RightPaneMode } from "../stores/useBookStore";
+import { useBookStore, type EditorViewMode, type RightPaneMode } from "../stores/useBookStore";
+import { useFindReplaceStore } from "../stores/useFindReplaceStore";
+import { useTimelineStore } from "../stores/useTimelineStore";
+import { useLayoutStore } from "../stores/layoutStore";
+import { isStructuredKind, useVolumeOutlineStore } from "../stores/useVolumeOutlineStore";
 import { dossierSummary, groupDocsForDossier } from "../utils/book-dossier";
 import { BOOK_KIND_LABELS } from "../utils/book-kinds";
+import {
+  loadEditorLeading,
+  editorLeadingPreferenceStorage
+} from "../utils/editor-leading-preference";
+import {
+  loadEditorSize,
+  loadEditorSpellcheck,
+  editorTextPreferenceStorage
+} from "../utils/editor-text-preference";
+import {
+  loadEditorMeasure,
+  editorMeasurePreferenceStorage
+} from "../utils/editor-measure-preference";
 import { readingTimeLabel as formatReadingTime } from "../utils/reading-time";
+import { EDITOR_EMPTY_HINT, editorBodyState, editorLoadingLabel } from "../utils/editor-readout";
 import { BAND_LABELS, VIEW_TABS } from "../utils/right-pane-labels";
 import { saveStateLabel } from "../utils/save-state";
 
 const emit = defineEmits<{ collapse: [] }>();
 const book = useBookStore();
+const find = useFindReplaceStore();
+
+/**
+ * 改稿历史浮层（2026-10-05）。锚点就是那颗按钮本身，面板贴它定位。
+ * 开关与在途标记都住在 store 里——面板自己那份会与「回滚完要重载正文」那一步各说各话。
+ */
+const changeHistoryButton = ref<HTMLElement>();
+const changeHistoryAnchor = computed(() => changeHistoryButton.value ?? null);
+const changeHistoryOpen = computed({
+  get: () => book.changeHistoryOpen,
+  set: (open: boolean) => {
+    if (open) void book.openChangeHistory();
+    else book.closeChangeHistory();
+  }
+});
+
+function toggleChangeHistory(): void {
+  changeHistoryOpen.value = !changeHistoryOpen.value;
+}
+
+/**
+ * 去 AI 味浮层（2026-10-05）。与改稿历史一样锚在按钮自己身上。
+ * 开合状态住在组件本地：它是**纯本地查表**（判定在 utils/ai-slop），没有异步也没有跨组件共享，
+ * 放进 store 只是给一个布尔搬家。草稿一变列表就跟着重算，所以不要缓存 hits。
+ */
+const slopOpen = ref(false);
+const slopButton = ref<HTMLElement>();
+const slopAnchor = computed(() => slopButton.value ?? null);
+
+/**
+ * 审稿打分浮层（2026-10-05，批次 4-②）。同上款：纯本地统计（判定在 utils/review-score），
+ * 只在这一颗按钮上开合，所以住组件本地，不进 store。
+ */
+const reviewOpen = ref(false);
+const reviewButton = ref<HTMLElement>();
+const reviewAnchor = computed(() => reviewButton.value ?? null);
+
+/**
+ * 伏笔台账浮层（2026-10-05）。同款锚在自己身上。
+ * 开合住在 store：左栏「故事规划 → 伏笔台账」也要能打开它，跨组件所以不能只活在 DocumentPane。
+ */
+const foreshadowButton = ref<HTMLElement>();
+const foreshadowAnchor = computed(() => foreshadowButton.value ?? null);
+
+/**
+ * 时间线核对浮层（2026-10-05，批次 5-①）。锚点同款。
+ * 开合住在 `useTimelineStore`：左栏「故事规划 → 时间线核对」也要能打开它，跨组件。
+ * 判定在 contracts/timeline-check，这里只挂载。
+ */
+const timeline = useTimelineStore();
+const timelineButton = ref<HTMLElement>();
+const timelineAnchor = computed(() => timelineButton.value ?? null);
+
+/** 导出面板的开合住在 layoutStore（App 也读那一份，不另持本地 ref——铁律 6）。 */
+const layout = useLayoutStore();
+
+/**
+ * 卷纲 → 章纲浮层（2026-10-05，批次 5-②）。锚点同款。
+ * 只在打开的是分卷/大纲时亮（`isStructuredKind`）——拆章纲拆的是这两类，
+ * 章节正文拆不成章纲，按钮亮着却什么都拆不出来就是骗人。
+ */
+const volumeOutline = useVolumeOutlineStore();
+const volumeOutlineButton = ref<HTMLElement>();
+const volumeOutlineAnchor = computed(() => volumeOutlineButton.value ?? null);
+
+const {
+  visible: findVisible,
+  query: findQuery,
+  caseSensitive,
+  useRegex,
+  wholeWord,
+  currentIndex
+} = storeToRefs(find);
 
 /** 文稿 / 浏览 / 作品资料共用右栏这一格：后两者只读，且永不改写文稿标签与草稿。 */
 const mode = computed(() => book.rightPaneMode);
 
+/** 文稿区本地视图态（编辑 / 分栏 / 预览）：从 store 读，切文档时跟着 store 重置。 */
+const viewMode = computed<EditorViewMode>({
+  get: () => book.editorViewMode,
+  set: (v) => {
+    book.editorViewMode = v;
+  }
+});
+
 const activeDoc = computed(() => (book.activeDocTab ? book.refOf(book.activeDocTab) : null));
+/** 卷纲 → 章纲那颗按钮亮不亮：只在打开的是分卷/大纲时亮（判据在 store 那一格，不在模板里写死）。 */
+const canStructure = computed(() => isStructuredKind(activeDoc.value?.kind ?? "chapter"));
 const browseDoc = computed(
   () => book.browseTabs.find((doc) => doc.relPath === book.activeBrowse) ?? null
 );
@@ -39,6 +149,17 @@ const title = computed(() =>
   mode.value === "manuscript" ? (activeDoc.value?.title ?? "") : (browseDoc.value?.title ?? "")
 );
 
+/**
+ * 正文这一格摆什么：骨架 / 空态 / 正文（2026-10-05 批次 3 尾巴）。
+ * 判定与话术全在 utils/editor-readout，这里只喂事实、只取结论。
+ */
+const bodyState = computed(() =>
+  editorBodyState({ loading: book.docLoading, hasDoc: book.activeDocTab !== null })
+);
+const loadingLabel = computed(() => editorLoadingLabel(title.value));
+/** 骨架摆几行：够撑住一屏的视觉重量，又不至于把「正在读」撑成半个编辑器。 */
+const SKELETON_LINES = 7;
+
 const dossier = computed(() => dossierSummary(book.meta, book.docs));
 const dossierGroups = computed(() => groupDocsForDossier(book.docs));
 const documentClasses = computed(() => ({
@@ -47,8 +168,39 @@ const documentClasses = computed(() => ({
 }));
 
 const editorEl = ref<HTMLTextAreaElement | null>(null);
+/** 预览区滚动容器 ref（分栏模式 scroll 同步用）。 */
+const previewPaneEl = ref<HTMLDivElement | null>(null);
+/** 查找高亮镜像层：被 textarea 压在底下，渲染同文本文 + <mark> 高亮。 */
+const highlightMirrorEl = ref<HTMLDivElement | null>(null);
 /** 「读真实选区 → 纯函数 → book.onEdit → 回设光标」这段有行为的接线住 composables/，才谈得上被单测钉住。 */
 const { snippetToolbar, applyToSelection } = useSnippetToolbar(editorEl);
+
+/**
+ * 行距档 + 正文字号档 + 拼写检查（设置页「写作」）：设置中心与工作区是互斥挂载的两个视图，
+ * 回到正文必然重新挂载，在这里读一次就够；拼写检查直接绑 textarea 的 :spellcheck
+ * （原本写死 false，默认关=原行为）。
+ *
+ * 行距/字号/列宽三档**一起**挂 `.editor-document`，不挂任何一个读稿子的盒子
+ * （2026-10-06 批次 5-㉒ 定下的挂法；5-㉑ 曾挂在 `.editor-textarea-wrap`）：
+ * 那一格 `.editor-document` 里同时住着 ①文稿 textarea 与压在它底下、专门画查找高亮的
+ * `.find-replace-mirror`（position:absolute; inset:0 贴着 wrap）、②分栏预览 `.markdown-body`、
+ * ③浏览态 `.document-preview`。三个面读的是**同一组变量、同一个兜底**（样式表里
+ * `.document-editor, .document-preview` 一条规则、`.markdown-body` 一条规则），天生该同版；
+ * 变量挂在其中任意一个上，另外几个就读不到，只能吃兜底。真机量到两种症状：
+ *   · 挂在 textarea 上（5-㉑ 之前）：mirror 读不到 —— 字号 18px/行距 43.2px 对 15px/29.25px，行数 12 对 14；
+ *   · 挂在 wrap 上（5-㉑）：预览与浏览两面读不到 —— 分栏视图左边 18px/43.2px、右边 15px/29.25px，
+ *     同一篇稿子左右并排却是两种字号。
+ * 挂共同祖先，四个盒子才真的读到同一份值。样式表 `var(xxx, 原值)` 在变量缺席时就是原值，
+ * 两边不互相冒充默认档。
+ */
+const editorLayoutStyle = {
+  "--editor-leading": String(loadEditorLeading(editorLeadingPreferenceStorage())),
+  "--editor-font-size": `${loadEditorSize(editorTextPreferenceStorage())}px`,
+  // 正文列宽档（每行多少字）：样式表 `max-width: var(--editor-measure, none)` 的兜底 none
+  // 就是原版式（不设上限）。
+  "--editor-measure": String(loadEditorMeasure(editorMeasurePreferenceStorage()))
+} as const;
+const editorSpellcheck = loadEditorSpellcheck(editorTextPreferenceStorage());
 
 /**
  * 页脚两格读的都是**正文**而不是草稿原文：文稿态那块是可编辑的 `<textarea>`，磁盘上的 frontmatter
@@ -78,6 +230,89 @@ const tabs = computed(() =>
     : book.browseTabs.map((doc) => ({ id: doc.relPath, title: doc.title }))
 );
 
+/**
+ * Markdown 预览的 HTML：响应式地由 book.draft 经 markdownToSimpleHtml 算出。
+ * 分栏模式下 textarea 即时编辑、computed 即时重算——草稿到预览零延迟。
+ */
+const previewHtml = computed(() => markdownToSimpleHtml(book.draft));
+
+/**
+ * 用 escape 后的文本来回显 textarea：找/替换 高亮必须在同一段文本上算——
+ * highlightPositions 在 store 里，它返回的位置直接在 book.draft（= textarea 的 :value）上标。
+ * 所以只要模式是 manuscript、面板可见、查询非空，就可以渲染高亮层。
+ */
+
+/** 把一段纯文本 HTML-escape 后塞进 mirror，保留换行。 */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * 按位置把文本切成「普通 / 匹配 / 当前匹配」三段交替的节点序列：
+ * 整个算法只在字符串上切，零 DOM、零副作用，单测友好。
+ * 位置由 store + watch 统一维护，这里只读——computed 纯函数。
+ */
+const highlightMirrorHtml = computed(() => {
+  if (!findVisible.value || mode.value !== "manuscript" || findQuery.value === "") return "";
+  const text = book.draft;
+  const posList = find.positions;
+  if (posList.length === 0) return escapeHtml(text);
+
+  // 把切分点合成「按起止 + 颜色」一段段渲染。
+  let html = "";
+  let cursor = 0;
+  posList.forEach((pos, idx) => {
+    if (pos.start > cursor) html += escapeHtml(text.slice(cursor, pos.start));
+    const cls = idx === currentIndex.value ? "find-highlight-current" : "find-highlight";
+    html += `<mark class="${cls}">${escapeHtml(text.slice(pos.start, pos.end))}</mark>`;
+    cursor = pos.end;
+  });
+  if (cursor < text.length) html += escapeHtml(text.slice(cursor));
+  return html;
+});
+
+/** textarea 滚，mirror 跟着滚——视觉上高亮要贴在文字背后。 */
+function syncMirrorScroll(): void {
+  const ta = editorEl.value;
+  const mirror = highlightMirrorEl.value;
+  if (!ta || !mirror) return;
+  if (mirror.scrollTop !== ta.scrollTop) mirror.scrollTop = ta.scrollTop;
+  if (mirror.scrollLeft !== ta.scrollLeft) mirror.scrollLeft = ta.scrollLeft;
+}
+
+/**
+ * 分栏模式滚动同步：textarea（左）滚到哪，预览区（右）按比例跟到哪。
+ * 只在上游 textarea scroll 事件里调用，不回滚 textarea（避免循环）。
+ */
+function syncPreviewScroll(): void {
+  const ta = editorEl.value;
+  const preview = previewPaneEl.value;
+  if (!ta || !preview) return;
+  if (viewMode.value !== "split") return;
+  const taScrollable = ta.scrollHeight - ta.clientHeight;
+  const previewScrollable = preview.scrollHeight - preview.clientHeight;
+  if (taScrollable <= 0 || previewScrollable <= 0) return;
+  const ratio = ta.scrollTop / taScrollable;
+  const targetTop = ratio * previewScrollable;
+  if (Math.abs(preview.scrollTop - targetTop) > 1) {
+    preview.scrollTop = targetTop;
+  }
+}
+
+/** 查询 / 文档文本 / 选项 任一变动都重新算高亮 */
+watch(
+  [() => book.draft, findQuery, caseSensitive, useRegex, wholeWord, findVisible, mode],
+  () => {
+    if (findVisible.value && mode.value === "manuscript") {
+      find.highlightPositions(book.draft);
+    } else if (!findVisible.value) {
+      // 关面板时清掉，免得下次打开闪旧结果
+      find.highlightPositions("");
+    }
+  },
+  { immediate: true }
+);
+
 const activeTabId = computed(() =>
   mode.value === "manuscript" ? book.activeDocTab : book.activeBrowse
 );
@@ -102,6 +337,66 @@ function onContentInput(event: Event): void {
   book.onEdit(target.value);
 }
 
+/** textarea 滚到哪，mirror 就跟到哪——高亮始终贴在文字背后。 */
+function onEditorScroll(): void {
+  syncMirrorScroll();
+  syncPreviewScroll();
+}
+
+/**
+ * 替换面板「替换/全部替换」落下来的新文本：
+ * ① 先读 textarea 真实选区——replaceCurrent/replaceAll 不碰 DOM，
+ *    这里单独做、与被替换选区对齐；
+ * ② book.onEdit 写盘；
+ * ③ nextTick 把光标拿回来。
+ */
+function applyReplace(nextText: string): void {
+  const el = editorEl.value;
+  if (!el) return;
+  const selStart = el.selectionStart;
+  const selEnd = el.selectionEnd;
+  book.onEdit(nextText);
+  void nextTick(() => {
+    const restored = el;
+    if (!restored) return;
+    restored.focus();
+    restored.setSelectionRange(
+      Math.min(selStart, nextText.length),
+      Math.min(selEnd, nextText.length)
+    );
+  });
+}
+
+/**
+ * 标题行可编辑：改的是 frontmatter 的 title 行（book.renameDocTitle 走指纹链），
+ * relPath 与文件名一概不动（那要牵动 chapterOrder 与会话）。提交只有 blur 一条路——
+ * Enter 只是主动移开焦点，避免 Enter+blur 双发；Esc 当场弹回；空名字当场弹回不发请求。
+ * 提交后无论成败都把显示值对齐 store 的真相：成功 title 已换新，失败弹回旧值。
+ */
+function blurTitle(event: Event): void {
+  (event.target as HTMLInputElement).blur();
+}
+
+function revertTitle(event: Event): void {
+  const target = event.target as HTMLInputElement;
+  target.value = title.value;
+}
+
+function commitTitle(event: Event): void {
+  const target = event.target as HTMLInputElement;
+  const relPath = activeTabId.value;
+  if (relPath === null) return;
+  const value = target.value;
+  if (value === title.value) return;
+  if (value.trim() === "") {
+    target.value = title.value;
+    return;
+  }
+  void book.renameDocTitle(relPath, value).then(() => {
+    target.value = title.value;
+  });
+}
+
 /** 三枚页签同一个入口：dossier 的判定住在这里，不留到模板（附录 F-F 的「表驱动」）。 */
 function switchMode(next: RightPaneMode): void {
   if (next === "dossier") {
@@ -113,7 +408,11 @@ function switchMode(next: RightPaneMode): void {
 </script>
 
 <template>
-  <aside class="editor-pane has-section-tabs" aria-label="文本内容">
+  <aside
+    class="editor-pane has-section-tabs"
+    :class="{ 'is-dossier': mode === 'dossier' }"
+    aria-label="文本内容"
+  >
     <header class="editor-header">
       <div class="editor-breadcrumbs">
         <span v-for="(part, index) in breadcrumbs" :key="`${part}-${index}`">
@@ -121,10 +420,118 @@ function switchMode(next: RightPaneMode): void {
         </span>
       </div>
       <div class="editor-header-actions">
-        <span class="save-state" :class="{ 'is-dirty': book.dirty }">
-          <AppIcon :name="book.dirty ? 'edit' : 'check'" :size="13" />
-          {{ saveStateText }}
-        </span>
+        <!-- 批次 5-⑳：这里原来还有一份保存状态，与底栏 `.editor-save-status` 读同一个值。
+             真机 1440 视口的账：右栏 490，栏头右侧为系统窗控留 146 ⇒ 内容盒 328px；
+             而这一行要 74（保存状态）+ 288（九枚 32px 按钮）+ 45（九个 5px 间隙）= 407px。
+             多出来的 79px 全砸在左端——面包屑被压成 0px 宽度（路径从不显示），
+             右端两枚按钮则画进为窗控预留的那条带里（伏笔台账 / 收起文本内容栏压在最小化、最大化上）。
+             去掉这份重复显示正好腾出 74 + 5 = 79px，与缺口分毫不差；保存状态仍在底栏。
+             `is-dirty` 的告警色一并搬到那一处，见 .editor-footer .editor-save-status.is-dirty。 -->
+        <!-- 改稿历史入口：批准提案留下的「改前备份」只有这里读得回来。
+             没开书时按钮禁用而不是灰着不管——这一格此刻确实没有内容可摆。 -->
+        <button
+          ref="changeHistoryButton"
+          class="icon-button"
+          type="button"
+          aria-label="改稿历史"
+          title="改稿历史：回滚到某一次改稿之前"
+          :disabled="!book.meta"
+          @click="toggleChangeHistory"
+        >
+          <AppIcon name="history" :size="17" />
+        </button>
+        <!-- 去 AI 味：纯本地查表，不用等也不用花 token，所以敢常驻在这一格。
+             扫的是活动文稿的当前草稿（含未保存手改），不是盘上那份。 -->
+        <button
+          ref="slopButton"
+          class="icon-button"
+          type="button"
+          aria-label="去 AI 味"
+          title="去 AI 味：扫一遍这一篇的套话与万能句式"
+          :disabled="!book.meta"
+          @click="slopOpen = !slopOpen"
+        >
+          <AppIcon name="wand" :size="17" />
+        </button>
+        <!-- 审稿打分：纯本地统计四个维度（句长/段落/对白/套话），不调模型。
+             与左栏那三项 AI 检查的分工是硬的：那三项要联网、要等，这颗即时出。 -->
+        <button
+          ref="reviewButton"
+          class="icon-button"
+          type="button"
+          aria-label="审稿打分"
+          title="审稿打分：句长、段落、对白、套话四个维度的本地读数"
+          :disabled="!book.meta"
+          @click="reviewOpen = !reviewOpen"
+        >
+          <AppIcon name="chart" :size="17" />
+        </button>
+        <!-- 时间线核对：把全书 timeline/ 文稿按 date 排一遍、查日期矛盾。纯本地，不调模型。 -->
+        <button
+          ref="timelineButton"
+          class="icon-button"
+          type="button"
+          aria-label="时间线核对"
+          title="时间线核对：按日期排全书的时间线，查前后矛盾"
+          :disabled="!book.meta"
+          @click="void timeline.toggle()"
+        >
+          <AppIcon name="arrow-up" :size="17" />
+        </button>
+        <!-- 卷纲 → 章纲：把自由 markdown 拆成字段表，再一键落成大纲文稿。纯本地，不调模型。 -->
+        <button
+          ref="volumeOutlineButton"
+          class="icon-button"
+          type="button"
+          aria-label="卷纲转章纲"
+          title="卷纲转章纲：把这一篇拆成章节字段表，可一键生成大纲文稿"
+          :disabled="!canStructure"
+          @click="void volumeOutline.toggleFor(activeDoc)"
+        >
+          <AppIcon name="list" :size="17" />
+        </button>
+        <!-- 导出：Markdown / 纯文本 / HTML / 打印 / Word / 电子书 / JSON。
+             这颗按钮 2026-10-05 批次 5-② 之前**不存在**——对话框早就渲染在 App 里了，
+             但可见态两处对不上（App 持一个从不被置 true 的本地 ref，layoutStore 的那一格没人调），
+             于是整个导出功能够不着。入口补在这里：导出是**整本书**的事，不是当前这一篇。 -->
+        <button
+          class="icon-button"
+          type="button"
+          aria-label="导出作品"
+          title="导出作品：Markdown / 纯文本 / HTML / Word / 电子书 (.epub) / JSON"
+          :disabled="!book.meta"
+          @click="layout.openExport()"
+        >
+          <AppIcon name="download" :size="17" />
+        </button>
+        <!-- 字数统计：全书字数总览 + 章节分布 + 写作目标进度。
+             与导出同一族：面板早就渲染在 App 里了，可见态两处对不上（App 那个本地 ref
+             零写者），所以一直够不着。入口同样补在右栏头部。 -->
+        <button
+          class="icon-button"
+          type="button"
+          aria-label="字数统计"
+          title="字数统计：全书字数、章节分布与写作目标进度"
+          :disabled="!book.meta"
+          @click="layout.openWordCount()"
+        >
+          <AppIcon name="ledger" :size="17" />
+        </button>
+        <!-- 伏笔台账：一条伏笔一篇文稿，状态在 frontmatter；这张表是全仓唯一能查「还欠什么」的地方。 -->
+        <button
+          ref="foreshadowButton"
+          class="icon-button"
+          type="button"
+          aria-label="伏笔台账"
+          title="伏笔台账：哪条埋了还没收"
+          :disabled="!book.meta"
+          @click="
+            void book.loadForeshadows();
+            book.foreshadowsOpen = !book.foreshadowsOpen;
+          "
+        >
+          <AppIcon name="pin" :size="17" />
+        </button>
         <button
           class="icon-button"
           type="button"
@@ -135,6 +542,38 @@ function switchMode(next: RightPaneMode): void {
         </button>
       </div>
     </header>
+
+    <ChangeHistoryPanel
+      v-if="changeHistoryOpen && changeHistoryAnchor"
+      :anchor="changeHistoryAnchor"
+      @close="book.closeChangeHistory()"
+    />
+
+    <SlopPanel v-if="slopOpen && slopAnchor" :anchor="slopAnchor" @close="slopOpen = false" />
+
+    <ReviewScorePanel
+      v-if="reviewOpen && reviewAnchor"
+      :anchor="reviewAnchor"
+      @close="reviewOpen = false"
+    />
+
+    <TimelineCheckPanel
+      v-if="timeline.open && timelineAnchor"
+      :anchor="timelineAnchor"
+      @close="timeline.close()"
+    />
+
+    <VolumeOutlinePanel
+      v-if="volumeOutline.open && volumeOutlineAnchor"
+      :anchor="volumeOutlineAnchor"
+      @close="volumeOutline.close()"
+    />
+
+    <ForeshadowPanel
+      v-if="book.foreshadowsOpen && foreshadowAnchor"
+      :anchor="foreshadowAnchor"
+      @close="book.foreshadowsOpen = false"
+    />
 
     <DocumentTabBar
       v-if="mode !== 'dossier'"
@@ -164,27 +603,145 @@ function switchMode(next: RightPaneMode): void {
       <SnippetToolbar :state="snippetToolbar" @pick="applyToSelection" />
     </div>
 
-    <div class="editor-document" :class="documentClasses">
-      <template v-if="mode !== 'dossier'">
+    <!-- 文档内查找替换（Ctrl+F）。 -->
+    <FindReplacePanel
+      v-if="findVisible && mode === 'manuscript'"
+      @replace="applyReplace($event)"
+      @replace-all="applyReplace($event)"
+    />
+
+    <!-- 文稿区视图态切换（编辑 / 分栏 / 预览） -->
+    <div
+      v-if="mode === 'manuscript'"
+      class="editor-view-switch"
+      role="tablist"
+      aria-label="编辑模式"
+    >
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="viewMode === 'edit'"
+        :class="{ 'is-active': viewMode === 'edit' }"
+        @click="viewMode = 'edit'"
+      >
+        <AppIcon name="pen" :size="13" />
+        编辑
+      </button>
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="viewMode === 'split'"
+        :class="{ 'is-active': viewMode === 'split' }"
+        @click="viewMode = 'split'"
+      >
+        <AppIcon name="panel-right" :size="13" />
+        分栏
+      </button>
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="viewMode === 'preview'"
+        :class="{ 'is-active': viewMode === 'preview' }"
+        @click="viewMode = 'preview'"
+      >
+        <AppIcon name="eye" :size="13" />
+        预览
+      </button>
+    </div>
+
+    <div
+      class="editor-document"
+      :style="editorLayoutStyle"
+      :class="[documentClasses, `editor-document--${viewMode}`]"
+    >
+      <!-- 没打开文稿就不挂「md」格式徽标与标题框：没有文件时这句格式说明是摆设，
+           悬空的胶囊看起来还像一枚没画出来的图标（2026-10-05 用户反馈）。title 同源：有标题才显示这一行。 -->
+      <template v-if="mode !== 'dossier' && title">
         <div class="document-meta-row">
-          <span class="document-format">md</span>
+          <!-- 「Markdown 格式」用 file 字形说，不再用「md」两个字——这个带边框的小方块
+               和上面的格式钮外形一模一样，装着文字会被当成一枚没画出来的图标（2026-10-05 用户反馈）。 -->
+          <span class="document-format" title="Markdown 格式" aria-label="Markdown 格式">
+            <AppIcon name="file" :size="12" />
+          </span>
           <span v-if="mode === 'browse'" class="readonly-badge">浏览中，不影响文稿</span>
         </div>
-        <input class="document-title-input" :value="title" readonly aria-label="文档标题" />
+        <input
+          class="document-title-input"
+          :value="title"
+          :readonly="activeTabId === null"
+          aria-label="文档标题（回车或移开焦点即保存）"
+          title="点这里可以改标题（只改 frontmatter，不动文件名）"
+          @keydown.enter.prevent="blurTitle($event)"
+          @keydown.esc.prevent="revertTitle($event)"
+          @blur="commitTitle($event)"
+        />
       </template>
 
       <BookDossier v-if="mode === 'dossier'" :summary="dossier" :groups="dossierGroups" />
-      <textarea
-        v-else-if="mode === 'manuscript'"
-        ref="editorEl"
-        class="document-editor transient-scrollbar"
-        :value="book.draft"
-        :readonly="!book.activeDocTab"
-        aria-label="文本内容编辑器"
-        spellcheck="false"
-        @input="onContentInput"
+
+      <!-- 编辑区：edit 或 split 模式。
+           读盘在途时摆骨架而不是正文：`activeDocTab` 先换、`draft` 后换，
+           那一瞬摆旧正文等于「新标题配旧稿」，用户一打字就把上一篇写进了这一篇
+           （判定在 utils/editor-readout，行为在 useBookStore.doc-loading.test.ts）。 -->
+      <div
+        v-if="
+          mode === 'manuscript' &&
+          bodyState !== 'empty' &&
+          (viewMode === 'edit' || viewMode === 'split')
+        "
+        class="editor-pane-left"
+      >
+        <div v-if="bodyState === 'loading'" class="editor-skeleton" aria-busy="true">
+          <p class="editor-skeleton-label">{{ loadingLabel }}</p>
+          <span v-for="n in SKELETON_LINES" :key="n" class="editor-skeleton-line" />
+        </div>
+        <div v-else class="editor-textarea-wrap">
+          <!-- eslint-disable vue/no-v-html -- 高亮 mirror：与 textarea 同尺寸、同字体/同 padding，behind textarea 渲染文字 + <mark> 高亮。
+               放行理由：highlightMirrorHtml 的每一段正文都过了 escapeHtml（见上方 escapeHtml），输出的 <mark> 是我们自己拼的常量标签。 -->
+          <div
+            ref="highlightMirrorEl"
+            class="find-replace-mirror"
+            aria-hidden="true"
+            v-html="highlightMirrorHtml"
+          />
+          <!-- eslint-enable vue/no-v-html -->
+          <textarea
+            ref="editorEl"
+            class="document-editor transient-scrollbar"
+            :class="{ 'document-editor--with-find': findVisible }"
+            :value="book.draft"
+            :readonly="!book.activeDocTab"
+            :spellcheck="editorSpellcheck"
+            aria-label="文本内容编辑器"
+            @input="onContentInput"
+            @scroll="onEditorScroll"
+          />
+        </div>
+      </div>
+
+      <!-- eslint-disable vue/no-v-html -- 预览区：preview 或 split 模式。
+           放行理由：previewHtml 来自 markdownToSimpleHtml，它先整体 escapeHtml 源文再套 markdown 规则，
+           裸标签进不来；回归线见 packages/fs-store/test/export-service-markdown.test.ts。 -->
+      <div
+        v-if="
+          mode === 'manuscript' &&
+          bodyState !== 'empty' &&
+          (viewMode === 'preview' || viewMode === 'split')
+        "
+        ref="previewPaneEl"
+        class="editor-pane-right markdown-body transient-scrollbar"
+        v-html="previewHtml"
       />
-      <article v-else class="document-preview transient-scrollbar">
+      <!-- eslint-enable vue/no-v-html -->
+
+      <!-- 空态：没打开文稿时这一格是空的，但要说清「去哪点」，
+           而不是摆一个空输入框让人以为是自己写空了。 -->
+      <p v-if="mode === 'manuscript' && bodyState === 'empty'" class="editor-empty">
+        {{ EDITOR_EMPTY_HINT }}
+      </p>
+
+      <!-- 浏览态（只做文本展示，无编辑/预览切换） -->
+      <article v-if="mode === 'browse'" class="document-preview transient-scrollbar">
         <p v-if="!browseDoc" class="document-preview-empty">
           在左栏点人物、剧情、大纲或素材即可在此浏览，当前文稿与标签不受影响。
         </p>
@@ -200,7 +757,11 @@ function switchMode(next: RightPaneMode): void {
           <span>正文 {{ characterCount.toLocaleString("zh-CN") }} 字</span>
           <span class="reading-time">{{ readingTimeLabel }}</span>
         </template>
-        <span class="editor-save-status">{{ book.notice || saveStateText }}</span>
+        <!-- 批次 5-⑳：保存状态全栏只此一处（栏头那份已去掉，见上）。`is-dirty` 是从那边搬过来的：
+             原来只有栏头那份会变色，去掉副本若不补上，「有未保存修改」就只剩字面变化、丢了告警色。 -->
+        <span class="editor-save-status" :class="{ 'is-dirty': book.dirty }">
+          {{ book.notice || saveStateText }}
+        </span>
       </div>
       <button
         class="save-button"

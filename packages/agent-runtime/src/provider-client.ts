@@ -1,7 +1,7 @@
 import { sseDataFrames } from "./sse.js";
 import { toWireMessages, type AssistantToolCall, type ChatMessage } from "./chat-message.js";
 import { thinkingBodyField, webSearchToolEntry } from "./per-run-fields.js";
-import type { ThinkingLevel } from "@mochen/contracts";
+import type { AuthHeader, ThinkingLevel } from "@mochen/contracts";
 
 export interface ChatToolSpec {
   name: string;
@@ -34,6 +34,12 @@ export interface StreamRequest {
   fetchImpl: ProviderFetch;
   baseURL: string;
   apiKey: string;
+  /**
+   * 密钥放进哪个请求头。默认 Bearer；小米 MiMo 那类端点只认 `api-key` 头（2026-10-06 批次 5-⑤）。
+   * 可选是为了不打断既有构造方——**别**把它改成必填然后逐个调用点补 undefined，
+   * 真正要改的是「这个请求归哪条连接」这件事，见 `ProviderSettings.config()`。
+   */
+  authHeader?: AuthHeader;
   model: string;
   messages: ChatMessage[];
   tools: ChatToolSpec[];
@@ -140,8 +146,12 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
     "content-type": "application/json",
     accept: "text/event-stream"
   };
-  // 空 apiKey 时连 Authorization 都不发，方便本地 Ollama/LM Studio。
-  if (req.apiKey !== "") headers.Authorization = `Bearer ${req.apiKey}`;
+  // 空 apiKey 时连这个头都不发，方便本地 Ollama/LM Studio。
+  // 头名由**连接**决定：小米 MiMo 官方只认 `api-key`（发 Bearer 会永远 401，而代码里看不出原因）。
+  if (req.apiKey !== "") {
+    if (req.authHeader === "api-key") headers["api-key"] = req.apiKey;
+    else headers.Authorization = `Bearer ${req.apiKey}`;
+  }
   const payload: Record<string, unknown> = {
     model: req.model,
     messages: toWireMessages(req.messages),

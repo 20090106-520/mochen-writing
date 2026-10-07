@@ -1,8 +1,11 @@
 /**
  * #113c 输入卡上方「书 / 阶段」绑定条的判定真身。
  * 这一档在本仓只有一份实现：`meta.stages` 找 `activeStage` 这一段，
- * CenterColumn 的 agentLabel、book-dossier 的 stageName 与这里的 stageLabelOf 必须共用 activeStageOf
+ * book-dossier 的 stageName 与这里的 stageLabelOf 必须共用 activeStageOf
  * （铁律 6；化石先例：档位中文名曾经在 contracts 之外被抄过一遍）。
+ * 2026-10-05 起 CenterColumn 的顶栏标题也不再走阶段了——它报的是**档案名**
+ * （`profile-options.conversationTitleLabel`），因为「正文智能体」这种功能泛称
+ * 回答不了「现在是谁在写」。阶段在本仓的其余消费点不受影响。
  * 阶段侧有真契约（BookMeta.stages / activeStage + bookSaveMeta 通道），所以能开真弹层；
  * 书侧没有 recent-books/资料库注册表（全仓 grep 无 recentBook/libraryRoot/book:list），
  * 因此本文件不产「书目列表」——那一格在组件里退化成一个真动作，见 composer-context-bar-wiring.test.ts 的裁定。

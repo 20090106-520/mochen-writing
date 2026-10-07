@@ -1,0 +1,179 @@
+/* 伏笔台账浮层（2026-10-05）。骨架与 change-history / ai-slop 同款：Teleport 到 body、贴锚点定位。
+   宽度给到 460px：每行要同时摆下「标题 / 状态 / 埋在哪收在哪 / 下一步提示」四件东西。 */
+
+.foreshadow-ledger {
+  position: fixed;
+  z-index: 60;
+  width: 460px;
+  max-height: min(560px, 76vh);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.foreshadow-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.foreshadow-head strong {
+  margin-right: auto;
+}
+
+.foreshadow-count {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.foreshadow-note {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 12px;
+}
+
+.foreshadow-note code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-dim, #f0f1f4);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+}
+
+.foreshadow-empty {
+  margin: 0;
+  padding: 10px 2px;
+  color: var(--text-dim, #6b6f76);
+}
+
+/* 统计条：四个读数一排，「状态坏了」占位变红——它是唯一需要立刻处理的。 */
+.foreshadow-stats {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+}
+
+.foreshadow-stats > div {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 7px;
+  background: var(--surface-dim, #f6f7f9);
+}
+
+.foreshadow-stats dt {
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+}
+
+.foreshadow-stats dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.foreshadow-stats > div.is-broken {
+  border-color: var(--danger, #d64545);
+}
+
+.foreshadow-stats > div.is-broken dd {
+  color: var(--danger, #d64545);
+}
+
+.foreshadow-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.foreshadow-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 2px 8px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-left: 3px solid var(--line, #dedfdf);
+  border-radius: 0 7px 7px 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.foreshadow-row:hover {
+  background: var(--hover, rgb(0 0 0 / 4%));
+}
+
+.foreshadow-row.is-pending {
+  border-left-color: var(--danger, #d64545);
+}
+
+.foreshadow-row.is-paid {
+  border-left-color: var(--accent, #339cff);
+}
+
+.foreshadow-row.is-dropped {
+  border-left-color: var(--line, #dedfdf);
+  opacity: 0.7;
+}
+
+/* 状态字段写坏了：这是数据问题，不是文风问题，用琥珀色而不是危险色。 */
+.foreshadow-row.is-broken {
+  border-left-color: var(--warning, #d99a00);
+  background: var(--warning-soft, rgb(217 154 0 / 10%));
+}
+
+/* 读不到原文：这条伏笔会「凭空消失」，必须比「待回收」更醒目。 */
+.foreshadow-row.is-unknown {
+  border-left-color: var(--warning, #d99a00);
+  border-style: dashed;
+}
+
+.foreshadow-title {
+  grid-column: 2;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.foreshadow-status {
+  grid-column: 3;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.foreshadow-where {
+  grid-column: 2 / -1;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.foreshadow-hint {
+  grid-column: 2 / -1;
+  color: var(--text-dim, #6b6f76);
+  font-size: 11px;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}

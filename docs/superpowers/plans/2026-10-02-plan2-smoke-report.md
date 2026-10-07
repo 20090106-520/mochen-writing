@@ -53,6 +53,12 @@
 
 - **UNBOUND 线程上的批准**（未打开章节 + `chapter-write` + 有 pending 提案）没真机点：卡已滚出可视区，为省往返放弃；该分支由 `agent-service` 单测覆盖，第 10 条已证明同一道门的另一侧行为。**结论：写盘门禁真机只验了「只读档」和「跨章」两种拒绝。**
 - 计划里点名的另外四项（`createIpcOn` 退订后不再收、`contextBridge` 返回函数、主/渲染 `UNBOUND` 同值、turn-end 后置 null 的迟到 delta）**未做真机 DevTools 操作**，只有单测/静态证据。若要宣称「真机验证」需补做或改口径。
+  - **2026-10-05 更正注：两项已补真机，其中一项查出真缺陷。** 手法是 Electron 的 `--remote-debugging-port` + CDP 直连真实渲染层（`Runtime.evaluate` 读回精确值），不再靠人眼：
+    - **`contextBridge` 返回函数——通过**：`window.mochen` 27 个键**全是函数**，非函数的键 0 个；桥对象原型上混不进 API 成员（`loadSession` / `startTurn` / `readDoc` 三个取样均为 `function` 且不在 `Object.getPrototypeOf` 上）。
+    - **turn-end 后置 null 的迟到 delta——查出真缺陷并已修**。旧守卫是 `thread.turnId !== null && thread.turnId !== outbound.turnId`，而 `turn-end` 恰好把 `turnId` 置 `null` ⇒ **「轮次已收束」这个最该防迟到 delta 的时刻，前半段为 false、整个守卫短路**。真机实测：正式轮收束后灌两条迟到推送，`items` 由 1 变 2，屏幕上会凭空多出一段没人写过的字（用户在流式输出中按 Esc 之后即触发）。已收紧为 `thread.turnId !== outbound.turnId`（`turn-end` 自身到达时 turnId 仍等于本轮，过得了门），补两条用例（用新增的 `pushLate` 夹具口径，不补开轮，否则测的就不是迟到），自跑变异「退回带 null 短路的旧写法」杀掉其中 1 条。重建后真机复验：`items` 保持 1、running 正确收束。
+    - **主/渲染 `UNBOUND` 同值——查出重复实现并已合并**。真机去比对之前先查了源码：两侧当时是**两份独立的本地常量**，只靠渲染层一句「与主进程 `agent-service.ts:38` 的同名常量必须一致」维系——而那句话里的行号当场就漂了（实际在第 50 行）。已把定义提到 `contracts`，两侧都从它拿，并加 `unbound-single-source.test.ts`（4 条：定义点唯一、两侧形状、全仓再无第二处赋值），自跑变异「主进程改回本地声明」杀掉 2 条。
+    - **`createIpcOn` 退订后不再收——仍未验，且已查明它当前没有消费方**：`useAgentStore.startListening()` 调了 `onAgentEvent(...)` 却**丢弃了返回的退订函数**（进程内靠 `listening` 标志只订阅一次）。所以这条单测验的是「包装与移除是同一个引用」，而产品里没有任何地方真的调过那个退订。**没有消费方就不必强行补真机证据**；将来若引入线程级重订阅，这条才需要一起验，届时不要拆掉现在的包装器。
+    - UNBOUND 线程上的批准（上一条第 54 行那条）**仍未做**，缺口照旧。
 
 ## 冒烟新增待办（本轮真机才看得见，已随 Plan 2 收尾分诊）
 
@@ -60,6 +66,8 @@
 - **F-2（P2，文案）**：只读档拒绝文案说「由用户在左栏切换权限档后再批准」，但左栏权限档切换器属 Plan 3，当前版本没有这个入口 ⇒ 用户被告知去做一件界面上做不到的事。Plan 3 落地前改成不指向具体位置的措辞。
 - **F-3（P2，桩保真）**：`tools/mock-provider.mjs:31-34` 的 `isFollowUp` 判据是「历史里存在任何 tool 角色消息」，于是**同一线程的第二轮**会被误判成工具回投轮，`文本块`/`计划` 关键字分支永远走不到（本轮第一次发「用文本块提案」只拿到回投文案、零提案）。判据应改成「最后一条消息是 tool」。这不影响产品正确性，但会让后续冒烟误判「协议坏了」。注：该判据是计划逐字要求的，属计划自带的缺陷，不是实现擅自简化。
 - **F-4（P2，品牌残留）**：`apps/desktop/src/main/index.ts:43` `app.getPath("appData")/mochen-writing` —— 用户可见磁盘路径里还留着旧品牌名，与「墨宸/mochen」约定不一致。**裁定：留到 Plan 3 与目录迁移一起做**；不带迁移的改名会让既有安装丢 safeStorage 密文，属不可逆动作。
+  - **2026-10-05 更正注：已在 Plan 3 波 3 处理。** 落点 `apps/desktop/src/main/app-data-migration.ts`（15 条流程用例，spec §12 的五步顺序逐条钉死，自跑变异「把改名提到验密之前」杀掉 5 条）+ `main/index.ts` 在 `app.whenReady()` 里建 store **之前**跑迁移，并用 `dialog.showMessageBox` 播报一句中文。旧目录只改名不删除。
+  - **本机实测（2026-10-05）**：这台机器的 `secrets.enc` 本来就解不开（safeStorage 问题，见本文件相关记录），迁移第 3 步验密失败 ⇒ 报 `kept-old`，旧目录名未动、应用继续用旧目录。这是设计内的安全行为而非回归：密文验不过就不改名，正是为了不让用户「找不回原来的目录」。用户重新填一次 API Key 之后，下一次启动即会完成迁移。
 - **F-5（P3，文案）**：非 2xx 的中文提示把上游响应体原样拼进句子（本轮实测「模型服务端返回 503：`{"error":{"message":"上游繁忙，请稍后再试"}}`」），用户看到裸 JSON。取上游 `error.message` 或截断后再拼，留 Plan 3。
 
 ## 波 A 修复后复验（Task 16 波 A，commit `85fd394`；F-1/F-2/F-3/F-5 逐条回真机）

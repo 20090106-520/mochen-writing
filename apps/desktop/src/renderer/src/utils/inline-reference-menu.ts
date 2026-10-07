@@ -1,11 +1,11 @@
 /**
  * 行内引用菜单的判定层（#106）：打字时的触发判定、条目组装、过滤、上下键、Enter 的结果。
- * 脑子照搬 deepwrite（Apache-2.0）：`utils/composerReferences.ts`（触发与插入）+
+ * 脑子对齐 deepwrite：`utils/composerReferences.ts`（触发与插入）+
  * `composables/useConversationComposer.ts`（过滤、环绕、空态、菜单文案）。
  * 这里没有 DOM、没有 store、没有键名：键→动作的裁决仍住 utils/hotkeys.ts，Esc 仍住 utils/escape-policy.ts，
  * 本文件只回答「菜单该不该开、开着有哪些条目、选中这条之后草稿变成什么」。
  *
- * 与本仓的两处适配（其余逐字照搬）：
+ * 与本仓的两处适配（其余逐字对齐）：
  * ① `/` 的条目来自 slash-commands.ts 那张唯一命令表，且命令是**动作**不是文本——选中即执行（D1），
  *    所以结果联合是 insert | execute，两型都不含「发送」：Enter 永不发送（D2）。
  * ② `@` 的条目来自 book store 已有的 DocRef，插入的是可读引用文本，出站仍是一条 userText——

@@ -8,13 +8,39 @@ describe("book-kinds · 唯一一份 kind 顺序与中文标签", () => {
   });
 
   it("顺序与中文标签逐字钉死自左栏现状", () => {
-    expect(BOOK_KIND_ORDER).toEqual(["chapter", "outline", "character", "plot", "material"]);
+    // 2026-10-04 深夜裁定：演示图全部功能落地——新增 6 类文稿（分卷/世界观/势力/地图/时间线/专有名词）；
+    // 次日追加技能库（skill）：智能体可把联网搜到的资料整理成技能文档写进 skills/。
+    // 2026-10-05 再加伏笔（foreshadow）：一条伏笔一篇文稿，状态在 frontmatter，
+    // 排在专有名词之后、技能库之前（它是资料类，不是技能）。
+    expect(BOOK_KIND_ORDER).toEqual([
+      "chapter",
+      "volume",
+      "outline",
+      "worldview",
+      "character",
+      "faction",
+      "location",
+      "timeline",
+      "plot",
+      "material",
+      "glossary",
+      "foreshadow",
+      "skill"
+    ]);
     expect(BOOK_KIND_LABELS).toEqual({
       chapter: "章节",
       outline: "大纲",
       character: "人物",
       plot: "剧情",
-      material: "素材库"
+      material: "素材库",
+      worldview: "世界观",
+      faction: "势力/组织",
+      location: "地图",
+      timeline: "时间线",
+      glossary: "专有名词",
+      volume: "分卷",
+      foreshadow: "伏笔",
+      skill: "技能库"
     });
   });
 

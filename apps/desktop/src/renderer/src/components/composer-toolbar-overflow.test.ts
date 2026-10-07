@@ -1,7 +1,7 @@
 /**
  * #113f 输入卡 chip 行：窄栏只许「收缩 + 截断」，不许折行；≤1220px 的三栏收窄必须住在层叠最后一段。
  *
- * 依据是 deepwrite（Apache-2.0）`styles.css` 的原值，不是我们的品味：
+ * 依据是 deepwrite`styles.css` 的原值，不是我们的品味：
  * - 2611-2655：`.composer-tools{flex:1 1 0}`、`.composer-actions{flex:0 0 auto}`、
  *   `.composer-tools .conversation-model-config{flex:0 1 auto}`＋`{max-width:100%;min-width:0}`、
  *   `.composer-tools .conversation-model-config-label{min-width:0}`，
@@ -20,7 +20,12 @@
  * 第三条是收缩范围搬宽了的实测后果（t113f-smoke7 的 OBSERVE 行）：把 `flex:0 1 auto` 铺到全部 chip 后，
  * 13px 缺额被五枚 chip 摊平，每枚只差 2~4px ⇒「关…」「联网…」「工…」「/…」齐出（截图 m113f-composer-1426.jpg），
  * 因为 `text-overflow: ellipsis` 差 1px 就要吃掉一个汉字。所以可缩的那一枚必须只有模型（唯一随数据变长的标签）。
- * 三条都是「照搬没搬全」，各自都要有钉子。
+ * 三条都是「对齐未复用全」，各自都要有钉子。
+ *
+ * 2026-10-05 用户裁定再改版：deepwrite 那套「只收模型 8em」到窄窗就全线糊成省略号（用户截图实锤），
+ * 改成**逐级收标签、保图标**的阶梯（380 起右端参与收缩）——控件本体一个不藏，功能与 tooltip 全程在。
+ * 同日用户第三次裁定：阶梯**次序按「图标能否自解释」排**（tools→palette→web-search→thinking 先收，
+ * 模型名只截断永不隐藏）——判据从「谁最长」换成「藏掉文字还剩多少信息」。
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -59,8 +64,6 @@ function blocks(css: string, at: string): string[] {
   }
   return out;
 }
-
-const NARROW = "@container composer (max-width: min(32rem, 560px))";
 
 describe("chip 行 · 收缩截断代替折行（deepwrite 的 toolbar 没有 flex-wrap）", () => {
   it("左端容器：flex:1 1 0 + min-width:0，整条规则里不许出现 flex-wrap", () => {
@@ -106,35 +109,150 @@ describe("chip 行 · 收缩截断代替折行（deepwrite 的 toolbar 没有 fl
     );
   });
 
-  it("图形与下拉三角不参与收缩（interaction.css 基链），右端容器整组不缩（他的 .composer-actions 是 0 0 auto）", () => {
+  it("图形与下拉三角不参与收缩（interaction.css 基链），右端容器默认整组不缩（他的 .composer-actions 是 0 0 auto）", () => {
     expect(ruleBlock(CHIPS, ".composer-chip-icon")).toContain("flex: 0 0 auto");
     expect(ruleBlock(CHIPS, ".composer-chip-caret")).toContain("flex: 0 0 auto");
     expect(ruleBlock(CARD, ".composer-toolbar-right")).toContain("flex: 0 0 auto");
   });
 
-  it("断点沿用他的 min(32rem, 560px)：两处（卡段 + 上下文条段），卡段那一处只把模型 label 收到 8em", () => {
-    const narrow = blocks(CARD, NARROW);
-    expect(narrow).toHaveLength(2);
-    const withChipLabel = narrow.filter((b) =>
-      b.includes(".composer-toolbar-left .composer-chip--model .composer-chip-label")
-    );
-    expect(withChipLabel).toHaveLength(1);
-    expect(withChipLabel[0]).toContain("max-width: 8em");
-    // 他的 8em 只落在模型那一枚（`.conversation-model-config-label`）；铺到全部 label 就是上一版的错。
-    expect(withChipLabel[0]).not.toMatch(
-      /\.composer-toolbar-left \.composer-chip-label\s*\{[^}]*max-width: 8em/
-    );
+  /**
+   * 2026-10-05 用户裁定改版：原方案只在 min(32rem,560px) 把模型 label 收到 8em，
+   * 再窄全员压到 28/44 地板，整排糊成「关…/联网搜…/工…」的省略号泥浆——那不算适配。
+   * 新口径：**逐级收标签、保图标**。控件本体/图标/三角一个不藏。
+   *
+   * 2026-10-05 用户再裁定（截图实锤「怎么切换模型看不见」）：阶梯**次序倒过来**。
+   * 旧判据是「谁最长先收谁」⇒ 模型名第一个被收。但排序该问的是「藏掉文字还剩多少信息」：
+   * 模型 chip 的立方体是纯装饰（任何模型同一个形），藏文字 = 控件什么都不告诉你；
+   * 联网 🌐 / 工具 list / 命令 sparkles / 思考 brain 四个图形各自自解释，藏了仍认得出。
+   * ⇒ 图标自解释的四枚先收，模型名只截断、永不 display:none。
+   *
+   * 2026-10-06 批次 5-⑪：**阈值整条重算**。旧值 680/620/560/500 是「只按左端算的」，
+   * 而 @container 量的是整个 `.composer-wrap`。这中间右端长了一摞（工作模式 chip、麦克风、
+   * 权限文案 3→5 字），真机实测右端 249px、左端只剩 354px ⇒ 整条梯子偏了约 80px：
+   * 内容盒 628 只触发第一级，三枚齐出省略号，模型名被压到 5.6px。
+   * 换算（`left = 内容盒 − 274`，左端五枚自然宽 448.3，详见 agent-pane.css 的注释）：
+   * 448.3+274=722 / 422.3+274=696 / 388.7+274=662 / 341.7+274=615 / 315.7+274=589。
+   * 踩过的坑记在这里：`clientWidth`(664) **含 padding**，@container 量的是**内容盒**(628)，
+   * 拿 clientWidth 当基数会让整条梯子再偏 36px——第一次重算就是这么算歪的。
+   */
+  const LADDER: Array<["722px" | "696px" | "662px" | "615px", string]> = [
+    ["722px", '.composer-toolbar-left .composer-chip[data-chip="tools"] .composer-chip-label'],
+    ["696px", '.composer-toolbar-left .composer-chip[data-chip="palette"] .composer-chip-label'],
+    ["662px", '.composer-toolbar-left .composer-chip[data-chip="web-search"] .composer-chip-label'],
+    ["615px", '.composer-toolbar-left .composer-chip[data-chip="thinking"] .composer-chip-label']
+  ];
+
+  it("窄栏阶梯：四级各收一枚标签，按「图标能否自解释」排序（tools → palette → web-search → thinking），每级都钉在 @container composer 上", () => {
+    for (const [width, selector] of LADDER) {
+      const body = blocks(CARD, `@container composer (max-width: ${width})`);
+      expect(body, `阶梯 ${width}`).toHaveLength(1);
+      expect(body[0]).toContain(`${selector} {`);
+      expect(body[0]).toContain("display: none");
+    }
   });
 
-  it("模型那一枚有钩子：模板里 `composer-chip--model` 真出现（没有它，上面两条收缩规则就是死规则）", () => {
+  /**
+   * 这一条钉的是**为什么**换次序，不是「阶梯长什么样」——LADDER 换成别的次序照样能绿，
+   * 少了它就没人拦着把模型名再塞回第一级。
+   */
+  it("模型名永不 display:none：立方体是纯装饰，藏掉文字这枚控件就零信息（左端四枚图形自解释，模型这一个不自解释）", () => {
+    for (const block of blocks(CARD, "@container")) {
+      expect(block, "模型 label 不许进 display:none 名单").not.toMatch(
+        /composer-chip--model[^{]*\.composer-chip-label \{[^}]*display:\s*none/
+      );
+    }
+    // 窄到最狠的那一级也只收窄不消失（9em 截断，完整模型名仍在 title 里）。
+    const last = blocks(CARD, "@container composer (max-width: 589px)")[0] ?? "";
+    expect(last).toContain(".composer-toolbar-left .composer-chip--model .composer-chip-label");
+    expect(last).toContain("max-width: 9em");
+    expect(last).not.toContain("display: none");
+  });
+
+  /**
+   * 批次 5-⑪：光有「次序」不够——次序答的是「先藏谁」，**阈值**答的是「什么时候藏」，
+   * 而后者算错时不会报错，只会在真机上摆出一排省略号。这两条把「算错」的两种形态钉住：
+   *   ① 阈值不再递减（后一级比前一级还宽 ⇒ 那一级永远轮不到先触发，等于没写）；
+   *   ② 模型名没有地板（`flex-shrink:100` 会让它一路让到 5.6px——不是省略号，是几乎归零）。
+   */
+  it("阶梯阈值必须逐级递减，否则后一级永远轮不到", () => {
+    const widths = LADDER.map(([width]) => Number.parseFloat(width));
+    for (let i = 1; i < widths.length; i += 1) {
+      expect(widths[i], `第 ${i + 1} 级比上一级还宽`).toBeLessThan(widths[i - 1] ?? 0);
+    }
+  });
+
+  it("模型名有地板：4.5em 认得出是个模型名，不至于被 flex-shrink 压成一根竖线", () => {
+    const floor = ruleBlock(
+      CARD,
+      ".composer-toolbar-left .composer-chip--model .composer-chip-label"
+    );
+    expect(floor).toContain("min-width: 4.5em");
+  });
+
+  it("阶梯的钩子在模板里：data-chip 挂满两条循环，没有钩子的阶梯就是死规则", () => {
+    const tpl = templateSource(COMPOSER);
+    expect(countNeedle(':data-chip="chip.id"', tpl)).toBe(2);
+  });
+
+  it("权限档是状态，最后两级只收宽度不出局：589 收到 8em，380 起右端参与收缩", () => {
+    const cap = blocks(CARD, "@container composer (max-width: 589px)")[0] ?? "";
+    expect(cap).toContain(".composer-toolbar-right .composer-chip-label");
+    expect(cap).toContain("max-width: 8em");
+    const last = blocks(CARD, "@container composer (max-width: 380px)")[0] ?? "";
+    expect(last).toContain(".composer-toolbar-right {");
+    expect(last).toMatch(/\.composer-toolbar-right \{[^}]*flex: 0 1 auto/);
+    expect(last).toMatch(/\.composer-toolbar-right \.composer-chip-label \{[^}]*min-width: 0/);
+  });
+
+  it("模板里 composer-chip--model 真出现（阶梯第一级与收缩加权都靠它）", () => {
     expect(countNeedle("composer-chip--model", templateSource(COMPOSER))).toBe(1);
   });
 
-  it("反自欺：窄栏只收文字，不许把控件藏起来（块内出现 .composer-chip 的 display:none 即为假形似）", () => {
-    const hidden = blocks(CARD, "@container").filter((b) =>
-      /\.composer-chip[^{]*\{[^}]*display:\s*none/.test(b)
+  it("反自欺（2026-10-05 新口径）：display:none 只许落在纯文字类上——按钮本体/图标/三角藏了就是假形似", () => {
+    // 2026-10-05 定的口径是「控件一个不藏，只藏文字」，白名单当时只有工具栏那四枚 chip 的标签。
+    // 批次 5-㉓ 给上下文条也加了三档阶梯，藏的是两段**纯文字**副文（文档胶囊的类型＋字数、
+    // 计量读数），同样是文字而不是控件——所以按「白名单」改写，而不是把断言放宽成什么都不查。
+    // 保证没有变小：不在白名单里的类藏一条红一条，上一版是「非 .composer-chip-label 一律红」。
+    const TEXT_ONLY = new Set([
+      "composer-chip-label", // 5-⑱ 阶梯：工具 / 调色 / 联网 / 思考四枚的标签
+      "doc-context-kind", // 5-㉓ 阶梯第一级：文档胶囊的「章节 · N 字」
+      "context-meter-text", // 5-㉓ 阶梯第二级：「N 条 · ≈M tokens」
+      // 5-㉓ 末一档：胶囊的尾巴（✕ / ›）。**它不是控件，是控件里的字形**——
+      // 解除绑定靠整枚胶囊的 @click、展开靠 aria-haspopup，藏掉字形不拿走任何功能，
+      // title 上那句「点击解除绑定」也还在。真正的控件（.composer-context-item 本体）
+      // 仍然不在白名单里，藏一枚整枚照样红。
+      "context-chevron"
+    ]);
+    const hiddenClasses = (blockText: string): string[] =>
+      [...blockText.matchAll(/([^{}]+)\{([^{}]*display:\s*none[^{}]*)\}/g)].flatMap((m) =>
+        (m[1] ?? "")
+          .trim()
+          .split(",")
+          .map(
+            (sel) =>
+              sel
+                .trim()
+                .split(/\s+/)
+                .pop()
+                ?.match(/\.([\w-]+)$/)?.[1] ?? ""
+          )
+          .filter(Boolean)
+      );
+    const hidden = blocks(CARD, "@container").flatMap(hiddenClasses);
+    expect(hidden.filter((c) => !TEXT_ONLY.has(c))).toEqual([]);
+    // 整枚 chip 藏掉仍然明令禁止（控件一个不丢）。
+    const wholeChip = blocks(CARD, "@container").filter((b) =>
+      /\.composer-chip \{[^}]*display:\s*none/.test(b)
     );
-    expect(hidden).toEqual([]);
+    expect(wholeChip).toEqual([]);
+    // 5-㉓：上下文条那一侧的整枚胶囊同样不许藏。
+    const wholeContextItem = blocks(CARD, "@container").filter((b) =>
+      /\.composer-context-item \{[^}]*display:\s*none/.test(b)
+    );
+    expect(wholeContextItem).toEqual([]);
+    // 白名单本身不许腐化：三段都必须真的被某一档用上，否则阶梯是死规则。
+    expect(hidden.filter((c) => c === "doc-context-kind").length).toBeGreaterThan(0);
+    expect(hidden.filter((c) => c === "context-meter-text").length).toBeGreaterThan(0);
     const tpl = templateSource(COMPOSER);
     expect(countNeedle('v-for="chip in chips', tpl)).toBe(2);
   });

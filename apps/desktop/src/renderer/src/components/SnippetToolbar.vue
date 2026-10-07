@@ -22,7 +22,7 @@ const emit = defineEmits<{ pick: [kind: SnippetKind] }>();
       @click="emit('pick', btn.kind)"
     >
       <!-- #113a：按钮上画字形，中文标签退居可及名（灰态的 title 是空串，没有 aria-label 就读屏只剩一句「按钮」）。
-           @mousedown.prevent 照搬 deepwrite 的 .text-tool-button：按下别抢走 textarea 的焦点与选区。 -->
+           @mousedown.prevent 对齐 deepwrite 的 .text-tool-button：按下别抢走 textarea 的焦点与选区。 -->
       <AppIcon :name="btn.icon" :size="16" />
     </button>
     <!-- 复审 I-1：禁用理由必须是**看得见的**一行——Chromium 不给 disabled 按钮弹 title。

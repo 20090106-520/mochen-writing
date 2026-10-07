@@ -9,6 +9,7 @@
  * 于是这条互斥不变式可测（见 hotkey-focus.test.ts）。useHotkeys.ts 只负责把真 DOM 解成这些源。
  */
 import { CARD_STATUS_ATTR } from "./hotkey-markers";
+import type { SubmitKey } from "./send-key-preference";
 import { type HotkeyFocus } from "./hotkeys";
 
 /** 焦点判定要读的节点成员——真实 HTMLElement 天然满足，测试里传普通对象即可。 */
@@ -38,6 +39,8 @@ export interface HotkeyFocusSources {
   readonly tabCount: number;
   /** 行内引用菜单是否开着（#106）：接线处从 store 的匹配态读，不在这里看 DOM、也不在这里算匹配。 */
   readonly referenceMenuIsOpen: boolean;
+  /** 发送键档（设置页「智能体」）：接线处每次按键重读偏好档（与自动保存同一「即时生效」口径）。 */
+  readonly submitKey: SubmitKey;
 }
 
 const TEXT_TAGS: readonly string[] = ["TEXTAREA", "INPUT", "SELECT"];
@@ -71,6 +74,7 @@ export function deriveHotkeyFocus(sources: HotkeyFocusSources): HotkeyFocus {
     isComposing: sources.isComposing,
     hasBook: sources.hasBook,
     tabCount: sources.tabCount,
-    referenceMenuIsOpen: sources.referenceMenuIsOpen
+    referenceMenuIsOpen: sources.referenceMenuIsOpen,
+    submitKey: sources.submitKey
   };
 }

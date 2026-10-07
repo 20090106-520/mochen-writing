@@ -1,0 +1,366 @@
+/* ---- 插件 / 技能页（2026-10-07 批次 5-㉛，用户裁定：独立页面，不要浮层）。
+       页面级语言与 settings-page 同源（整页、有标题栏、内容区自己滚），
+       而卡片那部分的克制（描边、圆角、留白）与 skill-market 的卡一致。 ---- */
+
+.extensions-page {
+  display: flex;
+  flex-direction: column;
+  /* 【这一条从 5-㉛ 换到 5-㉝，起因是同一条批注的另一面】
+     `grid-column: 1 / -1`（5-㉛ 整页那一版）跨满三列 —— 那会把**左栏**也吃掉，
+     而用户指正「不是重新创建侧边栏还是有的」。
+     5-㉜ 改成只占中栏那一格（撤掉 grid-column），可那样又成了「中栏一块 + 右栏一块」
+     两个页面并排 —— 用户在截图上框住整片说「应该是一整个页面，不应该分两个页面」，
+     并单独框住右栏那一片说「这一片技能库和插件库，应该是不会有这个的」。
+     于是正解是 **`2 / -1`**：**跳过左栏那一列**，吃掉中栏 + 右栏两格。
+     左栏是恒定的导航轴，永远在；右栏那一片是编辑器的配套设施，与技能库/插件无关，不出现。
+     `min-width: 0` 是 grid item 的常规要求：不给 0 它就不肯缩，长标题会把这一格撑开。 */
+  grid-column: 2 / -1;
+  /* 【2026-10-07 批次 5-㊴ 真机撞出来并修掉的真缺陷】
+     `.desktop-shell` 是**三列**网格（286 / 中栏 / 右栏），而这一页只写了 `grid-column: 2 / -1`、
+     没有写 `grid-row`。网格于是把它自动排到**第二行** —— 于是整个 shell 从
+     「一行三列」变成「两行三列」：左栏只占第一行的第一格（真机量到 302px 高，
+     而视口有 901px），`.editor-pane` 被挤到第三行。
+
+     后果不是「页面有点歪」而是**左栏大半截点不到**：`.left-sidebar` 是 `overflow: hidden`
+     且自己内部滚动，于是从 y=392 往下的六枚钮（故事规划 / 写作 / 审核检查 /
+     技能库 / 插件 / 数据统计）全部落在侧栏可视区之外 ——
+     `document.elementFromPoint` 在那一带量到的是 `.desktop-shell` 而不是按钮。
+
+     **为什么之前没人发现**：这一页是 5-㊛ 才有的，而绝大多数真机流程一进来
+     只点「技能库」，点进去就回来了，从没在**这一页上**去看左栏的高度。
+     5-㊴ 加皮肤广场时探针要量「左栏恒定」，量出几何不对才把它挖出来。
+
+     ⇒ `grid-row: 1` 显式钉住。皮肤广场（skin-gallery.css）用同一条，同理。 */
+  grid-row: 1;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 16px 20px 0;
+  background: var(--surface-main);
+  color: var(--text-primary);
+  font-family: var(--ui-font);
+}
+
+.extensions-title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.extensions-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+/* 【5-㉜】这里原先摆着两枚页签（`.extensions-tabs` / `.extensions-tab` / `.extensions-count`）。
+   用户在截图上指正：「点开技能库就是技能库的单独页面，点开插件就是插件的单独页面」——
+   左栏已经各有一枚钮、通向两个不同的地方，中栏再摆页签就是让他在一个地方选、再点一次才能到。
+   页签连同这三段规则一起删掉（不是留成豁免：没有元素的规则一行也匹配不到，
+   `dead-css-guard` 会红，而留着的唯一效果是让下一个人以为这里还能加页签）。 */
+.extensions-close {
+  border: 1px solid var(--line-soft);
+  background: var(--surface-raised);
+}
+
+/* 搜索 + 筛选 + 回执那一组。fix 在标题栏下面，卡片区自己滚。 */
+.extensions-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 14px 0 10px;
+}
+
+.extensions-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+
+.extensions-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.extensions-search-go {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--neutral-solid);
+  color: var(--neutral-solid-contrast);
+  font: inherit;
+  cursor: pointer;
+}
+
+.extensions-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.extensions-filter {
+  padding: 3px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.857143rem;
+  cursor: pointer;
+}
+
+.extensions-filter.is-active {
+  border-color: var(--theme-line);
+  background: var(--selected);
+  color: var(--text-primary);
+}
+
+/* 「清空条件」用无边框的字钮：它是把条件撤掉的动作，不是第三个筛选档，
+   摆成第三枚胶囊会让人以为它也在「筛」。 */
+.extensions-filter.is-clear {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.extensions-notice {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+/* 内容区自己滚。min-height: 0 不是可选的：flex 子项默认 min-height:auto = 内容高度，
+   不给 0 它就不肯缩，于是卡片一多就把页面撑到视口外（与 skill-browser 同款教训）。 */
+.extensions-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding-bottom: 22px;
+  overflow-y: auto;
+}
+
+.extensions-note,
+.extensions-empty {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* 卡片网格：宽屏四列、窄屏两列。repeat + auto-fill 让它在任何宽度下都排得下，
+   而不必为每个断点写一条媒体查询。 */
+.extensions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.extension-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  min-width: 0;
+}
+
+.extension-card-head {
+  display: flex;
+  /* align-items 用 flex-start 而不是 center：出处那行可能有三行（真机量到
+     「改编自 linhut/dsh-skills 的 brainstorming（源自 obra/superpowers, MIT）· MIT」四行），
+     居中会把徽标压到第二三行上——徽标盖住出处，正是这一批刚修掉的那个毛病换个姿势复发。 */
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.extension-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  background: var(--surface-main);
+  color: var(--text-secondary);
+}
+
+/* 标题列必须 min-width: 0 + 省略号，否则一个长插件名会把右边的徽标顶出卡片。 */
+.extension-card-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.extension-card-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 出处与许可**不许截**。真机撞出来的：这一行原本是单行 + 省略号，
+   而市场条目的出处是「改编自 linhut/dsh-skills 的 brainstorming（源自 obra/superpowers, MIT）· MIT」，
+   单行必然只剩「改编自 linhut/dsh-skills ...」——出处被截一半等于没写，
+   用户既不知道抄自哪个仓库、也不知道按什么许可发布（contracts 的 MarketSkill 注释也是这么写的）。
+   旧浮层那条守卫（「出处被截一半等于没写」）原话照搬到这里继续守着。
+
+   【为什么不给它底色】先给过一块 `color-mix(... 5%, transparent)` 的浅底，
+   真机截图看下来它比标题还重——一块三行的灰底把卡片压住了，
+   而「附属信息」该靠**字号与颜色**退后，不该靠一块底。 */
+.extension-card-origin {
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.extension-badge {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+
+.extension-badge.is-on {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.extension-badge.is-stopped {
+  background: var(--surface-main);
+  color: var(--text-secondary);
+}
+
+/* 「已安装」与「可以装」两枚徽标都刻意用中性色而不是 accent：
+   accent 在本仓是「当前生效」的语义，给一个还没装的、或只是装在盘上但这一轮没带的条目上了 accent，
+   用户会以为它已经在起作用了。 */
+.extension-badge.is-quiet {
+  background: var(--surface-main);
+  color: var(--text-secondary);
+}
+
+.extension-badge.is-broken {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+
+/* 说明文字固定三行：卡片高度因此齐平，而长短不一的说明不会把网格撑成锯齿。 */
+.extension-card-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  line-height: 1.55;
+}
+
+.extension-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  min-width: 0;
+}
+
+.extension-card-tags {
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  white-space: nowrap;
+}
+
+.extension-card-actions {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.extension-btn {
+  padding: 3px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-main);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.785714rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.extension-btn:hover:not(:disabled) {
+  border-color: var(--theme-line);
+}
+
+.extension-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.extension-card-source {
+  /* 源码自己限高并滚动：一份三千行的插件会把整页撑到视口外。 */
+  max-height: 180px;
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  /* 与 .skill-market-md 同款：本仓没有 --surface-sunken 这个 token（见 plugin-panel.css 的备注），
+     用不存在的 token 会让整条声明作废，那一块就没有底色。 */
+  background: color-mix(in srgb, var(--text-primary) 5%, var(--surface-main));
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-y: auto;
+}
+
+/* 书内同名盖住全局那份的警告。**必须上屏**（contracts 的 shadowedByBook）：
+   用户若以为市场那份在生效，就会去调一个实际没生效的技能——界面在撒谎的那种。 */
+.extension-card-warn {
+  margin: 0;
+  padding: 4px 7px;
+  border-radius: 8px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.785714rem;
+  line-height: 1.5;
+}
+
+/* 正文预览的折叠头。用原生 details/summary（开合与无障碍语义由浏览器给），
+   只把 summary 做成一枚安静的字钮，不自己管 is-open 那份状态。 */
+.extension-card-more summary {
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  cursor: pointer;
+  list-style: revert;
+}
+
+.extension-card-more summary:hover {
+  color: var(--text-primary);
+}
+
+.extension-card-more .extension-card-source {
+  margin-top: 6px;
+}

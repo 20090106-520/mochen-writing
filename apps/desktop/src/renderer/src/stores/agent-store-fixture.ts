@@ -5,17 +5,23 @@ import type {
   AgentOutbound,
   BookMeta,
   BookOpenResult,
+  ContextPreview,
+  ContextPreviewQuery,
   DecideInput,
   DecisionResult,
   DocWriteResult,
   EditProposal,
   ModelListResult,
+  ProviderSaveResult,
   ProviderView,
   RendererApi,
   SessionListItem,
   SessionLoadResult,
-  StartTurnInput
+  SkillRef,
+  StartTurnInput,
+  VerifyResult
 } from "@mochen/contracts";
+import { DEFAULT_CHANGE_RETENTION } from "@mochen/contracts";
 import { useAgentStore } from "./useAgentStore";
 import { useBookStore } from "./useBookStore";
 
@@ -48,10 +54,18 @@ const opened: BookOpenResult = {
 };
 
 const view: ProviderView = {
-  hasKey: true,
-  baseURL: "http://127.0.0.1:8787/v1",
-  model: "mochen-mock",
-  keyMask: "••••"
+  connections: [
+    {
+      id: "c-1",
+      providerId: "custom",
+      label: "自定义（自己填地址）",
+      baseURL: "http://127.0.0.1:8787/v1",
+      authHeader: "bearer",
+      hasKey: true,
+      keyMask: "••••"
+    }
+  ],
+  profiles: [{ id: "p-1", connectionId: "c-1", model: "mochen-mock", enabled: true }]
 };
 
 export function proposal(id: string, overrides: Partial<EditProposal> = {}): EditProposal {
@@ -160,6 +174,30 @@ export const loadSession = vi.fn<
 /** 历史对话面板的数据源桩：默认空列表，用例用 mockResolvedValue 塞自己的行。 */
 export const listSessions = vi.fn(async (): Promise<SessionListItem[]> => []);
 /**
+ * 上下文占用条的桩：默认「什么都没装」。
+ * 用例要断言占用条真的调了它，所以签名带 query 而不是空参。
+ */
+export const contextPreview = vi.fn(
+  async (query: ContextPreviewQuery): Promise<ContextPreview> => ({
+    profileId: query.profileId ?? "",
+    profileName: "",
+    items: [],
+    chars: 0,
+    approxTokens: 0,
+    empty: true
+  })
+);
+/**
+ * 技能库的两个桩。默认给一份**有内容的**表：用例要断言「挂入的是哪一条」，
+ * 空表会让所有断言都只测到「没挂任何东西」。
+ */
+export const listSkills = vi.fn(async (): Promise<SkillRef[]> => []);
+export const readSkill = vi.fn(async (_source: string, relPath: string) => ({
+  relPath,
+  content: `技能正文：${relPath}\n`,
+  truncated: false
+}));
+/**
  * 写盘桩提成模块级导出常量：Task 8/9 的用例要查它的调用次数。
  * 签名走 vi.fn 的泛型参数而不是简报裁定的 `_meta: BookMeta` 形参——本仓 eslint 没有配 argsIgnorePattern，
  * 尾位的 `_meta` 会被 no-unused-vars 判错（agent-ipc.ts 的 `_event` 只在中位才免报）；
@@ -170,28 +208,129 @@ export const saveMeta = vi.fn<(meta: BookMeta) => Promise<void>>(async () => {})
 export const api = {
   pickBookDirectory: vi.fn(async () => CH),
   openBook: vi.fn(async (): Promise<BookOpenResult> => opened),
+  createBook: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 createBook");
+  }),
   saveMeta,
   readDoc,
   writeDoc,
+  createDoc: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 createDoc");
+  }),
   startTurn,
   interruptTurn,
   decideProposal,
   proposalDiff,
   loadSession,
   listSessions,
+  contextPreview,
   providerView: vi.fn(async (): Promise<ProviderView> => view),
-  providerSave: vi.fn(async (): Promise<ProviderView> => view),
+  providerSave: vi.fn(async (): Promise<ProviderSaveResult> => ({
+    ...view,
+    connectionId: view.connections[0]?.id ?? "fixture-conn"
+  })),
+  providerConnectionRemove: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 providerConnectionRemove");
+  }),
+  providerVerify: vi.fn(async (): Promise<VerifyResult> => ({
+    state: "unverified",
+    reason: "agent-store-fixture 没真出网",
+    checkedAt: "2026-10-06T00:00:00.000Z"
+  })),
+  openProviderKeyPage: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 openProviderKeyPage");
+  }),
+  openWebSource: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 openWebSource");
+  }),
   listModels: vi.fn(async (): Promise<ModelListResult> => ({
     ok: true,
     models: ["mochen-mock", "mochen-8B"]
   })),
+  profileUpsert: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 profileUpsert");
+  }),
+  profileRemove: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 profileRemove");
+  }),
+  profileEnable: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 profileEnable");
+  }),
+  appearanceGet: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 appearanceGet");
+  }),
+  appearanceSave: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 appearanceSave");
+  }),
+  // 技能库：夹具默认给一张空表（不是抛错）——「没有技能」是常态，
+  // 要测挂入的用例自己去改这两个桩（改 defaultSkillsByThread / listSkills 的返回值）。
+  listSkills,
+  readSkill,
   onAgentEvent: vi.fn((listener: (payload: AgentOutbound) => void) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
-  })
+  }),
+  saveFile: vi.fn(async () => true),
+  buildExport: vi.fn(async () => ({
+    content: "",
+    bytes: null,
+    format: "markdown" as const,
+    filename: "",
+    byteSize: 0
+  })),
+  listChanges: vi.fn(async () => []),
+  readChange: vi.fn(async (rel: string) => {
+    throw new Error(`不该读改稿备份：${rel}`);
+  }),
+  restoreChange: vi.fn(async (rel: string) => {
+    throw new Error(`不该回滚：${rel}`);
+  }),
+  notify: vi.fn(),
+  // 2026-10-06 批次 5-⑧：`satisfies RendererApi` 要求保留上限这三枚在场，但 agent store 一个都不用。
+  // 给默认档快照，真被调到也只会拿到「什么都没设过」，不会让无关的断言莫名其妙地红。
+  changesRetentionGet: async () => ({ persisted: false, retention: DEFAULT_CHANGE_RETENTION }),
+  changesRetentionSave: async (r) => r,
+  changesPruneNow: async () => ({ removed: 0, kept: 0, freedBytes: 0, keptBytes: 0 }),
+  // 技能市场三枚（2026-10-07 批次 5-㉖）：satisfies RendererApi 要求它们在场，
+  // 但这些 store 一个都不用。给的是「空表 + 没问过」的默认档，
+  // 真被调到也只会拿到「市场里什么都没有」这一种结果——不会让无关的断言莫名其妙地红。
+  listMarket: async () => ({ entries: [], listed: false, notice: "" }),
+  installMarketSkill: async () => {
+    throw new Error("不该装技能");
+  },
+  uninstallMarketSkill: async () => {
+    throw new Error("不该卸技能");
+  },
+  listPlugins: async () => ({ entries: [], listed: true }),
+  togglePlugin: async () => {
+    throw new Error("不该停用插件");
+  },
+  uninstallPlugin: async () => {
+    throw new Error("不该卸插件");
+  },
+  readPluginSource: async () => {
+    throw new Error("不该读插件源码");
+  }
 } satisfies RendererApi;
 
 export function push(outbound: AgentOutbound): void {
+  // 真实链路里主进程**必先**推 turn-start 再推 event/delta（startTurn 的第一件事就是它），
+  // 守卫正是靠这一点把「迟到」认出来。夹具此前直接灌 event，于是那些用例的线程「还没开轮」，
+  // 守卫一收紧就全被当成迟到推送拒掉——那是夹具形状与真机不一致，不是产品回归。
+  // 这里补齐这一步。**要验「迟到」的场景走 pushLate**（不补开轮），否则测的就不是迟到了。
+  if (outbound.type === "event" || outbound.type === "delta") {
+    const agent = useAgentStore();
+    if (agent.threads[outbound.threadKey]?.turnId == null) {
+      for (const listener of listeners) {
+        listener({ type: "turn-start", turnId: outbound.turnId, threadKey: outbound.threadKey });
+      }
+    }
+  }
+  for (const listener of listeners) listener(outbound);
+}
+
+/** 原样推送，**不补 turn-start**：给「迟到的那一条」用（轮次已收束、或压根不是当前轮）。 */
+export function pushLate(outbound: AgentOutbound): void {
   for (const listener of listeners) listener(outbound);
 }
 
@@ -225,6 +364,12 @@ export function setupAgentFixture(): void {
     // 不在这里复位，上一个用例塞的实现就决定了这一个用例读回什么——顺序一改结果就变，红得毫无道理。
     loadSession.mockImplementation(async () => sessionResult);
     listSessions.mockImplementation(async () => []);
+    listSkills.mockImplementation(async () => []);
+    readSkill.mockImplementation(async (_source: string, relPath: string) => ({
+      relPath,
+      content: `技能正文：${relPath}\n`,
+      truncated: false
+    }));
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-01T00:00:00.000Z"));
   });

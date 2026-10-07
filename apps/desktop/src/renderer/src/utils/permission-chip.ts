@@ -6,7 +6,7 @@ export const NO_BOOK_CHIP_LABEL = "未打开作品目录";
 
 /**
  * 每一档的图标（#112 照参考图：档位那一枚前面带一枚图形，右端带下拉三角）。
- * 口径照搬 deepwrite 的 `approvalModeIcon`（他那里「先问我」= user、「自动批准」= check），
+ * 口径对齐 deepwrite 的 `approvalModeIcon`（他那里「先问我」= user、「自动批准」= check），
  * 本仓三档按同一语义落：只读=一切由你（user）、可改当前章=动手改（edit）、全开=自动批准（check）。
  * 住在 `.ts` 而不是模板：铁律 6，且 `Record<PermissionMode, …>` 的穷尽性只有裸 tsc 才咬得住。
  */

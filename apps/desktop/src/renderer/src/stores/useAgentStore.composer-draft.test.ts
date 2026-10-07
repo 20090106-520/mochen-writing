@@ -187,10 +187,10 @@ describe("useAgentStore.composerDrafts · 输入值上收与排队无丢失", ()
     expect(store().draftOf(CH)).toBe("");
   });
 
-  it("「继续」发的是内置文案，不是用户刚打的字 ⇒ 那轮 pre-flight 失败也不许把它塞进输入框", async () => {
+  it("用户刚打的字 pre-flight 失败要还回草稿，绝不许把它塞进输入框", async () => {
     await openChapter();
     store().startListening();
-    // 第一轮：用户的话 pre-flight 失败 ⇒ 还回草稿，并把线程推进到 endedAs=failed（canContinue 才放行）。
+    // 第一轮：用户的话 pre-flight 失败 ⇒ 还回草稿，并把线程推进到 endedAs=failed。
     store().setDraft(CH, "铁锈味的海雾");
     store().send("铁锈味的海雾");
     store().clearDraft(CH);
@@ -204,18 +204,5 @@ describe("useAgentStore.composerDrafts · 输入值上收与排队无丢失", ()
     });
     await vi.runAllTimersAsync();
     expect(store().draftOf(CH)).toBe("铁锈味的海雾");
-    store().clearDraft(CH);
-    // 第二轮：点「继续」。内置文案失败后绝不进输入框——那格是用户的地盘。
-    store().continueTurn();
-    push({ type: "turn-start", turnId: "t2", threadKey: CH });
-    push({
-      type: "turn-end",
-      turnId: "t2",
-      threadKey: CH,
-      status: "failed",
-      message: "还没有配置模型服务：请在设置里填写 baseURL 与模型名。"
-    });
-    await vi.runAllTimersAsync();
-    expect(store().draftOf(CH)).toBe("");
   });
 });

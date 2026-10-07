@@ -1,0 +1,332 @@
+/* ---- 皮肤广场（中栏 + 右栏一整个页面，2026-10-07 批次 5-㊴）。
+
+   网格落点与 extensions.css 完全同款（`2 / -1`）：左栏是恒定的导航轴，
+   皮肤广场换的是中栏那一格并吃掉右栏——理由与 5-㉜/5-㉝ 那条裁定相同，
+   不在这里重述一遍。 */
+
+.skin-gallery {
+  display: flex;
+  flex-direction: column;
+  /* 与 .extensions-page 同款理由：grid item 不给 min-width: 0 就不肯缩，
+     而皮肤卡上的 id 字样偏长，会把这一格撑开。 */
+  grid-column: 2 / -1;
+  /* `grid-row: 1` 不是可选的（extensions.css 那段有完整的真机量测记录）：
+     只写 grid-column 的话网格会把它排到第二行，于是 shell 从「一行三列」
+     变成「两行三列」，左栏被压到第一行的第一格、后半截点不到。 */
+  grid-row: 1;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 16px 20px 0;
+  background: var(--surface-main);
+  color: var(--text-primary);
+  font-family: var(--ui-font);
+}
+
+.skin-gallery-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.skin-gallery-title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.skin-gallery-close {
+  border: 1px solid var(--line-soft);
+  background: var(--surface-raised);
+}
+
+.skin-gallery-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 14px 0 10px;
+}
+
+.skin-gallery-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+
+.skin-gallery-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.skin-gallery-search-go {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--neutral-solid);
+  color: var(--neutral-solid-contrast);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* 四行筛选（纹理 / 圆角 / 描边 / 光晕）。每一行是一枚组标签 + 那几枚档。
+   组标签占固定宽度，让四行的档横向对齐——否则四行长度不同，读起来像四组不同的东西。 */
+.skin-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.skin-filter-label {
+  flex: 0 0 auto;
+  width: 52px;
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+}
+
+.skin-filter {
+  padding: 3px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.857143rem;
+  cursor: pointer;
+}
+
+.skin-filter.is-active {
+  border-color: var(--theme-line);
+  background: var(--selected);
+  color: var(--text-primary);
+}
+
+.skin-gallery-clear {
+  padding: 3px 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.skin-gallery-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
+  /* min-height: 0 不是可选的：flex 子项默认 min-height:auto = 内容高度，
+     不给 0 它就不肯缩，卡片一多就把这一格撑出视口。 */
+  min-height: 0;
+  padding-bottom: 22px;
+  overflow-y: auto;
+}
+
+.skin-gallery-note,
+.skin-gallery-empty {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.skin-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  /* 圆角走皮肤的 `--skin-radius-md` 而不是写死像素：换皮肤时卡片要跟着换，
+     写死的话「皮肤广场里换了却只变了一半」就是这么来的。 */
+  border: 1px solid var(--line-soft);
+  border-radius: var(--skin-radius-md);
+  background: var(--surface-raised);
+  min-width: 0;
+}
+
+/* 预览块：卡片上半张「样子」。它是**卡内局部**的，
+   底色与字色由模板内联（摆的是别的那套皮肤的颜色，
+   而 `:root` 上那份是「当前生效的」那套），
+   四层的实际效果由下面三块各自消费与真正应用时相同的那些 `--skin-*`。
+   ——这样卡片上看到的就是换上之后的样子，而不是一张示意图。 */
+.skin-card-preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 8px;
+  border-radius: var(--skin-radius-sm);
+  border: 1px solid currentColor;
+  overflow: hidden;
+}
+
+/* 背景层：铺满整块预览，用皮肤自己的 `--skin-backdrop`（上游那套渐变）。
+   `inset: 0` + 绝对定位是为了让它待在内容底下而不占布局高度。 */
+.skin-card-preview-backdrop {
+  position: absolute;
+  inset: 0;
+  background-image: var(--skin-backdrop);
+  pointer-events: none;
+}
+
+/* 图案层：网格。上游端场那两条线在浅底上白得看不见，
+   所以运行时按明暗给了 `--skin-grid-blend`（暗色 screen / 浅色 multiply）。 */
+.skin-card-preview-grid {
+  position: absolute;
+  inset: 0;
+  background-image: var(--skin-grid-image);
+  background-blend-mode: var(--skin-grid-blend);
+  pointer-events: none;
+}
+
+/* 前景那块：玻璃 + 圆角 + 对话框底，都落在这里——
+   与真正应用时 CSS 挂在 shell/面板上的位置一致。 */
+.skin-card-preview-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--skin-radius-md);
+  background-color: var(--surface-raised);
+  background-image: var(--skin-glass-sheen), var(--skin-dialogue-gradient);
+  box-shadow: var(--skin-dialogue-underline);
+  backdrop-filter: blur(var(--skin-glass-capsule-blur)) saturate(var(--skin-glass-saturate));
+}
+
+.skin-card-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.skin-card-dot {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.skin-card-bar {
+  height: 7px;
+  border-radius: 3px;
+  min-width: 0;
+}
+
+.skin-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.skin-card-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.skin-card-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 「在用」徽标。与 extensions.css 那三枚同款形状，
+   但用 accent —— 这一枚说的是「当前生效」，语义与那边一致。 */
+.skin-badge {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
+.skin-card-desc {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  line-height: 1.55;
+}
+
+/* 出处与许可**不许截**：与 extension-card-origin 同款理由，
+   用户要知道自己抄自哪个仓库、按什么许可发布。 */
+.skin-card-origin {
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.skin-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  min-width: 0;
+}
+
+/* 质感四档的词。字小一点、退后一点——它们是说明，不是这一张卡的主角。 */
+.skin-card-feel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.skin-card-feel span {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-main);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.skin-btn {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-main);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.785714rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.skin-btn:hover:not(:disabled) {
+  border-color: var(--theme-line);
+}
+
+.skin-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

@@ -1,9 +1,12 @@
-/* 源自 deepwrite（Apache-2.0）：https://github.com/20090106-520/deepwrite —— 原样移植的全局历史面板层，未自造类名。
-   一行不差地照搬他的 175 行；他那份里也没有管理/页签/导出（那些住在组件的 scoped 段，本仓没有对应通路，不搬）。 */
+/* 源自 deepwrite：docs/ATTRIBUTION.md —— 同源实现的全局历史面板层，未自造类名。
+   一行不差地对齐他的 175 行；他那份里也没有管理/页签/导出（那些住在组件的 scoped 段，本仓没有对应通路，不复用）。 */
 
 .conversation-history-control {
   position: relative;
   z-index: 62;
+  /* 5-㉓：与 .conversation-header-actions 同步钉死。这一格被挤扁时
+     「历史对话」会按字断行（真机量到 w=52 时的行宽 [7,12,12,12,12]）。 */
+  flex: 0 0 auto;
   -webkit-app-region: no-drag;
 }
 

@@ -130,6 +130,9 @@ describe("useAgentStore.showSession（点一行 = 切过去接着聊）", () => 
       threadKey: CH,
       event: eventOf("proposal", { proposal: proposal("pOld") })
     });
+    // 那一轮要跑完（真实链路：turn-start → proposal → turn-end）。留成 running 的话
+    // 历史面板会把这一行判成「正在回复」而禁掉指名切换，验的就不是「切换覆盖旧视图」了。
+    push({ type: "turn-end", turnId: "t1", threadKey: CH, status: "done", message: "" });
     expect(store().proposals["pOld"]).toBeDefined();
     loadSession.mockImplementationOnce(async () =>
       named("s-old", [eventOf("user-message", { id: "e-old", text: "较早那条" })])

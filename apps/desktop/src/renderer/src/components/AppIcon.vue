@@ -1,8 +1,16 @@
-<!-- 源自 deepwrite（Apache-2.0），仅改 import 路径；其 logo 分支已删，品牌标记直接用 assets/brand 下的墨宸原图（未裁切）。 -->
+<!-- 源自 deepwrite，仅改 import 路径；其 logo 分支已删，品牌标记直接用 assets/brand 下的墨宸原图（未裁切）。 -->
 <script setup lang="ts">
+import { computed } from "vue";
 import type { IconName } from "../types/icons";
 
-withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
+const props = withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
+
+/**
+ * 描边补偿（2026-10-05 质感统一）：字形按 24 viewBox 画，浏览器会把描边跟着缩放——
+ * 14px 的图标 1.8 描边只剩约 1px，在 1.5 倍屏上跌破一个设备像素，看起来发虚。
+ * 小于 16px 时提到 2（换算后与 1.8@16 相当），16px 及以上维持 1.8 不变。
+ */
+const strokeWidth = computed(() => (props.size >= 16 ? 1.8 : 2));
 </script>
 
 <template>
@@ -12,7 +20,7 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    stroke-width="1.8"
+    :stroke-width="strokeWidth"
     stroke-linecap="round"
     stroke-linejoin="round"
     aria-hidden="true"
@@ -36,6 +44,16 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     <template v-else-if="name === 'edit'">
       <path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4M4 16l4 4" />
     </template>
+    <!-- 「更多操作」的省略号（本仓自造一枚）：三枚实心圆点，与 list 字形同一种描边语言。 -->
+    <template v-else-if="name === 'ellipsis'">
+      <circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="name === 'eye'">
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </template>
     <template v-else-if="name === 'model'">
       <path d="m12 3 7 4v10l-7 4-7-4V7z" />
       <path d="m5 7 7 4 7-4M12 11v10" />
@@ -43,11 +61,6 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     <template v-else-if="name === 'wand'">
       <path d="m15 4 5 5L9 20H4v-5zM13 6l5 5" />
       <path d="M6 3v3M4.5 4.5h3M19 15v4M17 17h4" />
-    </template>
-    <template v-else-if="name === 'more'">
-      <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
-      <circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" />
     </template>
     <template v-else-if="name === 'panel-left'">
       <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -66,6 +79,34 @@ withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
     </template>
     <template v-else-if="name === 'chevron'">
       <path d="m9 6 6 6-6 6" />
+    </template>
+    <!-- 以下六枚为本仓自造（侧边栏功能导航，2026-10-04）：描边语言与其余字形一致（24 viewBox / 1.8）。 -->
+    <template v-else-if="name === 'house'">
+      <path d="M4 11 12 4l8 7" />
+      <path d="M6 9.5V20h12V9.5" />
+      <path d="M10 20v-6h4v6" />
+    </template>
+    <template v-else-if="name === 'bot'">
+      <rect x="5" y="8.5" width="14" height="10.5" rx="3" />
+      <path d="M12 8.5V5M9 5h6" />
+      <circle cx="9.3" cy="13.5" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="14.7" cy="13.5" r="1.2" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="name === 'map'">
+      <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z" />
+      <path d="M9 4v14M15 6v14" />
+    </template>
+    <template v-else-if="name === 'pen'">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </template>
+    <template v-else-if="name === 'shield'">
+      <path d="M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6z" />
+      <path d="m9 12 2 2 4-4.5" />
+    </template>
+    <template v-else-if="name === 'chart'">
+      <path d="M5 20v-7M11 20V5M17 20v-10" />
+      <path d="M3 20h18" />
     </template>
     <template v-else-if="name === 'book'">
       <path

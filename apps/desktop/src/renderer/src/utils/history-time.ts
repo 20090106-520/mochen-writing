@@ -1,5 +1,5 @@
 /**
- * 历史面板那一格的时间（照搬 deepwrite ConversationHistoryMenu.vue:50-68 的 `formatHistoryTime`）。
+ * 历史面板那一格的时间（对齐 deepwrite ConversationHistoryMenu.vue:50-68 的 `formatHistoryTime`）。
  * 他的本体写在组件方法里；本仓 `.vue` 不进类型程序、也没有 DOM 测试，逻辑留在组件里等于没有关卡，
  * 所以抽成散装纯函数在这里测（先例：session-row-action.ts、composer-context.ts）。行为一字未改。
  */

@@ -1,10 +1,14 @@
-/* 源自 deepwrite（Apache-2.0），原样移植。 */
+/* 源自 deepwrite，同源实现。 */
 
 html[data-theme="dark"] {
   --danger-soft: color-mix(in srgb, var(--danger) 16%, var(--surface-raised));
   --success-soft: color-mix(in srgb, var(--success) 16%, var(--surface-raised));
   --warning-soft: color-mix(in srgb, var(--warning) 16%, var(--surface-raised));
   --neutral-solid: color-mix(in srgb, var(--theme-foreground) 92%, var(--surface-main));
+  /* 必须跟着 --neutral-solid 一起翻：暗色下 solid 是近白的一整块，若 contrast 还钉死
+     #ffffff，就是白字压白底。凡是「底色用 solid + 字色用 contrast」成对出现的地方
+     （.proposal-buttons .is-primary、编辑器 chip、.send-button …）都靠这一条兜住。 */
+  --neutral-solid-contrast: var(--theme-background);
 }
 
 /* Runtime appearance theme. This layer intentionally comes last so imported/custom
@@ -21,11 +25,7 @@ html[data-theme] .document-title-input,
 html[data-theme] .document-editor,
 html[data-theme] .document-preview,
 html[data-theme] .dossier-doc-excerpt,
-html[data-theme] .dialog-content textarea,
-html[data-theme] .long-document-title-input,
-html[data-theme] .long-document-title,
-html[data-theme] .long-document-editor,
-html[data-theme] .long-document-preview {
+html[data-theme] .dialog-content textarea {
   font-family: var(--editor-font);
 }
 
@@ -39,14 +39,29 @@ html[data-theme] .conversation-scroll {
   color: var(--text-primary);
 }
 
+/* 侧栏那一层：底色 + 玻璃。
+   **玻璃的三条与 `border-color` 写在同一条规则里**（不另起一条同选择器的规则）：
+   同选择器写两遍时后一条只赢在它自己写的属性上，而 `ruleBlock` 守卫读的是第一条，
+   于是新写的那些在守卫眼里根本不存在（5-㊵ 撞过：并进去之后同一条断言才绿）。
+   玻璃关掉时运行时给的是**不透明**底色（alpha 1）与 `blur(0)`，所以这一层恒在。 */
 html[data-theme] .left-sidebar {
   border-color: var(--theme-line);
   background: var(--sidebar-surface);
+  background-color: var(--skin-glass-sidebar-fill);
+  background-image: var(--skin-glass-sheen, none);
+  backdrop-filter: blur(var(--skin-glass-sidebar-blur, 0)) saturate(var(--skin-glass-saturate, 1));
 }
 
-html[data-translucent-sidebar="true"] .left-sidebar {
-  backdrop-filter: blur(22px) saturate(1.25);
-}
+/* 「半透明侧栏」那条老规则**已删**（5-㊵）：它与上面那条同特异性
+   （`html[data-theme] .left-sidebar` 与 `html[data-translucent-sidebar="true"] .left-sidebar`
+   都是「两个 class 级 + 一个类型级」），而它在后面 ⇒ **它永远赢**，
+   于是无论皮肤给侧栏配多少模糊，实测永远量到 `blur(22px) saturate(1.25)`。
+   真机那一轮就是这么红的：token 写着 20px，DOM 上是 22px。
+   ⇒ 「侧栏有多糊」这件事的**唯一真身**改成运行时的 `--skin-glass-sidebar-blur`，
+     而「用户要不要半透明」那个开关由运行时折进那个 token（关掉时给 0）。
+   留两处判同一件事 = 用户拧开关时有一处不跟。
+
+   `.settings-sidebar` 那一条不受影响（设置页不换皮肤），见 settings-page.css。 */
 
 html[data-theme] .editor-pane,
 html[data-theme] .editor-header,
@@ -62,26 +77,17 @@ html[data-theme]
   :where(
     .brand-name,
     .nav-row,
-    .more-feature-copy strong,
-    .pinned-resource-heading,
     .resource-section-heading,
     .tree-row,
     .conversation-heading-start strong,
     .conversation-empty h1,
-    .message-copy,
     .message-markdown,
-    .processing-response,
-    .tool-trace strong,
     .composer textarea,
     .editor-breadcrumbs span:last-child,
     .document-title-input,
     .document-preview,
     .document-editor,
-    .workspace-dialog h2,
-    .workspace-settings-panel h2,
-    .model-card strong,
-    .model-editor-heading strong,
-    .model-field-label
+    .workspace-dialog h2
   ) {
   color: var(--text-primary);
 }
@@ -90,69 +96,40 @@ html[data-theme]
   :where(
     .icon-button,
     .nav-row svg,
-    .more-feature-copy small,
     .section-toggle,
-    .section-action,
     .tree-node-action,
-    .tree-row.is-muted,
     .tree-row > svg,
     .context-caption,
     .header-text-button,
     .conversation-empty p,
-    .message-actions,
-    .message-actions button,
-    .processing-content,
-    .processing-step-label,
-    .tool-trace,
     .editor-breadcrumbs,
-    .save-state,
     .format-button,
     .dialog-eyebrow,
-    .dialog-description,
-    .model-card small,
-    .model-empty-state span,
-    .model-help-icon
+    .dialog-description
   ) {
   color: var(--text-secondary);
 }
 
-html[data-theme]
-  :where(
-    .processing-live-status,
-    .processing-live-thinking > summary,
-    .processing-block > summary,
-    .tool-trace.is-write strong,
-    .processing-thinking,
-    .processing-thinking .message-markdown
-  ) {
-  color: var(--text-tertiary);
-}
+/* 原先这里有一条 html[data-theme] :where(.processing-live-status, .processing-live-thinking > summary,
+    .processing-block > summary, .tool-trace.is-write strong, .processing-thinking, …) 的三色覆盖：那六个类名全都没有规则、没有模板、也没有任何代码引用——是时间线改版（AgentTimeline 换成
+    thinking-card / tool-card / message-markdown 那套词汇）之前那版实现的遗留，覆盖不到任何东西，
+    整条删掉。留着的害处是：有人以为处理中界面还在被这一层管着。 */
 
 html[data-theme]
   :where(
     .brand-button:hover,
     .nav-row:hover,
-    .more-feature-row:hover,
     .tree-row:hover,
     .icon-button:hover,
     .header-text-button:hover,
-    .message-actions button:hover,
     .format-button:hover,
-    .dialog-close:hover,
-    .model-card-actions button:hover,
-    .model-id-fetch-button:hover
+    .dialog-close:hover
   ) {
   background: var(--surface-hover);
   color: var(--text-primary);
 }
 
-html[data-theme]
-  :where(
-    .nav-row.is-active,
-    .more-feature-row.is-active,
-    .tree-row.is-selected,
-    .view-tabs button.is-active
-  ) {
+html[data-theme] :where(.nav-row.is-active, .tree-row.is-selected, .view-tabs button.is-active) {
   background: var(--surface-selected);
   color: var(--text-primary);
 }
@@ -160,87 +137,40 @@ html[data-theme]
 html[data-theme]
   :where(
     .composer-input-surface,
-    .composer-attachment-chip,
     .workbench-card,
     .workbench-hero,
     .workbench-intro,
     .workbench-suggestion,
     .workbench-open-book,
     .workspace-dialog,
-    .workspace-settings-panel,
-    .model-card,
-    .directory-card,
     .dialog-content textarea,
-    .dialog-secondary-button,
-    .model-config-card,
-    .model-editor,
-    .model-fetch-hint-dialog,
-    .model-advanced-config-dialog,
-    .model-thinking-options label,
-    .book-resource-name-field input,
-    .book-binding-option,
-    .book-binding-icon
+    .tree-add-input,
+    .new-book-dir-input,
+    .dialog-secondary-button
   ) {
   border-color: var(--theme-line);
   background: var(--surface-raised);
   color: var(--text-primary);
 }
 
-html[data-theme]
-  :where(
-    .conversation-header,
-    .editor-header,
-    .editor-toolbar,
-    .editor-footer,
-    .processing-content,
-    .model-save-actions
-  ) {
+html[data-theme] :where(.conversation-header, .editor-header, .editor-toolbar, .editor-footer) {
   border-color: var(--theme-line-soft);
 }
 
 html[data-theme]
   :where(
-    .more-feature-icon,
-    .section-action-menu,
     .tree-node-action-menu,
     .message-markdown pre,
     .message-markdown code,
-    .message.is-user .message-content,
-    .user-message-copy,
-    .message-attachment-chip,
     .view-tabs,
-    .readonly-badge,
-    .model-empty-state
+    .readonly-badge
   ) {
   background: var(--surface-muted);
   color: var(--text-primary);
 }
 
-html[data-theme] .tree-node-action-menu-divider {
-  background: var(--theme-line-soft);
-}
-
-html[data-theme] :where(.book-resource-name-field, .book-binding-option strong) {
-  color: var(--text-primary);
-}
-
-html[data-theme] :where(.book-resource-help, .book-binding-option small, .book-binding-empty) {
-  color: var(--text-secondary);
-}
-
-html[data-theme] .book-binding-option:hover {
-  border-color: var(--theme-line);
-  background: var(--surface-hover);
-}
-
-html[data-theme="dark"] :where(.book-remove-warning, .catalog-resource-warning) {
-  border-color: color-mix(in srgb, var(--danger) 40%, var(--theme-line));
-  background: color-mix(in srgb, var(--danger) 12%, var(--surface-raised));
-}
-
-html[data-theme="dark"] :where(.book-remove-warning, .catalog-resource-warning) :where(strong, p) {
-  color: color-mix(in srgb, #f2b5ae 82%, var(--text-primary));
-}
+/* 下面这两条 .book-remove-warning / .catalog-resource-warning 的暗色告警覆写也一并删了：
+    两个类同样无规则、无模板、无引用（删除作品确认条与资料告警改版后不留痕迹），覆盖不到元素。 */
 
 html[data-theme="dark"] .tree-node-action-menu-item.is-danger:hover {
   background: color-mix(in srgb, var(--danger) 16%, var(--surface-hover));
@@ -256,9 +186,8 @@ html[data-theme] .composer-wrap {
   background: linear-gradient(to bottom, transparent, var(--surface-main) 20px);
 }
 
-/* #113c 绑定条显形了（三件套自 Task 14 起零消费者，今天接上 ComposerContextBar）。
-   几何与透明度照 deepwrite styles.css:2497-2498 原值，只把他的 rgba(25,28,31,.04) 换成主题前景色的
-   color-mix——卡片分段有「零色值字面量」硬门禁，本仓所有浅阴影都是这么落的。 */
+/* #113c 绑定条显形了（三件套自 Task 14 起零消费者，今天接上 ComposerContextBar）。几何与透明度照 deepwrite styles.css:2497-2498 原值，只把他的 rgba(25,28,31,.04) 换成主题前景色的
+    color-mix——卡片分段有「零色值字面量」硬门禁，本仓所有浅阴影都是这么落的。 */
 html[data-theme] .composer-context-bar {
   background: var(--surface-muted);
   box-shadow: 0 6px 20px color-mix(in srgb, var(--theme-foreground) 4%, transparent);
@@ -284,20 +213,11 @@ html[data-theme] .save-button:disabled {
   color: var(--text-tertiary);
 }
 
-html[data-theme] :where(.message-markdown a, .save-state.is-dirty, .model-status:not(.is-muted)) {
+html[data-theme] :where(.message-markdown a) {
   color: var(--accent);
 }
 
-html[data-theme]
-  :where(
-    .message-markdown code,
-    .message-markdown pre,
-    .tool-trace span,
-    .directory-card code,
-    .prompt-card textarea,
-    .workspace-dialog code,
-    .workspace-settings-panel code
-  ) {
+html[data-theme] :where(.message-markdown code, .message-markdown pre, .workspace-dialog code) {
   font-family: var(--code-font);
   font-size: var(--code-font-size);
 }
@@ -306,7 +226,17 @@ html[data-theme="dark"] .dialog-backdrop {
   background: rgb(0 0 0 / 0.56);
 }
 
+/* 暗色下所有实心主按钮统一转 accent——这张表是唯一一处，不在各家样式里分家。 */
 html[data-theme="dark"] :where(.send-button, .save-button, .dialog-primary-button) {
+  background: var(--accent);
+  color: var(--accent-contrast, #ffffff);
+}
+
+/* 工作台空状态那颗主 CTA 单独一条：它在 conversation-pane.css 里的基线选择器是
+   .workbench-open-book.is-primary = (0,2,0)，比上面那张表的 (0,1,1) 高，
+   塞进表里的 :where() 会被基线压住、永远不生效——所以这里显式写一条 (0,3,1) 压过去。
+   仍然收在主题层，不回各家样式里分家。 */
+html[data-theme="dark"] .workbench-open-book.is-primary {
   background: var(--accent);
   color: var(--accent-contrast, #ffffff);
 }
@@ -325,4 +255,80 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   视觉四层的消费（2026-10-07 批次 5-㊴ 建，5-㊵ 换了四层）。
+
+   取值由 appearanceThemeRuntime 算成 `--skin-*` 写进 <html>，这里只消费、不判定。
+   每个 token 背后是**上游某个文件的某一行**，出处记在 runtime 那边那段注释里。
+
+   【一条硬约束：背景层与图案层只落在容器上，绝不落正文区】
+   编辑器正文（.document-editor）与消息正文（.message-markdown）的背景
+   **必须仍是纯 --surface-\***。背景一动，字的边缘就在抖，
+   而这是长时间写作时实打实的疲劳源——比「皮肤好不好看」重要得多。
+   守卫 `appearance-skins.test.ts` 里有一条反向断言专门钉这件事。
+
+   【为什么用 --skin-radius-* 而不是就地写 border-radius】
+   换皮肤时圆角要整体换档。写死像素的控件永远不跟，
+   于是「换了皮肤却只变了一半」——那比不变还糟。
+   这里覆盖的是容器与卡片那一层；更细的控件留给各自的组件，
+   因为它们各有各的形状语言，硬压成同一个圆角反而更难看。 */
+/* 圆角与背景层写在**同一条** `.desktop-shell` 规则里（不另起一条同选择器的规则）：
+   同选择器写两遍时后一条只赢在它自己写的属性上，而 `ruleBlock` 守卫读的是第一条，
+   于是「背景层挂在 shell 上」这条断言会红在一个**看上去该绿**的地方。
+   背景层用 `background-image` 而不是 `background`——`--surface-main` 还要给正文区用，
+   这里只叠一层图，不替换底色。 */
+html[data-theme] .desktop-shell {
+  border-radius: var(--skin-radius-sm);
+  background-image: var(--skin-backdrop, none);
+  background-attachment: fixed;
+}
+
+/* 图案层：网格。端场那两条线（1px 横 @4px / 1px 竖 @120px）是**暗底**上的值，
+   在浅底上等于什么都没画，所以运行时给了 `--skin-grid-blend` 分明暗：
+   暗色 screen（白线提亮）、浅色 multiply（白线压深）。 */
+html[data-theme] .desktop-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--skin-grid-image, none);
+  background-blend-mode: var(--skin-grid-blend, normal);
+  pointer-events: none;
+}
+
+/* 玻璃层：侧栏与卡片。
+   `backdrop-filter` 之下必须**有东西**才看得出效果——上游的玻璃背后是壁纸，
+   墨宸背后是 `.desktop-shell` 的底色与背景层，所以这里让 blur 作用在
+   「底色 + 背景层 + 图案层」那一整叠上（`.desktop-shell` 是它们的共同祖先）。
+   `saturate` 一并给：纯色背后没有花纹，不加饱和那层 blur 只是把纯色搅匀。
+
+   **必须并进上面那条 `.left-sidebar` 规则，不另起一条同选择器的规则**：
+   同选择器写两遍时，后一条只赢在它自己写的那几条属性上，
+   而 `ruleBlock` 守卫读的是**第一条**——于是新写的那些在守卫眼里根本不存在。
+   这是「同一判定只留一份实现」在 CSS 上的形状：不另起一条。 */
+html[data-theme] :where(.extension-card, .skin-card, .proposal-card, .settings-card) {
+  background-color: var(--skin-glass-card-fill);
+  backdrop-filter: blur(var(--skin-glass-blur, 0)) saturate(var(--skin-glass-saturate, 1));
+  background-image: var(--skin-glass-sheen, none);
+  border-radius: var(--skin-radius-md);
+}
+
+/* 浮层：菜单、弹窗、下拉。用上游给浮层的那一档（比侧栏更实、更糊）——
+   浮层背后是滚动中的内容，不够实就读不清。 */
+html[data-theme] :where(.dialog-content, .permission-menu, .tree-node-action-menu) {
+  backdrop-filter: blur(var(--skin-glass-floater-blur, 0)) saturate(var(--skin-glass-saturate, 1));
+}
+
+/* 对话框底：只有 `surface: dialogue` 那套会给出真值，其余是 none。
+   上半压深、下半透出来（gal-view styles.mjs:54 的形状）。 */
+html[data-theme][data-skin-surface="dialogue"] .proposal-card {
+  background-image: var(--skin-dialogue-gradient, none);
+  box-shadow: var(--skin-dialogue-underline, none);
+}
+
+/* 焦点环：强调态。它不依赖玻璃档，任何皮肤都有。 */
+html[data-theme]
+  :where(.composer:focus-within .composer-input-surface, .dialog-content textarea:focus) {
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }

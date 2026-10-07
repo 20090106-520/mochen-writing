@@ -1,13 +1,13 @@
 import type {
   AgentDeltaKind,
   AgentEvent,
-  AgentToolName,
+  AuthHeader,
   EditProposal,
   ProposalDecision,
   ThinkingLevel,
-  TurnEndStatus
+  TurnEndStatus,
+  WebSource
 } from "@mochen/contracts";
-import { AGENT_TOOL_NAMES } from "@mochen/contracts";
 import { parseProtocolBlocks } from "./patch-protocol.js";
 import { ProviderError } from "./provider-client.js";
 import type { ChatToolSpec, StreamEvent } from "./provider-client.js";
@@ -18,7 +18,14 @@ import {
   type AssistantToolCall,
   type ChatMessage
 } from "./chat-message.js";
-import { dispatchToolCall, TOOL_SPECS, toolNameOf, type ToolHost } from "./tools.js";
+import {
+  dispatchToolCall,
+  TOOL_SPECS,
+  isCallableTool,
+  extraSpecsOf,
+  callableToolNames,
+  type ToolHost
+} from "./tools.js";
 
 export interface TurnInput {
   turnId: string;
@@ -34,6 +41,8 @@ export interface TurnInput {
 export interface StreamRequestLike {
   baseURL: string;
   apiKey: string;
+  /** 密钥放哪个头（小米 MiMo 那类端点只认 api-key）；与 provider 同源，循环只负责往下传。 */
+  authHeader?: AuthHeader;
   model: string;
   messages: ChatMessage[];
   tools: ChatToolSpec[];
@@ -52,7 +61,7 @@ export interface TurnDeps {
   signal: AbortSignal;
   maxToolRounds: number;
   /** provider 参数由调用方（主进程）填好，循环只负责对话结构。 */
-  provider: { baseURL: string; apiKey: string; model: string };
+  provider: { baseURL: string; apiKey: string; model: string; authHeader?: AuthHeader };
 }
 
 export interface TurnOutcome {
@@ -75,10 +84,18 @@ type EmitBody =
   | {
       type: "tool-call";
       callId: string;
-      tool: AgentToolName;
+      // 与 contracts 的 agent-event 对齐：插件工具名运行时才知道，枚举装不下（2026-10-07 批次 5-㉘）。
+      tool: string;
       args: string;
       ok: boolean;
       resultText: string;
+      /** 只有 web_search 带：这一轮搜到的来源。 */
+      sources?: WebSource[];
+      /**
+       * 跑通了但没东西可给（2026-10-06 批次 5-⑮）。只有 web_search 会带。
+       * 语义见 `ToolOutcome.empty`：它不是失败，是**空**。
+       */
+      empty?: boolean;
     }
   | { type: "proposal"; proposal: EditProposal }
   | {
@@ -122,7 +139,8 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
         apiKey: deps.provider.apiKey,
         model: deps.provider.model,
         messages,
-        tools: TOOL_SPECS,
+        // 花名册那五个，外加插件注册进来的（没有插件时就是逐字原来那份）。
+        tools: [...TOOL_SPECS, ...extraSpecsOf(deps.host)],
         signal: deps.signal,
         thinkingLevel: input.thinkingLevel,
         webSearchEnabled: input.webSearchEnabled
@@ -195,13 +213,12 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
 
     messages.push(assistantToolMessage("", collected.calls));
     for (const call of collected.calls) {
-      const name = toolNameOf(call.name);
-      if (name === null) {
+      if (!isCallableTool(deps.host, call.name)) {
         // §4 裁定：对模型的拒绝必须用中文回喂，绝不静默丢弃。
         // error 事件让这件事在 UI 与审计日志里可见；tool 回执则保证上面那条 assistant 消息里的
         // **每一条** tool_call 都有配对——缺回执时 toWireMessages 发出悬空 tool_calls，
         // OpenAI 兼容端点直接 400，整轮会被 runTurn 判成 failed。
-        const reason = `模型请求了不存在的工具「${call.name}」，这条调用已被忽略。可用工具只有 ${AGENT_TOOL_NAMES.join("、")}。`;
+        const reason = `模型请求了不存在的工具「${call.name}」，这条调用已被忽略。可用工具只有 ${callableToolNames(deps.host).join("、")}。`;
         emitSimple({ type: "error", message: reason });
         messages.push(toolMessage(call.id, reason));
         continue;
@@ -210,10 +227,15 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
       emitSimple({
         type: "tool-call",
         callId: call.id,
-        tool: name,
+        tool: call.name,
         args: call.args,
         ok: outcome.ok,
-        resultText: outcome.text
+        resultText: outcome.text,
+        // exactOptionalPropertyTypes 开着：无来源的工具**不能**显式写 sources: undefined，
+        // 那会让老会话的判别（"sources" in event）翻转。条件展开才是缺省就真的缺省。
+        // empty 同理：不带它的工具不该在事件里留下这个键。
+        ...(outcome.sources === undefined ? {} : { sources: outcome.sources }),
+        ...(outcome.empty === true ? { empty: true } : {})
       });
       for (const proposal of outcome.proposals) {
         emitSimple({ type: "proposal", proposal });

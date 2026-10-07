@@ -19,7 +19,12 @@ const base = {
   threadKey: "chapters/01-开局.md",
   docRelPath: "chapters/01-开局.md",
   stageId: "draft",
-  userText: "把开头那句收紧"
+  userText: "把开头那句收紧",
+  // 每轮三个字段一律必填、无默认值（skillPaths 同理，spec §11）：base 里带上，
+  // 下面那些「缺某一个必被拒」的用例才测的是它自己点名的那一个字段。
+  thinkingLevel: "off",
+  webSearchEnabled: false,
+  skillPaths: [] as string[]
 };
 
 describe("thinkingLevelSchema", () => {

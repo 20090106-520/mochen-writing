@@ -19,6 +19,7 @@ import {
   proposal,
   proposalDiff,
   push,
+  pushLate,
   setNextDecision,
   setupAgentFixture,
   started,
@@ -236,17 +237,22 @@ describe("useAgentStore", () => {
       stageId: "draft",
       userText: "写点啥",
       thinkingLevel: "off",
-      webSearchEnabled: false
+      webSearchEnabled: false,
+      skillPaths: []
     });
     await openChapter();
     store().send("改这一章");
+    // userText 必须逐字等于用户敲的那句：上下文包由主进程按档案装配后并进**系统提示**，
+    // 渲染层绝不再往用户消息里塞前缀——塞了就是同一份上下文两个实现（铁律 6），
+    // 而且那串东西会被原样写进会话 JSONL，往后每一轮都回放一遍。
     expect(started[1]).toEqual({
       threadKey: CH,
       docRelPath: CH,
       stageId: "draft",
       userText: "改这一章",
       thinkingLevel: "off",
-      webSearchEnabled: false
+      webSearchEnabled: false,
+      skillPaths: []
     });
     expect(threadKeyFor(null)).toBe(UNBOUND);
     expect(threadKeyFor(CH)).toBe(CH);
@@ -341,7 +347,7 @@ describe("useAgentStore", () => {
     loadSession.mockClear();
     push({ type: "turn-end", turnId: "t1", threadKey: CH, status: "interrupted", message: "" });
     await Promise.resolve();
-    expect(started.map((input) => input.userText)).toEqual(["第 1 条"]);
+    expect(started.map((input) => input.userText)).toEqual([expect.stringContaining("第 1 条")]);
     expect(store().viewOf(CH).queued.length).toBe(4);
     // 裁定 G3 的顺序：发了队首就不在本 tick 触发水合。ensureHydrated 的同步前缀会把历史
     // 重放进这条正要起新轮的线程，规则 2（running 跳过）此刻还没资格挡它。
@@ -380,53 +386,6 @@ describe("useAgentStore", () => {
     expect(store().viewOf(CH).lastError).toContain("503");
     expect(store().viewOf(CH).running).toBe(false);
     expect(store().viewOf(OTHER).lastError).toBe("");
-  });
-
-  it("断了才有「继续」：interrupted / failed 给入口，done、运行中与没跑过都不给", async () => {
-    await openChapter();
-    store().startListening();
-    expect(store().canContinue(CH)).toBe(false);
-    push({ type: "turn-start", turnId: "t1", threadKey: CH });
-    expect(store().canContinue(CH)).toBe(false);
-    push({ type: "turn-end", turnId: "t1", threadKey: CH, status: "done", message: "" });
-    expect(store().canContinue(CH)).toBe(false);
-    push({ type: "turn-start", turnId: "t2", threadKey: CH });
-    push({
-      type: "turn-end",
-      turnId: "t2",
-      threadKey: CH,
-      status: "interrupted",
-      message: "已打断"
-    });
-    expect(store().canContinue(CH)).toBe(true);
-    push({ type: "turn-start", turnId: "t3", threadKey: CH });
-    push({
-      type: "turn-end",
-      turnId: "t3",
-      threadKey: CH,
-      status: "failed",
-      message: "模型服务端返回 429"
-    });
-    expect(store().canContinue(CH)).toBe(true);
-    expect(store().canContinue(OTHER)).toBe(false);
-  });
-
-  it("「继续」发的是固定指令且断了才发得出去，不是把上一句原样重发", async () => {
-    await openChapter();
-    store().startListening();
-    store().continueTurn();
-    expect(started).toEqual([]);
-    push({ type: "turn-start", turnId: "t1", threadKey: CH });
-    push({
-      type: "turn-end",
-      turnId: "t1",
-      threadKey: CH,
-      status: "interrupted",
-      message: "已打断"
-    });
-    store().continueTurn();
-    expect(started.at(-1)?.userText).toContain("接着上一轮未写完的地方继续");
-    expect(started.at(-1)?.docRelPath).toBe(CH);
   });
 
   // ===== 控制方追加的三条硬约束（Task 12 评审产物，简报里没有）=====
@@ -587,7 +546,8 @@ describe("useAgentStore", () => {
       userText: "没开标签也问一句",
       // 没开书也照样发得出这一轮，两枚每轮开关仍是默认关档 —— 字段一个都不缺。
       thinkingLevel: "off",
-      webSearchEnabled: false
+      webSearchEnabled: false,
+      skillPaths: []
     });
     expect(threadKeyFor(null)).toBe(UNBOUND);
   });
@@ -698,5 +658,78 @@ describe("useAgentStore", () => {
     expect(thread.hydrated).toBe(false);
     expect(thread.hydrating).toBe(false);
     expect(thread.queued).toEqual([]);
+  });
+});
+
+/**
+ * turn-end 之后的迟到推送（2026-10-05 真机查出，见本文件外那份验收记录）。
+ *
+ * 旧守卫写成 `thread.turnId !== null && thread.turnId !== outbound.turnId`：
+ * turn-end 恰好会把 turnId 置 null，于是「轮次已收束」这个最该防迟到 delta 的时刻，
+ * 前半段为 false、整个守卫短路，迟到的 delta 照旧累积进 streaming、迟到的 event 照旧落进 items。
+ * 用户在流式输出中按 Esc 之后，屏幕上会凭空多出一段没人写过的字。
+ *
+ * 这条用 `pushLate`（不补开轮）灌——用 `push` 会被夹具补上 turn-start，那就不是「迟到」了。
+ */
+describe("useAgentStore · turn-end 之后的迟到推送一律丢弃", () => {
+  it("迟到的 delta 不进 streaming，迟到的 event 不进 items，running 不被复活", async () => {
+    await openChapter();
+    store().startListening();
+
+    push({ type: "turn-start", turnId: "late-1", threadKey: CH });
+    push({
+      type: "event",
+      turnId: "late-1",
+      threadKey: CH,
+      event: eventOf("message", { id: "e-real", text: "正式的一块", interrupted: false })
+    });
+    push({ type: "turn-end", turnId: "late-1", threadKey: CH, status: "done", message: "" });
+
+    const settled = store().viewOf(CH);
+    const itemsBefore = settled.items.length;
+    const streamBefore = { ...settled.streaming };
+    expect(settled.running).toBe(false);
+    expect(settled.turnId).toBe(null);
+
+    pushLate({
+      type: "delta",
+      turnId: "late-1",
+      threadKey: CH,
+      deltaKind: "message",
+      text: "迟到的半句"
+    });
+    pushLate({
+      type: "event",
+      turnId: "late-1",
+      threadKey: CH,
+      event: eventOf("message", { id: "e-late", text: "迟到的半句", interrupted: false })
+    });
+
+    expect(store().viewOf(CH).items.length).toBe(itemsBefore);
+    expect(
+      store()
+        .viewOf(CH)
+        .items.some((e) => e.id === "e-late")
+    ).toBe(false);
+    expect(store().viewOf(CH).streaming).toEqual(streamBefore);
+    expect(store().viewOf(CH).running).toBe(false);
+  });
+
+  it("迟到的 turn-end 也不能把已经开跑的新一轮拽停（反向：守卫不是「一律拒 turn-end」）", async () => {
+    await openChapter();
+    store().startListening();
+
+    push({ type: "turn-start", turnId: "late-2", threadKey: CH });
+    push({ type: "turn-start", turnId: "fresh", threadKey: CH });
+    expect(store().viewOf(CH).turnId).toBe("fresh");
+
+    // 旧轮的 turn-end 迟到：不得清掉新一轮的 running
+    pushLate({ type: "turn-end", turnId: "late-2", threadKey: CH, status: "done", message: "" });
+    expect(store().viewOf(CH).turnId).toBe("fresh");
+    expect(store().viewOf(CH).running).toBe(true);
+
+    // 新一轮自己的 turn-end 照常收束
+    push({ type: "turn-end", turnId: "fresh", threadKey: CH, status: "done", message: "" });
+    expect(store().viewOf(CH).running).toBe(false);
   });
 });

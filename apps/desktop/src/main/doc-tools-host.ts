@@ -16,6 +16,7 @@ import {
   type ToolHost,
   type ToolOutcome
 } from "@mochen/agent-runtime";
+import { WebSearchError, webSearchReceipt, type WebSearchOutcome } from "./web-search.js";
 
 /** read_doc 的回执上限：超过就截断，防整本长文灌进模型上下文。边界是 >，恰好 6000 不截。 */
 export const READ_TRUNCATE_AT = 6000;
@@ -27,6 +28,11 @@ export interface DocToolHostDeps {
   onProposal(proposal: EditProposal, baseline: string): void;
   newId(): string;
   now(): string;
+  /**
+   * 免费联网搜索（主进程出网；测试注入假实现）。回的是**整轮**而不是光一个数组：
+   * 回执里要写清「这一条是谁答的、前面几个源为什么没用上」，光有结果拼不出来这两句。
+   */
+  webSearch(query: string): Promise<WebSearchOutcome>;
 }
 
 function str(args: Record<string, unknown>, key: string): string {
@@ -49,6 +55,17 @@ function normalizeDoc(rawDoc: string): string | null {
 
 function inWritableDir(relPath: string): boolean {
   return (WRITABLE_TOP_DIRS as readonly string[]).includes(relPath.split("/")[0] ?? "");
+}
+
+/**
+ * 收尾只补一个句号，已经有的不再补。
+ *
+ * 这不是洁癖：源链自己抛的每条消息都以「。」结尾，而 host 这一层过去无脑再补一个，
+ * 真机截出来的是「……先基于已有文稿继续工作**。。**」。一句话里两个句号读着像出了什么岔子，
+ * 而这种错**不抛不报**，纯靠拼字符串，谁都看不出来。
+ */
+function sentence(text: string): string {
+  return /[。．.!?！？…]$/.test(text.trimEnd()) ? text.trimEnd() : `${text}。`;
 }
 
 export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
@@ -143,6 +160,41 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
         };
       }
 
+      if (name === "web_search") {
+        const query = str(args, "query");
+        if (query === "") return deny("web_search 需要非空的 query。");
+        let outcome: WebSearchOutcome;
+        try {
+          outcome = await deps.webSearch(query);
+        } catch (error) {
+          // 「源都能用，只是没搜着」不是失败：它是 ok 的一条正常回执，模型据此去换关键词。
+          // 但界面要能分出「搜到了」和「跑通了却空手」——否则工具卡一律写「完成」，
+          // 一次没搜着的搜索看上去像是搜到了（5-⑮ 记的实测）。
+          if (error instanceof WebSearchError && error.kind === "empty")
+            return { ok: true, text: error.message, proposals: [], empty: true };
+          // WebSearchError 之外的任何错误都不许把 message 透给用户：源链里可能哪天有人
+          // new Error("fetch failed")，那种英文技术串一个字都不该出现在界面上。
+          const reason =
+            error instanceof WebSearchError ? error.message : "搜索源那边出了点问题，稍后再试";
+          return deny(sentence(`联网搜索失败：${reason}`));
+        }
+        // 兜底：注入的自定义 webSearch 万一真递了空数组。与上面 empty 那条同一口径，
+        // 同一个处境不许有两种说法（模型要的是「换词」，不是「搜不到」）。
+        if (outcome.results.length === 0)
+          return {
+            ok: true,
+            text: `搜索源都能用，但没搜到「${query}」的相关结果——换几个关键词再搜一次。`,
+            proposals: [],
+            empty: true
+          };
+        return {
+          ok: true,
+          text: webSearchReceipt(outcome),
+          proposals: [],
+          sources: outcome.results
+        };
+      }
+
       if (name === "propose_patch" || name === "write_doc") {
         const rawDoc = str(args, "doc");
         const why = str(args, "why");
@@ -164,7 +216,8 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
           const permission = checkWritePermission({
             mode: deps.context().permissionMode,
             docRelPath: doc,
-            currentChapter: deps.context().docRelPath
+            currentChapter: deps.context().docRelPath,
+            workMode: deps.context().workMode
           });
           if (!permission.allowed) return deny(permission.reason);
         }

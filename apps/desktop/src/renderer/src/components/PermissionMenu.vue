@@ -67,15 +67,5 @@ onMounted(() => {
       {{ PERMISSION_LABELS[mode] }}
       <span v-if="mode === current">（当前）</span>
     </button>
-    <p class="permission-hint">
-      {{
-        book.meta
-          ? "切档只改之后的判断，不复活已经被拒绝或取消的提案。"
-          : "还没打开作品目录，权限档改不了。"
-      }}
-    </p>
-    <p class="permission-hint">
-      已经拒绝或取消的提案不会回来，切档后请在新一轮里重新提出；仍留在待审的提案，切档后可以马上批准。
-    </p>
   </div>
 </template>

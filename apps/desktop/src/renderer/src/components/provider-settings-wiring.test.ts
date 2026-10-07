@@ -32,3 +32,33 @@ describe("ProviderSettings · 错误只经 presentableProviderError 一层", () 
     expect(markup).not.toContain("provider:get");
   });
 });
+
+describe("ProviderSettings · 卡片面板的每一步都有真身（铁律：报不出函数名的控件不进 UI）", () => {
+  it("「添加模型」与 ⋯ 菜单的编辑/删除各调一个真身，启停开关调 enableProfile", () => {
+    const markup = templateSource(dialog);
+    const script = scriptSource(dialog);
+    // 添加入口按钮真挂着 openAdd；空态文案指路同一个入口，不是死胡同。
+    expect(markup).toContain('@click="openAdd"');
+    expect(markup).toContain("添加模型");
+    // ⋯ 菜单两项：编辑连接（openEdit）与删除模型（removeProfile）。
+    expect(markup).toContain('@click="openEdit(profile)"');
+    expect(markup).toContain('@click="removeProfile(profile)"');
+    expect(script).toContain("await provider.removeProfile(profile.id)");
+    // 开关是 input checkbox 语义，change 上真有启停调用（互斥在主进程）。
+    expect(markup).toMatch(/:checked="profile\.enabled"[\s\S]*?@change="toggle\(profile\)"/);
+    expect(script).toContain("provider.enableProfile(profile.id, !profile.enabled)");
+  });
+
+  it("对话框只有一条活路：v-if 挂在 dialogMode 上，close/saved 都收回 null", () => {
+    const markup = templateSource(dialog);
+    expect(markup).toContain("<ModelProfileDialog");
+    expect(markup).toMatch(/v-if="dialogMode !== null"[\s\S]*?@close="dialogMode = null"/);
+    expect(markup).toMatch(/@saved="dialogMode = null"/);
+  });
+
+  it("面板不自己拉名单、不碰 provider:list-models（名单归输入卡的浮层与对话框）", () => {
+    const markup = templateSource(dialog);
+    expect(markup).not.toContain("loadModels");
+    expect(markup).not.toContain("provider:list-models");
+  });
+});
