@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { thinkingBodyField, webSearchToolEntry } from "../src/per-run-fields.js";
+import { thinkingBodyField, wireToolsFor } from "../src/per-run-fields.js";
 import { streamChat, type ProviderFetchResult } from "../src/provider-client.js";
 import { chatMessage } from "../src/chat-message.js";
 
@@ -11,7 +11,9 @@ import { chatMessage } from "../src/chat-message.js";
  *   「关掉思考时 payload 里不许有这个键」（`not.toHaveProperty("reasoning_effort")`）——
  *   本仓同样用反向用例钉住，因为「发 reasoning_effort: "off"」在不少端点上会被 400。
  * - 联网：deepwrite 对 OpenAI 兼容出口是把 `{ type: "web_search" }` 追加进 tools 数组
- *   （`appendDeepSeekWebSearchTool`），不是往 body 顶层塞自造字段。本仓照这个形状走。
+ *   （`appendDeepSeekWebSearchTool`）。本仓照抄过一次，2026-10-08 被真机打掉——
+ *   严格端点要求 tools 里每一条都带完整 `function.parameters`，裸条目会让整笔请求 400/422。
+ *   现在的形状：联网开关只决定 `web_search` 这枚 function 工具有没有出站，见下面那条反向钉。
  */
 function sseStop(): Uint8Array[] {
   const enc = new TextEncoder();
@@ -46,8 +48,15 @@ async function sendOnce(req: {
     apiKey: "sk-test",
     model: "mochen-mock",
     messages: [chatMessage("user", "改一下")],
+    // 两枚工具：一枚书稿工具 + 一枚 web_search。联网开关要 gate 的就是后者，
+    // 只喂一枚的话「关掉少一条」这条断言根本没有鉴别力（少的那条是谁都看不出来）。
     tools: [
-      { name: "read_doc", description: "读文稿", parameters: { type: "object", properties: {} } }
+      { name: "read_doc", description: "读文稿", parameters: { type: "object", properties: {} } },
+      {
+        name: "web_search",
+        description: "联网搜索",
+        parameters: { type: "object", properties: {} }
+      }
     ],
     signal: new AbortController().signal,
     thinkingLevel: req.thinkingLevel,
@@ -77,19 +86,24 @@ describe("thinkingBodyField", () => {
   });
 });
 
-describe("webSearchToolEntry", () => {
-  it("关 ⇒ 空数组；开 ⇒ 一枚 type=web_search 的工具条目，不带 function 壳", () => {
-    expect(webSearchToolEntry(false)).toEqual([]);
-    expect(webSearchToolEntry(true)).toEqual([{ type: "web_search" }]);
+describe("wireToolsFor", () => {
+  const tools = [
+    { name: "read_doc", description: "读文稿", parameters: {} },
+    { name: "web_search", description: "联网搜索", parameters: {} }
+  ];
+
+  it("开 ⇒ 原样交出这一轮的工具；关 ⇒ 只摘掉 web_search，其余一枚不动", () => {
+    expect(wireToolsFor(tools, true)).toEqual(tools);
+    expect(wireToolsFor(tools, false).map((tool) => tool.name)).toEqual(["read_doc"]);
   });
 });
 
 describe("streamChat 把两枚开关写进出站 body", () => {
-  it("默认（off + 不联网）的 body 既没有 reasoning_effort 也没有 web_search 条目", async () => {
+  it("默认（off + 不联网）的 body 既没有 reasoning_effort，也没有 web_search 这一枚", async () => {
     const body = await sendOnce({ thinkingLevel: "off", webSearchEnabled: false });
     expect(body).not.toHaveProperty("reasoning_effort");
-    const tools = body.tools as Record<string, unknown>[];
-    expect(tools.some((t) => t.type === "web_search")).toBe(false);
+    const tools = body.tools as { function?: { name?: string } }[];
+    expect(tools.map((tool) => tool.function?.name)).toEqual(["read_doc"]);
   });
 
   it("思考开到 high 时 body 带 reasoning_effort=high，其余字段不受影响", async () => {
@@ -99,7 +113,7 @@ describe("streamChat 把两枚开关写进出站 body", () => {
     expect(body.stream).toBe(true);
   });
 
-  it("联网打开时 tools 追加 web_search，原有那枚 function 工具一个字都不少", async () => {
+  it("联网打开时 web_search 以 function 形态在名单里，书稿那枚一个字都不少", async () => {
     const body = await sendOnce({ thinkingLevel: "off", webSearchEnabled: true });
     const tools = body.tools as Record<string, unknown>[];
     expect(tools.length).toBe(2);
@@ -111,12 +125,51 @@ describe("streamChat 把两枚开关写进出站 body", () => {
         parameters: { type: "object", properties: {} }
       }
     });
-    expect(tools[1]).toEqual({ type: "web_search" });
+    expect(tools[1]).toEqual({
+      type: "function",
+      function: {
+        name: "web_search",
+        description: "联网搜索",
+        parameters: { type: "object", properties: {} }
+      }
+    });
+  });
+
+  /**
+   * 2026-10-08 真机红的那一条，反向钉。
+   *
+   * 这里曾经往数组尾上追加一枚裸的 `{ type: "web_search" }`（hosted tool 形状，抄自 deepwrite
+   * 对 OpenAI 出口的做法）。Agnes AI Hub 这类严格 OpenAI 兼容端点把它当 function 条目反序列化，
+   * 发现缺 `parameters` 就整笔拒收：`400/422 tools[9].function: missing field 'parameters'`——
+   * 联网一开，用户一个字都发不出去，而地址与密钥全是对的。
+   * 把本用例的 `webSearchEnabled` 改回 true 之前那段旧拼装、或给 fixture 塞一枚缺 parameters 的
+   * 工具，这条当场红。
+   */
+  it("任何一轮出站 tools 里每一条都带完整 function（type/name/parameters），不许有裸条目", async () => {
+    for (const enabled of [false, true]) {
+      const body = await sendOnce({ thinkingLevel: "off", webSearchEnabled: enabled });
+      const tools = body.tools as Record<string, unknown>[];
+      expect(tools.length).toBeGreaterThan(0);
+      for (const tool of tools) {
+        expect(tool.type).toBe("function");
+        const fn = tool.function as Record<string, unknown>;
+        expect(typeof fn).toBe("object");
+        expect(typeof fn.name).toBe("string");
+        expect(fn).toHaveProperty("parameters");
+      }
+    }
   });
 
   it("两枚一起开时两个形状同时成立（不许互相覆盖）", async () => {
     const body = await sendOnce({ thinkingLevel: "medium", webSearchEnabled: true });
     expect(body.reasoning_effort).toBe("medium");
-    expect((body.tools as Record<string, unknown>[])[1]).toEqual({ type: "web_search" });
+    expect((body.tools as Record<string, unknown>[])[1]).toEqual({
+      type: "function",
+      function: {
+        name: "web_search",
+        description: "联网搜索",
+        parameters: { type: "object", properties: {} }
+      }
+    });
   });
 });

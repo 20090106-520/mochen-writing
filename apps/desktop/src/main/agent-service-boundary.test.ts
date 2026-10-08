@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   DEFAULT_CHANGE_RETENTION,
   DEFAULT_PERMISSION_MODE,
+  WEB_SEARCH_TOOL_NAME,
   type AgentEvent,
   type AgentOutbound,
   type StartTurnInput
@@ -20,7 +21,8 @@ import {
 import { createBookService, type BookService } from "./book-service.js";
 import { createCredentialStore } from "./credential-store.js";
 import { createProviderSettings } from "./provider-settings.js";
-import { createAgentService, defaultPromptFor, type AgentService } from "./agent-service.js";
+import { createAgentService, type AgentService } from "./agent-service.js";
+import { defaultPromptFor } from "./prompt-assembly.js";
 
 /**
  * 服务边界的「拒绝长什么样」专项（裁定 n + 裁定 o + 空白而非空串的可达分支）。
@@ -417,7 +419,12 @@ describe("agentService 边界拒绝与线程归一", () => {
     const body = JSON.parse(request.body) as Record<string, unknown>;
     expect(body.reasoning_effort).toBe("high");
     const tools = body.tools as Record<string, unknown>[];
-    expect(tools.some((tool) => tool.type === "web_search")).toBe(true);
+    const names = tools.map((tool) => (tool.function as { name?: string } | undefined)?.name);
+    // 开 ⇒ web_search 以 **function** 形态在场（真能跑的那枚：本地免费源，见 doc-tools-host.ts）。
+    expect(names).toContain(WEB_SEARCH_TOOL_NAME);
+    // 出站每一条都必须是完整 function 条目。2026-10-08 的裸 `{type:"web_search"}` 会让
+    // 严格校验的端点回 400/422（tools[9].function: missing field `parameters`），整笔请求报废。
+    expect(tools.every((tool) => tool.type === "function")).toBe(true);
     // 六枚本仓工具一枚不许被联网条目挤掉（TOOL_SPECS 是唯一真身；web_search 是第七个类型槽里的第六枚 function）。
     expect(tools.filter((tool) => tool.type === "function").length).toBe(6);
     service.dispose();
@@ -438,7 +445,11 @@ describe("agentService 边界拒绝与线程归一", () => {
     // 「关」的实现是不发字段，不是发 "off"：严格校验的端点会 400，这条钉住差别。
     expect(body).not.toHaveProperty("reasoning_effort");
     const tools = body.tools as Record<string, unknown>[];
-    expect(tools.some((tool) => tool.type === "web_search")).toBe(false);
+    const names = tools.map((tool) => (tool.function as { name?: string } | undefined)?.name);
+    // 关 ⇒ web_search 真的从出站名单里消失（映射在 wireToolsFor），不是「发个 false 字段」。
+    expect(names).not.toContain(WEB_SEARCH_TOOL_NAME);
+    // 摘掉联网不牵连别的：五枚书稿工具一枚不少。
+    expect(names.length).toBe(5);
     service.dispose();
   });
 });

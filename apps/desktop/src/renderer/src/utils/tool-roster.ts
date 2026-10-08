@@ -1,4 +1,9 @@
-import { AGENT_TOOL_NAMES, isWriteTool, type AgentToolName } from "@mochen/contracts";
+import {
+  AGENT_TOOL_NAMES,
+  WEB_SEARCH_TOOL_NAME,
+  isWriteTool,
+  type AgentToolName
+} from "@mochen/contracts";
 
 /**
  * 工具 ▾ 的真清单（task #101）。
@@ -8,9 +13,11 @@ import { AGENT_TOOL_NAMES, isWriteTool, type AgentToolName } from "@mochen/contr
  * contracts 加了第六个工具而这里漏了一行，裸 tsc 当场报 TS2741（缺键），
  * 比一枚「清单里没有这个工具」的假面板诚实得多。
  *
- * 这一格是**只读清单**，不是开关：本仓的运行时对六枚工具一视同仁地交给模型自选
+ * 这一格是**只读清单**，不是开关：本仓的运行时对列出来的工具一视同仁地交给模型自选
  * （`tool_choice: "auto"`），没有任何「单独禁用某一枚工具」的通路。
  * 画成可点掉的开关就是「按了没反应的按钮」，违本仓铁律。
+ * 唯一会让清单少一行的是输入区的联网开关（它决定 `web_search` 这一枚有没有出站），
+ * 所以 `toolRoster` 收一个开关态入参——清单报的是这一轮真带出去的那几枚，不是花名册全集。
  */
 export interface ToolRosterRow {
   /** 模型看到的 function 名，与出站 tools 里一字不差。 */
@@ -44,11 +51,15 @@ const TOOL_LABELS: Record<AgentToolName, { label: string; effect: string }> = {
   }
 };
 
-export function toolRoster(): ToolRosterRow[] {
-  return AGENT_TOOL_NAMES.map((name) => ({
-    name,
-    label: TOOL_LABELS[name].label,
-    kind: isWriteTool(name) ? "写" : "读",
-    effect: TOOL_LABELS[name].effect
-  }));
+export function toolRoster(webSearchEnabled: boolean): ToolRosterRow[] {
+  // 联网开关关掉的那一轮，`web_search` 根本不在出站 tools 里（映射在 wireToolsFor），
+  // 清单再列它就是一行指向不存在工具的假账——所以这一行跟着开关一起消失。
+  return AGENT_TOOL_NAMES.filter((name) => name !== WEB_SEARCH_TOOL_NAME || webSearchEnabled).map(
+    (name) => ({
+      name,
+      label: TOOL_LABELS[name].label,
+      kind: isWriteTool(name) ? "写" : "读",
+      effect: TOOL_LABELS[name].effect
+    })
+  );
 }

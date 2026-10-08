@@ -21,7 +21,8 @@ import {
 import { createBookService, type BookService } from "./book-service.js";
 import { createCredentialStore } from "./credential-store.js";
 import { createProviderSettings } from "./provider-settings.js";
-import { createAgentService, defaultPromptFor, type AgentService } from "./agent-service.js";
+import { createAgentService, type AgentService } from "./agent-service.js";
+import { defaultPromptFor } from "./prompt-assembly.js";
 
 /**
  * Task 3（F-6 只读回放）的专项夹具。断言与文案与 task-3-brief 逐字一致；

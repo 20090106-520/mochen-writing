@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { defaultProfile, findProfile, type DocRef } from "@mochen/contracts";
 import { renderContextBlock } from "@mochen/agent-runtime";
-import { defaultPromptFor, PLAN_MODE_INSTRUCTION } from "./agent-service.js";
+import {
+  defaultPromptFor,
+  PLAN_MODE_INSTRUCTION,
+  WEB_SEARCH_INSTRUCTION
+} from "./prompt-assembly.js";
 
 /**
  * 系统提示词的**组装**这一层：它们全是纯函数，不起盘、不连 provider、不碰 IPC。
@@ -20,7 +24,8 @@ describe("defaultPromptFor · 拼装", () => {
       permissionLabel: "全开",
       workModeLabel: "直接动手",
       profile: defaultProfile(),
-      context: NO_CONTEXT
+      context: NO_CONTEXT,
+      webSearchEnabled: true
     });
     expect(text).toContain("《深渊之下》");
     expect(text).toContain("正文");
@@ -36,7 +41,8 @@ describe("defaultPromptFor · 拼装", () => {
       permissionLabel: "全开",
       workModeLabel: "直接动手",
       profile: defaultProfile(),
-      context: NO_CONTEXT
+      context: NO_CONTEXT,
+      webSearchEnabled: true
     });
     // 提示词已改为直写目录制：12 类目录清单 + write_doc 直写 + web_search 联网，不再有 mochen-patch 代码块。
     expect(text).toContain("提案只有在用户批准后才写入磁盘");
@@ -53,7 +59,8 @@ describe("defaultPromptFor · 拼装", () => {
         permissionLabel: "只读参考",
         workModeLabel: "直接动手",
         profile: defaultProfile(),
-        context: NO_CONTEXT
+        context: NO_CONTEXT,
+        webSearchEnabled: true
       })
     ).toContain("还没打开文稿");
   });
@@ -68,7 +75,8 @@ describe("defaultPromptFor · 先计划后动手（2026-10-05 批次 4）", () =
       permissionLabel: "全开",
       workModeLabel,
       profile: defaultProfile(),
-      context: NO_CONTEXT
+      context: NO_CONTEXT,
+      webSearchEnabled: true
     });
 
   it("计划档 ⇒ 多一段「别动稿、只讲打算」", () => {
@@ -100,7 +108,8 @@ describe("defaultPromptFor · 六档案", () => {
       permissionLabel: "全开",
       workModeLabel: "直接动手",
       profile: reviewer,
-      context: NO_CONTEXT
+      context: NO_CONTEXT,
+      webSearchEnabled: true
     });
     expect(text).toContain(reviewer.prompt);
   });
@@ -114,7 +123,8 @@ describe("defaultPromptFor · 六档案", () => {
         permissionLabel: "全开",
         workModeLabel: "直接动手",
         profile: findProfile(id)!,
-        context: NO_CONTEXT
+        context: NO_CONTEXT,
+        webSearchEnabled: true
       });
     const reviewer = build("reviewer");
     const lead = build("lead-writer");
@@ -143,7 +153,8 @@ describe("defaultPromptFor · 搜索那条要教模型怎么发 query（2026-10-
     permissionLabel: "全开",
     workModeLabel: "直接动手",
     profile: defaultProfile(),
-    context: NO_CONTEXT
+    context: NO_CONTEXT,
+    webSearchEnabled: true
   });
 
   it("明说 query 用 2–4 个关键词，并给一个正例子", () => {
@@ -154,6 +165,34 @@ describe("defaultPromptFor · 搜索那条要教模型怎么发 query（2026-10-
 
   it("说明为什么要用关键词——没有理由，模型就会当这句是客套", () => {
     expect(text).toContain("只认开头的词");
+  });
+});
+
+describe("defaultPromptFor · 联网段跟着开关走（2026-10-08）", () => {
+  const build = (webSearchEnabled: boolean) =>
+    defaultPromptFor({
+      title: "深渊之下",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context: NO_CONTEXT,
+      webSearchEnabled
+    });
+
+  // 反向钉：关掉那一轮出站 tools 里根本没有 web_search（摘它的就是 wireToolsFor 那一处），
+  // 提示词再教模型用它，等于让它去调一枚不存在的工具，回执只会是「没有这个工具」。
+  it("开 ⇒ 那段联网措辞整段在；关 ⇒ 整段一个字都不留", () => {
+    expect(build(true)).toContain(WEB_SEARCH_INSTRUCTION);
+    expect(build(false)).not.toContain(WEB_SEARCH_INSTRUCTION);
+    expect(build(false)).not.toContain("联网搜索用");
+  });
+
+  it("关掉不牵连别的段落：五枚书稿工具的措辞照旧", () => {
+    const text = build(false);
+    expect(text).toContain("propose_patch");
+    expect(text).toContain("write_doc 写进对应目录");
   });
 });
 

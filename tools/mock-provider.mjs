@@ -197,12 +197,15 @@ function slowFrames() {
  * 每轮两个开关（#101）在桩这一侧的回显：思考档与联网工具各自打进 reasoning 一句标记。
  * 桩不演业务规则，但必须演「服务端看得见的形状」——否则输入区那两枚 chip 在真机上无法证伪。
  * 关档时没有任何标记：不发 reasoning_effort、tools 里也没有 web_search，回显跟着出站形状走。
+ *
+ * 认的是 **function 形态**的那一枚（`{type:"function", function:{name:"web_search"}}`）。
+ * 这里原来找的是裸 `{type:"web_search"}`（hosted tool 形状），2026-10-08 那个形状被真机打掉：
+ * 严格校验的 OpenAI 兼容端点把它反序列化成 `tools[i].function` 后发现缺 `parameters`，整笔 400。
+ * 运行时从此不再发它，桩也必须跟着改判据——否则它演的是一个已经不存在的服务端。
  */
 function webSearchRequested(body) {
   const tools = Array.isArray(body.tools) ? body.tools : [];
-  return tools.some(
-    (tool) => tool !== null && typeof tool === "object" && tool.type === "web_search"
-  );
+  return tools.some((tool) => tool?.type === "function" && tool?.function?.name === "web_search");
 }
 
 function reasoningText(body) {

@@ -6,6 +6,7 @@ import {
   DEFAULT_CHANGE_RETENTION,
   AGENT_TOOL_NAMES,
   DEFAULT_PERMISSION_MODE,
+  WEB_SEARCH_TOOL_NAME,
   type AgentEvent,
   type AgentOutbound,
   type BookMeta,
@@ -22,7 +23,8 @@ import { makeFingerprint } from "@mochen/fs-store";
 import { createBookService, type BookService } from "./book-service.js";
 import { createCredentialStore } from "./credential-store.js";
 import { createProviderSettings } from "./provider-settings.js";
-import { createAgentService, defaultPromptFor, type AgentService } from "./agent-service.js";
+import { createAgentService, type AgentService } from "./agent-service.js";
+import { defaultPromptFor } from "./prompt-assembly.js";
 
 const CHAPTER = "chapters/01-开局.md";
 const OTHER = "chapters/02-闸口.md";
@@ -41,14 +43,18 @@ afterAll(async () => {
   for (const dir of tempDirs) await rm(dir, { recursive: true, force: true });
 });
 
-function turn(docRelPath: string | null, userText: string): StartTurnInput {
+function turn(
+  docRelPath: string | null,
+  userText: string,
+  webSearchEnabled = false
+): StartTurnInput {
   return {
     threadKey: docRelPath ?? "unbound",
     docRelPath,
     stageId: "draft",
     userText,
     thinkingLevel: "off",
-    webSearchEnabled: false,
+    webSearchEnabled,
     skillPaths: []
   };
 }
@@ -667,14 +673,19 @@ describe("agentService 全链", () => {
     service.dispose();
   });
 
-  it("递给模型的工单恰好是 AGENT_TOOL_NAMES 那五个，一个不多一个不少", async () => {
+  it("递给模型的工单恰好是花名册在这一轮真带出去的那几枚，一个不多一个不少", async () => {
     const { fetchImpl, requests } = recordingFetch(proposeChunks);
     const { service } = await build(fetchImpl);
+    // 夹具的联网开关是关的（turn 默认值）：2026-10-08 起开关决定 web_search 有没有出站，
+    // 所以这里的花名册要按开关裁掉那一枚。「开 ⇒ 六枚全在」由 agent-service-boundary.test.ts
+    // 的 #101 用例从同一条链路上钉，两处合起来才是全集。
     await service.startTurn(turn(CHAPTER, "改紧"));
     const request = requests[0];
     if (request === undefined) throw new Error("请求必须发出");
     const body = JSON.parse(request.body) as { tools?: { function?: { name?: string } }[] };
-    expect(body.tools?.map((tool) => tool.function?.name)).toEqual([...AGENT_TOOL_NAMES]);
+    expect(body.tools?.map((tool) => tool.function?.name)).toEqual([
+      ...AGENT_TOOL_NAMES.filter((name) => name !== WEB_SEARCH_TOOL_NAME)
+    ]);
     service.dispose();
   });
 

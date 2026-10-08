@@ -3,7 +3,7 @@ import {
   THINKING_LEVEL_LABELS,
   THINKING_WIRE_FIELD,
   USER_TEXT_MAX_LEN,
-  WEB_SEARCH_WIRE_TYPE,
+  WEB_SEARCH_TOOL_NAME,
   WORK_MODE_LABELS,
   codePointLength,
   type PermissionMode,
@@ -145,8 +145,8 @@ function webSearchChip(enabled: boolean): ComposerChipView {
     text: "联网搜索",
     disabled: false,
     title: enabled
-      ? `本轮已带 ${WEB_SEARCH_WIRE_TYPE} 工具（追加在 tools 里，与五个书稿工具并存）。点击关闭。`
-      : `本轮不带 ${WEB_SEARCH_WIRE_TYPE} 工具，模型只能读你书稿里的字。点击开启。`,
+      ? `本轮已带 ${WEB_SEARCH_TOOL_NAME} 工具（与五枚书稿工具一起出站：本地免费源，不额外要 key）。点击关闭。`
+      : `本轮不带 ${WEB_SEARCH_TOOL_NAME} 工具——它真的从出站 tools 里摘掉了（工具清单也跟着少这一行），模型只能读你书稿里的字。点击开启。`,
     active: enabled,
     slot: "left",
     icon: "globe",
@@ -200,7 +200,8 @@ export function composerChips(input: {
 }): ComposerChipView[] {
   // 权限 chip 只调 permissionChipView 一次，不重算（设计决定 4）。
   const permission = permissionChipView(input);
-  const roster = toolRoster();
+  // 清单跟着联网开关走：关掉那一轮 `web_search` 不出站，枚数也就从 6 变 5（不是手抄的两份数）。
+  const roster = toolRoster(input.webSearchEnabled);
   // 数组序 = 左端从左到右的渲染序（#112 照参考图）：模型 → 思考等级 → 联网 → 工具清单 → / 命令，
   // 权限档单独落在右端（它挨着发送键，与 deepwrite 的 composer-actions 同一位置）。
   return [

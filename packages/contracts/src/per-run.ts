@@ -40,9 +40,14 @@ export const THINKING_LEVEL_LABELS: Record<ThinkingLevel, string> = {
  * 不进 UI**。输入区的 title 必须能告诉用户「这一档发的是 reasoning_effort=medium」，
  * 而渲染层不许 import agent-runtime（那是主进程侧的运行时）。于是字段名下沉到这里：
  * `per-run-fields.ts` 用它拼 body，chip 文案用它拼 title，改名只需要动这一行。
+ *
+ * 联网那一枚的名字在 2026-10-08 从 `WEB_SEARCH_WIRE_TYPE` 改叫 `WEB_SEARCH_TOOL_NAME`：
+ * 它曾经既当 hosted tool 的 `type` 值、又当 function 工具名（两个真身共用一个常量，
+ * 于是发出去的是裸 `{type:"web_search"}`，严格端点整批拒收，见 per-run-fields 的注释）。
+ * 现在它只剩一个含义——**出站 tools 里那枚 function 工具的名字**，名字跟着含义改。
  */
 export const THINKING_WIRE_FIELD = "reasoning_effort";
-export const WEB_SEARCH_WIRE_TYPE = "web_search";
+export const WEB_SEARCH_TOOL_NAME = "web_search";
 
 /**
  * 下一档：chip 每点一次走一格，走到 high 再点回到 off。

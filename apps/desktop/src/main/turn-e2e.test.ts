@@ -19,7 +19,8 @@ import { findLatestSession, readSession, type ProviderFetch } from "@mochen/agen
 import { createBookService, type BookService } from "./book-service.js";
 import { createCredentialStore } from "./credential-store.js";
 import { createProviderSettings } from "./provider-settings.js";
-import { createAgentService, defaultPromptFor, type AgentService } from "./agent-service.js";
+import { createAgentService, type AgentService } from "./agent-service.js";
+import { defaultPromptFor } from "./prompt-assembly.js";
 import { toProviderFetch } from "./provider-fetch.js";
 
 const ROOT = fileURLToPath(new URL("../../../..", import.meta.url));

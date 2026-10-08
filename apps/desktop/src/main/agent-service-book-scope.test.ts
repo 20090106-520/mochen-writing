@@ -28,7 +28,8 @@ import { findLatestSession, type ProviderFetch } from "@mochen/agent-runtime";
 import { createBookService, type BookService } from "./book-service.js";
 import { createCredentialStore } from "./credential-store.js";
 import { createProviderSettings } from "./provider-settings.js";
-import { createAgentService, defaultPromptFor, type AgentService } from "./agent-service.js";
+import { createAgentService, type AgentService } from "./agent-service.js";
+import { defaultPromptFor } from "./prompt-assembly.js";
 
 /** 两本书里**同名**的一篇文稿：撞名的正是这个。 */
 const CHAPTER = "chapters/01-开局.md";

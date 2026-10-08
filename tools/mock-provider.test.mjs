@@ -9,6 +9,7 @@ import {
   chatMessage,
   ProviderError,
   streamChat,
+  TOOL_SPECS,
   toolMessage,
   assistantToolMessage
 } from "@mochen/agent-runtime";
@@ -68,7 +69,10 @@ function baseRequest(overrides = {}) {
     apiKey: KEY,
     model: "mochen-mock",
     messages: [chatMessage("user", "改紧一点")],
-    tools: [],
+    // 2026-10-08：夹具交的是**完整名单**（含 web_search 那枚 function 工具），跟 agent-service 一样。
+    // 「开关关着 ⇒ web_search 不出站」由 provider-client 的 wireToolsFor 做——
+    // 夹具不替它过滤，否则这条链上最重要的一段就没被验过。
+    tools: TOOL_SPECS,
     // StreamRequest 的每轮字段是必填的：夹具也按真实形状给，别让「漏传」在桩这一侧看起来正常。
     thinkingLevel: "off",
     webSearchEnabled: false,

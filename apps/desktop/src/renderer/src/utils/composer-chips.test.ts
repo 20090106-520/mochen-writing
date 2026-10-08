@@ -166,12 +166,15 @@ describe("composer-chips · 联网搜索与工具清单", () => {
     expect(chip("web-search", { webSearchEnabled: true })?.title).toContain("本轮已带 web_search");
   });
 
-  it("工具 chip 永远不 disabled，且文案里的数量就是从 contracts 数出来的那六枚", () => {
+  it("工具 chip 永远不 disabled，且文案里的枚数跟着联网开关走（关 5 / 开 6）", () => {
     const tools = chip("tools");
     expect(tools?.disabled).toBe(false);
     // #112：下拉三角是 icon/caret 两枚字段渲染出来的，不再混进 text（同一件事两份真身）。
     expect(tools?.text).toBe("工具");
-    expect(tools?.title).toContain("6 枚");
+    // 枚数从 toolRoster(开关) 数出来，不是手抄：关掉那一轮 web_search 根本不出站，
+    // 清单再报 6 枚就是指着一份不存在的名单（2026-10-08 起这条跟着开关走）。
+    expect(tools?.title).toContain("5 枚");
+    expect(chip("tools", { webSearchEnabled: true })?.title).toContain("6 枚");
     expect(tools?.active).toBe(false);
   });
 

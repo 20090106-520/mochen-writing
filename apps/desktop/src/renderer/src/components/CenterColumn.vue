@@ -438,7 +438,11 @@ onBeforeUnmount(() => {
 
     <!-- #106 裁定 D1：`/` 的真身只剩输入卡里那份行内菜单（ComposerBox 挂的 ComposerReferenceMenu），
          旧的第二块命令面板连同它的样式段一并退役——留着它就是同一张命令表两份渲染。 -->
-    <ToolRoster v-if="rosterOpen" @close="rosterOpen = false" />
+    <ToolRoster
+      v-if="rosterOpen"
+      :web-search-enabled="agent.webSearchEnabled"
+      @close="rosterOpen = false"
+    />
     <!-- 贴 chip 的下拉（2026-10-07）：锚点是点开它的那枚 chip，元素随事件一起交上来。
          v-if 上多一个 modelAnchor —— 没有锚点就不渲染，绝不弹一个飞到屏幕角落的黑盒。 -->
     <ModelSelect

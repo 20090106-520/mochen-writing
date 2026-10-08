@@ -1,6 +1,6 @@
 import { sseDataFrames } from "./sse.js";
 import { toWireMessages, type AssistantToolCall, type ChatMessage } from "./chat-message.js";
-import { thinkingBodyField, webSearchToolEntry } from "./per-run-fields.js";
+import { thinkingBodyField, wireToolsFor } from "./per-run-fields.js";
 import type { AuthHeader, ThinkingLevel } from "@mochen/contracts";
 
 export interface ChatToolSpec {
@@ -157,11 +157,14 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
     messages: toWireMessages(req.messages),
     ...thinkingBodyField(req.thinkingLevel)
   };
-  // 联网条目挂在 tools 里，所以「一个 function 工具都没有但联网开着」也要发 tools。
-  const wireTools = [
-    ...req.tools.map((tool) => ({ type: "function", function: tool })),
-    ...webSearchToolEntry(req.webSearchEnabled)
-  ];
+  // 联网开关只决定 `web_search` 这枚 function 工具有没有出站（映射在 wireToolsFor 一处）。
+  // 出站形状只许一种：`{ type: "function", function: { name, description, parameters } }`。
+  // 少一个 parameters 就会被严格端点整批拒收——2026-10-08 真机 400/422 `tools[9].function`，
+  // 那时这里还往数组尾上追加一枚裸的 `{ type: "web_search" }`。
+  const wireTools = wireToolsFor(req.tools, req.webSearchEnabled).map((tool) => ({
+    type: "function",
+    function: tool
+  }));
   if (wireTools.length > 0) {
     payload.tools = wireTools;
     payload.tool_choice = "auto";
