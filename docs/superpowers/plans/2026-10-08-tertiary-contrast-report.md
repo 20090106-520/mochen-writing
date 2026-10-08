@@ -110,6 +110,8 @@ rgb(88,118,122) 上第三级只有 1.86、卡面 3.92–4.42」。这次复跑�
 与用户点「换上」同一份拼法，且不落盘），并且每版开量之前先自证一句：
 `--theme-background` 必须等于这套皮在这个档下的底（`want e8f6fa / got e8f6fa` 才算开始量）。
 这一条现在写在探针里，下次再有人用同一支量东西，量错底会先红。
+（顺带一句：**改走预览还有个副作用是好事**——`setPreview` 不写盘，而上一版那句
+`appearance.update()` 每一次都往用户真身的 `appearance.json` 上落，详见第七节那条。）
 
 复测结果：`SUMMARY pass=67 fail=1`。唯一那条红见下面第五节，是真的，不是仪器错。
 
@@ -151,9 +153,17 @@ rgb(88,118,122) 上第三级只有 1.86、卡面 3.92–4.42」。这次复跑�
 - 工作区里 `App.vue` 等 14 个 `.vue`、`styles.css`、`layoutStore.ts`、`slash-commands.ts`、
   `vue-source-reader.ts`、四个测试与 `docs/superpowers/plans/README.md` **不是我改的**，
   这次提交一个字节都没碰它们。
-- 用户真身设置 `AppData/Roaming/mochen-ai/appearance.json` 已还原并逐字段核过
-  （sha256 `f5628b8a…`，793B，`mode: light`、两套 skin 均 `xi-night`、`art: abyss-hall-night`），
-  第二台实例关掉之后又复算了一次哈希，没漂。全程只碰我自起的 9234，没动他自己在跑的那台。
+- 用户真身设置 `AppData/Roaming/mochen-ai/appearance.json`：**这一轮被我的探针写过，已还原并逐字段核过**
+  （sha256 回到 `f5628b8a…`，793B，`mode: light`、两套 skin 均 `xi-night`、`art: abyss-hall-night`；
+  还原后隔 3 秒再算一次仍是同一个值）。
+  ⇒ **一条新知识，别再踩**：自起实例传了 `--user-data-dir=<临时目录>` 并**不会**把这份设置隔开——
+  主进程是照 `appData` 拼路径写的，于是探针里每一次 `appearance.update()`（换深浅、换皮）
+  都直接落到了用户真身的那份文件上（当场飘成 `mode: dark` + `light.skin: xi-day`）。
+  以后要拿真机实例改设置做实验，要么先备份再当场还原（这次就是这么救回来的），
+  要么走不落盘的「整窗预览」那条通路；`--user-data-dir` 不是隔离开关。
+  全程只起/只杀我自己的 9234 进程，没有碰他自己在跑的 9222（PID 4056）。
+  **一处残留风险如实报**：他那台实例如果是在飘之前启动的，内存里仍是原来那一套，
+  下次他在外观页点任何一项都会把内存值写回盘；如果他觉得界面与设置不符，重启一次墨宸即可对齐。
 - **波1b 挂件层仍阻塞**：缺 512×512 透明 PNG，没有用占位方块假装挂件。
 - 浅色档那 2/16 处（第五节）等用户选路，未擅自改。
 - 探针（`tmp-tert-contrast.mjs`、三支 `tmp-tert-*-diag*.mjs`）留在 git-ignored 的
