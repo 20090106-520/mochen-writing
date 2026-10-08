@@ -5468,7 +5468,9 @@ contracts 枚举与五张中文档名表保持全量——老 JSON 里可能存�
 - **素材规格单**：用户说图可以由他那边的人做，所以要把「多大、哪里留空、深潜多少、
   命名与落盘位置」写成一张能直接交给画师的单子（本批的 prompt 条件是起点）。
 - **广场页体验**：整窗预览 + 两套并排对比（用户选的第二条）。
-- **真机逐套验证**：本批只过了门禁，两条带画皮的真实渲染（1080 与窄窗、浅深两版）还没量。
+- **真机逐套验证**：本批只过了门禁，两条带画皮的真实渲染还没量。
+  （2026-10-08 波3 收尾补上：1440×902 下浅深两版都量过了——见下面「真机复验（P536Q）」那一节，
+  26/26 里含 `data-skin-art` 在两版之间来回换、正文底色两版各自 52%；**1080 与更窄那一档还没量**。）
 - 两条 CC BY-NC-SA 上游（鲸鱼娘 / 鲸鱼女孩）继续不进表；素材来源走「自绘 + 用户自有图」，
   这条裁定是 5-㊷ 收到的，理由不再是「要商用」。
 
@@ -5585,8 +5587,76 @@ contracts 枚举与五张中文档名表保持全量——老 JSON 里可能存�
 - `composables/appearance-skin-plaza-wiring.test.ts`、`composables/hotkey-landing-wiring.test.ts`、
   `composables/theme-token-guard.test.ts`
 
+### 真机复验（P536Q：26/26 + 11/11）
+
+起自实例（CDP 9234、临时 profile、`pnpm build` 之后），跑 `.superpowers/sdd/tmp-w3-skins.mjs`：
+**26 条全过**。关键读数——
+
+- `预览确实刷到整窗：data-skin-art 换成那一套的画 :: {"got":"abyss-hall-night","want":"abyss-hall-night"}`
+- `预览只改 <html>，盘上一个字节没动 :: {"bytes":787}` —— 读的是 `%APPDATA%/mochen-ai/appearance.json`
+  那份**真身**（主进程认 `activeDir`，`--user-data-dir` 改不了它；临时目录里根本没有这个文件，
+  第一版取证取错了地方）
+- `整窗模型层序 = backdrop/art/grid/nav/main/side`、`两扇窗各自一份纸色 :: ["#E8F6FA","#0B1A26"]`、
+  `两扇窗的正文底真的不同 :: [... / 0.52 与 ... / 0.52]`、`落的就是预览中看到的那一套 :: xi-night`、
+  `收场：设置还原成开工前那一份`
+
+第一轮 26 条里点击全部无效，原因在屏幕上而不在代码里：**新 profile 会弹 `OnboardingGuide`
+整片模态盖住广场**，`elementFromPoint` 命中的是 `P.ob-tip`，CDP 一声不响。加了
+`showOnboarding = false` + 每次点击前 `scrollIntoView` 与命中校验才通。
+同一轮还预览了**当前在用的那套**（xi-day），`data-skin-art` 前后同值、屏幕上什么都没换；
+改成挑另一套（xi-night）才是有效对照——这条判据后来写进了探针（`预览的那套与当前在用的不是同一套`）。
+唯一的 FAIL 是探针自己的 bug：`artComputed` 只截 40 字符，`includes("url")` 永远不成立。
+
+### 真机量出来的 P1：整窗预览在「预览皮肤的那一页」上把画盖死了
+
+顺手量的那件事（`tmp-w3-coverage.mjs`）：站在广场页做整窗预览时 `.skin-gallery` 的计算底色是
+`rgb(232, 246, 250)`、alpha **1**、`background-image: none`，而它占 1154×902、shell 只有 1440×902
+⇒ 那一整幅画只剩左栏（alpha 0.3）与一条约 286px 的边能露出来。**「整窗预览」名不副实**，
+而盖住画的正是预览皮肤的那一页自己——与波1 修掉的「画了等于没画」同一族，换了个地方复发。
+
+并行撒网后同一族的还有两张同构整页：`.extensions-page`（extensions.css:39）、
+`.settings-page`（settings-page.css:28），各自写着 `background: var(--surface-main)`，
+都是 `grid-column: 2 / -1; grid-row: 1`。判据：`.settings-sidebar`（一根窄列）与
+`.workspace-dialog`（模态框）**故意不放**——表单与按钮的可读性优先于「画露多少」。
+
+修法是把三张页并进 theme-runtime.css 那条已有的「带画才放行」名单：同一个 52%、同一个 token，
+不留第二套规矩。可读性不比正文那一档差——页面放行 52% 之后卡面还压着 `--surface-raised` 40%，
+合成实底 0.4 + 0.6×0.52 ≈ **71%**，比正文单独那 52% 更厚。
+
+守卫与变异（`appearance-skin-plaza-wiring.test.ts`）：新增 `releasedSelectors()`，按
+「选择器含 `data-skin-art` 且正文含那枚 52% 的 `color-mix`」把**整组**捞出来（找不到就抛错，
+不返回空串——空串会让组内每条 `toContain` 一起变绿），字面量收成一份 `RELEASE_BODY`
+（原来那条「模型与真规则同值」的用例也改读它，两处不再各写一句）。
+先红后绿：断言写好跑一次 → `1 failed | 34 passed`，失败消息里回显的组正是那四条老选择器。
+变异三连（只用 Edit）：**M-a** 删 `.skin-gallery` → 红在该页；**M-b** 只删规则里的
+`.settings-page`、**注释里那句留着** → 仍红，证明注释喂不饱断言；**M-c** 往组里加
+`.document-editor` → 红在反向那条。恢复后定向 6 文件 / 146 用例全过。
+
+A/B 在同一个实例上做（`tmp-w3-coverage2.mjs`，**11/11**）：用内联
+`style.setProperty(..., "important")` 把旧行为钉回去＝放行前那一档 `rgb(11, 26, 38)` alpha 1，
+`removeProperty` 撤掉＝`color(srgb ... / 0.52)`，同一套皮肤（abyss-hall-night）、同一视口、
+同一 DOM。两张截图 `w3-page-opaque.jpg` / `w3-page-released.jpg`：后者整幅海底藏书阁
+（水母、右侧执笔的鲸耳娘）读得出来，卡片与说明文字仍清楚。
+这一轮又栽在谓词上：`rgb(11, 26, 38)` 被「逗号 + 数字 + 右括号」的 alpha 兜底读成 **38**，
+于是"实底应为 1"当场红——红的是探针不是代码；改成按写法分支解析后 11/11。
+
+### 门禁（补漏这一轮）
+
+`TYPECHECK_EXIT=0`、`ESLINT_EXIT=0`、`FORMAT_EXIT=0`（`prettier . --check` 全仓）、
+定向 6 文件 / 146 用例全过；全量 `TEST_EXIT=0`：**210 文件 / 2938 用例**（比上一轮多出的那 1 条
+正是这条新断言），日志 grep 无 `FAIL` / `AssertionError` / `ELIFECYCLE` / `Unhandled`。
+中途读到三处红并都修掉：`TS18048 'body' is possibly 'undefined'`（正则捕获组在
+`noUncheckedIndexedAccess` 下的老账）、`PRETTIER_EXIT=1`（我新写的那段没折行）、
+以及一条 **ESLINT_EXIT=1 落在 git-ignored 的探针里**——`.superpowers/sdd/*.mjs` 也在
+`eslint .` 的范围内，探针里一个没用上的变量就足以让门禁红。
+另有一次「后台通知报 exit 0 而日志里 `TEST_EXIT=1`」：`pnpm test` 的脚本已经带
+`--maxWorkers=4`，我再传一遍 → vitest 报 `Expected a single value for option "--maxWorkers"`。
+判绿仍然只认日志内容，不认通知。
+
 ### 还没做完的
 
-- **真机逐套验证**：整窗预览、并排对比、Esc 收层这三件本批只过了门禁，屏幕上还没量。
 - **挂件层运行时**（波1b）与**新素材进表**（波2）仍卡在 ImageGen 403 配额；
   素材规格单已交付在 `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md`。
+- **放行这一档只量了深海夜阁那一套**：浅色那套（shallow-hall-day）与窄窗（1120）下的
+  屏幕效果还没单独量；扩展页与设置页放行后也只过了源码契约，没在屏幕上逐屏看。
+- **提交树单独是否全绿未证**：工作区里另有 5-㊶ 那 185 行未提交改动，本轮门禁是在混合树上跑的。

@@ -281,8 +281,10 @@ describe("皮肤广场页 · 接线（.vue 零类型检查，只能读源码）"
     expect(rule.length, "找不到整窗模型那条放行规则").toBeGreaterThan(0);
     expect(rule.join("\n")).toContain("52%");
     // 出处：theme-runtime.css 里那条真规则也是 52%，两处必须一起改。
+    // 字面量收在 `RELEASE_BODY` 一份（下面那条「三张整页在放行名单里」的判据也认它）：
+    // 两处各写一句的话，改档位时会红一个漏一个。
     const real = strippedStyleSource("theme-runtime.css");
-    expect(real).toContain("color-mix(in srgb, var(--surface-main) 52%, transparent)");
+    expect(real).toContain(RELEASE_BODY);
 
     // 模板那一格把这一套自己的 art 档写在模型上，而不是读 `<html>` 上那份当前的。
     expect(templateSource(PAGE)).toContain(':data-skin-art="skin.art"');
@@ -398,6 +400,36 @@ describe("皮肤广场页 · 接线（.vue 零类型检查，只能读源码）"
   });
 });
 
+/** 放行那条规则的**正文标记**：认到这一句才算找到那条规则（改档位要连这里一起改）。 */
+const RELEASE_BODY = "color-mix(in srgb, var(--surface-main) 52%, transparent)";
+
+/**
+ * 那条「带画才放行」规则的**选择器串**（整组，不是某一条）。
+ *
+ * 【为什么单列一个函数】
+ * 放行是一组并列选择器，写成一条 `toContain(".conversation-pane")` 只钉得住「这行字在文件里
+ * 出现过一次」——注释里提一句同样的话就能把它喂饱。这里按「选择器里含 `data-skin-art`
+ * 且正文里含那枚 52% 的 `color-mix`」把整组捞出来，断言只在这组**内部**成立。
+ * 找不到那一组一律抛错：返回空串会让组内每条 `toContain` 一起变绿，看不出缺的是哪条规则
+ * （与 `ruleBlock` 同一句理由）。
+ */
+function releasedSelectors(css: string): string {
+  const groups: string[] = [];
+  for (const one of css.matchAll(/([^{}]*html\[data-skin-art\][^{}]*)\{([^}]*)\}/g)) {
+    const sel = one[1];
+    const body = one[2];
+    // `noUncheckedIndexedAccess` 下这两枚都带 `| undefined`。不显式判空而用 `?? ""` 兜底，
+    // 会把「正则没抓到组」伪装成「抓到了但组是空的」——那时下面那条抛错就不会响。
+    if (sel !== undefined && body !== undefined && body.includes(RELEASE_BODY)) {
+      groups.push(sel);
+    }
+  }
+  if (groups.length === 0) {
+    throw new Error("theme-runtime.css 里找不到那条「带画才放行」（52% color-mix）的规则");
+  }
+  return groups.join(" ");
+}
+
 describe("视觉四层的消费 · 硬约束：背景与图案不落正文区", () => {
   /* 这一条是产品硬要求，不是审美：编辑器正文（.document-editor）与消息正文
      （.message-markdown）的背景**必须仍是纯 --surface-\***。背景一动，字的边缘就在抖，
@@ -426,6 +458,27 @@ describe("视觉四层的消费 · 硬约束：背景与图案不落正文区", 
         );
       }
     }
+  });
+
+  it("三张整页都在放行名单里 —— 页面这层不放行，整窗画就被自家面板盖死", () => {
+    /* 2026-10-08 波3 真机量出来的：站在皮肤广场这一页做「整窗预览」，`.skin-gallery` 的
+       计算底色是 `rgb(232, 246, 250)`、alpha **1**、`background-image: none`，
+       而它占 1154×902、shell 只有 1440×902 —— 那一整幅画只剩左栏（alpha 0.3）
+       和一条约 286px 的边能露出来。
+       这与 5-㊵ 修掉的「画了等于没画」是同一族坑：DOM 上背景层六层俱全、控制台零报错，
+       只有肉眼知道少了东西；而这次盖住画的正是**预览皮肤的那一页**自己。
+       `.extensions-page`、`.settings-page` 与它同构（都是 `grid-column: 2 / -1; grid-row: 1`
+       的整页，见 skin-gallery.css:7 / extensions.css:39 / settings-page.css:28 各自的
+       `background: var(--surface-main)`），所以三张一起进名单，不留「这页放行那页不放行」的
+       第二套规矩。
+       可读性不比正文那一档差：页面放行 52% 之后，卡面还压着 `--surface-raised` 40%，
+       合成实底 ≈ 0.4 + 0.6×0.52 ≈ 71%，比正文区单独那 52% 更厚。 */
+    const group = releasedSelectors(strippedStyleSource("theme-runtime.css"));
+    for (const page of [".skin-gallery", ".extensions-page", ".settings-page"]) {
+      expect(group, `整页 ${page} 不在放行名单里 —— 画会被这一页盖成一整块实底`).toContain(page);
+    }
+    // 反向：正文区不许顺手加进这一组（它有上面那条独立守卫，这里只钉「别在同一张单子上」）。
+    expect(group).not.toMatch(/\.document-editor|\.message-markdown/);
   });
 
   it("背景层与图案只挂在 .desktop-shell 那一层（容器，不是内容）", () => {

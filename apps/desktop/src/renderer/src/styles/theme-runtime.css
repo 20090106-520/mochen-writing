@@ -299,18 +299,33 @@ html[data-theme] .desktop-shell {
   background-attachment: fixed;
 }
 
-/* 带画的皮肤：中栏与右栏放行一层，让底下的整窗插画透出来。
+/* 带画的皮肤：中栏、右栏与三张整页放行一层，让底下的整窗插画透出来。
    **只在这一档放开**——出厂十套与另外五套改编皮 art 都是 none，正文区仍是纯 --surface-main。
    正文（.document-editor / .message-markdown）不在这个列表里：背景一动字的边缘就在抖，
    那条守卫（appearance-skins.test.ts「背景与图案不落正文区」）正是在钉这件事。
    选 52% 而不是更低/更高（2026-10-08 真机量过的）：86% 时画面只剩 14%，
    而画的底色与面板底色同为深蓝，于是「画出来了但等于没出来」——
    控制台零报错、DOM 六层俱全，只有肉眼知道少了东西。
-   52% 下画面读得出来，而正文那一层仍压着 48% 的实底，长文可读。 */
+   52% 下画面读得出来，而正文那一层仍压着 48% 的实底，长文可读。
+
+   2026-10-08 波3 补三张整页（.skin-gallery / .extensions-page / .settings-page）：
+   同一族坑换了个地方复发——站在皮肤广场这一页做「整窗预览」时，`.skin-gallery` 计算出来是
+   `rgb(232, 246, 250)`、alpha **1**，它占 1154×902 而 shell 只有 1440×902，
+   于是「整窗预览」在**预览皮肤的那一页上**把画盖成了一整块实底，只剩左栏与一条 286px 的边。
+   三张页与中栏同构（都是 `grid-column: 2 / -1; grid-row: 1` 的整页，各自写着
+   `background: var(--surface-main)`），所以要放一起放，不留「这页放行那页不放行」的第二套规矩。
+   可读性不比正文那一档差：页面放行后卡面还压着 `--surface-raised` 40%，
+   合成实底 ≈ 0.4 + 0.6×0.52 ≈ 71%，比正文区单独那 52% 更厚。
+   `.settings-sidebar` 与 `.workspace-dialog` **故意不在这份名单里**：前者是一根窄列，
+   后者是模态框——表单与按钮的可读性优先级高于「画露多少」，那条判据由
+   appearance-skin-plaza-wiring.test.ts 里「正文区不在这组」的反向断言一起守。 */
 html[data-skin-art]:not([data-skin-art="none"]) .conversation-pane,
 html[data-skin-art]:not([data-skin-art="none"]) .conversation-header,
 html[data-skin-art]:not([data-skin-art="none"]) .conversation-scroll,
-html[data-skin-art]:not([data-skin-art="none"]) .editor-pane {
+html[data-skin-art]:not([data-skin-art="none"]) .editor-pane,
+html[data-skin-art]:not([data-skin-art="none"]) .skin-gallery,
+html[data-skin-art]:not([data-skin-art="none"]) .extensions-page,
+html[data-skin-art]:not([data-skin-art="none"]) .settings-page {
   background-color: color-mix(in srgb, var(--surface-main) 52%, transparent);
 }
 
