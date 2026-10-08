@@ -20,8 +20,8 @@ import {
 /* 颜色换算的真身在 appearanceColor.ts。这里 import 供本文件用，并 re-export 出去，
    让既有调用方（守卫的 __testingMixRgba 等）**一行都不用改**。
    依赖方向因此是单向的：appearanceColor ← appearanceThemeRuntime ← appearanceSkinVisual。 */
-import { hexToRgb, mix, mixChannels, mixRgba, rgba } from "./appearanceColor";
-export { mixChannels, mixRgba, rgba };
+import { hexToRgb, mix, mixChannels, mixHex, mixRgba, rgba } from "./appearanceColor";
+export { mixChannels, mixHex, mixRgba, rgba };
 
 export interface ThemePreset {
   id: string;
@@ -209,6 +209,43 @@ export { readableAccentText as readableAccentTextForTest };
 import { skinStyleVariables } from "./appearanceSkinVisual";
 export { skinStyleVariables };
 
+/**
+ * 表面阶梯第四级（卡片）与**次要文字**的混合系数——从上面那个 `setProperty` 循环里拎出来做成常量，
+ * 只有一个理由：可读性守卫要按**应用自己那一份**算，系数写在调用行里，守卫就只能重抄一遍数字，
+ * 那正是铁律 6 禁的「同一判定两份实现」。
+ *
+ * ## 为什么浅色的次要文字是 0.71 而不是原来的 0.67
+ *
+ * 2026-10-08 波3 补漏那轮真机量出来的（`.superpowers/sdd/tmp-w3-contrast.mjs`：
+ * 把字设成 transparent、在字原本所在的方块中心取 6×6 无损 PNG 采样，拿到**真正垫在字底下的颜色**）：
+ *
+ * - 「汐·昼阁」整窗预览时，广场卡说明（`.skin-card-desc`，`color: var(--text-secondary)`）
+ *   实测字色 `rgb(89,115,127)` 压在采样底 `rgb(218,238,242)` 上，**对比度 4.18:1**；
+ * - 把广场页底色钉回放行前那一档实底再量，是 **4.33:1**——
+ *   也就是说这不到 AA（4.5:1）不是「带画才放行」带来的，掉幅只有 3.5%，**是系数本身就浅**；
+ * - 静态按同一公式扫一遍 12 组浅色（10 套出厂底版 + 广场两套），对卡面不到 4.5 的有三组：
+ *   汐·昼阁 4.33、墨宸·青金 4.42、tone-03 4.47。
+ *
+ * 提到 **0.71** 之后：12 组浅色对页底最低 5.11、对卡面最低 4.88。
+ * 之所以要留到 4.88 而不是刚好 4.5：真机采样比静态算出来的低一档（画层 + 那层纱 + 52% 放行
+ * 会把垫底压暗，实测差 0.15～0.37），刚好 4.5 的静态值一上真机就破线。
+ *
+ * ## 深色为什么**不跟着动**
+ *
+ * 0.72 在 12 组深色上对卡面最低 6.36，本来就过线。为了「两边对称」去改一个没坏的数，
+ * 是把守卫变成装饰。
+ *
+ * ## 这次**没**顺手改的两处（各自要单独定线，别混在这个数里）
+ *
+ * 1. `--text-tertiary`（浅 0.5）：12 组浅色对页底最低 2.87、对卡面最低 2.74，
+ *    离 AA 更远。它消费的是卡脚那几个元信息小字，要不要按正文定线是设计判断，未在本次范围内。
+ * 2. 次要文字压在 `--surface-hover`（浅 0.085）/ `--surface-selected`（浅 0.12）上时，
+ *    0.71 仍只有 4.38 / 4.09。病因在**表面阶梯一层比一层深**，不在文字色——
+ *    要修得动阶梯（或让 hover 换字色），那是全站列表的事，另开一条。
+ */
+export const SURFACE_CARD_MIX = { light: 0.028, dark: 0.075 } as const;
+export const SECONDARY_TEXT_MIX = { light: 0.71, dark: 0.72 } as const;
+
 export function applyAppearanceThemeToDocument(input: {
   scheme: AppearanceColorScheme;
   theme: AppearanceThemeConfig;
@@ -304,7 +341,7 @@ export function applyAppearanceThemeToDocument(input: {
      又只靠 1px 描边区分，整屏所有东西挤在同一高度上（"干净但没感觉"的来源）。 */
   root.style.setProperty(
     "--surface-card",
-    mix(theme.background, theme.foreground, scheme === "dark" ? 0.075 : 0.028)
+    mix(theme.background, theme.foreground, SURFACE_CARD_MIX[scheme])
   );
   /* 阴影色按明暗分家：暗色下 foreground 接近白（#F3F4F6 之类），拿它混出来的"阴影"
      是一圈发光而不是纵深。深色用纯黑压，浅色才用前景色压。 */
@@ -324,7 +361,7 @@ export function applyAppearanceThemeToDocument(input: {
   root.style.setProperty("--text-primary", theme.foreground);
   root.style.setProperty(
     "--text-secondary",
-    mix(theme.background, theme.foreground, scheme === "dark" ? 0.72 : 0.67)
+    mix(theme.background, theme.foreground, SECONDARY_TEXT_MIX[scheme])
   );
   root.style.setProperty(
     "--text-tertiary",

@@ -44,6 +44,25 @@ export function mix(background: string, foreground: string, foregroundRatio: num
 }
 
 /**
+ * 三通道 → `#RRGGBB`。
+ *
+ * 【为什么单独有这一条】`mix()` 产的是 `rgb()`，那是**给 CSS 用**的形状；
+ * 而对比度那两个函数（`relativeLuminance` / `contrastRatio`）吃的是 hex。
+ * 守卫要量「应用真的放上去的那个混合色」，就得把同一份 `mixChannels` 的结果转成 hex——
+ * 转法的字面量留在颜色模块，比让每个守卫各自拼一遍 `toString(16)` 好。
+ */
+export function rgbToHex(rgb: readonly [number, number, number]): string {
+  return `#${rgb
+    .map((channel) => Math.max(0, Math.min(255, channel)).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+/** 混完直接给 hex：与 `mix()` 同一份 `mixChannels`，只是换个出口形状。 */
+export function mixHex(background: string, foreground: string, foregroundRatio: number): string {
+  return rgbToHex(mixChannels(background, foreground, foregroundRatio));
+}
+
+/**
  * `rgb(r g b / a)` 的**唯一一份实现**。
  *
  * **为什么永远是 `rgb()` 而不是 `rgba()`**：历史上两边都用过，而本批真机撞出过

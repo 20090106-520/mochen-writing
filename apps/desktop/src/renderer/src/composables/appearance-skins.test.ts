@@ -431,6 +431,75 @@ describe("皮肤表与配色底版 · 可读性由计算说了算", () => {
     }
   });
 
+  /**
+   * 次要文字（`--text-secondary`）——广场卡说明与页面上那些小字**真正**的字色。
+   *
+   * 【为什么正文那条盖不到它】正文量的是 `foreground` 对 `background`，那是 12:1 一档的稳过线；
+   * 次要文字是**这两色混出来的中间色**，混得越浅就越贴底色，所以它在更窄的余量里过线，
+   * 正文绿了不代表它绿。系数写歪一点、或者哪天有人把它调"更柔和"，只有这条看得见。
+   *
+   * 【2026-10-08：这条是量出来的，不是估的】真机在「汐·昼阁」整窗预览下，
+   * 把卡说明（`.skin-card-desc`）那几行字设成 transparent、在字原本所在的方块中心取 6×6 无损 PNG 采样，
+   * 得到实际垫底 `rgb(218,238,242)` 配字色 `rgb(89,115,127)` = **4.18:1**；
+   * 把广场页底色钉回放行前那档实底再量是 **4.33:1**——两档都不到 AA 的 4.5，
+   * 掉幅只有 3.5%，说明病不在「带画才放行」，在系数本身浅。
+   * 0.67 → 0.71 的出处与留量理由写在 `SECONDARY_TEXT_MIX` 那段注释，这里负责**拦住它掉回去**。
+   *
+   * 【为什么量页底 + 卡面两个面】卡面比页底深一档（`SURFACE_CARD_MIX`），次要文字压上去更吃紧；
+   * 广场正好一面一个：`.skin-gallery-note` 在页底，`.skin-card-desc` 在卡面。
+   *
+   * 【这条**没**覆盖的两处，各自要单独定线，别混进来冒充全绿】
+   * ① `--text-tertiary`（浅 0.5）对页底最低只有 2.87:1；
+   * ② 次要文字压在 `--surface-hover` / `--surface-selected` 上时 0.71 仍只有 4.38 / 4.09:1。
+   * 病因一在元信息小字要不要按正文定线，二在表面阶梯一层比一层深——都不是这个数能顺手解决的。
+   */
+  it("广场每一条 × 深浅两版：次要文字对页底与卡面 ≥ 4.5:1（AA 正文级）", async () => {
+    const { contrastRatio, mixHex, SECONDARY_TEXT_MIX, SURFACE_CARD_MIX } =
+      await import("./appearanceThemeRuntime");
+    expect(appearanceSkins.length, "皮肤表空了 —— 下面这条会全绿而一条不测").toBeGreaterThan(0);
+    for (const skin of appearanceSkins) {
+      for (const scheme of ["light", "dark"] as const) {
+        const { background, foreground } = skin[scheme];
+        const muted = mixHex(background, foreground, SECONDARY_TEXT_MIX[scheme]);
+        const card = mixHex(background, foreground, SURFACE_CARD_MIX[scheme]);
+        const onPage = contrastRatio(muted, background);
+        expect(
+          onPage,
+          `${skin.label} · ${scheme}：次要文字 ${muted} / 页底 ${background} 只有 ${onPage.toFixed(2)}:1`
+        ).toBeGreaterThanOrEqual(4.5);
+        const onCard = contrastRatio(muted, card);
+        expect(
+          onCard,
+          `${skin.label} · ${scheme}：次要文字 ${muted} / 卡面 ${card} 只有 ${onCard.toFixed(2)}:1`
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  /** 底版十条单列一遍，理由与上面那条出厂十套正文守卫一样：合写会让一边塌成零条照样全绿。 */
+  it("出厂十套 × 深浅两版同样（次要文字对页底与卡面 ≥ 4.5:1）", async () => {
+    const { contrastRatio, mixHex, SECONDARY_TEXT_MIX, SURFACE_CARD_MIX } =
+      await import("./appearanceThemeRuntime");
+    expect(appearanceTones.length, "底版空了 —— 下面这条会全绿而一条不测").toBeGreaterThanOrEqual(
+      10
+    );
+    for (const tone of appearanceTones) {
+      for (const scheme of ["light", "dark"] as const) {
+        const { background, foreground } = tone[scheme];
+        const muted = mixHex(background, foreground, SECONDARY_TEXT_MIX[scheme]);
+        const card = mixHex(background, foreground, SURFACE_CARD_MIX[scheme]);
+        expect(
+          contrastRatio(muted, background),
+          `${tone.label} · ${scheme} 的次要文字压页底不够`
+        ).toBeGreaterThanOrEqual(4.5);
+        expect(
+          contrastRatio(muted, card),
+          `${tone.label} · ${scheme} 的次要文字压卡面不够`
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
   it("深色版够暗、浅色版够亮（别把两版做成同一套）", async () => {
     const { relativeLuminance } = await import("./appearanceThemeRuntime");
     for (const skin of appearanceSkins) {
