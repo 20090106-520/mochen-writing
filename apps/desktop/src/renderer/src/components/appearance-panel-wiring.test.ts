@@ -86,6 +86,28 @@ describe("AppearancePanel · 改设置只经 useAppearanceStore.update", () => {
     expect(markup).toContain("去皮肤广场挑");
   });
 
+  /**
+   * 5-㊷：广场只留带整窗画面的皮肤，十套出厂配色降级成「配色底版」。
+   *
+   * 【这一条为什么必须钉】
+   * 盘上存着老 id 的用户，`findAppearanceSkin` 从此查不到——而那一套的三色
+   * **此刻就作用在界面上**。若面板只会说「未知的一套」，那就是把
+   * 「我们主动下架」说成「我不认识你存的东西」，用户会以为设置丢了。
+   *
+   * 【为什么兜底要查两个字段】
+   * contracts 里 `skin` 的出厂默认是占位符 `"plain"`（不在任何一张表的 id 空间里），
+   * 而真正生效的配色写在 `preset`（默认 `"codex"`）。⇒ skin → preset 都要查。
+   * 「未知」那一句仍旧留在最后一档：那五条改编皮连配色都不在表里，
+   * 界面说不出它是什么，就不能编一个名字。
+   */
+  it("查不到广场表时退回配色底版表，两张表都查不到才说「未知」", () => {
+    const script = scriptSource(PANEL);
+    expect(script).toContain('from "../composables/appearanceTones"');
+    expect(script).toContain("findAppearanceTone(skin) ?? findAppearanceTone(preset)");
+    expect(script).toContain("素面配色，不在广场里卖");
+    expect(script).toContain("未知的一套");
+  });
+
   it("模式三态与两处字体下拉都落 update；模板没有硬编码颜色", () => {
     const script = scriptSource(PANEL);
     expect(script).toContain("void appearance.update({ mode })");

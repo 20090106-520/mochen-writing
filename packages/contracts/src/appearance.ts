@@ -302,6 +302,33 @@ export const AppearanceGridSchema = z.enum(APPEARANCE_GRIDS);
 export type AppearanceGrid = z.infer<typeof AppearanceGridSchema>;
 
 /**
+ * 画面层（2026-10-08 新增）：皮肤可以带一张**整窗插画**。
+ *
+ * 【为什么必须单开一层，而不是并进 backdrop】
+ * 前面四层全是 **CSS 质地**——渐变、模糊、圆角、网格。换完了读起来仍然是
+ * 「换了个色调」：这就是用户看着皮肤广场说「只改颜色和字体」的那一句。
+ * DSH 那些「趣味换装」真正被认出来的东西恰恰不在四层里——满屏手绘场景与两侧立绘。
+ * ⇒ 这一层放的是**位图**，与 backdrop 不是一回事，也不互相替代：
+ *   `backdrop` 仍是那层 CSS 弥散光（没有画时它单独成立），`art` 在它**下面**。
+ *
+ * 【为什么是枚举而不是任意路径】
+ * 路径要是任意的，等于把「渲染层允许加载什么」的决定权交给数据表——
+ * 一条 `file://` 或远程 URL 就能从数据里长进 CSS。
+ * 枚举让「这个 id 对应哪张图」只有 appearanceSkinVisual 一处真身。
+ */
+export const APPEARANCE_ARTS = ["none", "abyss-hall-night", "shallow-hall-day"] as const;
+export const AppearanceArtSchema = z.enum(APPEARANCE_ARTS);
+export type AppearanceArt = z.infer<typeof AppearanceArtSchema>;
+
+/**
+ * 出厂取「无画」。
+ *
+ * **理由与上面四条默认一样**：老用户的 appearance.json 没有这个字段，
+ * 补成一上来就带画的，等于应用一次升级就把人家的界面换了，而用户什么也没点。
+ */
+export const DEFAULT_APPEARANCE_ART: AppearanceArt = "none";
+
+/**
  * 出厂取值的四条。
  *
  * **为什么全是「素」**：老用户盘上的 appearance.json 没有这些字段，
@@ -328,7 +355,8 @@ export const AppearanceThemeConfigSchema = z.object({
   backdrop: AppearanceBackdropSchema.default(DEFAULT_APPEARANCE_BACKDROP),
   glass: AppearanceGlassSchema.default(DEFAULT_APPEARANCE_GLASS),
   surface: AppearanceSurfaceSchema.default(DEFAULT_APPEARANCE_SURFACE),
-  grid: AppearanceGridSchema.default(DEFAULT_APPEARANCE_GRID)
+  grid: AppearanceGridSchema.default(DEFAULT_APPEARANCE_GRID),
+  art: AppearanceArtSchema.default(DEFAULT_APPEARANCE_ART)
 });
 export type AppearanceThemeConfig = z.infer<typeof AppearanceThemeConfigSchema>;
 
@@ -363,7 +391,8 @@ export function createDefaultAppearanceTheme(scheme: AppearanceColorScheme): App
       backdrop: DEFAULT_APPEARANCE_BACKDROP,
       glass: DEFAULT_APPEARANCE_GLASS,
       surface: DEFAULT_APPEARANCE_SURFACE,
-      grid: DEFAULT_APPEARANCE_GRID
+      grid: DEFAULT_APPEARANCE_GRID,
+      art: DEFAULT_APPEARANCE_ART
     };
   }
   return {
@@ -378,7 +407,8 @@ export function createDefaultAppearanceTheme(scheme: AppearanceColorScheme): App
     backdrop: DEFAULT_APPEARANCE_BACKDROP,
     glass: DEFAULT_APPEARANCE_GLASS,
     surface: DEFAULT_APPEARANCE_SURFACE,
-    grid: DEFAULT_APPEARANCE_GRID
+    grid: DEFAULT_APPEARANCE_GRID,
+    art: DEFAULT_APPEARANCE_ART
   };
 }
 

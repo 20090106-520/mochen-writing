@@ -182,6 +182,20 @@
   overflow: hidden;
 }
 
+/* 画面层（2026-10-08）：整窗插画，**排在 backdrop 之后**——
+   DOM 里它后出现，所以画在背景层**之上**。
+   这与 theme-runtime.css 那边同构，且是同一个理由：
+   那几条弥散光最后一条是不透明底色，画排它底下就永远看不见。
+   两层合成一条 background-image：纱在上、画在下。 */
+.skin-card-preview-art {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--skin-art-veil, transparent), var(--skin-art-veil, transparent)), var(--skin-art-image, none);
+  background-size: cover;
+  background-position: center;
+  pointer-events: none;
+}
+
 /* 背景层：铺满整块预览，用皮肤自己的 `--skin-backdrop`（上游那套渐变）。
    `inset: 0` + 绝对定位是为了让它待在内容底下而不占布局高度。 */
 .skin-card-preview-backdrop {

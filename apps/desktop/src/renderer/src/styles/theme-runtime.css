@@ -281,8 +281,35 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
    这里只叠一层图，不替换底色。 */
 html[data-theme] .desktop-shell {
   border-radius: var(--skin-radius-sm);
-  background-image: var(--skin-backdrop, none);
+  /* 画面层（2026-10-08）。叠放顺序是 **纱 → 画 → 弥散光**，从上到下。
+     多值 background-image 里**第一条画在最上面**，所以：
+       纱在最上（压住画，保证正文读得清）；
+       画在中间（有画时它就是那层可见背景）；
+       backdrop 的弥散光在最底——**它在无画时单独成立，有画时退成底色**。
+     ⚠️ 画必须排在 backdrop **上面**：那几条弥散光最后一条是**不透明**的
+     linear-gradient 底色，画放它底下就永远看不见（真机撞过：
+     整窗一片浅色，而 DOM 上 backgroundImage 六层俱全、控制台零报错）。
+     `background-size` 按同一个顺序给：前两条 cover，第三条 auto ——
+     backdrop 自己会展开成四层，这三个值循环下去正好都是 auto。 */
+  background-image: linear-gradient(var(--skin-art-veil, transparent), var(--skin-art-veil, transparent)), var(--skin-art-image, none), var(--skin-backdrop, none);
+  background-size: cover, cover, auto;
+  background-position: center, center, center;
   background-attachment: fixed;
+}
+
+/* 带画的皮肤：中栏与右栏放行一层，让底下的整窗插画透出来。
+   **只在这一档放开**——出厂十套与另外五套改编皮 art 都是 none，正文区仍是纯 --surface-main。
+   正文（.document-editor / .message-markdown）不在这个列表里：背景一动字的边缘就在抖，
+   那条守卫（appearance-skins.test.ts「背景与图案不落正文区」）正是在钉这件事。
+   选 52% 而不是更低/更高（2026-10-08 真机量过的）：86% 时画面只剩 14%，
+   而画的底色与面板底色同为深蓝，于是「画出来了但等于没出来」——
+   控制台零报错、DOM 六层俱全，只有肉眼知道少了东西。
+   52% 下画面读得出来，而正文那一层仍压着 48% 的实底，长文可读。 */
+html[data-skin-art]:not([data-skin-art="none"]) .conversation-pane,
+html[data-skin-art]:not([data-skin-art="none"]) .conversation-header,
+html[data-skin-art]:not([data-skin-art="none"]) .conversation-scroll,
+html[data-skin-art]:not([data-skin-art="none"]) .editor-pane {
+  background-color: color-mix(in srgb, var(--surface-main) 52%, transparent);
 }
 
 /* 图案层：网格。端场那两条线（1px 横 @4px / 1px 竖 @120px）是**暗底**上的值，

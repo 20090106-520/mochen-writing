@@ -1,15 +1,22 @@
 import { defineStore } from "pinia";
 import type {
+  AppearanceArt,
   AppearanceBackdrop,
   AppearanceGlass,
   AppearanceGrid,
   AppearanceSurface
 } from "@mochen/contracts";
 import {
+  APPEARANCE_ART_LABELS,
   APPEARANCE_BACKDROP_LABELS,
   APPEARANCE_GLASS_LABELS,
   APPEARANCE_GRID_LABELS,
   APPEARANCE_SURFACE_LABELS,
+  SKIN_ART_FILTERS,
+  SKIN_BACKDROP_FILTERS,
+  SKIN_GLASS_FILTERS,
+  SKIN_GRID_FILTERS,
+  SKIN_SURFACE_FILTERS,
   appearanceSkins,
   type AppearanceSkin
 } from "../composables/appearanceSkins";
@@ -27,18 +34,14 @@ import {
  * 四个维度各自收窄，取交集。用户要的是「给我所有带玻璃的」，
  * 而不是「背景是弥散光**或**圆角是全直角」（那是并集，筛出来的东西没法看）。
  *
- * 【档名那一列的顺序就是中文名表的键序】
- * 不在这里另排一份：加一档时中文名表与 contracts 都要改（中文名必须人来定），
- * 而按钮顺序自动跟着中文名表的键序走，不需要第三处改动。
+ * 【档只摆「表里真的有皮肤在用」的那几档】（2026-10-08 批次 5-㊷ 改）
+ * 原先这里铺的是中文名表的全量键，而 contracts 有六档背景、表里只有三档在用——
+ * 点 `nebula / ember / midnight` 必然筛出空列表，页面显示「没有匹配的皮肤」。
+ * 那句话是假象，真相是那枚按钮不该存在。
+ * ⇒ 档的来源改成 `SKIN_*_FILTERS`（在 appearanceSkins.ts 里从表派生，
+ *   顺序仍按 contracts 枚举的键序）。加一档皮肤时按钮自己长出来，
+ *   而「点了没结果」这一族在结构上就不可能再发生。
  */
-
-/* 枚举的键序 —— 也就是档在按钮上的顺序。
-   **从中文名表取键**，而不是从 contracts 再 import 一遍数组：
-   两份数组都是 contracts 的，但拿键序只在这里一处做。 */
-const APPEARANCE_BACKDROP_LABELS_ORDER = Object.keys(APPEARANCE_BACKDROP_LABELS);
-const APPEARANCE_GLASS_LABELS_ORDER = Object.keys(APPEARANCE_GLASS_LABELS);
-const APPEARANCE_SURFACE_LABELS_ORDER = Object.keys(APPEARANCE_SURFACE_LABELS);
-const APPEARANCE_GRID_LABELS_ORDER = Object.keys(APPEARANCE_GRID_LABELS);
 
 export const ALL_SKIN_FILTER = "全部";
 
@@ -50,14 +53,15 @@ export interface SkinBrowseConditions {
   glass: AppearanceGlass | "";
   surface: AppearanceSurface | "";
   grid: AppearanceGrid | "";
+  art: AppearanceArt | "";
 }
 
 function emptyConditions(): SkinBrowseConditions {
-  return { draft: "", query: "", backdrop: "", glass: "", surface: "", grid: "" };
+  return { draft: "", query: "", backdrop: "", glass: "", surface: "", grid: "", art: "" };
 }
 
 export interface SkinFilterRow {
-  key: "backdrop" | "glass" | "surface" | "grid";
+  key: "backdrop" | "glass" | "surface" | "grid" | "art";
   label: string;
   /** 那一维的全部取值（外加「全部」）。模板只 v-for 它。 */
   values: readonly string[];
@@ -73,40 +77,55 @@ export const useSkinBrowseStore = defineStore("skinBrowse", {
     hasConditions(state): boolean {
       const c = state.conditions;
       return (
-        c.query !== "" || c.backdrop !== "" || c.glass !== "" || c.surface !== "" || c.grid !== ""
+        c.query !== "" ||
+        c.backdrop !== "" ||
+        c.glass !== "" ||
+        c.surface !== "" ||
+        c.grid !== "" ||
+        c.art !== ""
       );
     },
-    /** 四行筛选的形状。真身在 filters getter，模板只 v-for。 */
+    /** 五行筛选的形状。真身在 filters getter，模板只 v-for。
+     *  `values` 用的是 `SKIN_*_FILTERS`（**从皮肤表派生**的在用小集合），
+     *  `labels` 用的是全量中文名表——档名要一直查得到，
+     *  因为老 JSON 里可能存着一档广场不卖的合法值。 */
     filterRows(state): SkinFilterRow[] {
       const c = state.conditions;
       return [
         {
           key: "backdrop",
           label: "背景",
-          values: [ALL_SKIN_FILTER, ...APPEARANCE_BACKDROP_LABELS_ORDER],
+          values: [ALL_SKIN_FILTER, ...SKIN_BACKDROP_FILTERS],
           labels: { [ALL_SKIN_FILTER]: ALL_SKIN_FILTER, ...APPEARANCE_BACKDROP_LABELS },
           current: c.backdrop || ALL_SKIN_FILTER
         },
         {
           key: "glass",
           label: "玻璃",
-          values: [ALL_SKIN_FILTER, ...APPEARANCE_GLASS_LABELS_ORDER],
+          values: [ALL_SKIN_FILTER, ...SKIN_GLASS_FILTERS],
           labels: { [ALL_SKIN_FILTER]: ALL_SKIN_FILTER, ...APPEARANCE_GLASS_LABELS },
           current: c.glass || ALL_SKIN_FILTER
         },
         {
           key: "surface",
           label: "表面",
-          values: [ALL_SKIN_FILTER, ...APPEARANCE_SURFACE_LABELS_ORDER],
+          values: [ALL_SKIN_FILTER, ...SKIN_SURFACE_FILTERS],
           labels: { [ALL_SKIN_FILTER]: ALL_SKIN_FILTER, ...APPEARANCE_SURFACE_LABELS },
           current: c.surface || ALL_SKIN_FILTER
         },
         {
           key: "grid",
           label: "图案",
-          values: [ALL_SKIN_FILTER, ...APPEARANCE_GRID_LABELS_ORDER],
+          values: [ALL_SKIN_FILTER, ...SKIN_GRID_FILTERS],
           labels: { [ALL_SKIN_FILTER]: ALL_SKIN_FILTER, ...APPEARANCE_GRID_LABELS },
           current: c.grid || ALL_SKIN_FILTER
+        },
+        {
+          key: "art",
+          label: "画面",
+          values: [ALL_SKIN_FILTER, ...SKIN_ART_FILTERS],
+          labels: { [ALL_SKIN_FILTER]: ALL_SKIN_FILTER, ...APPEARANCE_ART_LABELS },
+          current: c.art || ALL_SKIN_FILTER
         }
       ];
     }
@@ -144,6 +163,7 @@ export const useSkinBrowseStore = defineStore("skinBrowse", {
           (c.glass === "" || skin.glass === c.glass) &&
           (c.surface === "" || skin.surface === c.surface) &&
           (c.grid === "" || skin.grid === c.grid) &&
+          (c.art === "" || skin.art === c.art) &&
           this.matches([skin.label, skin.tagline, skin.origin, skin.id])
       );
     }

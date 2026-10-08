@@ -29,6 +29,7 @@
 //    而玻璃是**锦上添花**——掉帧的代价大于它带来的观感。
 
 import type {
+  AppearanceArt,
   AppearanceBackdrop,
   AppearanceGlass,
   AppearanceGrid,
@@ -384,12 +385,76 @@ const glassSheen = (accent: string, cornerAlpha: number): string =>
   `linear-gradient(145deg, rgb(255 255 255 / 0.07), transparent 58%),` +
   ` radial-gradient(ellipse at 0% 0%, ${rgba(accent, cornerAlpha)}, transparent 75%)`;
 
+/**
+ * 画面层（2026-10-08）：**位图**，不是渐变。
+ *
+ * 【它与 backdrop 的分工】
+ * `--skin-art-image` 铺在 `--skin-backdrop` **下面**，两者一起挂 `.desktop-shell` 的
+ * `background-image`。backdrop 是 CSS 弥散光（无画时它单独成立），
+ * art 是整窗手绘场景；`none` 这一档必须给 `none` 而不是空串——
+ * 空串会让那一条 `background-image` 语法不成立、整条被丢弃。
+ *
+ * 【路径为什么写死在这里】
+ * 「哪个 id 对哪张图」只有这一处真身。皮肤表里写的是 id，不是路径——
+ * 否则一条路径就能从数据里长进 CSS（`file://`、远程 URL 都行）。
+ * 相对路径对渲染层根：图在 `src/renderer/public/skins/`，
+ * 由 electron-vite 原样拷到产物根的 `skins/`。
+ */
+const ART_FILES: Record<Exclude<AppearanceArt, "none">, string> = {
+  "abyss-hall-night": "skins/abyss-hall-night.jpg",
+  "shallow-hall-day": "skins/shallow-hall-day.jpg"
+};
+
+/**
+ * 图的 CSS 值。**必须是绝对 URL**，不能只写相对路径（2026-10-08 真机撞出来的）。
+ *
+ * 【症状】token 上写着 `url("skins/x.jpg")`，DOM 里 `backgroundImage` 也确实含有那一条，
+ * 探针一路量到都对——但整窗**仍然是纯色，图根本没出来**，控制台一个字都没有。
+ *
+ * 【原因】自定义属性里那个 `url()` 是在**消费它的那份样式表**里解析的，不是在文档里。
+ * 那份样式表在 `out/renderer/assets/index-*.css`，于是 `skins/x.jpg`
+ * 被解析成 `out/renderer/assets/skins/x.jpg` —— 404。而 CSS 对加载失败的背景图
+ * 一律当透明处理，于是「没报错」与「什么都没画」两件事同时成立。
+ *
+ * ⇒ 这里用 `new URL(rel, document.baseURI)` 拿绝对地址再写进去。
+ *   顺带一层好处：图挪目录时只改 ART_FILES 一处。
+ */
+function artImage(art: AppearanceArt): string {
+  if (art === "none") return "none";
+  const rel = ART_FILES[art];
+  // 测试环境（vitest node）里没有 document，退成相对路径：
+  // 守卫只断言文件名，运行时那条绝对化由真机那轮验，不在这里假装通过。
+  const base = typeof document === "undefined" ? undefined : document.baseURI;
+  return `url("${base ? new URL(rel, base).href : rel}")`;
+}
+
+/**
+ * 画上面那层纱。
+ *
+ * 【为什么按**皮肤的底色**给，不按明暗判】（2026-10-08 真机撞出来的）
+ * 原来按 `isDark` 分了深浅两支，结果「汐 · 夜阁」翻车：
+ * 它的浅色版底色本来就是深蓝（那是一套夜里的皮肤），于是在浅色模式下
+ * 给了一层**浅色**纱——把画洗白了一片。
+ * ⇒ 纱就是这条皮肤自己的底色盖一层：底色深 → 压暗，底色浅 → 提亮，
+ *   与当前是浅色还是深色模式无关。正文压在画上时对比度也一定够。
+ */
+const artVeil = (art: AppearanceArt, paper: string): string =>
+  art === "none" ? "transparent" : rgba(paper, 0.22);
+
 /** 供皮肤广场卡片预览与运行时共用：把四层换算成一份可直接内联到 style 的自定义属性表。 */
 export function skinStyleVariables(input: {
   backdrop: AppearanceBackdrop;
   glass: AppearanceGlass;
   surface: AppearanceSurface;
   grid: AppearanceGrid;
+  /**
+   * 画面层。**必填，不给默认**（2026-10-08）。
+   *
+   * 四层那边没有这一条口径，是因为它们各有各的出厂值可退；
+   * 画面层退错了的后果是「一套带画的皮肤悄悄不显示画」——
+   * 那正是这一层要解决的那个症状本身，所以宁可编译期红，也不给它默认。
+   */
+  art: AppearanceArt;
   /** 该套皮肤的强调色——玻璃角落光与对话框压边要用它。 */
   accent: string;
   /** 纹理/图案底色。卡片预览里传皮肤自己的前景色（让图案长在那个色系上）。 */
@@ -433,6 +498,8 @@ export function skinStyleVariables(input: {
   const sidebarFillAlpha = glassOn && translucent ? glass.sidebarAlpha : "1";
   return {
     "--skin-backdrop": isDark ? glow.dark : glow.light,
+    "--skin-art-image": artImage(input.art),
+    "--skin-art-veil": artVeil(input.art, input.paper),
     "--skin-glass-blur": glass.blur,
     "--skin-glass-alpha": glass.alpha,
     "--skin-glass-saturate": glass.saturate,

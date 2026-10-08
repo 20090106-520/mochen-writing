@@ -8,6 +8,7 @@ import { APPEARANCE_FONT_FAMILY_LABELS, type AppearanceMode } from "@mochen/cont
 import { useAppearanceStore } from "../stores/useAppearanceStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { findAppearanceSkin } from "../composables/appearanceSkins";
+import { findAppearanceTone } from "../composables/appearanceTones";
 import {
   applyReducedMotion,
   loadReducedMotion,
@@ -31,10 +32,27 @@ const modeIcon = computed(() => MODE_ICONS[appearance.settings.mode]);
 /** 现在用的是哪一套皮肤的名字。取不到时如实说「未知」而不是静默显示空白——
  *  取不到只有一种情形：盘上存的那个 skin id 不在表里（表被改过、或换了版本）。
  *  那种时候界面必须承认「不认识」，因为用户点「去皮肤广场」之后
- *  在那里看到的会是另一套，而这里什么都不说就成了两处互相矛盾。 */
+ *  在那里看到的会是另一套，而这里什么都不说就成了两处互相矛盾。
+ *
+ *  【5-㊷ 加的那一档：下架了，但配色还在】
+ *  广场这一批只留带整窗画面的皮肤，于是盘上存着老 id（十套出厂配色）的用户
+ *  会走到这里。让他们读「未知的一套」是假话——那一套的三色此刻就作用在界面上，
+ *  只是它作为「皮肤」这个整体下架了。⇒ 先查广场表，再查配色底版表，
+ *  查到底版就说清「能用，只是不在广场里卖了」。
+ *  真正查不到的（那五条改编皮）仍旧走「未知」那一句：它们连配色都不在表里，
+ *  界面说不出它是什么，就不能编一个名字。
+ *
+ *  【为什么底版查询要走两个字段】
+ *  `skin` 在 contracts 里的出厂默认是 `"plain"`——那是个**占位符**，不是任何一张表里的 id。
+ *  于是没换过皮肤的新用户，`skin` 查不到，而 `preset` 是 `"codex"`（真正生效的那套配色）。
+ *  ⇒ 兜底顺序是 skin → preset，两个都查不到才说「未知」。 */
 const currentSkinLabel = computed(() => {
-  const skin = findAppearanceSkin(appearance.settings.light.skin);
-  return skin ? `${skin.label} · ${skin.tagline}` : "未知的一套（在皮肤广场里挑一个就好）";
+  const { skin, preset } = appearance.settings.light;
+  const found = findAppearanceSkin(skin);
+  if (found) return `${found.label} · ${found.tagline}`;
+  const tone = findAppearanceTone(skin) ?? findAppearanceTone(preset);
+  if (tone) return `${tone.label} · 素面配色，不在广场里卖（配色照旧能用）`;
+  return "未知的一套（在皮肤广场里挑一个就好）";
 });
 
 /** 去皮肤广场。走 layout 真身——左栏那枚钮是同一条通路。 */

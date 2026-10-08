@@ -2,6 +2,7 @@
 // 仅把 @deepwrite/contracts/renderer 换成 @mochen/contracts。
 
 import {
+  APPEARANCE_ARTS,
   APPEARANCE_BACKDROPS,
   APPEARANCE_FONT_SIZE_LIMITS,
   APPEARANCE_GLASSES,
@@ -31,9 +32,14 @@ export interface ThemePreset {
 
 export const FONT_SIZE_LIMITS = APPEARANCE_FONT_SIZE_LIMITS;
 
-/* 皮肤表是配色的真身（见 themePresets 那段注释）。这里只 import 投影要用的那两件；
-   OWN_SKIN_ORIGIN 由皮肤表导出——出处判定是那张表的事，不在这里另写一个字面量。 */
-import { OWN_SKIN_ORIGIN, appearanceSkins } from "./appearanceSkins";
+/* 配色的真身是**出厂底版表**（见下面 themePresets 那段注释）。
+   5-㊷ 之前这里 import 的是 appearanceSkins 再按 `origin === OWN_SKIN_ORIGIN` 筛，
+   而那一版之后皮肤表只收带画的皮——筛出来的会是**零条**。
+   零条不是「少了几套预设」，是下面那条对比度守卫变成空遍历：照样全绿，一条也没测。
+   ⇒ 投影源改成 appearanceTones（那份按定义就只有三色，不需要再筛），
+     连 `OWN_SKIN_ORIGIN` 这句字符串判据一起省掉：判据从「比对一句出处」
+     变成「这一族本来就只有三色」，不会再因为谁改了一句话而悄悄失效。 */
+import { appearanceTones } from "./appearanceTones";
 
 /**
  * 主题配色预设（2026-10-06 批次 5-⑧：由 4 条扩到 10 条）。
@@ -49,7 +55,7 @@ import { OWN_SKIN_ORIGIN, appearanceSkins } from "./appearanceSkins";
  * 每套都配**深浅两版**，因为 mode 可以是 system——只做好看的一套等于有一半时间在用不配套的那版。
  */
 /**
- * 主题配色预设——**从皮肤表派生**（2026-10-07 批次 5-㊴）。
+ * 主题配色预设——**从出厂底版派生**（2026-10-07 批次 5-㊴ 建投影，5-㊷ 换投影源）。
  *
  * 【为什么这里不再自己写一份】
  * 批次 5-㊴ 之前，十套配色的三色只写在 themePresets 这一张表里。
@@ -57,24 +63,23 @@ import { OWN_SKIN_ORIGIN, appearanceSkins } from "./appearanceSkins";
  * 皮肤表（有质感）与这里（没质感）。两份表迟早会漂移——
  * 守卫钉的是这一份，用户在皮肤广场看到的是那一份，红的绿的都说不清是谁的。
  *
- * ⇒ 真身移到 appearanceSkins.ts，这里只做一次投影：
- *   皮肤表里有视觉四层、没视觉层的都有（十套出厂配色是素面的），
- *   而这份预设表**只暴露配色三色**——它的消费者（AppearancePanel、
- *   导入导出主题文件、可读性守卫）要的就是三色，多给视觉层只会让它们各自去 ignore。
+ * ⇒ 真身移到 `appearanceTones.ts`，这里只做一次投影。
+ *   5-㊴ 到 5-㊵ 之间投影源是皮肤表 + 一句出处筛，而 5-㊷ 把广场改成只收带画的皮之后，
+ *   那条筛只剩「筛出零条」这一个结果——所以底版单独成表，投影直读它。
+ *   这份预设表**只暴露配色三色**：它的消费者（导入导出主题文件、可读性守卫）
+ *   要的就是三色，多给视觉四层与画面层只会让它们各自去 ignore。
  *
- * 【为什么投影只保留出厂那十条】
- * 十套出厂配色的顺序是 5-⑧ 定下的，有用户按位置记它；
- * 后面五条改编皮肤不进来投影（它们只在皮肤广场出现），
- * 否则「主题配色」里会混进两套含义不同的东西。
+ * 【为什么还是那十条、顺序也不许动】
+ * 十条的顺序是 5-⑧ 定下的，有用户按位置记它；而它们的 id 与三色已经存进用户盘的
+ * appearance.json，改任何一个都是把别人的主题改掉。带画的皮肤不进来投影，
+ * 否则「主题配色」里会混进两套含义不同的东西（5-㊵ 真机红过一次：10 条变 12 条）。
  */
-export const themePresets: ThemePreset[] = appearanceSkins
-  .filter((skin) => skin.origin === OWN_SKIN_ORIGIN)
-  .map((skin) => ({
-    id: skin.id,
-    label: skin.label,
-    light: { ...skin.light },
-    dark: { ...skin.dark }
-  }));
+export const themePresets: ThemePreset[] = appearanceTones.map((tone) => ({
+  id: tone.id,
+  label: tone.label,
+  light: { ...tone.light },
+  dark: { ...tone.dark }
+}));
 
 export function defaultAppearanceTheme(scheme: AppearanceColorScheme): AppearanceThemeConfig {
   return createDefaultAppearanceTheme(scheme);
@@ -145,7 +150,8 @@ export function sanitizeAppearanceTheme(
     backdrop: sanitizeEnum(candidate.backdrop, APPEARANCE_BACKDROPS, fallback.backdrop),
     glass: sanitizeEnum(candidate.glass, APPEARANCE_GLASSES, fallback.glass),
     surface: sanitizeEnum(candidate.surface, APPEARANCE_SURFACES, fallback.surface),
-    grid: sanitizeEnum(candidate.grid, APPEARANCE_GRIDS, fallback.grid)
+    grid: sanitizeEnum(candidate.grid, APPEARANCE_GRIDS, fallback.grid),
+    art: sanitizeEnum(candidate.art, APPEARANCE_ARTS, fallback.art)
   };
 }
 
@@ -229,6 +235,8 @@ export function applyAppearanceThemeToDocument(input: {
      只列名字不参与运行时——真正写进去的还是上面那个循环（**值的真身只有一处**）。 */
   const skinTokenNames = [
     "--skin-backdrop",
+    "--skin-art-image",
+    "--skin-art-veil",
     "--skin-glass-blur",
     "--skin-glass-alpha",
     "--skin-glass-saturate",
@@ -255,6 +263,7 @@ export function applyAppearanceThemeToDocument(input: {
     glass: theme.glass,
     surface: theme.surface,
     grid: theme.grid,
+    art: theme.art,
     accent: theme.accent,
     ink: theme.foreground,
     paper: theme.background,
@@ -267,6 +276,7 @@ export function applyAppearanceThemeToDocument(input: {
     root.style.setProperty(name, skinTokens[name] ?? "none");
   }
   root.dataset.skinSurface = theme.surface;
+  root.dataset.skinArt = theme.art;
 
   root.style.setProperty("--accent", theme.accent);
   root.style.setProperty("--accent-contrast", readableAccentText(theme.accent));

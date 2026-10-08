@@ -28,7 +28,7 @@ import { skinStyleVariables } from "./appearanceSkinVisual";
  *  共享 helper 若也叫 vars，薄封装就变成**自己调自己**——
  *  运行上直接是 `RangeError: Maximum call stack size exceeded`（实测撞过）。 */
 function tokens(
-  layers: { backdrop?: string; glass?: string; surface?: string; grid?: string },
+  layers: { backdrop?: string; glass?: string; surface?: string; grid?: string; art?: string },
   scheme: "light" | "dark" = "dark"
 ) {
   return skinStyleVariables({
@@ -36,6 +36,7 @@ function tokens(
     glass: (layers.glass ?? "none") as never,
     surface: (layers.surface ?? "plain") as never,
     grid: (layers.grid ?? "none") as never,
+    art: (layers.art ?? "none") as never,
     accent: scheme === "dark" ? "#5EACFF" : "#6B5D00",
     ink: scheme === "dark" ? "#F3F4F6" : "#101110",
     paper: scheme === "dark" ? "#17191C" : "#E8E8E2",
@@ -226,6 +227,7 @@ describe("运行时 · 玻璃层的数值来自上游，不是本仓自造的档
       glass: "standard",
       surface: "plain",
       grid: "none",
+      art: "none",
       accent: "#5EACFF",
       ink: "#F3F4F6",
       paper: "#17191C",
@@ -241,6 +243,7 @@ describe("运行时 · 玻璃层的数值来自上游，不是本仓自造的档
       glass: "standard",
       surface: "plain",
       grid: "none",
+      art: "none",
       accent: "#5EACFF",
       ink: "#F3F4F6",
       paper: "#17191C",
@@ -325,6 +328,7 @@ describe("运行时 · 表面与图案搬的是上游那几处", () => {
       glass: "none",
       surface: "plain",
       grid: "industrial",
+      art: "none",
       accent: "#FFF500",
       ink: "#F5F5F0",
       paper: "#101110",
@@ -334,5 +338,42 @@ describe("运行时 · 表面与图案搬的是上游那几处", () => {
     // 无图案那档不许留一个 screen/multiply 上去（那是白铺一层或压一层）。
     expect(vars("plain", "none")["--skin-grid-blend"]).toBe("normal");
     expect(vars("plain", "none")["--skin-grid-image"]).toBe("none");
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+   画面层（2026-10-08）：位图，不是渐变。
+   这一层的存在理由就是「前四层换完仍然只是换了个色调」，
+   所以它的守卫要钉的是**它真的换了东西**，而不是「它有产出」。
+   ───────────────────────────────────────────────────────────────────────── */
+describe("运行时 · 画面层", () => {
+  it("无画面这一档必须真的什么都没有：图给 none、纱给 transparent", () => {
+    /* 两条都钉。
+       `url()` 给空串的话，CSS 那条 `background-image` 语法不成立、**整条被丢弃**——
+       而丢弃的表现是「那层没生效」，控制台一个字都没有。
+       纱若给了真渐变，默认皮肤也会被压暗一层：一次升级就把所有用户的界面改了。 */
+    const v = tokens({ art: "none" });
+    expect(v["--skin-art-image"], "无画面却给了图").toBe("none");
+    expect(v["--skin-art-veil"], "无画面却压了一层纱").toBe("transparent");
+  });
+
+  it("两个画档各给一张自己的图，且路径是渲染层根的相对路径", () => {
+    const night = tokens({ art: "abyss-hall-night" })["--skin-art-image"]!;
+    const day = tokens({ art: "shallow-hall-day" })["--skin-art-image"]!;
+    expect(night).toContain('url("skins/abyss-hall-night.jpg")');
+    expect(day).toContain('url("skins/shallow-hall-day.jpg")');
+    // 不许出现绝对路径 / file:// / 远程域名：路径是数据能碰到的唯一出口，
+    // 枚举就是把它关在「只有这三档」里。带画的东西跑远程 URL 等于每次开窗发一个请求。
+    for (const value of [night, day]) {
+      expect(value, "路径跑出去了").not.toMatch(/file:|https?:|\.\.|[A-Z]:\\/i);
+    }
+  });
+
+  it("有画时纱是实打实的一层，不是 transparent（压不住正文就等于没画）", () => {
+    for (const scheme of ["light", "dark"] as const) {
+      expect(tokens({ art: "abyss-hall-night" }, scheme)["--skin-art-veil"]).not.toBe(
+        "transparent"
+      );
+    }
   });
 });

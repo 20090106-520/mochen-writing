@@ -15,6 +15,7 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { useAppearanceStore } from "../stores/useAppearanceStore";
 import { useSkinBrowseStore } from "../stores/useSkinBrowse";
 import {
+  APPEARANCE_ART_LABELS,
   APPEARANCE_BACKDROP_LABELS,
   APPEARANCE_GLASS_LABELS,
   APPEARANCE_GRID_LABELS,
@@ -69,6 +70,7 @@ function previewStyle(skin: AppearanceSkin): Record<string, string> {
     glass: skin.glass,
     surface: skin.surface,
     grid: skin.grid,
+    art: skin.art,
     accent: tone.accent,
     ink: tone.foreground,
     paper: tone.background,
@@ -106,7 +108,8 @@ function applySkin(skin: AppearanceSkin): void {
     backdrop: skin.backdrop,
     glass: skin.glass,
     surface: skin.surface,
-    grid: skin.grid
+    grid: skin.grid,
+    art: skin.art
   };
   void appearance.update({
     light: {
@@ -189,9 +192,11 @@ function backToChat(): void {
 
     <div class="skin-gallery-body">
       <p class="skin-gallery-note">
-        一套皮肤 = 配色三色 + 视觉四层（背景 / 玻璃 / 表面 / 图案），浅色与深色一并应用。
-        带出处的那五条改编自 DeepSeek Harness 的开源换装插件（MIT）：背景、玻璃参数与网格
-        都是从上游源码里搬的数值，不是本仓另配的一套。
+        广场只收带整窗画面的皮肤：一套 = 配色三色 + 视觉四层（背景 / 玻璃 / 表面 / 图案）+
+        一层画面，浅色与深色一并应用。上一批那五条改编自 DeepSeek Harness 的开源换装插件（MIT）
+        已经从广场下架——它们搬的都是参数（玻璃 blur、网格间距、弥散光的 alpha），
+        换上去读起来仍然只是「换了个色调」。下架不等于销毁：十套出厂配色仍在「设置 · 外观」
+        里作为配色底版可用，上游的数值与逐行出处也仍留在皮肤视觉的数值表与守卫里。
       </p>
 
       <p v-if="skins.length === 0" class="skin-gallery-empty">
@@ -206,6 +211,7 @@ function backToChat(): void {
                与真正应用时 CSS 挂的位置一致，所以卡片上看到的就是换上之后的样子。 -->
           <div class="skin-card-preview" :style="previewTone(skin)">
             <div class="skin-card-preview-backdrop" />
+            <div class="skin-card-preview-art" />
             <div class="skin-card-preview-grid" />
             <div class="skin-card-preview-panel">
               <div class="skin-card-preview-row">
@@ -240,6 +246,7 @@ function backToChat(): void {
 
           <div class="skin-card-foot">
             <span class="skin-card-feel">
+              <span>{{ APPEARANCE_ART_LABELS[skin.art] }}</span>
               <span>{{ APPEARANCE_BACKDROP_LABELS[skin.backdrop] }}</span>
               <span>{{ APPEARANCE_GLASS_LABELS[skin.glass] }}</span>
               <span>{{ APPEARANCE_SURFACE_LABELS[skin.surface] }}</span>

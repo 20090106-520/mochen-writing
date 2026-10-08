@@ -1,5 +1,22 @@
 /**
- * 皮肤广场的**皮肤表**（2026-10-07 批次 5-㊴ 建，5-㊵ 按上游源码重做）。
+ * 皮肤广场的**皮肤表**（2026-10-07 批次 5-㊴ 建，5-㊵ 按上游源码重做，5-㊷ 改成只收带画的）。
+ *
+ * 【批次号为什么是 ㊷ 而不是 ㊶】
+ * 本批落笔时工作区里已有一条**未提交**的 5-㊶（中文输入法组合态，另一条线上正在做的活），
+ * 台账里也写了它。同号会让两批人在同一份账上撞车，所以本批顺延为 5-㊷，
+ * 并在 `docs/superpowers/plans/README.md` 里按 ㊷ 记账。
+ *
+ * 【5-㊷ 这一刀切掉了什么，以及为什么】
+ * 用户看完 5-㊵ 那一版说：「那 15 套没有画的，给去除。加入能有画的和挂件。」
+ * 这一句判的正是 5-㊵ 自己已经承认过的东西——四层全是 **CSS 质地**，
+ * 换完了读起来仍然是「换了个色调」；真正被一眼认出来的是 `art` 那一层（整窗插画）。
+ * ⇒ 广场上现在只有 `art !== "none"` 的皮肤。被下架的十五条分两处安置：
+ *   · 十套出厂配色 → `appearanceTones.ts`（**一条数据都没少**，理由与后果写在那份文件头）。
+ *   · 五套改编皮 → 条目下架，但它们从上游搬来的**数值与出处全留着**
+ *     （`appearanceSkinVisual.ts` 的 `UPSTREAM_*` 常量，每条都注着原文件与行号，
+ *     对账守卫是 `appearance-skin-visual.test.ts`）。
+ *     为什么不一起删：老用户盘上存着 `glass: "standard"`、`grid: "industrial"` 的，
+ *     运行时照样要按上游那一条值渲染；枚举与数值一删，那些人什么也没点，界面却自己变了。
  *
  * 【5-㊴ 那一版为什么被用户否掉】
  * 那一版把上游的视觉语言**概括成四个离散档**（texture/radius/outline/glow 各三四档），
@@ -15,10 +32,10 @@
  *     叠一条 120px 间距的竖线（src/styles/theme.css:1669-1671）
  * 「四档离散值」表达不了上面任何一条。
  *
- * 【这一版的做法：数值从上游源码搬，不自己发明】
+ * 【做法：数值从上游源码搬，不自己发明】
  * 每条皮肤上标注了**搬的是哪个文件的哪一段**，值本身逐字来自上游源码，
  * 只有「怎么落到墨宸 token 上」是墨宸自己的适配。取值由
- * `appearanceThemeRuntime` 里的 `UPSTREAM_*` 常量读出，那儿每条都有出处注释。
+ * `appearanceSkinVisual.ts` 里的 `UPSTREAM_*` 常量读出，那儿每条都有出处注释。
  *
  * 【改编自哪些上游，以及为什么是「改编」而不是「搬」】
  * 上游都是 DeepSeek Harness 的插件（`client.js` + Cordis），
@@ -30,34 +47,45 @@
  *   Ayase34/gal-view                 galgame   MIT
  *   elysia395/dsh-wallpaper-engine   壁纸引擎  MIT
  *
- * 【两条收录前的许可结论，写在这里是因为它们决定了「谁没进来」】
+ * 【两条上游美术的许可结论，以及 5-㊷ 收到的裁定】
  * ① Small-tailqwq/dsh-deep-whale（鲸鱼娘，★2436）：仓库根 LICENSE 写明
  *    「Artwork … excluded from MIT」，美术按 CC BY-NC-SA 4.0、**禁止商业性使用**。
- *    墨宸是能卖钱的写作软件，所以它的插画与壁纸一律不进来。
  * ② GGBond2424648901/deep-whale-day-night-theme：整仓 **CC BY-NC-SA 4.0**（不是 MIT），
- *    连代码都不在 MIT 范围内 ⇒ 整个不收。
- * 这两条不是「没找到」，是核实过许可后主动排除的。
+ *    连代码都不在 MIT 范围内。
+ * 这两条不是「没找到」，是核实过许可才暂缓的。
+ * 原先这里写过一句「墨宸是能卖钱的写作软件，所以它的插画与壁纸一律不进来」——
+ * 那句「要卖」是上一批**我编的**前提，用户 2026-10-08 明确否认过，已删。
+ * ⇒ **5-㊷ 裁定到了**：同日问用户「新皮肤的插画素材从哪来」，他选的是
+ *   「全部自绘 + 我自己提供图」，**没有选**「把那两套上游美术搬进来」。
+ *   所以这两条继续不进表，理由从「等裁定」换成「裁定是走自绘与用户自有图」。
+ *   `appearance-skins.test.ts` 里那条「被排除的两个非商用仓库不许出现」因此继续成立，不删。
  */
 import {
+  APPEARANCE_ARTS,
   APPEARANCE_BACKDROPS,
   APPEARANCE_GLASSES,
   APPEARANCE_GRIDS,
   APPEARANCE_SURFACES,
+  type AppearanceArt,
   type AppearanceBackdrop,
   type AppearanceGlass,
   type AppearanceGrid,
   type AppearanceSurface
 } from "@mochen/contracts";
-
-export interface SkinTone {
-  accent: string;
-  background: string;
-  foreground: string;
-}
+/* 三色底版的真身在 `appearanceTones.ts`，这里 re-export 那两个出处常量与 `SkinTone`。
+   **同一个概念不开第二个名字**，而既有 import 路径（`appearanceThemeRuntime` 的投影、
+   两份守卫）一行都不用改——与 runtime 那边 re-export `skinStyleVariables` 同一套路。 */
+import type { SkinTone } from "./appearanceTones";
+export { OWN_SKIN_ORIGIN, OWN_SKIN_LICENSE } from "./appearanceTones";
+export type { SkinTone };
 
 /**
- * 一条皮肤。`backdrop / glass / surface / grid` 四层视觉，
- * 与 `AppearanceThemeConfig` 上同名的四个字段一一对应（铁律 6：名字不许分家）。
+ * 一条皮肤。`backdrop / glass / surface / grid` 四层质感 + `art` 一层画面，
+ * 与 `AppearanceThemeConfig` 上同名的五个字段一一对应（铁律 6：名字不许分家）。
+ *
+ * **四层与一层不是一回事**（2026-10-08 记）：四层全是 CSS 质地，
+ * 换完读起来仍然只是「换了个色调」——用户看皮肤广场时说的就是这一句。
+ * `art` 才是被一眼认出来的那层：整窗插画。
  */
 export interface AppearanceSkin {
   id: string;
@@ -66,270 +94,180 @@ export interface AppearanceSkin {
   tagline: string;
   /** 灵感出处。写法与技能市场的 `UPSTREAM` 同一口径：`改编自 <owner>/<repo> 的 <那一套>`。 */
   origin: string;
-  /** 许可。代码类上游一律 MIT；被排除的那两个在文件头注释里说明，不在这里出现。 */
+  /** 许可。代码类上游一律 MIT；被排除的那两条在文件头说明，不在这里出现。 */
   license: string;
-  /** 这是墨宸自有的出厂配色（十套原有预设），不是改编来的。 */
   light: SkinTone;
   dark: SkinTone;
   backdrop: AppearanceBackdrop;
   glass: AppearanceGlass;
   surface: AppearanceSurface;
   grid: AppearanceGrid;
+  /**
+   * 整窗画面。**广场的入场条件就是它不为 `"none"`**（5-㊷）。
+   *
+   * 这条判据由守卫直接钉在表上（逐条 `art !== "none"`）——因为它一旦松动，
+   * 广场就悄悄退回「一堆只改颜色的卡片」，而那正是用户连着两次否掉的东西，
+   * 第二次还专门说了「给去除」。
+   */
+  art: AppearanceArt;
 }
 
-/* ── 四层的取值表 ────────────────────────────────────────────────────────
-   全部取自 contracts 的四个枚举，不在这里另写一份字面量——
+/* ── 五层的取值表 ────────────────────────────────────────────────────────
+   全部取自 contracts 的枚举，不在这里另写一份字面量——
    加一档时这张表会自己跟着长（铁律 6）。 */
 
-/* 「墨宸出厂配色」与它的许可——**真身，且必须在 appearanceSkins 之前声明**。
-
-   它不只是给用户看的：`themePresets` 靠 origin === OWN_SKIN_ORIGIN 做投影。
-   在下面 plainSkin 里手写一遍字面量就是把那一条判据复制成两份（铁律 6），
-   而漂移的后果是「主题配色」里混进改编皮肤，或者投影出零条。
-
-   **为什么必须放在表前面**：下面那个 appearanceSkins 数组是**模块求值期**就跑的，
-   它直接调用 plainSkin。声明在数组之后的话，plainSkin 执行时 const 还在 TDZ 里，
-   抛的是「before initialization」——语法与类型检查全绿，
-   只有真的 import 这个模块才会炸（本批真机前就被它挡下来了）。 */
-export const OWN_SKIN_ORIGIN = "墨宸出厂配色";
-export const OWN_SKIN_LICENSE = "本仓自有";
-
-function plainSkin(input: {
-  id: string;
-  label: string;
-  tagline: string;
-  light: SkinTone;
-  dark: SkinTone;
-}): AppearanceSkin {
-  return {
-    ...input,
-    // 这两个字面量必须取常量：`themePresets` 靠 origin === OWN_SKIN_ORIGIN 做投影，
-    // 在这里手写一遍就等于把那条判据复制成两份（铁律 6）。
-    origin: OWN_SKIN_ORIGIN,
-    license: OWN_SKIN_LICENSE,
-    backdrop: "plain",
-    glass: "none",
-    surface: "plain",
-    grid: "none"
-  };
-}
+/**
+ * 墨宸**原创画面**的出处标记。
+ *
+ * 【为什么不能复用 OWN_SKIN_ORIGIN】
+ * `themePresets` 是「只有三色的出厂配色」那一族。给了「汐」系列同一句出处，
+ * 两条带画的皮就被投影进那张表里——而它的消费者只要三色，
+ * 多出来的质感四层与画面层各自 ignore，
+ * 于是那页里混进了两套含义不同的东西（真机上就是这里红的：10 条变 12 条）。
+ *
+ * 5-㊷ 之后出厂那十套整个住进 `appearanceTones.ts`，投影也不再从皮肤表里筛，
+ * 但**这两句仍然必须分开**：广场里「墨宸原创画面」与「改编自某上游」是两种归属，
+ * 许可义务不同（前者本仓自有，后者要注明出处）。
+ * 加第三种归属时同样要新开一句，不要往这句话里塞。
+ */
+export const OWN_ART_ORIGIN = "墨宸原创画面";
+export const OWN_ART_LICENSE = "本仓自有";
 
 /**
- * 皮肤广场的全表。
+ * 皮肤广场的全表：**只有带整窗画面的皮肤才进这里**。
  *
- * **顺序就是页面上的顺序**，前十条是原有十套配色一字未改（守卫钉着），
- * 后面是从 DSH 换装插件搬来的五套。
+ * **顺序就是页面上的顺序**，同系列昼夜成对排（浅色版在前、深色版在后）——
+ * 广场卡片按当前明暗渲染预览，同系列挨着才比得出「同一间阁子的白天与夜里」。
  */
 export const appearanceSkins: AppearanceSkin[] = [
-  /* ── 一、原有的十套配色（批次 5-⑧ 的成果，id 与色值一字不改） ── */
-  plainSkin({
-    id: "codex",
-    label: "Codex",
-    tagline: "出厂默认。素面、轻圆角、实线描边，不加任何装饰。",
-    light: { accent: "#339CFF", background: "#FFFFFF", foreground: "#1A1C1F" },
-    dark: { accent: "#5EACFF", background: "#17191C", foreground: "#F3F4F6" }
-  }),
-  plainSkin({
-    id: "paper",
-    label: "暖纸",
-    tagline: "纸白底、暖褐强调。写长文时最不刺眼的一套。",
-    light: { accent: "#A25D35", background: "#FBF7EF", foreground: "#2E2823" },
-    dark: { accent: "#E49B66", background: "#201C19", foreground: "#F7EFE5" }
-  }),
-  plainSkin({
-    id: "ocean",
-    label: "海雾",
-    tagline: "青灰蓝调，像隔着雾看海。近单色，长时间写不累。",
-    light: { accent: "#257F8B", background: "#F4FAFA", foreground: "#193135" },
-    dark: { accent: "#5CC3CF", background: "#102124", foreground: "#E5F3F4" }
-  }),
-  plainSkin({
-    id: "mochen-qingjin",
-    label: "墨宸 · 青金",
-    tagline: "本仓的招牌：浅色纸白配深墨青，深色墨青近黑配金。",
-    light: { accent: "#1F5C55", background: "#F7F4EC", foreground: "#242E2B" },
-    dark: { accent: "#D4B45A", background: "#101B18", foreground: "#EAE5D6" }
-  }),
-  plainSkin({
-    id: "bamboo",
-    label: "竹青",
-    tagline: "偏绿的冷调，安静但不压抑。",
-    light: { accent: "#357A5C", background: "#F2F7F3", foreground: "#1D2A23" },
-    dark: { accent: "#6FC79A", background: "#0E1A14", foreground: "#E0EEE5" }
-  }),
-  plainSkin({
-    id: "dusk",
-    label: "暮山紫",
-    tagline: "低饱和的紫，像黄昏时山背后的那层光。",
-    light: { accent: "#66568F", background: "#F6F4FA", foreground: "#251F33" },
-    dark: { accent: "#B3A3E8", background: "#15111E", foreground: "#E7E2F2" }
-  }),
-  plainSkin({
-    id: "ink",
-    label: "墨黑",
-    tagline: "唯一一套近单色：想让屏幕整个退到后面去时用它。",
-    light: { accent: "#2A2E33", background: "#FAFAFA", foreground: "#14171A" },
-    dark: { accent: "#DCDCDC", background: "#0A0A0A", foreground: "#F2F2F2" }
-  }),
-  plainSkin({
-    id: "silk",
-    label: "绢素",
-    tagline: "几乎无色相，最中性。代价是层次感弱。",
-    light: { accent: "#7D7263", background: "#FAF9F7", foreground: "#2A2724" },
-    dark: { accent: "#C0B39D", background: "#191714", foreground: "#EEE9E0" }
-  }),
-  plainSkin({
-    id: "dai",
-    label: "黛蓝",
-    tagline: "带点灰的蓝，像染缸里的那层靛。",
-    light: { accent: "#2D5A88", background: "#F1F5F9", foreground: "#192532" },
-    dark: { accent: "#7FAED9", background: "#0F1720", foreground: "#E0EBF3" }
-  }),
-  plainSkin({
-    id: "crimson",
-    label: "绛红",
-    tagline: "暗红底、暗红字。只在深色下才压得住。",
-    light: { accent: "#9E3838", background: "#FBF4F3", foreground: "#2D1C1C" },
-    dark: { accent: "#D67B7B", background: "#1B1212", foreground: "#F1E3E3" }
-  }),
+  /* ── 墨宸自有的「汐」系列（2026-10-08，批次 5-㊵） ──────────────────────
+     【这一批为什么存在】
+     用户看皮肤广场后说：「我想要的是 DSH 那个趣味换装一样的皮肤，
+     而不是只改颜色和字体。」前五条改编皮搬的全是**参数**——玻璃 blur、网格间距、
+     弥散光的 alpha。搬得再准，它仍然是 CSS 质地，读起来就是「换了个色调」。
+     DSH 那边真正被一眼认出来的是**画**：整窗手绘场景 + 两侧立绘
+     （原版 `Small-tailqwq/dsh-deep-whale` 的 `maid-atelier` 一套就带二十多个素材件）。
+     ⇒ 这一批给皮肤表加了 `art`（位图），并且**画是墨宸自己设计的**。
 
-  /* ── 二、从 DSH 换装插件搬来的五套 ──
-     每条下面都注明「搬的是哪个文件的哪一段」。 */
+     【概念：深渊 × 鲸鱼 × 深海写作阁】
+     沉在海底的一间藏书室，两位蓝发鲸耳的姑娘——
+     左侧那位站着递卷轴，右侧那位伏在书案前用羽毛笔写稿。
+     道具全是**稿子**（卷轴、稿纸、羽毛笔、墨水瓶），不是代码：
+     这一条就是「按我的软件设计」与「按那套工具软件设计」的分界。
+     中间整片留空，是墨宸三栏（导航 / 对话 / 右栏）要落的位置——
+     生图时就把这条写进了 prompt，否则立绘会被面板压掉。
 
-  /* ① 终末地：搬 src/styles/theme.css 的四样东西，逐样注明。
-     - 纸墨三色：`docs/design-language.md` 第一节的表格，#E8E8E2 / #101110 / #F5F5F0 逐字。
-       亮色不用纯白、暗色不用纯黑是上游自己写的理由：「带一点暖灰，是纸而不是屏幕」。
-     - accent：暗色用上游原值 #FFF500（对纸底 16.50:1）；亮色**不能用**原值——上游文档自己写着
-       「在奶油纸底上 #fff500 不是一种配色选择，而是一次抹除」（1.07:1），
-       它给的达标值是 #6B5D00，这里直接用上游那个数（5.35:1），不再自己压。
-     - 玻璃：`src/styles/theme.css:382-383` 的 `blur 8 / 22px` 与 alpha .68 / .9，
-       外加 395-396 行那两道 sheen（145° 线性 + 左上角 accent 色的椭圆光）。
-     - 图案：`src/styles/theme.css:1669-1671` 的工业网格（1px 横线 @4px + 1px 竖线 @120px）。
-     - 表面：theme.css:423-438 的全直角手法（先清零再恢复圆形元素）。 */
+     【为什么两张而不是一张】
+     DSH 那套是 `day-night` 主题。昼与夜本来就是这套皮肤的一半，
+     顺带把「同一套皮肤要配深浅两版」的老规矩也一并解决了：
+     浅色版 = 浅海透光，深色版 = 深蓝压暗，同一套构图。
+
+     【许可：本仓自有】
+     画是原创设计，不搬任何上游的美术，
+     所以 `origin` 走自家那一句、`license` 写「本仓自有」。 */
+
   {
-    id: "endfield",
-    label: "终末地",
-    tagline: "纸墨双色的工业编辑风：全直角、磨砂玻璃、极淡的工程网格。",
-    origin: "改编自 ymh0000123/dsh-theme-endfield 的 纸墨色板与玻璃网格",
-    license: "MIT",
-    light: { accent: "#6B5D00", background: "#E8E8E2", foreground: "#101110" },
-    dark: { accent: "#FFF500", background: "#101110", foreground: "#F5F5F0" },
-    backdrop: "plain",
-    glass: "standard",
-    surface: "square",
-    grid: "industrial"
-  },
-
-  /* ② 梦境皮肤：搬 tests/fixtures/legacy_skin_glows_10_6_0.json 里的弥散光整条。
-     上游那 8 套皮肤各自有一句完整的 CSS 背景：两层 accent 色 radial 落在
-     右上（1100×620 @82% -8%）与左下（820×520 @10% 110%），
-     叠一层压暗的 radial（1300×820 @48% 44%），最后压一条 linear-gradient 底色。
-     这里的 `backdrop: "aurora"` 就是这个形状——**整条渐变的参数在 appearanceThemeRuntime
-     的 `UPSTREAM_BACKDROPS` 里，值逐条抄自那份 fixture**，不是「紫蓝渐变」四个字。
-
-     色值：accent 取那条 radial 里的 #2DD4BF 一族（上游 sample-theme-pack.json 的
-     `accent: #34d399` 同色系），底色取那条 linear-gradient 的 #0F151A 端。
-     上游皮肤是纯暗色的，墨宸每套必须配深浅两版 ⇒ 浅色版是墨宸自己配的（同色相提亮）。 */
-  {
-    id: "mirage",
-    label: "幻境",
-    tagline: "四层弥散光铺在背后，玻璃浮在上面。右上青、左下蓝的一组对撞。",
-    origin: "改编自 RevolutionLA/dsh-dream-skin 的 弥散光背景与玻璃",
-    license: "MIT",
-    light: { accent: "#1C7D71", background: "#F2FAF8", foreground: "#122E2A" },
-    dark: { accent: "#2DD4BF", background: "#0F151A", foreground: "#E8F4F2" },
+    id: "xi-day",
+    label: "汐 · 昼阁",
+    tagline: "浅海透光的同一间阁子。与夜阁同一套构图，白天看着像晒着太阳的书房。",
+    origin: OWN_ART_ORIGIN,
+    license: OWN_ART_LICENSE,
+    /* 浅色版 accent 取 #2A7699 而不是画里那块亮蓝（#2E7FA8）：
+       它与白字只有 4.45:1，压在按钮上差一口气不到 4.5:1，
+       而按钮上那行字的可读性是由计算说了算的（appearance-theme-readability.test.ts）。 */
+    light: { accent: "#2A7699", background: "#E8F6FA", foreground: "#123243" },
+    dark: { accent: "#57B7D6", background: "#0E2430", foreground: "#DCF1F8" },
     backdrop: "aurora",
-    glass: "subtle",
-    surface: "plain",
-    grid: "none"
-  },
-
-  /* ③ 公海皮：搬 shared/styles.css 的玻璃芯与暗角，逐行注明。
-     - 玻璃芯：styles.css:99-103 那四行——底 `rgba(8,11,16,.55)`、
-       `blur(24px) saturate(140%)`、`inset 0 1px 0 rgba(255,255,255,.12)` 高光。
-       saturate(140%) 是上游给的值，墨宸按同一比例落在 `--skin-glass-saturate`。
-     - 暗角：styles.css:59-61 的双层 radial + linear（边缘压深、底部再压一层）。
-     - 色值：#8FE9E4 是上游 :root 里的 accent 原值（styles.css:28），墨宸沿用。
-       底色那个 #05070A 太黑，墨宸深色背景最深到 #0A0A0A 这条规矩在上，
-       于是取上游 --bg 提亮一档到 #0A1418（仍在规矩内）。 */
-  {
-    id: "open-sea",
-    label: "公海",
-    tagline: "高饱和玻璃加一圈暗角。界面像浮在海面上，而不是贴在屏幕上。",
-    origin: "改编自 d-dev0101/open-sea-skin 的 玻璃芯与暗角",
-    license: "MIT",
-    light: { accent: "#1D6FA3", background: "#F2F9FC", foreground: "#12303F" },
-    dark: { accent: "#8FE9E4", background: "#0A1418", foreground: "#DEF0F8" },
-    backdrop: "plain",
-    glass: "strong",
-    surface: "round-none",
-    grid: "none"
-  },
-
-  /* ④ galgame：搬 .dsh-plugin/client/styles.mjs 的对话框底与舞台网格，逐行注明。
-     - 对话框底：styles.mjs:54 的 `linear-gradient(180deg, rgba(20,24,44,.7), rgba(14,17,34,.35))`
-       —— 上半段压深、下半段透出来，这是它对话框的招牌。
-     - 舞台网格：styles.mjs:123-124 两条 1px 线（横竖各一），透明度 .10。
-     - 对话框内衬：styles.mjs:416 的 `inset 0 -4px 0 rgba(79,140,255,.55)`，
-       即底部一条 4px 的实心压边——`surface: "dialogue"` 就是它。
-     - 上游明确写了它**不启用 backdrop-filter**（styles.mjs:200 的注释：毛玻璃会把背后
-       立绘的透明区复合成实心块），所以这套的 glass 给 `none`，照上游的判断走。 */
-  {
-    id: "galgame",
-    label: "视窗",
-    tagline: "对话框质感：上下分层的底、底部一条实心压边、舞台网格打底。",
-    origin: "改编自 Ayase34/gal-view 的 对话框底与舞台网格",
-    license: "MIT",
-    light: { accent: "#8A7BD8", background: "#FAF8F4", foreground: "#22283A" },
-    dark: { accent: "#F0A0BC", background: "#1F1219", foreground: "#F3E2E9" },
-    backdrop: "plain",
-    glass: "none",
-    surface: "dialogue",
-    grid: "stage"
-  },
-
-  /* ⑤ 壁纸引擎：搬 lib/glass-presets/factory-*.json 的**分区域**参数，逐字段注明。
-     上游那份预设不是「一个透明度 + 一个模糊」，而是每个区域各一套：
-       glass 45 / blur 36、sidebar 50 / blur 30、sidebarContent 42、
-       settings 55 / blur 32、floaters 55 / blur 32、capsule blur 16、fidelity 100
-     这就是 `glass: "regions"` 这一档的来历——墨宸的侧栏、内容区、浮层各读各的值，
-     而不是整页一个 blur。`factory-night.json` 的侧栏 55/24、内容 38 与
-     `factory-readable.json` 的 55/20、内容 30 是两个可直接用的真实档，这里取后者的配比。
-     色值取 vivid 那套的 #67DCE7 提亮到可读域（上游那个值在白底上过不了 2.5:1）。 */
-  {
-    id: "liquid-glass",
-    label: "流玻璃",
-    tagline: "每个区域各有一档玻璃：侧栏透、正文实、浮层最实。层次是分区域给的。",
-    origin: "改编自 elysia395/dsh-wallpaper-engine 的 分区域玻璃参数",
-    license: "MIT",
-    light: { accent: "#1F6E7A", background: "#F1F7F8", foreground: "#10262C" },
-    dark: { accent: "#67C7D6", background: "#0A1C21", foreground: "#DCF2F6" },
-    backdrop: "plain",
     glass: "regions",
-    surface: "plain",
-    grid: "none"
+    surface: "round-none",
+    grid: "none",
+    art: "shallow-hall-day"
+  },
+
+  {
+    id: "xi-night",
+    label: "汐 · 夜阁",
+    tagline: "深蓝压暗的海底藏书阁。两位鲸耳姑娘守着稿子，中间整片留给正文。",
+    origin: OWN_ART_ORIGIN,
+    license: OWN_ART_LICENSE,
+    /* 「夜阁」的**浅色版底色本来就是深蓝**（那是一套画在夜里的皮肤）。
+       所以画上面那层纱不能按当前是浅色还是深色模式给，要按这条皮肤自己的底色给——
+       判据写在 `appearanceSkinVisual.ts` 的 `artVeil` 上，别再改回按 scheme 分支。 */
+    light: { accent: "#4FA8C4", background: "#0B1A26", foreground: "#DCEEF5" },
+    dark: { accent: "#5FD3EE", background: "#060F18", foreground: "#D6ECF5" },
+    backdrop: "abyss",
+    glass: "regions",
+    surface: "round-none",
+    grid: "none",
+    art: "abyss-hall-night"
   }
 ];
 
-/** 按 id 取一套皮肤。取不到返回 undefined（调用方自己决定退路，不在这里兜底成某一套）。 */
+/**
+ * 按 id 取一套皮肤。取不到返回 undefined（调用方自己决定退路，不在这里兜底成某一套）。
+ *
+ * 5-㊷ 之后「取不到」多了一种**正常**情形：用户存的是已下架的出厂配色。
+ * 那一份要到 `appearanceTones.findAppearanceTone` 去查——
+ * AppearancePanel 两处都查，才分得清「这套还在，只是广场不卖了」与「这套我们不认识」。
+ */
 export function findAppearanceSkin(id: string): AppearanceSkin | undefined {
   return appearanceSkins.find((skin) => skin.id === id);
 }
 
-/**
- * 四层的**全部取值**（皮肤广场的筛选档）。
- *
- * **从 contracts 的枚举派生，不在这里另写一份清单**（铁律 6）：
- * 加一档时这张表会自己变长，而守卫也正是拿它与 contracts 对齐。
- */
-export const SKIN_BACKDROP_FILTERS: readonly AppearanceBackdrop[] = APPEARANCE_BACKDROPS;
-export const SKIN_GLASS_FILTERS: readonly AppearanceGlass[] = APPEARANCE_GLASSES;
-export const SKIN_SURFACE_FILTERS: readonly AppearanceSurface[] = APPEARANCE_SURFACES;
-export const SKIN_GRID_FILTERS: readonly AppearanceGrid[] = APPEARANCE_GRIDS;
+/* ── 筛选档：从**表里真实存在的值**派生 ─────────────────────────────────
+   2026-10-08 批次 5-㊷ 改的这条，起因是一个真缺陷。
+
+   【原来错在哪】
+   这里原先写的是 `= APPEARANCE_BACKDROPS`（contracts 的全量枚举），
+   而 `nebula / ember / midnight` 三档**没有任何皮肤在用**——
+   点它必然得到空列表，页面老老实实显示「没有匹配的皮肤」。
+   那句话是假象：真相是那枚按钮从一开始就不该在那里。
+
+   ⇒ 判据换成「这一档至少有一条皮肤在用，才摆出来」；
+     顺序仍按 contracts 枚举的键序（加一档时 contracts 与中文名表都要改，
+     而按钮顺序跟着枚举走，不多一处要人记的地方）。
+   ⇒ 守卫钉两件事：每个筛选档都能筛出**非空**结果；这五张表**必须是派生的**，
+     不许写死成 contracts 的全量（appearance-skins.test.ts）。
+   ⇒ contracts 的枚举与下面的中文名表**仍然是全量**：老 JSON 里存着未入档的合法值时，
+     zod 要认、档名要查得到，只是广场不提供它。 */
+
+/** 表里出现过哪些值就只留哪些档；顺序取 `all`（= contracts 枚举）的键序。 */
+function usedValues<T extends string>(
+  all: readonly T[],
+  pick: (skin: AppearanceSkin) => T
+): readonly T[] {
+  const present = new Set<string>(appearanceSkins.map(pick));
+  return all.filter((value) => present.has(value));
+}
+
+export const SKIN_BACKDROP_FILTERS: readonly AppearanceBackdrop[] = usedValues(
+  APPEARANCE_BACKDROPS,
+  (skin) => skin.backdrop
+);
+export const SKIN_GLASS_FILTERS: readonly AppearanceGlass[] = usedValues(
+  APPEARANCE_GLASSES,
+  (skin) => skin.glass
+);
+export const SKIN_SURFACE_FILTERS: readonly AppearanceSurface[] = usedValues(
+  APPEARANCE_SURFACES,
+  (skin) => skin.surface
+);
+export const SKIN_GRID_FILTERS: readonly AppearanceGrid[] = usedValues(
+  APPEARANCE_GRIDS,
+  (skin) => skin.grid
+);
+/** 画面层这一维在 5-㊷ 之后只剩「有画」那几档：表里不许出现 `art: "none"` 的条目，
+ *  所以这张表里要冒出 `none`，就等于上面的表写错了（守卫逐条钉 `art !== "none"`）。 */
+export const SKIN_ART_FILTERS: readonly AppearanceArt[] = usedValues(
+  APPEARANCE_ARTS,
+  (skin) => skin.art
+);
 
 /* ── 中文档名 ────────────────────────────────────────────────────────────
    筛选按钮上摆的是这几个词。**真身在这一份**，皮肤广场的模板只 v-for 引用，
-   不在模板里写第二遍（写了就会有一处改了另一处没改）。 */
+   不在模板里写第二遍（写了就会有一处改了另一处没改）。
+   键集必须与 contracts 的枚举**一一对应**（守卫钉着）：这里给的是「这一档叫什么」，
+   不是「广场上有哪几档」——后者是上面那五张派生表的事。 */
 
 export const APPEARANCE_BACKDROP_LABELS: Record<AppearanceBackdrop, string> = {
   plain: "平涂",
@@ -359,4 +297,12 @@ export const APPEARANCE_GRID_LABELS: Record<AppearanceGrid, string> = {
   none: "无网格",
   industrial: "工业网格",
   stage: "舞台网格"
+};
+
+/** 画面层的中文档名。`none` 这一档写「无画面」而不是「无插画」——
+ *  它挡掉的是**整窗背景位图**，而 backdrop 那层 CSS 弥散光不受它影响。 */
+export const APPEARANCE_ART_LABELS: Record<AppearanceArt, string> = {
+  none: "无画面",
+  "abyss-hall-night": "深海夜阁",
+  "shallow-hall-day": "浅海昼阁"
 };
