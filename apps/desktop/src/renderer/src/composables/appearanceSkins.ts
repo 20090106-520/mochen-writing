@@ -244,12 +244,12 @@ export const appearanceSkins: AppearanceSkin[] = [
      只是笔从位图换成了路径。
      ⇒ 判据没变：广场的入场条件仍是「有画」，`art` 为 `none` 仍然进不来；
      ⇒ 规格没降：构图硬规则（中间暗区、上下 12% 不放关键元素、昼夜同一套几何）
-       由 `.superpowers/sdd/tmp-gen-scene-svgs-v2.cjs` 按
+       由 `apps/desktop/scripts/gen-scene-svgs.mjs` 按
        `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md` §2 逐条实现，
        单张 11.6–26.1KB，仍远低于那 900KB 的上限；
        而且是**两道闸自己盯着**：调色板级（主体↔中段感知亮度差 ≥22，生成时直接抛）
        + 像素级（320×180 光栅化后量分层桶数 / 两缘跨度 / 中段安静度，
-       `.superpowers/sdd/tmp-check-art-readable.mjs`，附一条"空渐变必须判红"的反向用例）；
+       `apps/desktop/scripts/check-scene-art.mjs`，附一条"空渐变必须判红"的反向用例）；
      ⇒ 一处诚实账：**这一批没有人物立绘**。矢量画得出海、舟、灯、阁，
        画不出「蓝发鲸耳的汐」那种角色插画。所以名字里不再挂「汐」，
        等位图素材到手再出真正带人物的那一族。

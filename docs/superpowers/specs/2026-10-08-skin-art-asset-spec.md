@@ -126,7 +126,8 @@
 7. [ ] `docs/ATTRIBUTION.md` 记了来源与许可。
 8. [ ] **像素级三道闸过**（波2a 加的，矢量位图都适用）：把成品画成 320×180 后量
    `G1` 分层桶数 ≥4、`G2` 两缘亮度跨度 ≥18 且与中段均值差 ≥10、`G3` 中段水平边缘能量 ≤4
-   且两缘至少 2 倍——跑 `.superpowers/sdd/tmp-check-art-readable.mjs`，
+   且两缘至少 2 倍——跑 `node apps/desktop/scripts/check-scene-art.mjs`（需先 build 并自起
+   一台带 `--remote-debugging-port=9234` 的实例，见脚本头部那三步），
    它末尾那条「空渐变必须判红」的反向用例同时必须**红**。
 9. [ ] 目检用 **png 不用 jpeg**：暗部 banding 会被 q80 自己压出来，看错一次就要重跑一轮；
    脚本每轮给素材 URL 换新串号，否则读到的是 HTTP 缓存里的上一版。
