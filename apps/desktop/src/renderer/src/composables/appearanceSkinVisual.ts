@@ -401,8 +401,20 @@ const glassSheen = (accent: string, cornerAlpha: number): string =>
  * 由 electron-vite 原样拷到产物根的 `skins/`。
  */
 const ART_FILES: Record<Exclude<AppearanceArt, "none">, string> = {
-  "abyss-hall-night": "skins/abyss-hall-night.jpg",
-  "shallow-hall-day": "skins/shallow-hall-day.jpg"
+  "abyss-hall-night": "skins/abyss-hall-night.webp",
+  "shallow-hall-day": "skins/shallow-hall-day.webp",
+  /* 波2a（2026-10-08）：三系列 × 昼夜六张，全部是**仓内自绘的矢量场景画**。
+     走矢量不是因为位图不好，而是这一批的通路断了：ImageGen 三次复测 403（配额），
+     用户自己那批图还没交。与其让广场停在两张上，不如先把「有画可换」这件事做实——
+     画的内容、暗区、昼夜同构图仍然照 `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md`
+     的硬规则走，只是笔换成了路径。将来他供图或配额恢复，逐张替成位图即可，
+     **枚举 id 与皮肤表都不用动**（这正是「路径只住在这一处」换来的解耦）。 */
+  "book-boat-night": "skins/book-boat-night.svg",
+  "book-boat-day": "skins/book-boat-day.svg",
+  "lamp-tower-night": "skins/lamp-tower-night.svg",
+  "lamp-tower-day": "skins/lamp-tower-day.svg",
+  "ink-pool-night": "skins/ink-pool-night.svg",
+  "ink-pool-day": "skins/ink-pool-day.svg"
 };
 
 /**

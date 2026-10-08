@@ -233,6 +233,130 @@ export const appearanceSkins: AppearanceSkin[] = [
     surface: "round-none",
     grid: "none",
     art: "abyss-hall-night"
+  },
+
+  /* ── 波2a：三系列 × 昼夜（2026-10-08，素材通路断位图之后的矢量自绘） ─────
+     【这一批为什么存在，以及为什么不是「换皮」】
+     用户的原话是「只保留有图片有皮肤的，**然后再继续增加**」。增加的那一步卡在素材上：
+     ImageGen 三次复测 403（配额），他答应的那批图也还没交。停在这里就等于
+     把一句明确的指令交回给他排队——所以这一批改走**矢量场景画**：
+     每张仍然是一整幅画（有主体、有光源、有左右两缘的叙事件、中间整片留给正文），
+     只是笔从位图换成了路径。
+     ⇒ 判据没变：广场的入场条件仍是「有画」，`art` 为 `none` 仍然进不来；
+     ⇒ 规格没降：构图硬规则（中间暗区、上下 12% 不放关键元素、昼夜同一套几何）
+       由 `.superpowers/sdd/tmp-gen-scene-svgs-v2.cjs` 按
+       `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md` §2 逐条实现，
+       单张 11.6–26.1KB，仍远低于那 900KB 的上限；
+       而且是**两道闸自己盯着**：调色板级（主体↔中段感知亮度差 ≥22，生成时直接抛）
+       + 像素级（320×180 光栅化后量分层桶数 / 两缘跨度 / 中段安静度，
+       `.superpowers/sdd/tmp-check-art-readable.mjs`，附一条"空渐变必须判红"的反向用例）；
+     ⇒ 一处诚实账：**这一批没有人物立绘**。矢量画得出海、舟、灯、阁，
+       画不出「蓝发鲸耳的汐」那种角色插画。所以名字里不再挂「汐」，
+       等位图素材到手再出真正带人物的那一族。
+
+     【backdrop 为什么不跟着画换档】
+     画是**不透明整幅**，而 `.desktop-shell` 那条 `background-image` 的顺序是
+     纱在上、画在中、backdrop 在下 ⇒ 除非画没加载出来，`nebula / ember / midnight`
+     换上去一个像素都看不见。所以这一批仍按「昼 aurora / 夜 abyss」给，
+     **不为了让 contracts 每一档都有皮肤在用而分散铺**——
+     拿看不见的差别当理由是假的，而 `appearance-skins.test.ts` 那条
+     「这些上游档名没有皮肤在用」的断言也因此继续成立，不用为了加皮肤而改口。
+
+     【为什么三色按画自己的底色定，而不是挑好看的颜色】
+     每条皮肤的 `light/dark` 底色与对应那张画的 `top/mid/bottom` 同源
+     （生成器里那份 PALETTES 与本表逐条对着写）。画与配色各说各话的时候，
+     观感就是「一张不相干的壁纸压在别的颜色上」——这一批从源头把它锁在一起。 */
+
+  {
+    id: "voyage-day",
+    label: "书舟 · 昼渡",
+    tagline: "浅海里一叶装满稿纸的小舟，船头挂着灯。左侧是鲸背，中间整片留给正文。",
+    origin: OWN_ART_ORIGIN,
+    license: OWN_ART_LICENSE,
+    light: { accent: "#256C86", background: "#EAF7FB", foreground: "#0F2E3E" },
+    dark: { accent: "#5CC0DE", background: "#0B2233", foreground: "#D8EEF7" },
+    backdrop: "aurora",
+    glass: "regions",
+    surface: "round-none",
+    grid: "none",
+    art: "book-boat-day"
+  },
+
+  {
+    id: "voyage-night",
+    label: "书舟 · 夜航",
+    tagline: "同一叶舟，夜里只靠船头那盏灯。鲸的剪影退到左边，中段是空旷的水。",
+    origin: OWN_ART_ORIGIN,
+    license: OWN_ART_LICENSE,
+    /* 夜景套的浅色版底色本来就该是夜（这条规则来自「汐 · 夜阁」那次纠正）：
+       判据在 appearance-theme-readability.test.ts 的 NIGHT_SCENE_IDS，别把它调亮。 */
+    light: { accent: "#4C9DBA", background: "#0A2130", foreground: "#D9EDF6" },
+    dark: { accent: "#63CDE8", background: "#060F18", foreground: "#D2E9F4" },
+    backdrop: "abyss",
+    glass: "regions",
+    surface: "round-none",
+    grid: "none",
+    art: "book-boat-night"
+  },
+
+  {
+    id: "lamp-day",
+    label: "灯楼 · 晴昼",
+    tagline: "灯塔里的螺旋书架晒着白天的光。书格在左，摊开的稿纸与墨瓶在右下，中段留空。",
+    origin: OWN_ART_ORIGIN,
+    license: OWN_ART_LICENSE,
+    light: { accent: "#9A6A1E", background: "#FAF4E6", foreground: "#2C2415" },
+    dark: { accent: "#D9A64E", background: "#171208", foreground: "#F2E6CC" },
+    backdrop: "aurora",
+    glass: "regions",
+    surface: "round-none",
+    grid: "none",
+    art: "lamp-tower-day"
+  },
+
+  {
+    id: "lamp-night",
+    label: "灯楼 · 燃夜",
+    tagline: "同一座楼，只剩灯束斜着穿下来。左缘一层层书格退远，稿纸压在灯下的角落里。",
+    origin: OWN_ART_ORIGIN,
+    license: OWN_ART_LICENSE,
+    light: { accent: "#D9B072", background: "#16273F", foreground: "#E9E1CE" },
+    dark: { accent: "#F0C578", background: "#0A1220", foreground: "#EDE4D2" },
+    backdrop: "abyss",
+    glass: "regions",
+    surface: "round-none",
+    grid: "none",
+    art: "lamp-tower-night"
+  },
+
+  {
+    id: "pool-day",
+    label: "墨潭 · 映日",
+    tagline: "山间书亭晒着天光，潭面把光映成一段不成句的白。亭在左，雾在右，潭心留给正文。",
+    origin: OWN_ART_ORIGIN,
+    license: OWN_ART_LICENSE,
+    light: { accent: "#25736E", background: "#EAF6F1", foreground: "#10302F" },
+    dark: { accent: "#4FB3AA", background: "#0C2321", foreground: "#DFF2EC" },
+    backdrop: "aurora",
+    glass: "regions",
+    surface: "round-none",
+    grid: "none",
+    art: "ink-pool-day"
+  },
+
+  {
+    id: "pool-night",
+    label: "墨潭 · 沉雾",
+    tagline: "同一口潭起了夜雾。岸线只剩两道边，水纹在左右两角，中间整片是沉下去的墨色。",
+    origin: OWN_ART_ORIGIN,
+    license: OWN_ART_LICENSE,
+    light: { accent: "#54A7A2", background: "#0A1D22", foreground: "#D6EDE8" },
+    dark: { accent: "#72D2CB", background: "#050E12", foreground: "#CFEAE4" },
+    backdrop: "abyss",
+    glass: "regions",
+    surface: "round-none",
+    grid: "none",
+    art: "ink-pool-night"
   }
 ];
 
@@ -360,5 +484,11 @@ export const APPEARANCE_GRID_LABELS: Record<AppearanceGrid, string> = {
 export const APPEARANCE_ART_LABELS: Record<AppearanceArt, string> = {
   none: "无画面",
   "abyss-hall-night": "深海夜阁",
-  "shallow-hall-day": "浅海昼阁"
+  "shallow-hall-day": "浅海昼阁",
+  "book-boat-night": "书舟夜航",
+  "book-boat-day": "书舟昼渡",
+  "lamp-tower-night": "灯楼燃夜",
+  "lamp-tower-day": "灯楼晴昼",
+  "ink-pool-night": "墨潭沉雾",
+  "ink-pool-day": "墨潭映日"
 };

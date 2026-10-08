@@ -29,7 +29,7 @@ const MIN_LIGHT_BG_LUMINANCE = 0.7; // 浅色版底色的下限——但只对�
  * 落在两张表外就是**新增皮肤没被分类**——本条会红，逼着加皮肤的人回来看
  * 「这套画的是白天还是夜里」，而不是顺手把阈值放宽成谁都不卡。
  */
-const DAY_SCENE_IDS = ["xi-day"];
+const DAY_SCENE_IDS = ["xi-day", "voyage-day", "lamp-day", "pool-day"];
 /**
  * 刻意例外：浅色版本来就该是深底的那几套。
  *
@@ -43,7 +43,7 @@ const DAY_SCENE_IDS = ["xi-day"];
  * `light` 亮度 < 0.2：它必须**确实是夜里**，而不是"随手调暗了一点"。
  * 至于夜景套的浅深两版到底可不可读，由 `appearance-skins.test.ts` 那三条线负责。
  */
-const NIGHT_SCENE_IDS = ["xi-night"];
+const NIGHT_SCENE_IDS = ["xi-night", "voyage-night", "lamp-night", "pool-night"];
 
 describe("广场每一条的底色亮度（不是靠眼睛估）", () => {
   it("表非空（空了则下面每条遍历全绿而一条不测）", () => {
@@ -132,6 +132,15 @@ describe("广场的 id 是用户盘上的真身，不许改名", () => {
    * ⇒ 加皮肤要红一次（这里认的是清单），改名也要红一次。
    */
   it("表里的 id 逐条等于清单（顺序即广场顺序，同系列昼夜成对、浅色在前）", () => {
-    expect(appearanceSkins.map((skin) => skin.id)).toEqual(["xi-day", "xi-night"]);
+    expect(appearanceSkins.map((skin) => skin.id)).toEqual([
+      "xi-day",
+      "xi-night",
+      "voyage-day",
+      "voyage-night",
+      "lamp-day",
+      "lamp-night",
+      "pool-day",
+      "pool-night"
+    ]);
   });
 });

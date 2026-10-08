@@ -1,0 +1,236 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440" width="2560" height="1440" role="img">
+  <defs>
+    <linearGradient id="column" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E8F5EE"/>
+      <stop offset="0.42" stop-color="#C6E0DC"/>
+      <stop offset="1" stop-color="#9CC6C6"/>
+    </linearGradient>
+    <radialGradient id="ceiling-light" cx="0.5" cy="0" r="0.72">
+      <stop offset="0" stop-color="rgba(255, 255, 255, 0.46)"/>
+      <stop offset="1" stop-color="rgba(255, 255, 255, 0)"/>
+    </radialGradient>
+    <radialGradient id="corridor" cx="0.5" cy="0.52" r="0.5">
+      <stop offset="0" stop-color="rgba(240, 249, 245, 0.6)"/>
+      <stop offset="0.6" stop-color="rgba(240, 249, 245, 0.36)"/>
+      <stop offset="1" stop-color="rgba(240, 249, 245, 0)"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx="0.5" cy="0.5" r="0.78">
+      <stop offset="0.55" stop-color="rgba(0, 0, 0, 0)"/>
+      <stop offset="1" stop-color="rgba(0, 0, 0, 0.12)"/>
+    </radialGradient>
+
+    <linearGradient id="shaft-380" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(255, 255, 255, 0.14)"/>
+      <stop offset="0.62" stop-color="rgba(255, 255, 255, 0.042)"/>
+      <stop offset="1" stop-color="rgba(255, 255, 255, 0)"/>
+    </linearGradient>
+    <linearGradient id="shaft-1920" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(255, 255, 255, 0.14)"/>
+      <stop offset="0.62" stop-color="rgba(255, 255, 255, 0.042)"/>
+      <stop offset="1" stop-color="rgba(255, 255, 255, 0)"/>
+    </linearGradient>
+    <linearGradient id="water-band" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(207, 232, 228, 0)"/>
+      <stop offset="0.3" stop-color="rgba(207, 232, 228, 0.42)"/>
+      <stop offset="0.58" stop-color="rgba(156, 200, 200, 0.62)"/>
+      <stop offset="1" stop-color="#5E8E8E"/>
+    </linearGradient>
+    <radialGradient id="mist-l" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="rgba(255, 255, 255, 0.24)"/>
+      <stop offset="0.55" stop-color="rgba(255, 255, 255, 0.1)"/>
+      <stop offset="1" stop-color="rgba(255, 255, 255, 0)"/>
+    </radialGradient>
+    <radialGradient id="mist-r" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="rgba(255, 255, 255, 0.22)"/>
+      <stop offset="0.55" stop-color="rgba(255, 255, 255, 0.09)"/>
+      <stop offset="1" stop-color="rgba(255, 255, 255, 0)"/>
+    </radialGradient>
+    <linearGradient id="rock" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6E918C"/>
+      <stop offset="1" stop-color="#3A5F5C"/>
+    </linearGradient>
+    <radialGradient id="lamp" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="rgba(242, 185, 94, 0.9)"/>
+      <stop offset="0.3" stop-color="rgba(242, 185, 94, 0.378)"/>
+      <stop offset="1" stop-color="rgba(242, 185, 94, 0)"/>
+    </radialGradient>
+    <radialGradient id="orb" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="rgba(255, 246, 216, 0.92)"/>
+      <stop offset="0.3" stop-color="rgba(255, 246, 216, 0.3864)"/>
+      <stop offset="1" stop-color="rgba(255, 246, 216, 0)"/>
+    </radialGradient>
+  </defs>
+  <rect width="2560" height="1440" fill="url(#column)"/>
+  <rect width="2560" height="1440" fill="url(#ceiling-light)"/>
+  <rect x="700" y="150" width="1160" height="1140" fill="url(#corridor)"/>
+
+  <g>
+    <path d="M 380 0 L 530 0 L 650 1440 L 500 1440 Z" fill="url(#shaft-380)"/>
+    <path d="M 1920 0 L 2030 0 L 1960 1440 L 1850 1440 Z" fill="url(#shaft-1920)"/>
+  </g>
+  <!-- 天体：右上那枚月/日，带一大圈光晕——缩略图下的第一读点 -->
+    <circle cx="2170" cy="300" r="500" fill="url(#orb)"/>
+  <circle cx="2170" cy="300" r="92" fill="rgba(255, 246, 216, 0.97)"/>
+  <circle cx="2170" cy="300" r="132" fill="rgba(255, 246, 216, 0.22)"/>
+  <!-- 三重山脊：由远及近，一层比一层深，这是整张画的纵深骨架。
+       每一条靠中段的那一头都**收进斜坡**：v2-a 用「L 700 760 L 0 760」这种
+       直角闭边，在真机上读成山旁边立了一块板（x=700 / x=1860 两条竖直亮边）。 -->
+  <path d="M 1900 700 L 1952 618 L 1990 520 L 2120 596 L 2280 470 L 2420 574 L 2560 470 L 2560 700 Z"
+        fill="rgba(180, 210, 204, 0.8)"/>
+  <path d="M 0 560 L 190 400 L 330 500 L 520 340 L 700 520 C 688 606, 660 690, 616 760 L 0 760 Z" fill="#7FA8A2"/>
+  <path d="M 0 700 L 150 590 L 300 690 L 470 560 L 660 706 C 676 800, 660 902, 620 1000 L 0 1000 Z" fill="#4E7C78"/>
+  <path d="M 190 400 L 330 500 L 520 340 L 700 520" fill="none" stroke="rgba(255, 255, 255, 0.34)" stroke-width="6"/>
+  <!-- 雾带：三条横的，压在山与亭之间 -->
+  <g>
+    <ellipse cx="300" cy="350" rx="400" ry="70" fill="url(#mist-l)"/>
+    <ellipse cx="320" cy="528" rx="420" ry="86" fill="url(#mist-l)"/>
+    <ellipse cx="300" cy="708" rx="400" ry="100" fill="url(#mist-l)"/>
+    <ellipse cx="2200" cy="582" rx="360" ry="80" fill="url(#mist-r)"/>
+    <ellipse cx="2180" cy="756" rx="380" ry="96" fill="url(#mist-r)"/>
+  </g>
+  <!-- 书亭：左缘。翘起的檐、四根柱、栏杆、案上摊开的稿纸、檐下那盏灯 -->
+  <g>
+    <path d="M 120 742 C 200 700, 560 700, 640 742 L 604 764 L 156 764 Z" fill="#3C5F5C"/>
+    <path d="M 120 742 C 84 726, 56 692, 44 656 C 96 690, 132 712, 168 722 Z" fill="#3C5F5C"/>
+    <path d="M 640 742 C 676 726, 704 692, 716 656 C 664 690, 628 712, 592 722 Z" fill="#3C5F5C"/>
+    <path d="M 250 690 L 380 620 L 510 690 Z" fill="#3C5F5C"/>
+    <path d="M 380 596 L 380 620" stroke="#3C5F5C" stroke-width="10"/>
+    <circle cx="380" cy="590" r="13" fill="rgba(255, 255, 255, 0.8)"/>
+    <g fill="#2E4F4C">
+      <rect x="176" y="764" width="20" height="238"/>
+      <rect x="560" y="764" width="20" height="238"/>
+      <rect x="300" y="764" width="14" height="238" opacity="0.7"/>
+      <rect x="452" y="764" width="14" height="238" opacity="0.7"/>
+      <rect x="150" y="986" width="456" height="20"/>
+    </g>
+    <g fill="rgba(46, 79, 76, 0.9)">
+      <rect x="164" y="900" width="432" height="12"/>
+      <rect x="180" y="912" width="10" height="74"/><rect x="252" y="912" width="10" height="74"/>
+      <rect x="324" y="912" width="10" height="74"/><rect x="396" y="912" width="10" height="74"/>
+      <rect x="468" y="912" width="10" height="74"/><rect x="540" y="912" width="10" height="74"/>
+    </g>
+    <path d="M 232 962 L 520 962 L 536 986 L 216 986 Z" fill="#426763"/>
+    <path d="M 268 946 C 330 932, 430 932, 492 946 C 430 958, 330 958, 268 946 Z" fill="#FFFFFF"/>
+    <path d="M 470 918 L 512 918 L 518 958 L 464 958 Z" fill="#2E4F4C"/>
+  </g>
+  <!-- 檐下那盏灯：暖光 + 光池，亭子内透出来的一片 -->
+  <rect x="368" y="764" width="8" height="46" fill="#2E4F4C"/>
+  <path d="M 344 810 L 400 810 L 392 856 L 352 856 Z" fill="rgba(242, 185, 94, 0.94)"/>
+    <circle cx="372" cy="832" r="260" fill="url(#lamp)"/>
+  <!-- 右缘：近岸巨石 + 一枝横出的松。松的读点是「层叠的扇形针叶团」 -->
+  <g>
+    /* 巨石：夜里的石头必须**比水暗**，只让月照到的那道棱亮。
+       v2-b 是一枚圆润的鼓包 + 半透明亮面，真机无损图上看就是一块磨砂玻璃罩子；
+       石头读不出石头，是因为它没有棱——改成多段折线的块面，受光只给棱线。 */
+    <path d="M 1952 1058 L 2008 966 L 2096 908 L 2188 886 L 2296 906 L 2392 962 L 2470 1006 L 2560 1044 L 2560 1176 L 2400 1194 L 2246 1178 L 2100 1146 L 1990 1104 Z"
+          fill="url(#rock)"/>
+    <path d="M 2188 886 L 2296 906 L 2392 962 L 2470 1006 L 2560 1044" fill="none" stroke="rgba(255, 255, 255, 0.4)" stroke-width="7"/>
+    <g fill="none" stroke="rgba(110, 145, 140, 0.55)" stroke-width="5">
+      <path d="M 2188 886 L 2152 1046 L 2040 1090"/>
+      <path d="M 2296 906 L 2322 1082 L 2440 1120"/>
+    </g>
+    <path d="M 2050 1080 L 2270 1010 L 2296 1042 C 2240 1076, 2130 1104, 2062 1112 Z" fill="rgba(110, 145, 140, 0.5)"/>
+    <path d="M 2400 900 C 2350 830, 2280 792, 2180 780 C 2260 812, 2320 852, 2356 912 Z" fill="#25453F"/>
+    <g fill="#25453F">
+      <path d="M 2170 780 C 2100 742, 2010 736, 1940 762 C 2020 786, 2100 800, 2156 800 Z"/>
+      <path d="M 2210 742 C 2150 700, 2060 690, 1986 708 C 2066 736, 2146 754, 2198 758 Z"/>
+      <path d="M 2262 706 C 2214 660, 2136 646, 2064 660 C 2140 692, 2206 714, 2250 720 Z"/>
+    </g>
+  </g>
+  <!-- 潭面：水平亮带 + 左右两缘的涟漪 + 亭与灯的两道倒影 -->
+  <rect x="0" y="1000" width="2560" height="440" fill="url(#water-band)"/>
+  <g>
+    <path d="M 184 1102 q 60 7 121 0" stroke="rgba(255, 255, 255, 0.26)" stroke-width="5" fill="none"/>
+    <path d="M 2008 1080 q 84 14 169 0" stroke="rgba(255, 255, 255, 0.25)" stroke-width="4" fill="none"/>
+    <path d="M 235 1197 q 59 8 118 0" stroke="rgba(255, 255, 255, 0.21)" stroke-width="4" fill="none"/>
+    <path d="M 1945 1213 q 53 11 105 0" stroke="rgba(255, 255, 255, 0.43)" stroke-width="2" fill="none"/>
+    <path d="M 99 1145 q 47 12 94 0" stroke="rgba(255, 255, 255, 0.45)" stroke-width="2" fill="none"/>
+    <path d="M 2043 1300 q 94 12 187 0" stroke="rgba(255, 255, 255, 0.33)" stroke-width="5" fill="none"/>
+    <path d="M 619 1166 q 106 10 213 0" stroke="rgba(255, 255, 255, 0.23)" stroke-width="2" fill="none"/>
+    <path d="M 2301 1157 q 83 9 166 0" stroke="rgba(255, 255, 255, 0.39)" stroke-width="4" fill="none"/>
+    <path d="M 160 1283 q 117 11 234 0" stroke="rgba(255, 255, 255, 0.34)" stroke-width="3" fill="none"/>
+    <path d="M 1940 1035 q 123 10 245 0" stroke="rgba(255, 255, 255, 0.41)" stroke-width="4" fill="none"/>
+    <path d="M 311 1036 q 54 8 108 0" stroke="rgba(255, 255, 255, 0.35)" stroke-width="3" fill="none"/>
+    <path d="M 2182 1369 q 79 14 159 0" stroke="rgba(255, 255, 255, 0.37)" stroke-width="4" fill="none"/>
+    <path d="M 326 1112 q 105 9 211 0" stroke="rgba(255, 255, 255, 0.31)" stroke-width="4" fill="none"/>
+    <path d="M 2310 1182 q 120 9 240 0" stroke="rgba(255, 255, 255, 0.17)" stroke-width="2" fill="none"/>
+    <path d="M 217 1057 q 41 11 82 0" stroke="rgba(255, 255, 255, 0.29)" stroke-width="4" fill="none"/>
+    <path d="M 2450 1315 q 61 8 121 0" stroke="rgba(255, 255, 255, 0.44)" stroke-width="2" fill="none"/>
+    <path d="M 391 1317 q 94 10 188 0" stroke="rgba(255, 255, 255, 0.39)" stroke-width="5" fill="none"/>
+    <path d="M 2016 1102 q 102 9 203 0" stroke="rgba(255, 255, 255, 0.40)" stroke-width="3" fill="none"/>
+    <path d="M 499 1378 q 118 12 237 0" stroke="rgba(255, 255, 255, 0.19)" stroke-width="5" fill="none"/>
+    <path d="M 1994 1255 q 95 15 189 0" stroke="rgba(255, 255, 255, 0.17)" stroke-width="5" fill="none"/>
+    <path d="M 260 1165 q 65 6 130 0" stroke="rgba(255, 255, 255, 0.37)" stroke-width="4" fill="none"/>
+    <path d="M 2150 1253 q 58 8 116 0" stroke="rgba(255, 255, 255, 0.28)" stroke-width="4" fill="none"/>
+    <path d="M 370 1208 q 46 7 91 0" stroke="rgba(255, 255, 255, 0.29)" stroke-width="5" fill="none"/>
+    <path d="M 1998 1258 q 96 8 192 0" stroke="rgba(255, 255, 255, 0.41)" stroke-width="4" fill="none"/>
+    <path d="M 456 1248 q 105 11 211 0" stroke="rgba(255, 255, 255, 0.36)" stroke-width="3" fill="none"/>
+    <path d="M 2230 1069 q 117 11 235 0" stroke="rgba(255, 255, 255, 0.40)" stroke-width="2" fill="none"/>
+    <path d="M 860 1332 q 60 5 120 0" stroke="rgba(255, 255, 255, 0.10)" stroke-width="2" fill="none"/>
+    <path d="M 1669 1347 q 60 5 120 0" stroke="rgba(255, 255, 255, 0.10)" stroke-width="2" fill="none"/>
+    <path d="M 784 1132 q 60 5 120 0" stroke="rgba(255, 255, 255, 0.10)" stroke-width="2" fill="none"/>
+    <path d="M 878 1222 q 60 5 120 0" stroke="rgba(255, 255, 255, 0.10)" stroke-width="2" fill="none"/>
+    <path d="M 1103 1308 q 60 5 120 0" stroke="rgba(255, 255, 255, 0.10)" stroke-width="2" fill="none"/>
+  </g>
+  <g fill="rgba(242, 185, 94, 0.26)">
+    <rect x="356" y="1016" width="30" height="26" rx="13"/><rect x="362" y="1058" width="20" height="20" rx="10"/>
+    <rect x="352" y="1094" width="34" height="18" rx="9"/><rect x="366" y="1128" width="16" height="16" rx="8"/>
+  </g>
+  <g fill="rgba(46, 79, 76, 0.34)">
+    <rect x="176" y="1020" width="22" height="120" rx="6"/><rect x="540" y="1020" width="22" height="120" rx="6"/>
+    <rect x="216" y="1150" width="344" height="16" rx="8"/>
+  </g>
+  <g fill="rgba(255, 246, 216, 0.22)">
+    <rect x="2136" y="1016" width="70" height="22" rx="11"/><rect x="2148" y="1056" width="46" height="18" rx="9"/>
+    <rect x="2132" y="1090" width="76" height="16" rx="8"/>
+  </g>
+  <!-- 前景压深：左右两块近岸的暗色，把视线压向中间那片空水。
+       轮廓必须是**岸石**的曲线：v2-a 那版两条竖直闭边让它们读成了两块黑矩形。 -->
+  <path d="M 0 1176 C 150 1136, 330 1160, 470 1214 C 520 1236, 500 1300, 452 1344 C 410 1382, 392 1414, 396 1440 L 0 1440 Z" fill="#20403E"/>
+  <path d="M 0 1176 C 150 1136, 330 1160, 470 1214" fill="none" stroke="rgba(255, 255, 255, 0.26)" stroke-width="6"/>
+  <path d="M 2560 1156 C 2410 1126, 2230 1160, 2100 1220 C 2052 1244, 2072 1304, 2116 1348 C 2156 1388, 2172 1414, 2168 1440 L 2560 1440 Z" fill="#20403E"/>
+  <path d="M 2560 1156 C 2410 1126, 2230 1160, 2100 1220" fill="none" stroke="rgba(255, 255, 255, 0.22)" stroke-width="6"/>
+  <g>
+    <circle cx="467" cy="154" r="6.1" fill="rgba(255, 255, 255, 0.235)"/>
+    <circle cx="2267" cy="591" r="4.2" fill="rgba(255, 255, 255, 0.182)"/>
+    <circle cx="371" cy="262" r="2.4" fill="rgba(255, 255, 255, 0.182)"/>
+    <circle cx="2028" cy="1111" r="6.7" fill="rgba(255, 255, 255, 0.231)"/>
+    <circle cx="191" cy="1243" r="7.0" fill="rgba(255, 255, 255, 0.154)"/>
+    <circle cx="2334" cy="1020" r="3.9" fill="rgba(255, 255, 255, 0.170)"/>
+    <circle cx="585" cy="154" r="6.4" fill="rgba(255, 255, 255, 0.178)"/>
+    <circle cx="2281" cy="741" r="2.0" fill="rgba(255, 255, 255, 0.226)"/>
+    <circle cx="206" cy="494" r="5.9" fill="rgba(255, 255, 255, 0.258)"/>
+    <circle cx="2355" cy="710" r="2.6" fill="rgba(255, 255, 255, 0.198)"/>
+    <circle cx="60" cy="666" r="4.8" fill="rgba(255, 255, 255, 0.159)"/>
+    <circle cx="2005" cy="322" r="3.4" fill="rgba(255, 255, 255, 0.148)"/>
+    <circle cx="406" cy="807" r="3.0" fill="rgba(255, 255, 255, 0.102)"/>
+    <circle cx="2124" cy="736" r="4.5" fill="rgba(255, 255, 255, 0.192)"/>
+    <circle cx="279" cy="965" r="5.3" fill="rgba(255, 255, 255, 0.105)"/>
+    <circle cx="2414" cy="1260" r="2.6" fill="rgba(255, 255, 255, 0.135)"/>
+    <circle cx="521" cy="1106" r="6.4" fill="rgba(255, 255, 255, 0.141)"/>
+    <circle cx="2341" cy="1167" r="3.0" fill="rgba(255, 255, 255, 0.231)"/>
+    <circle cx="299" cy="133" r="3.9" fill="rgba(255, 255, 255, 0.168)"/>
+    <circle cx="2506" cy="208" r="3.0" fill="rgba(255, 255, 255, 0.236)"/>
+    <circle cx="307" cy="954" r="3.2" fill="rgba(255, 255, 255, 0.153)"/>
+    <circle cx="2311" cy="127" r="3.5" fill="rgba(255, 255, 255, 0.177)"/>
+    <circle cx="339" cy="1062" r="2.1" fill="rgba(255, 255, 255, 0.133)"/>
+    <circle cx="2417" cy="283" r="2.0" fill="rgba(255, 255, 255, 0.257)"/>
+    <circle cx="408" cy="851" r="6.6" fill="rgba(255, 255, 255, 0.234)"/>
+    <circle cx="2294" cy="818" r="6.2" fill="rgba(255, 255, 255, 0.130)"/>
+    <circle cx="454" cy="326" r="5.0" fill="rgba(255, 255, 255, 0.164)"/>
+    <circle cx="2454" cy="143" r="7.2" fill="rgba(255, 255, 255, 0.114)"/>
+    <circle cx="495" cy="1252" r="1.9" fill="rgba(255, 255, 255, 0.152)"/>
+    <circle cx="2375" cy="1205" r="4.5" fill="rgba(255, 255, 255, 0.168)"/>
+    <circle cx="180" cy="884" r="1.7" fill="rgba(255, 255, 255, 0.192)"/>
+    <circle cx="2206" cy="422" r="2.3" fill="rgba(255, 255, 255, 0.241)"/>
+    <circle cx="82" cy="633" r="5.8" fill="rgba(255, 255, 255, 0.093)"/>
+    <circle cx="2281" cy="220" r="5.6" fill="rgba(255, 255, 255, 0.249)"/>
+    <circle cx="205" cy="1253" r="3.3" fill="rgba(255, 255, 255, 0.124)"/>
+    <circle cx="2360" cy="829" r="3.4" fill="rgba(255, 255, 255, 0.204)"/>
+    <circle cx="374" cy="615" r="5.5" fill="rgba(255, 255, 255, 0.227)"/>
+    <circle cx="2090" cy="436" r="6.0" fill="rgba(255, 255, 255, 0.254)"/>
+    <circle cx="269" cy="1280" r="6.7" fill="rgba(255, 255, 255, 0.248)"/>
+    <circle cx="2108" cy="136" r="6.4" fill="rgba(255, 255, 255, 0.190)"/>
+  </g>
+  <rect width="2560" height="1440" fill="url(#vignette)"/>
+</svg>

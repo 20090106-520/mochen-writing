@@ -37,6 +37,20 @@ Apache License 2.0 的要求集中记录在本文件，许可证原文见仓库�
 - `apps/desktop/src/renderer/src/assets/brand/mochen-lockup.jpg`：用户提供的品牌图，原样使用。
 - `apps/desktop/resources/icon.ico`：由上一行整幅转出（格式转换与重采样）。
 
+## 皮肤整窗画面（`art` 层，`public/skins/`）
+
+- `abyss-hall-night.webp`、`shallow-hall-day.webp`：**墨宸自有的位图**（带人物立绘的那一族），
+  由同名 jpg 只做**编码转换**得到——不裁切、不重绘、不另生成，遵循
+  「用户提供的品牌图原样使用」那条既定规则。
+- `book-boat-{day,night}.svg`、`lamp-tower-{day,night}.svg`、`ink-pool-{day,night}.svg`：
+  **本仓库自绘**，由参数化脚本按 `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md` §2
+  的构图硬规则生成，无第三方素材、无外部字体、无可读文字与 logo，因此**不涉及任何许可义务**。
+  两点如实记下：
+  ① 生成脚本住在 git-ignored 的 `.superpowers/sdd/`，不进版本库，
+  所以这六张 SVG **成品文件本身是唯一真身**，由 `appearance-skin-assets.test.ts` 读盘钉存在性；
+  ② 这一批走矢量是因为图像生成通路返回 403、外部位图未到位，
+  **不是**「矢量就够用了」——带人物立绘的那一族仍等位图素材。
+
 ## 其他第三方库（npm 依赖）
 
 - [canvas-ui](https://github.com/DavidHDev/canvas-ui)：MIT + Commons Clause。品牌粒子画布引擎来源，已按其 registry 源码拆分集成。

@@ -308,15 +308,32 @@ export type AppearanceGrid = z.infer<typeof AppearanceGridSchema>;
  * 前面四层全是 **CSS 质地**——渐变、模糊、圆角、网格。换完了读起来仍然是
  * 「换了个色调」：这就是用户看着皮肤广场说「只改颜色和字体」的那一句。
  * DSH 那些「趣味换装」真正被认出来的东西恰恰不在四层里——满屏手绘场景与两侧立绘。
- * ⇒ 这一层放的是**位图**，与 backdrop 不是一回事，也不互相替代：
+ * ⇒ 这一层放的是**一张整窗画面**，与 backdrop 不是一回事，也不互相替代：
  *   `backdrop` 仍是那层 CSS 弥散光（没有画时它单独成立），`art` 在它**下面**。
+ *
+ * 【位图还是矢量？枚举不关心】（2026-10-08 波2a）
+ * 首批两张是位图 JPG；波2a 这六张是**仓内自绘的矢量场景画**（SVG），
+ * 因为 ImageGen 配额返回 403、外部位图通路当时阻塞。
+ * 这一层只管「有没有一张铺满整窗的画」，不管它是哪种编码——
+ * 具体对哪个文件由渲染层 `appearanceSkinVisual.ts` 的 `ART_FILES` 决定，
+ * 而「枚举里的每一档都有文件躺在盘上」由 `appearance-skin-assets.test.ts` 读盘钉住。
  *
  * 【为什么是枚举而不是任意路径】
  * 路径要是任意的，等于把「渲染层允许加载什么」的决定权交给数据表——
  * 一条 `file://` 或远程 URL 就能从数据里长进 CSS。
  * 枚举让「这个 id 对应哪张图」只有 appearanceSkinVisual 一处真身。
  */
-export const APPEARANCE_ARTS = ["none", "abyss-hall-night", "shallow-hall-day"] as const;
+export const APPEARANCE_ARTS = [
+  "none",
+  "abyss-hall-night",
+  "shallow-hall-day",
+  "book-boat-night",
+  "book-boat-day",
+  "lamp-tower-night",
+  "lamp-tower-day",
+  "ink-pool-night",
+  "ink-pool-day"
+] as const;
 export const AppearanceArtSchema = z.enum(APPEARANCE_ARTS);
 export type AppearanceArt = z.infer<typeof AppearanceArtSchema>;
 

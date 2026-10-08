@@ -88,9 +88,12 @@ const ALLOWED_UPSTREAM_REPOS = [
 
 describe("皮肤表 · 形状", () => {
   /* 5-㊷：广场只收带画的皮肤，条数从 17 降到 2（汐·昼阁 / 汐·夜阁）。
-     数字继续钉死——加一套就红一次，逼人回来看下面那条入场判据还成不成立。 */
-  it("两条皮肤，id 与名字都不重", () => {
-    expect(appearanceSkins).toHaveLength(2);
+     波2a（2026-10-08）按用户那句「然后再继续增加」加到 8：三系列 × 昼夜。
+     数字继续钉死——加一套就红一次，逼人回来看下面那条入场判据还成不成立，
+     并且**顺手把素材守卫那份也认一遍**：新加的每一档都得有真文件在盘上
+     （appearance-skin-assets.test.ts），不是把名字加进枚举就算有了画。 */
+  it("八条皮肤，id 与名字都不重", () => {
+    expect(appearanceSkins).toHaveLength(8);
     const ids = appearanceSkins.map((one) => one.id);
     const labels = appearanceSkins.map((one) => one.label);
     expect(new Set(ids).size).toBe(ids.length);
@@ -336,7 +339,7 @@ describe("皮肤表 · 出处与许可", () => {
       }
     }
     // 数字钉死：加皮肤时这里会红一次，逼着人回来看这一条判据还成不成立。
-    expect(ownCount, "广场上的自有画面皮应是汐 · 昼阁、汐 · 夜阁两条").toBe(2);
+    expect(ownCount, "广场上的自有画面皮应是四系列 × 昼夜共八条").toBe(8);
     /* 5-㊷：五套改编皮从广场下架（它们没有整窗画面）。
        **条目下架，数值与出处留在 `appearanceSkinVisual.ts`**，
        所以下面那个「改编那五条的出处形状」describe 改成钉「形状判据仍然成立」，
