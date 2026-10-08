@@ -288,12 +288,20 @@ function backToChat(): void {
       </p>
 
       <ul v-else class="skin-gallery-grid">
-        <li v-for="skin in skins" :key="skin.id" class="skin-card" :style="previewStyle(skin)">
+        <!-- 卡片**本体**不吃 `previewStyle`：那套 token 里有一条 `--skin-glass-card-fill`，
+             而 `.skin-card` 的背景正是它（theme-runtime.css 那条玻璃规则）。
+             挂在 `<li>` 上 = 把「候选那套」的卡面铺到**装着页面字色的那一片**上，
+             于是浅色模式下四套夜皮的卡面合成出 `rgb(143,161,168)` 这一档中间灰，
+             而卡上的说明/出处还是页面的 `--text-secondary/tertiary`（`rgb(80,107,120)`）——
+             2026-10-08 真机 6×6 无损采样量到 **2.11 / 2.08:1**，AA 要 4.5，整片读不清。
+             候选皮肤的颜色只留给预览块（下面那层，本来就该它管），
+             卡片其余部分跟着**当前生效**的那套走：字与底同源，静态守卫算的才等于屏幕上画的。 -->
+        <li v-for="skin in skins" :key="skin.id" class="skin-card">
           <!-- 预览块：**真机渲染那一层效果**，不是画个示意图。
                背景层铺在 `skin-card-preview-backdrop` 上（那张卡片的弥散光），
                网格铺在 `skin-card-preview-grid`，玻璃与表面落在前景那两块上——
                与真正应用时 CSS 挂的位置一致，所以卡片上看到的就是换上之后的样子。 -->
-          <div class="skin-card-preview" :style="previewTone(skin)">
+          <div class="skin-card-preview" :style="{ ...previewStyle(skin), ...previewTone(skin) }">
             <div class="skin-card-preview-backdrop" />
             <div class="skin-card-preview-art" />
             <div class="skin-card-preview-grid" />

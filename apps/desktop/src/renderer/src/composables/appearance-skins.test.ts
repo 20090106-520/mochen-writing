@@ -496,10 +496,9 @@ describe("皮肤表与配色底版 · 可读性由计算说了算", () => {
    * 【为什么量页底 + 卡面两个面】卡面比页底深一档（`SURFACE_CARD_MIX`），次要文字压上去更吃紧；
    * 广场正好一面一个：`.skin-gallery-note` 在页底，`.skin-card-desc` 在卡面。
    *
-   * 【这条**没**覆盖的两处，各自要单独定线，别混进来冒充全绿】
-   * ① `--text-tertiary`（浅 0.5）对页底最低只有 2.87:1；
-   * ② 次要文字压在 `--surface-hover` / `--surface-selected` 上时 0.71 仍只有 4.38 / 4.09:1。
-   * 病因一在元信息小字要不要按正文定线，二在表面阶梯一层比一层深——都不是这个数能顺手解决的。
+   * 【这条覆盖不到的那处】次要文字压在 `--surface-hover` / `--surface-selected` 上时
+   * 0.71 仍只有 4.38 / 4.09:1——病因在表面阶梯一层比一层深，不是这个数能顺手解决的。
+   * （原先这里还挂着「第三级文字 2.87:1 未定线」，现由下面那条守卫接管。）
    */
   it("广场每一条 × 深浅两版：次要文字对页底与卡面 ≥ 4.5:1（AA 正文级）", async () => {
     const { contrastRatio, mixHex, SECONDARY_TEXT_MIX, SURFACE_CARD_MIX } =
@@ -519,6 +518,55 @@ describe("皮肤表与配色底版 · 可读性由计算说了算", () => {
         expect(
           onCard,
           `${skin.label} · ${scheme}：次要文字 ${muted} / 卡面 ${card} 只有 ${onCard.toFixed(2)}:1`
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  /**
+   * 第三级文字（`--text-tertiary`）——卡脚那几个元信息小字、时间戳、字数统计的字色。
+   *
+   * 【为什么上面那条盖不到它】次要文字是 0.71，第三级是**更浅的一档混色**，
+   * 系数每降 0.01 都在往下掉对比度；次要那条绿着，不代表这一档也绿。
+   *
+   * 【2026-10-08 这条为什么现在才有】上一轮把系数写在调用行里（浅 0.5 / 深 0.52），
+   * 守卫拿不到同一个数，只能在注释里记一句「2.87:1，未定线」——那就是"知道但没拦"。
+   * 这一轮先把两份原值搬成 `TERTIARY_TEXT_MIX` 常量，**所以这条一开始是红的**，
+   * 红在真实缺陷上（昼阁浅版对页底 2.87、对卡面 2.74），而不是红在 import 不到东西。
+   *
+   * 【扫出来的结论：浅色这一档买不到"既 AA 又有层级"】把 0.48–0.72 逐档在八套皮肤上算过
+   * （系数→页底/卡面的完整阶梯都在提交说明里）：
+   * - 浅色四套里最紧的是「汐·昼阁」：0.66 → 页 4.41 / 卡 4.21，0.69 → 4.82 / 4.60，
+   *   0.71 → 5.11 / 4.88。要过 4.5 至少得 0.69，而次要文字就是 0.71 ——
+   *   **层级当场没了**。这不是数值巧合，是「拿底色混前景色当第三级」这个机制的上限：
+   *   浅底上任何"浅一点的灰"都贴回底色。
+   * - 深色八套在 0.62 就全员 ≥ 页 5.97 / 卡 4.94，而次要是 0.72 —— **层级留得住**。
+   *
+   * ⇒ 处置：**浅色不假造第三级色，把它钉到与次要同级**（第三级在浅色靠字号与位置区分），
+   *   深色提到 0.62 保住那一档可见的浅。这两件事都由下面这条断言钉住，
+   *   谁哪天把浅色再调"更柔和"回去，这里先红。
+   *
+   * 【阈值与留量同次要那条】静态 4.5 是真机下限的**下界**：真机采样比静态低 0.15~0.37
+   * （画层 + 那层纱会把垫底压暗），所以浅色取的是 0.71 那一档而不是刚好跨线的 0.67。
+   */
+  it("广场每一条 × 深浅两版：第三级文字对页底与卡面 ≥ 4.5:1（AA 正文级）", async () => {
+    const { contrastRatio, mixHex, TERTIARY_TEXT_MIX, SURFACE_CARD_MIX } =
+      await import("./appearanceThemeRuntime");
+    expect(appearanceSkins.length, "皮肤表空了 —— 下面这条会全绿而一条不测").toBeGreaterThan(0);
+    for (const skin of appearanceSkins) {
+      for (const scheme of ["light", "dark"] as const) {
+        const { background, foreground } = skin[scheme];
+        const dim = mixHex(background, foreground, TERTIARY_TEXT_MIX[scheme]);
+        const card = mixHex(background, foreground, SURFACE_CARD_MIX[scheme]);
+        const onPage = contrastRatio(dim, background);
+        expect(
+          onPage,
+          `${skin.label} · ${scheme}：第三级文字 ${dim} / 页底 ${background} 只有 ${onPage.toFixed(2)}:1`
+        ).toBeGreaterThanOrEqual(4.5);
+        const onCard = contrastRatio(dim, card);
+        expect(
+          onCard,
+          `${skin.label} · ${scheme}：第三级文字 ${dim} / 卡面 ${card} 只有 ${onCard.toFixed(2)}:1`
         ).toBeGreaterThanOrEqual(4.5);
       }
     }

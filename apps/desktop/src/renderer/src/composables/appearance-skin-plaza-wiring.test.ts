@@ -386,7 +386,37 @@ describe("皮肤广场页 · 接线（.vue 零类型检查，只能读源码）"
     expect(script).toContain("function previewTone");
     expect(script).toContain("background: tone.background");
     expect(script).toContain("color: tone.foreground");
-    expect(templateSource(PAGE)).toContain(':style="previewTone(skin)"');
+    expect(templateSource(PAGE)).toContain("...previewTone(skin) }");
+  });
+
+  /**
+   * 【这条钉的是 2026-10-08 真机量出来的一个可读性缺陷，不是风格】
+   *
+   * `previewStyle(skin)` 里有一条 `--skin-glass-card-fill`，而 `.skin-card` 的背景正是它
+   * （theme-runtime.css 那条 `:where(.extension-card, .skin-card, …)` 的玻璃规则）。
+   * 原先这串 token 挂在 `<li class="skin-card">` 上 ⇒ **卡片本体**铺的是「候选那套」的卡面，
+   * 而卡上的标题/说明/出处用的还是**页面那套**的 `--text-*`。
+   * 浅色模式下四套夜皮的卡面合成出 `rgb(143,161,168)` 这一档中间灰，
+   * 配上页面的次要/第三级字色 `rgb(80,107,120)`：
+   * 6×6 无损 PNG 采样实量 **卡说明 2.11:1、卡脚出处 2.08:1**（AA 正文要 4.5）。
+   * 而静态守卫看不见它——守卫拿的是「当前这套的卡面」（`SURFACE_CARD_MIX`），
+   * 屏幕上画的却是「另一套的卡面」，两边根本不是一张底。
+   *
+   * ⇒ 候选皮肤的颜色只留给预览块（那才是「换上之后长这样」的那一层），
+   *   卡片其余部分跟着当前生效的那套走：字与底同源，守卫算的才等于屏幕上画的。
+   */
+  it("候选皮肤的五层 token 只落在预览块上，卡片本体不跟着换底", () => {
+    const markup = templateSource(PAGE);
+    expect(markup).toMatch(
+      /class="skin-card-preview" :style="\{ \.\.\.previewStyle\(skin\), \.\.\.previewTone\(skin\) \}/
+    );
+    /* 反向断言才是这条的重点：token 一旦回到 `<li>`，上面那两条照样绿
+       （预览块还带着它自己那份），但卡面的底又变成候选那套的了。 */
+    expect(markup).not.toMatch(/class="skin-card"[^>]*previewStyle/);
+    // 并排对比那一栏没有这个问题：`.skin-compare-item` 自己不铺底，
+    // 它带着 previewStyle 只为里面那扇五层窗供 token。哪天它开始铺底，这条会红。
+    const css = styleSource("skin-gallery.css");
+    expect(ruleBlock(css, ".skin-compare-item")).not.toContain("background");
   });
 
   it("previewStyle 必须把 accent / ink / paper / scheme 都传齐（漏一个就色值算成 NaN）", () => {
