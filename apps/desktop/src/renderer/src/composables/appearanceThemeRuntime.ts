@@ -23,63 +23,25 @@ import {
 import { hexToRgb, mix, mixChannels, mixHex, mixRgba, rgba } from "./appearanceColor";
 export { mixChannels, mixHex, mixRgba, rgba };
 
-export interface ThemePreset {
-  id: string;
-  label: string;
-  light: Pick<AppearanceThemeConfig, "accent" | "background" | "foreground">;
-  dark: Pick<AppearanceThemeConfig, "accent" | "background" | "foreground">;
-}
-
 export const FONT_SIZE_LIMITS = APPEARANCE_FONT_SIZE_LIMITS;
 
-/* 配色的真身是**出厂底版表**（见下面 themePresets 那段注释）。
-   5-㊷ 之前这里 import 的是 appearanceSkins 再按 `origin === OWN_SKIN_ORIGIN` 筛，
-   而那一版之后皮肤表只收带画的皮——筛出来的会是**零条**。
-   零条不是「少了几套预设」，是下面那条对比度守卫变成空遍历：照样全绿，一条也没测。
-   ⇒ 投影源改成 appearanceTones（那份按定义就只有三色，不需要再筛），
-     连 `OWN_SKIN_ORIGIN` 这句字符串判据一起省掉：判据从「比对一句出处」
-     变成「这一族本来就只有三色」，不会再因为谁改了一句话而悄悄失效。 */
-import { appearanceTones } from "./appearanceTones";
-
-/**
- * 主题配色预设（2026-10-06 批次 5-⑧：由 4 条扩到 10 条）。
- *
- * **挑色的三条硬要求**，每一条都由 `appearance-theme-presets.test.ts` 里的对比度计算守着，
- * 不是「看着挺舒服」：
- * ① 正文色对背景色的对比度 **≥ 7:1**（WCAG AAA 正文级）——写长文时眼睛要在这一组上待几小时，
- *    差一点点就会累；
- * ② accent 对背景 **≥ 3:1**——accent 铺在按钮上，按钮文字与底色之间要读得清；
- * ③ 深色版的背景不是纯黑、浅色版不是纯白：纯黑配纯白对比度 21:1 但长时间看刺眼，
- *    所以最深到 `#0A0A0A`、最浅到 `#FDFDFD`，把最刺的那一档让出去。
- *
- * 每套都配**深浅两版**，因为 mode 可以是 system——只做好看的一套等于有一半时间在用不配套的那版。
- */
-/**
- * 主题配色预设——**从出厂底版派生**（2026-10-07 批次 5-㊴ 建投影，5-㊷ 换投影源）。
- *
- * 【为什么这里不再自己写一份】
- * 批次 5-㊴ 之前，十套配色的三色只写在 themePresets 这一张表里。
- * 加入皮肤之后，「配色」与「质感」合成了一条皮肤，于是同一组三色会出现在两个地方：
- * 皮肤表（有质感）与这里（没质感）。两份表迟早会漂移——
- * 守卫钉的是这一份，用户在皮肤广场看到的是那一份，红的绿的都说不清是谁的。
- *
- * ⇒ 真身移到 `appearanceTones.ts`，这里只做一次投影。
- *   5-㊴ 到 5-㊵ 之间投影源是皮肤表 + 一句出处筛，而 5-㊷ 把广场改成只收带画的皮之后，
- *   那条筛只剩「筛出零条」这一个结果——所以底版单独成表，投影直读它。
- *   这份预设表**只暴露配色三色**：它的消费者（导入导出主题文件、可读性守卫）
- *   要的就是三色，多给视觉四层与画面层只会让它们各自去 ignore。
- *
- * 【为什么还是那十条、顺序也不许动】
- * 十条的顺序是 5-⑧ 定下的，有用户按位置记它；而它们的 id 与三色已经存进用户盘的
- * appearance.json，改任何一个都是把别人的主题改掉。带画的皮肤不进来投影，
- * 否则「主题配色」里会混进两套含义不同的东西（5-㊵ 真机红过一次：10 条变 12 条）。
- */
-export const themePresets: ThemePreset[] = appearanceTones.map((tone) => ({
-  id: tone.id,
-  label: tone.label,
-  light: { ...tone.light },
-  dark: { ...tone.dark }
-}));
+/* ── `themePresets` 已随「素面配色」那一族一起删除（2026-10-08 第二刀） ──────
+   【它原先是什么】批次 5-⑧ 起的一张「只有三色的主题配色预设」表，
+   5-㊴ 改成从皮肤表按出处筛，5-㊷ 改成从 `appearanceTones.ts` 那十套底版投影。
+   【为什么这次不是换投影源而是整族删掉】
+   用户那句裁定是「把没有皮肤没有图片的全删了，只保留有图片有皮肤的」。
+   `themePresets` 按定义就是「只有三色、没有画面」的那一族——
+   换任何投影源都还是在实现那句被推翻的安排。
+   而且它**在界面上没有一处入口**：5-㊴ 把外观页那块配色网格退役之后，
+   全仓消费者只剩守卫自己（`grep -rn themePresets` 当时只剩 .test.ts 与本文件）。
+   ⇒ 一份没人读、内容又是用户明确不要的表，删。
+   【删掉之后那些守卫去哪儿】
+   可读性（正文 ≥ 7:1、按钮字 ≥ 4.5:1、accent ≥ 2.5:1、深色不纯黑、深浅不许做成同一套）
+   全部**重指到皮肤表**——见 `appearance-theme-readability.test.ts`，
+   那边现在遍历 `appearanceSkins` 并先钉「表非空」；
+   「出厂默认 = 广场第一套」的逐字段对照在 `appearance-skins.test.ts` 的
+   「出厂默认 · 只能是广场里那套带画的皮肤」那一组。
+   （**重指而不是删松**：本仓的口径是删掉一条守卫要写清楚它钉的那件事由谁接着钉。） */
 
 export function defaultAppearanceTheme(scheme: AppearanceColorScheme): AppearanceThemeConfig {
   return createDefaultAppearanceTheme(scheme);

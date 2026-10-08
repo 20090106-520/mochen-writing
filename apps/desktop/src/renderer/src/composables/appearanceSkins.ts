@@ -11,12 +11,39 @@
  * 这一句判的正是 5-㊵ 自己已经承认过的东西——四层全是 **CSS 质地**，
  * 换完了读起来仍然是「换了个色调」；真正被一眼认出来的是 `art` 那一层（整窗插画）。
  * ⇒ 广场上现在只有 `art !== "none"` 的皮肤。被下架的十五条分两处安置：
- *   · 十套出厂配色 → `appearanceTones.ts`（**一条数据都没少**，理由与后果写在那份文件头）。
+ *   ⚠️ 下面这三行是 **5-㊷ 的处置记录**，第二刀已经把它推翻（见紧接着的那一段）。
+ *   留原文是为了「这条裁定是怎么走到今天的」，但其中两处**照读会读成假话**：
+ *   · 十套出厂配色 → `appearanceTones.ts`（**那条文件已经整份删除，现在去读会扑空**）。
  *   · 五套改编皮 → 条目下架，但它们从上游搬来的**数值与出处全留着**
  *     （`appearanceSkinVisual.ts` 的 `UPSTREAM_*` 常量，每条都注着原文件与行号，
  *     对账守卫是 `appearance-skin-visual.test.ts`）。
- *     为什么不一起删：老用户盘上存着 `glass: "standard"`、`grid: "industrial"` 的，
- *     运行时照样要按上游那一条值渲染；枚举与数值一删，那些人什么也没点，界面却自己变了。
+ *     为什么不一起删：「老用户盘上存着 `glass: "standard"`、`grid: "industrial"` 的，
+ *     运行时照样要按上游那一条值渲染」——**这一句在第二刀之后不再成立**（回落会覆写四层）；
+ *     仍然成立的是后半句：枚举与数值一删，那些人什么也没点，整份设置却退回默认。
+ *
+ * 【第二刀：2026-10-08 同日，「下架但不销毁」这个处置被用户推翻】
+ * 上一段那条「十套出厂配色搬进 `appearanceTones.ts` 继续当配色底版」的安排，
+ * 用户的原话是：**「我没说明白吗，把没有皮肤没有图片的全删了，只保留有图片有皮肤的，
+ * 然后再继续增加。」**
+ * ⇒ `appearanceTones.ts` **整份删除**，连它派生的 `themePresets`（「主题配色」那一族投影）
+ *   一起退役——那一族到当时为止仍然只有守卫在读，界面上没有一处入口，
+ *   留着它只等于把「用户不要的那十套」换个名字继续摆在代码里。
+ * ⇒ 五套改编皮那一半：**条目维持不在表里**，而上一段给这个安排的理由已经跟着第二刀变了，
+ *   别照原文信它。原来写的是「它们的数值仍被老 JSON 消费，删掉就是改别人的界面」——
+ *   那是 5-㊷ 的世界：那时只把条目从广场摘掉，盘上的 `glass: "standard"`、`grid: "industrial"`
+ *   还会照原值刷上屏幕。第二刀的回落（见下面那条 `reconcileStoredSkin`）会把
+ *   **四层连同一组三色整份覆写**成广场第一套，那些老层取值从此不再上屏。
+ *   ⇒ 所以枚举与数值表留下来的**真实理由只剩一条**：过不了 zod 就整份退默认
+ *     （`appearance-store.test.ts` 钉着「内容过不了 zod ⇒ 退默认值」），
+ *     那些人什么也没点，却连「你原来那套已经删除」这句都听不到。
+ *     这条理由由 `appearance-skins.test.ts` 的「老层取值仍解析得动」钉住；
+ *     而它**不再是一句用户可以看见的话**——广场那段说明原先写着「运行时还得按原值渲染」，
+ *     第二刀之后那是假话，已经删掉了。
+ *   ⇒ 另外，上游那批档名里 `aurora` 是**活着的一条**：昼阁（`xi-day`）的背景层直接复用了它，
+ *     所以那张表并不是纯粹的历史包袱。
+ * ⇒ 老盘上存着已删除 id 的，由 `appearanceSkinPreview.reconcileStoredSkin` 在**读盘时**
+ *   回落成 `defaultAppearanceSkin`（= 广场第一套），并把原 id 交给界面说实话；
+ *   回落只改内存里那份，**不写盘**（把别人的文件改了是另一件事，要用户点一次才算）。
  *
  * 【5-㊴ 那一版为什么被用户否掉】
  * 那一版把上游的视觉语言**概括成四个离散档**（texture/radius/outline/glow 各三四档），
@@ -72,12 +99,18 @@ import {
   type AppearanceGrid,
   type AppearanceSurface
 } from "@mochen/contracts";
-/* 三色底版的真身在 `appearanceTones.ts`，这里 re-export 那两个出处常量与 `SkinTone`。
-   **同一个概念不开第二个名字**，而既有 import 路径（`appearanceThemeRuntime` 的投影、
-   两份守卫）一行都不用改——与 runtime 那边 re-export `skinStyleVariables` 同一套路。 */
-import type { SkinTone } from "./appearanceTones";
-export { OWN_SKIN_ORIGIN, OWN_SKIN_LICENSE } from "./appearanceTones";
-export type { SkinTone };
+/* 2026-10-08 第二刀：`appearanceTones.ts`（十套素面配色底版）整份删除，
+   于是这里只剩皮肤表自己。**三色的形状类型 `SkinTone` 搬进本文件**——
+   它本来就是「一套配色的三色」，此前住在那份底版表里只是因为十条素面皮住在那儿。
+   `OWN_SKIN_ORIGIN` / `OWN_SKIN_LICENSE` 那两句一起消失：它们说的是「出厂素面配色」，
+   而那一族已经不存在了。留着两句没人引用的字符串，等于给下一个来人留一条回头路。 */
+
+/** 一套配色底的三色：强调色、底色、前景色。`AppearanceSkin.light / dark` 各是一份。 */
+export interface SkinTone {
+  accent: string;
+  background: string;
+  foreground: string;
+}
 
 /**
  * 一条皮肤。`backdrop / glass / surface / grid` 四层质感 + `art` 一层画面，
@@ -117,18 +150,18 @@ export interface AppearanceSkin {
    加一档时这张表会自己跟着长（铁律 6）。 */
 
 /**
- * 墨宸**原创画面**的出处标记。
+ * 墨宸**原创画面**的出处标记，也是广场里唯一允许出现的出处。
  *
- * 【为什么不能复用 OWN_SKIN_ORIGIN】
- * `themePresets` 是「只有三色的出厂配色」那一族。给了「汐」系列同一句出处，
- * 两条带画的皮就被投影进那张表里——而它的消费者只要三色，
- * 多出来的质感四层与画面层各自 ignore，
- * 于是那页里混进了两套含义不同的东西（真机上就是这里红的：10 条变 12 条）。
+ * 【为什么曾经有两句「自有」】
+ * 5-㊷ 之前素面配色也在广场里，那时「墨宸自有」分成两族：只有三色的出厂配色
+ * 与带整窗画面的原创皮，出处各一句（`OWN_SKIN_ORIGIN` / `OWN_ART_ORIGIN`）。
+ * 给「汐」系列用过同一句出处的后果是真机红过一次：那一族投影（`themePresets`）
+ * 按出处字符串筛，两条带画的皮被投影了进去，10 条变 12 条。
  *
- * 5-㊷ 之后出厂那十套整个住进 `appearanceTones.ts`，投影也不再从皮肤表里筛，
- * 但**这两句仍然必须分开**：广场里「墨宸原创画面」与「改编自某上游」是两种归属，
- * 许可义务不同（前者本仓自有，后者要注明出处）。
- * 加第三种归属时同样要新开一句，不要往这句话里塞。
+ * 第二刀之后出厂配色那一族整个删掉，**广场上只剩这一句**。
+ * 所以这里不再留第二个名字，而 `appearance-skins.test.ts` 把「出处只能是这一句」
+ * 直接钉在表上——将来往里加第二种归属（例如又搬一条上游）时，
+ * 要同时改这条守卫，而不是悄悄多出一句没人对照的字符串。
  */
 export const OWN_ART_ORIGIN = "墨宸原创画面";
 export const OWN_ART_LICENSE = "本仓自有";
@@ -206,13 +239,36 @@ export const appearanceSkins: AppearanceSkin[] = [
 /**
  * 按 id 取一套皮肤。取不到返回 undefined（调用方自己决定退路，不在这里兜底成某一套）。
  *
- * 5-㊷ 之后「取不到」多了一种**正常**情形：用户存的是已下架的出厂配色。
- * 那一份要到 `appearanceTones.findAppearanceTone` 去查——
- * AppearancePanel 两处都查，才分得清「这套还在，只是广场不卖了」与「这套我们不认识」。
+ * 第二刀之后「取不到」**只剩一种含义**：盘上存的那一套已经被删掉了
+ * （十套素面配色、五套改编皮条目，或一个从没存在过的 id）。
+ * 退路只有一份实现：`appearanceSkinPreview.reconcileStoredSkin`（读盘时回落）。
+ * 原先这里还有第二档「到 `appearanceTones` 去查，查到了说『下架但配色还在』」，
+ * 那一档随那份表一起删了——**别再把它加回来**。
  */
 export function findAppearanceSkin(id: string): AppearanceSkin | undefined {
   return appearanceSkins.find((skin) => skin.id === id);
 }
+
+/**
+ * 回落与出厂默认都指向这一套：**广场的第一套**。
+ *
+ * 【为什么不写死 `"xi-day"` 这个字符串】
+ * 写死就出现「表里第一套」与「代码里点名的那一套」两份真相：将来在表头插进一套新皮肤，
+ * 广场顺序变了而回落还指着旧的那一套，而两边都不报错。
+ * 取 `appearanceSkins[0]` 之后，「继续增加带画皮肤」这件事只改表，
+ * 出厂默认、回落、以及 contracts 那份对照会由守卫逼着一起改。
+ *
+ * 【它与 contracts 的关系】
+ * contracts 拿不到本文件（依赖方向 contracts ← renderer），所以那边另写了一份同值的默认值，
+ * 对照由 `appearance-skins.test.ts` 的「出厂默认」那一组逐字段钉住。
+ */
+/* 表是 `as const` 写死的数据，空了就是源码写坏了；这里选择**当场抛错**而不是兜底成某个假对象，
+   与本仓 `anchorSkin()`（预览/换上守卫）同一个口径：静默退化成「另一套」比红更难查。 */
+const [firstSkin] = appearanceSkins;
+if (firstSkin === undefined) {
+  throw new Error("皮肤广场是空的：没有可当出厂默认与回落点的皮肤");
+}
+export const defaultAppearanceSkin: AppearanceSkin = firstSkin;
 
 /* ── 筛选档：从**表里真实存在的值**派生 ─────────────────────────────────
    2026-10-08 批次 5-㊷ 改的这条，起因是一个真缺陷。

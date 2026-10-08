@@ -7,8 +7,7 @@ import { MorphIcon } from "morphicons/vue";
 import { APPEARANCE_FONT_FAMILY_LABELS, type AppearanceMode } from "@mochen/contracts";
 import { useAppearanceStore } from "../stores/useAppearanceStore";
 import { useLayoutStore } from "../stores/layoutStore";
-import { findAppearanceSkin } from "../composables/appearanceSkins";
-import { findAppearanceTone } from "../composables/appearanceTones";
+import { findAppearanceSkin, defaultAppearanceSkin } from "../composables/appearanceSkins";
 import {
   applyReducedMotion,
   loadReducedMotion,
@@ -29,30 +28,45 @@ const MODE_OPTIONS: Array<{ value: AppearanceMode; label: string }> = [
 const MODE_ICONS = { system: Monitor, light: Sun, dark: Moon } as const;
 const modeIcon = computed(() => MODE_ICONS[appearance.settings.mode]);
 
-/** 现在用的是哪一套皮肤的名字。取不到时如实说「未知」而不是静默显示空白——
- *  取不到只有一种情形：盘上存的那个 skin id 不在表里（表被改过、或换了版本）。
- *  那种时候界面必须承认「不认识」，因为用户点「去皮肤广场」之后
- *  在那里看到的会是另一套，而这里什么都不说就成了两处互相矛盾。
+/**
+ * 现在用的是哪一套皮肤的名字。
  *
- *  【5-㊷ 加的那一档：下架了，但配色还在】
- *  广场这一批只留带整窗画面的皮肤，于是盘上存着老 id（十套出厂配色）的用户
- *  会走到这里。让他们读「未知的一套」是假话——那一套的三色此刻就作用在界面上，
- *  只是它作为「皮肤」这个整体下架了。⇒ 先查广场表，再查配色底版表，
- *  查到底版就说清「能用，只是不在广场里卖了」。
- *  真正查不到的（那五条改编皮）仍旧走「未知」那一句：它们连配色都不在表里，
- *  界面说不出它是什么，就不能编一个名字。
+ * 【2026-10-08 第二刀之后这里只剩两档】
+ * 上一版这里有三级兜底：广场表 → 配色底版表（`appearanceTones`）→ 「未知」，
+ * 第二档说的是「素面配色，不在广场里卖（配色照旧能用）」。
+ * 用户那句裁定是「把没有皮肤没有图片的全删了，只保留有图片有皮肤的」，
+ * 于是那张底版表连同 `themePresets` 投影一起删了，这一档跟着没。
+ * 回落挪到了数据层：`useAppearanceStore.load()` 会把盘上那个已经不存在的 id
+ * 换成广场第一套（只改内存、不写盘），所以下面第一档今天就应该命中。
  *
- *  【为什么底版查询要走两个字段】
- *  `skin` 在 contracts 里的出厂默认是 `"plain"`——那是个**占位符**，不是任何一张表里的 id。
- *  于是没换过皮肤的新用户，`skin` 查不到，而 `preset` 是 `"codex"`（真正生效的那套配色）。
- *  ⇒ 兜底顺序是 skin → preset，两个都查不到才说「未知」。 */
+ * 【那为什么还留着「未知的一套」】
+ * 它是数据层以外那半条路的保险：`settings` 在 load 之前是 contracts 默认值，
+ * 而任何一处把陌生 id 带进来时，界面必须承认不认识它，而不是编一个名字。
+ * 这一档今天走不到——走不到正是对的，`appearance-panel-wiring.test.ts` 钉着
+ * 「不许再 import 已删的那张表」，所以它也不会被复活成第三档。
+ */
 const currentSkinLabel = computed(() => {
-  const { skin, preset } = appearance.settings.light;
-  const found = findAppearanceSkin(skin);
+  const found = findAppearanceSkin(appearance.settings.light.skin);
   if (found) return `${found.label} · ${found.tagline}`;
-  const tone = findAppearanceTone(skin) ?? findAppearanceTone(preset);
-  if (tone) return `${tone.label} · 素面配色，不在广场里卖（配色照旧能用）`;
   return "未知的一套（在皮肤广场里挑一个就好）";
+});
+
+/**
+ * 盘上那套已被删除时多说一句实话。
+ *
+ * 【为什么不静默换掉就好】
+ * 回落换掉的是**人家存的主题**。什么都不说，用户看到的是「我从来没选过皮肤」；
+ * 说一句，他就知道是我们删的、现在用的是哪一套、以及想换可以去广场。
+ * 措辞刻意带上原 id（`paper` 这种），因为那是他盘上文件的原话，不是我们编的名字。
+ *
+ * 【为什么写「已经删除」而不是「已下架」】
+ * 5-㊷ 那一版说「下架不等于销毁」时它确实还活着；第二刀之后那张表整个没了，
+ * 再说「下架」就是把「我们删了」说成「暂时没摆出来」，用户会去广场找它并找不到。
+ */
+const retiredSkinNote = computed(() => {
+  const retired = appearance.replacedSkinId;
+  if (retired === null) return null;
+  return `你原来存的「${retired}」已经删除——那一套没有画面，不在这批「只保留带画面的皮肤」的名单里。现在用的是${defaultAppearanceSkin.label}，想去广场换一套随时可以。`;
 });
 
 /** 去皮肤广场。走 layout 真身——左栏那枚钮是同一条通路。 */
@@ -175,6 +189,10 @@ const editorFontOptions = Object.entries(APPEARANCE_FONT_FAMILY_LABELS).filter((
           去皮肤广场挑
         </button>
       </div>
+      <!-- 盘上那套已下架时这一行才出现（`replacedSkinId` 非 null）。
+           写在名字**下面**而不是替掉名字：屏幕上此刻渲染的确实就是回落后的那一套，
+           名字要说真话，那句「你原来存的已经不在了」也要说真话，两句不互相替代。 -->
+      <p v-if="retiredSkinNote" class="appearance-retired-skin">{{ retiredSkinNote }}</p>
     </div>
 
     <label class="appearance-field appearance-select-row">

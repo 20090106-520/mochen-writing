@@ -6,8 +6,12 @@
  */
 import { describe, expect, it } from "vitest";
 import { createDefaultAppearanceSettings } from "@mochen/contracts";
-import { appearanceSkins, findAppearanceSkin } from "./appearanceSkins";
-import { effectiveSettings, patchSettingsWithSkin } from "./appearanceSkinPreview";
+import { appearanceSkins, defaultAppearanceSkin, findAppearanceSkin } from "./appearanceSkins";
+import {
+  effectiveSettings,
+  patchSettingsWithSkin,
+  reconcileStoredSkin
+} from "./appearanceSkinPreview";
 
 /** 取表里那一套**锚点**皮肤；取不到立刻抛错，不许兜底成表里第一套。
  *
@@ -124,5 +128,110 @@ describe("effectiveSettings · 屏幕上该刷哪一份", () => {
   it("预览中时与 patchSettingsWithSkin 逐字段同值（预览看到的 == 换上得到的，只有一份拼法）", () => {
     const settings = tunedSettings();
     expect(effectiveSettings(settings, day)).toEqual(patchSettingsWithSkin(settings, day));
+  });
+});
+
+/**
+ * 读盘时的**回落**（2026-10-08 第二刀）。
+ *
+ * 【这一族为什么必须存在】
+ * 用户裁定「把没有皮肤没有图片的全删了」之后，盘上存着 `skin: "paper"` 这类已删 id 的
+ * appearance.json **依然合法**——`preset` / `skin` 在 contracts 里是非枚举的
+ * `z.string().trim().min(1)`，safeParse 照样成功。
+ * 于是那一份会带着一个表里不存在的 id 一路走到界面上：
+ * 外观页说「未知的一套」，皮肤广场那边却没有一张卡是选中的，两处互相矛盾。
+ * ⇒ 回落只有 `reconcileStoredSkin` 这一份实现，读盘时过一次。
+ *
+ * 【为什么不直接改盘上的文件】
+ * 静默重写别人的 appearance.json 是比「界面退回默认」更重的一件事：
+ * 那十套配色里存着的 accent/background/foreground 会永久消失，不可回退。
+ * 所以只改内存里那一份，`replacedSkinId` 交给界面说实话，
+ * 用户真去点一次「换上」或改任何设置，才由那条通路正常落盘。
+ */
+describe("reconcileStoredSkin · 存着已下架的 id 时回落成广场第一套", () => {
+  /** 一份「盘上存着已删 id」的设置：浅深两套都写 `paper`（十套素面里的那一套）。 */
+  function retiredSkinSettings() {
+    const base = createDefaultAppearanceSettings();
+    return {
+      ...base,
+      light: { ...base.light, preset: "paper", skin: "paper", accent: "#A25D35" },
+      dark: { ...base.dark, preset: "paper", skin: "paper", accent: "#E49B66" }
+    };
+  }
+
+  it("盘上那套已不存在 → 回落成 defaultAppearanceSkin，且回报被换掉的原 id", () => {
+    const { settings, replacedSkinId } = reconcileStoredSkin(retiredSkinSettings());
+    expect(replacedSkinId).toBe("paper");
+    for (const scheme of ["light", "dark"] as const) {
+      const one = settings[scheme];
+      expect(one.skin).toBe(defaultAppearanceSkin.id);
+      expect(one.preset).toBe(defaultAppearanceSkin.id);
+      // 三色与五层一起换：只换 id 不换值，外观页就会说「汐 · 昼阁」而屏幕上还是暖纸。
+      for (const key of ["accent", "background", "foreground"] as const) {
+        expect(one[key], `${scheme} 的 ${key} 没跟着回落`).toBe(defaultAppearanceSkin[scheme][key]);
+      }
+      for (const key of ["backdrop", "glass", "surface", "grid", "art"] as const) {
+        expect(one[key], `${scheme} 的 ${key} 没跟着回落`).toBe(defaultAppearanceSkin[key]);
+      }
+    }
+    // 浅色取浅色版、深色取深色版，两套不许串。
+    expect(settings.dark.accent).toBe(defaultAppearanceSkin.dark.accent);
+    expect(settings.light.accent).toBe(defaultAppearanceSkin.light.accent);
+    expect(settings.light.art, "回落完还是没有画面，等于换了个名字继续摆素面").not.toBe("none");
+  });
+
+  it("用户调过的偏好一项都不丢：mode、字体、字号、半透明侧栏原样保住", () => {
+    const { settings } = reconcileStoredSkin({
+      ...tunedSettings(),
+      light: { ...tunedSettings().light, skin: "ocean" }
+    });
+    expect(settings.mode).toBe("dark");
+    expect(settings.uiFontFamily).toBe("hei");
+    expect(settings.editorFontFamily).toBe("kai");
+    for (const one of [settings.light, settings.dark]) {
+      expect(one.uiFontSize).toBe(17);
+      expect(one.codeFontSize).toBe(15);
+      expect(one.translucentSidebar).toBe(false);
+    }
+  });
+
+  it("盘上那套还在表里（xi-night）→ **同一个对象原样返回**，replacedSkinId 为 null", () => {
+    const stored = patchSettingsWithSkin(tunedSettings(), night);
+    // `toBe` 而不是 `toEqual`：回落点若写成「无论如何都 patch 一遍」，
+    // 深比较看不出来，而 App.vue 那条深比较会以为设置变了、每次开窗都白刷一遍 token。
+    expect(reconcileStoredSkin(stored).settings).toBe(stored);
+    expect(reconcileStoredSkin(stored).replacedSkinId).toBeNull();
+  });
+
+  it("只有一套认不出也算认不出（浅色在表里、深色存着已删 id）", () => {
+    const stored = {
+      ...tunedSettings(),
+      light: { ...tunedSettings().light, skin: night.id },
+      dark: { ...tunedSettings().dark, skin: "dusk" }
+    };
+    const { settings, replacedSkinId } = reconcileStoredSkin(stored);
+    expect(replacedSkinId).toBe("dusk");
+    expect(settings.light.skin).toBe(defaultAppearanceSkin.id);
+    expect(settings.dark.skin).toBe(defaultAppearanceSkin.id);
+  });
+
+  it("回落不改入参（与 patchSettingsWithSkin 同一条口径）", () => {
+    const stored = retiredSkinSettings();
+    const before = structuredClone(stored);
+    const { settings } = reconcileStoredSkin(stored);
+    expect(stored).toEqual(before);
+    expect(settings).not.toBe(stored);
+  });
+
+  it("出厂默认自己就过得去（回落不该在第一次 load 时就触发）", () => {
+    const fresh = createDefaultAppearanceSettings();
+    expect(reconcileStoredSkin(fresh).settings).toBe(fresh);
+    expect(reconcileStoredSkin(fresh).replacedSkinId).toBeNull();
+  });
+
+  it("回落点自己必须带画、且在表里（表空了这里先红，而不是把 undefined 带进界面）", () => {
+    expect(defaultAppearanceSkin.art).not.toBe("none");
+    expect(findAppearanceSkin(defaultAppearanceSkin.id)).toBe(defaultAppearanceSkin);
+    expect(appearanceSkins[0]).toBe(defaultAppearanceSkin);
   });
 });

@@ -146,6 +146,13 @@
   line-height: 1.6;
 }
 
+/* 说明切成多段之后（2026-10-08 第二刀），相邻两段之间要有呼吸。
+   上面那条把 `.skin-gallery-note` 的 margin 全钉成 0，不给这一条就是六行贴着的短句，
+   读起来像一张表格而不是一段话。 */
+.skin-gallery-note + .skin-gallery-note {
+  margin-top: 5px;
+}
+
 .skin-gallery-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));

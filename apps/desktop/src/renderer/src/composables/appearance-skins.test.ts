@@ -33,6 +33,7 @@ import {
   APPEARANCE_GLASSES,
   APPEARANCE_GRIDS,
   APPEARANCE_SURFACES,
+  AppearanceSettingsSchema,
   createDefaultAppearanceTheme
 } from "@mochen/contracts";
 import {
@@ -42,21 +43,22 @@ import {
   APPEARANCE_GRID_LABELS,
   APPEARANCE_SURFACE_LABELS,
   OWN_ART_ORIGIN,
-  OWN_SKIN_ORIGIN,
   SKIN_ART_FILTERS,
   SKIN_BACKDROP_FILTERS,
   SKIN_GLASS_FILTERS,
   SKIN_GRID_FILTERS,
   SKIN_SURFACE_FILTERS,
   appearanceSkins,
+  defaultAppearanceSkin,
+  findAppearanceSkin,
   type AppearanceSkin
 } from "./appearanceSkins";
-import { appearanceTones, findAppearanceTone } from "./appearanceTones";
-// 四层的**数值**守卫搬到 appearance-skin-visual.test.ts 了（它们是「要跟上游对账」的部分）；
-// 5-㊷ 又把「读 .vue 与 .css 源码」那一半搬到 appearance-skin-plaza-wiring.test.ts
-// （两份各 800 行的预算：这一份钉表与投影，那一份钉页面）。
-import { themePresets } from "./appearanceThemeRuntime";
-import { typeScriptSource } from "../utils/vue-source-reader";
+// 5-㊷ 之后四层的**数值**守卫搬到 appearance-skin-visual.test.ts（它们是「要跟上游对账」的部分）；
+// 「读 .vue 与 .css 源码」那一半在 appearance-skin-plaza-wiring.test.ts。
+// 2026-10-08 第二刀：`appearanceTones.ts`（十套素面底版）与 `themePresets`（它的投影）**整族删除**，
+// 所以这里既不再 import 那两份，也没有「投影 vs 底版」那一组对账可钉了——
+// 取而代之的是下面「素面那一族不许复活」那条反向守卫。
+import { typeScriptSource, scriptSource } from "../utils/vue-source-reader";
 
 const HEX = /^#[\da-f]{6}$/i;
 
@@ -158,29 +160,38 @@ describe("皮肤表 · 形状", () => {
   });
 });
 
-describe("出厂配色底版 · 十套一字未改（5-㊷ 从皮肤表拆出来）", () => {
-  /* 这一组是**产品决定**，不是实现细节：5-⑧ 定下的十套 id、顺序与色值，
-     已经存进用户盘上的 appearance.json。改任何一个都是把别人的主题改掉。
-     5-㊷ 把它们从皮肤表搬进 `appearanceTones.ts`，**搬的是住的地方，不是数据**。 */
+/* ── 2026-10-08 第二刀：素面那一族整族删除之后，这里钉的是「不许复活」 ──────
+   【为什么这一组从「十套底版一字未改」换成反向守卫】
+   5-㊷ 的处置是**下架但不销毁**：十套素面配色搬进 `appearanceTones.ts` 继续当
+   「设置 · 外观」的配色底版，出厂默认也留在那一族里（`preset: "codex"`、
+   `skin: "plain"`、`art: "none"`），面板还给它们留了一级兜底文案。
+   用户看完推翻：「我没说明白吗，把没有皮肤没有图片的全删了，只保留有图片有皮肤的。」
+   ⇒ 底版表连同它派生的 `themePresets` 一起删。于是这里要守的不再是**值没变**，
+     而是**别把它写回来**——反向钉不存在，比正向钉内容更贴这次的裁定。
 
-  /**
-   * **这一条是整份文件里最重要的一条**，它挡的是「假绿」而不是「改错值」。
-   *
-   * 下面（以及 `appearance-theme-readability.test.ts`）有好几处写成
-   * `for (const preset of themePresets)` —— 投影源一旦筛空，
-   * 那些循环一条也不执行，断言全绿，而**它已经什么都没测了**。
-   * 5-㊷ 这一刀恰好就把投影源从皮肤表里搬走，所以这里先钉住「这一族非空」。
-   * （验证方式：把 `appearanceTones` 改成空数组，本条与可读性那两条都会红。）
-   */
-  it("底版表非空（空了则所有遍历式守卫一起退化成假绿）", () => {
-    expect(
-      appearanceTones.length,
-      "出厂配色底版空了 —— 遍历它的守卫全都测不到东西"
-    ).toBeGreaterThanOrEqual(10);
+   【为什么这些断言不是摆设】
+   ① `typeScriptSource` 读不到文件是**抛错**（见 vue-source-reader 的文件头），
+      所以 `toThrow()` 就是「文件确实没了」的直接证据；把文件还原它就红。
+   ② 只删文件不够。真正会悄悄复活的是**界面上那句解释**——「素面配色，不在广场里卖」
+      一留下，就等于对着老 id 说「你存的那套只是下架了」，而它已经被删了。
+      ⇒ 逐份源文件反向钉（读的是剥掉注释的 script 段：注释里写「这句话已经没了」
+        本身含这句话，正向读原文会被反咬，见 vue-source-reader 的 `strippedStyleSource` 那段教训）。 */
+describe("素面那一族 · 已整族删除，不许复活", () => {
+  it("appearanceTones.ts 这份文件已经不存在", () => {
+    expect(() => typeScriptSource("composables/appearanceTones.ts")).toThrow();
   });
 
-  it("出厂那十条的 id 与顺序与 5-⑧ 钉的一样", () => {
-    expect(appearanceTones.map((one) => one.id)).toEqual([
+  it("appearanceThemeRuntime.ts 里 themePresets 与 ThemePreset 两个符号都已删除", () => {
+    const runtime = typeScriptSource("composables/appearanceThemeRuntime.ts");
+    expect(runtime).not.toMatch(/export const themePresets/);
+    expect(runtime).not.toMatch(/(?:interface|type) ThemePreset\b/);
+  });
+
+  it("广场里没有一条素面皮，也没有一条复用已下架的素面 id", () => {
+    expect(appearanceSkins.length, "广场空了 —— 下面这几条会全绿而一条不测").toBeGreaterThan(0);
+    /* RETIRED_TONE_IDS 是**守卫里另抄的一份字面量**，不从被测代码 import：
+       判据要钉的是「这十个名字属于已删的那一族」这个事实，而那张表已经没有真身可读了。 */
+    const retired_tone_ids = [
       "codex",
       "paper",
       "ocean",
@@ -191,49 +202,114 @@ describe("出厂配色底版 · 十套一字未改（5-㊷ 从皮肤表拆出来
       "silk",
       "dai",
       "crimson"
-    ]);
-  });
-
-  it("墨宸 · 青金那一套一字不变（已有用户存的就是它）", () => {
-    const tone = findAppearanceTone("mochen-qingjin");
-    expect(tone?.label).toBe("墨宸 · 青金");
-    expect(tone?.light).toEqual({
-      accent: "#1F5C55",
-      background: "#F7F4EC",
-      foreground: "#242E2B"
-    });
-    expect(tone?.dark).toEqual({
-      accent: "#D4B45A",
-      background: "#101B18",
-      foreground: "#EAE5D6"
-    });
-  });
-
-  /**
-   * 底版的定义就是「只有三色的配色底」，所以这里钉的是**形状**而不是值。
-   *
-   * 它防的是：将来有人往底版里补 `backdrop / glass / art`，于是「配色预设」与「皮肤」
-   * 又变成两份都能写四层的东西——那正是 5-㊴ 想要消灭的漂移源。
-   * 顺序用 `sort()` 比，字段一多就会红，红得指名道姓。
-   */
-  it("底版每条只有 id/label/tagline/light/dark 五个键（不带任何视觉层）", () => {
-    const allowed = ["dark", "id", "label", "light", "tagline"].join(",");
-    for (const tone of appearanceTones) {
-      expect(Object.keys(tone).sort().join(","), `${tone.id} 的底版里混进了别的字段`).toBe(allowed);
-    }
-  });
-
-  it("皮肤表里不许再混进出厂配色（广场只认带画的，投影只认底版）", () => {
-    // OWN_SKIN_ORIGIN 这一句还在，是因为 AppearancePanel 要用它说「出厂配色 · 某某」。
-    // 但它**不该再出现在皮肤表里**——出现了就说明有人把素面皮塞回广场。
+    ];
     for (const skin of appearanceSkins) {
-      expect(skin.origin, `${skin.id} 带着出厂配色的出处，却进了皮肤广场`).not.toBe(
-        OWN_SKIN_ORIGIN
-      );
-      expect(findAppearanceTone(skin.id), `${skin.id} 同时是底版和皮肤`).toBeUndefined();
+      expect(skin.art, `${skin.id} 没有画面，却又回到了广场`).not.toBe("none");
+      expect(
+        retired_tone_ids,
+        `${skin.id} 复用了已下架的素面 id —— 老 JSON 里存着这个名字，回落通路会被它骗过去`
+      ).not.toContain(skin.id);
     }
+    // 回落触发的前提：这些 id 在广场表里查不到。哪天有人把它们加回表，这里先红。
+    expect(findAppearanceSkin("codex"), "素面 id 又能查到了 —— store 的回落会失效").toBeUndefined();
+    expect(
+      findAppearanceSkin(defaultAppearanceSkin.id),
+      "回落点自己不在广场表里 —— 回落会变成「换一套也查不到」"
+    ).toBeDefined();
   });
 
+  it("界面上不许再出现「下架但配色还在」那一句兜底文案", () => {
+    for (const file of [
+      "components/AppearancePanel.vue",
+      "components/SkinGalleryPage.vue",
+      "stores/useAppearanceStore.ts",
+      "composables/appearanceSkinPreview.ts",
+      "composables/appearanceThemeRuntime.ts"
+    ]) {
+      const source = file.endsWith(".vue") ? scriptSource(file) : typeScriptSource(file);
+      expect(source, `${file} 里还留着「配色底版」那一族的说法`).not.toContain(
+        "素面配色，不在广场里卖"
+      );
+      expect(source, `${file} 里还去查已删的底版表`).not.toContain("findAppearanceTone");
+    }
+  });
+});
+
+/* ── 第二刀之后，上游那批层档名**只剩一条留下来的理由** ────────────────────
+   5-㊷ 给的理由是「老用户盘上存着 glass: "standard"、grid: "industrial"，运行时照样要按
+   那一条值渲染」。第二刀的回落（`reconcileStoredSkin` → `patchSettingsWithSkin`）把
+   四层连同三色整份覆写，那条理由已经不成立——成立的是**另一条**：
+   这些档名过不了 zod，整份 appearance.json 就会被判非法并退回默认
+   （`appearance-store.test.ts` 钉的就是这个退法），那些人什么也没点，
+   却连「你原来那套已经删除」这句都听不到。枚举与数值表是为了**解析得动**才留着的。
+   【为什么这两条要分开钉】
+   只钉「解析得动」的话，哪天有人给界面加了逐层选择器（那时这些档名就真的会上屏了），
+   这条守卫不会提醒他改口；所以再钉一条「除了昼阁复用的 aurora，没有一条皮肤在用它们」，
+   把它当前真实的消费面钉死。 */
+describe("上游层档名 · 现在只为「老 JSON 解析得动」而存在", () => {
+  /** 一份「老盘上的 JSON」：存着已删的素面 id，四层全是当年那五套改编皮用的档名。 */
+  function legacyStored(): unknown {
+    return {
+      mode: "light",
+      light: {
+        ...createDefaultAppearanceTheme("light"),
+        preset: "codex",
+        skin: "codex",
+        backdrop: "nebula",
+        glass: "standard",
+        surface: "square",
+        grid: "industrial",
+        art: "none"
+      },
+      dark: {
+        ...createDefaultAppearanceTheme("dark"),
+        preset: "codex",
+        skin: "codex",
+        backdrop: "midnight",
+        glass: "strong",
+        surface: "dialogue",
+        grid: "stage",
+        art: "none"
+      },
+      uiFontFamily: "system",
+      editorFontFamily: "song"
+    };
+  }
+
+  it("那些档名逐条仍在 contracts 的枚举里（少一条，老 JSON 整份解析失败）", () => {
+    expect(APPEARANCE_BACKDROPS).toEqual(expect.arrayContaining(["nebula", "ember", "midnight"]));
+    expect(APPEARANCE_GLASSES).toEqual(expect.arrayContaining(["subtle", "standard", "strong"]));
+    expect(APPEARANCE_SURFACES).toEqual(expect.arrayContaining(["square", "dialogue"]));
+    expect(APPEARANCE_GRIDS).toEqual(expect.arrayContaining(["industrial", "stage"]));
+    // 画面层也留着 "none"：老 JSON 存的就是它，删了同样过不了 schema。
+    expect(APPEARANCE_ARTS).toContain("none");
+  });
+
+  it("这份「老盘上的 JSON」现在仍然 safeParse 得过", () => {
+    const result = AppearanceSettingsSchema.safeParse(legacyStored());
+    expect(result.success, JSON.stringify(result.error?.issues ?? [])).toBe(true);
+  });
+
+  it("消费面只剩一条：除昼阁复用的 aurora，这些档名没有皮肤在用", () => {
+    expect(appearanceSkins.length, "广场空了 —— 下面这几条会全绿而一条不测").toBeGreaterThan(0);
+    const used = [
+      ...new Set(
+        appearanceSkins.flatMap((skin) => [skin.backdrop, skin.glass, skin.surface, skin.grid])
+      )
+    ].sort();
+    expect(used, "有皮肤用起了当年那些改编档名 —— 上面「只为解析而留」的说法要跟着改口").toEqual([
+      "abyss",
+      "aurora",
+      "none",
+      "regions",
+      "round-none"
+    ]);
+    // aurora 是那五套搬来的档名，却活在昼阁身上：数值表不是纯粹的历史包袱，这条是它唯一的活消费。
+    expect(defaultAppearanceSkin.backdrop).toBe("aurora");
+  });
+});
+
+describe("皮肤表 · 出处与许可", () => {
   it("自有皮许可是「本仓自有」，改编皮是 MIT，且两类互斥且都有归属", () => {
     /* 【为什么判据是「带不带改编前缀」而不是「等于某一句出处」】
        原写法是 `skin.origin === "墨宸出厂配色"`，它把「自有皮」等同于**那一句**。
@@ -401,37 +477,6 @@ describe("皮肤表与配色底版 · 可读性由计算说了算", () => {
   });
 
   /**
-   * 底版十条走的是**同一套算法**，但必须单列一遍。
-   *
-   * 【为什么分开写而不是 `for (const one of [...skins, ...tones])`】
-   * 合起来写的时候，任何一边塌成零条，另一边照样把遍历撑起来——那条守卫就悄悄少了十分之一的覆盖面。
-   * 5-㊷ 干的就是「把十条从一张表搬到另一张表」，正是能让它塌掉的那种改动。
-   */
-  it("出厂十套 × 深浅两版同样过线（它们仍存着真实用户的界面上）", async () => {
-    const { contrastRatio, readableAccentTextForTest } = await import("./appearanceThemeRuntime");
-    expect(appearanceTones.length, "底版空了 —— 下面这条会全绿而一条不测").toBeGreaterThanOrEqual(
-      10
-    );
-    for (const tone of appearanceTones) {
-      for (const scheme of ["light", "dark"] as const) {
-        const { accent, background, foreground } = tone[scheme];
-        expect(
-          contrastRatio(foreground, background),
-          `${tone.label} · ${scheme} 的正文对比度不够`
-        ).toBeGreaterThanOrEqual(7);
-        expect(
-          contrastRatio(readableAccentTextForTest(accent), accent),
-          `${tone.label} · ${scheme} 的按钮字对比度不够`
-        ).toBeGreaterThanOrEqual(4.5);
-        expect(
-          contrastRatio(accent, background),
-          `${tone.label} · ${scheme} 的 accent 看不见`
-        ).toBeGreaterThanOrEqual(2.5);
-      }
-    }
-  });
-
-  /**
    * 次要文字（`--text-secondary`）——广场卡说明与页面上那些小字**真正**的字色。
    *
    * 【为什么正文那条盖不到它】正文量的是 `foreground` 对 `background`，那是 12:1 一档的稳过线；
@@ -476,86 +521,12 @@ describe("皮肤表与配色底版 · 可读性由计算说了算", () => {
     }
   });
 
-  /** 底版十条单列一遍，理由与上面那条出厂十套正文守卫一样：合写会让一边塌成零条照样全绿。 */
-  it("出厂十套 × 深浅两版同样（次要文字对页底与卡面 ≥ 4.5:1）", async () => {
-    const { contrastRatio, mixHex, SECONDARY_TEXT_MIX, SURFACE_CARD_MIX } =
-      await import("./appearanceThemeRuntime");
-    expect(appearanceTones.length, "底版空了 —— 下面这条会全绿而一条不测").toBeGreaterThanOrEqual(
-      10
-    );
-    for (const tone of appearanceTones) {
-      for (const scheme of ["light", "dark"] as const) {
-        const { background, foreground } = tone[scheme];
-        const muted = mixHex(background, foreground, SECONDARY_TEXT_MIX[scheme]);
-        const card = mixHex(background, foreground, SURFACE_CARD_MIX[scheme]);
-        expect(
-          contrastRatio(muted, background),
-          `${tone.label} · ${scheme} 的次要文字压页底不够`
-        ).toBeGreaterThanOrEqual(4.5);
-        expect(
-          contrastRatio(muted, card),
-          `${tone.label} · ${scheme} 的次要文字压卡面不够`
-        ).toBeGreaterThanOrEqual(4.5);
-      }
-    }
-  });
-
   it("深色版够暗、浅色版够亮（别把两版做成同一套）", async () => {
     const { relativeLuminance } = await import("./appearanceThemeRuntime");
     for (const skin of appearanceSkins) {
       expect(relativeLuminance(skin.dark.background), `${skin.id} 的深色版不够暗`).toBeLessThan(
         relativeLuminance(skin.light.background)
       );
-    }
-    for (const tone of appearanceTones) {
-      expect(relativeLuminance(tone.dark.background), `${tone.id} 的深色版不够暗`).toBeLessThan(
-        relativeLuminance(tone.light.background)
-      );
-    }
-  });
-});
-
-describe("themePresets · 从出厂底版派生，不再是第二份真相", () => {
-  it("投影出来的就是底版那十条，顺序与色值逐条相同", () => {
-    expect(themePresets).toHaveLength(appearanceTones.length);
-    themePresets.forEach((preset, index) => {
-      // 用 `at()` 而不是 `tones[index]`：后者在 noUncheckedIndexedAccess 下是
-      // `AppearanceTone | undefined`，而写 `!` 会被 prettier 折掉、tsc 立刻又红回来。
-      // `at()` 的存在性断言在这里是真检查——越界会先在这里红，且报得清楚。
-      const source = appearanceTones.at(index);
-      expect(source, `第 ${index + 1} 条投影没有对应的底版`).toBeDefined();
-      expect(preset.id).toBe(source?.id);
-      expect(preset.label).toBe(source?.label);
-      expect(preset.light).toEqual(source?.light);
-      expect(preset.dark).toEqual(source?.dark);
-    });
-  });
-
-  /**
-   * 5-㊷ 换的是**投影源**，而这一条钉的就是那次换法本身。
-   *
-   * 【为什么还要读源码】
-   * 上一版的投影是 `appearanceSkins.filter(origin === OWN_SKIN_ORIGIN)`。
-   * 那句写法今天仍然「能跑」——它只会筛出零条，
-   * 于是 `toHaveLength(0)` 与上面那条 `toHaveLength(appearanceTones.length)`
-   * 里前者是 0、后者也是 0，**两边同时成立，守卫全绿**，
-   * 而用户盘上的十套配色已经在「主题配色」那一族里全部消失。
-   * ⇒ 唯一有鉴别力的写法是去源码里确认投影读的是 `appearanceTones`。
-   *   （验红方式：把 runtime 那行改回 `appearanceSkins.filter(...)`，本条立刻红。）
-   */
-  it("投影必须读 appearanceTones，不许退回「从皮肤表里筛出处」那一版", () => {
-    const runtime = typeScriptSource("composables/appearanceThemeRuntime.ts");
-    expect(runtime).toContain('from "./appearanceTones"');
-    expect(runtime).toMatch(/themePresets[^;]*appearanceTones/);
-    expect(runtime, "又退回从皮肤表筛了 —— 皮肤表里已经没有出厂配色，那会筛出零条").not.toMatch(
-      /appearanceSkins\s*\n?\s*\.filter/
-    );
-  });
-
-  it("带画的皮肤不许混进 themePresets（那是「主题配色」，混进去两页含义就不同了）", () => {
-    const ids = themePresets.map((one) => one.id);
-    for (const skin of appearanceSkins) {
-      expect(ids, `皮肤 ${skin.id} 混进了主题配色`).not.toContain(skin.id);
     }
   });
 });
@@ -650,21 +621,52 @@ describe("皮肤广场的筛选档 · 只摆真的有皮肤在用的档", () => 
   });
 });
 
-describe("出厂默认 · 老用户盘上的 appearance.json 补齐后观感不变", () => {
-  it("出厂两套都补上素面，且默认值与 contracts 的常量一致", () => {
-    for (const theme of [
-      createDefaultAppearanceTheme("light"),
-      createDefaultAppearanceTheme("dark")
-    ]) {
-      expect(theme.backdrop).toBe("plain");
-      expect(theme.glass).toBe("none");
-      expect(theme.surface).toBe("plain");
-      expect(theme.grid).toBe("none");
-      expect(theme.skin).toBe("plain");
+/* ── 2026-10-08 用户第二刀：「把没有皮肤没有图片的全删了，只保留有图片有皮肤的」 ──
+   【为什么这一组从「补齐后观感不变」改成「默认只能是带画的那一套」】
+   上一版（5-㊷）的处理是**下架但不销毁**：十套素面配色搬进 `appearanceTones.ts`，
+   继续当「设置 · 外观」的配色底版，出厂默认也留在那一族里（`preset: "codex"`、
+   `skin: "plain"`、`art: "none"`）。用户看完这句裁定推翻了：
+   「我没说明白吗，把没有皮肤没有图片的全删了，只保留有图片有皮肤的。」
+   ⇒ 素面那一族整族退役，出厂默认必须指向广场里真实存在的一套带画皮肤。
+
+   【为什么判据写成「逐字段等于 `appearanceSkins[0]`」】
+   contracts 拿不到渲染层的皮肤表（依赖方向是 contracts ← renderer），
+   所以那六个色值与五个枚举值在两处各写了一遍——**这是本仓最怕的「两份真相」**。
+   唯一能把它变成一份的办法是让守卫做对照：这里逐字段比，
+   任何人改了皮肤表第一套的色值而忘了改 contracts，当场红。
+   （验红方式：把 contracts 的 `accent` 改回 `#339CFF`，本条立刻红且指名道姓。） */
+describe("出厂默认 · 只能是广场里那套带画的皮肤", () => {
+  it("出厂两套的三色、四层与画面层，逐字段等于广场第一套", () => {
+    const first = appearanceSkins[0];
+    expect(first, "皮肤广场空了 —— 出厂默认没有可指向的皮肤").toBeDefined();
+    if (first === undefined) return;
+    for (const scheme of ["light", "dark"] as const) {
+      const theme = createDefaultAppearanceTheme(scheme);
+      expect(theme.skin, "出厂的 skin 不是广场里那套").toBe(first.id);
+      expect(theme.preset, "出厂的 preset 与 skin 分了家").toBe(first.id);
+      for (const key of ["accent", "background", "foreground"] as const) {
+        expect(theme[key], `${first.id} · ${scheme} 的 ${key} 与皮肤表漂移了`).toBe(
+          first[scheme][key]
+        );
+      }
+      for (const key of ["backdrop", "glass", "surface", "grid", "art"] as const) {
+        expect(theme[key], `${first.id} 的 ${key} 与皮肤表漂移了`).toBe(first[key]);
+      }
+      // 出厂默认自己也得带画——它正是「没有图片的不保留」那条裁定的落点。
+      expect(theme.art, "出厂默认没有画面，等于又把素面留在了默认位上").not.toBe("none");
     }
   });
 
-  it("老 JSON（5-㊴ 之前，只有三色那版）缺这五个字段时能被补齐而不是被整份拒掉", async () => {
+  /**
+   * 老 JSON（5-㊴ 之前只有三色那版）**仍然要能被解析**——这一条与上一版没变，
+   * 变的只有补齐出来的那几个值。
+   *
+   * 解析成功后那些已下架的 id（这里是 `ocean`）会由 `useAppearanceStore.load()`
+   * 回落成广场第一套，落点与理由见 `useAppearanceStore.test.ts`。
+   * 这里刻意**不**断言「补齐后观感不变」：那句话的前提就是「素面那一族还留着」，
+   * 而它已经被用户裁定删掉了。
+   */
+  it("老 JSON（只有三色那版）缺这五个字段时能被补齐而不是被整份拒掉", async () => {
     const { AppearanceSettingsSchema } = await import("@mochen/contracts");
     const old = {
       mode: "system",
@@ -693,10 +695,14 @@ describe("出厂默认 · 老用户盘上的 appearance.json 补齐后观感不�
     // 这一条红的话表现是「老用户的配色整个退回默认」——必须红得有声音。
     expect(parsed.success, "老 appearance.json 解析失败").toBe(true);
     if (!parsed.success) return;
+    // 存着的三色原样保住（回落在 store，不在 schema 边界偷偷改值）。
     expect(parsed.data.light.accent).toBe("#257F8B");
-    expect(parsed.data.light.backdrop).toBe("plain");
-    expect(parsed.data.dark.glass).toBe("none");
-    expect(parsed.data.dark.surface).toBe("plain");
-    expect(parsed.data.dark.grid).toBe("none");
+    expect(parsed.data.light.preset).toBe("ocean");
+    const first = appearanceSkins[0];
+    expect(parsed.data.light.backdrop).toBe(first?.backdrop);
+    expect(parsed.data.dark.glass).toBe(first?.glass);
+    expect(parsed.data.dark.surface).toBe(first?.surface);
+    expect(parsed.data.dark.grid).toBe(first?.grid);
+    expect(parsed.data.dark.art).toBe(first?.art);
   });
 });

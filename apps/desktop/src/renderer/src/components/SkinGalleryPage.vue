@@ -21,6 +21,7 @@ import {
   APPEARANCE_GRID_LABELS,
   APPEARANCE_SURFACE_LABELS,
   appearanceSkins,
+  defaultAppearanceSkin,
   type AppearanceSkin
 } from "../composables/appearanceSkins";
 import { skinStyleVariables } from "../composables/appearanceThemeRuntime";
@@ -201,13 +202,46 @@ function backToChat(): void {
     </div>
 
     <div class="skin-gallery-body">
+      <!-- 这段话是**这一页的入场条件**本身，所以它必须逐句对上代码：
+           「只收带画的」由 `appearance-skins.test.ts` 那条 `art !== "none"` 钉着；
+           「十套素面已删除」是 2026-10-08 用户第二刀的原文裁定，
+           上一版这里写的还是「下架不等于销毁：十套出厂配色仍在『设置 · 外观』里作为配色底版可用」，
+           那一族已经不存在了，留着这句话就是假话。
+           回落点一律写 `defaultAppearanceSkin.label`，**不许写死皮肤名**——
+           它是「广场第一套」，将来继续增加带画皮肤时这一句要跟着自己变。
+
+           【第二刀之后这里少了一句什么】
+           上一版这里还写着「它们从上游搬来的数值仍留在视觉表里，因为老用户盘上存着那些
+           四层取值，运行时还得按原值渲染」。这句在 5-㊷ 是真的（那时只下架条目、不动层值），
+           但第二刀的回落走的是 `patchSettingsWithSkin`——它把 `backdrop/glass/surface/grid/art`
+           **连同一组三色整份覆写**成广场第一套。也就是说盘上那些老层取值从此不再上屏，
+           这句话就成了假话，而它指的事（按原值渲染）在界面上恰好**看不出来**
+           （回落后的画面本来就是第一套的样子，谁也不会去对旧层值）。
+           ⇒ 所以这句从用户可见文案里删掉。数值表与枚举**为什么还留着**上游那些档名，
+             真实理由只剩一条：过不了 zod 就整份退默认（`appearance-store.test.ts` 那条），
+             连「哪一套被换掉了」这句都说不成——那条理由写给维护者，归代码注释，
+             并由 `appearance-skins.test.ts` 的「老层取值仍解析得动」钉住。
+
+           【为什么切成四段，而不是一段长文】
+           prettier 会把 `<p>` 里的长串中文按 printWidth **折行并在折点补一个空格**，
+           而浏览器把那个换行当真空格画出来——上一版就在这里画出了「』。 「设置 ·
+           外观」这种半角空格，还把「设置 · 外观」这个书名号词拦腰截断。
+           切成短句之后每段都在一行以内，页面看到的与源码写的就是同一句；
+           `appearance-skin-plaza-wiring.test.ts` 里那三条逐句断言也才钉得住
+           （它原先读的是整段原文，折点一挪就红，而红的原因是排版不是文案）。 -->
       <p class="skin-gallery-note">
-        广场只收带整窗画面的皮肤：一套 = 配色三色 + 视觉四层（背景 / 玻璃 / 表面 / 图案）+
-        一层画面，浅色与深色一并应用。上一批那五条改编自 DeepSeek Harness 的开源换装插件（MIT）
-        已经从广场下架——它们搬的都是参数（玻璃 blur、网格间距、弥散光的 alpha），
-        换上去读起来仍然只是「换了个色调」。下架不等于销毁：十套出厂配色仍在「设置 · 外观」
-        里作为配色底版可用，上游的数值与逐行出处也仍留在皮肤视觉的数值表与守卫里。
+        广场只收带整窗画面的皮肤：一套 = 配色三色 + 视觉四层 + 一层画面。
       </p>
+      <p class="skin-gallery-note">视觉四层是背景 / 玻璃 / 表面 / 图案，浅色与深色一并应用。</p>
+      <p class="skin-gallery-note">上一批那五条改编自上游的开源换装插件（MIT），搬的都是参数。</p>
+      <p class="skin-gallery-note">换上去读起来仍然只是「换了个色调」。</p>
+      <p class="skin-gallery-note">
+        那五条与原先十套<strong>没有画面的出厂配色，已经整套删除</strong>。
+      </p>
+      <p class="skin-gallery-note">
+        盘上存着它们的，打开会自动回到这里的『{{ defaultAppearanceSkin.label }}』。
+      </p>
+      <p class="skin-gallery-note">「设置 · 外观」那一页会说明是哪一套被换掉了。</p>
 
       <!-- 并排对比：勾满两套才出现。每一块都是**一整扇窗**的模型（三栏 + 五层），
            不是把卡片放大——要对比的正是「整窗换上之后各是什么样子」。

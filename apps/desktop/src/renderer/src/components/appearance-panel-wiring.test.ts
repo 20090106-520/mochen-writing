@@ -4,7 +4,13 @@
  * 主题 preset 一键同时改写浅/深两套——只改一边就是「浅色墨宸、深色 Codex」的精神分裂。
  */
 import { describe, expect, it } from "vitest";
-import { scriptSource, styleSource, templateSource, vueSource } from "../utils/vue-source-reader";
+import {
+  ruleBlock,
+  scriptSource,
+  styleSource,
+  templateSource,
+  vueSource
+} from "../utils/vue-source-reader";
 
 const PAGE = "components/SettingsPage.vue";
 const PANEL = "components/AppearancePanel.vue";
@@ -87,25 +93,49 @@ describe("AppearancePanel · 改设置只经 useAppearanceStore.update", () => {
   });
 
   /**
-   * 5-㊷：广场只留带整窗画面的皮肤，十套出厂配色降级成「配色底版」。
+   * 2026-10-08 第二刀：`appearanceTones.ts`（十套素面配色底版）**整份删除**。
    *
-   * 【这一条为什么必须钉】
-   * 盘上存着老 id 的用户，`findAppearanceSkin` 从此查不到——而那一套的三色
-   * **此刻就作用在界面上**。若面板只会说「未知的一套」，那就是把
-   * 「我们主动下架」说成「我不认识你存的东西」，用户会以为设置丢了。
+   * 【这一条为什么从「退回底版表」改成「不许再请出第二份表」】
+   * 上一版在这里钉的是三级兜底：广场表 → 配色底版表 → 「未知」。
+   * 用户看完那句裁定是「把没有皮肤没有图片的全删了，只保留有图片有皮肤的」，
+   * 于是第二档连同它那张表一起没了。面板这里**不许再留任何一条通往素面配色的路径**：
+   * 回落已经由 `useAppearanceStore.load()` 在数据层收口（`reconcileStoredSkin`），
+   * 面板读到的 `settings.light.skin` 已经是表里真实存在的一套 ⇒ 那条兜底链一旦复活，
+   * 它服务的就是「界面显示一套、屏幕上渲染另一套」，而这次删的正是这件事。
    *
-   * 【为什么兜底要查两个字段】
-   * contracts 里 `skin` 的出厂默认是占位符 `"plain"`（不在任何一张表的 id 空间里），
-   * 而真正生效的配色写在 `preset`（默认 `"codex"`）。⇒ skin → preset 都要查。
-   * 「未知」那一句仍旧留在最后一档：那五条改编皮连配色都不在表里，
-   * 界面说不出它是什么，就不能编一个名字。
+   * 【最后一档「未知」为什么还留着】
+   * 它今天不该被走到（load 已经回落），但它是**数据层以外那半条路的保险**：
+   * `state.settings` 在 load 之前是 contracts 默认值，而 `sanitizeAppearanceTheme`
+   * 之类的入口仍然可能带进一个陌生 id。留着并让它红，比编一个名字诚实。
    */
-  it("查不到广场表时退回配色底版表，两张表都查不到才说「未知」", () => {
+  it("回落归数据层，面板不许再 import 已删的配色底版表；已下架那套由 store 说实话", () => {
     const script = scriptSource(PANEL);
-    expect(script).toContain('from "../composables/appearanceTones"');
-    expect(script).toContain("findAppearanceTone(skin) ?? findAppearanceTone(preset)");
-    expect(script).toContain("素面配色，不在广场里卖");
+    const markup = templateSource(PANEL);
+    for (const needle of ["appearanceTones", "findAppearanceTone", "素面配色，不在广场里卖"]) {
+      expect(
+        script,
+        `面板里又出现了「${needle}」—— 那一族已经随「没有画面的皮肤」删掉了`
+      ).not.toContain(needle);
+    }
+    // 面板仍然只认广场表这一个来源，且保留最后一档「未知」。
+    expect(script).toContain("findAppearanceSkin");
     expect(script).toContain("未知的一套");
+    // 说实话的那一句来自 store 的 `replacedSkinId`，不是面板自己查表猜的。
+    expect(script).toContain("appearance.replacedSkinId");
+    // 而且要说清**是哪一套**被换掉的：原 id 必须进文案（用户盘上的原话，不是我们编的名字）。
+    expect(script).toMatch(/const retired = appearance\.replacedSkinId[\s\S]{0,220}\$\{retired\}/);
+    /* 措辞跟着这一刀改口：那张表整个没了之后再说「已下架」，
+       就是把「我们删了」说成「暂时没摆出来」——用户会去广场找那十套，一套都找不到。
+       反向禁词读的是剥注释的 script，所以注释里那段历史交代不会反咬。 */
+    expect(script).toContain("已经删除");
+    for (const lie of ["已下架", "配色照旧能用", "仍可用"]) {
+      expect(script, `面板那句还留着「${lie}」—— 素面那一族已经不存在了`).not.toContain(lie);
+    }
+    // 模板真渲染它，而那句 CSS 规则也在（本仓撞过「模板用了 class、规则忘了写」同一族）。
+    expect(markup).toContain('v-if="retiredSkinNote"');
+    expect(markup).toContain("appearance-retired-skin");
+    const css = styleSource("settings-page.css");
+    expect(ruleBlock(css, ".appearance-retired-skin")).toContain("var(--text-secondary)");
   });
 
   it("模式三态与两处字体下拉都落 update；模板没有硬编码颜色", () => {

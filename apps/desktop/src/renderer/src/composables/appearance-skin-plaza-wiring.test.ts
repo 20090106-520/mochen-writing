@@ -597,6 +597,92 @@ describe("AppearancePanel · 配色网格退役，只剩只读的当前皮肤与
   });
 });
 
+/* ── 2026-10-08 第二刀：删掉数据之后，界面上那两句也得跟着改口 ──────────────
+   【为什么单独钉这一组，而不是靠上面那两条】
+   上面钉的是「网格没了」「只剩只读一行」——那些是**结构**。
+   这一刀真正会留下的烂账是**话**：文案还写着「下架不等于销毁」「配色底版仍可用」，
+   而它指的那张表已经从仓库里删了。用户照着那句话去广场找那十套，一套都找不到，
+   而**没有任何一处会报错**——这就是本仓反复说的「假控件」在文案层的同族。
+
+   【为什么每条都配一句反向】
+   `templateSource` / `scriptSource` 都剥注释（见 vue-source-reader），
+   所以「这句话在注释里出现过」不会把反向断言喂饱——
+   这两页的注释里恰恰大段写着上一版那句假话，正向读原文会当场反咬。 */
+describe("第二刀 · 广场那句「外观页会说明是哪一套」说的是真话", () => {
+  const PAGE = "components/SkinGalleryPage.vue";
+
+  it("广场说明：写「已经整套删除」，回落点取 defaultAppearanceSkin.label", () => {
+    const markup = templateSource(PAGE);
+    /* 三条逐句断言读的都是**未经折行的原文**——这正是它们的价值：
+       prettier 会把 `<p>` 里的长中文按 printWidth 折行并**在折点补一个空格**，
+       于是上一版页面上画出了「』。 「设置 · 外观」，还把书名号词拦腰截断。
+       现在每句各占一个 `<p>`，一行以内不会被折；哪天有人把它们合回一段长文，
+       这里就会红在**断句**上（红对了：那句话确实不再逐句可钉）。 */
+    expect(markup).toContain("没有画面的出厂配色，已经整套删除");
+    /* 【这一刀真正会留下的第二种烂账：数值表那句交代】
+       上一版这里还写着「它们从上游搬来的数值……运行时还得按原值渲染」。
+       第二刀的回落会把四层连同三色整份覆写（`appearance-skin-preview.test.ts` 那条
+       「三色与五层一起换」钉着），所以盘上那些老层取值**不再上屏**，这句话成了假话，
+       而它说的偏偏是屏幕上看不出来的事。⇒ 已从用户可见文案里删掉，
+       真实理由（只为「老 JSON 解析得动」而留）改由 `appearance-skins.test.ts` 那组钉。 */
+    expect(markup, "广场还在说「按原值渲染」—— 回落会整份覆写四层，这句已经是假话").not.toMatch(
+      /按原值渲染|还得按.{0,6}渲染/
+    );
+    // 那五条改编皮同样已经删除，所以「下架」这个词在说明里不该再出现（它指的两批都删了）。
+    expect(markup, "说明里还留着「下架」—— 第二刀之后那批条目是删除，不是下架").not.toContain(
+      "下架"
+    );
+    expect(markup).toContain("上一批那五条改编自上游的开源换装插件（MIT）");
+    expect(markup).toContain("换上去读起来仍然只是「换了个色调」");
+    // 回落点**不许写死皮肤名**：它是「广场第一套」，继续加带画皮肤时这一句要跟着自己变。
+    expect(markup).toContain("{{ defaultAppearanceSkin.label }}");
+    expect(markup, "回落点被写死成某个皮肤名 —— 表头插进新皮肤后这句话就成了假话").not.toMatch(
+      /自动回到这里的『[^{]/
+    );
+    expect(markup).toContain(
+      '<p class="skin-gallery-note">「设置 · 外观」那一页会说明是哪一套被换掉了。</p>'
+    );
+    // 反向：上一版那句「下架不等于销毁」与「配色底版仍可用」都不许留
+    //（`templateSource` 剥 HTML 注释，所以这两页注释里大段的历史交代不会反咬）。
+    for (const lie of ["下架不等于销毁", "配色底版", "作为配色底版可用"]) {
+      expect(markup, `广场说明里还留着「${lie}」—— 那张表已经删了`).not.toContain(lie);
+    }
+    // 页面上不许出现 markdown 星号（`.vue` 的文本不是 markdown，星号会原样画出来）。
+    expect(markup, "正文里出现 markdown 星号：页面会连星号一起显示").not.toContain("**");
+  });
+
+  it("多段说明之间的间距规则真的写了（六行贴排的短句读起来像表格）", () => {
+    const css = strippedStyleSource("skin-gallery.css");
+    expect(ruleBlock(css, ".skin-gallery-note + .skin-gallery-note")).toContain("margin-top:");
+  });
+
+  it("每句说明在源码里各占一行（prettier 一折行，屏幕上就多出一个半角空格）", () => {
+    /* 【为什么钉「不折行」这件事本身】
+       2026-10-08 真机量过一次：prettier 把 `<p>` 里的长中文按 printWidth 折行，
+       折点那个换行被浏览器当**真空格**画出来，于是屏幕上出现「搬的都是参数， 换上去」
+       「老用户盘上存着 那些四层取值」——源码看着没毛病，读起来像打错字。
+       逐句 `toContain` 抓不到它（它读的是拼起来的原文），所以这里直接钉结构：
+       **任何一句说明的源码里都不许出现「句中换行」**。哪天有人把两句合回一段长文，
+       这条会红在断句之前，而不是等下次真机才发现。 */
+    const markup = templateSource("components/SkinGalleryPage.vue");
+    const paragraphs = [...markup.matchAll(/<p class="skin-gallery-note">([\s\S]*?)<\/p>/g)];
+    expect(paragraphs.length, "广场说明一句都没读到 —— 类名改了，这条守卫已经空转").toBeGreaterThan(
+      0
+    );
+    const folded = paragraphs.map((m) => (m[1] ?? "").trim()).filter((body) => body.includes("\n"));
+    expect(folded, `有 ${folded.length} 句说明被折成多行：${JSON.stringify(folded)}`).toEqual([]);
+  });
+
+  it("广场页确实 import 了 defaultAppearanceSkin（模板引用没 import 是构建期才红的那种错）", () => {
+    expect(scriptSource(PAGE)).toContain("defaultAppearanceSkin");
+  });
+
+  /* 这一组**只管广场页那一段说明**。
+     面板那句实话（`replacedSkinId` 驱动、原 id 进了文案、那条 CSS 规则）
+     归 `components/appearance-panel-wiring.test.ts` 钉——一条判据一份实现（铁律 6），
+     这里再抄一遍就成了两处会各自漂移的守卫。 */
+});
+
 /**
  * 5-㊵ 撞出来的一个真回归，顺手钉住。
  *

@@ -906,3 +906,15 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 .appearance-current-skin-go:hover {
   border-color: var(--theme-line);
 }
+
+/* 盘上那套已下架时多说的那一句（2026-10-08 第二刀，随 `reconcileStoredSkin` 一起加）。
+   字色取 `--text-secondary`：它是正文级的一句说明（一整个句子，不是元信息小字），
+   所以按次要文字那条线走，不用 `--text-tertiary`——后者对页底只有 2.87:1，
+   那句理由写在 `appearanceThemeRuntime.ts` 的 `SECONDARY_TEXT_MIX` 注释里。 */
+.appearance-retired-skin {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
