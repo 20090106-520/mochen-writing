@@ -291,7 +291,9 @@ html[data-theme] .desktop-shell {
      整窗一片浅色，而 DOM 上 backgroundImage 六层俱全、控制台零报错）。
      `background-size` 按同一个顺序给：前两条 cover，第三条 auto ——
      backdrop 自己会展开成四层，这三个值循环下去正好都是 auto。 */
-  background-image: linear-gradient(var(--skin-art-veil, transparent), var(--skin-art-veil, transparent)), var(--skin-art-image, none), var(--skin-backdrop, none);
+  background-image:
+    linear-gradient(var(--skin-art-veil, transparent), var(--skin-art-veil, transparent)),
+    var(--skin-art-image, none), var(--skin-backdrop, none);
   background-size: cover, cover, auto;
   background-position: center, center, center;
   background-attachment: fixed;

@@ -10,6 +10,7 @@ function state(overrides: Partial<EscapeFocusState> = {}): EscapeFocusState {
     findReplaceIsOpen: false,
     settingsIsOpen: false,
     referenceMenuIsOpen: false,
+    skinOverlayIsOpen: false,
     ...overrides
   };
 }
@@ -120,5 +121,74 @@ describe("resolveEscape 收设置浮层优先级（缺陷①）", () => {
 
   it("浮层没开、回合在跑：照旧打断", () => {
     expect(resolveEscape(state({ settingsIsOpen: false, turnRunning: true }))).toBe("interrupt");
+  });
+});
+
+/**
+ * 5-㊷「整窗预览」插进来的那一层。
+ *
+ * 【这一层为什么存在，而且排在设置浮层之前】
+ * 整窗预览把 `<html>` 上的皮肤刷成了**没落盘**的那一套。此刻按 Esc 的意图是
+ * 「退掉我刚打开的那一层」，也就是先把窗换回用户真正设置里那一套；
+ * 而「收设置浮层」那条路通到的是关整个皮肤页——用户在挑东西，一页关掉他刚挑到一半的
+ * 那套就没了。顺序反了不会报错，只会一次关掉不该关的页。
+ *
+ * 【为什么还要一组反向用例】这一族栽过两次（5-㊴ 的 Ctrl+F、#106 的引用菜单）：
+ * 加一个字段就可能改变旧裁决。这里钉的是「皮肤层没开时，上面那些裁决一条都不许动」。
+ */
+describe("resolveEscape 收皮肤浮层（5-㊷）", () => {
+  it("预览开着且回合在跑：先退预览，绝不越级打断那一轮", () => {
+    expect(resolveEscape(state({ skinOverlayIsOpen: true, turnRunning: true }))).toBe(
+      "close-skin-overlay"
+    );
+  });
+
+  it("预览开着且设置浮层也开着：一层一层收，先收预览（它是刚打开的那一层）", () => {
+    expect(resolveEscape(state({ skinOverlayIsOpen: true, settingsIsOpen: true }))).toBe(
+      "close-skin-overlay"
+    );
+  });
+
+  it("聚焦待审卡优先于收预览：卡上按 Esc 撤的是卡（审批卡永远优先）", () => {
+    expect(
+      resolveEscape(
+        state({
+          hasFocusedProposal: true,
+          focusedProposalPending: true,
+          skinOverlayIsOpen: true,
+          settingsIsOpen: true
+        })
+      )
+    ).toBe("cancel-proposal");
+  });
+
+  it("引用菜单开着且皮肤层也开着：先收菜单（菜单是最内那一层）", () => {
+    expect(
+      resolveEscape(
+        state({ referenceMenuIsOpen: true, skinOverlayIsOpen: true, turnRunning: true })
+      )
+    ).toBe("close-reference-menu");
+  });
+
+  it("皮肤层没开时旧裁决一条都不许变（反向：多一个字段不能改变上面那两段）", () => {
+    expect(resolveEscape(state({ skinOverlayIsOpen: false, settingsIsOpen: true }))).toBe(
+      "close-overlay"
+    );
+    expect(resolveEscape(state({ skinOverlayIsOpen: false, turnRunning: true }))).toBe("interrupt");
+    expect(resolveEscape(state({ skinOverlayIsOpen: false }))).toBe("none");
+    expect(
+      resolveEscape(
+        state({
+          hasFocusedProposal: true,
+          focusedProposalPending: true,
+          guidanceIsDirty: true,
+          skinOverlayIsOpen: true
+        })
+      )
+    ).toBe("keep-guidance");
+  });
+
+  it("什么都没开：仍是无动作（绝不因为新字段而多关一层）", () => {
+    expect(resolveEscape(state())).toBe("none");
   });
 });

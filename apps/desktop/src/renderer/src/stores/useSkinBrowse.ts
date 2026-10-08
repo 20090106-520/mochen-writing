@@ -71,8 +71,46 @@ export interface SkinFilterRow {
 }
 
 export const useSkinBrowseStore = defineStore("skinBrowse", {
-  state: () => ({ conditions: emptyConditions() }),
+  state: () => ({
+    conditions: emptyConditions(),
+    /** 整窗预览中的那套皮肤 id。`null` = 没在预览。
+     *  **它不进 appearance.json**：预览是「先看一眼」，落盘的只有「就用它」那一次。
+     *  真身放在浏览 store 而不是页面 ref，是因为刷到屏幕上的那条通路在 App.vue（装配层），
+     *  页面 ref 递不过去；递不过去就会有人再开一条写 DOM 的路，那两个作者同一批 token
+     *  正是本仓钉过多次的坑族。 */
+    previewId: null as string | null,
+    /** 并排对比里勾选的那几套（最多两套，见 `toggleCompare`）。 */
+    compareIds: [] as string[]
+  }),
   getters: {
+    /** 预览中了哪一套。id 查不到就当没预览——**不许兜底成某一套**，
+     *  否则皮肤表改过之后，一次残留的预览会把界面刷成另一套而屏幕上没有任何人说过为什么。 */
+    previewSkin(state): AppearanceSkin | null {
+      if (state.previewId === null) return null;
+      return appearanceSkins.find((skin) => skin.id === state.previewId) ?? null;
+    },
+    /** 对比栏要画的那几套（按勾选顺序）。查不到的那一条直接丢掉，同上。 */
+    compareSkins(state): AppearanceSkin[] {
+      return state.compareIds
+        .map((id) => appearanceSkins.find((skin) => skin.id === id))
+        .filter((skin): skin is AppearanceSkin => skin !== undefined);
+    },
+    /** 少于两套就没有「对比」可看：这一条判据只在这里有一份。 */
+    isComparing(state): boolean {
+      return state.compareIds.length >= 2;
+    },
+    /**
+     * 皮肤浮层（整窗预览条 / 对比栏）此刻开着吗——Esc 裁决读这一句（5-㊷）。
+     *
+     * 【为什么判据是「预览中了哪套」而不是「previewId 是不是 null」】
+     * id 可能在皮肤表改过之后查不到（`previewSkin` 于是为 null）。
+     * 那一刻屏幕上并没有任何预览浮层，而残留的 id 还在——
+     * 拿 id 判就会让一次 Esc 白吃在一个看不见的层上，而这正是本仓在 Ctrl+F 与引用菜单上
+     * 各栽过一次的那一族。**看得见的那一层才算开着。**
+     */
+    overlayIsOpen(): boolean {
+      return this.previewSkin !== null || this.isComparing;
+    },
     /** 当前页有没有正在生效的条件（搜索词或四层里任何一层收窄了）。 */
     hasConditions(state): boolean {
       const c = state.conditions;
@@ -147,6 +185,50 @@ export const useSkinBrowseStore = defineStore("skinBrowse", {
     },
     clearConditions(): void {
       this.conditions = emptyConditions();
+    },
+    /** 整窗预览：换成这一套（再点一次同一套 = 退出预览）。
+     *  只做「记下 id」这一件事——刷 DOM 的那一步在 App.vue，页面与 store 都不许自己写。 */
+    setPreview(id: string | null): void {
+      this.previewId = id;
+    },
+    togglePreview(id: string): void {
+      this.previewId = this.previewId === id ? null : id;
+    },
+    clearPreview(): void {
+      this.previewId = null;
+    },
+    /** 勾选进对比栏。**上限两套**：超过就是三块整窗并排，每一块都窄到看不出玻璃与图案。
+     *  第三枚挤掉最早那一枚（FIFO），而不是拒绝点击——拒绝点击在界面上是哑的。 */
+    toggleCompare(id: string): void {
+      const next = this.compareIds.includes(id)
+        ? this.compareIds.filter((one) => one !== id)
+        : [...this.compareIds, id].slice(-2);
+      this.compareIds = next;
+    },
+    clearCompare(): void {
+      this.compareIds = [];
+    },
+    /**
+     * 收掉最外那一层（Esc 派到这里，5-㊷）。
+     *
+     * 【先退预览、后退对比】预览是「刚刚才打开的那一层」，它把整窗刷成了没落盘的样子；
+     * 对比栏只是页面上的一个抽屉。Esc 一次只关一层，关的是最外那一层——
+     * 这条优先级只有这一处，裁决表（escape-policy）不重复它，页面也不。
+     */
+    closeTopLayer(): void {
+      if (this.previewSkin !== null) {
+        this.previewId = null;
+        return;
+      }
+      this.compareIds = [];
+    },
+    /** 离开皮肤广场：预览与对比都收干净。
+     *  【为什么预览必须跟着收】预览是不落盘的临时刷写，人走了它还留在 `<html>` 上，
+     *  于是屏幕上是一套、设置里是另一套——这正是本批在 `currentSkinLabel` 上刚修掉的
+     *  那类「两处互相矛盾」，只不过这次矛盾的一边根本没有真身。 */
+    leaveGallery(): void {
+      this.previewId = null;
+      this.compareIds = [];
     },
     /** 一段文字是否命中皮肤名、说明与出处。判定在这里，模板不自己 filter。 */
     matches(haystack: readonly string[]): boolean {

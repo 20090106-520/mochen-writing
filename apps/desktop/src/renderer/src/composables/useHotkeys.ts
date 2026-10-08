@@ -27,6 +27,7 @@ import { useBookStore } from "../stores/useBookStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useReferenceMenuStore } from "../stores/useReferenceMenuStore";
 import { useFindReplaceStore } from "../stores/useFindReplaceStore";
+import { useSkinBrowseStore } from "../stores/useSkinBrowse";
 
 export interface HotkeyHandlers {
   openPalette(): void;
@@ -61,6 +62,15 @@ export interface HotkeyHandlers {
    * 在这里复写那份条件就是第二次实现——而这正是本缺陷的成因。
    */
   findReplaceHasLanding(): boolean;
+  /**
+   * 皮肤广场那一格此刻在屏幕上吗（5-㊷）。
+   *
+   * 整窗预览条与并排对比栏都挂在 SkinGalleryPage 里，而那一页只在
+   * `centerView === "skins"` 时渲染。真身在 App.vue 的那条 v-if 上——
+   * 在这里复写它条件就是第二次实现，而第二次实现正是「看不见的标记白吃一次 Esc」这一族的成因
+   * （5-㊴ 的 Ctrl+F、#106 的引用菜单都栽过）。
+   */
+  skinGalleryHasLanding(): boolean;
 }
 
 /** 评审 X4b：每次按键把「哪枚是 composer、哪张卡聚焦」解析**一次**，dispatch/escape 共用同一份，不再回头重查 DOM。 */
@@ -76,6 +86,8 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
   // #106：行内引用菜单的开合与高亮是 store 态，正是为了让这一处键位裁决能够派到它头上（裁定 D2）。
   const reference = useReferenceMenuStore();
   const findReplace = useFindReplaceStore();
+  // 5-㊷：整窗预览与并排对比的开合真身在皮肤广场的浏览 store 里，这里只派「收最外那一层」。
+  const skins = useSkinBrowseStore();
 
   function elementOf(target: EventTarget | null): HTMLElement | null {
     return target instanceof HTMLElement ? target : null;
@@ -109,7 +121,11 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
       // 文档内查找替换面板开着（Ctrl+F）：这一次 Esc 的第一个收动作为（关闭它）。
       // 必须同时问一句「面板现在有落点吗」（5-㊴）：那个标记可能在用户切去设置页之前就置上了，
       // 而没有落点的标记只会白吃一次 Esc，且用户看不出第一下按去了哪。
-      findReplaceIsOpen: findReplace.visible && handlers.findReplaceHasLanding()
+      findReplaceIsOpen: findReplace.visible && handlers.findReplaceHasLanding(),
+      // 皮肤浮层（整窗预览条 / 对比栏）开着，且皮肤广场那一页此刻真在屏幕上（5-㊷）。
+      // 两问缺一不可：预览态是不落盘的临时刷写，人走了它还在 store 里；
+      // 而没有落点的标记只会白吃一次 Esc（与上一支、与 #106 同一条规矩）。
+      skinOverlayIsOpen: skins.overlayIsOpen && handlers.skinGalleryHasLanding()
     });
     // 评审 X3（与 dispatch 里的 never 穷尽守卫同律，G1/X3 同法一条）：switch + never 穷尽性守卫——
     // EscapeAction 新增成员没在此接线 ⇒ 编译失败，杜绝「静默死键」。
@@ -133,6 +149,13 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
         // Ctrl+F 面板：Esc 只关面板，不打断查询、不撤卡、不碰别的浮层。
         event.preventDefault();
         findReplace.close();
+        return;
+      case "close-skin-overlay":
+        // 皮肤浮层：Esc 只收最外那一层（预览优先于对比栏），**不关皮肤广场那一页**。
+        // 关掉整页是「回到对话」那枚钮与左栏导航的事；把两者混成一次 Esc，
+        // 用户退掉预览的同时把正在挑的那一页也没了（5-㊷）。
+        event.preventDefault();
+        skins.closeTopLayer();
         return;
       case "close-overlay":
         event.preventDefault();

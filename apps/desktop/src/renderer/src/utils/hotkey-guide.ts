@@ -164,9 +164,11 @@ export const HOTKEY_GUIDE: readonly HotkeyGuideGroup[] = [
   }
 ];
 
-/** Esc 裁决链的唯一真身在 utils/escape-policy.ts，这里给屏幕读的顺序摘要（与其头注逐字一致）。 */
+/** Esc 裁决链的唯一真身在 utils/escape-policy.ts，这里给屏幕读的顺序摘要（与其头注逐字一致）。
+ * 5-㊷ 补上「收查找替换」与「收皮肤浮层」两支：摘要漏一支不是文案旧了，
+ * 而是屏幕上教用户的收层顺序比实际少一层——用户按第一下发现关的是别的东西。 */
 export const ESCAPE_POLICY_SUMMARY =
-  "说明框保字 > 取消该条 > 收行内引用菜单 > 收设置浮层 > 打断 > 无动作";
+  "说明框保字 > 取消该条 > 收查找替换 > 收行内引用菜单 > 收皮肤浮层 > 收设置浮层 > 打断 > 无动作";
 
 /** 摘要行的前缀标签（「键名不许在 .vue 里出现」的契约把这一个词也算键位文案，故同住数据侧）。 */
 export const ESCAPE_NOTE_PREFIX = "Esc 裁决链：";

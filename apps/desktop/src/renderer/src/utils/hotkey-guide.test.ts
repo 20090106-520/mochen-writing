@@ -15,6 +15,13 @@ const UTILS_DIR = fileURLToPath(new URL("./", import.meta.url));
 const hotkeysSource = readFileSync(join(UTILS_DIR, "hotkeys.ts"), "utf8");
 const escapeSource = readFileSync(join(UTILS_DIR, "escape-policy.ts"), "utf8");
 
+/* 这句优先级是**两边共用的那一条字面量**：escape-policy.ts 头注写它，hotkey-guide 的
+ * ESCAPE_POLICY_SUMMARY 也写它，屏幕上那行（HotkeysPanel）渲染的就是后者。
+ * 5-㊷ 加了「收查找替换」与「收皮肤浮层」两支——原先这里少两支，红在真机上不是样式问题，
+ * 是帮助面板教的收层顺序比实际少一层。写成一份常量（铁律 6），两处断言读同一句。 */
+const ESCAPE_PRIORITY =
+  "说明框保字 > 取消该条 > 收查找替换 > 收行内引用菜单 > 收皮肤浮层 > 收设置浮层 > 打断 > 无动作";
+
 describe("hotkey-guide 每一行都能在判定层源码里找到锚点", () => {
   it("五个分组每行 needle 逐字命中 hotkeys.ts", () => {
     for (const group of HOTKEY_GUIDE) {
@@ -34,11 +41,20 @@ describe("hotkey-guide 每一行都能在判定层源码里找到锚点", () => 
 
   it("Esc 裁决链摘要与 escape-policy 的优先级注释逐字同源", () => {
     // escape-policy.ts 头注写了同一句优先级：摘要抄错顺序这里红。
-    expect(escapeSource).toContain(
-      "说明框保字 > 取消该条 > 收行内引用菜单 > 收设置浮层 > 打断 > 无动作"
-    );
-    expect(ESCAPE_POLICY_SUMMARY).toBe(
-      "说明框保字 > 取消该条 > 收行内引用菜单 > 收设置浮层 > 打断 > 无动作"
+    expect(escapeSource).toContain(ESCAPE_PRIORITY);
+    expect(ESCAPE_POLICY_SUMMARY).toBe(ESCAPE_PRIORITY);
+    // 层数对不上也不行：摘要少一支，屏幕上教用户的收层顺序就比实际少一层
+    // （5-㊷ 之前正是这个形状——实现里有「收查找替换」，摘要没有）。
+    // 基准取 `EscapeAction` 的并集，不取实现体：并集是这条链的完整清单，
+    // 实现少返回一支时类型关卡自己会红，不需要这里重复把关。
+    const union = /export type EscapeAction =([\s\S]*?);/.exec(escapeSource)?.[1] ?? "";
+    const actions = [...union.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    expect(
+      actions.length,
+      `EscapeAction 的并集只数出 ${actions.length} 支（正则或那段注释改了形）`
+    ).toBeGreaterThanOrEqual(8);
+    expect(ESCAPE_PRIORITY.split(" > "), "摘要层数与 EscapeAction 支数不一致").toHaveLength(
+      actions.length
     );
   });
 

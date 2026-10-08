@@ -39,7 +39,18 @@ const DETERMINISTIC_CONSTANTS: Record<string, string> = {
 const INLINE_INJECTED: Record<string, string> = {
   "--tree-depth": "LeftSidebar.vue:579 用 :style 现场设树层级缩进",
   "--editor-measure":
-    "DocumentPane.vue 编辑区用 :style 现场设列宽档（读 utils/editor-measure-preference），样式表兜底 none 就是原版式的不限宽"
+    "DocumentPane.vue 编辑区用 :style 现场设列宽档（读 utils/editor-measure-preference），样式表兜底 none 就是原版式的不限宽",
+  /* 整窗预览/并排对比那两块小面板的「纸」与「墨」（5-㊷）。
+     它们**必须**跟着被预览的那一套皮肤走，而不是跟着当前主题：对比栏是同时摆两套皮肤，
+     当前主题只有一个值，给不了第二套。所以由 `SkinGalleryPage.vue` 的 `previewTone()`
+     现场写进 `:style`（那张卡的根节点上），运行时表里本来就不该有它们。
+     「页面真的设了这两枚」由 appearance-skin-plaza-wiring.test.ts 钉（那里断言
+     `"--window-paper": tone.background` 与 `"--window-ink": tone.foreground` 两个字面量），
+     本条只负责不把它们误判成孤儿。 */
+  "--window-paper":
+    "SkinGalleryPage.vue 的 previewTone() 用 :style 逐张卡现场设纸色（每套皮肤各一版，不随当前主题）",
+  "--window-ink":
+    "SkinGalleryPage.vue 的 previewTone() 用 :style 逐张卡现场设墨色（整窗模型里那几条灰线用）"
 };
 
 function walk(dir: string, out: string[] = []): string[] {

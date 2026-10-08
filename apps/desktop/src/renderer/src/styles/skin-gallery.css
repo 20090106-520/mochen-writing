@@ -14,6 +14,9 @@
      只写 grid-column 的话网格会把它排到第二行，于是 shell 从「一行三列」
      变成「两行三列」，左栏被压到第一行的第一格、后半截点不到。 */
   grid-row: 1;
+  /* 预览收条（波3）挂在这一页的底部，所以这一格得是它的包含块。
+     不写这句的话 absolute 会一路找到视口，等于把「这一页在预览」说成「整个窗在预览」。 */
+  position: relative;
   min-width: 0;
   height: 100%;
   min-height: 0;
@@ -190,7 +193,9 @@
 .skin-card-preview-art {
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(var(--skin-art-veil, transparent), var(--skin-art-veil, transparent)), var(--skin-art-image, none);
+  background-image:
+    linear-gradient(var(--skin-art-veil, transparent), var(--skin-art-veil, transparent)),
+    var(--skin-art-image, none);
   background-size: cover;
   background-position: center;
   pointer-events: none;
@@ -343,4 +348,235 @@
 .skin-btn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* 「就用它」——整窗预览收条上那枚实心钮。
+   走 --neutral-solid / --neutral-solid-contrast（agent-pane.css 那张对照表里的「实心键面」那一档），
+   不自创一顶 accent 色：深色主题下 theme-runtime.css 会把这一族统一转成 accent，
+   自己写 accent 反而绕过那次转换，得到一双和别处不一样的实心钮。 */
+.skin-btn.is-primary {
+  border-color: var(--neutral-solid);
+  background: var(--neutral-solid);
+  color: var(--neutral-solid-contrast);
+}
+
+/* ============================================================================
+   波3 · 整窗预览的收条与两套并排对比（2026-10-08 批次 5-㊷）
+
+   【这一节的判据只有一句：模型层消费的 token 必须与真正应用时**同一批**】
+   卡片预览（上面那五块）与这里的整窗模型都读 `--skin-backdrop / --skin-art-image /
+   --skin-grid-image / --skin-glass-*`。它们由模板内联在祖先元素上（`previewStyle`），
+   所以「看到的就是换上之后的样子」不是靠画得像，是靠**同一批变量走同一套换算**。
+   凡是这里自创一个观感的地方（比如放行那 52%），都必须能在 theme-runtime.css
+   找到那条真规则作为出处；找不到出处的写法就是示意图，本仓不许。
+   ========================================================================== */
+
+/* 收条挂在页面这一格里，不挂视口：
+   `.desktop-shell` 是三列网格，`position: fixed` 会把这条钉在整个窗正中，
+   而它说的是「中栏这一页正在预览」——挂在页面底部才说得上这句话。
+   因此这里用 absolute，`.skin-gallery` 补一条 position: relative 作其包含块。 */
+.skin-preview-bar {
+  position: absolute;
+  right: 20px;
+  bottom: 14px;
+  left: 20px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--theme-line);
+  border-radius: var(--skin-radius-md);
+  /* 半透一档 + 糊一下：这条压在滚动中的卡片列表上，不实就会和底下的字糊成一片。
+     读的是玻璃那一族的 token，于是换皮肤时它跟着换，而不是永远一层灰。 */
+  background-color: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  backdrop-filter: blur(var(--skin-glass-floater-blur, 8px)) saturate(var(--skin-glass-saturate, 1));
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.16);
+}
+
+.skin-preview-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+  line-height: 1.5;
+}
+
+.skin-preview-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+/* 预览中，最后那一行卡片会被收条盖住。用 `:has` 在这一刻给滚动体补出收条的高度——
+   不写的话「换回去」那枚钮正好压在卡片的「换上」上，而这两件事是两个相反的结局。
+   不用 JS 量高度：本仓已经钉过多次「量出来的值写进 style 就成了第二份真相」。 */
+.skin-gallery:has(.skin-preview-bar) .skin-gallery-body {
+  padding-bottom: 68px;
+}
+
+.skin-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--skin-radius-md);
+  background: var(--surface-raised);
+}
+
+.skin-compare-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.skin-compare-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  line-height: 1.5;
+}
+
+/* 并排：**auto-fit + minmax(300px)**，不是 `repeat(2, …)`。
+   上一批（#113f）在 chip 行上刚栽过：钉死两列会在窄窗时溢出压到右端。
+   这一页更宽（吃掉中栏 + 右栏），但窗口可以任意窄，
+   300px 是「一块整窗模型还看得出三栏」的下限，低于它宁可换成上下两行。 */
+.skin-compare-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.skin-compare-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+.skin-compare-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+}
+
+.skin-compare-tag {
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+}
+
+/* 一整扇窗的模型：三栏 + 五层，比例按真实 shell 的观感摆（侧栏 22%、右栏 26%）。
+   底色与字色由模板内联（`previewTone`），四层的 token 由父上的 `previewStyle` 供给。 */
+.skin-window {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22% minmax(0, 1fr) 26%;
+  gap: 5px;
+  padding: 6px;
+  /* 16:10 是墨宸默认窗口的观感比例；写死比例而不是固定高度，
+     因为这两块要跟着卡片列一起变窄，固定高度会在窄窗时被拉长。 */
+  aspect-ratio: 16 / 10;
+  min-width: 0;
+  border: 1px solid currentColor;
+  border-radius: var(--skin-radius-sm);
+  overflow: hidden;
+}
+
+/* 三块叠层都绝对定位铺满，**DOM 里谁写在后面谁画在上面**：
+   backdrop（弥散光）→ art（整窗插画）→ grid（图案）。
+   这与 theme-runtime.css 那条 `.desktop-shell` 的顺序一致——
+   那边是同一属性里多值的顺序（纱→画→光），这里是兄弟节点的顺序，两条都是「画在弥散光之上」。
+   顺序错了不会报错，只会得到「整窗一片浅色，而 DOM 六层俱全」（5-㊷ 真机撞过的那次）。
+
+   【为什么包成 `:where(…)` 而不是直接写选择器组】
+   守卫用 `ruleBlock(css, ".skin-window-grid")` 取的是**它自己那条**规则；
+   写成裸选择器组时，排在最后的那一枚后面紧跟 `{`，`ruleBlock` 会先撞上这条共享规则，
+   于是「grid 层没消费 --skin-grid-image」这种真缺陷反而读成红在别处（本轮实测撞过）。
+   `:where()` 里每一枚后面都是逗号，各自那条才查得到；顺带它的特异性是 0，
+   不会盖住下面各层自己的 border-radius。 */
+:where(.skin-window-backdrop, .skin-window-art, .skin-window-grid) {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.skin-window-backdrop {
+  background-image: var(--skin-backdrop);
+}
+
+.skin-window-art {
+  background-image:
+    linear-gradient(var(--skin-art-veil, transparent), var(--skin-art-veil, transparent)),
+    var(--skin-art-image, none);
+  background-size: cover;
+  background-position: center;
+}
+
+.skin-window-grid {
+  background-image: var(--skin-grid-image);
+  background-blend-mode: var(--skin-grid-blend);
+}
+
+/* 三块面板都 `position: relative`：叠层是绝对定位的，
+   静态定位的兄弟会被压在它们底下——不写这句，玻璃面板就永远看不见。
+   同样包成 `:where(…)`，理由与上面那条一样（守卫按各自的选择器取规则）。 */
+:where(.skin-window-nav, .skin-window-main, .skin-window-side) {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--skin-radius-sm);
+}
+
+/* 侧栏 = 真实那条 `html[data-theme] .left-sidebar`（fill + sheen + 侧栏那一档模糊）。 */
+.skin-window-nav {
+  background-color: var(--skin-glass-sidebar-fill);
+  background-image: var(--skin-glass-sheen, none);
+  backdrop-filter: blur(var(--skin-glass-sidebar-blur, 0)) saturate(var(--skin-glass-saturate, 1));
+}
+
+/* 中栏 = 对话那格：底色就是这一套的纸色，实底。 */
+.skin-window-main {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 7px;
+  background-color: var(--window-paper, currentColor);
+}
+
+/* 带画的那一档放行 52%，与 theme-runtime.css 里那条真规则同值同判据：
+   这里读的是模型自己那扇窗的 data-skin-art（模板内联），不是 `<html>` 上那份——
+   两块并排时各说各的，而 `<html>` 上只有一份当前生效的。 */
+.skin-window[data-skin-art]:not([data-skin-art="none"]) .skin-window-main {
+  background-color: color-mix(in srgb, var(--window-paper, currentColor) 52%, transparent);
+}
+
+/* 右栏 = 卡面那一族（card fill + 卡片档模糊 + 圆角走 md）。 */
+.skin-window-side {
+  background-color: var(--skin-glass-card-fill);
+  background-image: var(--skin-glass-sheen, none);
+  backdrop-filter: blur(var(--skin-glass-blur, 0)) saturate(var(--skin-glass-saturate, 1));
+  border-radius: var(--skin-radius-md);
+}
+
+.skin-window-bar {
+  height: 8px;
+  border-radius: 3px;
+}
+
+.skin-window-line {
+  height: 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--window-ink, currentColor) 28%, transparent);
+}
+
+.skin-window-line.is-short {
+  flex: 0 0 auto;
+  width: 56%;
 }

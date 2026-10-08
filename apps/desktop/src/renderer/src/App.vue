@@ -13,9 +13,11 @@ import SettingsPage from "./components/SettingsPage.vue";
 import ExtensionsPage from "./components/ExtensionsPage.vue";
 import SkinGalleryPage from "./components/SkinGalleryPage.vue";
 import { applyAppearanceThemeToDocument } from "./composables/appearanceThemeRuntime";
+import { effectiveSettings } from "./composables/appearanceSkinPreview";
 import { useGlobalHotkeys } from "./composables/useHotkeys";
 import type { PanelShortcutId } from "./utils/hotkeys";
 import { useAppearanceStore } from "./stores/useAppearanceStore";
+import { useSkinBrowseStore } from "./stores/useSkinBrowse";
 import { useBookStore } from "./stores/useBookStore";
 import { useReferenceMenuStore } from "./stores/useReferenceMenuStore";
 import { resolveColorScheme } from "./utils/appearance-scheme";
@@ -42,6 +44,9 @@ const layout = useLayoutStore();
 const appearance = useAppearanceStore();
 const book = useBookStore();
 const referenceMenu = useReferenceMenuStore();
+// 皮肤广场的浏览态（筛选 / 整窗预览 / 并排对比）。这里只读它**预览中了哪一套**，
+// 因为「把皮肤刷到 <html> 上」的作者只有下面这一个 applyTheme（5-㊷）。
+const skinBrowse = useSkinBrowseStore();
 const { settings } = storeToRefs(appearance);
 const {
   currentView,
@@ -66,11 +71,24 @@ function resolvedScheme(): AppearanceColorScheme {
 
 function applyTheme(): void {
   const scheme = resolvedScheme();
+  /**
+   * 刷的是**该显示的那份**设置：预览中就换预览那套的结果，没预览就原样。
+   *
+   * 【为什么预览要挂在这一条通路上，而不是皮肤页自己刷一次 DOM】
+   * `--skin-*` 的作者必须只有一个。皮肤页若自己再刷一遍，那么改字号、切深浅、
+   * 系统换模式——任何一次 `applyTheme()` 都会把预览刷掉，用户在预览里看到的会自己变回去，
+   * 而设置里从来没写过那一套。挂在这条通路上，预览就成了这份纯函数的一个输入
+   * （见 composables/appearanceSkinPreview.ts：与「换上」共用同一个换算，两处不会是两套样子）。
+   *
+   * 【预览不落盘】`appearance.settings` 一个字节都没动，也不会有 appearance:save。
+   * 退出预览（收条上的「换回去」、Esc、离开那一页）走的都是这一条通路回到真身。
+   */
+  const view = effectiveSettings(settings.value, skinBrowse.previewSkin);
   applyAppearanceThemeToDocument({
     scheme,
-    theme: settings.value[scheme],
-    uiFontFamily: settings.value.uiFontFamily,
-    editorFontFamily: settings.value.editorFontFamily
+    theme: view[scheme],
+    uiFontFamily: view.uiFontFamily,
+    editorFontFamily: view.editorFontFamily
   });
 }
 
@@ -88,7 +106,8 @@ useGlobalHotkeys({
   panelShortcut,
   // 与 openPalette 读的是同一个函数、同一件事：这里不存在第二份判据。
   referenceMenuHasLanding: centerChatIsMounted,
-  findReplaceHasLanding
+  findReplaceHasLanding,
+  skinGalleryHasLanding: skinGalleryIsMounted
 });
 
 /**
@@ -113,6 +132,15 @@ function findReplaceHasLanding(): boolean {
   return centerChatIsMounted() && !rightCollapsed.value && book.rightPaneMode === "manuscript";
 }
 
+/**
+ * 皮肤广场那一格在渲染中吗（5-㊷）——整窗预览条与并排对比栏都挂在 SkinGalleryPage 里。
+ * 判据与本文件模板里 `<SkinGalleryPage v-else-if="centerView === 'skins'" />` 是同一件事，
+ * 这里只把它读成一句话，不复写条件。
+ */
+function skinGalleryIsMounted(): boolean {
+  return currentView.value === "workspace" && centerView.value === "skins";
+}
+
 // 新面板可见态
 const searchOpen = ref(false);
 const notesOpen = ref(false);
@@ -135,6 +163,9 @@ const goalPanelOpen = ref(false);
 
 let schemeQuery: MediaQueryList | null = null;
 let unwatchSettings: (() => void) | null = null;
+// 整窗预览那一条 watch 的句柄（5-㊷）：预览态住在皮肤浏览 store，不在 settings 里，
+// 所以它是**第二条** watch——但刷写仍然只有 applyTheme 这一个作者。
+let unwatchPreview: (() => void) | null = null;
 
 // Ctrl+Shift+F/N/T/O/G/B/P 与 Ctrl+Alt+F 面板快捷键的**落点**。
 // 判定（哪个键对应哪一枚面板）已搬进 utils/hotkeys.ts 的 resolveHotkey——
@@ -180,12 +211,17 @@ onMounted(() => {
   // 盘上设置回来后再刷一遍；此后每次设置改动（store 内 update 成功落 state）即时生效。
   void appearance.load().then(applyTheme);
   unwatchSettings = watch(settings, applyTheme, { deep: true });
+  // 预览换了一套 = 屏幕上该刷的东西变了，走的是同一条刷写通路（作者仍然只有一个）。
+  // 只盯 `previewId` 这一个字符串，不 deep 整份浏览态：筛选与对比勾选都改不到界面上的皮肤，
+  // deep 会让每一次点筛选都重刷一遍 <html> 上的二十多枚 token。
+  unwatchPreview = watch(() => skinBrowse.previewId, applyTheme);
 });
 
 onBeforeUnmount(() => {
   schemeQuery?.removeEventListener("change", applyTheme);
   window.removeEventListener("resize", layout.reconcilePaneWidths);
   unwatchSettings?.();
+  unwatchPreview?.();
 });
 
 const agent = useAgentStore();

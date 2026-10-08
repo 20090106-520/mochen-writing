@@ -91,17 +91,21 @@ describe("键位落点 · 判据只有一个真身，且动作端与 Esc 端读�
     const src = typeScriptSource(HOTKEYS);
     expect(src).toContain("findReplaceHasLanding(): boolean;");
     expect(src).toContain("referenceMenuHasLanding(): boolean;");
+    // 5-㊷ 第三枚：皮肤广场的浮层（整窗预览条 / 对比栏）。
+    expect(src).toContain("skinGalleryHasLanding(): boolean;");
     // 带 `?` 就是「可以不接」：漏接的调用点会安静地少一层判据，正是本缺陷的形状。
     expect(src).not.toMatch(/findReplaceHasLanding\?\s*\(\)/);
     expect(src).not.toMatch(/referenceMenuHasLanding\?\s*\(\)/);
+    expect(src).not.toMatch(/skinGalleryHasLanding\?\s*\(\)/);
   });
 
-  it("装配层把两个判据都接上了（App.vue 是唯一调用点）", () => {
+  it("装配层把三个判据都接上了（App.vue 是唯一调用点）", () => {
     const app = scriptSource(APP);
     const call = /useGlobalHotkeys\(\{([\s\S]*?)\n\}\)/.exec(app)?.[1];
     expect(call).toBeDefined();
     expect(call).toContain("findReplaceHasLanding");
     expect(call).toContain("referenceMenuHasLanding");
+    expect(call).toContain("skinGalleryHasLanding: skinGalleryIsMounted");
     // 「已在当前目的地的那一枚」不适用于本族：落点不在就必须是 no-op，所以不许留兜底默认值。
     expect(call).not.toMatch(/HasLanding:\s*\(\)\s*=>/);
   });
@@ -124,9 +128,40 @@ describe("键位落点 · 判据只有一个真身，且动作端与 Esc 端读�
     expect(esc).toMatch(
       /referenceMenuIsOpen:\s*reference\.isOpen\s*&&\s*handlers\.referenceMenuHasLanding\(\)/
     );
+    // 5-㊷：皮肤浮层同一族——预览条挂在皮肤广场那一格里，人已经离开那一页时它不在屏上。
+    expect(esc).toMatch(
+      /skinOverlayIsOpen:\s*skins\.overlayIsOpen\s*&&\s*handlers\.skinGalleryHasLanding\(\)/
+    );
     // 反向：钉住 5-㊴ 之前的那个形状本身（只读 visible 就当它开着）。
     expect(esc).not.toMatch(/findReplaceIsOpen:\s*findReplace\.visible\s*[,;}]/);
     expect(esc).not.toMatch(/referenceMenuIsOpen:\s*reference\.isOpen\s*[,;}]/);
+    expect(esc).not.toMatch(/skinOverlayIsOpen:\s*skins\.overlayIsOpen\s*[,;}]/);
+  });
+
+  /**
+   * 5-㊷ 新加的那一支动作有没有**真的落点**。
+   *
+   * 【为什么单钉这一条】这一族的失效形状不是「按了没反应」，而是「按了但关错了东西」：
+   * 皮肤页的 `overlayIsOpen` 是个 store 记号，人切去对话页之后它可能还留着
+   * （页面卸载与记号清除是两件事）。那时一次 Esc 会走 `close-skin-overlay`，
+   * 把这一轮该做的事（比如打断）吞掉——屏幕上什么都没关，用户只看见「第一下没用」。
+   */
+  it("close-skin-overlay 这一支：动作就是收最外那一层，不关整页、不落盘", () => {
+    const block = caseBlock(typeScriptSource(HOTKEYS), "close-skin-overlay", "close-overlay");
+    expect(block).toContain("event.preventDefault()");
+    expect(block).toContain("skins.closeTopLayer()");
+    // 反向：这一族的两条老失效形状。
+    // ① 把「收一层」写成「关整页」——用户退预览时连正在挑的那一页也没了（与 close-overlay 同义）；
+    // ② 顺手写设置——预览是不落盘的临时刷写，落盘只该发生在「就用它」那一次。
+    expect(block).not.toMatch(/layout\.showWorkspace\(\)/);
+    expect(block).not.toMatch(/appearance|settings/i);
+  });
+
+  it("落点判据在实参那一侧（与另两支同形），case 里不重复第二份", () => {
+    const block = caseBlock(typeScriptSource(HOTKEYS), "close-skin-overlay", "close-overlay");
+    // 有落点才进得来这一支：判据已经写在 resolveEscape 的实参上（上面那条已钉）。
+    // 这里钉的是**不许在 case 里再判一次**——两处判一处改就是「白吃 Esc」那一族的成因。
+    expect(block).not.toContain("skinGalleryHasLanding");
   });
 
   it("`/` 的打开端判据留在装配层（openPalette 里那一次），useHotkeys 里不许再写第二份", () => {
@@ -167,6 +202,21 @@ describe("键位落点 · 判据必须与它所镜像的那两处 v-if 对得上
     // 面板自己那一格（DocumentPane 模板）
     const panel = vIfOf(templateSource(PANE), "FindReplacePanel");
     expect(panel).toBe("findVisible && mode === 'manuscript'");
+  });
+
+  it("皮肤广场那一格：skinGalleryIsMounted 与模板里 SkinGalleryPage 的 v-else-if 同源（5-㊷）", () => {
+    const body = functionBody(scriptSource(APP), "skinGalleryIsMounted");
+    expect(body).toContain('currentView.value === "workspace"');
+    expect(body).toContain('centerView.value === "skins"');
+    /* 【为什么这里不用 vIfOf】它找的是 `v-if="`，而这一格写的是 `v-else-if="`——
+       `else-if` 前面是连字符，那一串里并没有 `v-if="` 这个子串。
+       于是 vIfOf 从 `<SkinGalleryPage` 往后一路找到**下一条** v-if 上（DocumentPane 的
+       `!rightCollapsed && centerView === 'chat'`），报的红完全不是这个标签的事——第一次跑就是这样。
+       ⇒ 落点的真身要按它自己的写法读。 */
+    const markup = templateSource(APP);
+    const at = markup.indexOf("<SkinGalleryPage");
+    expect(at, "App.vue 模板里没有 <SkinGalleryPage>").toBeGreaterThan(-1);
+    expect(markup.slice(at, at + 120)).toContain(`v-else-if="centerView === 'skins'"`);
   });
 
   it("改了这几处 v-if 就得同步改判据——所以这里把 v-if 的字面值一并钉住", () => {

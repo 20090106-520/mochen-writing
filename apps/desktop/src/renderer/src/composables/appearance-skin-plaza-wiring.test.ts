@@ -144,23 +144,190 @@ describe("皮肤广场页 · 接线（.vue 零类型检查，只能读源码）"
 
   /* 5-㊵ 改钉：旧守卫钉的是「texture/radius/outline/glow 四层一起写回」，
      新四层是 backdrop/glass/surface/grid —— 名字换了，**要写回的东西没变**，
-     所以这条断言只换那四个名字，不换它的判据。 */
-  it("换皮肤一次写回三样：skin id、三色、视觉四层；浅深两套一并应用", () => {
+     所以这条断言只换那四个名字，不换它的判据。
+
+     5-㊷ 再改一次：那段拼法整块搬进了 `patchSettingsWithSkin`（因为「整窗预览」
+     成了它的第二个调用方）。守卫跟着挪到那份函数上，并加一条**反向**断言——
+     页面里再拼一遍就是两份真相，而这两份漂移的结局是「预览看到的 ≠ 换上得到的」。 */
+  it("换上 = 调那一份共用拼法，页面里不许再出现第二份拼法", () => {
     const script = scriptSource(PAGE);
-    // 只改一边 = 「浅色新皮肤、深色旧皮肤」，而 mode 可以是 system。
-    expect(script).toContain("void appearance.update({");
-    expect(script).toContain("preset: skin.id,");
-    expect(script).toContain("skin: skin.id,");
-    expect(script).toContain("...skin.light,");
-    expect(script).toContain("...skin.dark,");
-    for (const layer of ["backdrop", "glass", "surface", "grid"]) {
-      expect(script, `换皮肤没有写回 ${layer}`).toMatch(new RegExp(`${layer}: skin\\.${layer}`));
+    expect(script).toContain('from "../composables/appearanceSkinPreview"');
+    expect(script).toContain(
+      "void appearance.update(patchSettingsWithSkin(appearance.settings, skin))"
+    );
+    // 反向：这些字段名是那份函数**内部**的事，页面里出现就是又拼了一遍。
+    for (const fragment of ["preset: skin.id,", "skin: skin.id,", "...skin.light,", "...visual"]) {
+      expect(script, `页面里又出现了 ${fragment} —— 拼法该只有一份`).not.toContain(fragment);
     }
-    // 四层必须**共用同一个 visual 对象**而不是各写两遍：
-    // 浅深两套写同一个 skin 的四层，写成两遍的话将来加第五层只改一处就分叉了。
-    expect(script).toContain("...visual");
     // 面板不许直调 window.mochen（AppearancePanel 那条老规矩）。
     expect(script).not.toContain("window.mochen");
+    // 换上之后预览必须退场：屏幕上留着两套「同一个来源」，收条那句「还没保存」立刻成假话。
+    // 窗口取 260 字符：applySkin 的函数体连同那句注释在内，超出这个范围就说明它不在这个函数里。
+    expect(script).toMatch(/function applySkin[\s\S]{0,260}?browse\.clearPreview\(\)/);
+  });
+
+  it("拼法那份函数真的浅深两套一起写、五层一起写（守卫跟着搬到这里）", () => {
+    const src = typeScriptSource("composables/appearanceSkinPreview.ts");
+    expect(src).toContain("light: { ...settings.light,");
+    expect(src).toContain("dark: { ...settings.dark,");
+    for (const layer of ["backdrop", "glass", "surface", "grid", "art"]) {
+      expect(src, `拼法没写 ${layer}`).toMatch(new RegExp(`${layer}: skin\\.${layer}`));
+    }
+    // 五层必须是**同一个 visual 对象**展开两次，而不是各写两遍。
+    expect(src.match(/\.\.\.visual/g)?.length).toBe(2);
+  });
+
+  /* 5-㊷ 波3 的第一条：预览的全部意义在于**它不是换上**。
+     一旦预览也落盘，「退出预览就原样回来」那句收条文案就成了假话，
+     而且用户在广场上逛一圈，设置已经被改了七八次。 */
+  it("预览一个字节都不落盘：appearance.update 在页面上只有一处，且在 applySkin 里", () => {
+    const script = scriptSource(PAGE);
+    expect(script.match(/appearance\.update\(/g)?.length).toBe(1);
+    const at = script.indexOf("appearance.update(");
+    const head = script.lastIndexOf("function ", at);
+    expect(script.slice(head, head + 24), "唯一那次 update 不在 applySkin 里").toContain(
+      "function applySkin"
+    );
+    // 预览那条路只写记号与清记号，不碰设置。
+    expect(script).toContain("browse.togglePreview(skin.id)");
+  });
+
+  it("预览中一定有收条，且收条说清「还没保存」、两个出口都在条上", () => {
+    const markup = templateSource(PAGE);
+    expect(markup).toContain('v-if="browse.previewSkin"');
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain("还没保存");
+    expect(markup).toContain("browse.clearPreview()");
+    expect(markup).toContain("applySkin(browse.previewSkin)");
+  });
+
+  it("离开广场把浮层收干净（预览不落盘，留着就成了屏幕一套、设置一套）", () => {
+    const script = scriptSource(PAGE);
+    expect(script).toContain("onBeforeUnmount(");
+    expect(script).toContain("browse.leaveGallery()");
+    // 「回到对话」那枚钮走的是 layout 真身，不自己改 centerView。
+    expect(script).toContain("layout.showWorkspace()");
+  });
+
+  it("对比的开合判定只在 store 有一份：模板读 isComparing，不自己数长度", () => {
+    const markup = templateSource(PAGE);
+    const script = scriptSource(PAGE);
+    expect(markup).toContain('v-if="browse.isComparing"');
+    expect(markup).not.toMatch(/compareIds\.length/);
+    expect(markup).toContain('v-for="skin in browse.compareSkins"');
+    // 「勾进/移出」走的是页面上那层薄封装（它只把 id 递过去），判定仍在 store。
+    expect(markup).toContain('@click="toggleCompare(skin)"');
+    expect(script).toContain("browse.toggleCompare(skin.id)");
+    expect(markup).toContain("browse.clearCompare()");
+    // 反向：页面不许自己算「够不够两套」——那份判据在 store 的 isComparing 上只有一份。
+    expect(script).not.toMatch(/compareIds\.length\s*[<>]/);
+  });
+  /* 5-㊷ 波3：并排对比里那两块是**一整扇窗**的模型。
+     它们必须消费与真正应用时同一批 `--skin-*`，否则这块就是张示意图——
+     而「卡片预览只画两条色带、看不出两套皮肤的差别」正是 5-㊵ 被用户指出来过的缺陷。
+     这一段仍钉在同一个 describe 里：被测的还是这一页与这一张样式表，
+     换个 describe 只是换个标题，判据的对象没有变。 */
+  const CSS = "skin-gallery.css";
+
+  it("五层各自的类都在模板里，且叠放顺序是 backdrop → art → grid（画必须在弥散光之上）", () => {
+    const markup = templateSource(PAGE);
+    const order = ["backdrop", "art", "grid"];
+    let previous = -1;
+    for (const layer of order) {
+      const at = markup.indexOf(`skin-window-${layer}"`);
+      expect(at, `模板里没有 .skin-window-${layer}`).toBeGreaterThan(-1);
+      // DOM 里谁写在后面谁画在上面（三块都是绝对定位），所以顺序就是叠放顺序。
+      // 反过来不会报错，只会得到「整窗一片浅色而 DOM 六层俱全」——5-㊷ 真机撞过的那次。
+      expect(at, `${layer} 排在了不该压上去的位置`).toBeGreaterThan(previous);
+      previous = at;
+    }
+  });
+
+  it("每一层消费真 token，且与 theme-runtime.css 那边是同一批名字", () => {
+    const css = strippedStyleSource(CSS);
+    expect(ruleBlock(css, ".skin-window-backdrop")).toContain("var(--skin-backdrop)");
+    const art = ruleBlock(css, ".skin-window-art");
+    expect(art).toContain("var(--skin-art-image");
+    expect(art).toContain("--skin-art-veil");
+    const grid = ruleBlock(css, ".skin-window-grid");
+    expect(grid).toContain("background-image: var(--skin-grid-image");
+    expect(grid).toContain("background-blend-mode: var(--skin-grid-blend");
+    const nav = ruleBlock(css, ".skin-window-nav");
+    expect(nav).toContain("background-color: var(--skin-glass-sidebar-fill)");
+    expect(nav).toContain("backdrop-filter: blur(var(--skin-glass-sidebar-blur");
+    const side = ruleBlock(css, ".skin-window-side");
+    expect(side).toContain("background-color: var(--skin-glass-card-fill)");
+    expect(side).toContain("backdrop-filter: blur(var(--skin-glass-blur");
+    // 圆角一律走 token：写死像素就是「换皮肤只变一半」那个老形状。
+    expect(ruleBlock(css, ".skin-window")).toContain("border-radius: var(--skin-radius-sm)");
+    expect(side).toContain("border-radius: var(--skin-radius-md)");
+  });
+
+  it("三块面板都 position: relative——不写就被绝对定位的叠层压在下面（看不见但不报错）", () => {
+    const css = strippedStyleSource(CSS);
+    // 选择器组包在 `:where(…)` 里（理由写在 skin-gallery.css 那边）：
+    // needle 写成裸组的话，规则一改格式这里就会红在一个「其实写了」的地方。
+    const panels = ruleBlock(css, ":where(.skin-window-nav, .skin-window-main, .skin-window-side)");
+    expect(panels).toContain("position: relative");
+  });
+
+  it("中栏那块「带画才放行」与真规则同值同判据（52%），且读的是模型自己的 data-skin-art", () => {
+    const css = strippedStyleSource(CSS);
+    const rule = [
+      ...css.matchAll(
+        /\.skin-window\[data-skin-art\]:not\(\[data-skin-art="none"\]\)[^{]*\{[^}]*\}/g
+      )
+    ].map((one) => one[0]);
+    expect(rule.length, "找不到整窗模型那条放行规则").toBeGreaterThan(0);
+    expect(rule.join("\n")).toContain("52%");
+    // 出处：theme-runtime.css 里那条真规则也是 52%，两处必须一起改。
+    const real = strippedStyleSource("theme-runtime.css");
+    expect(real).toContain("color-mix(in srgb, var(--surface-main) 52%, transparent)");
+
+    // 模板那一格把这一套自己的 art 档写在模型上，而不是读 `<html>` 上那份当前的。
+    expect(templateSource(PAGE)).toContain(':data-skin-art="skin.art"');
+  });
+
+  it("模型里那两块底色读预览自己的纸色，不覆写全局 --surface-main", () => {
+    const script = scriptSource(PAGE);
+    expect(script).toContain('"--window-paper": tone.background');
+    expect(script).toContain('"--window-ink": tone.foreground');
+    // 反向：覆写一个全局 token 会把这一格里的别的消费（图标、边框）一起带跑。
+    expect(script).not.toContain('"--surface-main"');
+    expect(strippedStyleSource(CSS)).toMatch(/var\(--window-paper/);
+  });
+
+  it("收条挂在页面这一格（absolute + 页面是包含块），不挂视口", () => {
+    const css = strippedStyleSource(CSS);
+    expect(ruleBlock(css, ".skin-preview-bar")).toContain("position: absolute");
+    expect(ruleBlock(css, ".skin-gallery")).toContain("position: relative");
+    // 预览中给滚动体补出收条的高度，否则「换回去」压在卡片的「换上」上。
+    expect(css).toContain(".skin-gallery:has(.skin-preview-bar) .skin-gallery-body");
+  });
+
+  /**
+   * 【这一族为什么值得单钉】`--skin-*` 的作者只能有一个（App.vue 的 applyTheme）。
+   * 预览一开始是在皮肤页里自己刷一遍 `<html>` 的写法：改字号、切深浅、系统换模式——
+   * 任何一次 applyTheme 都会把预览刷掉，用户在预览里看到的自己变回去，而设置里从没写过那一套。
+   * ⇒ 预览改成 applyTheme 的一个**输入**；这里钉的就是「输入那条路在，第二条路不在」。
+   */
+  it("预览的唯一作者是 App.vue 的 applyTheme，且它读 effectiveSettings", () => {
+    const app = scriptSource("App.vue");
+    expect(app).toContain(
+      "const view = effectiveSettings(settings.value, skinBrowse.previewSkin);"
+    );
+    // 刷的是 view 的浅深两版与字体（不是 settings.value——那等于预览没生效）。
+    expect(app).toMatch(/theme:\s*view\[scheme\]/);
+    expect(app).toContain("uiFontFamily: view.uiFontFamily");
+    // 预览记号一变就重刷；这条 watch 与那条深比较 watch 是两个输入，作者仍是同一个。
+    expect(app).toMatch(/watch\(\s*\(\)\s*=>\s*skinBrowse\.previewId,\s*applyTheme/);
+    expect(app).toContain("unwatchPreview?.()");
+    // 反向：页面那边不许另开一条写 DOM 的路（两个作者写同一批 token）。
+    // 注意不能钉 `document.documentElement`——页面读它取当前明暗是**合法**的（`prefersDark` 那一句），
+    // 禁的是写：setProperty 与那条文档级刷写函数才是第二个作者。
+    const page = scriptSource(PAGE);
+    expect(page).not.toContain("setProperty(");
+    expect(page).not.toContain("applyAppearanceThemeToDocument");
   });
 
   it("筛选与搜索的判定在 store 里，模板只 v-for", () => {

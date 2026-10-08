@@ -9,7 +9,7 @@
      四层的换算在 composables/appearanceThemeRuntime.ts 的 skinStyleVariables，
      皮肤表在 composables/appearanceSkins.ts。模板只 v-for、只绑。 -->
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useAppearanceStore } from "../stores/useAppearanceStore";
@@ -24,6 +24,7 @@ import {
   type AppearanceSkin
 } from "../composables/appearanceSkins";
 import { skinStyleVariables } from "../composables/appearanceThemeRuntime";
+import { patchSettingsWithSkin } from "../composables/appearanceSkinPreview";
 
 const layout = useLayoutStore();
 const appearance = useAppearanceStore();
@@ -37,7 +38,6 @@ const skins = computed(() => browse.visibleSkins(appearanceSkins));
  *  判据是真身在布局 store 那一处（mode 为 system 时跟系统走），
  *  而实际生效的是哪一版由 App.vue 落进 `<html data-theme>`。 */
 const prefersDark = ref(document.documentElement.dataset.theme === "dark" ? true : false);
-watch(prefersDark, () => undefined);
 // 系统跟随时 listen 一次变化就够了：mode 一旦不是 system，就不再跟系统。
 const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
 systemDark.addEventListener("change", (event) => {
@@ -83,10 +83,21 @@ function toneOf(skin: AppearanceSkin) {
 }
 
 /** 预览块自己的底色/字色。这一层不能靠 CSS 变量：卡片上摆的是**别的那套**皮肤的
- *  颜色，而 `:root` 上那份是「当前生效的」那套。 */
+ *  颜色，而 `:root` 上那份是「当前生效的」那套。
+ *
+ *  `--window-paper` / `--window-ink` 是给整窗模型（并排对比）那两块面板用的：
+ *  真实 CSS 里中栏底读 `--surface-main`、正文线读前景色，而这两枚是**运行时写在 `<html>` 上的**，
+ *  并排的两扇窗不可能各自有一份 `<html>`。所以这里在同一处把「这一套的纸色/墨色」
+ *  递给模型层，让它走自己那一份——**没有覆写 `--surface-main`**：
+ *  覆写一个全局 token 会让这一格里的别的消费（图标、边框）跟着串味，而那不在皮肤的作用范围里。 */
 function previewTone(skin: AppearanceSkin): Record<string, string> {
   const tone = toneOf(skin);
-  return { background: tone.background, color: tone.foreground };
+  return {
+    background: tone.background,
+    color: tone.foreground,
+    "--window-paper": tone.background,
+    "--window-ink": tone.foreground
+  };
 }
 
 /** 现在用的是哪一套。判定只在这里有一份：浅色那套的 skin 字段。 */
@@ -95,39 +106,38 @@ function isActive(skin: AppearanceSkin): boolean {
 }
 
 /**
- * 换皮肤 = 一次写回三样：skin id、三色、视觉四层，浅深两套一并应用。
+ * 换上 = 落盘：走 appearance store 的 update（唯一写者，成功才生效）。
  *
- * **为什么必须浅深两套一起写**（与 AppearancePanel 的 applyPreset 同款理由）：
- * 只改一边就会得到「浅色新皮肤、深色旧皮肤」的精神分裂，
- * 而 mode 可以是 system——那就是有一半时间在看不相配的那一版。
- *
- * **字号与半透明侧栏保持现值**（那两项是用户自己调过的偏好，不是皮肤的一部分）。
+ * **拼法在 `patchSettingsWithSkin` 那一份里**：整窗预览读的是同一个函数，
+ * 于是「预览看到的」与「点下换上得到的」不可能长成两套。
+ * 浅深两套一并应用、字号与半透明侧栏保持现值——那两条理由都写在那份函数上面。
  */
 function applySkin(skin: AppearanceSkin): void {
-  const visual = {
-    backdrop: skin.backdrop,
-    glass: skin.glass,
-    surface: skin.surface,
-    grid: skin.grid,
-    art: skin.art
-  };
-  void appearance.update({
-    light: {
-      ...appearance.settings.light,
-      preset: skin.id,
-      skin: skin.id,
-      ...skin.light,
-      ...visual
-    },
-    dark: {
-      ...appearance.settings.dark,
-      preset: skin.id,
-      skin: skin.id,
-      ...skin.dark,
-      ...visual
-    }
-  });
+  void appearance.update(patchSettingsWithSkin(appearance.settings, skin));
+  // 预览的那一套一旦真的换上，预览就该退场：留着它，屏幕上会出现两个来源同一套皮肤的样子，
+  // 而收条上那句「未落盘」立刻变成假话。
+  browse.clearPreview();
 }
+
+/** 整窗预览：把这一套刷到屏幕上，但**一个字节都不落盘**。
+ *  真身在 App.vue 的 applyTheme —— 它是 `--skin-*` 的唯一作者，这里只写「预览中了哪套」。
+ *  再点一次同一枚 = 退出预览。 */
+function togglePreview(skin: AppearanceSkin): void {
+  browse.togglePreview(skin.id);
+}
+
+/** 预览/对比的开合都在 browse store 的 getter 上（`previewSkin` / `isComparing` / `compareSkins`），
+ *  模板直接读它们——这里不再包一层 computed，那是同一个事实的第二个名字。 */
+function toggleCompare(skin: AppearanceSkin): void {
+  browse.toggleCompare(skin.id);
+}
+
+/** 离开皮肤广场：预览与对比都收干净（判据与理由在 store 的 leaveGallery 上）。
+ *  挂在 onBeforeUnmount 而不是只挂在「回到对话」那枚钮上：从**左栏**切走也是一次离开，
+ *  而预览是不落盘的临时刷写——人走了它还留在 `<html>` 上就成了「屏幕一套、设置一套」。 */
+onBeforeUnmount(() => {
+  browse.leaveGallery();
+});
 
 function backToChat(): void {
   layout.showWorkspace();
@@ -199,6 +209,46 @@ function backToChat(): void {
         里作为配色底版可用，上游的数值与逐行出处也仍留在皮肤视觉的数值表与守卫里。
       </p>
 
+      <!-- 并排对比：勾满两套才出现。每一块都是**一整扇窗**的模型（三栏 + 五层），
+           不是把卡片放大——要对比的正是「整窗换上之后各是什么样子」。
+           五层各落在与真正应用时相同的那几个类上（backdrop / art / grid / 玻璃 / 表面），
+           所以这里看到的与换上之后是同一套换算，不是一张示意图。 -->
+      <div v-if="browse.isComparing" class="skin-compare">
+        <div class="skin-compare-head">
+          <strong>并排对比</strong>
+          <span class="skin-compare-hint"
+            >勾第三套会换掉最早那一套；两块并排才看得出玻璃与画面的差别</span
+          >
+          <button class="skin-btn" type="button" @click="browse.clearCompare()">收起</button>
+        </div>
+        <div class="skin-compare-pair">
+          <figure
+            v-for="skin in browse.compareSkins"
+            :key="skin.id"
+            class="skin-compare-item"
+            :style="previewStyle(skin)"
+          >
+            <div class="skin-window" :data-skin-art="skin.art" :style="previewTone(skin)">
+              <div class="skin-window-backdrop" />
+              <div class="skin-window-art" />
+              <div class="skin-window-grid" />
+              <div class="skin-window-nav" />
+              <div class="skin-window-main">
+                <span class="skin-window-bar" :style="{ background: toneOf(skin).accent }" />
+                <span class="skin-window-line" />
+                <span class="skin-window-line" />
+                <span class="skin-window-line is-short" />
+              </div>
+              <div class="skin-window-side" />
+            </div>
+            <figcaption class="skin-compare-name">
+              {{ skin.label }}
+              <span class="skin-compare-tag">{{ APPEARANCE_ART_LABELS[skin.art] }}</span>
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+
       <p v-if="skins.length === 0" class="skin-gallery-empty">
         没有匹配的皮肤。换个条件，或者点「清空条件」。
       </p>
@@ -255,6 +305,22 @@ function backToChat(): void {
             <button
               class="skin-btn"
               type="button"
+              :aria-pressed="browse.previewId === skin.id"
+              @click="togglePreview(skin)"
+            >
+              {{ browse.previewId === skin.id ? "退出预览" : "整窗预览" }}
+            </button>
+            <button
+              class="skin-btn"
+              type="button"
+              :aria-pressed="browse.compareIds.includes(skin.id)"
+              @click="toggleCompare(skin)"
+            >
+              {{ browse.compareIds.includes(skin.id) ? "移出对比" : "对比" }}
+            </button>
+            <button
+              class="skin-btn"
+              type="button"
               :disabled="isActive(skin)"
               @click="applySkin(skin)"
             >
@@ -263,6 +329,23 @@ function backToChat(): void {
           </div>
         </li>
       </ul>
+    </div>
+
+    <!-- 整窗预览的收条：预览中**一定**要有这一条，而且必须说清「还没落盘」。
+         没有它，用户看到的是一整扇换了皮肤的窗，而设置里一个字都没写——
+         他会以为已经换上了，关掉广场才发现没换。
+         两个出口都在条上：「换回去」只退预览，「就用它」把这一套真的写进设置。
+         Esc 走的是同一条（收最外那一层，见 escape-policy 的 close-skin-overlay）。 -->
+    <div v-if="browse.previewSkin" class="skin-preview-bar" role="status" aria-live="polite">
+      <span class="skin-preview-label">
+        正在预览「{{ browse.previewSkin.label }}」——整窗效果，<strong>还没保存</strong>
+      </span>
+      <span class="skin-preview-actions">
+        <button class="skin-btn" type="button" @click="browse.clearPreview()">换回去</button>
+        <button class="skin-btn is-primary" type="button" @click="applySkin(browse.previewSkin)">
+          就用它
+        </button>
+      </span>
     </div>
   </section>
 </template>
