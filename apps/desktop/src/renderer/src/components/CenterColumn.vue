@@ -230,9 +230,21 @@ function openModelSelect(anchor: HTMLElement): void {
   void provider.loadModels();
 }
 
-/** 选中一条 = 加一条模型档案并启用（互斥在主进程），写回成功才关浮层。 */
+/**
+ * 选中一条 = 切过去（2026-10-08 批次 5-㊺ 修的就是这一行）。
+ *
+ * 过去这里写的是 `provider.select(name)`，把**裸模型名**当草稿发下去；主进程收的是
+ * `{model, connectionId}`，zod 当场拒收抛 "Invalid input"，错误又被吞进只在设置页渲染的
+ * `error` ⇒ 点一行没反应、屏上零解释（真机实测，见 utils/model-switch.ts 的 WHY）。
+ *
+ * 现在只交模型名：连哪条连接由 store 从「启用中那条」取（那正是这份名单的来路），
+ * 线格式由 utils/model-switch.ts 独占。组件不该知道 ProfileDraft 长什么样——
+ * 它知道的只有「用户点了一行」，那是它真正知道的全部。
+ *
+ * 写回成功才关浮层：失败时浮层留着，用户要在原地看见 `provider.switchError`。
+ */
 async function chooseModel(name: string): Promise<void> {
-  if (await provider.select(name)) modelsOpen.value = false;
+  if (await provider.switchModel(name)) modelsOpen.value = false;
 }
 
 /**
@@ -355,7 +367,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-else class="message-list agent-column">
-          <AgentTimeline :items="items" :tail="tail" />
+          <AgentTimeline :items="items" :tail="tail" :running="running" />
 
           <div v-if="openCards.length" class="proposal-stack">
             <ProposalCard
@@ -452,6 +464,7 @@ onBeforeUnmount(() => {
       :loading="provider.modelsLoading"
       :current="provider.modelLabel"
       :switching="provider.switching"
+      :switch-error="provider.switchError"
       @close="modelsOpen = false"
       @retry="provider.loadModels(true)"
       @open-settings="openModelSettings"

@@ -23,6 +23,9 @@
 @import "./styles/theme-runtime.css";
 @import "./styles/interaction.css";
 @import "./styles/motion.css";
+/* 视图过渡排在 motion.css 之后：它那几段「关掉动效」要压得住 motion.css 的出场动画表。 */
+@import "./styles/view-transition.css";
+@import "./styles/thinking-window.css";
 
 :root {
   color: var(--text-primary, #202226);

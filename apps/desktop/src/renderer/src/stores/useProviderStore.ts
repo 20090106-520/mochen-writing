@@ -9,6 +9,7 @@ import type {
   VerifyResult
 } from "@mochen/contracts";
 import { presentableProviderError } from "../utils/provider-error";
+import { modelSwitchDraft } from "../utils/model-switch";
 
 function toReason(caught: unknown): string {
   return presentableProviderError(caught instanceof Error ? caught.message : String(caught));
@@ -33,15 +34,37 @@ export const useProviderStore = defineStore("provider", () => {
   const models = ref<ModelListResult | null>(null);
   const modelsLoading = ref(false);
   const switching = ref(false);
+  /**
+   * 「这一轮切模型」这一次尝试的失败理由（空串 = 没失败）。
+   *
+   * 与 `error` 分开是**因为消费者不同**：`error` 给模型设置页（整页范围的读），
+   * 这一个给输入卡那个下拉浮层——浮层关着的时候用户在设置页，反过来也一样，
+   * 同一个字段铺到两边会露出与当前操作无关的旧理由。
+   * 摆出来的是**同一句话**（不是第二份文案）：`switchModel` 把 `error` 原样搬过来。
+   *
+   * 2026-10-08 真机：这个字段不存在的时候，切换失败在浮层里**一个字都没有**——
+   * 点一行、chip 不变、浮层不关、屏上毫无动静（这正是用户报的「不能切换模型」）。
+   */
+  const switchError = ref("");
   /** 每条连接的体检结果（软校验，见 `providerVerify`）。 */
   const verify = ref<Record<string, VerifyResult>>({});
 
-  /** 发请求用的模型 = 启用中那条档案；一条都没启用就是空串（configured 判定它）。 */
-  const modelLabel = computed(
-    () => view.value?.profiles.find((profile) => profile.enabled)?.model ?? ""
+  /** 启用中那条模型档案。**找它的动作只在这里发生一次**（下面三个 computed 都从它派生）。 */
+  const enabledProfile = computed(
+    () => view.value?.profiles.find((profile) => profile.enabled) ?? null
   );
+  /** 发请求用的模型 = 启用中那条档案；一条都没启用就是空串（configured 判定它）。 */
+  const modelLabel = computed(() => enabledProfile.value?.model ?? "");
   /** 判的是「有没有一个能发出去的模型名」，不是「读没读到视图」。 */
   const configured = computed(() => modelLabel.value !== "");
+  /**
+   * 启用中那条模型**自己那条连接**的 id。
+   *
+   * 「切模型」要把它一起发下去（ProfileDraft = 模型名 + 走哪条连接），而它跟
+   * `activeBaseURL` 读的是同一条事实——所以两者从同一个 `enabledProfile` 派生，
+   * 不许各自再 find 一遍（那是同一件事的第二份实现）。
+   */
+  const activeConnectionId = computed(() => enabledProfile.value?.connectionId ?? "");
 
   /**
    * 启用中那条模型**自己那条连接**的地址（空串 = 没有启用中的模型，或那条连接已被删）。
@@ -56,8 +79,8 @@ export const useProviderStore = defineStore("provider", () => {
    * 判定放这里（不在模板里写 `?? ''`）是铁律——`modelLabel` 也走的是同一份「找启用中那条」。
    */
   const activeBaseURL = computed(() => {
-    const enabled = view.value?.profiles.find((profile) => profile.enabled);
-    if (enabled === undefined) return "";
+    const enabled = enabledProfile.value;
+    if (enabled === null) return "";
     return connectionOf(enabled.connectionId)?.baseURL ?? "";
   });
 
@@ -182,6 +205,33 @@ export const useProviderStore = defineStore("provider", () => {
     }
   }
 
+  /**
+   * 从输入卡那个下拉切模型 = **只收一个模型名**（2026-10-08 批次 5-㊺）。
+   *
+   * 这一层就是为「线格式」而存在的。组件（`.vue`）不经过类型程序，让它自己拼
+   * `{model, connectionId}` 迟早会拼错形状——本仓已经为此付过一次代价：
+   * `CenterColumn.chooseModel` 把裸模型名当草稿发下去，主进程 zod 拒收，
+   * 抛错被吞进只在设置页渲染的 `error`，于是「点一行没反应」且屏上零解释（真机实测）。
+   * 现在线格式只有 `utils/model-switch.ts` 一处，形状由 tsc 守。
+   *
+   * 连接取 `activeConnectionId`（= 启用中那条档案的连接）：名单就是按它拉的，
+   * 写回同一条不是推断，是复述名单的来路。
+   *
+   * 失败一律**摆进 `switchError`**：浮层不会自动关，用户必须看见为什么没切过去。
+   */
+  async function switchModel(model: string): Promise<boolean> {
+    switchError.value = "";
+    const outcome = modelSwitchDraft(activeConnectionId.value, model);
+    if (!outcome.ok) {
+      switchError.value = outcome.reason;
+      return false;
+    }
+    const ok = await select(outcome.draft);
+    // 主进程那句人话（已剥过 IPC 外壳）原样搬到浮层上——不是另写一句。
+    if (!ok) switchError.value = error.value;
+    return ok;
+  }
+
   async function removeProfile(id: string): Promise<void> {
     try {
       view.value = await window.mochen.profileRemove(id);
@@ -207,9 +257,11 @@ export const useProviderStore = defineStore("provider", () => {
     models,
     modelsLoading,
     switching,
+    switchError,
     verify,
     modelLabel,
     activeBaseURL,
+    activeConnectionId,
     configured,
     connectionOf,
     refresh,
@@ -218,6 +270,7 @@ export const useProviderStore = defineStore("provider", () => {
     loadModels,
     verifyConnection,
     select,
+    switchModel,
     removeProfile,
     enableProfile
   };

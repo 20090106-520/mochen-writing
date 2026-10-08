@@ -55,7 +55,9 @@ describe("ModelSelect · 弹层本体", () => {
     const handler =
       /function onKeydown\(event: KeyboardEvent\): void \{[\s\S]*?\n\}/.exec(script)?.[0] ?? "";
     expect(handler, "onKeydown 读不到").not.toBe("");
-    expect(handler).toContain("if (popoverOwnsKey(event.key, mods, event.isComposing === true)) {");
+    expect(handler).toContain("if (popoverOwnsKey(event.key, mods, imeOwnsKey(event))) {");
+    // 5-㊶：第三条参数只走真身；散写 isComposing 就是在别处又埋一份判据。
+    expect(script).not.toContain("event.isComposing === true");
     expect(handler).toContain("event.stopPropagation();");
     expect(handler).toContain("close();");
     expect(handler).toContain(`if (event.key === "Tab") tab(event);`);
@@ -168,15 +170,50 @@ describe("CenterColumn · chip → 事件 → store → 弹层一条线", () => 
     expect(markup).toContain('@close="modelsOpen = false"');
   });
 
+  /**
+   * 改钉（2026-10-08 批次 5-㊺）：这一条原来是 `expect(script).toContain("provider.select(")`。
+   *
+   * 那条断言正是**让这个 bug 活下来的原因**：CenterColumn 当时写的是 `provider.select(name)`
+   * （裸模型名当草稿发下去，主进程 zod 拒收、抛 "Invalid input"、错误被吞进只在设置页渲染的
+   * `error` ⇒ 真机点名单任何一行都没反应）。而守卫只问「方法名在不在」，
+   * **参数形状一个字没问**——`.vue` 又不进 tsc 类型程序，于是全绿。
+   *
+   * 现在钉的是更强的形状：组件**不许自己拼草稿**。它知道的只有「用户点了一行」，
+   * 连哪条连接都不该知道（那是 store 从「启用中那条」取的，也正是这份名单的来路）。
+   */
   it("选中与重试都走 useProviderStore，组件里不出现第二份 providerSave", () => {
     const script = scriptSource(CENTER);
     const markup = templateSource(CENTER);
     expect(script).toContain('from "../stores/useProviderStore"');
-    expect(script).toContain("provider.select(");
     // 重试带 true = 强制重拉：缓存是否有效只由 store 的 models 是否为 null 判定，组件不另判一次。
     expect(markup).toContain("provider.loadModels(true)");
     expect(script).not.toContain("providerSave");
     expect(markup).not.toContain("providerSave");
+  });
+
+  it("**形状**：选中走 store 的 switchModel（只收模型名），组件不碰 select、不自己拼草稿", () => {
+    const script = scriptSource(CENTER);
+    expect(script).toContain("provider.switchModel(name)");
+    // 反向钉：组件一旦又去直接调 select，就是那份「自己拼 ProfileDraft」的旧形状回来了。
+    expect(script).not.toContain("provider.select(");
+    // 草稿两个字段的字面量也不许出现在组件里（拼草稿这件事只有 utils/model-switch.ts 干）。
+    expect(script).not.toContain("connectionId:");
+    expect(script).not.toContain("model: name");
+  });
+
+  it("切换失败的理由被转交给浮层并渲染出来：点了没反应的反面", () => {
+    const markup = templateSource(CENTER);
+    expect(markup).toContain(':switch-error="provider.switchError"');
+    const popover = templateSource(POPOVER);
+    expect(popover).toContain('v-if="switchError"');
+    expect(popover).toContain("{{ switchError }}");
+    // 理由复用拉名单失败那一档红字，不另起一套视觉。
+    expect(popover).toContain('class="model-select-error"');
+  });
+
+  it("写回成功才关浮层：失败时浮层留着，用户在原地看得见理由", () => {
+    const script = scriptSource(CENTER);
+    expect(script).toContain("if (await provider.switchModel(name)) modelsOpen.value = false;");
   });
 
   it("视图挂载即读一次配置：chip 一亮出来就要能报出当前模型名", () => {

@@ -472,6 +472,119 @@ describe("useProviderStore · 切模型（走档案：加一条并启用）", ()
   });
 });
 
+describe("useProviderStore · 从输入卡切模型（switchModel）", () => {
+  /**
+   * 2026-10-08 真机撞出来的死功能：点模型 chip、点名单里的一行，什么都没发生。
+   * 根因是**传参形状**——渲染层把裸模型名当草稿发下去，主进程收的是
+   * `ProfileDraft`（zod `{model, connectionId}`），当场拒收抛 "Invalid input"，
+   * 错误又被吞进只在设置页渲染的 `error` ⇒ 浮层里零解释。
+   *
+   * 下面第一条就是**形状守卫**：它盯的不是某个模型名，是 `typeof arg === "object"`。
+   * 名单型判据（认得那几个模型名才放行）一换名单就静默作废，别写那种。
+   */
+  it("**形状**：发下去的是 {model, connectionId} 对象，不是裸模型名", async () => {
+    const s = store();
+    await s.refresh();
+    const ok = await s.switchModel("mochen-8B");
+    expect(ok).toBe(true);
+    expect(profileUpsert).toHaveBeenCalledTimes(1);
+    const arg = profileUpsert.mock.calls[0]?.[0];
+    expect(typeof arg).toBe("object");
+    expect(arg).not.toBeNull();
+    expect(arg).toEqual({ model: "mochen-8B", connectionId: "c-deep" });
+  });
+
+  it("连接跟的是**启用中那条**档案（p-1 在 c-deep），不是视图里第一条连接", async () => {
+    const s = store();
+    await s.refresh();
+    expect(s.activeConnectionId).toBe("c-deep");
+    await s.switchModel("mochen-8B");
+    expect(profileUpsert).toHaveBeenCalledWith({ model: "mochen-8B", connectionId: "c-deep" });
+  });
+
+  it("启用中那条换了连接 ⇒ 跟着换（名单是按启用中那条拉的，写回同一条不是推断）", async () => {
+    profileEnable.mockImplementationOnce(async (id: string, enabled: boolean) => ({
+      ...VIEW,
+      profiles: VIEW.profiles.map((profile) => ({
+        ...profile,
+        enabled: profile.id === id ? enabled : false
+      }))
+    }));
+    const s = store();
+    await s.refresh();
+    await s.enableProfile("p-3", true); // mimo-v2.6-pro 在 c-mimo
+    expect(s.activeConnectionId).toBe("c-mimo");
+    await s.switchModel("mochen-8B");
+    expect(profileUpsert).toHaveBeenCalledWith({ model: "mochen-8B", connectionId: "c-mimo" });
+  });
+
+  it("activeBaseURL 与 activeConnectionId 读同一条事实：一条都没启用时都老实变空", async () => {
+    profileEnable.mockImplementationOnce(async (): Promise<ProviderView> => ({
+      ...VIEW,
+      profiles: VIEW.profiles.map((profile) => ({ ...profile, enabled: false }))
+    }));
+    const s = store();
+    await s.refresh();
+    await s.enableProfile("p-1", false);
+    expect(s.activeConnectionId).toBe("");
+    expect(s.activeBaseURL).toBe("");
+    expect(s.modelLabel).toBe("");
+  });
+
+  it("一条都没启用 ⇒ 不发 IPC（空 connectionId 必被 schema 拒），并把理由摆进 switchError", async () => {
+    profileEnable.mockImplementationOnce(async (): Promise<ProviderView> => ({
+      ...VIEW,
+      profiles: VIEW.profiles.map((profile) => ({ ...profile, enabled: false }))
+    }));
+    const s = store();
+    await s.refresh();
+    await s.enableProfile("p-1", false);
+    const before = profileUpsert.mock.calls.length;
+    const ok = await s.switchModel("mochen-8B");
+    expect(ok).toBe(false);
+    expect(profileUpsert.mock.calls.length).toBe(before);
+    expect(s.switchError).not.toBe("");
+    expect(s.switchError).toContain("启用");
+  });
+
+  /**
+   * 「点了没反应」的反面：切不过去时**必须有一句看得见的话**。
+   * 这一条钉的是当年那个 bug 的另一半——形状错了还只是不生效，
+   * 形状对了但失败静默，用户照样只能报「不能切换模型」。
+   */
+  it("主进程拒绝 ⇒ switchError 是剥过外壳的那句人话、返回假、模型名不动", async () => {
+    profileUpsert.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'provider:profile-upsert': Error: 密钥保管不可用")
+    );
+    const s = store();
+    await s.refresh();
+    const ok = await s.switchModel("mochen-8B");
+    expect(ok).toBe(false);
+    expect(s.switchError).toBe("密钥保管不可用");
+    expect(s.modelLabel).toBe("mochen-mock");
+    expect(s.switching).toBe(false);
+  });
+
+  it("成功 ⇒ switchError 复位为空（否则上一次失败的话会赖在下一次成功的界面上）", async () => {
+    const s = store();
+    await s.refresh();
+    profileUpsert.mockRejectedValueOnce(new Error("Error: 一次性失败"));
+    await s.switchModel("mochen-8B");
+    expect(s.switchError).not.toBe("");
+    const ok = await s.switchModel("mochen-8B");
+    expect(ok).toBe(true);
+    expect(s.switchError).toBe("");
+  });
+
+  it("切过去 ⇒ modelLabel 跟到新模型名（配置页那枚开关与 chip 显示的是同一个事实）", async () => {
+    const s = store();
+    await s.refresh();
+    await s.switchModel("mochen-8B");
+    expect(s.modelLabel).toBe("mochen-8B");
+    expect(s.configured).toBe(true);
+  });
+});
+
 describe("useProviderStore · 档案管理", () => {
   it("删一条 ⇒ 收下回包；删的正是启用那条时 modelLabel 老实变空（不假装还有模型）", async () => {
     profileRemove.mockImplementationOnce(async (id: string): Promise<ProviderView> => ({

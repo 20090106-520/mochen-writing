@@ -9,7 +9,7 @@
 import { ref, useId } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
-import { popoverOwnsKey } from "../utils/slash-commands";
+import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
 import type { ContextMeterRow } from "../utils/context-meter";
 
 const props = defineProps<{
@@ -35,7 +35,7 @@ function keydown(event: KeyboardEvent): void {
     meta: event.metaKey
   };
   // 裸 Esc（且不在输入法组合中）才归弹层：与阶段弹层共用 popoverOwnsKey，模板里不写裸比较。
-  if (popoverOwnsKey(event.key, mods, event.isComposing === true)) {
+  if (popoverOwnsKey(event.key, mods, imeOwnsKey(event))) {
     event.stopPropagation();
     close();
     return;

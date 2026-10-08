@@ -10,9 +10,18 @@ import {
   type TimelineBlock
 } from "../utils/timeline";
 import AppIcon from "./AppIcon.vue";
+import ThinkingWindow from "./ThinkingWindow.vue";
+import { THINKING_LIVE_LABEL, thinkingWindowState } from "../utils/thinking-window";
 
-const props = defineProps<{ items: AgentEvent[]; tail: StreamingTail }>();
+const props = defineProps<{ items: AgentEvent[]; tail: StreamingTail; running: boolean }>();
 const blocks = computed<TimelineBlock[]>(() => buildTimeline(props.items, props.tail));
+/**
+ * 空窗期那一格（批次 5-㊹）。判据在 utils 里，模板只读 `open`——
+ * 「当前这一轮还没产出」这件事只有那一处说了算。
+ */
+const thinkingWindow = computed(() =>
+  thinkingWindowState({ running: props.running, items: props.items, tail: props.tail })
+);
 
 /**
  * 点开一条来源（2026-10-06 批次 5-⑨）。
@@ -38,7 +47,7 @@ function openSource(url: string): void {
           <AppIcon name="brain" :size="15" />
           <span>思考摘要</span>
           <em v-if="block.interrupted" class="tail-flag">已打断</em>
-          <em v-else-if="block.streaming" class="tail-flag is-live">正在想</em>
+          <em v-else-if="block.streaming" class="tail-flag is-live">{{ THINKING_LIVE_LABEL }}</em>
           <!-- 批次 5-⑭：折起来时把摘要**露一行**。
                真机量到一整轮里三行「思考摘要」，每行 24px，summary 上的字只有标签、
                正文整段藏在折起来的身体里——三行加起来信息量是零，看着像卡住了。
@@ -153,5 +162,9 @@ function openSource(url: string): void {
         </div>
       </div>
     </section>
+
+    <!-- 空窗期那一行放在时间线**末尾**：它是这一轮的助手位，摆在最后才挨着输入卡，
+         摆到开头会插在上一轮的回答中间（真机上时间线是追加的，开头那个位置属于上一轮）。 -->
+    <ThinkingWindow :open="thinkingWindow.open" />
   </div>
 </template>

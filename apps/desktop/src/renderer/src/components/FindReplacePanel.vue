@@ -4,6 +4,7 @@ import { onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useFindReplaceStore } from "../stores/useFindReplaceStore";
 import AppIcon from "./AppIcon.vue";
+import { imeOwnsKey } from "../utils/slash-commands";
 
 const emit = defineEmits<{
   replace: [nextText: string];
@@ -32,6 +33,9 @@ function microfocus(): void {
 }
 
 function onQueryKeydown(e: KeyboardEvent): void {
+  // 组合态里那一下回车/上档是输入法在选词，不是「查找下一个」也不是「收起面板」。
+  // 真机 P536O 量到过 defaultPrevented 从 false 翻成 true、拼音留在框里的样子。
+  if (imeOwnsKey(e)) return;
   if (e.key === "Enter") {
     e.preventDefault();
     // Shift+Enter 反方向查找；Enter 正方向。
@@ -45,6 +49,7 @@ function onQueryKeydown(e: KeyboardEvent): void {
 }
 
 function onReplaceKeydown(e: KeyboardEvent): void {
+  if (imeOwnsKey(e)) return;
   if (e.key === "Enter") {
     e.preventDefault();
     doReplace();

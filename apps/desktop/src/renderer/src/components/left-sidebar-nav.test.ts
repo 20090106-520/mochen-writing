@@ -358,10 +358,25 @@ describe("LeftSidebar · 新建通路（行内新建 + 新建作品对话框）"
     expect(template).not.toContain("sanitizeDocFileName");
   });
 
+  // 5-㊶：两个输入框的裁决共用一个工厂 textRowKeydown（只有 confirm/cancel 不同），
+  // 形状因此钉在工厂本体上，而不是钉某个入口函数。
+  const addHandler = /function textRowKeydown[\s\S]*?\n {2}\};\n\}/.exec(script)?.[0] ?? "";
+
   it("行内新建行：Enter 确认 / Esc 取消，确认钮在判定不过关时 disabled", () => {
     expect(template).toContain('class="tree-add-input"');
-    expect(template).toContain('@keydown.enter.prevent="confirmAdding"');
-    expect(template).toContain('@keydown.esc.prevent="cancelAdding"');
+    // 5-㊶：模板修饰符换成单一入口——组合态那一键必须原样还给输入法（见 fix-stage2 的理由）。
+    expect(template).toContain('@keydown="onAddKeydown"');
+    expect(template).not.toContain("@keydown.enter.prevent");
+    expect(addHandler).toContain("if (imeOwnsKey(event)) return;");
+    // 工厂体里只有 confirm()/cancel()，具体动作接在这一行 —— 接线也要钉，否则会有人另写一份。
+    expect(script).toMatch(
+      /const onAddKeydown = textRowKeydown\(\(\) => void confirmAdding\(\), cancelAdding\);/
+    );
+    expect(addHandler.indexOf("imeOwnsKey(event)")).toBeLessThan(
+      addHandler.indexOf("event.preventDefault()")
+    );
+    expect(script).toContain("const onAddKeydown = textRowKeydown(");
+    expect(script).toContain("const onRenameKeydown = textRowKeydown(");
     expect(template).toMatch(/tree-add-confirm[\s\S]*?:disabled="addingPlan\?\.ok !== true"/);
     // 失焦即取消：别让半截输入永久挂在树上。
     expect(template).toContain('@blur="cancelAdding"');
@@ -406,6 +421,9 @@ describe("LeftSidebar · 新建通路（行内新建 + 新建作品对话框）"
  * 组件只做开合与聚焦，不另捏一份改标题逻辑（§2.7）。
  */
 describe("LeftSidebar · 树行操作菜单与行内改名（deepwrite 对齐收尾）", () => {
+  // 5-㊶：改名输入框的键盘裁决改走单一入口 onRenameKeydown（形状钉在 handler 本体上）。
+  const renameHandler = /function textRowKeydown[\s\S]*?\n {2}\};\n\}/.exec(script)?.[0] ?? "";
+
   it("行尾「…」区真的挂在树上：tree-row 带 has-node-action 类，动作区按钮有展开态与 Esc 关闭", () => {
     expect(template).toContain('class="tree-row has-node-action"');
     expect(template).toContain('class="tree-node-action-area"');
@@ -434,8 +452,16 @@ describe("LeftSidebar · 树行操作菜单与行内改名（deepwrite 对齐收
     expect(row).toBeDefined();
     expect(row).toContain('v-model="renameValue"');
     expect(row).toContain(':ref="setRenameInput"');
-    expect(row).toContain('@keydown.enter.prevent="confirmRenaming"');
-    expect(row).toContain('@keydown.esc.prevent="cancelRenaming"');
+    // 5-㊶：同上。组合态里那一下回车曾会把 renameValue 里的拼音当标题落盘。
+    expect(row).toContain('@keydown="onRenameKeydown"');
+    expect(row).not.toContain("@keydown.enter.prevent");
+    expect(renameHandler).toContain("if (imeOwnsKey(event)) return;");
+    expect(script).toMatch(
+      /const onRenameKeydown = textRowKeydown\(\(\) => void confirmRenaming\(\), cancelRenaming\);/
+    );
+    expect(renameHandler.indexOf("imeOwnsKey(event)")).toBeLessThan(
+      renameHandler.indexOf("event.preventDefault()")
+    );
     expect(row).toContain('@blur="cancelRenaming"');
     expect(row).toContain(":disabled=\"renameValue.trim() === ''\"");
     // mousedown.prevent：按下不抢输入框焦点（同 .format-button 那条老规矩）。

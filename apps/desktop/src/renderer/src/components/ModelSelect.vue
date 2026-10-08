@@ -7,7 +7,7 @@ import { computed, ref } from "vue";
 import type { ModelListResult } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
-import { popoverOwnsKey } from "../utils/slash-commands";
+import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
 import type { HotkeyMods } from "../utils/hotkeys";
 
 const props = defineProps<{
@@ -17,6 +17,14 @@ const props = defineProps<{
   loading: boolean;
   current: string;
   switching: boolean;
+  /**
+   * 切换失败的理由（空串 = 没失败）。
+   *
+   * **这一行是「点了没反应」的反面**：切不过去时浮层**不关**，理由必须摆在原地
+   * （`store.switchError`，由装配处转交）。本组件仍然不碰 `window.mochen`——
+   * 出网判定全在主进程，这里只把已经判好的话显示出来。
+   */
+  switchError: string;
 }>();
 const emit = defineEmits<{ close: []; retry: []; "open-settings": []; select: [model: string] }>();
 const panel = ref<HTMLElement>();
@@ -60,7 +68,7 @@ function onKeydown(event: KeyboardEvent): void {
     alt: event.altKey,
     meta: event.metaKey
   };
-  if (popoverOwnsKey(event.key, mods, event.isComposing === true)) {
+  if (popoverOwnsKey(event.key, mods, imeOwnsKey(event))) {
     event.stopPropagation();
     close();
     return;
@@ -119,6 +127,9 @@ function onKeydown(event: KeyboardEvent): void {
       </template>
       <!-- 忙态理由必须是看得见的文字：disabled 按钮在 Chromium 里不弹 title，光靠禁用等于没说。 -->
       <p v-if="switching" class="model-select-note">正在写回模型名…</p>
+      <!-- 切换失败：浮层刻意不关（装配处只在写回成功时关），所以理由得摆在这里而不是让人去设置页找。
+           2026-10-08 真机：这一行不存在时点名单任何一行都是「chip 不变、浮层不关、屏上零动静」。 -->
+      <p v-if="switchError" class="model-select-error">{{ switchError }}</p>
       <p class="model-select-foot">
         名单来自 provider:list-models（主进程按模型设置里的 baseURL
         出网）。改地址、换密钥或手填模型名，都在模型设置里做。

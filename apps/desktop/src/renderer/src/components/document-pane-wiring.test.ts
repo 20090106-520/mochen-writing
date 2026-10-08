@@ -342,9 +342,26 @@ describe("DocumentPane · 标题行可编辑（deepwrite 对齐收尾）", () =>
   });
 
   it("Enter / Esc / blur 各走各的真身：提交唯一路径是 blur，Enter 只负责失焦", () => {
-    expect(titleInput).toContain('@keydown.enter.prevent="blurTitle($event)"');
-    expect(titleInput).toContain('@keydown.esc.prevent="revertTitle($event)"');
+    // 5-㊶：模板上的 `.enter.prevent` / `.esc.prevent` 换成单一入口 onTitleKeydown。
+    // 【这不是改形状好看，是修真缺陷】模板修饰符是无条件执行的——它先 preventDefault、
+    // 再调 handler。组合态里那一下回车是输入法在选词，handler 里再怎么提前 return 也拦不住，
+    // 于是拼音被当标题提交（title.value 此刻就是拼音）再 blur 落盘。
+    expect(titleInput).toContain('@keydown="onTitleKeydown"');
+    expect(titleInput).not.toContain("@keydown.enter.prevent");
+    expect(titleInput).not.toContain("@keydown.esc.prevent");
     expect(titleInput).toContain('@blur="commitTitle($event)"');
+    // 闸门与 preventDefault 必须在同一个函数里：顺序也钉（前者在后者之前 return）。
+    const onTitle = /function onTitleKeydown[\s\S]*?\n\}/.exec(paneScript)?.[0] ?? "";
+    expect(onTitle, "onTitleKeydown 读不到").not.toBe("");
+    expect(onTitle).toContain("if (imeOwnsKey(event)) return;");
+    expect(onTitle).toContain("blurTitle(event)");
+    expect(onTitle).toContain("revertTitle(event)");
+    expect(onTitle).toContain("event.preventDefault()");
+    // 顺序：闸门必须排在第一行判断上，否则「先 preventDefault 再判组合态」等于没修。
+    expect(onTitle.indexOf("imeOwnsKey(event)")).toBeGreaterThan(-1);
+    expect(onTitle.indexOf("imeOwnsKey(event)")).toBeLessThan(
+      onTitle.indexOf("event.preventDefault()")
+    );
     // 双发防线：blurTitle 的实现就是主动 blur，Enter 分支里不许再摸 commitTitle。
     const blurBody = /function blurTitle[\s\S]*?\n\}/.exec(paneScript)?.[0] ?? "";
     expect(blurBody).not.toBe("");

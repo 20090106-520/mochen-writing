@@ -5337,6 +5337,511 @@ keydown 走冒泡，焦点不在这棵子树里就收不到。与 5-㊱ 同一�
 - `apps/desktop/src/renderer/src/utils/vue-source-reader.ts`（新增 `listComponentFiles()`）
 - 探针与脚本：`.mochen-tmp/p535/{enumerate-dialog-family.cjs, read-dialog-candidates.cjs, popover-reachability.cjs, popover-root-classes.cjs, make-probe-book.cjs, p536n0-open-probe-book.mjs, p536n-popover-focus-esc.mjs, p536nb-context-menu-focus.mjs, p536nc-why-focus-still-out.mjs, p536nd-read-trace.mjs, p536ne-chip-inventory.mjs, wire-popover-focus.cjs, migrate-tool-roster.cjs, rewrite-focus-in.cjs, fix-probe-p536n.cjs, mutate-layer-focus.cjs}`
 
+## 批次 5-㊹：思考态的空窗期 —— 用户按了发送到第一个字到达之间，中栏原本**一个块都没有**（2026-10-08）
+
+前八批量的都是「点得动吗 / 焦点进得去吗 / 那一键有没有被吃掉」。
+这一批第一次量的是**等待**：发出去之后那一两秒，屏幕上发生着什么。
+
+### 量到的缺口
+
+`buildTimeline` 只在 `tail.reasoning` / `tail.message` 非空时才产出块（utils/timeline.ts:180-195）。
+于是从「用户按下发送」到「第一个字到达」之间——推理型模型通常一到三秒，长模型更久——
+**时间线上一个块都没有**：用户那句问孤零零挂着，界面看着像没发出去。
+
+这是推理型 AI 最容易让人重复发一次的地方（业界叫「十秒空窗」，
+CloudFlare 的 Thinking 模式与 OpenAI 的 `Thinking…` 都是为它而生）。
+
+### 判据：当前这一轮，而不是「在跑就在显示」
+
+`utils/thinking-window.ts` 的 `thinkingWindowState` 认四件事：
+
+1. 本轮在跑（`running`）；
+2. **当前轮**（= 最后一条 `user-message` 的 `turnId`，事件都带 turnId）**还没有任何助手侧产出**；
+3. 助手侧 = reasoning / plan / message / tool-call 四类；
+4. tail 为空——tail 有字说明正在流式，那张思考卡/正文自己接管。
+
+第 2 条写成「当前轮」而不是「整个线程有没有助手内容」，是必须的：
+后者在第二轮之后永远为真，这一格就再也不出现了。
+
+> 真机上撞过一次相反的形态：验收时我点了第一枚「整窗预览」，
+> `startViewTransition` 一次都没被调用。查下去是我点的是**当前正穿着的那套**——
+> 屏幕上当然一个字都不变，判据也就正确地判定「不需要」。
+> 探针的空跑长得极像功能没接线。
+
+### 那一行的长相
+
+- 三枚呼吸点，收尾用上一批那条弹簧曲线 `--ease-view`（三处共用一份，不各调各的）；
+- 过了 1 秒露秒数（`1 秒` / `12 秒`，`tabular-nums` 不跳宽）；
+- 过了 8 秒把「正在想…」换成「还在想…」——一直「正在想」不诚实；
+- `role="status"` + `aria-live="polite"`；**秒数那格 `aria-hidden`**——
+  它每秒变一次，留在 live region 里会把读屏用户淹掉。
+
+### 一处措辞分家，被守卫当场抓到
+
+新写的「在想…」与思考卡上原有的徽标「正在想」是**同一个状态的两种说法**。
+⇒ 把三个字提成 `THINKING_LIVE_LABEL`，卡片徽标改成读它（`AgentTimeline.vue`）。
+守卫钉住：模板里不许再出现字面量。
+
+### 「关掉动效」在这里比别处长一句
+
+`motion.css` 的总闸把 `animation-duration` 压到 0.01ms ⇒ 三枚点会**停在基础档那一帧**（opacity 0.35），
+也就是「关掉动效」变成了「看起来没在动」。所以两档（OS 媒体查询 + 应用内偏好属性）
+都显式给出静止档：三枚点都在、亮度一致。**静 ≠ 不在。**
+
+### 守卫 12 + 12
+
+- `utils/thinking-window.test.ts` 12 条：一半的用例在钉「**该关的时候要关**」——
+  多挂一行「正在想」比不挂更糟（用户会以为上一轮还在跑，或者以为重复发了）。
+- `components/thinking-window-wiring.test.ts` 12 条：接线、位置（末尾且在 `v-for` 之外）、
+  可访问性、两档静止档。
+- 顺手把上一批写在守卫里的 CSS 规则解析器提到 `utils/vue-source-reader.ts` 的 `cssRules()`
+  ——两份实现就是下一次漂移的起点。提到共用处当场暴露了它自己的一个 bug：
+  **嵌套规则的「下一个兄弟」起点没推进**，量出来的选择器是「上一条兄弟的整条规则 + 本条」。
+
+### 变异 14/14 全红
+
+判据不看 running / 助手侧少认一类 / tail 不参与判断 / 当前轮认错 /
+中心列不传 running / 组件自己再判一次 / 秒数不 `aria-hidden` /
+少一道静止档 / 静止档亮度删掉 / 措辞分家 / 自抄缓动曲线 / 门槛写成 0 / 没引进样式表 / 少一道播报。
+
+### 真机复验（探针书 + 本仓桩服务）
+
+| 量到的 | 值 |
+|---|---|
+| 出现时的字 | `正在想…` |
+| 三枚点 | 3 枚，`opacity 0.35` |
+| `role` / `aria-live` | `status` / `polite` |
+| 秒数 | `1 秒`（过了 1s 露出来） |
+| **存活时长** | **1320ms**，第一块到达后自动退场 |
+| 退场后 | `stillThere: false` |
+
+> 顺带量到一条结构事实：**时间线那一格是 `v-else` 分支**，空状态下整块不挂载
+> （CenterColumn.vue:357）。观察器因此必须挂 `document.body` 而不是 `.agent-timeline`。
+
+### 本轮撞到的另一件事（**更严重，不属于这一批**）
+
+真机发轮时报：
+
+```
+模型服务端返回 422：Failed to deserialize the JSON body into the target type:
+tools[9].function: missing field `parameters`
+```
+
+**每一轮都 422，一次都没成功过。** 数下来这一轮发了 10 枚工具：
+本地花名册 6 枚 + 插件 3 枚 + 联网那枚 = `tools[9]`。
+本地与插件两路的 `parameters` 都一定会写上（`tools.ts` 的 `object()`、
+`plugin-service.ts` 的 `toSpecParameters`），**唯一不带 `function.parameters` 的是联网那条**
+——它发的是原生形状 `{ type: "web_search" }`（`per-run-fields.ts` 的 `webSearchToolEntry`）。
+
+本仓已有一条同族先例：密钥头（`authHeader`）就是**按连接**区分的，因为小米 MiMo 只认 `api-key`。
+联网那枚的线格式同样应该按连接区分，而不是一刀切。
+**但这改的是联网功能本身的行为（服务端搜索 vs 本地搜索），是产品裁定，本轮没有擅自改。**
+
+### 留给下一批
+
+- **上面那条 422**：要么给连接加一档「联网线格式」，要么把联网改成函数形状。
+  前者跟随 `authHeader` 的既有形状；后者会让它与本地那枚 `web_search` 同名。
+  **两条路都要先量目标端点收哪种形状**，不能凭猜。
+  **已由 `ef46153` 收口，走的是第二条**：出站只允许一种形状
+  （`{type:"function", function}`），联网开关改为决定花名册里那枚 `web_search`
+  function 工具有没有出站（开 6 枚 / 关 5 枚），不再往清单里追加第二种形状。
+  这里担心的「同名」没有发生——本地从来就没有另一枚 `web_search`，
+  原先那枚裸条目就是唯一的一份；常量顺势从 `WEB_SEARCH_WIRE_TYPE` 更名
+  `WEB_SEARCH_TOOL_NAME`，因为它本来就是工具名而不是线格式。
+- 空窗期只补了「助手位那一行」。业界还有两条同族：思考完成后显示**总时长**
+  （需要事件带时间戳——现在只有 `turnId` 与轮次级 `ts`），以及**跳过思考**。
+- 用户点名的另两块（功能按钮、对话框）本轮只做了普查没动：
+  对话框现有 `dialog.css` 一套出场，弹簧曲线还没接进去；
+  输入卡 chip 行在 1120 窄档已有四级让位阶梯（#113f），按钮侧的缺口要单独量。
+
+## 批次 5-㊸：视图过渡与弹簧缓动 —— 前六批一直在量「点得动吗」，没量过「换起来好不好看」（2026-10-08）
+
+前六批（面板 → 左栏 → 键位 → 浮层 → 交互装配 → 输入法）量的全是**对不对**：
+点得中吗、焦点进得去吗、那一键有没有被吃掉。
+
+「换起来好不好看」这一整族，从建仓到现在**一件都没有**——
+量过的动效只有 `motion.css` 那一小撮（浮层出场 + 按压下沉），
+而那还是 2026-10-05 随手加的一层。全仓 `document.startViewTransition` 命中 0 次、
+`linear()` 命中 0 次、`::view-transition` 命中 0 次。
+
+本批去网上查了当下最认的三个（View Transitions / 弹簧物理 / 状态过渡连续性），
+挑了**两个能落在这套三栏壳上**的搬进来，并且每一件都先量后写。
+
+### 第一件：先把「支不支持」这件事量清楚
+
+```
+ua            Chrome/148.0.7778.271  Electron/42.5.0
+hasApi        document.startViewTransition 是个函数         ✓
+linearEasing  CSS.supports("animation-timing-function: linear(0,1)")  ✓
+typeSelector  CSS.supports("selector(:active-view-transition-type(forward))")  ✓
+```
+
+三项全绿。**然后真跑一次，动画没挂上**：
+
+```
+callbackRan: true      update 回调确实执行了
+ready      : InvalidStateError — Transition was aborted because of invalid state
+finished   : resolved
+伪元素动画 : 0 个
+```
+
+`InvalidStateError` 这四个字指向的东西不在本仓代码里，也不在浏览器里，
+在**窗口状态**上——那一轮量的时候，窗口是最小化的。
+
+### 本轮量到的第一件事，也是最贵的一课
+
+> **文档不可见时，Chromium 直接跳过视图过渡。**
+> `document.visibilityState === "hidden"` ⇒ `ready` 以 `InvalidStateError` 拒绝，
+> 而 `finished` 照样 resolve。现象是「API 被调用了，但一个动画都没有」。
+
+这个现象长得极像**功能没接线**：调用确实发生了、界面确实换了、
+就是没有动画。差点据此去改接线。真正的分水岭是把
+「**发起了没有**」与「**挂上动画没有**」分开量——把 `document.startViewTransition`
+包一层数调用次数，一眼就分清了。
+
+⇒ 于是有了本轮的第一份守卫之外的一条规矩：**探针先断言窗口可见，不可见直接报 MISS，不产出结论。**
+`p537i-final.mjs` 开头就是这一句。真机上这一条救了两轮：
+窗口被完全遮挡时（`IsWindowVisible=true` 但被别的窗口压住），
+Chromium 一样判 hidden——`IsWindowVisible` 那个 API 在这里会骗人。
+
+另外记一条给将来量视图过渡的人：**窗口的叫醒与探针必须跑在同一条命令里**。
+分两次跑，中间任何一次别的窗口抢焦点，那一轮的结论就是假的（本轮撞了三次）。
+
+### 真身：`utils/view-transition.ts`
+
+散在十几处调用里会漏的坑，一共四个，全部收在这一处：
+
+| 坑 | 症状 | 处理 |
+|---|---|---|
+| **Vue 不同步改 DOM** | 回调里改完 ref 就返回 ⇒ 浏览器拍到的「新」快照和旧的一样，**过渡白跑且不报错** | 回调返回 `nextTick()` |
+| 文档不可见 | `ready` 拒绝 ⇒ 一次未处理的 promise 拒绝落在控制台 | `ready.catch(() => {})` |
+| 引擎不认这个形状 | 同步抛 ⇒ 界面冻在原地（**功能坏了**，比没动效严重） | catch 里照做 `update()` |
+| 并发 | 排队 ⇒ 界面慢半拍追上来 | 第二次直接落地 |
+
+另外三道判据各有归属，不在真身里私造：
+
+- **减少动效**认两档：应用内偏好（`html[data-reduced-motion]`，那档本机存着 `true`）
+  与 OS 级 `prefers-reduced-motion`（本机 `false`）。任一为真 ⇒ 一次过渡都不起。
+- **方向**：去 = `mochen-forward`、回 = `mochen-back`，只两个。CSS 侧逐字钉着这两个名字。
+- **在飞**：模块级一份，跟着 `finished` 走；复制出去就会变成两份各自的「在飞」。
+
+### 第二件：只让内容格动，左栏纹丝不动
+
+视图过渡的机制是：**挂了 `view-transition-name` 的元素被从 root 快照里单独拎出来**。
+于是只要给内容格挂名字、**不给左栏挂**，左栏与标题栏就留在 root 快照里，
+而 root 快照在这几次切换中逐像素相同 ⇒ 默认那次交叉淡入在屏幕上等于没有。
+
+真机量到的名字与几何：
+
+```
+.conversation-pane  mochen-center   [286, 0, 664, 902]
+.editor-pane       mochen-right    [950, 0, 490, 902]
+.left-sidebar      none            ← 刻意不给
+```
+
+**为什么是两个而不是一个**：从对话切去皮肤广场时右栏编辑器要退场，
+不给它名字的话它就留在 root 快照里，root 一淡就是「整个右栏跟着闪一下」，那是错的。
+
+### 第三件：弹簧缓动——从物理参数起手，不是抄一条现成的
+
+网上那些 `linear()` 曲线是**别人的手感**（多半给按钮调的）。这里从阻尼谐振子采样：
+
+```
+zeta = 0.62   omega = 13   采样 34 段
+过冲 8.29% · 峰值在 30% · 尾部 |v-1| ≤ 1.7e-4 · 首 0 末 1
+```
+
+生成与自检脚本 `.mochen-tmp/p537/spring.cjs` 在仓外，参数与自检口径写在 CSS 注释里可审。
+兜底 `@supports (animation-timing-function: linear(0, 1))` 之外先给 cubic-bezier：
+引擎不认 `linear()` 时观感退一步，而不是变成默认 `ease`。
+
+守卫把它钉成一条性质而不是一条字面量：**采样点首 0 末 1，且全部落在 [0, 1.15]**。
+把峰值改成 1.5（那是晃不是弹）立刻变红。
+
+### 接线：三条判据，各自有它为什么
+
+**① 视图切换**：左栏两枚钮 / 进设置 / 回工作台 / 斜杠命令，全都汇到
+`layoutStore` 的三个函数。**只有「那一格真的换页面」才发起过渡**
+（`contentSlotSwitches` 判据只有一份，三处共用）：
+
+- 同页重入（连点两枚钮）⇒ old/new 两张快照逐像素相同，白拍一轮 220ms，
+  还会占住在飞闸让下一次真切换放不出来；
+- 设置页换页签 ⇒ `SettingsPage` 根本不卸载，为了左栏一枚高亮挪位置把整页淡一遍，比不做还晃。
+
+**② 换皮肤**：走**同一个真身**，但判据是另一条（`skinPaintKey`）。
+`applyTheme()` 不只是「换皮肤」被调用——改字号、换字体、切深浅、侧栏半透明都走这一条；
+不看这一位，拖字号滑块就会整窗不停交叉淡一次。
+判据只认三样：明暗、皮肤 id、画面层；字号/字体/行距/半透明是连续微调，不在里面。
+
+> 真机上这一条**被撞了一次**：量「换皮肤会不会淡」时点了第一枚「整窗预览」，
+> 结果 `startViewTransition` 一次都没被调用。查下去是我点的是**当前正穿着的那套**——
+> 屏幕上当然一个字都不变，判据也就正确地判定「不需要过渡」。探针的空跑长得像功能没接线。
+
+### 守卫：两份，一条会自己长大
+
+- `utils/view-transition.test.ts` **12 条**：用假 document 覆盖四道闸 + 两个判据。
+  真机上最要命的那条（`ready` 拒绝）在 node 里就是 `Promise.reject(DOMException)`，一行复现。
+- `components/view-transition-wiring.test.ts` **12 条**：钉接线、方向名、CSS 里的名字与兜底。
+
+其中一条是**会自己长大的**：
+
+> 凡在本文件挂过 `view-transition-name` 的名字，三种伪元素都必须出现在关闭动效的那两段里。
+
+将来给第六个页面挂名字而忘了关动效，只有它会红。
+它之所以必要：`motion.css` 的总闸选择器是 `html[data-reduced-motion="true"] *`，
+而 **`*` 匹配不到 `::view-transition-*` 伪元素**（它们不在元素的子树上）——
+光靠那份总闸，视图过渡根本关不掉。
+
+### 变异：15 条全红
+
+`mutate-view.cjs`：写反回程方向 / 设置页不走真身 / 判据只剩一份实现 / 首刷也淡 /
+判据偷看字号 / 关闭段漏一处 / 少了 OS 那道闸 / 弹簧曲线整段删 / 过冲放到 50% /
+不接 `ready` 的拒绝 / 忘了 `nextTick` / 少一道闸 / 绕过真身自己发起 /
+拆出第二条刷主题通路 / 样式表没引进 `styles.css` —— **15/15 全红**。
+
+还原一律拿**变异前存下的字节**写回，不用现读现比。
+
+### 真机复验（两腿）
+
+窗口可见前提下，同一按钮、同一记法：
+
+| | 减少动效开 | 减少动效关 |
+|---|---|---|
+| 视图切换 `ready` | **被拦下**（一次 `startViewTransition` 都没发） | `readyOk: true` |
+| 伪元素 | — | `group(mochen-center)` / `old(mochen-center)` / `old(root)` / `group(root)` |
+| 方向类型 | — | `activeTypes: ["mochen-forward"]` |
+| 时长 | — | `220ms`（root 与命名元素同一节奏） |
+
+换皮肤那一腿（点第二套的「整窗预览」）：
+
+```
+before  shallow-hall-day  | #E8F6FA
+after   abyss-hall-night  | #0B1A26     ← 皮肤真的换了
+伪元素   group(root) / old(root) / group(mochen-center) / old(mochen-center)
+typesSent: null            ← 无方向，换配色不该有方向
+durations: [220]           ← 单一节奏
+退出预览后 shallow-hall-day | #E8F6FA    ← 复原干净
+```
+
+中途帧（`.mochen-tmp/p537/shot-p537j-mid.png`）里能直接看见设计意图：
+**中栏内容在交叉淡入，左栏完全不动、清晰如常**。
+
+### 本轮自己的错（四个，四个都不是产品的问题）
+
+① 探针挂在隐形的窗口上量了四轮「为什么没动画」，真因是 `visibilityState`。
+② 量皮肤时读了一个**不存在的 token**（`--skin-art`；画面层其实是 `dataset.skinArt`），
+   before/after 三个读数全是同一个空串——看起来像「预览没生效」，其实什么都没量到。
+③ 假宿主**从不调用 update 回调**（真浏览器同一拍就调），
+   于是「并发那条」量到的红是「第一场还没落地」，红的不是要验的那件事。
+④ `node -e` 里写 `$1`，被 PowerShell 的双引号串吃成空串（两次），
+   一次把 `await fake.invoked[]` 写成空下标。含 `$` 的替换一律走脚本文件。
+
+### 改动文件清单
+
+- `apps/desktop/src/renderer/src/utils/view-transition.ts`（新增真身）
+- `apps/desktop/src/renderer/src/styles/view-transition.css`（新增样式层）
+- `apps/desktop/src/renderer/src/styles.css`（引进上面那份，排在 motion.css 之后）
+- `apps/desktop/src/renderer/src/stores/layoutStore.ts`（三处切换 + `contentSlotSwitches`）
+- `apps/desktop/src/renderer/src/App.vue`（换皮肤走同一真身 + `skinPaintKey`）
+- `apps/desktop/src/renderer/src/utils/view-transition.test.ts`（新增 12 条）
+- `apps/desktop/src/renderer/src/components/view-transition-wiring.test.ts`（新增 12 条）
+- 探针与脚本：`.mochen-tmp/p537/{spring.cjs, mutate-view.cjs, p537a-support.mjs, p537b-why.mjs, p537d-mounted.mjs, p537i-final.mjs, p537j-forward.mjs, p537k4-second-skin.mjs}`
+
+### 留给下一批
+
+- **`vue-tsc` 仍然没装**（5-㊶ 记的仍是它）：组件层零类型检查。
+  本轮又多一处同类证据——`.vue` 里的接线错误（模板不调某个函数、某个 handler 漏接）
+  只能靠读源码的守卫钉，而守卫靠的是字符串匹配。
+- 视图过渡只接了**内容格切换**与**换配色**两处。右栏内部换文档、左栏树展开收起、
+  卡片列表重排都还是瞬变；每一处都要单独量「名字唯一吗」「退场的那一格会闪吗」。
+- `::view-transition-group(root)` 原本是引擎默认的 250ms，本轮改成 220ms 与其余对齐；
+  但 root 的 group 在**几何不变**时是否真的完全不参与，实机还没单独量过。
+
+## 批次 5-㊶：中文输入法组合态 —— 前五批里从没被量过的那一格
+
+前面五批（面板 → 左栏 → 键位 → 浮层）量的是**鼠标与键盘**，
+唯独有一类按键从来没被单独看过：**它不是用户按的，是输入法按的**。
+
+拼音打字时，回车、上档键这些还在**组合态**里 —— 用户的意思是「选这个词」，
+不是「执行这个快捷键」。产品如果在这一刻把它当自己的快捷键处理，最刺眼的后果就是
+**候选词被吃掉**：用户按回车想确认「雨」，什么也没进去，还得再按一次。
+
+### 真机量到的（P536O，查找替换面板）
+
+组合态用 CDP 的 `Input.imeSetComposition` 真实起一段（「yu」），回车用
+`Input.dispatchKeyEvent` 真发；两个探针分别挂在 window 的**捕获**与**冒泡**阶段：
+
+```
+capture: key=Enter  isComposing=true  defaultPrevented=false
+bubble : key=Enter  isComposing=true  defaultPrevented=true   ← 组件 preventDefault 了
+inputValue: "yu"                                                    ← 拼音卡在框里，候选没了
+```
+
+**只记捕获阶段会永远读到 false** —— 捕获在组件处理器之前跑，
+要看出「组件有没有 preventDefault」，探针必须挂在冒泡阶段。
+这一条是本轮量到的第一件事，也是量对的第一件事。
+
+同一测量在**正文输入框**上是 `false` —— 全局 `resolveHotkey` 的闸门是好的。
+也就是说：**这道闸在正文输入框上存在，在这十个弹层/输入框上根本没写。**
+不是闸门坏了，是闸门只盖了一条路。
+
+### 为什么会漏：`.prevent` 修饰符是无条件执行的
+
+四个文本输入框的模板长这样：
+
+```html
+@keydown.enter.prevent="blurTitle($event)"
+```
+
+Vue 的 `.prevent` 是**修饰符**：它先 `preventDefault()`，**再**调 handler。
+于是 handler 里哪怕写了 `if (组合态) return`，那一键也已经被吞掉了 ——
+闸门写在 handler 里是**拦不住**模板修饰符的。
+
+⇒ 修法不是补一行 `if`，是把 `preventDefault` 从模板搬进 handler，
+**和闸门放在同一个函数里**，模板上换成 `@keydown="onX"` 一个入口。
+
+顺带量到后果的严重程度：`confirmRenaming` 那条路上，
+组合态里按回车时 `renameValue` 里是**拼音**，`book.renameDocTitle(relPath, "yu")`
+会把这一章真名成「yu」—— 不是丢字，是**写坏盘上的数据**。
+
+### 第二处：真身被架空
+
+`popoverOwnsKey(key, mods, isComposing)` 是六份面板共用的判据。
+其中六份传的是 `close` 这个**函数**：
+
+```ts
+if (popoverOwnsKey(event.key, mods, close)) { event.preventDefault(); return; }
+if (event.key === "Escape") { close(); return; }   // ← 真正干活的是这一支
+```
+
+函数是真值 ⇒ 真身**恒返回 false** ⇒ 第一支是死代码，Esc 实际由紧跟着那份
+手抄的裸比较兜住。两个后果：判定被架空，而「同一判定只留一份实现」被破了。
+
+**它为什么能活这么久：`.vue` 文件根本不在类型检查范围内。**
+
+```
+tsc --noEmit -p apps/desktop/tsconfig.web.json --listFiles
+  → vue_files_in_program=0        （普通 tsc 不解析 .vue；vue-tsc 没装）
+```
+
+`close: () => void` 传给 `isComposing: boolean` 是 0.1 秒能抓到的类型错误，
+而 `verify` 跑的是普通 `tsc`。**整个组件层——前五批所有缺陷的所在地——从不被类型检查。**
+本批没有动这件事（装 `vue-tsc` 要先清的历史错误量未知，是独立的一批），
+但它是这一族能复发这么多次的根，记在这里。
+
+### 修法：判据提成唯一一份
+
+`utils/slash-commands.ts` 新增真身，紧挨着 `popoverOwnsKey`：
+
+```ts
+export function imeOwnsKey(event: KeyboardEvent): boolean {
+  return event.isComposing === true || event.keyCode === 229;
+}
+```
+
+为什么值得提成一份函数而不是各处写 `event.isComposing === true`：
+组合态的判据将来只会有**一种**形状（真身 + 老式 229 兜底 + 别的输入法差异），
+散在十几处写，改一次要改十几处，漏一处就是一枚新的「回车吃掉候选」。
+`keyCode === 229` 一起收进来，是因为个别输入法与部分 Electron/Windows 组合
+只给 229 而不把 `isComposing` 置真。
+
+十份弹层全部改走真身；六份里那份手抄的裸 Escape 比较**删掉**（第一支自己 `close()`）。
+四个输入框各自补上闸门，并把 `preventDefault` 从模板搬进 handler。
+
+### 守卫：三条，缺一条就能再犯
+
+`utils/ime-guard-wiring.test.ts`（7 条）：
+
+1. **判据唯一**：全仓组件层枚举（`listComponentFiles()`），
+   任何文件自己判 `event.isComposing` / `keyCode === 229` 就红。
+   名单型判据的失效方向永远是「不认识的一律放过」，所以这条按**目录**枚举，不按名单。
+2. **顺序**：每个 handler 的闸门必须排在 `preventDefault` 之前。
+   顺序反了等于没修 —— 那一键已经被吞掉了，判不判组合态都来不及。
+3. **模板不许再用 `.prevent` 修饰符**：同样按目录枚举整个组件层，
+   新增一个带 `@keydown.enter.prevent` 的输入框必须立刻红。
+   排除项只有一条，且写清为什么：左栏「…」那枚 Esc 挂在**按钮**上，按钮永远不会处于组合态。
+
+变异 **7/7 全红**：去掉 229 兜底 / 删掉查找框闸门 / 把标题的闸门挪到 preventDefault 之后 /
+把真身改回传 `close` / 把手抄的裸比较放回来 / 把模板修饰符放回来 / 某处散写判据。
+（还原用变异**前存下的字节**写回，不用现读现比 —— 现读现比会让 restore 分支永远报 clean。）
+
+### 真机复验
+
+同一输入框、同样的「拼音 yu + 回车选词」：
+
+| | 修前 | 修后 |
+|---|---|---|
+| `bubble` `defaultPrevented` | **true**（回车被吞） | **false**（还给输入法） |
+| 查找框内容 | `yu`，候选丢了 | `yu`，组合态还开着 |
+
+### 本轮自己的三个错
+
+① 探针挂在**捕获**阶段量 `defaultPrevented`，永远读到 false，结论会变成「没问题」。
+② `__clickReal` 助手注入在 `Page.reload` **之前**，reload 换掉整个 JS 上下文，助手连页面一起没了。
+③ 守卫的正则漏了字面量括号：模板上是 `onX($event)`，`(\$event)?` 匹配不上，
+得写 `(\(\$event\))?`。另外形参名各文件不一（`event` / `e`），判形状不能判名字。
+
+### 改动文件清单
+
+- `apps/desktop/src/renderer/src/utils/slash-commands.ts`（新增 `imeOwnsKey` 真身）
+- `apps/desktop/src/renderer/src/components/ComposerContextMenu.vue`
+- `apps/desktop/src/renderer/src/components/ContextMeterPanel.vue`
+- `apps/desktop/src/renderer/src/components/ModelSelect.vue`
+- `apps/desktop/src/renderer/src/components/PermissionMenu.vue`
+- `apps/desktop/src/renderer/src/components/ChangeHistoryPanel.vue`
+- `apps/desktop/src/renderer/src/components/ForeshadowPanel.vue`
+- `apps/desktop/src/renderer/src/components/ReviewScorePanel.vue`
+- `apps/desktop/src/renderer/src/components/SlopPanel.vue`
+- `apps/desktop/src/renderer/src/components/TimelineCheckPanel.vue`
+- `apps/desktop/src/renderer/src/components/VolumeOutlinePanel.vue`
+- `apps/desktop/src/renderer/src/components/FindReplacePanel.vue`
+- `apps/desktop/src/renderer/src/components/SearchPanel.vue`
+- `apps/desktop/src/renderer/src/components/DocumentPane.vue`
+- `apps/desktop/src/renderer/src/components/LeftSidebar.vue`
+- `apps/desktop/src/renderer/src/utils/ime-guard-wiring.test.ts`（新增）
+- 守卫改钉新决定：`composer-context-bar-wiring.test.ts`、`model-select-wiring.test.ts`、
+  `document-pane-wiring.test.ts`、`left-sidebar-nav.test.ts`
+- 探针与脚本：`.mochen-tmp/f6/p536o-*.mjs`、`.mochen-tmp/p536o/{fix-stage1,fix-stage2,fix-guards,mutate-ime}.cjs`
+
+### 留给下一批
+
+- **`vue-tsc` 没装**：组件层零类型检查。本批已量出至少一处「0.1 秒能抓、却一直没人抓」的错误，
+  但装它之前要先知道历史错误有多少 —— 那是独立的一批，不能顺手塞进来。
+- 组合态只量了**回车与 Esc**。方向键（候选词选上下）、退格、Tab 在组合态里的行为还没量。
+
+### 门禁里撞到的两件事，都不是「改松就过」
+
+**① 行数预算把左栏顶出去了。** `LeftSidebar.vue` 加完两个 handler 是 811 行（上限 800）。
+该做的不是砍注释字数，而是发现**我那两个 handler 本来就是同一判定的两份实现**
+（只有 confirm/cancel 不同，闸门与顺序完全一样）。合成一个工厂 `textRowKeydown`，
+既过预算，又把那份重复收掉 —— 门禁第二次替我抓到「同一判定两份实现」。
+
+**② prettier / eslint 连续三道。** 新写的守卫先被 prettier 拦，再被 eslint 拦
+（`no-regex-spaces`：正则里两格空格要写成 `{2}`）。都不是产品问题，是新测试文件没过格式门禁。
+
+### 本轮自己的三个错（都不是产品的问题）
+
+① 探针挂在 **捕获** 阶段量 `defaultPrevented` —— 捕获在组件处理器之前跑，永远读到 false，
+   结论会变成「没问题」。要看出组件有没有 preventDefault，探针必须挂**冒泡**。
+② `__clickReal` 助手注入在 `Page.reload` **之前** —— reload 换掉整个 JS 上下文，助手连页面一起没了。
+③ 守卫的正则漏了字面量括号（模板上是 `onX($event)`，得写成 `(\(\$event\))?`）；
+   另外各文件形参名不一（`event` / `e`），判形状不能判名字。
+
+### 最终数字
+
+- 守卫 `utils/ime-guard-wiring.test.ts`：7 条
+- 变异 **8/8 全红**（M8 是左栏工厂那条：把 preventDefault 排到闸门之前 ⇒ 顺序反了 = 等于没修）
+- 真机复验：同一输入框、同一段拼音、同一记回车，`bubble.defaultPrevented` 由 `true` 变 `false`
+- 全量门禁 **207 文件 / 2883 用例 / VERIFY_EXIT=0**
+- `SCAN_FFFD_CLEAN`（含本轮 20 个改动文件单独扫）
+
+### 留给下一批
+
+- **`vue-tsc` 没装**：组件层零类型检查。本批已量出至少一处「0.1 秒能抓、却一直没人抓」的错误
+  （`close: () => void` 传给 `isComposing: boolean`），但装它之前要先知道历史错误有多少。
+  那是独立的一批，不能顺手塞进来。
+- 组合态只量了**回车与 Esc**。方向键（候选词选上下）、退格、Tab 在组合态里的行为还没量。
+
 ## 批次 5-㊷ · 皮肤广场第三版：只收带整窗画面的皮肤（2026-10-08）
 
 【批次号】本批落笔时工作区里已经有一条**未提交**的 5-㊶（中文输入法组合态，另一条线上在做），

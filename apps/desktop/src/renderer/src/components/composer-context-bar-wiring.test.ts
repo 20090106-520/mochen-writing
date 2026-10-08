@@ -159,7 +159,10 @@ describe("阶段弹层真身 · 对齐他的 DOM 与键盘，删干净永不为�
 
   it("裸 Esc 走 popoverOwnsKey（输入法组合中不算），模板里不写裸比较", () => {
     const s = scriptSource(MENU);
-    expect(s).toContain("popoverOwnsKey(event.key, mods, event.isComposing === true)");
+    expect(s).toContain("popoverOwnsKey(event.key, mods, imeOwnsKey(event))");
+    // 5-㊶：组合态的判据只允许有一种写法（真身 imeOwnsKey）。散写成
+    // `event.isComposing === true` 就是在十处之外又埋一份，将来改判据必漏。
+    expect(s).not.toContain("event.isComposing === true");
     expect(s).not.toContain('"Escape"');
     expect(s).toContain('["ArrowDown", "ArrowUp"].includes(event.key)');
     expect(s).toContain("tab(event)");

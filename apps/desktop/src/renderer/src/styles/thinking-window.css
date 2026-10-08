@@ -1,0 +1,121 @@
+/**
+ * 思考态空窗期的样式（2026-10-08 批次 5-㊹）。
+ *
+ * 定位：**只管这一行的长相**。三枚呼吸点的节奏用 `--ease-view` 那条弹簧曲线收尾，
+ * 于是它与弹层出场、视图过渡是同一套手感（三处共用一份曲线，不各调各的）。
+ *
+ * 「减少动效」这一格写得比别处长一句：motion.css 的总闸把 animation-duration 压到 0.01ms，
+ * 那会让三枚点**停在第一帧**（opacity 0.4），也就是「关掉动效」变成了「看起来没在动」。
+ * 所以这里显式给出静止档：三枚点都在、亮度一致、不闪——**静 ≠ 不在**。
+ */
+.thinking-window {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 2px 10px 34px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  /* 与流式光标同一族的入场：短、只动 4px，不与第一段正文抢注意力。 */
+  animation: thinking-window-in 180ms var(--ease-view);
+}
+
+.thinking-window-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.thinking-window-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: thinking-window-breathe 1.15s var(--ease-view) infinite;
+}
+
+.thinking-window-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.thinking-window-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.thinking-window-label {
+  flex: 0 0 auto;
+}
+
+/* 右边那一格秒数：淡一档，让它是「附注」而不是「主要内容」。 */
+.thinking-window-elapsed {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes thinking-window-breathe {
+  0% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  45% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+}
+
+@keyframes thinking-window-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 读屏用的隐藏文本：只给辅助技术看，不占版面。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-window,
+  .thinking-window-dots i {
+    animation: none;
+  }
+
+  /* 静止档：三枚点都在、亮度一致。「静」不等于「不在」。 */
+  .thinking-window-dots i {
+    opacity: 0.7;
+  }
+}
+
+/* 应用内那档偏好（utils/motion-preference.ts）与 OS 媒体查询是并行的第二通路，
+   这一段必须显式给出静止档——理由与上面 @media 那段逐字相同。 */
+html[data-reduced-motion="true"] .thinking-window,
+html[data-reduced-motion="true"] .thinking-window-dots i {
+  animation: none;
+}
+
+html[data-reduced-motion="true"] .thinking-window-dots i {
+  opacity: 0.7;
+}

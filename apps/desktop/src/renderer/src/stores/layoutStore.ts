@@ -5,6 +5,7 @@ import { defineStore } from "pinia";
 import type { BookKind } from "@mochen/contracts";
 import { useOnboardingStore } from "./useOnboardingStore";
 import { createPanePointerCapture } from "../utils/panePointerCapture";
+import { runViewTransition } from "../utils/view-transition";
 import {
   RIGHT_PANE_MAX_WIDTH,
   RIGHT_PANE_MIN_WIDTH,
@@ -169,17 +170,39 @@ export const useLayoutStore = defineStore("layout", () => {
     width: rightPaneWidth.value
   }));
 
+  /**
+   * 视图过渡（批次 5-㊸）：**只在「那一格真的换页面」时才发起**。
+   * 判据只有这一份，三处切换共用——不写成三遍 if 就是要避免的那种「同一判定两份实现」。
+   *
+   * 为什么不是「调用了切换函数就过渡」：
+   * ① 同页重入（连点两枚钮、Esc 又按一次）：old/new 两张快照逐像素相同，
+   *    白拍一轮 220ms，还占住 `runViewTransition` 的「在飞」闸，让下一次真切换也放不出来。
+   * ② 设置页换页签：`SettingsPage` 那个组件根本不卸载，为了让左栏一枚高亮挪位置
+   *    把整页交叉淡一遍，比不做还晃。
+   */
+  function contentSlotSwitches(to: AppView, toCenter: CenterView): boolean {
+    if (currentView.value !== to) return true;
+    return to === "workspace" && centerView.value !== toCenter;
+  }
+
   function showSettings(tab: SettingsTab = "model"): void {
-    settingsTab.value = tab;
-    // 【5-㊳】顺手把 centerView 复位，否则左栏那一枚会**停在原地亮着**：
-    // 真机从皮肤广场点齿轮进设置，屏幕上是设置中心，左栏「皮肤广场」却还亮着
-    // （p536j 单独量过一次：center 由 skin-gallery 变成 settings-page，active 仍是 ["skins"]）。
-    // 左栏的 active 只有一件事要做——说「你在这儿」；说错了比不说更糟。
-    //
-    // 复位之后一枚都不亮，这是对的：设置视图的指示器是左下角那颗齿轮本身，
-    // 它不在 nav-row 里、不参与互斥。回程落点与 showWorkspace 一致（都是对话）。
-    centerView.value = "chat";
-    currentView.value = "settings";
+    const apply = (): void => {
+      settingsTab.value = tab;
+      // 【5-㊳】顺手把 centerView 复位，否则左栏那一枚会**停在原地亮着**：
+      // 真机从皮肤广场点齿轮进设置，屏幕上是设置中心，左栏「皮肤广场」却还亮着
+      // （p536j 单独量过一次：center 由 skin-gallery 变成 settings-page，active 仍是 ["skins"]）。
+      // 左栏的 active 只有一件事要做——说「你在这儿」；说错了比不说更糟。
+      //
+      // 复位之后一枚都不亮，这是对的：设置视图的指示器是左下角那颗齿轮本身，
+      // 它不在 nav-row 里、不参与互斥。回程落点与 showWorkspace 一致（都是对话）。
+      centerView.value = "chat";
+      currentView.value = "settings";
+    };
+    if (!contentSlotSwitches("settings", "chat")) {
+      apply();
+      return;
+    }
+    runViewTransition(apply, { direction: "forward" });
   }
 
   function openGoalsSettings(): void {
@@ -191,11 +214,19 @@ export const useLayoutStore = defineStore("layout", () => {
   }
 
   function showWorkspace(): void {
-    currentView.value = "workspace";
-    // 回工作区 = 回**对话**。设置中心与技能库/插件都是从工作区出发去的地方，
-    // 回程的落点只有一个：那条对话。不复位的话，Esc 关掉设置之后中栏还摆着技能库，
-    // 而左栏高亮的是「工作台」——两枚都在说「你在这儿」。
-    centerView.value = "chat";
+    const apply = (): void => {
+      currentView.value = "workspace";
+      // 回工作区 = 回**对话**。设置中心与技能库/插件都是从工作区出发去的地方，
+      // 回程的落点只有一个：那条对话。不复位的话，Esc 关掉设置之后中栏还摆着技能库，
+      // 而左栏高亮的是「工作台」——两枚都在说「你在这儿」。
+      centerView.value = "chat";
+    };
+    if (!contentSlotSwitches("workspace", "chat")) {
+      apply();
+      return;
+    }
+    // 回程是「退」，方向与去时相反，CSS 那两支滑入才不是同一支。
+    runViewTransition(apply, { direction: "back" });
   }
 
   /**
@@ -206,8 +237,15 @@ export const useLayoutStore = defineStore("layout", () => {
    * 不拨回来的话点了像没反应——设置页把整个窗口铺满了，中栏压根不在。
    */
   function showCenter(page: Exclude<CenterView, "chat">): void {
-    centerView.value = page;
-    currentView.value = "workspace";
+    const apply = (): void => {
+      centerView.value = page;
+      currentView.value = "workspace";
+    };
+    if (!contentSlotSwitches("workspace", page)) {
+      apply();
+      return;
+    }
+    runViewTransition(apply, { direction: "forward" });
   }
 
   function openNewBook(): void {

@@ -10,6 +10,7 @@ import type { BookDoc } from "../types/book-doc";
 import { useModalFocus } from "../composables/useModalFocus";
 import type { DocRef } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
+import { imeOwnsKey } from "../utils/slash-commands";
 
 /** 批量读取文档全文内容 —— 搜索/导出/统计需要，不走 bookStore.draft 那一条预览通路 */
 async function loadAllDocContents(docs: DocRef[]): Promise<BookDoc[]> {
@@ -116,6 +117,7 @@ function jumpToHit(hit: SearchHit): void {
 }
 
 function onKeydown(e: KeyboardEvent): void {
+  if (imeOwnsKey(e)) return; // 组合态里那一下回车是输入法在选词，不是「跳到这条命中」
   if (!lastResult.value) return;
   const hits = lastResult.value.hits;
   if (e.key === "ArrowDown") {

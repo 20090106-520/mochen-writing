@@ -54,7 +54,10 @@ describe("模型 chip 的地址：走启用中那条模型自己那条连接", (
   });
 
   it("一条都没启用时是空串（不是崩、也不是随便挑一条连接）", () => {
-    expect(storeSrc).toContain('if (enabled === undefined) return "";');
+    // 哨兵值必须与 `enabledProfile` 的 `?? null` 对上：这里钉的是**成对**改，
+    // 单边改（把 computed 换成 undefined 而这里的判断没跟）就会红——这正是想要的信号，
+    // 因为 `if (enabled === null)` 遇 `undefined` 会漏过去，然后拿 undefined 去查连接。
+    expect(storeSrc).toContain('if (enabled === null) return "";');
   });
 
   it("store 真的把 activeBaseURL 导出去了（定义了没导出 = 模板读不到，等于没改）", () => {

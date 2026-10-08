@@ -9,7 +9,7 @@ import {
   type PermissionMode
 } from "@mochen/contracts";
 import { useBookStore } from "../stores/useBookStore";
-import { popoverOwnsKey } from "../utils/slash-commands";
+import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
 import type { HotkeyMods } from "../utils/hotkeys";
 
 const book = useBookStore();
@@ -36,7 +36,7 @@ function onKeydown(event: KeyboardEvent): void {
     alt: event.altKey,
     meta: event.metaKey
   };
-  if (!popoverOwnsKey(event.key, mods, event.isComposing === true)) return;
+  if (!popoverOwnsKey(event.key, mods, imeOwnsKey(event))) return;
   event.stopPropagation();
   emit("close");
 }

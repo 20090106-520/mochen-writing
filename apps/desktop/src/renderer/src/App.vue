@@ -27,6 +27,7 @@ import {
   motionPreferenceStorage
 } from "./utils/motion-preference";
 import { LEFT_PANE_MAX, LEFT_PANE_MIN, RIGHT_PANE_MIN, useLayoutStore } from "./stores/layoutStore";
+import { runViewTransition } from "./utils/view-transition";
 import SearchPanel from "./components/SearchPanel.vue";
 import NotesPanel from "./components/NotesPanel.vue";
 import WordCountPanel from "./components/WordCountPanel.vue";
@@ -69,6 +70,26 @@ function resolvedScheme(): AppearanceColorScheme {
   return resolveColorScheme(settings.value.mode, prefersDark());
 }
 
+/**
+ * 上一刷到 `<html>` 上的是哪一套配色（5-㊸）。挂载时为 null ⇒ 首刷不淡。
+ * 它存在的理由只有一句：`applyTheme()` 不只是「换皮肤」被调用——改字号、换字体、
+ * 切深浅、侧栏半透明开关，每一个都走这一条。挂上过渡而不看这一位，
+ * 拖字号滑块就会整窗不停交叉淡一次。
+ */
+let lastPaintedSkinKey: string | null = null;
+
+/**
+ * 「整套配色换掉了没有」的判据，只有这一份。
+ * 进项只有三样：明暗、皮肤 id、画面层——它们一变，屏幕上换的是**另一套配色**。
+ * 字号/字体/行距/半透明是连续微调，不在这里面。
+ */
+function skinPaintKey(
+  scheme: AppearanceColorScheme,
+  view: ReturnType<typeof effectiveSettings>
+): string {
+  return `${scheme}|${view[scheme].skin}|${view[scheme].art}`;
+}
+
 function applyTheme(): void {
   const scheme = resolvedScheme();
   /**
@@ -84,12 +105,25 @@ function applyTheme(): void {
    * 退出预览（收条上的「换回去」、Esc、离开那一页）走的都是这一条通路回到真身。
    */
   const view = effectiveSettings(settings.value, skinBrowse.previewSkin);
-  applyAppearanceThemeToDocument({
-    scheme,
-    theme: view[scheme],
-    uiFontFamily: view.uiFontFamily,
-    editorFontFamily: view.editorFontFamily
-  });
+  const paint = (): void => {
+    applyAppearanceThemeToDocument({
+      scheme,
+      theme: view[scheme],
+      uiFontFamily: view.uiFontFamily,
+      editorFontFamily: view.editorFontFamily
+    });
+  };
+  const key = skinPaintKey(scheme, view);
+  const previous = lastPaintedSkinKey;
+  lastPaintedSkinKey = key;
+  // 首刷没有「旧样子」可淡；同一套再刷一次（预览内部切页签之类）也不必淡。
+  if (previous === null || previous === key) {
+    paint();
+    return;
+  }
+  // 换配色走的是视图过渡那**同一个真身**：DOM 一点没动，只有 `<html>` 上的 token 变，
+  // 于是 root 与三处命名元素各自把新旧两张快照交叉淡一遍 = 整窗换色而不是「啪地一下」。
+  runViewTransition(paint);
 }
 
 const rightPaneMax = computed(() => layout.writingRightPaneViewModel.maxWidth);

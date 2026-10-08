@@ -1,0 +1,195 @@
+/**
+ * 视图过渡层（2026-10-08 批次 5-㊸）——`document.startViewTransition` 的样式那一半。
+ *
+ * ## 只让「内容格」动，左栏纹丝不动
+ * 视图过渡的机制是：浏览器给整页拍两张快照，**凡是挂了 `view-transition-name` 的元素被单独拎出来**
+ * （它因此不在 root 的快照里）。左栏、标题栏、拖拽条都不挂名字 ⇒ 它们留在 root 快照里，
+ * 而 root 快照在这几次切换中**逐像素相同** ⇒ 默认的那次交叉淡入在屏幕上等于没有。
+ *
+ * 换句话说：动的是中栏那一格，左边那根导航轴一帧都不参与。这就是为什么下面只挂两个名字。
+ *
+ * ## 为什么是**两个**而不是一个
+ * `mochen-center` 是中栏：对话 / 技能·插件 / 皮肤广场 / 设置中心互斥共用（同一时刻只有一个在 DOM 里，
+ * 所以名字不冲突，而且设置中心占中栏+右栏时它会从窄格直接长成整页——正是想要的那一下）。
+ * `mochen-right` 是右栏编辑器：从对话切去皮肤广场时它要退场，不给它名字的话，
+ * 它就留在 root 快照里，root 一淡就是「整个右栏跟着闪一下」，那是错的。
+ *
+ * ## 关掉动效的两道闸
+ * ① `utils/view-transition.ts` 里那两道（应用内偏好属性 + OS 媒体查询）——不发起过渡。
+ * ② 本文件最后一段：`motion.css` 的总闸是 `html[data-reduced-motion="true"] *`，
+ *   而 **`*` 匹配不到 `::view-transition-*` 伪元素**（它们不在元素的子树上）。
+ *   光靠那份总闸，视图过渡根本关不掉。所以这里逐条点名关一遍。
+ *   逐条点名而不是写 `(*)` 通配：通配更省事，但它是更晚才进引擎的特性，
+ *   写了却在老引擎上静默失效——与本仓反复吃到的「CSS 永不报错，失败一律表现为那层没生效」同一族。
+ *   点名也让守卫能钉：凡在本文件挂了 `view-transition-name` 的选择器，必须同样出现在这段里。
+ */
+:root {
+  --dur-view: 220ms;
+  /* 兜底先给：引擎不认 linear() 时退到本仓原有的出场曲线，观感退一步而不是变成 ease。 */
+  --ease-view: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 弹簧缓动：阻尼比 0.62、固有角频率 13 的阻尼谐振子采样成 34 段（过冲 8.29%，峰值在 30%，
+   尾部 |v-1| ≤ 1.7e-4）。生成与自检脚本见 .mochen-tmp/p537/spring.cjs——
+   网上那些现成曲线是**别人的手感**，这里从物理参数起手，参数写在上面那段注释里可审。 */
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --ease-view: linear(
+      0 0,
+      3% 0.0655,
+      6% 0.2189,
+      9% 0.4077,
+      12% 0.5952,
+      15% 0.7593,
+      18% 0.8891,
+      21% 0.9821,
+      24% 1.0413,
+      27% 1.0726,
+      30% 1.0829,
+      33% 1.0792,
+      36% 1.0672,
+      39% 1.0517,
+      42% 1.0359,
+      45% 1.0217,
+      48% 1.0104,
+      52% 1.0021,
+      55% 0.9968,
+      58% 0.9938,
+      61% 0.9927,
+      64% 0.9928,
+      67% 0.9938,
+      70% 0.995,
+      73% 0.9964,
+      76% 0.9976,
+      79% 0.9986,
+      82% 0.9993,
+      85% 0.9998,
+      88% 1.0001,
+      91% 1.0002,
+      94% 1.0002,
+      97% 1.0001,
+      100% 1
+    );
+  }
+}
+
+/* ── 挂名字的两处 ── */
+.conversation-pane,
+.extensions-page,
+.skin-gallery,
+.settings-page {
+  view-transition-name: mochen-center;
+}
+
+.editor-pane {
+  view-transition-name: mochen-right;
+}
+
+/* ── 形变：几何交给 group，透明度交给 old/new ──
+   root 的 group 也点名：它默认 250ms，而下面 old/new 都走 220ms。
+   换皮肤时 root 是**整窗交叉淡入**的主角，两处节奏不同就是一次拖泥带水的淡出。 */
+::view-transition-group(root),
+::view-transition-group(mochen-center),
+::view-transition-group(mochen-right) {
+  animation-duration: var(--dur-view);
+  animation-timing-function: var(--ease-view);
+}
+
+/* 无方向的那一支（换皮肤就是走它：DOM 没变，只有 token 变，整窗交叉淡入）。 */
+::view-transition-old(root),
+::view-transition-old(mochen-center),
+::view-transition-old(mochen-right) {
+  animation: mochen-view-fade-out var(--dur-view) var(--ease-out-soft);
+}
+
+::view-transition-new(root),
+::view-transition-new(mochen-center),
+::view-transition-new(mochen-right) {
+  animation: mochen-view-fade-in var(--dur-view) var(--ease-view);
+}
+
+/* ── 有方向的那一支：进（去别处）向左推，回（回工作台）向右退 ──
+   位移用 24px 而不是百分比：设置中心那格能从窄长成整页，百分比会跟着宽度放大，
+   同一个 CSS 值在两种宽度下变成两种幅度。 */
+html:active-view-transition-type(mochen-forward)::view-transition-old(mochen-center) {
+  animation-name: mochen-view-out-left;
+}
+
+html:active-view-transition-type(mochen-forward)::view-transition-new(mochen-center) {
+  animation-name: mochen-view-in-right;
+}
+
+html:active-view-transition-type(mochen-back)::view-transition-old(mochen-center) {
+  animation-name: mochen-view-out-right;
+}
+
+html:active-view-transition-type(mochen-back)::view-transition-new(mochen-center) {
+  animation-name: mochen-view-in-left;
+}
+
+@keyframes mochen-view-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes mochen-view-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes mochen-view-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+@keyframes mochen-view-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes mochen-view-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes mochen-view-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+/* ── 第二道闸：把上面点名的三处逐条关掉 ── */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-group(mochen-center),
+  ::view-transition-old(mochen-center),
+  ::view-transition-new(mochen-center),
+  ::view-transition-group(mochen-right),
+  ::view-transition-old(mochen-right),
+  ::view-transition-new(mochen-right) {
+    animation: none !important;
+  }
+}
+
+html[data-reduced-motion="true"]::view-transition-group(root),
+html[data-reduced-motion="true"]::view-transition-old(root),
+html[data-reduced-motion="true"]::view-transition-new(root),
+html[data-reduced-motion="true"]::view-transition-group(mochen-center),
+html[data-reduced-motion="true"]::view-transition-old(mochen-center),
+html[data-reduced-motion="true"]::view-transition-new(mochen-center),
+html[data-reduced-motion="true"]::view-transition-group(mochen-right),
+html[data-reduced-motion="true"]::view-transition-old(mochen-right),
+html[data-reduced-motion="true"]::view-transition-new(mochen-right) {
+  animation: none !important;
+}

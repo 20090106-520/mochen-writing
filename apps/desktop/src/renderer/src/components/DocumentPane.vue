@@ -16,6 +16,7 @@ import VolumeOutlinePanel from "./VolumeOutlinePanel.vue";
 import SnippetToolbar from "./SnippetToolbar.vue";
 import FindReplacePanel from "./FindReplacePanel.vue";
 import { useSnippetToolbar } from "../composables/useSnippetToolbar";
+import { imeOwnsKey } from "../utils/slash-commands";
 import { useBookStore, type EditorViewMode, type RightPaneMode } from "../stores/useBookStore";
 import { useFindReplaceStore } from "../stores/useFindReplaceStore";
 import { useTimelineStore } from "../stores/useTimelineStore";
@@ -377,6 +378,28 @@ function blurTitle(event: Event): void {
   (event.target as HTMLInputElement).blur();
 }
 
+/**
+ * 标题行的键盘裁决（批次 5-㊶）。
+ *
+ * 【为什么 preventDefault 写在这里，而不是留在模板的 `.enter.prevent` 上】
+ * 模板修饰符是无条件执行的：它先 preventDefault，再调 handler。
+ * 组合态里那一下回车是输入法在选词，handler 里再怎么提前 return 也拦不住——
+ * 于是拼音被当标题提交（title.value 里此刻就是拼音），再 blur 落盘。
+ * ⇒ 闸门与 preventDefault 必须在同一个函数里，模板上不许再挂 `.prevent`。
+ */
+function onTitleKeydown(event: KeyboardEvent): void {
+  if (imeOwnsKey(event)) return;
+  if (event.key === "Enter") {
+    event.preventDefault();
+    blurTitle(event);
+    return;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    revertTitle(event);
+  }
+}
+
 function revertTitle(event: Event): void {
   const target = event.target as HTMLInputElement;
   target.value = title.value;
@@ -671,8 +694,7 @@ function switchMode(next: RightPaneMode): void {
           :readonly="activeTabId === null"
           aria-label="文档标题（回车或移开焦点即保存）"
           title="点这里可以改标题（只改 frontmatter，不动文件名）"
-          @keydown.enter.prevent="blurTitle($event)"
-          @keydown.esc.prevent="revertTitle($event)"
+          @keydown="onTitleKeydown"
           @blur="commitTitle($event)"
         />
       </template>

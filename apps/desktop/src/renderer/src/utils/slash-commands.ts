@@ -57,6 +57,23 @@ export function availableCommands(focus: PaletteFocus): SlashCommand[] {
 }
 
 /**
+ * 这一键归不归输入法（批次 5-㊶）。
+ *
+ * 【为什么必须是唯一一份】组合态里按下的回车/上档键，是输入法在选词，不是在触发快捷键。
+ * 真机 P536O 量到：查找框里拼音「yu」按回车选词，冒泡阶段 defaultPrevented 变 true——
+ * 候选词被吃掉，拼音留在框里。而同一测量在正文输入框上是 false（全局闸门是好的），
+ * 也就是说这道闸在这十个弹层/输入框上**根本没写**。
+ * 判据将来只会有一种形状（真身 + 老式 229 兜底 + 别的输入法差异），
+ * 散在十处写就是改一次要改十处、漏一处又是一枚新的「回车吃掉候选」。
+ *
+ * 【为什么老式 229 也算】个别输入法与部分 Electron/Windows 组合只会给出 keyCode 229 而
+ * 不把 isComposing 置真；那一类按键同样属于输入法。两个信号取或。
+ */
+export function imeOwnsKey(event: KeyboardEvent): boolean {
+  return event.isComposing === true || event.keyCode === 229;
+}
+
+/**
  * 权限档 popover 自己吃的键：只有**裸 Esc** 归弹层（关掉它，不切档），其余键一律放行给上层。
  * 合成期间一律不接、带任何修饰都不接——两条判据都与 utils/hotkeys.ts 同口径：
  * 弹层会 stopPropagation，全局 `resolveHotkey` 因此永远看不见这一键，

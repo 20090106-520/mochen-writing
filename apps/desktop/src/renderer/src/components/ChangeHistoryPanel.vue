@@ -15,7 +15,7 @@ import { storeToRefs } from "pinia";
 import { changeRetentionNote } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
-import { popoverOwnsKey } from "../utils/slash-commands";
+import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
 import {
   changeCountLabel,
   changeTimeLabel,
@@ -55,11 +55,9 @@ function keydown(event: KeyboardEvent): void {
     alt: event.altKey,
     meta: event.metaKey
   };
-  if (popoverOwnsKey(event.key, mods, close)) {
+  // 组合态里那一键归输入法：判据是 imeOwnsKey 这一份真身，不在下面再抄一遍裸比较。
+  if (popoverOwnsKey(event.key, mods, imeOwnsKey(event))) {
     event.preventDefault();
-    return;
-  }
-  if (event.key === "Escape") {
     close();
     return;
   }

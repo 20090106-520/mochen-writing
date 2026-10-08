@@ -186,6 +186,50 @@ export function listComponentFiles(): string[] {
     .map((name) => `components/${name}`);
 }
 
+/**
+ * CSS 里每一条规则的**前导串与正文**（嵌套在 `@media` 里的内层规则也一并给出）。
+ *
+ * 【为什么需要它】守卫要回答「某个选择器在不在**关掉动效的那几段**里」这类问题，
+ * 而那几段的正文都是 `{ animation: none !important; }`——只看字符串的话，
+ * 「出现在别处的一句注释」与「真的写在那条规则里」分不开。这与 `ruleBlock` 同族，
+ * 区别是它一次给**全部**规则、且保留前导串（`ruleBlock` 只给一条的正文）。
+ *
+ * 每帧记下「**下一个兄弟的前导串从哪儿起算**」：本层上一条规则收尾的 `}` 之后。
+ * 两种起点混着来就会量错东西——嵌套规则若从**外层那一圈 `{`** 起算，
+ * 前导串会变成「上一条兄弟的整条规则 + 本条的选择器」，
+ * 于是「有没有 `@media` 闸」「有没有 opacity 0.7 那一档」这类问题永远量不到。
+ * （本函数第一版就踩了这个：嵌套里的第二条规则量出来是一大坨。）
+ *
+ * 调用方要自己按需过滤：以 `@` 开头的是 at-rule 前奏（`@media` 本身也是一条），
+ * 它那条的正文会把内层规则的正文整段裹进去。
+ */
+export function cssRules(css: string): { selector: string; body: string }[] {
+  const out: { selector: string; body: string }[] = [];
+  const stack: { start: number; from: number; nextSibling: number }[] = [];
+  let rootNextSibling = 0;
+  for (let i = 0; i < css.length; i += 1) {
+    if (css[i] === "{") {
+      const parent = stack[stack.length - 1];
+      const from = parent === undefined ? rootNextSibling : parent.nextSibling;
+      stack.push({ start: i + 1, from, nextSibling: i + 1 });
+      continue;
+    }
+    if (css[i] === "}" && stack.length > 0) {
+      const frame = stack.pop();
+      if (frame === undefined) continue;
+      const parent = stack[stack.length - 1];
+      // 本层的下一条兄弟从**这条的收尾之后**起算。
+      if (parent === undefined) rootNextSibling = i + 1;
+      else parent.nextSibling = i + 1;
+      out.push({
+        selector: css.slice(frame.from, frame.start - 1).trim(),
+        body: css.slice(frame.start, i)
+      });
+    }
+  }
+  return out;
+}
+
 /** #105 起从 deepwrite 对齐的输入卡样式全部住在这一枚分段标记之后。 */
 export const CARD_STYLE_MARKER = "deepwrite-composer-card";
 /**
