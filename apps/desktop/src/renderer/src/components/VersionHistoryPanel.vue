@@ -5,6 +5,7 @@ import { useVersionStore } from "../stores/useVersionStore";
 import { useBookStore } from "../stores/useBookStore";
 import { useNotificationStore } from "../stores/useNotificationStore";
 import AppIcon from "./AppIcon.vue";
+import { formatCharCount } from "../utils/char-count";
 
 const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ close: []; restore: [content: string] }>();
@@ -60,11 +61,6 @@ function formatTime(ts: number): string {
     minute: "2-digit",
     second: "2-digit"
   });
-}
-
-function formatChars(n: number): string {
-  if (n >= 10_000) return `${(n / 10_000).toFixed(1)} 万字`;
-  return `${n.toLocaleString("zh-CN")} 字`;
 }
 
 function restoreSnapshot(): void {
@@ -130,7 +126,7 @@ function deleteAllVersions(): void {
               <div class="ver-item-info">
                 <span class="ver-item-summary">{{ snap.summary || "（空）" }}</span>
                 <span class="ver-item-meta">
-                  {{ formatTime(snap.timestamp) }} · {{ formatChars(snap.charCount) }} ·
+                  {{ formatTime(snap.timestamp) }} · {{ formatCharCount(snap.charCount) }} ·
                   {{ snap.contentHash.slice(0, 6) }}
                 </span>
                 <span v-if="idx === 0" class="ver-item-badge">最新</span>
@@ -226,12 +222,12 @@ function deleteAllVersions(): void {
 
 .ver-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 1rem;
   color: var(--text-primary, #e8e8e8);
 }
 
 .ver-doc-name {
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   flex: 1;
 }
@@ -265,11 +261,11 @@ function deleteAllVersions(): void {
 
 .ver-empty p {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.928571rem;
 }
 
 .ver-empty-hint {
-  font-size: 11px !important;
+  font-size: 0.785714rem !important;
   opacity: 0.6;
 }
 
@@ -291,7 +287,7 @@ function deleteAllVersions(): void {
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   position: sticky;
   top: 0;
@@ -300,7 +296,7 @@ function deleteAllVersions(): void {
 }
 
 .link-btn {
-  font-size: 11px;
+  font-size: 0.785714rem;
   background: none;
   border: none;
   color: var(--accent, #6c9eff);
@@ -355,7 +351,7 @@ function deleteAllVersions(): void {
 
 .ver-item-summary {
   display: block;
-  font-size: 12px;
+  font-size: 0.857143rem;
   color: var(--text-primary, #e8e8e8);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -364,14 +360,14 @@ function deleteAllVersions(): void {
 
 .ver-item-meta {
   display: block;
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
   margin-top: 1px;
 }
 
 .ver-item-badge {
   display: inline-block;
-  font-size: 9px;
+  font-size: 0.642857rem;
   padding: 1px 5px;
   border-radius: 6px;
   background: rgba(80, 200, 120, 0.15);
@@ -404,7 +400,7 @@ function deleteAllVersions(): void {
 
 .ver-view-toggle button {
   padding: 3px 10px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   background: transparent;
   border: none;
   border-radius: 3px;
@@ -427,7 +423,7 @@ function deleteAllVersions(): void {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   background: var(--accent, #6c9eff);
   border: none;
   border-radius: 4px;
@@ -448,7 +444,7 @@ function deleteAllVersions(): void {
 
 .ver-preview-content pre {
   margin: 0;
-  font-size: 12px;
+  font-size: 0.857143rem;
   color: var(--text-secondary, #bbb);
   line-height: 1.6;
   white-space: pre-wrap;
@@ -462,7 +458,7 @@ function deleteAllVersions(): void {
   justify-content: center;
   height: 100%;
   color: var(--text-muted, #777);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .ver-diff-view {
@@ -474,7 +470,7 @@ function deleteAllVersions(): void {
 .ver-diff-stats {
   display: flex;
   gap: 12px;
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .ver-diff-added {
@@ -491,6 +487,6 @@ function deleteAllVersions(): void {
 
 .ver-diff-na {
   color: var(--text-muted, #777);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 </style>

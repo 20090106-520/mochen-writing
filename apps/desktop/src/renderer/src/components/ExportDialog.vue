@@ -12,6 +12,7 @@ import {
 import { useBookStore } from "../stores/useBookStore";
 import { useNotificationStore } from "../stores/useNotificationStore";
 import { useModalFocus } from "../composables/useModalFocus";
+import { decideCopy, shouldAssemble } from "../utils/export-clipboard";
 import type { DocRef } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 
@@ -88,7 +89,18 @@ const assembleError = ref("");
 let assembleToken = 0;
 async function refreshPreview(): Promise<void> {
   const token = (assembleToken += 1);
-  const docRelPaths = selectedChapters.value.size > 0 ? [...selectedChapters.value] : [];
+  /*
+   * 空选**根本不去组装**（判定住在 `utils/export-clipboard` 的 `shouldAssemble`）。
+   * 旧写法把「一枚都没勾」传成 `docRelPaths: []`，而服务层那一份口径是「[] = 全部章节」
+   * （`contracts/export.ts` 里那句注释）——两处口径相反的直接后果：
+   * 预览摆出全书内容，导出钮却禁着，用户看不出这两件事凭什么不一致。
+   */
+  if (!shouldAssemble(selectedChapters.value.size)) {
+    previewResult.value = { ...previewResult.value, content: "", bytes: null, byteSize: 0 };
+    assembleError.value = "";
+    return;
+  }
+  const docRelPaths = [...selectedChapters.value];
   try {
     // **两个实参都必须先 toRaw**（2026-10-05 批次 5-② 真机撞出来的）：
     // `docsWithContent` 是 `ref([])`、`meta` 来自 storeToRefs，拿到的都是 Vue 的反应式代理；
@@ -248,17 +260,26 @@ async function saveToFile(): Promise<void> {
 }
 
 async function copyToClipboard(): Promise<void> {
-  // EPUB 是二进制包，没有「文本预览」可复制；复制一个空串只会让用户以为功能坏了。
-  if (format.value === "epub") {
+  /*
+   * 判定住在 `utils/export-clipboard`（那里写着为什么）。
+   * 旧写法只挡了 EPUB 一种，其余一律 `writeText(content)` 然后把按钮切成「已复制」——
+   * 组装失败或空选时 `content` 本来就是空串，于是界面说「已复制」，剪贴板里什么也没有。
+   */
+  const decision = decideCopy({
+    format: format.value,
+    content: previewResult.value.content,
+    assembleError: assembleError.value
+  });
+  if (decision.kind === "blocked") {
     notif.notify({
-      title: "不能复制",
-      message: "EPUB 是打包出来的电子书文件，请点「导出」保存成 .epub。",
-      level: "info"
+      title: decision.title,
+      message: decision.message,
+      level: decision.level
     });
     return;
   }
   try {
-    await navigator.clipboard.writeText(previewResult.value.content);
+    await navigator.clipboard.writeText(decision.text);
     copyDone.value = true;
     setTimeout(() => (copyDone.value = false), 2000);
   } catch {
@@ -368,10 +389,18 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
       </div>
       <!-- 组装失败要看得见：静默留一份空 preview，用户会以为「导出出来是空的」 -->
       <p v-if="assembleError" class="export-assemble-error">{{ assembleError }}</p>
+      <!-- 空选不摆全书预览（口径与下面那颗禁用钮一致了），所以要直说现在为什么是空的 -->
+      <p v-if="selectedChapters.size === 0" class="export-no-selection">
+        没勾选任何篇章——勾上要导出的章节才会有预览。
+      </p>
 
       <!-- 操作按钮 -->
       <footer class="export-actions">
-        <button type="button" @click="copyToClipboard">
+        <button
+          type="button"
+          :disabled="previewResult.content === '' || assembleError !== ''"
+          @click="copyToClipboard"
+        >
           {{ copyDone ? "已复制" : "复制到剪贴板" }}
         </button>
         <button
@@ -420,7 +449,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
 
 .export-header h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 1.071429rem;
   color: var(--text-primary, #e8e8e8);
 }
 
@@ -447,7 +476,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
 
 .export-section-label {
   display: block;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-secondary, #999);
   margin-bottom: 6px;
   font-weight: 500;
@@ -466,7 +495,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
 }
 
 .link-btn {
-  font-size: 11px;
+  font-size: 0.785714rem;
   background: none;
   border: none;
   color: var(--accent, #6c9eff);
@@ -505,12 +534,12 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
 }
 
 .format-name {
-  font-size: 12px;
+  font-size: 0.857143rem;
   color: var(--text-primary, #e8e8e8);
 }
 
 .format-desc {
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
 }
 
@@ -531,7 +560,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
   gap: 8px;
   padding: 4px 6px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   color: var(--text-secondary, #bbb);
   cursor: pointer;
 }
@@ -549,7 +578,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
   align-items: center;
   gap: 8px;
   padding: 3px 0;
-  font-size: 12px;
+  font-size: 0.857143rem;
   color: var(--text-secondary, #bbb);
   cursor: pointer;
 }
@@ -561,7 +590,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
 .export-assemble-error {
   margin: 0;
   padding: 6px 10px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--danger, #d64545);
   background: var(--danger-soft, rgb(214 69 69 / 12%));
   border-radius: 6px;
@@ -571,7 +600,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
   display: flex;
   justify-content: space-between;
   padding: 6px 10px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   border: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
   border-radius: 6px;
@@ -589,12 +618,22 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
   align-items: center;
   gap: 4px;
   padding: 6px 14px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 6px;
   background: transparent;
   color: var(--text-secondary, #999);
   cursor: pointer;
+}
+
+.export-no-selection {
+  margin: 0;
+  padding: 6px 10px;
+  /* 字号用 rem：`:root` 的 font-size 就是 --ui-font-size（styles.css:33），写 px 用户调字号界面不动。 */
+  font-size: 0.785714rem;
+  color: var(--text-secondary, #999);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.04));
+  border-radius: 6px;
 }
 
 .export-actions button:hover:not(:disabled) {

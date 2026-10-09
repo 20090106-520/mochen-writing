@@ -464,7 +464,9 @@ function onChapterDrop(event: DragEvent, targetNode: DocRef): void {
   if (!chapterSection) return;
   const targetIndex = chapterSection.nodes.indexOf(targetNode);
   if (targetIndex === -1) return;
-  book.moveChapterByRelPath(from, targetIndex);
+  // 落盘通路是异步的（走 useBookStore.persistMeta，失败会进 notice）：这里不 await，
+  // 但要把「我知道它是异步、不接 rejection」写在字面上，别留成未处理拒绝。
+  void book.moveChapterByRelPath(from, targetIndex);
 }
 
 function onChapterDragEnd(): void {

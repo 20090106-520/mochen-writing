@@ -1,9 +1,9 @@
 <!-- 右栏：结构、类名与标签/工具栏/页脚 markup 取自 deepwrite的 RightEditorPane.vue -->
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { proseCharCount, splitFrontmatter } from "@mochen/contracts";
-import { markdownToSimpleHtml } from "@mochen/fs-store/export-shared";
+import { escapeHtml, markdownToSimpleHtml } from "@mochen/fs-store/export-shared";
 import AppIcon from "./AppIcon.vue";
 import BookDossier from "./BookDossier.vue";
 import DocumentTabBar from "./DocumentTabBar.vue";
@@ -17,6 +17,7 @@ import SnippetToolbar from "./SnippetToolbar.vue";
 import FindReplacePanel from "./FindReplacePanel.vue";
 import { useSnippetToolbar } from "../composables/useSnippetToolbar";
 import { imeOwnsKey } from "../utils/slash-commands";
+import { useEditUndo } from "../composables/useEditUndo";
 import { useBookStore, type EditorViewMode, type RightPaneMode } from "../stores/useBookStore";
 import { useFindReplaceStore } from "../stores/useFindReplaceStore";
 import { useTimelineStore } from "../stores/useTimelineStore";
@@ -173,8 +174,26 @@ const editorEl = ref<HTMLTextAreaElement | null>(null);
 const previewPaneEl = ref<HTMLDivElement | null>(null);
 /** 查找高亮镜像层：被 textarea 压在底下，渲染同文本文 + <mark> 高亮。 */
 const highlightMirrorEl = ref<HTMLDivElement | null>(null);
-/** 「读真实选区 → 纯函数 → book.onEdit → 回设光标」这段有行为的接线住 composables/，才谈得上被单测钉住。 */
-const { snippetToolbar, applyToSelection } = useSnippetToolbar(editorEl);
+
+/**
+ * 「替换 / 全部替换」的退路（2026-10-09 扫描总单·不存在表：批量替换后 Ctrl+Z 救不回）。
+ * 判定住 `utils/edit-undo`（19 条），行为住 `composables/useEditUndo`（17 条：真 store + 替身 textarea）；
+ * 这里只剩挂线：提示给面板、键交正文、手打的字报给 invalidate。下面 useSnippetToolbar 共用这一个栈。
+ */
+const {
+  undoNoticeText,
+  replaceWithUndo,
+  commitWithUndo,
+  undoLastEdit,
+  invalidate: invalidateUndo,
+  onEditorKeydown
+} = useEditUndo(editorEl);
+
+// 片段插入（加粗那种）与批量替换是同一种病：整篇赋值会清空 textarea 的原生撤销栈。
+// 所以它不自己写草稿，而是把新文本与新光标交给同一份撤销栈——点错一下也退得回来。
+const { snippetToolbar, applyToSelection } = useSnippetToolbar(editorEl, (nextText, caret) =>
+  commitWithUndo(nextText, "snippet", 1, caret)
+);
 
 /**
  * 行距档 + 正文字号档 + 拼写检查（设置页「写作」）：设置中心与工作区是互斥挂载的两个视图，
@@ -238,20 +257,18 @@ const tabs = computed(() =>
 const previewHtml = computed(() => markdownToSimpleHtml(book.draft));
 
 /**
- * 用 escape 后的文本来回显 textarea：找/替换 高亮必须在同一段文本上算——
- * highlightPositions 在 store 里，它返回的位置直接在 book.draft（= textarea 的 :value）上标。
- * 所以只要模式是 manuscript、面板可见、查询非空，就可以渲染高亮层。
- */
-
-/** 把一段纯文本 HTML-escape 后塞进 mirror，保留换行。 */
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-/**
  * 按位置把文本切成「普通 / 匹配 / 当前匹配」三段交替的节点序列：
  * 整个算法只在字符串上切，零 DOM、零副作用，单测友好。
  * 位置由 store + watch 统一维护，这里只读——computed 纯函数。
+ *
+ * 为什么要把 escape 后的文本回显在 textarea 背后：找/替换的高亮必须和 textarea 用同一段文本算——
+ * `highlightPositions` 在 store 里，它返回的位置直接在 book.draft（= textarea 的 :value）上标。
+ * 所以只要模式是 manuscript、面板可见、查询非空，就可以渲染这一层高亮。
+ *
+ * 转义用的是 `@mochen/fs-store/export-shared` 那一份（它同时转 `& < > " '`）。
+ * 这里原先自己抄了一份只转 `& < >` 的——少转引号在 mirror 这个位置（纯文本节点）不出事，
+ * 但两份并存会让下一个人照抄渲染层那份、把文本往带引号的属性里塞，那就是一条真 XSS。
+ * 普查与回归线：`utils/html-escape-single.test.ts`。
  */
 const highlightMirrorHtml = computed(() => {
   if (!findVisible.value || mode.value !== "manuscript" || findQuery.value === "") return "";
@@ -321,7 +338,7 @@ const activeTabId = computed(() =>
 function closeActiveTab(): void {
   const id = activeTabId.value;
   if (!id) return;
-  if (mode.value === "manuscript") book.closeTab(id);
+  if (mode.value === "manuscript") void book.closeTab(id);
   else book.closeBrowse(id);
 }
 
@@ -335,6 +352,9 @@ function selectTab(id: string): void {
 
 function onContentInput(event: Event): void {
   const target = event.target as HTMLTextAreaElement;
+  // 红线②：用户自己打了一个字，原生撤销栈从这一刻重新当家，替换那几份快照当场作废
+  // （整栈再留着，下一次 Ctrl+Z 就会把他刚写的内容连同一篇旧文本一起盖回去）。
+  invalidateUndo();
   book.onEdit(target.value);
 }
 
@@ -342,30 +362,6 @@ function onContentInput(event: Event): void {
 function onEditorScroll(): void {
   syncMirrorScroll();
   syncPreviewScroll();
-}
-
-/**
- * 替换面板「替换/全部替换」落下来的新文本：
- * ① 先读 textarea 真实选区——replaceCurrent/replaceAll 不碰 DOM，
- *    这里单独做、与被替换选区对齐；
- * ② book.onEdit 写盘；
- * ③ nextTick 把光标拿回来。
- */
-function applyReplace(nextText: string): void {
-  const el = editorEl.value;
-  if (!el) return;
-  const selStart = el.selectionStart;
-  const selEnd = el.selectionEnd;
-  book.onEdit(nextText);
-  void nextTick(() => {
-    const restored = el;
-    if (!restored) return;
-    restored.focus();
-    restored.setSelectionRange(
-      Math.min(selStart, nextText.length),
-      Math.min(selEnd, nextText.length)
-    );
-  });
 }
 
 /**
@@ -626,11 +622,13 @@ function switchMode(next: RightPaneMode): void {
       <SnippetToolbar :state="snippetToolbar" @pick="applyToSelection" />
     </div>
 
-    <!-- 文档内查找替换（Ctrl+F）。 -->
+    <!-- 文档内查找替换（Ctrl+F）。替换与全部替换都带处数进快照（提示要说"已替换 N 处"）。 -->
     <FindReplacePanel
       v-if="findVisible && mode === 'manuscript'"
-      @replace="applyReplace($event)"
-      @replace-all="applyReplace($event)"
+      :undo-notice="undoNoticeText"
+      @replace="(text, count) => replaceWithUndo(text, 'replace', count)"
+      @replace-all="(text, count) => replaceWithUndo(text, 'replace-all', count)"
+      @undo="undoLastEdit()"
     />
 
     <!-- 文稿区视图态切换（编辑 / 分栏 / 预览） -->
@@ -719,7 +717,8 @@ function switchMode(next: RightPaneMode): void {
         </div>
         <div v-else class="editor-textarea-wrap">
           <!-- eslint-disable vue/no-v-html -- 高亮 mirror：与 textarea 同尺寸、同字体/同 padding，behind textarea 渲染文字 + <mark> 高亮。
-               放行理由：highlightMirrorHtml 的每一段正文都过了 escapeHtml（见上方 escapeHtml），输出的 <mark> 是我们自己拼的常量标签。 -->
+               放行理由：highlightMirrorHtml 的每一段正文都过了 escapeHtml（那份真身在 @mochen/fs-store/export-shared，
+               全仓普查由 utils/html-escape-single.test.ts 钉着），输出的 <mark> 是我们自己拼的常量标签。 -->
           <div
             ref="highlightMirrorEl"
             class="find-replace-mirror"
@@ -736,6 +735,7 @@ function switchMode(next: RightPaneMode): void {
             :spellcheck="editorSpellcheck"
             aria-label="文本内容编辑器"
             @input="onContentInput"
+            @keydown="onEditorKeydown"
             @scroll="onEditorScroll"
           />
         </div>

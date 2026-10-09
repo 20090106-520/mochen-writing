@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { DocWriteResult } from "@mochen/contracts";
 import { makeFingerprint } from "./fingerprint.js";
+import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "./atomic-write.js";
 import { assertSafeRelPath } from "./paths.js";
 import { resolveRetention } from "./retention-defaults.js";
 import { listChanges, pruneChanges } from "./changes.js";
@@ -36,7 +37,12 @@ export async function writeDocFile(
    * 坏值由 `resolveRetention` 退回默认档——返回 0 会让淘汰判定「全删光」，
    * 那等于把用户的历史一次清空，比配置坏掉严重得多。
    */
-  retention?: { maxCount?: unknown; maxBytes?: unknown } | null
+  retention?: { maxCount?: unknown; maxBytes?: unknown } | null,
+  /**
+   * 原子写的 fs 缝（2026-10-09 全仓扫描 P0-1）。默认走真文件系统，测试注入「只坏一步」的实现
+   * 来证明失败时盘上仍是完整旧稿——见 `atomic-write.ts` 与 `test/atomic-write-fixture.ts`。
+   */
+  fs: AtomicWriteFs = defaultAtomicFs
 ): Promise<DocWriteResult> {
   let safe: string;
   try {
@@ -77,8 +83,37 @@ export async function writeDocFile(
     const stamp = new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-");
     backupRelPath = `.mochen/changes/${stamp}/${safe}.bak`;
     const backupTarget = path.join(root, ...backupRelPath.split("/"));
-    await mkdir(path.dirname(backupTarget), { recursive: true });
-    await writeFile(backupTarget, current, "utf8");
+    // 备份也必须原子写：半途而废的 .bak 比没有 .bak 更坏——回滚时会拿半截覆盖完好正文（P2-1）。
+    try {
+      await writeFileAtomic(backupTarget, current, fs);
+    } catch (error) {
+      return {
+        ok: false,
+        reason: "io-error",
+        message:
+          `存备份失败（${error instanceof Error ? error.message : String(error)}），` +
+          "正文一个字都没动，这次保存没有落盘。"
+      };
+    }
+  }
+
+  // 顺序是「备份 → 写正文 → 淘汰」：正文没写成就不该按篇收口，否则淘汰掉的是唯一那份旧备份。
+  try {
+    await writeFileAtomic(target, content, fs);
+  } catch (error) {
+    // 原子写失败 ⇒ 盘上要么还是旧稿、要么还是那份刚存好的备份，**不存在半截正文**。
+    // 这里如实报 io-error 而不是把错抛出去：调用方（主进程 book-service、渲染层保存路径）拿到的
+    // 仍是统一的 DocWriteResult，界面上才摆得出那句理由。
+    return {
+      ok: false,
+      reason: "io-error",
+      message:
+        `写 ${safe} 失败（${error instanceof Error ? error.message : String(error)}），` +
+        "旧稿保持原样，没有写成半截。"
+    };
+  }
+
+  if (backupRelPath !== null) {
     // 留完这一份就按篇收口（2026-10-06）：默认 2 秒自动保存档下，每一次停手都存一份整篇，
     // 而这块地方原本**没有任何淘汰**——一天 200 次就是 54 MB。判定在 changes.planChangePruning，
     // 与 `restoreChange` 那条路共用同一份，不在这里另写一套条数。
@@ -90,7 +125,5 @@ export async function writeDocFile(
     }
   }
 
-  await mkdir(path.dirname(target), { recursive: true });
-  await writeFile(target, content, "utf8");
   return { ok: true, fingerprint: makeFingerprint(content), backupRelPath };
 }

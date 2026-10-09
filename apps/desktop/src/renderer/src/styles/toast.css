@@ -84,13 +84,13 @@
 }
 
 .toast-title {
-  font-size: 12px;
+  font-size: 0.857143rem;
   color: var(--text-primary, #e8e8e8);
   font-weight: 500;
 }
 
 .toast-msg {
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-secondary, #999);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -98,7 +98,7 @@
 }
 
 .toast-time {
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
   flex-shrink: 0;
 }

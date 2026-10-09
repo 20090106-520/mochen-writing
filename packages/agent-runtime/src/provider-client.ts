@@ -1,7 +1,7 @@
 import { sseDataFrames } from "./sse.js";
 import { toWireMessages, type AssistantToolCall, type ChatMessage } from "./chat-message.js";
 import { thinkingBodyField, wireToolsFor } from "./per-run-fields.js";
-import type { AuthHeader, ThinkingLevel } from "@mochen/contracts";
+import type { AuthHeader, ThinkingLevel, ThinkingWire } from "@mochen/contracts";
 
 export interface ChatToolSpec {
   name: string;
@@ -40,6 +40,8 @@ export interface StreamRequest {
    * 真正要改的是「这个请求归哪条连接」这件事，见 `ProviderSettings.config()`。
    */
   authHeader?: AuthHeader;
+  /** 最高档思考在线上叫什么（`xhigh` 那类端点）。与 provider 同源，循环只负责往下传。 */
+  thinkingWire?: ThinkingWire;
   model: string;
   messages: ChatMessage[];
   tools: ChatToolSpec[];
@@ -155,7 +157,7 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
   const payload: Record<string, unknown> = {
     model: req.model,
     messages: toWireMessages(req.messages),
-    ...thinkingBodyField(req.thinkingLevel)
+    ...thinkingBodyField(req.thinkingLevel, req.thinkingWire)
   };
   // 联网开关只决定 `web_search` 这枚 function 工具有没有出站（映射在 wireToolsFor 一处）。
   // 出站形状只许一种：`{ type: "function", function: { name, description, parameters } }`。

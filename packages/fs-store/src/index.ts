@@ -1,4 +1,7 @@
 export * from "./paths.js";
+export * from "./atomic-write.js";
+export * from "./book-meta.js";
+export * from "./book-data.js";
 export * from "./fingerprint.js";
 export * from "./frontmatter.js";
 export * from "./scan.js";

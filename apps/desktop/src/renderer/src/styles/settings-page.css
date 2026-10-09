@@ -556,7 +556,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 
 .provider-field-note {
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: 0.785714rem;
   line-height: 1.5;
 }
 
@@ -598,14 +598,14 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 }
 
 .provider-connection-text strong {
-  font-size: 13px;
+  font-size: 0.928571rem;
   font-weight: 600;
 }
 
 /* 地址常显，且允许换行也不撑破卡片：长 URL 带 query 时最容易顶宽布局。 */
 .provider-connection-url {
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: 0.785714rem;
   font-family: var(--code-font);
   overflow-wrap: anywhere;
 }
@@ -616,13 +616,13 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   border-radius: 999px;
   background: var(--hover);
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 0.714286rem;
   line-height: 1.6;
 }
 
 .provider-connection-key {
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: 0.785714rem;
   font-family: var(--code-font);
 }
 
@@ -640,7 +640,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 
 .provider-check-button {
   padding: 6px 10px;
-  font-size: 11px;
+  font-size: 0.785714rem;
 }
 
 /* 连接卡片里的模型列表是内嵌的，不是并列卡片：缩一点间距、去掉浮起感。 */
@@ -660,7 +660,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   margin: 0;
   padding: 7px 10px;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   line-height: 1.55;
   background: var(--hover);
   color: var(--text-secondary);
@@ -685,7 +685,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 .provider-key-link {
   align-self: flex-start;
   padding: 6px 10px;
-  font-size: 11px;
+  font-size: 0.785714rem;
 }
 
 /* 行内文字链：填 Ollama 那颗，别做成按钮，不然一行小字里杵一个灰盒子。 */
@@ -730,7 +730,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   background: none;
   color: var(--text-secondary);
   font: inherit;
-  font-size: 12px;
+  font-size: 0.857143rem;
   cursor: pointer;
 }
 
@@ -753,7 +753,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   border-radius: 999px;
   background: var(--hover);
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: 0.785714rem;
   line-height: 1.6;
 }
 
@@ -764,7 +764,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   background: none;
   color: var(--text-tertiary);
   font: inherit;
-  font-size: 11px;
+  font-size: 0.785714rem;
   cursor: pointer;
 }
 
@@ -788,7 +788,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--editor);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 /* 列表自己滚，不撑高对话框——几百个模型的 hub 才不会把整页顶出滚动条。 */
@@ -831,7 +831,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   padding: 3px 0;
   background: var(--surface-raised);
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: 0.785714rem;
 }
 
 /* 模型名当按钮：点一下就选中，不必先聚焦输入框再从下拉里挑。 */
@@ -842,7 +842,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   background: none;
   color: var(--text-secondary);
   font-family: var(--code-font);
-  font-size: 12px;
+  font-size: 0.857143rem;
   text-align: left;
   cursor: pointer;
 }
@@ -861,7 +861,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 .model-picker-hint {
   margin: 0;
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: 0.785714rem;
   line-height: 1.5;
 }
 

@@ -266,7 +266,7 @@ function cloneTemplate(id: string, name: string): void {
 
 .tpl-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 1rem;
   color: var(--text-primary, #e8e8e8);
 }
 
@@ -309,7 +309,7 @@ function cloneTemplate(id: string, name: string): void {
   border: none;
   outline: none;
   color: var(--text-primary, #e8e8e8);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .tpl-categories {
@@ -321,7 +321,7 @@ function cloneTemplate(id: string, name: string): void {
 
 .tpl-cat-btn {
   padding: 4px 10px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   border-radius: 12px;
@@ -349,7 +349,7 @@ function cloneTemplate(id: string, name: string): void {
 .tpl-create-input,
 .tpl-create-select {
   padding: 6px 8px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
@@ -359,7 +359,7 @@ function cloneTemplate(id: string, name: string): void {
 
 .tpl-create-textarea {
   padding: 6px 8px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
@@ -378,7 +378,7 @@ function cloneTemplate(id: string, name: string): void {
 
 .tpl-create-actions button {
   padding: 4px 10px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
   background: transparent;
@@ -401,7 +401,7 @@ function cloneTemplate(id: string, name: string): void {
 .tpl-empty {
   padding: 24px 16px;
   text-align: center;
-  font-size: 12px;
+  font-size: 0.857143rem;
   color: var(--text-muted, #777);
 }
 
@@ -430,14 +430,14 @@ function cloneTemplate(id: string, name: string): void {
 }
 
 .tpl-card-name {
-  font-size: 12.5px;
+  font-size: 0.892857rem;
   color: var(--text-primary, #e8e8e8);
   font-weight: 500;
 }
 
 .tpl-card-count,
 .tpl-badge {
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
   padding: 1px 6px;
   border-radius: 8px;
@@ -451,13 +451,13 @@ function cloneTemplate(id: string, name: string): void {
 
 .tpl-card-desc {
   margin: 0 0 4px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--accent, #6c9eff);
 }
 
 .tpl-card-preview {
   margin: 0 0 6px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   line-height: 1.4;
   font-family: ui-monospace, "SF Mono", monospace;
@@ -471,7 +471,7 @@ function cloneTemplate(id: string, name: string): void {
 
 .tpl-card-actions button {
   padding: 3px 10px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
   background: transparent;

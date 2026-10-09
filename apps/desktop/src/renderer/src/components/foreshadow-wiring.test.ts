@@ -27,6 +27,8 @@ const panelTpl = templateSource("components/ForeshadowPanel.vue");
 const sideScript = scriptSource("components/LeftSidebar.vue");
 // store 是散装 .ts：读它得用 typeScriptSource（scriptSource 只认 .vue 的 <script setup>）。
 const store = typeScriptSource("stores/useBookStore.ts");
+// 读原文那段的家（2026-10-09 从 store 搬进 utils），契约跟着搬：判定在哪就钉哪。
+const foreshadowUtil = typeScriptSource("utils/foreshadow.ts");
 const css = styleSource("foreshadow.css");
 
 describe("文稿体系认了这一类", () => {
@@ -74,14 +76,17 @@ describe("两个入口，一份台账", () => {
 });
 
 describe("读盘走 store", () => {
-  it("loadForeshadows 在 store 里，只筛 foreshadow 一类", () => {
+  it("loadForeshadows 在 store 里，读原文与筛选走 utils/foreshadow 那一份真身", () => {
     expect(store).toContain("async loadForeshadows(): Promise<void> {");
-    expect(store).toContain('this.docs.filter((d) => d.kind === "foreshadow")');
+    // 2026-10-09：并发读原文那段从 store 搬进了 utils（与行组装同一处，也腾出 store 的行数预算），
+    // 契约不变——store 必须**真的调用**它，不然「读盘走 store」就退化成「谁都没读」。
+    expect(store).toContain("readForeshadowRaws(this.docs");
     expect(store).toContain("foreshadowRows(this.docs, raws)");
+    expect(foreshadowUtil).toContain('d.kind === "foreshadow"');
   });
 
   it("用 allSettled 逐篇读：一篇读失败不许把整张表拖垮", () => {
-    expect(store).toContain("Promise.allSettled(");
+    expect(foreshadowUtil).toContain("Promise.allSettled(");
   });
 
   it("面板不自己摸 window.mochen", () => {

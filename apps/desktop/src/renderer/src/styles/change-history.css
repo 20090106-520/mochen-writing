@@ -15,7 +15,7 @@
   border: 1px solid var(--line, #dedfdf);
   border-radius: 10px;
   box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
-  font-size: 13px;
+  font-size: 0.928571rem;
   line-height: 1.6;
 }
 
@@ -36,7 +36,7 @@
   border-radius: 999px;
   background: var(--surface-dim, #f0f1f4);
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -44,7 +44,7 @@
 .change-history-caveat {
   margin: 0;
   color: var(--text-dim, #6b6f76);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .change-history-caveat {
@@ -100,7 +100,7 @@
   margin: 0;
   padding: 4px 2px 0;
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
   line-height: 1.5;
 }
 
@@ -118,7 +118,7 @@
 .change-history-when {
   flex: none;
   color: var(--text-dim, #6b6f76);
-  font-size: 12px;
+  font-size: 0.857143rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -144,7 +144,7 @@
   background: var(--surface-dim, #f6f7f9);
   border-radius: 7px;
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 12px;
+  font-size: 0.857143rem;
   line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

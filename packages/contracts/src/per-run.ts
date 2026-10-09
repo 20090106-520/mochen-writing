@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { THINKING_WIRE_TOP_VALUE, type ThinkingWire } from "./provider.js";
 
 /**
  * 每轮请求的两个开关（task #101）：深度思考档位与联网搜索。
@@ -48,6 +49,22 @@ export const THINKING_LEVEL_LABELS: Record<ThinkingLevel, string> = {
  */
 export const THINKING_WIRE_FIELD = "reasoning_effort";
 export const WEB_SEARCH_TOOL_NAME = "web_search";
+
+/**
+ * 这一档**实际上线发的那个字**（2026-10-09 批次 5-㊻）。
+ *
+ * 为什么要一份：输入卡那枚 chip 的提示按本仓铁律必须报出「这一档实际发出去的键值」，
+ * 而真正拼字节的是 `per-run-fields`（agent-runtime）——渲染层不许 import 它。
+ * 两边各写一遍就是同一件事两份实现，将来改一边就留下一句说谎的提示。
+ * 所以判据下沉到这里，**出站与提示读同一份**。
+ *
+ * `off` 返回空串而不是 "off"：关档靠的是**不发字段**（`thinkingBodyField` 里那一支），
+ * 提示里也照实说「不发」。
+ */
+export function thinkingWireValueOf(level: ThinkingLevel, wire: ThinkingWire): string {
+  if (level === "off") return "";
+  return level === "high" ? THINKING_WIRE_TOP_VALUE[wire] : level;
+}
 
 /**
  * 下一档：chip 每点一次走一格，走到 high 再点回到 off。

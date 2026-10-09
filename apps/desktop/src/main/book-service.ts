@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import {
@@ -8,6 +8,8 @@ import {
   sanitizeDocFileName,
   type BookCreateInput,
   type BookCreateResult,
+  type BookDataReadResult,
+  type BookDataWriteResult,
   type BookMeta,
   type BookOpenResult,
   type DocContent,
@@ -18,10 +20,15 @@ import {
 import {
   createBookSkeleton,
   createDocFile,
+  isBookDataKey,
+  readBookData,
   readDocFile,
   scanBook,
   sortChapters,
-  writeDocFile
+  writeBookData,
+  writeBookMetaFile,
+  writeDocFile,
+  type AtomicWriteFs
 } from "@mochen/fs-store";
 
 export interface BookSnapshot {
@@ -39,6 +46,15 @@ export interface BookService {
   writeDoc(relPath: string, content: string, expectedFingerprint: string): Promise<DocWriteResult>;
   /** 按规划好的书内路径建一篇空文档；relPath 由渲染层用 contracts 的 planDocRelPath 生成，这里兜底再验一遍。 */
   createDoc(relPath: string, title: string): Promise<DocCreateResult>;
+  /**
+   * 读这本书里的设定数据（2026-10-09 扫描总单 P0-7）。
+   *
+   * 入参写成 `unknown` 是刻意的：这条通路跨进程而来，键与 JSON 文本都不能假定合法，
+   * 主进程自己按白名单认。没开书时回 `no-book` 而不是 `json:null`——见 contracts 里那四档的分工。
+   */
+  readData(key: unknown): Promise<BookDataReadResult>;
+  /** 写某一枚键；失败带原因回来，由渲染层显示。这里绝不 `catch {}`（P0-2 那条病）。 */
+  writeData(key: unknown, json: unknown): Promise<BookDataWriteResult>;
   /** 运行期现取；未打开目录返回 null。permissionMode 会被人随时改，所以每次现取而不是缓存值。 */
   current(): BookSnapshot | null;
   close(): Promise<void>;
@@ -60,6 +76,10 @@ export function registerBookIpc(
   ipcMain.handle(IPC_CHANNELS.docCreate, (_event, relPath, title) =>
     service.createDoc(relPath as string, title as string)
   );
+  // 设定数据这两条**不把参数 cast 成 string 再交给 service**：键与文本都要由 service 按 unknown
+  // 判一遍（白名单、有没有开书）。在这里 `as BookDataKey` 等于把判定推到调用方，白名单就白了。
+  ipcMain.handle(IPC_CHANNELS.bookDataRead, (_event, key) => service.readData(key));
+  ipcMain.handle(IPC_CHANNELS.bookDataWrite, (_event, key, json) => service.writeData(key, json));
 }
 
 /**
@@ -73,6 +93,14 @@ export function registerBookIpc(
 export interface BookServiceDeps {
   /** 现取当前保留上限（每次写盘都读一次，不缓存：设置页可能刚改过）。 */
   retention(): { maxCount: number; maxBytes: number };
+  /**
+   * 写盘用的那份 fs（2026-10-09 全仓扫描 P0-1）。
+   *
+   * 不传就是产品默认那份（真文件系统 + 原子写）。做成可注入的唯一理由是：本体要防的失败
+   * 是「某一次系统调用抛错」，真文件系统上复现不了，只能在测试里注入「只坏一步」的实现，
+   * 然后断言**盘上到底剩了什么**。产品装配点不传它——所以传不传下去本身就是一条可测的接线。
+   */
+  fs?: AtomicWriteFs;
 }
 
 export function createBookService(deps: BookServiceDeps): BookService {
@@ -111,17 +139,17 @@ export function createBookService(deps: BookServiceDeps): BookService {
         permissionMode: DEFAULT_PERMISSION_MODE,
         chapterOrder: []
       });
-      const skeleton = await createBookSkeleton(directory, meta);
+      const skeleton = await createBookSkeleton(directory, meta, deps.fs);
       if (!skeleton.ok) return { ok: false, message: skeleton.message };
       return { ok: true, book: await this.open(directory) };
     },
 
     async saveMeta(meta: BookMeta) {
       if (snapshot === null) throw new Error("尚未打开作品目录，无法保存 book.json");
-      const parsed = parseBookMeta(meta);
-      const body = `${JSON.stringify(parsed, null, 2)}\n`;
-      await writeFile(path.join(snapshot.root, "book.json"), body, "utf8");
-      // 权限档与阶段就住在 meta 里：不刷新快照，审批时查到的就是旧档位
+      // 原子写（P0-1）：book.json 是这本书的门牌，半截 JSON 会让「正文一篇没丢」变成「书打不开」。
+      // 形状与写法都住在 fs-store 的 `book-meta` 那一处，主进程不再自己 stringify（铁律 6）。
+      // 只有写成功才刷新快照：否则界面上显示的是新书名/新权限档，盘上还是旧的，两处从此分家。
+      const parsed = await writeBookMetaFile(snapshot.root, meta, deps.fs);
       snapshot = { ...snapshot, meta: parsed };
     },
 
@@ -140,7 +168,7 @@ export function createBookService(deps: BookServiceDeps): BookService {
       } catch {
         // 装配没给好不等于保存失败：正文必须照写，淘汰退回默认档。
       }
-      return writeDocFile(snapshot.root, relPath, content, expectedFingerprint, retention);
+      return writeDocFile(snapshot.root, relPath, content, expectedFingerprint, retention, deps.fs);
     },
 
     async createDoc(relPath, title) {
@@ -149,7 +177,7 @@ export function createBookService(deps: BookServiceDeps): BookService {
       const cleanTitle = sanitizeDocFileName(title);
       if (cleanTitle === null)
         return { ok: false, reason: "invalid-path", message: "标题起不了文件名，换一个名字。" };
-      const result = await createDocFile(snapshot.root, relPath, cleanTitle);
+      const result = await createDocFile(snapshot.root, relPath, cleanTitle, deps.fs);
       if (!result.ok) return result;
       // 盘上多了新文件：重扫一次让 docs 与磁盘对齐（excerpt/chars 一并补齐），再回报指纹。
       snapshot = {
@@ -161,6 +189,39 @@ export function createBookService(deps: BookServiceDeps): BookService {
 
     current() {
       return snapshot;
+    },
+
+    async readData(key: unknown) {
+      if (!isBookDataKey(key)) {
+        return {
+          ok: false,
+          reason: "invalid-key",
+          message: `不在设定数据白名单里：${String(key)}`
+        };
+      }
+      if (snapshot === null) {
+        // 刻意不说「没有」：渲染层把 no-book 读成空库，就会把上一本书的内容当成这一本的迁进来。
+        return { ok: false, reason: "no-book", message: "还没打开作品目录，读不到这本书的设定。" };
+      }
+      return readBookData(snapshot.root, key);
+    },
+
+    async writeData(key: unknown, json: unknown) {
+      if (!isBookDataKey(key)) {
+        return {
+          ok: false,
+          reason: "invalid-key",
+          message: `不在设定数据白名单里：${String(key)}`
+        };
+      }
+      if (typeof json !== "string") {
+        return { ok: false, reason: "not-json", message: "要写的不是一段文本。" };
+      }
+      if (snapshot === null) {
+        return { ok: false, reason: "no-book", message: "还没打开作品目录，设定没地方落。" };
+      }
+      // deps.fs 一路传到设定写盘：产品装配点注入的那份 fs 与正文写盘是同一份（铁律 6）。
+      return writeBookData(snapshot.root, key, json, deps.fs);
     },
 
     async close() {

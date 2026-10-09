@@ -46,7 +46,7 @@ import {
 import { makeFingerprint, readDocFile } from "@mochen/fs-store";
 import type { BookService, BookSnapshot } from "./book-service.js";
 import type { ProviderSettings } from "./provider-settings.js";
-import { createBookScope } from "./book-scope.js";
+import { createBookScope, scopedApprovalKey } from "./book-scope.js";
 import { readForApproval } from "./approval-read.js";
 import { createDocToolHost } from "./doc-tools-host.js";
 import { webSearch } from "./web-search.js";
@@ -115,6 +115,11 @@ interface PendingProposal {
   baseline: string;
 }
 
+/**
+ * `accept-prefix`（同文档同类改动不再问）的**本地判别式**：文档::工具。
+ * 这一串只是「键的一半」——不含书身份，单独拿去比会跨书撞名（两本书同名文稿的同一工具一模一样）。
+ * 真正的存储/命中键一律再过 `scopedApprovalKey(书根, ...)` 这一道（单一真身住在 book-scope.ts）。
+ */
 function ruleKey(proposal: EditProposal): string {
   return `${proposal.docRelPath}::${proposal.tool}`;
 }
@@ -124,8 +129,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
   const diffs = new Map<string, string>();
   const threads = new Map<string, string>();
   const controllers = new Map<string, AbortController>();
-  // §6 的 a / p 两态：a 键在会话线程，p 键在「文档::工具」。
-  // Plan 3 引入 AgentProfile 后把 autoSession 的键换成 profileId（spec §5.1 约束 1）。
+  // §6 的 a / p 两态：a 键在会话线程，p 键在「文档::工具」——两者都只存**并入书根之后**的键
+  // （`scopedApprovalKey`，单一真身在 book-scope.ts），所以 A 书的授权不会命中 B 书的撞名文稿。
+  // Plan 3 引入 AgentProfile 后把 autoSession 的本地那一半换成 profileId（spec §5.1 约束 1）。
   const autoSession = new Set<string>();
   const autoDocTool = new Set<string>();
   // 同一个 jsonl 上的并发 append 会交错成坏行，所以落盘严格串行。
@@ -140,15 +146,24 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
   }
 
   /**
-   * 按书存放的那部分状态——只清这三张（会话路径 + 提案 + 差异）。
-   * 自动批准偏好（`autoSession`/`autoDocTool`）不在此列，理由见 book-scope.ts。
+   * 当前书身份（书根目录）的**唯一取法**：没开书返回 null。
+   * 书作用域闸门和自动批准的判据键都从这里拿，别处不再各写一份 `deps.book.current()?.root`。
+   */
+  const currentRoot = () => deps.book.current()?.root ?? null;
+
+  /**
+   * 按书存放的那部分状态——换书/关书即清。
+   * 自动批准的两张表（`autoSession`/`autoDocTool`）**也在其列**：P0-4 就是它们原先不清、
+   * 键里又不含书根，才让 A 书点过一次免审后 B 书撞名文稿不问自落。
    */
   function clearBookScoped(): void {
     threads.clear();
     pending.clear();
     diffs.clear();
+    autoSession.clear();
+    autoDocTool.clear();
   }
-  const bookScope = createBookScope(() => deps.book.current()?.root ?? null, clearBookScoped);
+  const bookScope = createBookScope(currentRoot, clearBookScoped);
 
   /**
    * 读出这一轮要装配进上下文的那些正文（spec §5）。
@@ -336,8 +351,13 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         proposal.docRelPath
       )
     );
-    const bySession = autoSession.has(threadKey);
-    if (!bySession && !autoDocTool.has(ruleKey(proposal))) return;
+    // 命中判据必须带书身份：两本书的同名文稿 threadKey / ruleKey 会撞（P0-4）。
+    // `scopedApprovalKey` 拿不到书根时返回 null ⇒ 这里一律判为「不命中」，保守回落到人工确认，禁止放行。
+    const root = currentRoot();
+    const sessionKey = scopedApprovalKey(root, threadKey);
+    const docToolKey = scopedApprovalKey(root, ruleKey(proposal));
+    const bySession = sessionKey !== null && autoSession.has(sessionKey);
+    if (!bySession && !(docToolKey !== null && autoDocTool.has(docToolKey))) return;
     const decision: ProposalDecision = bySession ? "accept-session" : "accept-prefix";
     autos = autos.then(() => applyDecision(proposal.id, decision, "", true));
   }
@@ -478,8 +498,15 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     }
 
     pending.delete(proposalId);
-    if (decision === "accept-session") autoSession.add(threadKey);
-    if (decision === "accept-prefix") autoDocTool.add(ruleKey(proposal));
+    // 记规则时同样并入书根：这一支的 `current` 必非 null（上面已挡 no-book），键也就必非 null。
+    if (decision === "accept-session") {
+      const key = scopedApprovalKey(current.root, threadKey);
+      if (key !== null) autoSession.add(key);
+    }
+    if (decision === "accept-prefix") {
+      const key = scopedApprovalKey(current.root, ruleKey(proposal));
+      if (key !== null) autoDocTool.add(key);
+    }
     publish(threadKey, decideEvent());
     publish(
       threadKey,
@@ -735,7 +762,8 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
       for (const controller of controllers.values()) controller.abort();
       controllers.clear();
       bookScope.reset();
-      // 自动批准偏好不是按书状态：只在退出时清，但退出时仍要清干净。
+      // reset 已经通过 clearBookScoped 清掉自动批准的两张表；这里再点名清一次是退出兜底，
+      // 万一将来 reset 的清空范围被改动，也不会把免审授权留到下一次启动。
       autoSession.clear();
       autoDocTool.clear();
     }

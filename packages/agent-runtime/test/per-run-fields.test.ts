@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { THINKING_WIRE_FIELD } from "@mochen/contracts";
 import { thinkingBodyField, wireToolsFor } from "../src/per-run-fields.js";
 import { streamChat, type ProviderFetchResult } from "../src/provider-client.js";
 import { chatMessage } from "../src/chat-message.js";
@@ -83,6 +84,53 @@ describe("thinkingBodyField", () => {
   it("任何一档的输出里都不含字符串 off", () => {
     for (const level of ["off", "low", "medium", "high"] as const)
       expect(JSON.stringify(thinkingBodyField(level))).not.toContain("off");
+  });
+});
+
+/**
+ * 思考档的**线格式映射**（2026-10-09 批次 5-㊻）。
+ *
+ * 真机回执（Agnes AI Hub）：`Unexpected reasoning effort high. Supported types are
+ * xhigh (default), medium, and low.` —— 它照收 low/medium，唯独最高那一档叫 xhigh。
+ * 我们发 `high` 上去**整笔请求 400**，症状是「地址与密钥全对，但一个字都发不出去」，
+ * 与当初 MiMo 只认 `api-key` 头是同一族死法。
+ */
+describe("thinkingBodyField · 连接级线格式（批次 5-㊻）", () => {
+  it("standard：原样发 high（OpenAI 兼容的通用值）", () => {
+    expect(thinkingBodyField("high", "standard")).toEqual({ reasoning_effort: "high" });
+  });
+
+  it("xhigh：最高那一档换成 xhigh", () => {
+    expect(thinkingBodyField("high", "xhigh")).toEqual({ reasoning_effort: "xhigh" });
+  });
+
+  it("**只有最高档变**：low / medium 两档两家一致，一律原样", () => {
+    for (const level of ["low", "medium"] as const) {
+      expect(thinkingBodyField(level, "standard")).toEqual({ [THINKING_WIRE_FIELD]: level });
+      expect(thinkingBodyField(level, "xhigh")).toEqual({ [THINKING_WIRE_FIELD]: level });
+    }
+  });
+
+  it("关档在两种线格式下都不发字段（映射不许把 off 变成 xhigh 或别的什么）", () => {
+    expect(thinkingBodyField("off", "standard")).toEqual({});
+    expect(thinkingBodyField("off", "xhigh")).toEqual({});
+  });
+
+  it("反向后发的那枚字：xhigh 端点上最高档发出去的**值**不是 high", () => {
+    // 注意这里钉的是**值**，不是子串：「xhigh」这个串本身含「high」，
+    // 用 toContain 反钉会自己误伤自己（第一版就是这么写的，当场红）。
+    const body = thinkingBodyField("high", "xhigh");
+    expect(body[THINKING_WIRE_FIELD]).toBe("xhigh");
+    expect(body[THINKING_WIRE_FIELD] === "high").toBe(false);
+  });
+
+  it("省略第二参 = standard（旧调用方不改行为，也与旧配置一致）", () => {
+    expect(thinkingBodyField("high")).toEqual(thinkingBodyField("high", "standard"));
+  });
+
+  it("两档映射互不串：standard 的输出里不许出现 xhigh，反之亦然", () => {
+    expect(JSON.stringify(thinkingBodyField("high", "standard"))).not.toContain("xhigh");
+    expect(JSON.stringify(thinkingBodyField("high", "xhigh"))).not.toContain('"high"');
   });
 });
 

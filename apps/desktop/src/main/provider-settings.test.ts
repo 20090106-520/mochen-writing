@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createCredentialStore, type CredentialStore } from "./credential-store.js";
 import { createProviderSettings } from "./provider-settings.js";
+import { atomicFsBrokenAt } from "./atomic-write-fs-fixture.js";
 
 let dir = "";
 let credentials: CredentialStore;
@@ -29,12 +30,14 @@ afterEach(async () => {
 const DEEPSEEK = {
   providerId: "deepseek",
   baseURL: "https://api.deepseek.com/v1",
-  authHeader: "bearer"
+  authHeader: "bearer",
+  thinkingWire: "standard"
 } as const;
 const MIMO = {
   providerId: "mimo",
   baseURL: "https://api.xiaomimimo.com/v1",
-  authHeader: "api-key"
+  authHeader: "api-key",
+  thinkingWire: "standard"
 } as const;
 
 /** 读盘上那份 config.json（v3 形状）。 */
@@ -110,7 +113,8 @@ describe("providerSettings · 连接与档案（v3：多连接并存）", () => 
     expect(await settings.config()).toEqual({
       baseURL: "https://api.deepseek.com/v1",
       model: "deepseek-chat",
-      authHeader: "bearer"
+      authHeader: "bearer",
+      thinkingWire: "standard"
     });
 
     // 切到 MiMo 那条档案：地址与头形态要跟着换，绝不能还拿着 DeepSeek 的。
@@ -118,7 +122,8 @@ describe("providerSettings · 连接与档案（v3：多连接并存）", () => 
     expect(await settings.config()).toEqual({
       baseURL: "https://api.xiaomimimo.com/v1",
       model: "mimo-v2.6-pro",
-      authHeader: "api-key"
+      authHeader: "api-key",
+      thinkingWire: "standard"
     });
     expect(await settings.apiKey()).toBe("sk-mimo");
   });
@@ -464,5 +469,132 @@ describe("旧配置迁移：v1 / v2 两代都要接住，**而且密钥要跟着
     await writeFile(path.join(dir, "config.json"), JSON.stringify({ nope: 1 }), "utf8");
     const settings = createProviderSettings({ dir, credentials });
     expect(await rejectMessage(settings.view())).toMatch(/缺字段|重新保存/);
+  });
+});
+
+/**
+ * P0-5（2026-10-09 全仓扫描）：一次读失败把模型配置读成「没配过」，并且缓存永久中毒。
+ *
+ * 【病灶】`ensure()` 原先**先置 `loaded = true` 再 await 读盘**。非 ENOENT 的 IO 错误
+ * （EBUSY / EACCES——Windows 上杀软、OneDrive、备份正在扫这个文件）确实抛了，
+ * 但 `loaded` 已经抬上去、`cached` 停在 null，于是：
+ * - 第一次调用：抛（用户看见一句人话，还算体面）；
+ * - 第二次起：**静默返回 null** ⇒ `view()` 显示「还没有配置模型服务」、`config()` 当没配；
+ * - 用户照着提示去设置页填一下 ⇒ `saveConnection` 以 `store === null` 走新建分支，
+ *   `writeStore` **整份重写** config.json ⇒ 其余连接与全部模型档案一次冲掉，
+ *   密钥文件按新 UUID 改名，旧 `<连接id>.enc` 从此没人能清。
+ *
+ * 【这五条用例各自钉住什么】
+ * ①② 读失败的**每一次**都重读、都抛（回滚 `loaded`），且盘上那份一个字不动；
+ * ③ 恢复性：故障只是一次性的，之后必须自己读回真配置——回滚不等于把错误永久缓存；
+ * ④⑤ 写盘走原子通路：中途失败目标文件完好，且**迁移写回那一次不算旁路**。
+ */
+describe("P0-5：一次读失败不许把配置读成「没配过」，写盘不许留下半截", () => {
+  /** 「只是读不开」：code 不是 ENOENT，走的正是被误判成「从未配置」的那一支。 */
+  function busyError(): NodeJS.ErrnoException {
+    return Object.assign(new Error("resource busy or locked, open"), { code: "EBUSY" });
+  }
+
+  /** 用户已有的配置：一条 DeepSeek 连接 + 一条启用档案（被冲掉的就是这两样）。 */
+  async function seedExistingConfig(): Promise<{ connectionId: string; file: string }> {
+    const settings = createProviderSettings({ dir, credentials });
+    const saved = await settings.saveConnection({ ...DEEPSEEK, apiKey: "sk-deep" });
+    const connectionId = saved.connections[0]?.id ?? "";
+    if (connectionId === "") throw new Error("夹具没建起连接");
+    await settings.upsertProfile({ model: "deepseek-chat", connectionId });
+    return { connectionId, file: path.join(dir, "config.json") };
+  }
+
+  it("读失败的第二次仍报同一句中文：不许把「读不开」缓存成「没配过」", async () => {
+    await seedExistingConfig();
+    const sick = createProviderSettings({
+      dir,
+      credentials,
+      readFile: async () => {
+        throw busyError();
+      }
+    });
+    expect(await rejectMessage(sick.view())).toMatch(/读取失败/);
+    // 旧实现：第二次起 loaded 已是 true、cached 停在 null ⇒ 这里返回 {connections:[],profiles:[]}。
+    expect(await rejectMessage(sick.view())).toMatch(/读取失败/);
+    expect(await rejectMessage(sick.config())).toMatch(/读取失败/);
+    expect(await rejectMessage(sick.apiKey())).toMatch(/读取失败/);
+  });
+
+  it("读失败时保存连盘都不碰：那条连接与它的档案一个字没被改写", async () => {
+    const { connectionId, file } = await seedExistingConfig();
+    const sick = createProviderSettings({
+      dir,
+      credentials,
+      readFile: async () => {
+        throw busyError();
+      }
+    });
+    await expect(sick.saveConnection({ ...MIMO, apiKey: "sk-x" })).rejects.toThrow(/读取失败/);
+    await expect(sick.saveConnection({ ...MIMO, apiKey: "sk-y" })).rejects.toThrow(/读取失败/);
+    const store = JSON.parse(await readFile(file, "utf8")) as {
+      connections: { id: string; baseURL: string }[];
+      profiles: { model: string; connectionId: string }[];
+    };
+    // 旧实现第二次把这份换成「只有 MiMo 一条、零档案」：下面几行就是那条数据丢失的守门人。
+    expect(store.connections).toHaveLength(1);
+    expect(store.connections[0]?.id).toBe(connectionId);
+    expect(store.connections[0]?.baseURL).toBe("https://api.deepseek.com/v1");
+    expect(store.profiles).toHaveLength(1);
+    expect(store.profiles[0]).toMatchObject({ model: "deepseek-chat", connectionId });
+  });
+
+  it("瞬时故障过去后自己读回真配置：回滚 loaded 不等于把错误永久缓存", async () => {
+    const { connectionId } = await seedExistingConfig();
+    let fail = true;
+    const sick = createProviderSettings({
+      dir,
+      credentials,
+      readFile: async (target) => {
+        if (fail) throw busyError();
+        return readFile(target, "utf8");
+      }
+    });
+    expect(await rejectMessage(sick.view())).toMatch(/读取失败/);
+    fail = false;
+    const view = await sick.view();
+    expect(view.connections).toHaveLength(1);
+    expect(view.connections[0]?.id).toBe(connectionId);
+    expect(view.profiles).toHaveLength(1);
+    expect(await sick.config()).toMatchObject({ model: "deepseek-chat" });
+  });
+
+  it("写 config.json 走原子通路：改名那步失败 ⇒ 原文件完好、目标路径没被截断、临时件没留下", async () => {
+    const { file } = await seedExistingConfig();
+    const before = await readFile(file, "utf8");
+    const broken = atomicFsBrokenAt("rename", "盘满了，写入没完成");
+    const settings = createProviderSettings({ dir, credentials, fs: broken.fs });
+    expect(await rejectMessage(settings.saveConnection({ ...MIMO, apiKey: "sk-z" }))).toMatch(
+      /盘满/
+    );
+    // 裸 `writeFile(configFile, …)` 会先把目标截断：这一条钉的就是「从没直接写过目标」。
+    expect(broken.writeTargets).toHaveLength(1);
+    expect(broken.writeTargets[0]).not.toBe(file);
+    expect(await readFile(file, "utf8")).toBe(before);
+    const residue = (await readdir(dir)).filter((name) => name.includes("mochen-tmp"));
+    expect(residue).toEqual([]);
+  });
+
+  it("迁移写回也走同一条原子通路（ensure 里那一次不是旁路）", async () => {
+    await writeFile(
+      path.join(dir, "config.json"),
+      JSON.stringify({
+        baseURL: "https://api.deepseek.com/v1",
+        profiles: [{ id: "p", model: "m", enabled: true }]
+      }),
+      "utf8"
+    );
+    const broken = atomicFsBrokenAt("rename", "盘满了，写入没完成");
+    const settings = createProviderSettings({ dir, credentials, fs: broken.fs });
+    expect(await rejectMessage(settings.view())).toMatch(/盘满/);
+    expect(broken.writeTargets).toHaveLength(1);
+    expect(broken.writeTargets[0]).not.toBe(path.join(dir, "config.json"));
+    // 迁移没写成 ⇒ 盘上仍是那一份 v2：下次启动照样能读回来，不会留下半截 v3 让 JSON.parse 直接失败。
+    expect((await readFile(path.join(dir, "config.json"), "utf8")).includes("baseURL")).toBe(true);
   });
 });

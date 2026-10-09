@@ -278,7 +278,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   border: none;
   outline: none;
   color: var(--text-primary, #e8e8e8);
-  font-size: 15px;
+  font-size: 1.071429rem;
   padding: 4px 0;
 }
 
@@ -287,7 +287,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
 }
 
 .search-shortcut {
-  font-size: 10px;
+  font-size: 0.714286rem;
   padding: 2px 6px;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
@@ -301,7 +301,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
 
 .search-section-label {
   display: block;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   margin-bottom: 6px;
 }
@@ -314,7 +314,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
 
 .history-chip {
   padding: 3px 10px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 12px;
@@ -334,7 +334,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
 
 .search-stats {
   padding: 6px 16px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.04));
 }
@@ -343,7 +343,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   padding: 24px 16px;
   text-align: center;
   color: var(--text-secondary, #999);
-  font-size: 13px;
+  font-size: 0.928571rem;
 }
 
 .search-groups {
@@ -359,7 +359,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   align-items: center;
   gap: 6px;
   padding: 6px 16px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   color: var(--text-secondary, #999);
   position: sticky;
   top: 0;
@@ -368,7 +368,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
 
 .search-group-kind {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
   padding: 1px 6px;
   border-radius: 4px;
@@ -387,7 +387,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   gap: 8px;
   padding: 5px 16px;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 0.892857rem;
   line-height: 1.4;
 }
 
@@ -424,7 +424,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   gap: 16px;
   padding: 8px 16px;
   border-top: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
 }
 
@@ -434,6 +434,6 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 3px;
   margin: 0 2px;
-  font-size: 10px;
+  font-size: 0.714286rem;
 }
 </style>

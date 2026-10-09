@@ -54,6 +54,7 @@ describe("createRendererApi", () => {
       providerId: "custom",
       baseURL: "http://a/v1",
       authHeader: "bearer",
+      thinkingWire: "standard",
       apiKey: null
     });
     expect(calls.map((call) => call.channel)).toEqual([
@@ -79,7 +80,7 @@ describe("createRendererApi", () => {
     expect(listeners.size).toBe(0);
   });
 
-  it("45 条通道各调一次：通道与参数逐条钉死（期望值全是字面量，不从 IPC_CHANNELS 派生）", async () => {
+  it("49 条通道各调一次：通道与参数逐条钉死（期望值全是字面量，不从 IPC_CHANNELS 派生）", async () => {
     const { api, calls } = harness();
     const meta: BookMeta = {
       id: "b1",
@@ -114,6 +115,7 @@ describe("createRendererApi", () => {
       providerId: "custom",
       baseURL: "http://127.0.0.1:8787/v1",
       authHeader: "bearer",
+      thinkingWire: "standard",
       apiKey: null
     };
     // 建档按连接走（模型名 + 挂哪条连接），不再是一个裸模型名。
@@ -163,6 +165,10 @@ describe("createRendererApi", () => {
     await api.readDoc("chapters/01-开局.md");
     await api.writeDoc("chapters/01-开局.md", "正文", "fp-1");
     await api.createDoc("chapters/02-新章.md", "新章");
+    // 设定数据两枚（2026-10-09 P0-7）：**只递键**，路径由主进程按白名单拼。
+    // 这里多递一个参数、或者把键换成路径，下面的实参点名当场红。
+    await api.readBookData("notes");
+    await api.writeBookData("story-bible", "[]");
     await api.startTurn(startInput);
     await api.interruptTurn("t-1");
     await api.decideProposal(decideInput);
@@ -210,9 +216,16 @@ describe("createRendererApi", () => {
     await api.togglePlugin("rhythm", false);
     await api.uninstallPlugin("rhythm");
     await api.readPluginSource("rhythm");
+    // 退出握手两枚（2026-10-09 P0-6）：回话只递 { ok, blocked }，路径与内容都不带——
+    // 渲染层能决定「哪一篇落不下去」，但决定不了主进程往哪儿写。
+    await api.quitFlushDone({
+      ok: false,
+      blocked: [{ relPath: "chapters/01-开局.md", message: "盘满" }]
+    });
     api.onAgentEvent(() => {});
+    api.onQuitFlushRequest(() => {});
 
-    expect(calls.length).toBe(45);
+    expect(calls.length).toBe(49);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -223,6 +236,8 @@ describe("createRendererApi", () => {
       "doc:read",
       "doc:write",
       "doc:create",
+      "book-data:read",
+      "book-data:write",
       "agent:start-turn",
       "agent:interrupt",
       "agent:decide",
@@ -268,7 +283,11 @@ describe("createRendererApi", () => {
       "plugins:toggle",
       "plugins:uninstall",
       "plugins:source",
-      "agent:event"
+      // 退出握手的回程（2026-10-09 P0-6）：渲染层→主进程的一条 invoke。
+      "app:flush-quit-done",
+      "agent:event",
+      // 握手去的这条是主进程→渲染层的推送：preload 里它只能被 on，不占 invoke 的位置。
+      "app:flush-quit-request"
     ]);
     expect(calls.map((call) => call.args)).toEqual([
       [],
@@ -278,6 +297,8 @@ describe("createRendererApi", () => {
       ["chapters/01-开局.md"],
       ["chapters/01-开局.md", "正文", "fp-1"],
       ["chapters/02-新章.md", "新章"],
+      ["notes"],
+      ["story-bible", "[]"],
       [startInput],
       ["t-1"],
       [decideInput],
@@ -324,6 +345,9 @@ describe("createRendererApi", () => {
       ["rhythm", false],
       ["rhythm"],
       ["rhythm"],
+      // 回程那一枚的实参：整个 { ok, blocked } 对象原样出网，preload 一个字都不许拆。
+      [{ ok: false, blocked: [{ relPath: "chapters/01-开局.md", message: "盘满" }] }],
+      ["subscribe"],
       ["subscribe"]
     ]);
     // 渲染层只拿到这些方法：invoke/on/ipcRenderer 一个字都不许泄漏成键。
@@ -353,6 +377,9 @@ describe("createRendererApi", () => {
       "loadSession",
       "notify",
       "onAgentEvent",
+      // 退出握手两枚（2026-10-09 P0-6）：去的那枚只能订阅、回的那枚只能 invoke，
+      // 一起进这份点名册——少一枚主进程就永远等不到回程。
+      "onQuitFlushRequest",
       "openBook",
       "openProviderKeyPage",
       "openWebSource",
@@ -365,6 +392,9 @@ describe("createRendererApi", () => {
       "providerSave",
       "providerVerify",
       "providerView",
+      "quitFlushDone",
+      // 设定数据两枚（2026-10-09 P0-7）：读与写各一条，键走白名单、路径由主进程拼。
+      "readBookData",
       "readChange",
       "readDoc",
       "readPluginSource",
@@ -376,6 +406,7 @@ describe("createRendererApi", () => {
       "togglePlugin",
       "uninstallMarketSkill",
       "uninstallPlugin",
+      "writeBookData",
       "writeDoc"
     ]);
   });

@@ -1,4 +1,10 @@
-import { THINKING_WIRE_FIELD, WEB_SEARCH_TOOL_NAME, type ThinkingLevel } from "@mochen/contracts";
+import {
+  THINKING_WIRE_FIELD,
+  WEB_SEARCH_TOOL_NAME,
+  thinkingWireValueOf,
+  type ThinkingLevel,
+  type ThinkingWire
+} from "@mochen/contracts";
 
 /**
  * 每轮开关 → 出站字节的唯一映射（task #101）。
@@ -14,10 +20,25 @@ import { THINKING_WIRE_FIELD, WEB_SEARCH_TOOL_NAME, type ThinkingLevel } from "@
  *
  * 依据来自参考仓 deepwrite 已跑通的 OpenAI 兼容出口：发 `reasoning_effort: "off"`
  * 在严格校验的端点上会 400，而「不发」在所有端点上都等于用户没碰过这个开关，零行为变化。
+ *
+ * **`wire` 是 2026-10-09 加的**（批次 5-㊻）：「OpenAI 兼容」不等于字段值一样。
+ * Agnes AI Hub 真机回执：`Unexpected reasoning effort high. Supported types are xhigh
+ * (default), medium, and low.` —— 它照收 low/medium，唯独最高那一档叫 `xhigh`。
+ * 发 `high` 上去**整笔请求 400**，症状是「地址密钥全对但一个字都发不出去」。
+ * 分歧只发生在最高档（`low`/`medium` 各家一致），所以映射也只动那一档，
+ * 由**连接**决定（各家分歧不同），字面量住在 contracts 的 `THINKING_WIRE_TOP_VALUE`。
+ *
+ * 默认值是 `standard`：老调用方不改行为，也与旧配置（没有这一项）一致。
  */
-export function thinkingBodyField(level: ThinkingLevel): Record<string, string> {
-  if (level === "off") return {};
-  return { [THINKING_WIRE_FIELD]: level };
+export function thinkingBodyField(
+  level: ThinkingLevel,
+  wire: ThinkingWire = "standard"
+): Record<string, string> {
+  // 关档 = 不发字段（不是发 "off"）。判据在 contracts 的 thinkingWireValueOf，
+  // 输入卡那枚 chip 的提示读的是同一个函数——提示与字节不许分家。
+  const value = thinkingWireValueOf(level, wire);
+  if (value === "") return {};
+  return { [THINKING_WIRE_FIELD]: value };
 }
 
 /**

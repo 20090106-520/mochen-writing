@@ -6247,3 +6247,372 @@ A/B 在同一个实例上做（`tmp-w3-coverage2.mjs`，**11/11**）：用内联
 - **窗口能拖到 1000 地板以下**（`main/index.ts` 没设 `minWidth`），地板以下是裁掉而非可滚——
   本仓既有取舍，未在本轮顺手改。
 - **提交树单独是否全绿未证**：工作区里另有 5-㊶ 那 185 行未提交改动，本轮门禁是在混合树上跑的。
+
+## 批次 5-㊺：不能切换模型 —— 点名单里任何一行，屏幕上什么都不发生（2026-10-09）
+
+用户报的是「不能切换模型」。同一天他还报了「无法对话」与「点对话框弹出正方形」；
+后者逐控件量过没量到（见文末「还没定位的」），前两件在本节与下一节。
+
+### 根因：出站草稿的**形状**错了，而它躲过了三道门
+
+主进程 `provider-settings.ts` 的 `upsertProfile` 收的是 `ProfileDraft`
+（zod `profileDraftSchema` = `{ model, connectionId }`），而渲染层
+`CenterColumn.chooseModel` 把**裸模型名**当草稿发下去了。真机直打 IPC 的两条结果：
+
+- `profileUpsert("agnes-2.0-flash")` ⇒ `Error: Invalid input`（schema 拒非对象）；
+- `profileUpsert({model, connectionId})` ⇒ 走到连接查找那一步才报「没有找到这条连接」。
+
+抛错被 store 的 catch 吞进 `provider.error`，而那个字段**只在模型设置页渲染**，
+输入卡那个下拉里一个字都没有 ⇒ chip 不变、浮层不关、屏上零解释。
+「添加模型」那条对话框一直是好的（`ModelProfileDialog` 传的就是对象），
+所以现象是「能添加、不能切换」——这类半通不通最容易让人以为是自己点错了。
+
+三道门为什么都没拦住：
+
+1. **`.vue` 不进类型程序**：本仓 verify 用裸 tsc（没有 vue-tsc），
+   `provider.select(name)` 把 `string` 传给收 `ProfileDraft` 的函数，tsc 全绿。
+2. **旧守卫只问方法名**：`model-select-wiring.test.ts` 当时写的是
+   `expect(script).toContain("provider.select(")`——方法名在就算过，参数形状一个字没问。
+3. **失败理由被吞进一个消费者不同的字段**：`provider.error` 铺给设置页，浮层读不到。
+
+### 改法：线格式下沉到 `.ts`，连接由 store 独占
+
+- 新增 `utils/model-switch.ts`：`modelSwitchDraft(connectionId, model)` 出站草稿，
+  并给「拿不到启用中的连接」一句看得见的理由（`SWITCH_NO_ACTIVE_CONNECTION`）。
+- `useProviderStore`：新增 `switchModel(name)` 与 `switchError`；
+  把「找启用中那条档案」收成一处 `enabledProfile`（原先 `modelLabel` 与
+  `activeBaseURL` 各自 find 了一遍），`activeConnectionId` 与它同源派生。
+- `CenterColumn.chooseModel` 改走 `provider.switchModel(name)`——组件不再知道
+  `ProfileDraft` 长什么样，它知道的只有「用户点了一行」。
+- `ModelSelect` 新增 `switchError` prop 并渲染出来：写回失败时**浮层不关**，
+  理由摆在你眼前（复用拉名单失败那一档红字，没有另起一套视觉）。
+
+连接取 `activeConnectionId` 不是推断：主进程 `provider-models.ts` 的 ③ 分支写死了
+「什么都没给 ⇒ 走启用中那条」，下拉里的名单就是从那儿来的，写回同一条只是复述它的来路。
+
+### 守卫与变异
+
+- `utils/model-switch.test.ts`（8 条）+ `useProviderStore.test.ts` 新增一节（8 条）
+  + `model-select-wiring.test.ts` 加固 3 条。
+  store 那条形状守卫盯的是 `typeof arg === "object"`——**不认模型名**，
+  免得又写成「认得那几个名字才放行」的名单型判据。
+- 变异 **11 条全红**（`.mochen-tmp/p537/mutate-model-switch.cjs`，还原一律用变异前存下的字节）：
+  回到原 bug（M1）、组件自己拼草稿（M2）、草稿少字段（M3）、空连接照放（M4）、
+  连接取错（M5/M6）、失败理由不搬（M7）/不渲染（M8）/不转交（M9）、不复位（M10）、
+  失败也关浮层（M11）。
+
+### 真机
+
+重建渲染层（`out/` 里跑的是构建产物，**没有 dev server**，`location.reload()`
+带不进源码改动——这一点先量了才敢下结论）后在同一个窗口复验：
+
+- `agnes-2.5-pro` → 点 `agnes-2.0-flash` ⇒ chip 变、浮层收、屏上无理由；
+- 再点回 `agnes-2.5-pro` ⇒ 两个方向都通，配置复原。
+
+截图 `.mochen-tmp/p537/shot-p539f-switched.png`、`shot-p539g-switched-to.png`、`shot-current.png`。
+
+### 门禁
+
+`tsc`（contracts / web 两路）0、`eslint apps/desktop/src/renderer --max-warnings=0` 0、
+本轮 7 个文件 `prettier --check` 干净、全量 vitest **215 文件 / 3014 用例**通过。
+
+### 探针自己踩的三个坑（都写在这里，因为下一次还会踩）
+
+1. **`contextBridge` 暴露的 `window.mochen` 是冻结代理**：往它上面挂录音函数**静默失败**，
+   于是「records 为空」被读成了「产品没调用」。改用产品自己渲染出来的失败理由来观测。
+2. **按 `.desktop-shell` 过滤差集**：行内引用菜单挂在输入卡内部、并不 Teleport 到 body，
+   按 shell 过滤会让它对差集完全隐形——第一版就这么漏掉了。
+3. **按坐标点按钮**：上一枚控件被点之后整行会位移，坐标随即失准；
+   这一版误发了一条消息。后面全部改成按**选择器**定位，`elementFromPoint` 命中 `<svg>`
+   时还要 `closest("button")`（SVGElement 没有 `click()`）。
+
+## 批次 5-㊻：思考档的线格式 —— 「OpenAI 兼容」不等于字段值也一样（2026-10-09）
+
+### 现象
+
+用户报「模型地址密钥没问题，为什么无法对话」。地址密钥确实没问题：
+体检显示「连得上，名单里有 12 个模型」。真机里那条报错把话说得很直白——
+
+```
+模型服务端返回 400：***.BadRequestError: OpenAIException -
+{"object":"error","message":"Unexpected reasoning effort high.
+ Supported types are xhigh (default), medium, and low.","type":"BadRequest"...}
+```
+
+**整笔请求被 400 拒掉** ⇒ 用户一个字都发不出去，而地址与密钥全对。
+与当初小米 MiMo 只认 `api-key` 头是同一族死法：**「OpenAI 兼容」只保证路径像，不保证字段值一样**。
+分歧只发生在最高那一档：Agnes 照收 `low` / `medium`，唯独把最高档叫 `xhigh`。
+
+### 改法：照 `authHeader` 的形状，挂在**连接**上
+
+- `contracts`：新增 `ThinkingWire = "standard" | "xhigh"` 与 `THINKING_WIRE_TOP_VALUE`；
+  `providerConnectionSchema.thinkingWire` 带 `.default("standard")`，
+  `ProviderConnectionView` / `ConnectionDraft` 同步带上。
+- `per-run-fields.thinkingBodyField(level, wire)`：只有 `high` 那一档换名，
+  `low` / `medium` / `off` 两家一致，一律不动。
+- 对话框加一格下拉（与「密钥放在哪个请求头」并列），模型卡片上非 standard 时标一枚「深度走 xhigh」。
+
+**为什么存在 `contracts` 而不是就地判断**：输入卡那枚 chip 按本仓铁律必须报出
+「这一档实际发出去的键值」，而真正拼字节的是 agent-runtime（渲染层不许 import 它）。
+两边各写一遍就是同一件事两份实现 ⇒ 判据下沉为 `thinkingWireValueOf(level, wire)`，
+**出站字节与 chip 提示读同一份**。真机上 chip 的提示已经如实变成
+`深度思考 深度：本轮出站请求带 reasoning_effort=xhigh`。
+
+### 顺带逮到一个潜伏 bug：`authHeader` 一直是死字段
+
+加这一档时发现：`tool-loop` 构造出站请求是**逐字段点名**的
+（`baseURL:` / `apiKey:` / `model:` 三个一个一个写），`authHeader` 压根没递下去——
+它在 `TurnDeps.provider` 上声明了、在 `StreamRequestLike` 上也声明了，唯独中间那一步漏了。
+后果：小米 MiMo 那条连接**永远发 `Authorization: Bearer` 而不是 `api-key`**，
+界面全对、请求永远 401，代码上完全看不出原因。
+
+改成 `...deps.provider` 整个铺开：逐字段点名 = 每加一个连接级字段就再犯一次
+（`thinkingWire` 差点就是第二个）；铺开 = `ProviderSettings.config()` 上多一个字段，
+它自己就到出站了。每轮开关（档位/联网）在下面显式覆盖——它们归这一轮管、不归连接管。
+
+### 守卫与变异
+
+- `per-run-fields.test.ts` 新增一节 7 条；`tool-loop-wire.test.ts` 新增 5 条；
+  `thinking-wire-wiring.test.ts` 新增 11 条（`.vue` 不进类型程序，只能读源码钉）。
+- 变异 **16 条全红**（`.mochen-tmp/p537/mutate-thinking-wire.cjs`）：映射不认 xhigh（T1）、
+  关档也发字段（T2）、连 low/medium 一起换名（T3）、表里两档写成同一个字（T4）、
+  tool-loop 回到逐字段点名（T5）、出站不接（T6）、盘上不存（T7）、`config()` 不带（T8）、
+  草稿丢掉（T9）、对话框那格没了（T10）、保存不发（T11）、装配处不喂（T12）、
+  输入卡不转交（T13）、提示改回拼档位名（T14）、store 取错连接（T15）、卡片标记删掉（T16）。
+- **一条自己的守卫写错过**：「xhigh」这个串本身含「high」子串，
+  用 `not.toContain("high")` 反钉会自己误伤自己——已改成钉**值**（当场红了一次）。
+
+### 真机
+
+- 重建 + 重启应用后，在对话框里把该连接设成「深度走 xhigh」⇒ 卡片上出现「深度走 xhigh」标记，
+  chip 提示如实变成 `reasoning_effort=xhigh`。
+- **最后一腿（真端点成功回一句）没验完**：发消息被「尚未打开作品目录」这道门挡住，
+  而打开作品要走原生文件夹选择器（本环境驱动不了）。需要用户自己点开一本书再验。
+
+### 门禁
+
+四路 tsc 全 0、`eslint --max-warnings=0` 全 0、prettier 干净、
+全量 vitest **217 文件 / 3037 用例**通过。
+
+### 同一天量到的另外两件事（未修）
+
+- **联网开着会把这一轮挂住**：同一端点同一句话，联网关掉几秒就回，开着挂 200 秒零响应零报错。
+  隔离实验已做，责任锁定在「联网检索工具执行」那一路（待查）。
+- **点输入框时整张卡内侧亮起一圈青色边框**：这不是新弹出来的元素，是 `.composer-input-surface`
+  的聚焦态（`theme-runtime.css` 上色、`agent-pane.css:785` 只改阴影）。
+  前几版探针按「元素差集」查，全部量不到——现象是**样式变了而不是元素多了**。
+
+## 止血批次 A（2026-10-09 全仓扫描第 1–2 波）：写字的通路不再静默丢稿，崩溃不再无声消失
+
+总单在 `2026-10-09-full-scan-report.md`（8 条 P0 / 11 条 P1 / 14 条假控件 / 14 条 P2）。
+这一批只做「会丢用户字」和「会无声死」这两类，其余按波次往后排。
+
+### 根因（四条，都是同一族：失败发生了但没人接）
+
+- **P0-1 写盘不是原子的**：`writeFile` 直接盖在原文件上。写到一半断电或被占用，
+  盘上留下半截正文——旧稿没了、新稿也不完整，而改稿历史那份备份写在新内容**之后**，救不回来。
+- **P0-2 保存失败不上屏**：`await writeDoc` 外面**没有 try**。主进程 IO 一路上抛时
+  `saving` 永久停在 true ⇒ 手动按钮被禁用、自动保存被自己 `if (this.saving) return` 挡死，
+  屏上还挂着上一句「已自动保存」。此后用户写的每一个字都只在内存里，且界面无一处告警。
+- **P0-3 关标签不看 `dirty`**：`closeTab` 直接 `delete draftsByPath[relPath]`。
+  设置页真有「自动保存＝关」这一档，关掉之后点 ×，刚写的几百字当场蒸发，连一句「未保存」都不问。
+- **P0-6 退出没有兜底**：`flushAllForQuit()` 这类能力当时并不存在；即便补上了函数，
+  主进程也从来没调用过它——窗口一关，内存里那点字随进程一起没了。另一半是
+  全仓 `uncaughtException` / `unhandledRejection` **零命中**：`whenReady().then(async …)` 里
+  任何一处抛（目录迁移、credential store、插件挂载）都成为没人接的 rejection ⇒
+  **窗口永不出现、也永不提示**，用户只会以为「双击没反应」。
+
+### 改法
+
+1. `packages/fs-store` 写盘改 **tmp → rename**（同目录内改名才是原子的），失败时旧稿原样保留，
+   改稿历史的备份写在前、正文写在后。
+2. `saveActive` 的 `saving` 由 `finally` 收尾；抛错与 `ok:false` 走同一句理由上屏
+   （`保存失败：${failureReasonOf(err)}`）；**摆态抽成纯函数** `saveOutcomeOf`（`utils/draft-flush.ts`）：
+   `await` 期间又打了字 ⇒ `dirty` 保持 true、指纹一步都不前进（前进就等于承认写成了）。
+   catch 那支**不**重排自动保存——持续失败的盘（EBUSY 一直是）会因此变成每两秒一次的写盘风暴
+   （这条是我自己先写错、再用一条反向用例抓出来的：静默窗 20 秒内只许发一次写盘）。
+3. `closeTab` 先 `flushDocBeforeDrop`：写成了才允许那一格消失，写不成标签原样留着、理由进 `notice`。
+   `stale`（外部改过）不再拼成「没能落盘：undefined」，改判 `conflict` 交给人处理。
+4. `utils/draft-flush.ts`：`flushAllBeforeQuit` 逐篇落盘，**一篇失败绝不中断其余**
+   （为 A 写不下去把 B 也丢掉，等于把兜底做成二次事故），失败的那些点名回报。
+5. `main/crash-guard.ts`（新）：两条通道都挂，每条崩一次在 `crash.log` 留一行带栈的痕，
+   **只第一次**弹系统对话框，且钩子自己绝不再抛（写日志失败改走通知）。
+   默认分支继续跑不退出进程——那时用户正在写的字还在内存里，而原子写已经保证崩不成半截。
+6. `main/quit-flush.ts` + `utils/quit-flush-client.ts`（新）+ 两条新 IPC：
+   主进程 `before-quit` 拦一次 ⇒ 推 `app:flush-quit-request` ⇒ 渲染层逐篇落盘并回
+   `app:flush-quit-done` ⇒ 落成了才 `app.quit()`；落不下去先问人（默认停在「留下」）；
+   4 秒等不到回话按原样放行并留痕。三条规矩：只拦一次（`app.quit()` 会重发 before-quit，
+   再拦就是 quit 拦 quit＝死循环）、等话必须有尽头、落不下去由人拍板。
+
+### 契约与装配面的连带
+
+- `IPC_CHANNELS` 47 → **49** 条；preload 的 `RendererApi` 点名册 45 → **47** 枚
+  （`onQuitFlushRequest` 只能订阅、`quitFlushDone` 只能 invoke）。
+- `renderer-api.test.ts` 里那份**硬编码**的四列（条数、通道字面量、实参逐条、点名册）全部同步改过。
+  这里记一句教训：动手前我一度认定「全仓没有 IPC 数量硬断言」，回盘读 `renderer-api.test.ts:217`
+  才发现 `expect(calls.length).toBe(45)` 与标题里的「45 条」都是钉死的——转述不当证据，盘上才算。
+- 七份 `RendererApi` 夹具各补两枚假身（agent/autosave/changes/doc-loading 给无害实现，
+  create/BookStore.test/provider 给「一摸就抛」，因为那些用例本不该碰这条通道）。
+- store 加一枚 `quitFlushListening`、装配点 `listenQuitFlush()`，由 `App.vue` 的 `onMounted` 调一次
+  （接根组件不接中栏：中栏随页面卸载，握手要在应用整个生命期里都在）。
+
+### 守卫与变异
+
+新增用例 36 条：`crash-guard` 5、`quit-flush` 10、`quit-flush-client` 7、`quit-flush-wiring` 2、
+`useBookStore.draft-loss` 4（+9 条早先的 P0-2/P0-3/P0-6 落点）、`saveOutcomeOf` 6 在 utils 侧。
+每条都先红后绿（模块不存在 / `store.listenQuitFlush is not a function` / `api.quitFlushDone is not a function`）。
+
+变异自跑（只用 Edit/脚本改源码，逐条还原后复跑）：
+
+- crash-guard：只挂一条通道→T1 红；不取消计时器／超时不 quit→T4 红；盲取 `.name/.message`→T3 红；
+  每次都弹→T4 红；去掉 `appendLine` 的 try→T5 红；丢栈→T2 红。
+- quit-flush：去 `released` 闸→T10 红；去 `waiting` 闸→T3 红；超时不 quit→T4/T9 红；
+  不取消计时器→T2 红；去 `!waiting` 回程闸→T9 红；`replyIsSane` 恒真→T8 红；
+  「留下」也 released→T5 红；去 `hasWindow` 闸→T7 红；不 `preventDefault`→T1 红。
+- quit-flush-client：`quitReplyOf` 丢 `blocked`→T1/T3 红；去掉回程 try→T6 红；
+  没开书也跑兜底→T3 红；监听器不答话→T7 红；答话排在兜底之前→T2/T3/T5 红。
+- **tsc 抓到、vitest 全绿漏掉的两处**（第 N 次实证「跑测试不等于跑类型」）：
+  测试文件 import 少写 `.js`（nodenext 下连带把参数推成隐式 any）；
+  `vi.fn(async () => ({ ok: true }))` 把联合类型widened 成 `{ok: boolean}` 而 `FlushAllResult` 不收。
+
+### 真机
+
+**没做**。机上有另一只实例正在跑（`electron.exe` 一组，属并行会话的现场），
+这一批改的是主进程、preload 与根组件——必须重新构建并重启才看得见效果，而我没有动那只实例。
+所以「点关闭真的拦了一下吗」「崩一次 crash.log 里真有一行吗」这两条目前是**未验**状态，
+用例与门禁只证明到装配点存在（`quit-flush-wiring.test.ts` 钉的就是装配本身）。
+
+### 门禁
+
+`pnpm typecheck`（5 路）0／`lint:eslint --max-warnings=0` 0／`lint:boundary` 0／
+行数预算 0（useBookStore.ts 797／DocumentPane.vue 799，都在 800 内）／
+全量 `pnpm test` **228 文件 / 3140 用例**全绿。
+`format:check` 本轮我碰过的 15 个文件逐个 `--check` 干净；仓库级仍有 3 个红文件
+（`agent-ipc.test.ts`、`provider-settings.test.ts`、`useProviderStore.test.ts`），
+那三个携 `thinkingWire` 的改动属并行会话未提交现场，HEAD 态合规，本批未动、也未代其提交。
+
+## 止血批次 B（2026-10-09 全仓扫描第 1.5 波 · P0-7）：设定搬进书目录，存不下要当场说话
+
+波 3、波 4（P0-4/P0-5 与那 14 行假控件）的逐条处置写在总单
+`2026-10-09-full-scan-report.md` 的「四之二·现状总表」「三之二·P0 现状总表」两张表里，
+本条只记第 1.5 波——它是这批里唯一需要新铺一层通路的活儿。
+
+### 根因
+
+三本设定各自 `localStorage.getItem("<全局键>")` + 保存时 `catch {}`：
+
+- 键不带书标识 ⇒ A 书的人物卡出现在 B 书里，「今日已写字数」也跟着串；
+- 内容只住浏览器存储 ⇒ 清缓存 / 换机 / 重装 = 设定与笔记全丢，而正文安全地在盘上；
+- `useNotesStore.ts:8-9` 的注释写着「也可同步存到作品目录的 .mochen-notes/」——**这句话没有对应代码**，
+  三个文件里 `window.mochen` 出现次数当时是 0。
+
+### 改法：七层，路径只由主进程拼
+
+1. **契约** `packages/contracts/src/book-data.ts`：白名单三键 `notes | story-bible | writing-goal`，
+   读结果分 `invalid-key / no-book / unreadable` 三档、写结果分 `invalid-key / no-book / not-json / write-failed` 四档。
+   渲染层**只递键，永远不递路径**。
+2. **文件层** `packages/fs-store/src/book-data.ts`：落在书内 `.mochen/data/<key>.json`；
+   `isBookDataKey` 用 `hasOwnProperty`（不认原型链上的东西）；读侧只有 ENOENT 才报「这本书还没写过」
+   （`json: null`），其余失败报 `unreadable`；写侧拒空串与非 JSON，落盘复用 P0-1 的 `writeFileAtomic`。
+3. **主进程** `main/book-service.ts` 的 `readData/writeData`：自己判白名单与当前书，
+   `ipcMain.handle` 那两行**刻意不做 cast**（`key: unknown` 进来，判完才用）。
+4. **preload** 补 `readBookData` / `writeBookData` 两枚通道。
+5. **渲染层通路** `composables/useBookFileData.ts`：`canWrite` 闸（读不懂就绝不开写，以免盖掉原来那份）、
+   `epoch` 世代令牌（换书之后旧回包一个字都不许落）、写盘串行链、deep watch + 600ms debounce +
+   快照相等跳过、迁移（**只有盘上没有这一类数据时**才读旧全局键，且**写成功之后**才清旧键——
+   迁失败就清等于把唯一那份删了）。
+6. **注册表** `composables/bookDataRegistry.ts`：断掉 store↔composable 的循环引用；
+   `withBookDataFlush` 把 `openBook`/`createBook`/`closeTab`/`flushAllForQuit` 之前先交回上一本，
+   一枚失败不拦其余（汇总失败键名报出来）。
+7. **三份形状** `utils/note-shape.ts`／`bible-shape.ts`／`goal-shape.ts`：认不得的形状判读不懂并停止写盘，
+   只是缺了后加的整格才补默认放行。目标那一本里全是数字，兜 0 的代价最直白——
+   面板会显示「今日 12 / 0 字、已达标」，连续达标天数跟着错。
+
+界面侧跟着补的第五块：`NotesPanel`／`StoryBiblePanel`／`WritingGoalPanel`／`WritingGoalSettingsPanel`／
+`WordCountPanel` 各有一条 `v-if="<store>.saveError"` 的 `role="status" aria-live="polite"` 提示，
+颜色取 `var(--danger)`、字号一律 rem；本地不留第二份「存盘失败」状态。
+
+### 守卫
+
+本波新增用例 **146 条**（每条都先红后绿；数字取自当场 vitest 日志）：
+fs-store `book-data.test.ts` 11、main `book-data-service.test.ts` 7、preload `renderer-api.test.ts` 6、
+`useBookFileData.test.ts` 18、`bookDataRegistry.test.ts` 7、`note-shape` 10、`bible-shape` 10、`goal-shape` 19、
+`useNotesStore.book-data` 9、`useStoryBibleStore.book-data` 8、`useStoryBibleStore.seeds` 9、
+`useWritingGoalStore.book-data` 12、`book-data-save-error-wiring` 20（5 块面板 × 4 条）。
+
+`useStoryBibleStore.seeds.test.ts` 整份改写到假盘夹具：它原来钉的是「首次打开不塞示例条目」，
+但存储层一换，那八条读的全是已经不存在的 localStorage 键。顺带把两份重复的 story-bible 夹具
+（`entryJson`/`writtenEntries` 在两个测试文件里各一份）合进 `stores/book-data-test-harness.ts`——
+总单点名的「重复实现」不许在我自己的测试里先长出来。
+
+变异自跑（只用 Edit，逐条还原后复跑）：
+
+- `isDefaultWritingGoalData` 删掉 `dailyWordTarget` 那一格比较 → **2 红**（util 与 store 各 1）；
+- `.wc-save-error` 的 `font-size` 从 rem 抄回 `11px` → **1 红**（接线层「字号一律 rem」那条）。
+
+**一处如实标注**：`emptyWritingGoalData` / `isDefaultWritingGoalData` 与 5 块面板的接线用例，
+都是**先有实现后补的测试**，不合「每笔生产代码先有一段红测试」的口径；
+补偿就是上面两发变异取证 + 接线层那条「模板 v-if / role+aria-live / 恰好一处 class」在实现前跑出的
+6 条预期红（`Tests 6 failed | 14 passed (20)`，日志在 `$HOME/dw-gate/`）。
+
+### 收尾补刀（P0-1 的第二刀）：改名被占 ≠ 写失败
+
+收口时全量 `pnpm test` 出过一条红：`packages/fs-store/test/changes.test.ts` 的压测用例
+「写盘超过上限 ⇒ 盘上条数收敛到上限」报 `第30次写盘失败：EPERM … rename '…mochen-tmp-c364c6f2' -> '01-开局.md'`。
+连跑三次是 红／绿／绿，同一次 263 文件那轮里它还是绿的——**这是本机 Windows 的真实现场，不是代码回归**：
+杀软实时扫描或索引器正拿着那个文件时 `rename` 返回 EPERM，几百毫秒后自己就松。
+
+关键是这一档在真机上**不是异常而是常态**，而旧实现把它当成写失败一路报出去：用户看见「保存失败」，
+稍后再存一次反而成功。产品里这种假失败比半截正文更难解释。于是给 `writeFileAtomic` 补一层有界重试：
+
+- 只重试**改名这一步**：临时文件已经 fsync 过，内容早在盘上了，撞的只是目录项换不了；
+- 只认 `EPERM / EACCES / EBUSY` 这一族码；`ENOSPC / EROFS / ENOENT` 一次就抛——重试一百次盘还是满的，
+  多试只会把一次该立刻露出来的失败拖成一串无意义的等待；
+- 默认含首次共 4 次、20/40/80ms 递增退避（最坏约 140ms，仍在一次自动保存的容忍范围内）；
+  `attempts` 与 `wait` 由第四枚可选参数注入，用例不必真等退避；
+- 试到上限仍失败 ⇒ 抛**最近那次原错**，临时文件照旧清掉（改名不换 tmp 名，所以只有一份残渣要清）。
+
+守卫：`atomic-write.test.ts` 新增 3 条（第一次被占第二次成功 ⇒ 写完且无残渣；一直不松 ⇒ 试到 4 次上限后
+抛 EPERM、正文仍是旧稿、目录只剩 `01.md`；ENOSPC 只试 1 次）。前两条先跑出预期红
+（`Tests 2 failed | 8 passed (10)`，`atomic-red.log`），红的分别是「根本没重试」与 `expected 1 to be 4`——
+正是实现要补的那两点。
+
+变异自跑（只用 Edit，逐条还原后复跑）：
+
+- 去掉错误码筛选（任何码都重试）→ **1 红**，红的正是 ENOSPC 那条反向钉；
+- `attempt >= attempts` 写成 `attempt > attempts`（上限差一次）→ **1 红**，`expected 5 to be 4`。
+
+顺手量到的稳定性：`changes.test.ts` 单文件连跑 3 次全绿（补刀前是 红／绿／绿）。
+
+### 真机
+
+**没做**。改动跨 contracts / fs-store / 主进程 / preload / 渲染层，要看「换一本书设定跟着换」必须
+重新构建并重启实例，而机上那只 `electron.exe` 属并行会话现场，我没有动它。
+所以 P0-7 证明到的是**用例与门禁全绿**，不是屏幕上量到的行为。
+
+### 门禁（本波实测，退出码逐条回读，未用管道吞码）
+
+`pnpm typecheck`（6 路，含本波接进来的 `plugin-kernel`）0／`lint:eslint --max-warnings=0` 0／`lint:boundary` 0／
+`lint:budget` 0／`pnpm format:check` **0（全仓）**／全量 `pnpm test` **264 文件 / 3513 用例**全绿，
+日志 `$HOME/dw-gate/final-*.log`，退出码逐条落在 `$HOME/dw-gate/final-codes.txt`。
+
+两个连带处置要记明白：
+
+- **`plugin-kernel` 接进类型程序了**（总单第六节第 3 条那个口子）。加进根 `package.json` 的 `typecheck`
+  与 `verify` 之后单独跑它，当场复现总单说的两条红：`test/app.test.ts:209` TS2352、`:213` TS7006。
+  根因不是用例写错，是**类型里少一档**：`readPluginShape` 运行时认三种插件形态（函数 / 类 / `{default: {…}}` 对象），
+  而 `PluginModule` 只声明了前两种，于是对象形态那条用例只能 `as PluginModule` 硬铸、而铸本身不成立。
+  补上第三档之后把两处硬铸删掉，两条红一起消失（`ctx` 由上下文推出，TS7006 是同一个根因的连带）。
+  守卫 `tools/typecheck-coverage.test.mjs`（4 条）把覆盖面本身钉成断言：凡 `packages/*` 下有 `tsconfig.json`
+  就必须被两个脚本点名。变异取证：从 `typecheck` 里删掉 `plugin-kernel` 那一项 → **1 红**，
+  且红信息里直接列出漏的包名（`expected [ 'plugin-kernel' ] to deeply equal []`）；还原后 4 条全绿。
+- 上一批留着不提交的三个 prettier 红文件（`agent-ipc.test.ts`、`provider-settings.test.ts`、
+  `useProviderStore.test.ts`）本波做了 `prettier --write`。它们携带的是并行会话 5-㊻ 的 `thinkingWire` 现场，
+  这批随本波一起入库——判据是门禁六路 + 全量测试在这棵树上全绿，不是我判定那份工作做完了。
+
+### 还没做完的
+
+- P1 十一条、P2 十四条按总单第八节的第 2、3 波继续（P1-10 热力图星期标签错位排在下一刀最前）。
+- 「第 0 步」两条里 CI 仍未接（`plugin-kernel` 那半已接）。
+- P0-7 的真机复验、以及 `.mochen/data/` 在既有书上的第一次落盘（升级路径）都还没量过。
+

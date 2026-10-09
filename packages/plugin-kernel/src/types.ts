@@ -144,11 +144,23 @@ export interface PluginDoc {
   kind: string;
 }
 
-/** 插件的三种形态，统一收成这一份。 */
+/**
+ * 插件的三种形态，统一收成这一份。
+ *
+ * 【这一份以前只有两档】`readPluginShape` 的运行时认三种（函数 / 类 / `{default: {…}}` 对象），
+ * 而类型里只写了前两种。于是 2026-10-09 全仓扫描把 `plugin-kernel` 补进 typecheck 之后，
+ * 那条对象形态的用例当场报 TS2352——**用例只能靠 `as PluginModule` 硬铸过去，而铸本身就不成立**
+ * （对象形态压根不在声明里）。类型程序当时漏掉这个包，所以这处不一致绿了不知多少轮。
+ * 补上第三档之后，形态的三档在运行时与类型里是同一份，用例的硬铸可以去掉。
+ */
 export type PluginModule =
   | { name?: string; inject?: readonly string[]; apply(ctx: Context): void }
   | {
       default: (new (ctx: Context) => ServiceHandle) & { inject?: readonly string[] };
+      name?: string;
+    }
+  | {
+      default: { name?: string; inject?: readonly string[]; apply(ctx: Context): void };
       name?: string;
     };
 

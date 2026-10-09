@@ -1,8 +1,10 @@
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { BookMeta, DocCreateResult } from "@mochen/contracts";
 import { parseBookMeta } from "@mochen/contracts";
 import { makeFingerprint } from "./fingerprint.js";
+import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "./atomic-write.js";
+import { writeBookMetaFile } from "./book-meta.js";
 import { assertSafeRelPath } from "./paths.js";
 import { DOC_DIRS } from "./scan.js";
 
@@ -24,7 +26,9 @@ export function docTemplate(title: string): string {
 export async function createDocFile(
   root: string,
   relPath: string,
-  title: string
+  title: string,
+  /** 原子写的 fs 缝，与 `writeDocFile` 同源（P0-1）。 */
+  fs: AtomicWriteFs = defaultAtomicFs
 ): Promise<CreateDocFileResult> {
   let safe: string;
   try {
@@ -53,9 +57,9 @@ export async function createDocFile(
   if (existing !== null && existing.includes(path.basename(target)))
     return { ok: false, reason: "already-exists", message: `${safe} 已经存在，没有覆盖它` };
 
-  await mkdir(path.dirname(target), { recursive: true });
   const content = docTemplate(title);
-  await writeFile(target, content, "utf8");
+  // 新建也走原子写：半途而废的「新文档」同样是一篇读不回来的正文（P0-1）。
+  await writeFileAtomic(target, content, fs);
   return { ok: true, fingerprint: makeFingerprint(content) };
 }
 
@@ -66,7 +70,9 @@ export async function createDocFile(
  */
 export async function createBookSkeleton(
   directory: string,
-  rawMeta: BookMeta
+  rawMeta: BookMeta,
+  /** 原子写的 fs 缝（P0-1）：book.json 半截 = 这本书打不开。 */
+  fs: AtomicWriteFs = defaultAtomicFs
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   const meta = parseBookMeta(rawMeta);
   const entries = await readdir(directory).catch((error: NodeJS.ErrnoException) => {
@@ -85,7 +91,7 @@ export async function createBookSkeleton(
   await mkdir(path.join(directory, DOC_DIRS.character), { recursive: true });
   await mkdir(path.join(directory, DOC_DIRS.plot), { recursive: true });
   await mkdir(path.join(directory, "materials"), { recursive: true });
-  const body = `${JSON.stringify(meta, null, 2)}\n`;
-  await writeFile(path.join(directory, "book.json"), body, "utf8");
+  // 形状与写法都在 `book-meta` 那一处：建书与改设置必须写出逐字相同的 book.json。
+  await writeBookMetaFile(directory, meta, fs);
   return { ok: true };
 }

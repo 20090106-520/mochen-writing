@@ -28,6 +28,12 @@ function onCustomWordTarget(event: Event): void {
 
 <template>
   <div class="writing-goal-settings">
+    <!-- 这一栏改的是**当前这本书**的目标（P0-7）：存不进书目录时要当场说出来——
+         设置页与写作目标浮层不是同时开着的，只让浮层说话等于没说。 -->
+    <p v-if="goalStore.saveError" class="goal-settings-save-error" role="status" aria-live="polite">
+      {{ goalStore.saveError }}
+    </p>
+
     <!-- 开关 -->
     <section class="settings-group">
       <h2 class="settings-group-title">写作目标</h2>
@@ -104,7 +110,7 @@ function onCustomWordTarget(event: Event): void {
 
 .goal-toggle-row span {
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 0.928571rem;
 }
 
 .goal-toggle-row input[type="checkbox"] {
@@ -127,7 +133,7 @@ function onCustomWordTarget(event: Event): void {
   border-radius: 6px;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 0.928571rem;
   cursor: pointer;
   transition:
     background 0.15s ease,
@@ -151,7 +157,7 @@ function onCustomWordTarget(event: Event): void {
   align-items: center;
   gap: 6px;
   padding: 6px 0;
-  font-size: 13px;
+  font-size: 0.928571rem;
   color: var(--text-primary);
 }
 
@@ -162,12 +168,22 @@ function onCustomWordTarget(event: Event): void {
   border-radius: 4px;
   background: var(--surface-muted);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 0.928571rem;
   outline: none;
   transition: border-color 0.15s ease;
 }
 
 .goal-custom-row input[type="number"]:focus {
   border-color: var(--accent);
+}
+
+/* 目标没能落进这本书的目录（P0-7）：颜色走 --danger，字号用 rem（跟着「界面字号」一起缩放）。 */
+.goal-settings-save-error {
+  margin: 0 0 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  color: var(--danger);
+  font-size: 0.857143rem;
 }
 </style>

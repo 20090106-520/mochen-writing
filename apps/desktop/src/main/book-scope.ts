@@ -27,6 +27,28 @@ export interface BookScope {
 }
 
 /**
+ * 自动批准判据的键：把「书身份（书根目录）」并进本地判别式，**只在这一处拼装**（铁律 6）。
+ *
+ * 【和上面 threads 撞名是同源的同一刀】`threads` 撞的是「threadKey → 会话相对路径」，
+ * 自动批准这两张表撞的是「本地判别式 → 免审授权」：
+ * - `accept-session`（本章不再问）按 `threadKey` 记，而 threadKey 恒等于文稿相对路径；
+ * - `accept-prefix`（同文档同类改动不再问）按 `${docRelPath}::${tool}` 记。
+ * 两者都不含书身份，于是两本书只要有**同名文稿**（新建章节的默认标题极易撞），
+ * A 书点过一次「接受并本会话自动批准」，B 书撞名文稿的提案就**不经确认直接落盘**。
+ *
+ * 【拿不到书根怎么办，写死在这里】书根取不到（`null` = 没开书）⇒ 返回 `null`。
+ * 调用方据此**不得命中**自动批准——也就是保守回落到人工确认，绝不放行。
+ * 不许用一个猜出来的根、空串或某个默认值去兜：那等于把「拿不准」伪装成「已授权」。
+ *
+ * 连接符用 NUL（`\u0000`）：它不会出现在文件系统路径里，也不会出现在 `docRelPath::tool`
+ * 那种判别式里，所以拼接可逆、不会因为路径自身含分隔串而让两本书撞成同一个键。
+ */
+export function scopedApprovalKey(root: string | null, local: string): string | null {
+  if (root === null) return null;
+  return `${root}\u0000${local}`;
+}
+
+/**
  * @param readRoot 读当前作用域标识（通常是当前书目录）。返回 null = 没开书，也算一个作用域。
  * @param clear 真正清掉按作用域存放的那些表，由调用方决定清哪些——
  *   **哪些算「按书」是 agent-service 的判断，不在这里猜**。

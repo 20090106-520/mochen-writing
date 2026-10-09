@@ -116,6 +116,9 @@ const api = {
     throw new Error("不该启停");
   }),
   onAgentEvent: vi.fn(() => () => {}),
+  // 退出握手（P0-6）：这一格用例不碰它，给一对无害的假身即可过 RendererApi 的形状关。
+  onQuitFlushRequest: () => () => {},
+  quitFlushDone: async () => {},
   saveFile: vi.fn(async () => true),
   buildExport: vi.fn(async () => ({
     content: "",
@@ -162,6 +165,14 @@ const api = {
   },
   readPluginSource: async () => {
     throw new Error("不该读插件源码");
+  },
+  // 设定落盘两枚（2026-10-09 扫描总单 P0-7）：自动保存这条路不碰书里的设定文件，
+  // 给的是「越权即抛」的假身——静默返回空表会让误用变得看不见。
+  readBookData: async () => {
+    throw new Error("不该读书里的设定文件");
+  },
+  writeBookData: async () => {
+    throw new Error("不该写书里的设定文件");
   }
 } satisfies RendererApi;
 

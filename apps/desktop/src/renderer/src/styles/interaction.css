@@ -29,7 +29,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--text);
-  font-size: 13px;
+  font-size: 0.928571rem;
   text-align: left;
   cursor: pointer;
 }
@@ -46,7 +46,7 @@
 /* Task 5 的模板引用这些类（样式随本任务落地，中间一提交只有裸文本、不影响门禁与判读） */
 .hydrating-line {
   color: var(--text-soft);
-  font-size: 13px;
+  font-size: 0.928571rem;
 }
 
 .expired-stack {
@@ -56,7 +56,7 @@
 .expired-summary {
   cursor: pointer;
   color: var(--warning);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .expired-cards {
@@ -74,7 +74,7 @@
 .expired-note {
   margin: 0 0 8px;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .status-note-agent {
@@ -307,7 +307,7 @@
   gap: 8px;
   padding: 2px 6px 6px;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
   font-weight: 600;
 }
 
@@ -368,7 +368,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
   cursor: pointer;
 }
 
@@ -434,19 +434,19 @@
 .model-select-note {
   margin: 6px 0 0;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .model-select-error {
   margin: 6px 0 0;
   color: var(--danger-text);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .model-select-foot {
   margin: 8px 6px 2px;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 /* ==== deepwrite-composer-card ====
@@ -456,7 +456,7 @@
 .composer-counter {
   padding: 0 17px;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: 0.857143rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -472,7 +472,7 @@
 .composer-voice-hint {
   padding: 0 17px;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: 0.857143rem;
   line-height: 1.5;
 }
 

@@ -126,7 +126,15 @@ describe("配置文件迁移：v1 / v2 / v3 三代都要接住", () => {
     };
     const out = migrateProviderStore(v3);
     expect(out.migrated).toBe(false);
-    expect(out.store).toEqual(v3);
+    // 2026-10-09 批次 5-㊻：`thinkingWire` 加进来之后，这条用例多担一件事——
+    // **2026-10-09 之前存下的每一份 config.json 都没有这个键**。
+    // schema 给了 `.default("standard")`，所以它读得出来，只是回包里被补上了这一项。
+    // 若哪天有人把 default 去掉，这里当场红：用户的连接会全部读不出来，
+    // 界面变成「还没有模型」，而他明明配过。
+    expect(out.store).toEqual({
+      ...v3,
+      connections: [{ ...v3.connections[0], thinkingWire: "standard" }]
+    });
   });
 
   it("v2（地址全局一份）：造一条连接，档案全部挂上去，**档案 id 一个都不变**", () => {

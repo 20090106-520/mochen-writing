@@ -14,7 +14,7 @@
   gap: 8px;
   padding: 10px 2px 10px 34px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 0.928571rem;
   /* 与流式光标同一族的入场：短、只动 4px，不与第一段正文抢注意力。 */
   animation: thinking-window-in 180ms var(--ease-view);
 }
@@ -51,7 +51,7 @@
 .thinking-window-elapsed {
   flex: 0 0 auto;
   color: var(--text-tertiary);
-  font-size: 12px;
+  font-size: 0.857143rem;
   font-variant-numeric: tabular-nums;
 }
 

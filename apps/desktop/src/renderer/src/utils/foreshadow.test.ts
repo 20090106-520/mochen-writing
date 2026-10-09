@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DocRef } from "@mochen/contracts";
-import { foreshadowRows, foreshadowStats, plantToneLabel } from "./foreshadow";
+import { foreshadowRows, foreshadowStats, plantToneLabel, readForeshadowRaws } from "./foreshadow";
 
 /**
  * 伏笔台账的**行组装与统计**（2026-10-05）。
@@ -124,5 +124,37 @@ describe("plantToneLabel", () => {
   it("坏了与读不到不是一回事，说法要能让人知道该干什么", () => {
     expect(plantToneLabel("broken")).toContain("状态");
     expect(plantToneLabel("unknown")).toContain("读");
+  });
+});
+
+describe("readForeshadowRaws（2026-10-09 从 store 搬进来的并发读）", () => {
+  it("只读 foreshadow 那一类，其它文稿一篇都不碰", async () => {
+    const asked: string[] = [];
+    const raws = await readForeshadowRaws(
+      [doc("foreshadow/甲.md", "甲"), doc("chapters/01.md", "第一章", "chapter")],
+      async (relPath) => {
+        asked.push(relPath);
+        return { content: doc_("状态: planted") };
+      }
+    );
+    expect(asked).toEqual(["foreshadow/甲.md"]);
+    expect(raws.has("chapters/01.md")).toBe(false);
+  });
+
+  it("一篇读失败不许把整张表拖垮：失败的那篇不进 raws，其余照旧齐", async () => {
+    const raws = await readForeshadowRaws(
+      [doc("foreshadow/甲.md", "甲"), doc("foreshadow/乙.md", "乙")],
+      async (relPath) => {
+        if (relPath === "foreshadow/甲.md") throw new Error("EBUSY: 这一篇正被占用");
+        return { content: doc_("状态: planted") };
+      }
+    );
+    expect([...raws.keys()]).toEqual(["foreshadow/乙.md"]);
+    // 缺的那一篇由 foreshadowRows 摆成 unknown 语气——从台账上消失才是最坏的落点。
+    expect(
+      foreshadowRows([doc("foreshadow/甲.md", "甲"), doc("foreshadow/乙.md", "乙")], raws).map(
+        (r) => r.tone
+      )
+    ).toEqual(["unknown", "pending"]);
   });
 });

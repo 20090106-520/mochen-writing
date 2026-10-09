@@ -6,9 +6,12 @@ import { storeToRefs } from "pinia";
 import type { IconName } from "../types/icons";
 import AppIcon from "./AppIcon.vue";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
+import { stepNavNode, visibleNavNodes } from "../utils/outline-navigation";
+import { imeOwnsKey } from "../utils/slash-commands";
 import { BOOK_KIND_LABELS, BOOK_KIND_ORDER } from "../utils/book-kinds";
 import { useBookStore } from "../stores/useBookStore";
 import { useModalFocus } from "../composables/useModalFocus";
+import { formatCharCount } from "../utils/char-count";
 
 const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -50,12 +53,16 @@ const KIND_ICON: Record<BookKind, IconName> = {
 // —— 搜索 ——
 const searchQuery = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
+/** ↑↓ 游标当前停在哪一枚节点上；`null` = 焦点还没进节点列表（还在搜索框）。 */
+const cursorPath = ref<string | null>(null);
 
+// 面板每次打开都从"没有游标"起：上一次的焦点位置不该决定这一次 ↓ 落在哪。
 watch(
   () => props.visible,
   (vis) => {
     if (vis) {
       setTimeout(() => inputRef.value?.focus(), 50);
+      cursorPath.value = null;
     } else {
       searchQuery.value = "";
       collapsedSections.value = {};
@@ -64,15 +71,21 @@ watch(
 );
 
 // —— 排序方式 ——
-type SortMode = "order" | "kind" | "chars";
+type SortMode = "order" | "chars";
 const sortMode = ref<SortMode>("order");
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: "order", label: "章节顺序" },
-  { value: "kind", label: "按类型" },
   { value: "chars", label: "按字数" }
 ];
 
 function sortDocs(items: DocRef[], mode: SortMode): DocRef[] {
+  /*
+   * 原先这里还有第三档「按类型」：点下去 `sortDocs` 走的是「原样返回」那条路，
+   * 而列表本来就按 `BOOK_KIND_ORDER` 分节渲染——那一枚按钮什么也不改变，是枚假控件
+   * （2026-10-09 扫描总单「假控件」大纲那一行，摘掉而不是再补一层空转的排序）。
+   * 「章节顺序」同样是原样返回，但它不是假档：`docs` 进这里之前已经按 `book.json`
+   * 的 `chapterOrder` 排过（`useBookStore.sortDocsByOrder`），"不另排"正是它承诺的行为。
+   */
   if (mode === "chars") {
     return [...items].sort((a, b) => (b.chars ?? 0) - (a.chars ?? 0));
   }
@@ -122,6 +135,48 @@ const filteredSections = computed((): OutlineSection[] => {
   }).filter((section) => section.nodes.length > 0);
 });
 
+// —— ↑↓ 浏览（页脚那句提示的真身，2026-10-09 接上） ——
+/*
+ * 「往哪儿走」的算术住在 `utils/outline-navigation`（纯函数，那边有 9 条用例）；
+ * 这里只做两件事：把算出来的那一枚节点拿到焦点、滚进视野，以及把焦点已经在哪个节点上告诉算术。
+ * ↵ 不用另写：每个节点本来就是 `<button>`，拿到焦点后回车/空格由浏览器自己派发 click。
+ */
+const nodeEls = new Map<string, HTMLElement>();
+
+function setNodeRef(relPath: string, el: unknown): void {
+  if (el instanceof HTMLElement) nodeEls.set(relPath, el);
+  else nodeEls.delete(relPath);
+}
+
+const navNodes = computed(() => visibleNavNodes(filteredSections.value, collapsedSections.value));
+
+function focusNode(relPath: string): void {
+  const el = nodeEls.get(relPath);
+  if (el === undefined) return;
+  cursorPath.value = relPath;
+  el.focus();
+  el.scrollIntoView({ block: "nearest" });
+}
+
+/** 走一步；`false` = 没处可去（全部折叠、或空列表），这时连按键都不该吞掉。 */
+function moveCursor(delta: 1 | -1): boolean {
+  const next = stepNavNode(navNodes.value, cursorPath.value, delta);
+  if (next === null) return false;
+  focusNode(next);
+  return true;
+}
+
+/**
+ * ↑↓ 走大纲节点。闸口与 `SearchPanel` 同一条：中文输入法组合态里那一下方向键是**在选候选词**，
+ * 不是浏览大纲——判据用 `imeOwnsKey` 那一份，组件里不许散写（ime-guard-wiring 有全仓普查守卫）。
+ */
+function onPanelKeydown(event: KeyboardEvent): void {
+  if (imeOwnsKey(event)) return;
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  const delta = event.key === "ArrowDown" ? 1 : -1;
+  if (moveCursor(delta)) event.preventDefault();
+}
+
 // —— 选中判定 ——
 function isSelected(relPath: string): boolean {
   return activeDocTab.value === relPath;
@@ -137,12 +192,6 @@ function activateDoc(doc: DocRef): void {
 }
 
 // —— 字数格式化 ——
-function formatChars(chars: number | undefined): string {
-  const n = chars ?? 0;
-  if (n >= 10000) return `${(n / 10000).toFixed(1)} 万字`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)} 千字`;
-  return `${n} 字`;
-}
 
 // —— 总数统计 ——
 const totalWords = computed(() => docs.value.reduce((sum, doc) => sum + (doc.chars ?? 0), 0));
@@ -156,8 +205,10 @@ function handleScroll(event: Event): void {
 }
 onBeforeUnmount(() => panelScrollbar.dispose());
 
-// —— 拖拽排序（仅章节顺序模式下启用，按 BookKind 排序时无效） ——
-// book 的 schema 中 chapterOrder 由主进程管理，这里只做视觉占位。
+// —— 拖拽排序 ——
+// 这一层**没有**拖拽：章节次序的拖拽住在 `LeftSidebar.vue`（那边调 `book.moveChapterByRelPath`，
+// 先落 `book.json` 的 `chapterOrder` 再上屏）。原先这里留着两句"视觉占位"的注释，
+// 既没有 `draggable` 也没有 drop 处理，读代码的人会以为大纲里能拖动排序——注释已按事实改掉。
 </script>
 
 <template>
@@ -169,6 +220,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
       aria-modal="true"
       aria-label="文档大纲"
       tabindex="-1"
+      @keydown="onPanelKeydown"
     >
       <!-- 标题栏 -->
       <header class="outline-header">
@@ -194,7 +246,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
         </span>
         <span class="outline-stat-item">
           <AppIcon name="pen" :size="13" />
-          {{ formatChars(totalWords) }}
+          {{ formatCharCount(totalWords) }}
         </span>
       </div>
 
@@ -265,15 +317,17 @@ onBeforeUnmount(() => panelScrollbar.dispose());
             <ul v-if="!collapsedSections[section.id]" class="outline-nodes">
               <li v-for="node in section.nodes" :key="node.relPath" class="outline-node">
                 <button
+                  :ref="(el) => setNodeRef(node.relPath, el)"
                   class="outline-node-row"
                   :class="{ 'is-selected': isSelected(node.relPath) }"
                   type="button"
                   :title="node.title"
+                  @focus="cursorPath = node.relPath"
                   @click="activateDoc(node)"
                 >
                   <AppIcon :name="section.icon" :size="14" class="outline-node-icon" />
                   <span class="outline-node-title">{{ node.title }}</span>
-                  <span class="outline-node-chars">{{ formatChars(node.chars) }}</span>
+                  <span class="outline-node-chars">{{ formatCharCount(node.chars) }}</span>
                 </button>
               </li>
             </ul>
@@ -364,7 +418,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-tertiary, #777);
 }
 
@@ -399,7 +453,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
   border: none;
   outline: none;
   color: var(--text-primary, #e8e8e8);
-  font-size: 13px;
+  font-size: 0.928571rem;
   padding: 2px 0;
 }
 
@@ -422,7 +476,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
 
 .outline-sort-btn {
   padding: 3px 8px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-tertiary, #777);
   background: transparent;
   border: 1px solid transparent;
@@ -482,7 +536,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
 }
 
 .outline-empty p {
-  font-size: 13px;
+  font-size: 0.928571rem;
   margin: 0;
 }
 
@@ -542,7 +596,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-tertiary, #777);
-  font-size: 10px;
+  font-size: 0.714286rem;
   font-weight: 500;
   margin-left: auto;
 }
@@ -608,7 +662,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
 
 .outline-node-chars {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #555);
   font-variant-numeric: tabular-nums;
 }
@@ -619,7 +673,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
   gap: 14px;
   padding: 8px 16px;
   border-top: 1px solid var(--line-soft, rgba(255, 255, 255, 0.06));
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-tertiary, #777);
 }
 
@@ -629,7 +683,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
   border: 1px solid var(--line, rgba(255, 255, 255, 0.1));
   border-radius: 3px;
   margin: 0 2px;
-  font-size: 10px;
+  font-size: 0.714286rem;
   font-family: inherit;
 }
 </style>

@@ -237,6 +237,9 @@ function panelShortcut(id: PanelShortcutId): void {
 
 onMounted(() => {
   applyTheme();
+  // 退出握手（P0-6）：主进程拦下这趟关闭时，由书这格 store 把每篇没落盘的字先写回盘上。
+  // 接在根组件而不是中栏——中栏会随页面卸载，握手却该在应用的整个生命期里都在。
+  book.listenQuitFlush();
   // 减少动效（外观页那档偏好）：挂载即把档位落到 <html>，motion.css 据此决定动效层是否退场。
   applyReducedMotion(document.documentElement, loadReducedMotion(motionPreferenceStorage()));
   schemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -282,6 +285,23 @@ watch(
       goalStore.recordWriting(book.activeDocTab, currentContent, lastSavedContent);
       lastSavedContent = currentContent;
     }
+  }
+);
+
+/**
+ * 写作时长的信号源（2026-10-09 扫描总单「假控件与死路清单」第 1 行）。
+ *
+ * 面板底栏那两枚「平均速度 / 今日时长」以前恒显示 0：写时长的 `startSession`/`endSession`
+ * 是番茄钟留下的接口，2026-10-05 专注模式整条下线后调用方删净了，没人调、也就没人写。
+ * 修法不是把开始/结束按钮补回来（那是用户已经裁掉的功能），而是让时长由**有没有在动笔**推出来：
+ * 打字必然改草稿，停笔必然不再有变化——所以信号就取 `book.draft` 的变化这一次事实，
+ * 「隔多久算离席」「换稿那一跨不计」「亚秒零头攒着」这些取舍全在 store 的 `activity()` 一处，
+ * 这里只报告事实，不复制判定（铁律 6）。
+ */
+watch(
+  () => book.draft,
+  () => {
+    goalStore.activity(book.activeDocTab, Date.now());
   }
 );
 

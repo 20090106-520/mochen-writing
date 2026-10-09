@@ -6,7 +6,8 @@ import {
   ruleBlock,
   scopedStyleSource,
   scriptSource,
-  templateSource
+  templateSource,
+  typeScriptSource
 } from "../utils/vue-source-reader";
 
 /**
@@ -16,7 +17,7 @@ import {
  * 本文件只钉「接没接上」——本仓 `.vue` 不进类型程序，组件里写错一个 import 编译器不报、
  * 要到运行时才炸（批次 4-① 在 `CenterColumn.vue` 上真撞到过 `workModeOf` 未导入）。
  *
- * 钉的九件事，前两条是**白屏回归线**，它们比任何功能断言都贵：
+ * 钉的十一件事，前两条是**白屏回归线**，它们比任何功能断言都贵：
  * ① 渲染层只许引零 Node 依赖的 `export-shared` 子路径，不许引 `export-service`（那条链经
  *    `epub.ts → zip.ts` 传递依赖 `node:zlib`，进浏览器 bundle 就是批次 3 撞过的首屏白屏）；
  * ② `export-shared.ts` 自身也必须零 `node:` 引用——它是「渲染层可引」这个结论的**唯一凭据**，
@@ -27,12 +28,19 @@ import {
  * ⑤ 竞态令牌在**成功与失败两条路上都要判**（数次数而不是 toContain）；
  * ⑥ 零章的 EPUB 拦住并说人话，不能给空壳文件；
  * ⑦ 二进制优先于文本：bytes 与 content 是二选一，拿 content 去写 zip 就是乱码；
- * ⑧ 复制按钮对 EPUB 要挡住（二进制包没有可复制的文本预览）；
- * ⑨ 组装失败要看得见，且那条 class 在内联样式里真的写了规则（钉死「删了模板留了 CSS」的反向）。
+ * ⑧ 复制钮挡住不能复制的格式并说清为什么（2026-10-09 起判定住在 `utils/export-clipboard`，
+ *    这里钉的是「组件把那道判定接上了」而不是「组件里也写了一份」）；
+ * ⑨ 组装失败要看得见，且那条 class 在内联样式里真的写了规则（钉死「删了模板留了 CSS」的反向）；
+ * ⑩ 空选**根本不去组装**——服务层口径是 `[] = 全部章节`，把「一枚都没勾」传成 `[]` 就是
+ *    「预览摆全书、导出钮禁着」那处口径相反（扫描总单·假控件 导出行）；
+ * ⑪ 复制的三道闸（组装失败 / EPUB / 空或全空白）只有一处判定真身，组件不许再自判一次——
+ *    旧写法无条件 `writeText(content)` 后报「已复制」，剪贴板里其实是个空串。
  */
 const dialogScript = scriptSource("components/ExportDialog.vue");
 const dialogTpl = templateSource("components/ExportDialog.vue");
 const dialogCss = scopedStyleSource("components/ExportDialog.vue");
+/** 复制/组装两道判定的真身所在（注释已剥：只活在注释里的宣称不算做了这件事）。 */
+const clipboardSrc = typeScriptSource("utils/export-clipboard.ts");
 
 const sharedSrc = readFileSync(
   fileURLToPath(
@@ -206,9 +214,16 @@ describe("零章 / 二进制 / 复制 三处用户能撞上的岔路", () => {
     expect(countNeedle("result.bytes ?? result.content", dialogScript)).toBe(2);
   });
 
-  it("复制对 EPUB 挡住并说清为什么", () => {
-    expect(dialogScript).toContain('if (format.value === "epub") {');
-    expect(dialogScript).toContain("EPUB 是打包出来的电子书文件，请点「导出」保存成 .epub。");
+  it("复制对 EPUB 挡住并说清为什么（判定住在 util，组件只负责把它递过去）", () => {
+    // 2026-10-09 假控件那一刀：这句文案原先写在组件里、由组件自己 `if (format === "epub")` 判，
+    // 于是"组装失败/空选"这两条同样复制不了的路径全都没闸——文案搬进 util 之后，
+    // 这里改钉**接线**：组件必须引 decideCopy，且 blocked 分支先于写剪贴板。
+    expect(dialogScript).toContain('from "../utils/export-clipboard"');
+    expect(dialogScript).toContain("const decision = decideCopy({");
+    expect(dialogScript.indexOf('if (decision.kind === "blocked") {')).toBeLessThan(
+      dialogScript.indexOf("await navigator.clipboard.writeText(")
+    );
+    expect(clipboardSrc).toContain("EPUB 是打包出来的电子书文件，请点「导出」保存成 .epub。");
   });
 
   it("降级分支的 mime 认得 epub", () => {
@@ -255,5 +270,71 @@ describe("失败提示在模板与样式里都接上了", () => {
   it("反向也钉住：class 在模板里出现了几次，样式里就得有几条规则对应（不留死 CSS）", () => {
     expect(countNeedle('class="export-assemble-error"', dialogTpl)).toBe(1);
     expect(countNeedle(".export-assemble-error", dialogCss)).toBe(1);
+  });
+});
+
+/**
+ * 2026-10-09 扫描总单「假控件」里导出那一行：UI 说「没勾选 = 只导勾选的章节」，
+ * 服务层的口径却是 `docRelPaths: [] = 全部章节`（`contracts/export.ts` 那行注释）。
+ * 两处口径相反，后果是预览摆出全书、导出钮却禁着；复制钮更糟——空串也照写剪贴板、
+ * 然后界面报「已复制」。这一族钉的是**接线**：判定只有 util 那一份，组件不许再自判一次。
+ */
+describe("空选与复制：判定只许有一处", () => {
+  it("空选根本不去组装（而不是传个 [] 让服务层当「全部」组装）", () => {
+    expect(dialogScript).toContain("if (!shouldAssemble(selectedChapters.value.size)) {");
+    // 旧写法 `size > 0 ? [...] : []` 的那一枚 `: [];` 不许回来：它正是「空选=全部」这条假通路。
+    expect(dialogScript).not.toContain(": [];");
+    // 顺序也钉：早退必须排在真正组装之前，否则空选照样发一次 IPC。
+    expect(dialogScript.indexOf("if (!shouldAssemble(")).toBeLessThan(
+      dialogScript.indexOf("await window.mochen.buildExport(")
+    );
+    // 早退那条路要清空预览并抹掉失败态，不能留着上一轮的陈旧内容当本轮结果。
+    const guard = dialogScript.slice(
+      dialogScript.indexOf("if (!shouldAssemble("),
+      dialogScript.indexOf("const docRelPaths =")
+    );
+    expect(guard).toContain('content: "", bytes: null, byteSize: 0');
+    expect(guard).toContain('assembleError.value = "";');
+  });
+
+  it("勾选列表只在真有勾选时才递给服务层（`[...selectedChapters.value]` 那一句在早退之后）", () => {
+    expect(dialogScript).toContain("const docRelPaths = [...selectedChapters.value];");
+    // 不许出现第二份「组装请求」的构造点——否则空选那条路只是其中一条被堵上了。
+    expect(countNeedle("await window.mochen.buildExport(", dialogScript)).toBe(1);
+  });
+
+  it("复制的三道闸（组装失败 / EPUB / 空或全空白）住在 util，且各只有一处", () => {
+    expect(clipboardSrc).toContain('if (input.assembleError !== "") {');
+    expect(clipboardSrc).toContain('if (input.format === "epub") {');
+    expect(clipboardSrc).toContain('if (input.content.trim() === "") {');
+    for (const needle of [
+      'if (input.assembleError !== "") {',
+      'if (input.format === "epub") {',
+      'if (input.content.trim() === "") {'
+    ]) {
+      expect(countNeedle(needle, clipboardSrc), needle).toBe(1);
+    }
+    // 组件里不许再留一份自判：EPUB 那句从前就是写在组件里的。
+    expect(dialogScript).not.toContain('if (format.value === "epub") {');
+    expect(dialogScript).not.toContain('if (input.content.trim() === "") {');
+    // 判定要的三件事实必须由组件递进去——少一件，util 那道闸就形同虚设。
+    expect(dialogScript).toContain("const decision = decideCopy({");
+    expect(dialogScript).toContain("content: previewResult.value.content,");
+    expect(dialogScript).toContain("assembleError: assembleError.value");
+  });
+
+  it("复制钮在「没内容」与「组装失败」两档都禁用，条件就是那两件事", () => {
+    expect(dialogTpl).toContain(`:disabled="previewResult.content === '' || assembleError !== ''"`);
+    expect(
+      countNeedle(`:disabled="previewResult.content === '' || assembleError !== ''"`, dialogTpl)
+    ).toBe(1);
+  });
+
+  it("空选时预览区要有话说，且那条 class 在内联样式里真有规则", () => {
+    expect(dialogTpl).toContain('v-if="selectedChapters.size === 0"');
+    expect(dialogTpl).toContain("没勾选任何篇章——勾上要导出的章节才会有预览。");
+    expect(ruleBlock(dialogCss, ".export-no-selection")).not.toBe("");
+    expect(countNeedle('class="export-no-selection"', dialogTpl)).toBe(1);
+    expect(countNeedle(".export-no-selection", dialogCss)).toBe(1);
   });
 });

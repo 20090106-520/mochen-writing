@@ -15,7 +15,7 @@
      这里不含业务判断，一切交给 store；输入值本身也由 store 持有（F-A 前置）。 -->
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { PermissionMode, ThinkingLevel, WorkMode } from "@mochen/contracts";
+import type { PermissionMode, ThinkingLevel, ThinkingWire, WorkMode } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import ComposerContextBar from "./ComposerContextBar.vue";
 import ComposerReferenceMenu from "./ComposerReferenceMenu.vue";
@@ -42,6 +42,8 @@ const props = defineProps<{
   // #105：权限档弹层真身挂到卡右端（deepwrite 的「更多」那一端）；开合仍由装配处的 useBookStore 裁决。
   permissionMenuOpen: boolean;
   thinkingLevel: ThinkingLevel;
+  /** 启用中那条连接把「深度」在线上叫什么（Agnes 那类端点叫 xhigh）；只影响 chip 的提示。 */
+  thinkingWire: ThinkingWire;
   webSearchEnabled: boolean;
   modelLabel: string;
   // prop 名必须是 `baseUrl` 而不是 `baseURL`：模板里的 kebab 绑定 `:base-url` 被 Vue camelize 成 `baseUrl`，
@@ -92,6 +94,7 @@ const chips = computed(() =>
     workMode: props.workMode,
     saving: props.permissionSaving,
     thinkingLevel: props.thinkingLevel,
+    thinkingWire: props.thinkingWire,
     webSearchEnabled: props.webSearchEnabled,
     modelLabel: props.modelLabel,
     baseURL: props.baseUrl

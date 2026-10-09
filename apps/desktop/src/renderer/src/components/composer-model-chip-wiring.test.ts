@@ -79,6 +79,7 @@ describe("modelChip 的提示不许自称配置好了", () => {
       workMode: "act",
       saving: false,
       thinkingLevel: "off",
+      thinkingWire: "standard" as const,
       webSearchEnabled: false,
       modelLabel: "agnes-2.5-pro",
       baseURL: "https://apihub.agnes-ai.com/v1"
@@ -97,6 +98,7 @@ describe("modelChip 的提示不许自称配置好了", () => {
       workMode: "act",
       saving: false,
       thinkingLevel: "off",
+      thinkingWire: "standard" as const,
       webSearchEnabled: false,
       modelLabel: "",
       baseURL: ""

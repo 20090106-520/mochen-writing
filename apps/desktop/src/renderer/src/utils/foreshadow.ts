@@ -37,6 +37,27 @@ function isKnownStatus(value: string): value is ForeshadowStatus {
   return value === "planted" || value === "paid" || value === "dropped";
 }
 
+/**
+ * 把书里所有伏笔文稿的**原文**一次性读回来（2026-10-09 从 `useBookStore` 搬出来，
+ * 让 store 只留「摆状态」那一格；并发与容错的判定本来就该和上面的行组装在同一处）。
+ *
+ * 用 `allSettled` 而不是 `all`：某一篇读不到（正在被占用、刚被外部删掉）时，
+ * 其余的照旧列出来，那一条走 `unknown` 语气——从台账上凭空消失的那一条才是最需要被看见的。
+ */
+export async function readForeshadowRaws(
+  docs: DocRef[],
+  readDoc: (relPath: string) => Promise<{ content: string }>
+): Promise<Map<string, string>> {
+  const targets = docs.filter((d) => d.kind === "foreshadow");
+  const raws = new Map<string, string>();
+  const loaded = await Promise.allSettled(targets.map((d) => readDoc(d.relPath)));
+  targets.forEach((d, i) => {
+    const one = loaded[i];
+    if (one?.status === "fulfilled") raws.set(d.relPath, one.value.content);
+  });
+  return raws;
+}
+
 /** 同状态内部的排序：异常与「还欠什么」排在最前，台账先说要紧的。 */
 const TONE_ORDER: Record<ForeshadowTone, number> = {
   broken: 0,

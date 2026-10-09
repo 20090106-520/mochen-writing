@@ -6,6 +6,7 @@ export * from "./market.js";
 export * from "./plugin.js";
 export * from "./permission.js";
 export * from "./book.js";
+export * from "./book-data.js";
 export * from "./agent-profile.js";
 export * from "./text.js";
 export * from "./frontmatter.js";

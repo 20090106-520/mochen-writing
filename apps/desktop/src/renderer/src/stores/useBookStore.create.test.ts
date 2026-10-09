@@ -92,6 +92,11 @@ const api = {
   onAgentEvent: vi.fn(() => {
     throw new Error("useBookStore 不该订阅 agent");
   }),
+  // 退出握手（P0-6）：这些用例不该摸这条通道，一摸就抛——订阅要同步返回退订函数，故不套 offLimits。
+  onQuitFlushRequest: vi.fn(() => {
+    throw new Error("不该订阅退出握手");
+  }),
+  quitFlushDone: offLimits("quitFlushDone"),
   saveFile: vi.fn(async () => true),
   buildExport: vi.fn(async () => ({
     content: "",
@@ -131,6 +136,14 @@ const api = {
   },
   readPluginSource: async () => {
     throw new Error("不该读插件源码");
+  },
+  // 设定落盘两枚（2026-10-09 扫描总单 P0-7）：建书这条路不碰书里的设定文件，
+  // 给的是「越权即抛」的假身——静默返回空表会让误用变得看不见。
+  readBookData: async () => {
+    throw new Error("不该读书里的设定文件");
+  },
+  writeBookData: async () => {
+    throw new Error("不该写书里的设定文件");
   }
 } satisfies RendererApi;
 

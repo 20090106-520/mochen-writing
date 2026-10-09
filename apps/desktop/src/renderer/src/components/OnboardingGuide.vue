@@ -185,7 +185,7 @@ function close(): void {
 }
 
 .ob-step-indicator {
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -212,14 +212,14 @@ function close(): void {
 
 .ob-title {
   margin: 0 0 10px;
-  font-size: 18px;
+  font-size: 1.285714rem;
   color: var(--text-primary, #e8e8e8);
   font-weight: 600;
 }
 
 .ob-desc {
   margin: 0 0 12px;
-  font-size: 13px;
+  font-size: 0.928571rem;
   color: var(--text-secondary, #bbb);
   line-height: 1.6;
 }
@@ -230,7 +230,7 @@ function close(): void {
   gap: 6px;
   margin: 0 0 20px;
   padding: 8px 10px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--accent, #6c9eff);
   background: rgba(108, 158, 255, 0.06);
   border-radius: 6px;
@@ -243,7 +243,7 @@ function close(): void {
 }
 
 .ob-skip {
-  font-size: 12px;
+  font-size: 0.857143rem;
   background: none;
   border: none;
   color: var(--text-muted, #777);
@@ -278,7 +278,7 @@ function close(): void {
   align-items: center;
   gap: 6px;
   padding: 7px 16px;
-  font-size: 13px;
+  font-size: 0.928571rem;
   background: var(--accent, #6c9eff);
   border: none;
   border-radius: 6px;

@@ -4,6 +4,7 @@ import { computed, ref } from "vue";
 import { useProjectManagerStore } from "../stores/useProjectManagerStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import AppIcon from "./AppIcon.vue";
+import { formatCharCount } from "../utils/char-count";
 
 const emit = defineEmits<{ "open-manager": [] }>();
 
@@ -21,11 +22,6 @@ function formatTimestamp(ts: number): string {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`;
   return new Date(ts).toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
-}
-
-function formatChars(n: number): string {
-  if (n >= 10_000) return `${(n / 10_000).toFixed(1)} 万字`;
-  return `${n.toLocaleString("zh-CN")} 字`;
 }
 
 function selectProject(id: string): void {
@@ -74,7 +70,7 @@ function close(): void {
           <div class="project-item-info">
             <span class="project-item-title">{{ proj.title }}</span>
             <span class="project-item-meta">
-              {{ formatChars(proj.totalChars) }} · {{ proj.chapterCount }} 章 ·
+              {{ formatCharCount(proj.totalChars) }} · {{ proj.chapterCount }} 章 ·
               {{ formatTimestamp(proj.lastOpenedAt) }}
             </span>
           </div>
@@ -117,7 +113,7 @@ function close(): void {
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.928571rem;
   color: var(--text-primary, #e8e8e8);
   max-width: 160px;
 }
@@ -157,7 +153,7 @@ function close(): void {
   justify-content: space-between;
   align-items: center;
   padding: 6px 12px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-secondary, #999);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -166,7 +162,7 @@ function close(): void {
 .project-dropdown-empty {
   padding: 16px 12px;
   text-align: center;
-  font-size: 13px;
+  font-size: 0.928571rem;
   color: var(--text-muted, #777);
 }
 
@@ -199,7 +195,7 @@ function close(): void {
 
 .project-item-title {
   display: block;
-  font-size: 13px;
+  font-size: 0.928571rem;
   color: var(--text-primary, #e8e8e8);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -208,7 +204,7 @@ function close(): void {
 
 .project-item-meta {
   display: block;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   margin-top: 2px;
 }
@@ -232,7 +228,7 @@ function close(): void {
   background: none;
   border: none;
   color: var(--accent, #6c9eff);
-  font-size: 12px;
+  font-size: 0.857143rem;
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;

@@ -43,6 +43,10 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     writeDoc: (relPath, content, expectedFingerprint) =>
       invoke(IPC_CHANNELS.docWrite, relPath, content, expectedFingerprint),
     createDoc: (relPath, title) => invoke(IPC_CHANNELS.docCreate, relPath, title),
+    // 设定数据（P0-7）：只递键，路径由主进程按白名单拼。preload 这一层不做判定，也不加判定——
+    // 在这里顺手 `if (!keys.includes(key))` 就是第二份白名单，将来两处迟早不一样。
+    readBookData: (key) => invoke(IPC_CHANNELS.bookDataRead, key),
+    writeBookData: (key, json) => invoke(IPC_CHANNELS.bookDataWrite, key, json),
     startTurn: (input: StartTurnInput) => invoke(IPC_CHANNELS.agentStartTurn, input),
     interruptTurn: (turnId) => invoke(IPC_CHANNELS.agentInterrupt, turnId),
     decideProposal: (input: DecideInput) => invoke(IPC_CHANNELS.agentDecide, input),
@@ -108,6 +112,15 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
       void invoke(IPC_CHANNELS.appNotify, title, body);
     },
     onAgentEvent: (listener) =>
-      on(IPC_CHANNELS.agentEvent, (payload) => listener(payload as AgentOutbound))
+      on(IPC_CHANNELS.agentEvent, (payload) => listener(payload as AgentOutbound)),
+    /**
+     * 退出握手（2026-10-09 P0-6）两条。
+     *
+     * 去的这条是主进程→渲染层的推送，没有载荷：主进程只说「先把稿子落盘」，
+     * 落哪几篇、怎么落全在渲染层自己的内存里。回的那条只递 `{ ok, blocked }`——
+     * 渲染层能说明「哪一篇落不下去、为什么」，但递不出路径，也就决定不了主进程往哪儿写。
+     */
+    onQuitFlushRequest: (listener) => on(IPC_CHANNELS.appFlushQuitRequest, () => listener()),
+    quitFlushDone: (reply) => invoke(IPC_CHANNELS.appFlushQuitDone, reply)
   };
 }

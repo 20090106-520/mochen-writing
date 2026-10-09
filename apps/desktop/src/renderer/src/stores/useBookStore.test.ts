@@ -92,6 +92,11 @@ const api = {
   onAgentEvent: vi.fn(() => {
     throw new Error("useBookStore 不该订阅 agent");
   }),
+  // 退出握手（P0-6）：这些用例不该摸这条通道，一摸就抛——订阅要同步返回退订函数，故不套 offLimits。
+  onQuitFlushRequest: vi.fn(() => {
+    throw new Error("不该订阅退出握手");
+  }),
+  quitFlushDone: offLimits("quitFlushDone"),
   listSkills: offLimits("listSkills"),
   readSkill: offLimits("readSkill"),
   // 技能市场三枚（2026-10-07 批次 5-㉖）：与上面同一口径，桩成「越权就抛」。
@@ -103,7 +108,11 @@ const api = {
   listPlugins: offLimits("listPlugins"),
   togglePlugin: offLimits("togglePlugin"),
   uninstallPlugin: offLimits("uninstallPlugin"),
-  readPluginSource: offLimits("readPluginSource")
+  readPluginSource: offLimits("readPluginSource"),
+  // 设定落盘两枚（2026-10-09 扫描总单 P0-7）：书本身不碰 `.mochen/data/` 那三份设定，
+  // 越权调用照样当场抛，而不是静默给一份空数据。
+  readBookData: offLimits("readBookData"),
+  writeBookData: offLimits("writeBookData")
 } satisfies RendererApi;
 
 function docReads() {
@@ -227,10 +236,11 @@ describe("useBookStore", () => {
     await store.openBook("/book");
     await store.openDocTab("chapters/01-a.md");
     await store.openDocTab("chapters/02-b.md");
-    store.closeTab("chapters/02-b.md");
+    // 关标签现在先替这一格落盘（P0-3），所以这两次关闭都是异步的：不 await 就会读到半程状态。
+    await store.closeTab("chapters/02-b.md");
     expect(store.docTabs).toEqual(["chapters/01-a.md"]);
     expect(store.activeDocTab).toBe("chapters/01-a.md");
-    store.closeTab("chapters/01-a.md");
+    await store.closeTab("chapters/01-a.md");
     expect(store.docTabs).toEqual([]);
     expect(store.activeDocTab).toBeNull();
     expect(store.draft).toBe("");
@@ -248,7 +258,9 @@ describe("useBookStore", () => {
     await store.openDocTab("chapters/01-a.md");
     await store.openDocTab("chapters/02-b.md");
     store.onEdit("02-b 的改动\n");
-    store.closeTab("chapters/02-b.md");
+    // 这一格的脏稿先落盘（P0-3）——写成之后标签才关得掉；下一格的存档照样不该被脏水泼到。
+    writeDoc.mockResolvedValueOnce({ ok: true, fingerprint: "fp-keep", backupRelPath: null });
+    await store.closeTab("chapters/02-b.md");
     expect(store.activeDocTab).toBe("chapters/01-a.md");
     expect(store.draft).toBe("正文\n");
     expect(store.dirty).toBe(false);
@@ -262,7 +274,8 @@ describe("useBookStore", () => {
     await store.openDocTab("chapters/01-a.md");
     await store.openDocTab("chapters/02-b.md");
     store.onEdit("02-b 的改动\n");
-    store.closeTab("chapters/01-a.md");
+    // 关的是另一格，且它本身是干净的：不发写盘，live 与活动指针一个字都不动。
+    await store.closeTab("chapters/01-a.md");
     expect(store.docTabs).toEqual(["chapters/02-b.md"]);
     expect(store.activeDocTab).toBe("chapters/02-b.md");
     expect(store.draft).toBe("02-b 的改动\n");

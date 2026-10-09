@@ -24,6 +24,7 @@ const VIEW: ProviderView = {
       label: "DeepSeek",
       baseURL: "https://api.deepseek.com/v1",
       authHeader: "bearer",
+      thinkingWire: "standard",
       hasKey: true,
       keyMask: "••••2c9f"
     },
@@ -33,6 +34,7 @@ const VIEW: ProviderView = {
       label: "小米 MiMo",
       baseURL: "https://api.xiaomimimo.com/v1",
       authHeader: "api-key",
+      thinkingWire: "standard",
       hasKey: true,
       keyMask: "••••ab12"
     }
@@ -135,6 +137,11 @@ const api = {
   onAgentEvent: vi.fn(() => {
     throw new Error("useProviderStore 不该订阅 agent");
   }),
+  // 退出握手（P0-6）：这些用例不该摸这条通道，一摸就抛——订阅要同步返回退订函数，故不套 offLimits。
+  onQuitFlushRequest: vi.fn(() => {
+    throw new Error("不该订阅退出握手");
+  }),
+  quitFlushDone: offLimits("quitFlushDone"),
   listSkills: offLimits("listSkills"),
   readSkill: offLimits("readSkill"),
   listChanges: offLimits("listChanges"),
@@ -166,6 +173,14 @@ const api = {
   },
   readPluginSource: async () => {
     throw new Error("不该读插件源码");
+  },
+  // 设定落盘两枚（2026-10-09 扫描总单 P0-7）：模型配置是应用级的东西，不碰书里的设定文件，
+  // 给的是「越权即抛」的假身——静默返回空表会让误用变得看不见。
+  readBookData: async () => {
+    throw new Error("不该读书里的设定文件");
+  },
+  writeBookData: async () => {
+    throw new Error("不该写书里的设定文件");
   }
 } satisfies RendererApi;
 
@@ -177,6 +192,7 @@ const DRAFT: ConnectionDraft = {
   providerId: "deepseek",
   baseURL: "https://api.deepseek.com/v1",
   authHeader: "bearer",
+  thinkingWire: "standard",
   apiKey: "sk-x"
 };
 
@@ -200,6 +216,7 @@ beforeEach(() => {
           label: draft.providerId,
           baseURL: draft.baseURL,
           authHeader: draft.authHeader,
+          thinkingWire: "standard",
           hasKey: draft.apiKey !== null && draft.apiKey !== "",
           keyMask: "••••9999"
         }
@@ -655,12 +672,14 @@ describe("useProviderStore · 保存连接", () => {
       providerId: "mimo",
       baseURL: "https://api.xiaomimimo.com/v1",
       authHeader: "api-key",
+      thinkingWire: "standard",
       apiKey: null
     });
     expect(providerSave).toHaveBeenCalledWith({
       providerId: "mimo",
       baseURL: "https://api.xiaomimimo.com/v1",
       authHeader: "api-key",
+      thinkingWire: "standard",
       apiKey: null
     });
   });

@@ -157,6 +157,7 @@ describe("provider 与掩码", () => {
         providerId: "custom",
         baseURL: "127.0.0.1:8787/v1",
         authHeader: "bearer",
+        thinkingWire: "standard",
         apiKey: null
       }).success
     ).toBe(false);
@@ -165,9 +166,21 @@ describe("provider 与掩码", () => {
         providerId: "custom",
         baseURL: "http://127.0.0.1:8787/v1",
         authHeader: "bearer",
+        thinkingWire: "standard",
         apiKey: "sk-abcdef"
       }).success
     ).toBe(true);
+    // 2026-10-09 批次 5-㊻：草稿里这一项是**必填**（与 authHeader 同一档），
+    // 而盘上的旧连接是靠 schema 的 default 补出来的。两者不是一回事：
+    // 草稿漏了就是「界面上根本没这一格」，应当当场拒。
+    expect(
+      connectionDraftSchema.safeParse({
+        providerId: "custom",
+        baseURL: "http://127.0.0.1:8787/v1",
+        authHeader: "bearer",
+        apiKey: null
+      }).success
+    ).toBe(false);
   });
 
   it("掩码只露末 4 位且长度不足时全遮", () => {

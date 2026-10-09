@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { copyFile, mkdir, readFile, readdir, rename } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,7 +26,7 @@ console.error = ((...args: unknown[]) => {
   }
 }) as typeof _rawError;
 import { IPC_CHANNELS, splitSkillId } from "@mochen/contracts";
-import type { BookMeta, ExportableDoc, ExportOptions } from "@mochen/contracts";
+import type { BookMeta, ExportableDoc, ExportOptions, FlushQuitReply } from "@mochen/contracts";
 import { buildExportContent } from "@mochen/fs-store/export-service";
 import { parseFrontmatter } from "@mochen/fs-store";
 import { createAgentService } from "./agent-service.js";
@@ -34,6 +35,8 @@ import { registerAgentIpc, registerProviderIpc } from "./agent-ipc.js";
 import { createAppearanceStore, registerAppearanceIpc } from "./appearance-store.js";
 import { createChangeRetentionStore } from "./change-retention-store.js";
 import { createBookService, registerBookIpc } from "./book-service.js";
+import { installCrashGuard } from "./crash-guard.js";
+import { installQuitFlush } from "./quit-flush.js";
 import { createCredentialStore } from "./credential-store.js";
 import { electronCipher } from "./electron-cipher.js";
 import { registerPickDirectoryIpc } from "./pick-directory.js";
@@ -53,6 +56,34 @@ import { migrateLegacyAppData, migrationNotice } from "./app-data-migration.js";
 /** F-4：品牌目录名。旧名只出现在迁移的入参里，源码别处一律用这两个常量。 */
 const LEGACY_APP_DIR_NAME = "mochen-writing";
 const APP_DIR_NAME = "mochen-ai";
+
+/**
+ * 进程级异常钩子（2026-10-09 全仓扫描 P0-6）：装在 `app.whenReady()` **之前**。
+ *
+ * 下面那条 `whenReady().then(async …)` 里任何一处抛——目录迁移、credential store、插件挂载——
+ * 原本都会变成一个没人接的 rejection：**窗口永不出现、也永不提示**，用户唯一能看到的现象是
+ * 「双击没反应」。钩子的三条规矩（留痕、只说第一次、自己绝不再抛）写在 `crash-guard.ts`，那边有用例。
+ *
+ * 日志落在**新品牌目录**的 `logs/crash.log`：这是诊断件，不参与 F-4 那条迁移（迁移只搬那三个已知文件），
+ * 所以不需要跟着「kept-old 时仍读旧目录」那条判定走——写进新目录，下次报障时一眼找得到。
+ */
+const crashLogPath = path.join(app.getPath("appData"), APP_DIR_NAME, "logs", "crash.log");
+/** 诊断件的唯一落点：崩溃钩子与退出握手都写这一份，报障时只看得到一个文件。 */
+const appendCrashLine = (line: string): void => {
+  mkdirSync(path.dirname(crashLogPath), { recursive: true });
+  appendFileSync(crashLogPath, `${line}\n`, "utf8");
+};
+installCrashGuard({
+  on: (event, handler) => {
+    process.on(event, handler);
+  },
+  appendLine: appendCrashLine,
+  notify: (title, detail) => {
+    // 不带 parent：这一条常在「窗口根本没建起来」时发出去，那正是它要解释的那件事。
+    dialog.showMessageBox({ type: "error", title, message: title, detail });
+  },
+  now: () => new Date().toISOString()
+});
 
 app.whenReady().then(async () => {
   // F-4：先把旧品牌目录搬走，**再建任何 store**。顺序反了的话这一次启动会先读旧目录，
@@ -306,6 +337,47 @@ app.whenReady().then(async () => {
     }
   });
   win.on("closed", () => agent.dispose());
+
+  /**
+   * 退出前的落盘握手（2026-10-09 全仓扫描 P0-6）：拦一次，请渲染层把每格没落盘的字写回盘，
+   * 落成了才走、落不下去先问人、等不到回话就按原样放行。三条规矩与用例都在 `quit-flush.ts`。
+   *
+   * 为什么非得问渲染层：没保存的字只在那个窗口的内存里，主进程看不见，自己写不了。
+   * 日志与崩溃钩子共用 `crash.log`——这两类事故本来就是同一次报障要看的两个现场。
+   */
+  installQuitFlush({
+    onBeforeQuit: (handler) => {
+      app.on("before-quit", handler);
+    },
+    onFlushReply: (handler) => {
+      ipcMain.handle(IPC_CHANNELS.appFlushQuitDone, (_evt, reply: FlushQuitReply) => {
+        handler(reply);
+      });
+    },
+    sendFlushRequest: () => {
+      win.webContents.send(IPC_CHANNELS.appFlushQuitRequest);
+    },
+    hasWindow: () => !win.isDestroyed(),
+    askUser: (summary) =>
+      // 默认停在「留下」，回车/取消也留在：这一趟的初衷就是别把还没落盘的字带走。
+      dialog.showMessageBoxSync({
+        type: "warning",
+        title: "墨宸 AI · 有稿子没能落盘",
+        message: "还有稿子没写回磁盘。仍要退出吗？",
+        detail: summary,
+        buttons: ["仍要退出", "留下"],
+        defaultId: 1,
+        cancelId: 1
+      }) === 0
+        ? "quit"
+        : "stay",
+    after: (ms, onElapsed) => {
+      const timer = setTimeout(onElapsed, ms);
+      return () => clearTimeout(timer);
+    },
+    log: appendCrashLine,
+    quit: () => app.quit()
+  });
 
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   if (rendererUrl) void win.loadURL(rendererUrl);

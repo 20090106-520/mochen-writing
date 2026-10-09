@@ -3,6 +3,7 @@
 import { computed, ref, watch, toRef } from "vue";
 import { storeToRefs } from "pinia";
 import { useWritingGoalStore } from "../stores/useWritingGoalStore";
+import { heatBorder, heatFill, ringStroke } from "../utils/writing-goal-heat";
 import { useModalFocus } from "../composables/useModalFocus";
 import AppIcon from "./AppIcon.vue";
 
@@ -68,19 +69,7 @@ function formatShortDate(dateStr: string): string {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-function heatColor(pct: number, reached: boolean): string {
-  if (pct === 0) return "transparent";
-  if (reached) return "#40845a";
-  if (pct >= 75) return "#3a7a50";
-  if (pct >= 50) return "#2d6a44";
-  if (pct >= 25) return "rgba(108,158,255,0.35)";
-  return "rgba(108,158,255,0.15)";
-}
-
-function heatBorder(pct: number): string {
-  if (pct === 0) return "1px solid var(--border, rgba(255,255,255,0.15))";
-  return "none";
-}
+/** 热力格与进度圈的颜色判定住 `utils/writing-goal-heat`（逐档有用例钉），这里只挂进 :style。 */
 
 const weekdayLabels = ["一", "二", "三", "四", "五", "六", "日"];
 
@@ -106,6 +95,12 @@ const heatDays = computed(() => recentProgress.value);
       </header>
 
       <div class="goal-body">
+        <!-- 落盘失败必须上屏（P0-7）：进度环、连续天数这些数字都在内存里涨，
+             而那份数据存不进这本书的目录时，原先屏上一个字都不说。原因住在 store.saveError。 -->
+        <p v-if="store.saveError" class="goal-save-error" role="status" aria-live="polite">
+          {{ store.saveError }}
+        </p>
+
         <!-- ===== 今日进度区 ===== -->
         <section class="goal-section goal-progress-section">
           <div class="goal-ring-container">
@@ -129,7 +124,7 @@ const heatDays = computed(() => recentProgress.value);
                 :cy="RADIUS + 10"
                 :r="RADIUS"
                 fill="none"
-                :stroke="todayProgress.reached ? '#40845a' : 'var(--accent, #6c9eff)'"
+                :stroke="ringStroke(todayProgress.reached)"
                 stroke-width="5"
                 stroke-linecap="round"
                 :stroke-dasharray="CIRCUMFERENCE"
@@ -147,7 +142,31 @@ const heatDays = computed(() => recentProgress.value);
               <span class="goal-ring-pct">{{ todayProgress.percentage }}%</span>
             </div>
           </div>
-          <p v-if="todayProgress.reached" class="goal-reached-msg">今日目标已达成</p>
+          <!-- 每日时长目标（2026-10-09 扫描总单「假控件」第 2 行）：
+               这一格以前能存、能回显，却在进度计算里一个字都没用——设了等于没设。
+               现在时长由 activity() 逐次结算（同清单第 1 行），这一行把它摆上进度。
+               没设目标时不许显示「0 / 0 分钟」那种自欺样式，直接说「未设目标」。 -->
+          <p class="goal-time-line">
+            <span>时长 {{ formatDuration(todayProgress.secondsWritten) }}</span>
+            <span v-if="todayProgress.targetSeconds > 0">/ {{ goal.dailyTimeTarget }} 分钟</span>
+            <span v-else class="goal-time-unset">未设目标</span>
+          </p>
+          <div
+            v-if="todayProgress.targetSeconds > 0"
+            class="goal-time-bar"
+            role="progressbar"
+            :aria-valuenow="todayProgress.timePercentage"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-label="今日写作时长进度"
+          >
+            <i
+              :class="{ 'is-reached': todayProgress.timeReached }"
+              :style="{ width: todayProgress.timePercentage + '%' }"
+            />
+          </div>
+          <p v-if="todayProgress.reached" class="goal-reached-msg">今日字数目标已达成</p>
+          <p v-else-if="todayProgress.timeReached" class="goal-reached-msg">今日时长目标已达成</p>
         </section>
 
         <!-- ===== 连续天数区 ===== -->
@@ -170,7 +189,7 @@ const heatDays = computed(() => recentProgress.value);
                 :key="day.date"
                 class="goal-heat-cell"
                 :style="{
-                  backgroundColor: heatColor(day.percentage, day.reached),
+                  backgroundColor: heatFill(day.percentage, day.reached),
                   border: heatBorder(day.percentage)
                 }"
                 :title="`${formatShortDate(day.date)}：${day.wordsWritten} 字 (${day.percentage}%)`"
@@ -265,7 +284,7 @@ const heatDays = computed(() => recentProgress.value);
 }
 
 .goal-header h3 {
-  font-size: 14px;
+  font-size: 1rem;
   margin: 0;
   color: var(--text-primary, #e8e8e8);
 }
@@ -296,6 +315,17 @@ const heatDays = computed(() => recentProgress.value);
 
 .goal-section {
   margin-bottom: 16px;
+}
+
+/* 目标与今日统计没能落进这本书的目录（P0-7）：进度环照样在涨，盘上却没东西，
+   所以这一行必须由通路（store.saveError）来说，而不是让它静默停在内存里。 */
+.goal-save-error {
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--danger, #e0556e);
+  border-radius: 6px;
+  color: var(--danger, #e0556e);
+  font-size: 0.785714rem;
 }
 
 /* ---- 今日进度 ---- */
@@ -332,10 +362,12 @@ const heatDays = computed(() => recentProgress.value);
 @keyframes goal-sparkle {
   0%,
   100% {
-    stroke: #40845a;
+    stroke: var(--success);
   }
   50% {
-    stroke: #52a56e;
+    /* 闪烁那一半不从主题里另挑一支绿：把 --success 往表面色里提一档，
+       换主题时亮的那一下跟着整片一起换（原先这里抄的是一支写死的亮绿，浅色主题下就是凭空一条)。 */
+    stroke: color-mix(in srgb, var(--success) 62%, var(--surface-main));
   }
 }
 
@@ -348,27 +380,66 @@ const heatDays = computed(() => recentProgress.value);
 }
 
 .goal-ring-words {
-  font-size: 13px;
+  font-size: 0.928571rem;
   font-weight: 600;
   color: var(--text-primary, #e8e8e8);
 }
 
 .goal-ring-unit {
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
 }
 
 .goal-ring-pct {
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-secondary, #999);
   margin-top: 2px;
 }
 
 .goal-reached-msg {
-  font-size: 12px;
-  color: #40845a;
+  font-size: 0.857143rem;
+  color: var(--success);
   margin: 8px 0 0;
   text-align: center;
+}
+
+/* ---- 今日时长（每日时长目标终于进进度了，见上面模板那段注释） ----
+   字号一律用 rem：`:root` 的 font-size 就是 `--ui-font-size`（styles.css:33），
+   写 px 的话用户调字号这一格不动，会被判定成「设置坏了」——2026-10-09 扫描总单那条正在数这个。 */
+.goal-time-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  font-size: 0.857143rem;
+  color: var(--text-secondary, #999);
+}
+
+.goal-time-unset {
+  color: var(--text-muted, #777);
+}
+
+.goal-time-bar {
+  width: 100%;
+  max-width: 160px;
+  height: 4px;
+  margin: 6px auto 0;
+  border-radius: 999px;
+  background: var(--border, rgba(255, 255, 255, 0.1));
+  overflow: hidden;
+}
+
+.goal-time-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent, #6c9eff);
+  transition: width 0.6s ease;
+}
+
+.goal-time-bar i.is-reached {
+  background: var(--success);
 }
 
 /* ---- 连续天数 ---- */
@@ -387,23 +458,23 @@ const heatDays = computed(() => recentProgress.value);
 }
 
 .goal-flame-icon {
-  color: #e8923a;
+  color: var(--warning);
 }
 
 .goal-streak-num {
-  font-size: 28px;
+  font-size: 2rem;
   font-weight: 700;
   color: var(--text-primary, #e8e8e8);
   line-height: 1;
 }
 
 .goal-streak-unit {
-  font-size: 12px;
+  font-size: 0.857143rem;
   color: var(--text-muted, #777);
 }
 
 .goal-streak-record {
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   margin: 4px 0 0;
 }
@@ -416,7 +487,7 @@ const heatDays = computed(() => recentProgress.value);
 
 .goal-section-label {
   display: block;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   margin-bottom: 8px;
   text-transform: uppercase;
@@ -445,7 +516,7 @@ const heatDays = computed(() => recentProgress.value);
 }
 
 .goal-heat-label {
-  font-size: 9px;
+  font-size: 0.642857rem;
   color: var(--text-muted, #777);
   opacity: 0.7;
 }
@@ -465,7 +536,7 @@ const heatDays = computed(() => recentProgress.value);
   background: transparent;
   border: none;
   color: var(--text-secondary, #999);
-  font-size: 12px;
+  font-size: 0.857143rem;
   cursor: pointer;
 }
 
@@ -491,7 +562,7 @@ const heatDays = computed(() => recentProgress.value);
 }
 
 .goal-setting-row label {
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
 }
 
@@ -501,7 +572,7 @@ const heatDays = computed(() => recentProgress.value);
   border-radius: 4px;
   padding: 4px 8px;
   color: var(--text-primary, #e8e8e8);
-  font-size: 13px;
+  font-size: 0.928571rem;
   outline: none;
 }
 
@@ -518,7 +589,7 @@ const heatDays = computed(() => recentProgress.value);
 
 .goal-setting-actions button {
   padding: 4px 12px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
   background: transparent;
@@ -528,7 +599,7 @@ const heatDays = computed(() => recentProgress.value);
 
 .goal-setting-actions button.is-primary {
   background: var(--accent, #6c9eff);
-  color: #fff;
+  color: var(--accent-contrast);
   border-color: var(--accent, #6c9eff);
 }
 
@@ -546,7 +617,7 @@ const heatDays = computed(() => recentProgress.value);
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
 }
 </style>

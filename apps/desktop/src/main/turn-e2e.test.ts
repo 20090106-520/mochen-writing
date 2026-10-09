@@ -124,6 +124,7 @@ async function build(): Promise<Built> {
     providerId: "custom",
     baseURL: `http://127.0.0.1:${port}/v1`,
     authHeader: "bearer",
+    thinkingWire: "standard",
     apiKey: API_KEY
   });
   const connectionId = seeded.connections[0]?.id ?? "";

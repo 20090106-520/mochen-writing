@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BookMeta } from "@mochen/contracts";
 import { createBookSkeleton, createDocFile, docTemplate } from "../src/create.js";
+import { fsBrokenAt } from "./atomic-write-fixture.js";
 import { makeFingerprint } from "../src/fingerprint.js";
 
 let root = "";
@@ -114,5 +115,18 @@ describe("createBookSkeleton", () => {
     const bad = { ...meta, id: "b-4", activeStage: "不存在的阶段" };
     await expect(createBookSkeleton(dir, bad as BookMeta)).rejects.toThrow();
     await expect(stat(dir)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("book.json 写失败时不许留下半截 JSON——那等于这本书再也打不开（P0-1）", async () => {
+    // 裸 `writeFile` 是「先截断再写」：半途而废就留下一份解析不了的 book.json，
+    // 正文全在盘上，`open()` 却在 parse 那一步抛——用户看到的是「书丢了」。
+    // 坏在「改名落定」这一步：真写到最后一寸才失败，才量得出中间那份临时文件有没有藏好。
+    const dir = path.join(root, "half-book");
+    await expect(
+      createBookSkeleton(dir, { ...meta, id: "b-5" }, fsBrokenAt("rename", "ENOSPC", "ENOSPC"))
+    ).rejects.toThrow(/ENOSPC/);
+    await expect(stat(path.join(dir, "book.json"))).rejects.toMatchObject({ code: "ENOENT" });
+    const all = ((await readdir(dir, { recursive: true })) as string[]).join("|");
+    expect(all).not.toContain("mochen-tmp");
   });
 });

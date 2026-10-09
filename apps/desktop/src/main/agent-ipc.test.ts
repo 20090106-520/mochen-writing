@@ -26,6 +26,7 @@ const view: ProviderView = {
       label: "自定义（自己填地址）",
       baseURL: "http://mock/v1",
       authHeader: "bearer",
+      thinkingWire: "standard",
       hasKey: true,
       keyMask: "••••2c9f"
     }
@@ -118,7 +119,8 @@ function stubSettings(seen: unknown[]): ProviderSettings {
       return {
         baseURL: connection.baseURL,
         model: view.profiles[0]?.model ?? "",
-        authHeader: connection.authHeader
+        authHeader: connection.authHeader,
+        thinkingWire: "standard"
       };
     },
     async apiKey() {
@@ -131,6 +133,7 @@ function stubSettings(seen: unknown[]): ProviderSettings {
       return {
         baseURL: connection.baseURL,
         authHeader: connection.authHeader,
+        thinkingWire: "standard",
         key: "sk-never-crosses-ipc"
       };
     },
@@ -251,6 +254,7 @@ describe("registerProviderIpc", () => {
       providerId: "custom",
       baseURL: "http://mock/v1",
       authHeader: "bearer",
+      thinkingWire: "standard",
       apiKey: null
     };
     // 存连接的回执比视图多一个 connectionId（刚存那条是谁）——别把它当成裸视图。

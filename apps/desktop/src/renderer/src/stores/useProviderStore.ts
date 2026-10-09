@@ -6,6 +6,7 @@ import type {
   ModelListResult,
   ProfileDraft,
   ProviderView,
+  ThinkingWire,
   VerifyResult
 } from "@mochen/contracts";
 import { presentableProviderError } from "../utils/provider-error";
@@ -65,6 +66,13 @@ export const useProviderStore = defineStore("provider", () => {
    * 不许各自再 find 一遍（那是同一件事的第二份实现）。
    */
   const activeConnectionId = computed(() => enabledProfile.value?.connectionId ?? "");
+  /**
+   * 启用中那条连接把「深度」在线上叫什么（Agnes 那类端点叫 xhigh）。
+   * chip 的提示要报真实出站值，而它属于**连接**——一条都没启用时回落成通用档。
+   */
+  const activeThinkingWire = computed<ThinkingWire>(
+    () => connectionOf(activeConnectionId.value)?.thinkingWire ?? "standard"
+  );
 
   /**
    * 启用中那条模型**自己那条连接**的地址（空串 = 没有启用中的模型，或那条连接已被删）。
@@ -262,6 +270,7 @@ export const useProviderStore = defineStore("provider", () => {
     modelLabel,
     activeBaseURL,
     activeConnectionId,
+    activeThinkingWire,
     configured,
     connectionOf,
     refresh,

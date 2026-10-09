@@ -85,8 +85,11 @@ describe("store 那道闸不许被拆掉", () => {
   });
 
   it("读失败清空正文，不留上一篇在新标题底下（撒谎比空着更坏）", () => {
-    expect(store).toContain('this.draft = "";');
-    expect(store).toContain("this.notice = `没能打开 ${relPath}");
+    // 2026-10-09 P0-3：清空不再逐字段抄一遍，改走 EMPTY_DOC 那一份样子。
+    // 钉的是**这一对次序**——先把这一格归零、再说明白哪一篇没打开；少了归零就是撒谎。
+    expect(store).toMatch(
+      /Object\.assign\(this, EMPTY_DOC\);\s*\n\s*this\.notice = `没能打开 \$\{relPath\}/
+    );
   });
 
   // 有暂存副本时不发 IPC 就不该进在途：否则中栏为一次同步赋值抖一下骨架。

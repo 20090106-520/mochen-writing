@@ -14,6 +14,7 @@ import {
 } from "../src/changes.js";
 import { makeFingerprint } from "../src/fingerprint.js";
 import { writeDocFile } from "../src/read-write.js";
+import { fsBrokenAt } from "./atomic-write-fixture.js";
 import type { ChangeEntry } from "@mochen/contracts";
 
 /**
@@ -134,6 +135,33 @@ describe("restoreChange", () => {
     expect(result.backupRelPath).not.toBeNull();
     const undo = await readChange(root, result.backupRelPath!);
     expect(undo.content).toBe(changed);
+  });
+
+  it("写失败时正文一字不变、报 io-error，且不许留下半截备份（P2-1）", async () => {
+    const before = await readFile(path.join(root, CHAPTER), "utf8");
+    const changed = `${before}又被改过一次。\n`;
+    const backup = await approve(changed, makeFingerprint(before));
+    expect(await readFile(path.join(root, CHAPTER), "utf8")).toBe(changed);
+
+    // 回滚要动两次盘：先给当前内容存一份 undo 备份，再把正文换回备份内容。
+    // 坏在「改名落定」这一步（Windows 上文件被占用就是这一族错误码），两次都不许写成半截。
+    const result = await restoreChange(
+      root,
+      backup,
+      makeFingerprint(changed),
+      null,
+      fsBrokenAt("rename", "EPERM: operation not permitted", "EPERM")
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("改名失败绝不能报称回滚成功了");
+    if (result.reason !== "io-error")
+      throw new Error(`写失败必须报 io-error，实际报了 ${result.reason}`);
+    expect(result.message).toContain("EPERM");
+    // 本体：盘上仍是**完整的那一份**，不是半截备份内容。
+    expect(await readFile(path.join(root, CHAPTER), "utf8")).toBe(changed);
+    const all = ((await readdir(root, { recursive: true })) as string[]).join("|");
+    expect(all).not.toContain("mochen-tmp");
   });
 
   it("指纹对不上（这之后还有人改过）就拒绝，一个字都不盖", async () => {

@@ -30,7 +30,8 @@ describe("DocumentPane · 片段工具栏的接线形状（F-F）", () => {
     expect(paneTemplate).toContain(':state="snippetToolbar"');
     expect(paneTemplate).toContain('@pick="applyToSelection"');
     expect(paneTemplate).not.toContain("snippetToolbar.visible");
-    expect(paneScript).toContain("useSnippetToolbar(editorEl)");
+    // 第二枚实参是把片段接进撤销栈的那条通路（正题钉在 edit-undo-wiring.test.ts，这里只认它挂上了）。
+    expect(paneScript).toContain("useSnippetToolbar(editorEl,");
     // 判定与标签的唯一真身都在 .ts：模板里出现「加粗」这类字面量就是第二份抄写。
     expect(paneTemplate).not.toContain("加粗");
     expect(paneTemplate).not.toContain("引用");

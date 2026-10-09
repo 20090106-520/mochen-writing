@@ -11,26 +11,36 @@ import {
   type BookOpenResult,
   type ChangeEntry,
   type DocRef,
+  type DocWriteResult,
   type PermissionMode,
   type WorkMode
 } from "@mochen/contracts";
 import { activeStageOf } from "../utils/composer-context";
 import { absorbConflictNotice } from "../utils/agent-thread";
-import { foreshadowRows, type ForeshadowRow } from "../utils/foreshadow";
+import { foreshadowRows, readForeshadowRaws, type ForeshadowRow } from "../utils/foreshadow";
 import { renameTitleInContent } from "../utils/doc-title";
+import { moveOrderItem, nextTabInCycle, sortDocsByOrder, tabAtIndex } from "../utils/doc-order";
 import {
   AUTOSAVE_DEFAULT_DELAY_MS,
   autosavePreferenceStorage,
   loadAutosaveDelay
 } from "../utils/autosave-preference";
 import { autoAdoptApproved } from "../utils/auto-behavior-preference";
-
-interface DocState {
-  draft: string;
-  savedFingerprint: string;
-  dirty: boolean;
-  conflict: { currentFingerprint: string } | null;
-}
+import {
+  EMPTY_DOC,
+  failureReasonOf,
+  flushAllBeforeQuit,
+  flushDocBeforeDrop,
+  flushIOFor,
+  quitBlockedNotice,
+  saveOutcomeOf,
+  type DocState,
+  type FlushAllResult,
+  type FlushIO,
+  type FlushOutcome
+} from "../utils/draft-flush";
+import { installQuitFlushListener } from "../utils/quit-flush-client";
+import { bookDataFlushNotice, withBookDataFlush } from "../composables/bookDataRegistry";
 
 /**
  * 右栏同一格的三态（铁律 6：这条联合只有一份实现）。
@@ -41,12 +51,9 @@ export type RightPaneMode = "manuscript" | "browse" | "dossier";
 /** 文稿编辑视图的三态（编辑 / 分栏预览 / 只看预览）。 */
 export type EditorViewMode = "edit" | "split" | "preview";
 
-const EMPTY_DOC: DocState = {
-  draft: "",
-  savedFingerprint: "",
-  dirty: false,
-  conflict: null
-};
+/** 写盘 IPC 的薄封装：模块级、不捕 `this`，`flushIOFor` 与 `saveActive` 都走这一个口子。 */
+const writeDocIpc: FlushIO["write"] = (relPath, content, expectedFingerprint) =>
+  window.mochen.writeDoc(relPath, content, expectedFingerprint);
 
 /** 最后一次键入到自动保存之间的静默窗的**默认档**：设置页那排档位的兜底值（没有偏好时用它）。
  *  排程真身走 loadAutosaveDelay（偏好档：关/1/2/5 秒），这个常量只保证「没设置时行为与原版一字不变」。 */
@@ -114,7 +121,8 @@ export const useBookStore = defineStore("book", {
      * `activeDocTab` 是先换的、`draft` 是后换的，中间那段中栏摆的是新标题配旧正文——
      * 这格标志让中栏改摆骨架。判定在 utils/editor-readout，这里只报事实。
      */
-    docLoading: false
+    docLoading: false,
+    quitFlushListening: false
   }),
 
   getters: {
@@ -139,9 +147,10 @@ export const useBookStore = defineStore("book", {
     },
 
     async openBook(rootPath: string) {
-      const opened = await window.mochen.openBook(rootPath);
+      // 换书前先把上一本未落盘的设定交回**上一本**：主进程的当前书在这次 IPC 落地那一刻就换了。
+      const opened = await withBookDataFlush(() => window.mochen.openBook(rootPath));
       this.applyOpened(opened);
-      this.notice = `已打开《${opened.meta.title}》`;
+      this.notice = bookDataFlushNotice(`已打开《${opened.meta.title}》`);
     },
 
     /**
@@ -172,13 +181,13 @@ export const useBookStore = defineStore("book", {
      * 目录选择（book:pick）由对话框先走完，这里只管建与开。
      */
     async createBook(directory: string, title: string): Promise<boolean> {
-      const result = await window.mochen.createBook({ directory, title });
+      const result = await withBookDataFlush(() => window.mochen.createBook({ directory, title }));
       if (!result.ok) {
-        this.notice = result.message;
+        this.notice = bookDataFlushNotice(result.message);
         return false;
       }
       this.applyOpened(result.book);
-      this.notice = `新书《${result.book.meta.title}》已建好，开始写吧。`;
+      this.notice = bookDataFlushNotice(`新书《${result.book.meta.title}》已建好，开始写吧。`);
       return true;
     },
 
@@ -319,44 +328,64 @@ export const useBookStore = defineStore("book", {
         if (token !== docLoadToken) return;
         // 读不出来时**必须清空正文**：留着上一篇的正文，新标题底下就是撒谎，
         // 用户一打字就会把上一篇写进这一篇。空着 + 说明白哪一篇没打开，比错着强。
-        this.draft = "";
-        this.savedFingerprint = "";
-        this.dirty = false;
-        this.conflict = null;
-        this.notice = `没能打开 ${relPath}：${err instanceof Error && err.message !== "" ? err.message : String(err)}`;
+        // 清空走 EMPTY_DOC 那一份样子（与 closeTab 关到空、reloadActive 都同一处）。
+        Object.assign(this, EMPTY_DOC);
+        this.notice = `没能打开 ${relPath}：${failureReasonOf(err)}`;
       } finally {
         // 只有还持有令牌的这次才收标志：废弃的那次落地会把在读的那次的骨架提前撤掉。
         if (token === docLoadToken) this.docLoading = false;
       }
     },
 
-    closeTab(relPath: string) {
+    /** 关标签（P0-3）：有没落盘的字就先写回盘上，写成了才允许它消失；判定与理由在 utils/draft-flush。 */
+    async closeTab(relPath: string): Promise<FlushOutcome> {
+      const outcome = await flushDocBeforeDrop(flushIOFor(this, writeDocIpc), relPath);
+      if (!outcome.ok) {
+        this.notice = outcome.message;
+        return outcome;
+      }
       this.docTabs = this.docTabs.filter((p) => p !== relPath);
       delete this.draftsByPath[relPath];
-      if (this.activeDocTab !== relPath) return;
+      if (this.activeDocTab !== relPath) return outcome;
       const next = this.docTabs[this.docTabs.length - 1] ?? null;
-      // 指针先置空再交给 openDocTab：这一段 live 还装着 relPath 的内容，
-      // 而 openDocTab 开头的 stashActive() 认的是 activeDocTab——留着 next 就是把脏水泼进它的存档。
+      // 指针先置空再交 openDocTab：它还装着 relPath 的内容，而 stashActive 认 activeDocTab。
       this.activeDocTab = null;
       if (next) void this.openDocTab(next);
       else Object.assign(this, EMPTY_DOC);
+      return outcome;
+    },
+
+    /** 退出前的兜底落盘（P0-6）：每格没落盘的字都写回去，哪篇没成就点名；一篇失败不中断其余。 */
+    async flushAllForQuit(): Promise<FlushAllResult> {
+      this.cancelAutoSave();
+      const relPaths = [...new Set([...this.docTabs, ...Object.keys(this.draftsByPath)])];
+      // 设定那一族也走这道闸门（P0-7）：正文落了盘而笔记还挂在内存里，等于白兜一次。
+      const result = await withBookDataFlush(() =>
+        flushAllBeforeQuit(flushIOFor(this, writeDocIpc), relPaths)
+      );
+      if (!result.ok) this.notice = quitBlockedNotice(result.blocked);
+      return result;
+    },
+
+    /** 退出握手（P0-6）装配点，中栏挂载时调一次；重复调用不叠加监听（一趟关闭落两遍盘、回两条话）。 */
+    listenQuitFlush(): void {
+      if (this.quitFlushListening) return;
+      this.quitFlushListening = true;
+      installQuitFlushListener(this, window.mochen);
     },
 
     /** Ctrl+1..9：越界返回 false 且不改状态。 */
     activateTab(index: number): boolean {
-      const target = this.docTabs[index];
-      if (target === undefined) return false;
+      const target = tabAtIndex(this.docTabs, index);
+      if (target === null) return false;
       void this.openDocTab(target);
       return true;
     },
 
-    /** Ctrl+PageUp/Down：环形切换；无标签时不动。 */
+    /** Ctrl+PageUp/Down：环形切换；无标签时不动。取哪一枚的算术在 utils/doc-order。 */
     cycleTab(delta: 1 | -1): void {
-      if (this.docTabs.length === 0) return;
-      const current = this.activeDocTab ? this.docTabs.indexOf(this.activeDocTab) : -1;
-      const next = (current + delta + this.docTabs.length) % this.docTabs.length;
-      const target = this.docTabs[next];
-      if (target !== undefined) void this.openDocTab(target);
+      const target = nextTabInCycle(this.docTabs, this.activeDocTab, delta);
+      if (target !== null) void this.openDocTab(target);
     },
 
     /**
@@ -368,18 +397,16 @@ export const useBookStore = defineStore("book", {
     },
 
     /**
-     * 改稿历史（2026-10-05）：`docWrite` 每次覆盖前都存了改前备份并把句柄传回来，
-     * 但此前全仓没有一处读得回它。这里补上这条回程——「AI 改坏了怎么办」的答案。
-     *
-     * 三条动作都走 store，不让组件直接摸 `window.mochen`：面板要同时管列表、预览与在途标记，
-     * 散在组件里就散成三份状态。
+     * 改稿历史（2026-10-05）：`docWrite` 每次覆盖前都存了改前备份并把句柄传回来，此前全仓没有一处读得回它——
+     * 这里补上这条回程，即「AI 改坏了怎么办」的答案。三条动作都走 store 而不让组件直接摸 `window.mochen`：
+     * 面板要同时管列表、预览与在途标记，散在组件里就散成三份状态。
      */
     async loadChanges(): Promise<void> {
       this.changesBusy = true;
       try {
         this.changeList = await window.mochen.listChanges();
       } catch (err) {
-        this.notice = `改稿历史没读回来：${err instanceof Error && err.message !== "" ? err.message : String(err)}`;
+        this.notice = `改稿历史没读回来：${failureReasonOf(err)}`;
         this.changeList = [];
       } finally {
         this.changesBusy = false;
@@ -400,14 +427,8 @@ export const useBookStore = defineStore("book", {
 
     /**
      * 伏笔台账（2026-10-05）：把书里所有 `foreshadow/` 文稿读回来摆成一张表。
-     *
-     * 为什么要读全文：伏笔的状态、埋在哪、收在哪都写在 frontmatter 里，
-     * 而 `DocRef` 只带 title/excerpt/chars——不读原文就永远只能看到一个空文件夹。
-     * 伏笔通常十几到几十条，一次 `allSettled` 并发读完即可，不做分页不做缓存
-     *（台账的价值全在「此刻还欠着什么」，缓存比不缓存更危险）。
-     *
-     * 读不到的**照样列出来**（tone=unknown）：凭空从台账上消失的那一条伏笔，
-     * 恰恰是最需要被看见的那一条。
+     * 为什么要读全文、读不到的为什么照样列出来（tone=unknown）、为什么不缓存——都写在
+     * `utils/foreshadow` 的 `readForeshadowRaws` 与 `foreshadowRows` 上，这里只摆状态。
      */
     async loadForeshadows(): Promise<void> {
       if (this.docs.length === 0) {
@@ -416,18 +437,13 @@ export const useBookStore = defineStore("book", {
       }
       this.foreshadowsBusy = true;
       try {
-        const targets = this.docs.filter((d) => d.kind === "foreshadow");
-        const raws = new Map<string, string>();
-        const loaded = await Promise.allSettled(
-          targets.map((d) => window.mochen.readDoc(d.relPath))
+        // 读原文的并发与容错在 utils/foreshadow（与行组装同一处）；这里只摆状态。
+        const raws = await readForeshadowRaws(this.docs, (relPath) =>
+          window.mochen.readDoc(relPath)
         );
-        targets.forEach((d, i) => {
-          const one = loaded[i];
-          if (one?.status === "fulfilled") raws.set(d.relPath, one.value.content);
-        });
         this.foreshadowRows = foreshadowRows(this.docs, raws);
       } catch (err) {
-        this.notice = `伏笔台账没读回来：${err instanceof Error && err.message !== "" ? err.message : String(err)}`;
+        this.notice = `伏笔台账没读回来：${failureReasonOf(err)}`;
         this.foreshadowRows = [];
       } finally {
         this.foreshadowsBusy = false;
@@ -445,7 +461,7 @@ export const useBookStore = defineStore("book", {
         if (this.changeHistory?.backupRelPath !== entry.backupRelPath) return;
         this.changePreview = { backupRelPath: entry.backupRelPath, content: read.content };
       } catch (err) {
-        this.notice = `这条备份读不出来：${err instanceof Error && err.message !== "" ? err.message : String(err)}`;
+        this.notice = `这条备份读不出来：${failureReasonOf(err)}`;
       } finally {
         this.changesBusy = false;
       }
@@ -479,7 +495,7 @@ export const useBookStore = defineStore("book", {
         await this.loadChanges();
         this.notice = `已回滚 ${entry.docRelPath} 到改前的样子。`;
       } catch (err) {
-        this.notice = `没能回滚：${err instanceof Error && err.message !== "" ? err.message : String(err)}`;
+        this.notice = `没能回滚：${failureReasonOf(err)}`;
       } finally {
         this.changesBusy = false;
       }
@@ -514,7 +530,7 @@ export const useBookStore = defineStore("book", {
     onEdit(content: string) {
       this.draft = content;
       this.dirty = true;
-      if (this.activeDocTab) this.draftsByPath[this.activeDocTab] = this.snapshot();
+      this.stashActive();
       this.scheduleAutoSave();
     },
 
@@ -524,10 +540,7 @@ export const useBookStore = defineStore("book", {
      * 静默窗读设置页那一档（utils/autosave-preference）：0 = 关（顺路把挂起那次也取消），只剩手动通路。
      */
     scheduleAutoSave(): void {
-      if (autoSaveTimer !== null) {
-        clearTimeout(autoSaveTimer);
-        autoSaveTimer = null;
-      }
+      this.cancelAutoSave();
       const delay = loadAutosaveDelay(autosavePreferenceStorage());
       if (delay <= 0) return;
       autoSaveTimer = setTimeout(() => {
@@ -536,7 +549,7 @@ export const useBookStore = defineStore("book", {
       }, delay);
     },
 
-    /** 取消挂起的自动保存：只在测试与假想的重载场景用，UI 不暴露。 */
+    /** 取消挂起的自动保存：排程与退出都调它（清句柄这件事只留这一处真身）。 */
     cancelAutoSave(): void {
       if (autoSaveTimer !== null) {
         clearTimeout(autoSaveTimer);
@@ -546,42 +559,38 @@ export const useBookStore = defineStore("book", {
 
     /**
      * 保存当前文稿（手动按钮与自动保存共用的唯一落盘通路）。
-     *
-     * 修掉一个既有竞态：保存发出后、await 回来前用户又打了字——盘上与 savedFingerprint 是
-     * 「发出那一刻」的稿子，此刻内存草稿已领先，dirty 绝不能被清成 false（清了它，那几个字就
-     * 活在「已保存」的假象里）。发现领先就把 dirty 竖回来，并按 auto 语境重新排程。
+     * 两条 P0 在这里收口（2026-10-09 全仓扫描 P0-2）：`saving` 由 `finally` 收尾，
+     * 抛错与 `ok:false` 走同一句理由上屏；摆态交给 `saveOutcomeOf`，逐条钉着在 utils/draft-flush。
      */
     async saveActive(options: { auto?: boolean } = {}) {
       if (!this.activeDocTab) return;
       if (options.auto === true && (this.saving || this.conflict !== null)) return;
       this.saving = true;
       const submitted = this.draft;
-      const result = await window.mochen.writeDoc(
-        this.activeDocTab,
-        this.draft,
-        this.savedFingerprint
-      );
-      this.saving = false;
-      if (result.ok) {
-        this.savedFingerprint = result.fingerprint;
-        const editedWhileSaving = this.draft !== submitted;
-        this.dirty = editedWhileSaving;
-        this.conflict = null;
-        this.notice =
-          options.auto === true
-            ? "已自动保存"
-            : result.backupRelPath
-              ? "已保存，原稿已备份"
-              : "已保存";
-        if (this.activeDocTab) this.draftsByPath[this.activeDocTab] = this.snapshot();
-        if (options.auto === true && editedWhileSaving) this.scheduleAutoSave();
+      let result: DocWriteResult;
+      try {
+        result = await writeDocIpc(this.activeDocTab, this.draft, this.savedFingerprint);
+      } catch (err) {
+        // IPC 抛错＝一个字都没落盘：理由上屏，指纹一步都不前进（前进就等于承认写成了）。
+        // 这里**不**重排自动保存：持续失败的盘（EBUSY 一直是）会因此变成每两秒一次的写盘风暴。
+        this.notice = `保存失败：${failureReasonOf(err)}`;
+        this.stashActive();
         return;
+      } finally {
+        this.saving = false;
       }
-      if (result.reason === "stale") {
-        this.conflict = { currentFingerprint: result.currentFingerprint };
-        this.notice = "文件在外部被改过，已拒绝覆盖";
-      } else this.notice = `保存失败：${result.message}`;
-      if (this.activeDocTab) this.draftsByPath[this.activeDocTab] = this.snapshot();
+      // 「拿到结果之后该怎么摆这一格」是纯判定，住在 utils/draft-flush 的 `saveOutcomeOf`：
+      // 那里逐条钉着 dirty 何时能清、指纹何时能推进、谁才允许自己重排静默窗。这里只接线。
+      const outcome = saveOutcomeOf({
+        result,
+        submitted,
+        liveDraft: this.draft,
+        auto: options.auto === true
+      });
+      Object.assign(this, outcome.patch);
+      this.notice = outcome.notice;
+      this.stashActive();
+      if (outcome.reschedule) this.scheduleAutoSave();
     },
 
     async reloadActive() {
@@ -625,8 +634,7 @@ export const useBookStore = defineStore("book", {
           this.notice = "智能体已写入本章，草稿已同步";
         } catch (err) {
           // 裁定 n：主进程边界拒绝的 message 是单句中文，这里必须让它可见，绝不静默吞掉。
-          const reason = err instanceof Error ? err.message : String(err);
-          this.notice = `智能体已写入本章，但草稿同步失败：${reason}`;
+          this.notice = `智能体已写入本章，但草稿同步失败：${failureReasonOf(err)}`;
         }
       } else this.notice = "智能体已写入本章";
       await this.refreshDocs();
@@ -676,7 +684,7 @@ export const useBookStore = defineStore("book", {
       try {
         await window.mochen.saveMeta(next);
       } catch (err) {
-        const reason = err instanceof Error && err.message !== "" ? err.message : String(err);
+        const reason = failureReasonOf(err);
         this.notice = `${failPrefix}：${reason}`;
         return false;
       } finally {
@@ -774,26 +782,18 @@ export const useBookStore = defineStore("book", {
       this.notice = `已切到「${profile.name}」。下一轮对话按它的提示词与上下文包装配。`;
     },
 
-    /** 拖拽重排章节：把 fromRelPath 移到 chapterOrder 的 toIndex，立即重排 docs 并落盘。 */
-    moveChapterByRelPath(fromRelPath: string, toIndex: number): void {
+    /**
+     * 拖拽重排章节：先落盘，**成功了屏上才跟着动**。
+     * 旧写法是 `void window.mochen.saveMeta(next)`——绕过 `persistMeta` 那条唯一通路，
+     * 于是「屏上已重排、盘上未改」，还把那次 rejection 抛成未处理拒绝（2026-10-09 扫描 P2-4）。
+     */
+    async moveChapterByRelPath(fromRelPath: string, toIndex: number): Promise<void> {
       if (!this.meta) return;
-      const order = [...toRaw(this.meta.chapterOrder)];
-      const currentIndex = order.indexOf(fromRelPath);
-      if (currentIndex === -1) return;
-      order.splice(currentIndex, 1);
-      order.splice(toIndex, 0, fromRelPath);
-      const next: BookMeta = { ...toRaw(this.meta), chapterOrder: order };
-      this.meta = next;
-      const rank = new Map(order.map((rel, index) => [rel, index]));
-      this.docs = [...this.docs].sort((a, b) => {
-        const ra = rank.get(a.relPath);
-        const rb = rank.get(b.relPath);
-        if (ra !== undefined && rb !== undefined) return ra - rb;
-        if (ra !== undefined) return -1;
-        if (rb !== undefined) return 1;
-        return 0;
-      });
-      void window.mochen.saveMeta(next);
+      // 挪位与重排是纯计算，住在 utils/doc-order；这里只管「落盘 → 回读 → 屏上跟上」这一条通路。
+      const order = moveOrderItem(toRaw(this.meta.chapterOrder), fromRelPath, toIndex);
+      if (order === null) return;
+      if (!(await this.persistMeta({ chapterOrder: order }, "章节顺序没存住"))) return;
+      this.docs = sortDocsByOrder(this.docs, order);
     }
   }
 });

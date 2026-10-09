@@ -10,6 +10,7 @@ import {
   type Cipher,
   type ReadTextFile
 } from "./credential-store.js";
+import { atomicFsBrokenAt } from "./atomic-write-fs-fixture.js";
 
 let dir = "";
 
@@ -140,5 +141,46 @@ describe("旧版那一份的搬移（secrets.enc → secrets/<连接id>.enc）",
     const store = createCredentialStore(dir, reversible);
     await store.moveLegacyTo(REF_B);
     expect(await store.read(REF_B)).toBe("sk-x");
+  });
+});
+
+/**
+ * P0-5 同族（2026-10-09 全仓扫描）：密钥那份 `<连接id>.enc` 也必须原子落盘。
+ *
+ * 裸 `writeFile(target, 密文)` 先截断再写：写到一半 ENOSPC／断电，留下的就是半截密文，
+ * 下次 `decrypt` 直接失败 ⇒ 用户那条连接的密钥凭空没了，而界面上还显示「已保存」。
+ * 原子化只换写法，**不换保密口径**：临时件与目标文件里都只许是密文，
+ * 所以这里除了「旧密文完好」，还钉一次「写进临时件的那串不含明文」。
+ */
+describe("密钥落盘的原子性（P0-5 同族）", () => {
+  it("改名那步失败 ⇒ 旧密文完好、目标没被截断，且临时件里也没有明文", async () => {
+    const good = createCredentialStore(dir, reversible);
+    await good.save(REF_A, "sk-old-secret");
+    const target = path.join(dir, SECRET_DIR, secretFileNameOf(REF_A));
+    const before = await readFile(target, "utf8");
+
+    const broken = atomicFsBrokenAt("rename", "盘满了，写入没完成");
+    const store = createCredentialStore(dir, reversible, undefined, broken.fs);
+    await expect(store.save(REF_A, "sk-new-secret")).rejects.toThrow(/盘满/);
+
+    expect(await readFile(target, "utf8")).toBe(before);
+    expect(await store.read(REF_A)).toBe("sk-old-secret");
+    expect(broken.writeTargets).toHaveLength(1);
+    expect(broken.writeTargets[0]).not.toBe(target);
+    expect(broken.writeData[0]).not.toContain("sk-new-secret");
+    const residue = (await readdir(path.join(dir, SECRET_DIR))).filter((name) =>
+      name.includes("mochen-tmp")
+    );
+    expect(residue).toEqual([]);
+  });
+
+  it("写成功时走的是同一条通路：目标只被改名盖住，没被直接写过", async () => {
+    const broken = atomicFsBrokenAt("unlink", "不该被用到");
+    const store = createCredentialStore(dir, reversible, undefined, broken.fs);
+    await store.save(REF_B, "sk-fine");
+    const target = path.join(dir, SECRET_DIR, secretFileNameOf(REF_B));
+    expect(broken.writeTargets).toEqual([expect.stringContaining("mochen-tmp")]);
+    expect(broken.renameFrom).toEqual([broken.writeTargets[0]]);
+    expect(await readFile(target, "utf8")).toBe(reversible.encrypt("sk-fine"));
   });
 });

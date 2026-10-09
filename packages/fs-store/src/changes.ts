@@ -1,7 +1,8 @@
-import { mkdir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import type { ChangeEntry, DocWriteResult } from "@mochen/contracts";
 import { makeFingerprint } from "./fingerprint.js";
+import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "./atomic-write.js";
 import { assertSafeRelPath } from "./paths.js";
 import { DEFAULT_CHANGE_RETENTION, resolveRetention } from "./retention-defaults.js";
 
@@ -318,7 +319,9 @@ export async function restoreChange(
   backupRelPath: string,
   expectedFingerprint: string,
   /** 与 `writeDocFile` 同款的可选上限；不传用默认档（50 份 / 32 MB）。 */
-  retention?: { maxCount?: unknown; maxBytes?: unknown } | null
+  retention?: { maxCount?: unknown; maxBytes?: unknown } | null,
+  /** 原子写的 fs 缝，与 `writeDocFile` 同一份实现、同一个理由（P0-1/P2-1）。 */
+  fs: AtomicWriteFs = defaultAtomicFs
 ): Promise<DocWriteResult & { restoredFrom: string }> {
   const abs = backupAbs(root, backupRelPath);
   if (!(await isUnder(abs, path.join(root, CHANGES_DIR)))) {
@@ -357,10 +360,33 @@ export async function restoreChange(
   const stamp = new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-");
   const undoRelPath = `${CHANGES_POSIX}/${stamp}/${docRelPath}.bak`;
   const undoAbs = path.join(root, CHANGES_DIR, stamp, ...docRelPath.split("/")) + ".bak";
-  await mkdir(path.dirname(undoAbs), { recursive: true });
-  await writeFile(undoAbs, current, "utf8");
+  // 两次写都要原子（P2-1）：裸 `writeFile` 半途而废会留下一份**截断的 .bak**，
+  // 而那份截断备份照旧进历史列表——用户哪天点回滚，就是拿半截内容盖掉完好正文。
+  try {
+    await writeFileAtomic(undoAbs, current, fs);
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "io-error",
+      message:
+        `回滚前存退路失败（${error instanceof Error ? error.message : String(error)}），` +
+        "正文一个字都没动，这次回滚没有落盘。",
+      restoredFrom: backupRelPath
+    };
+  }
 
-  await writeFile(target, backupContent, "utf8");
+  try {
+    await writeFileAtomic(target, backupContent, fs);
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "io-error",
+      message:
+        `写回 ${docRelPath} 失败（${error instanceof Error ? error.message : String(error)}），` +
+        "正文保持回滚前的样子，没有写成半截。",
+      restoredFrom: backupRelPath
+    };
+  }
   // 回滚自己也占一份备份，所以这里同样要收口——否则「回滚 → 攒出一堆回滚」是一条绕过上限的路。
   // 失败不外抛：正文已经换回去了，为一次清理失败把回滚判成失败是本末倒置。
   try {

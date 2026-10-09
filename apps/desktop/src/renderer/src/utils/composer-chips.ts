@@ -6,8 +6,10 @@ import {
   WEB_SEARCH_TOOL_NAME,
   WORK_MODE_LABELS,
   codePointLength,
+  thinkingWireValueOf,
   type PermissionMode,
   type ThinkingLevel,
+  type ThinkingWire,
   type WorkMode
 } from "@mochen/contracts";
 import type { IconName } from "../types/icons";
@@ -122,14 +124,17 @@ function workModeChip(input: { hasBook: boolean; workMode: WorkMode }): Composer
  */
 const THINKING_CYCLE = THINKING_LEVELS.map((level) => THINKING_LEVEL_LABELS[level]).join(" → ");
 
-function thinkingChip(level: ThinkingLevel): ComposerChipView {
+function thinkingChip(level: ThinkingLevel, wire: ThinkingWire): ComposerChipView {
   const on = level !== "off";
+  // 报的是**实际发出去的那个字**，不是档位名：`high` 档在 xhigh 那类端点上真的发 xhigh。
+  // 判据与 `per-run-fields` 共用 contracts 的 thinkingWireValueOf，两边不许各写一遍。
+  const wireValue = thinkingWireValueOf(level, wire);
   return {
     id: "thinking",
     text: THINKING_LEVEL_LABELS[level],
     disabled: false,
     title: on
-      ? `深度思考 ${THINKING_LEVEL_LABELS[level]}：本轮出站请求带 ${THINKING_WIRE_FIELD}=${level}。点击按 ${THINKING_CYCLE} 循环。`
+      ? `深度思考 ${THINKING_LEVEL_LABELS[level]}：本轮出站请求带 ${THINKING_WIRE_FIELD}=${wireValue}。点击按 ${THINKING_CYCLE} 循环。`
       : `深度思考已关闭：本轮出站请求不发 ${THINKING_WIRE_FIELD} 字段——是真的不发，不是发 "off"。点击按 ${THINKING_CYCLE} 循环。`,
     active: on,
     slot: "left",
@@ -194,6 +199,8 @@ export function composerChips(input: {
   workMode: WorkMode;
   saving: boolean;
   thinkingLevel: ThinkingLevel;
+  /** 启用中那条连接把「深度」在线上叫什么；chip 的提示要报真实出站值（2026-10-09 批次 5-㊻）。 */
+  thinkingWire: ThinkingWire;
   webSearchEnabled: boolean;
   modelLabel: string;
   baseURL: string;
@@ -206,7 +213,7 @@ export function composerChips(input: {
   // 权限档单独落在右端（它挨着发送键，与 deepwrite 的 composer-actions 同一位置）。
   return [
     modelChip({ modelLabel: input.modelLabel, baseURL: input.baseURL }),
-    thinkingChip(input.thinkingLevel),
+    thinkingChip(input.thinkingLevel, input.thinkingWire),
     webSearchChip(input.webSearchEnabled),
     {
       id: "tools",

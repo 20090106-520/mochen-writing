@@ -24,6 +24,7 @@ import type {
   VerifyResult
 } from "./provider.js";
 import type { ExportableDoc, ExportOptions, ExportResult } from "./export.js";
+import type { BookDataKey, BookDataReadResult, BookDataWriteResult } from "./book-data.js";
 
 export const IPC_CHANNELS = {
   bookOpen: "book:open",
@@ -87,8 +88,46 @@ export const IPC_CHANNELS = {
   appearanceSave: "appearance:save",
   saveFileExport: "file:save-export",
   buildExport: "file:build-export",
-  appNotify: "app:notify"
+  appNotify: "app:notify",
+  /**
+   * 退出前的落盘握手（2026-10-09 全仓扫描 P0-6）。两条一对，方向相反：
+   * `app:flush-quit-request` 是主进程**推**给渲染层的「先把稿子落盘」，
+   * `app:flush-quit-done` 是渲染层**回**给主进程的结果。
+   *
+   * 为什么要一对而不是主进程自己写盘：未保存的字只在渲染进程的内存里，主进程看不见。
+   * 为什么要拦这一次：`flushAllForQuit()` 早就存在且有用例，但主进程从来没人调它——
+   * 用户点关闭时窗口直接销毁，那份兜底一行都没跑过。
+   */
+  appFlushQuitRequest: "app:flush-quit-request",
+  appFlushQuitDone: "app:flush-quit-done",
+  /**
+   * 书内设定数据的读与写（2026-10-09 全仓扫描 P0-7）：笔记 / 故事圣经 / 写作目标
+   * 从今往后落在**这本书的** `.mochen/data/` 里，不再住全局 localStorage。
+   *
+   * 两条都只收白名单里的键（`BOOK_DATA_KEYS`），路径由主进程拼——与 `market:install`、
+   * `plugins:toggle` 同一条铁律。写的一侧必须把结果交回渲染层：原先三个 store 的
+   * `save*()` 把失败 `catch {}` 吞掉，屏上永远显示「已保存」，这是第二条 P0-2 的病。
+   */
+  bookDataRead: "book-data:read",
+  bookDataWrite: "book-data:write"
 } as const;
+
+/** 退出握手里有稿子没能落盘的那一篇：点名到文件与原因，好让人自己拍板走不走。 */
+export interface FlushQuitBlocked {
+  relPath: string;
+  message: string;
+}
+
+/**
+ * 渲染层对「先把稿子落盘」的回话。
+ *
+ * 这份形状与渲染层 `flushAllBeforeQuit()` 的返回值一致，但跨进程来的字段一律当不可信：
+ * 判定（以及「形状不对就放行退出，不许把用户卡在应用里」）写在 `main/quit-flush.ts`。
+ */
+export interface FlushQuitReply {
+  ok: boolean;
+  blocked: FlushQuitBlocked[];
+}
 
 export interface BookOpenResult {
   rootPath: string;
@@ -172,6 +211,15 @@ export interface RendererApi {
   writeDoc(relPath: string, content: string, expectedFingerprint: string): Promise<DocWriteResult>;
   /** 按已规划好的书内路径建一篇空文档（frontmatter title 用用户起的名字）；文件已存在会被拒绝，绝不盖写。 */
   createDoc(relPath: string, title: string): Promise<DocCreateResult>;
+  /**
+   * 读这本书里的设定数据（笔记 / 圣经 / 目标），键必须在白名单里。
+   *
+   * 没打开作品目录时返回 `no-book`（**不是** `json:null`）：后者会被渲染层读成「这本书是空的」，
+   * 于是把上一本书的内容迁移进来——串台正是这一波要治的病。
+   */
+  readBookData(key: BookDataKey): Promise<BookDataReadResult>;
+  /** 整份写回某一枚键；失败带原因回来，调用方必须把它显示出来（不许再 `catch {}`）。 */
+  writeBookData(key: BookDataKey, json: string): Promise<BookDataWriteResult>;
   startTurn(input: StartTurnInput): Promise<{ turnId: string }>;
   interruptTurn(turnId: string): Promise<boolean>;
   decideProposal(input: DecideInput): Promise<DecisionResult>;
@@ -309,6 +357,14 @@ export interface RendererApi {
   changesPruneNow(): Promise<ChangePruneReport>;
   /** 返回取消订阅的函数；渲染层拿不到 ipcRenderer。 */
   onAgentEvent(listener: (payload: AgentOutbound) => void): () => void;
+  /**
+   * 退出握手（2026-10-09 P0-6）：主进程拦下这一次关闭，请渲染层把每篇脏稿落盘。
+   * 渲染层收到后跑 `flushAllForQuit()`，结果经 `quitFlushDone` 递回来；
+   * 不回话＝主进程超时后放行退出（拦死退出比丢字更糟）。
+   */
+  onQuitFlushRequest(listener: () => void): () => void;
+  /** 把这一趟落盘的结果交给主进程，由它决定放行退出还是先问人。 */
+  quitFlushDone(reply: FlushQuitReply): Promise<void>;
   /** 读外观设置（浅/深两套主题 + 字体 + 跟随系统模式）。persisted:false 表示盘上还没有或读不回，settings 是默认值。 */
   appearanceGet(): Promise<AppearanceSettingsSnapshot>;
   /** 整份写回外观设置；渲染层只递合法的 AppearanceSettings，主进程落 appearance.json。 */

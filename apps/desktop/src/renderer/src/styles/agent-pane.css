@@ -46,7 +46,7 @@ html[data-platform="darwin"] .conversation-pane {
   border-radius: 999px;
   background: var(--neutral-solid);
   color: var(--neutral-solid-contrast);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .user-text {
@@ -79,7 +79,7 @@ html[data-platform="darwin"] .conversation-pane {
 .thinking-card {
   padding: 0;
   color: var(--text-faint);
-  font-size: 12.5px;
+  font-size: 0.892857rem;
 }
 
 .thinking-card[open] {
@@ -89,7 +89,7 @@ html[data-platform="darwin"] .conversation-pane {
   backdrop-filter: blur(10px) saturate(115%);
   box-shadow: 0 10px 26px -18px var(--shadow-color);
   color: var(--text-soft);
-  font-size: 13px;
+  font-size: 0.928571rem;
 }
 
 .thinking-card summary {
@@ -133,7 +133,7 @@ html[data-platform="darwin"] .conversation-pane {
 .thinking-text {
   padding: 0 12px 12px 34px;
   color: var(--text-soft);
-  font-size: 13px;
+  font-size: 0.928571rem;
   line-height: 1.75;
   white-space: pre-wrap;
 }
@@ -141,7 +141,7 @@ html[data-platform="darwin"] .conversation-pane {
 .tail-flag {
   margin-left: auto;
   color: var(--warning);
-  font-size: 12px;
+  font-size: 0.857143rem;
   font-style: normal;
 }
 
@@ -156,12 +156,12 @@ html[data-platform="darwin"] .conversation-pane {
   padding: 9px 12px;
   border-bottom: 1px solid var(--line-soft);
   color: var(--text-soft);
-  font-size: 13px;
+  font-size: 0.928571rem;
 }
 
 .card-head em {
   margin-left: auto;
-  font-size: 12px;
+  font-size: 0.857143rem;
   font-style: normal;
 }
 
@@ -175,7 +175,7 @@ html[data-platform="darwin"] .conversation-pane {
   gap: 7px;
   padding: 3px 0;
   color: var(--text-soft);
-  font-size: 13px;
+  font-size: 0.928571rem;
 }
 
 .plan-list li.is-done {
@@ -228,7 +228,7 @@ html[data-platform="darwin"] .conversation-pane {
 .tool-args.is-plain {
   color: var(--text-soft);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 0.928571rem;
   line-height: 1.55;
   word-break: normal;
   overflow-wrap: break-word;
@@ -459,7 +459,7 @@ html[data-platform="darwin"] .conversation-pane {
 .source-more > summary::before {
   content: "›";
   display: inline-block;
-  font-size: 13px;
+  font-size: 0.928571rem;
   line-height: 1;
   transition: transform 140ms ease;
 }
@@ -488,7 +488,7 @@ html[data-platform="darwin"] .conversation-pane {
 .interrupted-line {
   padding: 10px 12px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 0.928571rem;
 }
 
 .error-line,
@@ -516,7 +516,7 @@ html[data-platform="darwin"] .conversation-pane {
   border-radius: 999px;
   background: var(--selected);
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 /* F-1：已裁决的卡收进默认折叠的分组。刻意用原生 details 的文档流排布——
@@ -531,7 +531,7 @@ html[data-platform="darwin"] .conversation-pane {
 .settled-summary {
   padding: 9px 12px;
   color: var(--text-soft);
-  font-size: 13px;
+  font-size: 0.928571rem;
   cursor: pointer;
   list-style: none;
 }
@@ -575,13 +575,13 @@ html[data-platform="darwin"] .conversation-pane {
   border-radius: 999px;
   background: var(--selected);
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .proposal-status {
   margin-left: auto;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 /* 七态配色的判据是「这张卡现在要你做什么」，不是状态名本身：
@@ -615,20 +615,20 @@ html[data-platform="darwin"] .conversation-pane {
 .proposal-why {
   padding: 10px 12px 0;
   color: var(--text);
-  font-size: 13px;
+  font-size: 0.928571rem;
 }
 
 .proposal-diff-empty {
   padding: 10px 12px;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .proposal-anchor,
 .proposal-message {
   padding: 0 12px 10px;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .proposal-message {
@@ -645,7 +645,7 @@ html[data-platform="darwin"] .conversation-pane {
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   background: var(--editor);
-  font-size: 13px;
+  font-size: 0.928571rem;
   resize: vertical;
 }
 
@@ -662,7 +662,7 @@ html[data-platform="darwin"] .conversation-pane {
   border-radius: 8px;
   background: var(--editor);
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .proposal-buttons button:hover:not(:disabled) {
@@ -693,7 +693,7 @@ html[data-platform="darwin"] .conversation-pane {
   border-top: 1px solid var(--line-soft);
   background: color-mix(in srgb, var(--sidebar) 70%, transparent);
   backdrop-filter: blur(8px);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .status-line {
@@ -710,7 +710,7 @@ html[data-platform="darwin"] .conversation-pane {
   gap: 5px;
   margin-bottom: 12px;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .provider-field input {
@@ -740,7 +740,7 @@ html[data-platform="darwin"] .conversation-pane {
 .provider-error {
   margin-bottom: 10px;
   color: var(--danger-text);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 /* ==== deepwrite-composer-card ====
@@ -1383,7 +1383,7 @@ html[data-platform="darwin"] .conversation-pane {
   min-width: 0;
   overflow: hidden;
   color: var(--text-tertiary);
-  font-size: 12px;
+  font-size: 0.857143rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1698,7 +1698,7 @@ html[data-theme="dark"] .composer-context-menu {
   border-radius: 8px;
   background: var(--warning-soft);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .proposal-permission-switch {
@@ -1709,7 +1709,7 @@ html[data-theme="dark"] .composer-context-menu {
   background: var(--surface-main);
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: 0.857143rem;
   cursor: pointer;
 }
 

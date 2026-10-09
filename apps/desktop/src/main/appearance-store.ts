@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   AppearanceSettingsSchema,
@@ -7,6 +7,7 @@ import {
   type AppearanceSettings,
   type AppearanceSettingsSnapshot
 } from "@mochen/contracts";
+import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "@mochen/fs-store";
 import type { ReadTextFile } from "./credential-store.js";
 
 /** electron 的 ipcMain.handle 的窄形状（与 agent-ipc 同款）：装配处传进来，测试处传注册表。 */
@@ -26,9 +27,12 @@ export interface AppearanceStore {
 export function createAppearanceStore(deps: {
   dir: string;
   readFile?: ReadTextFile;
+  /** 写盘缝（P0-5 同族）：默认真 fs，测试注入「只坏一步」的实现。命名同 book-service。 */
+  fs?: AtomicWriteFs;
 }): AppearanceStore {
   const configFile = path.join(deps.dir, "appearance.json");
   const readText: ReadTextFile = deps.readFile ?? ((p) => readFile(p, "utf8"));
+  const writeFs: AtomicWriteFs = deps.fs ?? defaultAtomicFs;
 
   async function read(): Promise<AppearanceSettingsSnapshot> {
     const fallback = createDefaultAppearanceSettings();
@@ -58,8 +62,10 @@ export function createAppearanceStore(deps: {
     if (!parsed.success) {
       throw new Error("外观设置没有保存：内容不合法。");
     }
-    await mkdir(deps.dir, { recursive: true });
-    await writeFile(configFile, `${JSON.stringify(parsed.data, null, 2)}\n`, "utf8");
+    // 原子写（P0-5 同族，理由见 provider-settings.ts 的 `writeStore`）：裸 writeFile 先截断再写，
+    // 半截的 appearance.json 下次读就过不了 zod ⇒ 退默认值 ⇒ 用户配的配色悄悄没了。
+    // 建目录由 writeFileAtomic 按目标路径自己做，这里不再单独 mkdir。
+    await writeFileAtomic(configFile, `${JSON.stringify(parsed.data, null, 2)}\n`, writeFs);
   }
 
   return { read, save };

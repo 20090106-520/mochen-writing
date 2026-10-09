@@ -1,10 +1,24 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_CHANGE_RETENTION, DEFAULT_PERMISSION_MODE } from "@mochen/contracts";
+import { defaultAtomicFs, makeFingerprint, type AtomicWriteFs } from "@mochen/fs-store";
 
 import { createBookService } from "./book-service.js";
+
+/**
+ * 只坏 `rename` 那一步的 fs：临时文件写得进去、改名失败。
+ *
+ * 刻意挑 rename 而不是 writeFile：产品里「先 writeFile 到本体」的旧写法根本不经过 rename，
+ * 于是注入一个坏 rename 的 fs 时旧代码会照样写成功——用例才有鉴别力（能红），而不是注入谁都能红。
+ */
+const brokenRenameFs: AtomicWriteFs = {
+  ...defaultAtomicFs,
+  rename: async () => {
+    throw Object.assign(new Error("EPERM: operation not permitted, rename"), { code: "EPERM" });
+  }
+};
 
 let root = "";
 let other = "";
@@ -78,6 +92,45 @@ describe("bookService", () => {
     );
     const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
     await expect(service.open(other)).rejects.toThrow(/activeStage/);
+    await service.close();
+  });
+
+  it("saveMeta 写失败时：盘上仍是完整可读的旧 book.json，快照也不许刷新（P0-1）", async () => {
+    const service = createBookService({
+      retention: () => DEFAULT_CHANGE_RETENTION,
+      fs: brokenRenameFs
+    });
+    const opened = await service.open(root);
+    const before = await readFile(path.join(root, "book.json"), "utf8");
+
+    await expect(service.saveMeta({ ...opened.meta, title: "改了一半的书名" })).rejects.toThrow();
+
+    // 本体：book.json 是这本书的门牌，半截 JSON 会让「正文一篇没丢」变成「书打不开」。
+    const onDisk = await readFile(path.join(root, "book.json"), "utf8");
+    expect(onDisk).toBe(before);
+    expect(() => JSON.parse(onDisk)).not.toThrow();
+    // 失败后不许留临时文件残渣：否则每次改设置失败都在书目录里多一个 `.mochen-tmp-xxxx`。
+    const entries = await readdir(root);
+    expect(entries.filter((name) => name.includes("mochen-tmp"))).toEqual([]);
+    // 没写成就不许刷新快照：否则界面上显示新书名、盘上还是旧的，权限档也跟着分家。
+    expect(service.current()?.meta.title).toBe(opened.meta.title);
+    await service.close();
+  });
+
+  it("writeDoc 走的是装配进来的那份 fs（不传下去就等于原子写没接上）", async () => {
+    const service = createBookService({
+      retention: () => DEFAULT_CHANGE_RETENTION,
+      fs: brokenRenameFs
+    });
+    await service.open(root);
+    const fp = makeFingerprint("正文\n");
+
+    const result = await service.writeDoc("chapters/01-a.md", "覆盖它\n", fp);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("改名失败绝不能报称写成功了");
+    expect(result.reason).toBe("io-error");
+    expect(await readFile(path.join(root, "chapters", "01-a.md"), "utf8")).toBe("正文\n");
     await service.close();
   });
 

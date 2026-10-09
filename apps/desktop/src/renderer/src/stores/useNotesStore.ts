@@ -5,11 +5,14 @@
  * 1. 全局笔记（Quick Note）：灵感速记，不绑定文档
  * 2. 文档批注（Annotation）：绑定到文档的某个位置
  *
- * 数据持久化：JSON 存 localStorage；如果作品有 rootPath，
- * 也可同步存到作品目录的 .mochen-notes/ 子目录（JSONL）。
+ * 数据持久化（2026-10-09 扫描总单 P0-7 改的）：笔记落在**当前这本书**的
+ * `.mochen/data/notes.json`，由主进程按白名单键拼路径写盘，于是 A 本的批注不会再
+ * 出现在 B 本里，存不下时面板上也会说一句人话。通路本体在 `composables/useBookFileData`。
  */
 import { defineStore } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
+import { useBookFileData } from "../composables/useBookFileData";
+import { normalizeNotes } from "../utils/note-shape";
 
 export interface Note {
   id: string;
@@ -29,36 +32,22 @@ export interface Note {
   archived: boolean;
 }
 
-const STORAGE_KEY = "mochen.notes.v1";
-
-function loadNotes(): Note[] {
-  if (typeof localStorage === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as Note[];
-  } catch {
-    return [];
-  }
-}
-
-function saveNotes(notes: Note[]): void {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
-  } catch {
-    // 静默
-  }
-}
+/** 迁移来源：P0-7 之前那份不带书标识的全局数据。盘上有东西时绝不碰它。 */
+const LEGACY_STORAGE_KEY = "mochen.notes.v1";
 
 function genId(): string {
   return `note_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
 export const useNotesStore = defineStore("notes", () => {
-  const notes = ref<Note[]>(loadNotes());
-
-  watch(notes, (val) => saveNotes(val), { deep: true });
+  const notes = ref<Note[]>([]);
+  const { saveError } = useBookFileData<Note[]>({
+    key: "notes",
+    legacyStorageKey: LEGACY_STORAGE_KEY,
+    data: notes,
+    empty: () => [],
+    normalize: normalizeNotes
+  });
 
   const allNotes = computed(() => [...notes.value].sort((a, b) => b.updatedAt - a.updatedAt));
 
@@ -178,6 +167,7 @@ export const useNotesStore = defineStore("notes", () => {
 
   return {
     notes,
+    saveError,
     allNotes,
     activeNotes,
     archivedNotes,

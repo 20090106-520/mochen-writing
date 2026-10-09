@@ -5,6 +5,7 @@ import type {
   EditProposal,
   ProposalDecision,
   ThinkingLevel,
+  ThinkingWire,
   TurnEndStatus,
   WebSource
 } from "@mochen/contracts";
@@ -43,6 +44,8 @@ export interface StreamRequestLike {
   apiKey: string;
   /** 密钥放哪个头（小米 MiMo 那类端点只认 api-key）；与 provider 同源，循环只负责往下传。 */
   authHeader?: AuthHeader;
+  /** 最高档思考在线上叫什么；与 provider 同源，循环只负责往下传。 */
+  thinkingWire?: ThinkingWire;
   model: string;
   messages: ChatMessage[];
   tools: ChatToolSpec[];
@@ -61,7 +64,13 @@ export interface TurnDeps {
   signal: AbortSignal;
   maxToolRounds: number;
   /** provider 参数由调用方（主进程）填好，循环只负责对话结构。 */
-  provider: { baseURL: string; apiKey: string; model: string; authHeader?: AuthHeader };
+  provider: {
+    baseURL: string;
+    apiKey: string;
+    model: string;
+    authHeader?: AuthHeader;
+    thinkingWire?: ThinkingWire;
+  };
 }
 
 export interface TurnOutcome {
@@ -135,9 +144,18 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
     const collected: Collected = { reasoning: "", text: "", calls: [], finishReason: "" };
     try {
       for await (const event of deps.stream({
-        baseURL: deps.provider.baseURL,
-        apiKey: deps.provider.apiKey,
-        model: deps.provider.model,
+        // **整个 provider 铺开**，不逐字段点名（2026-10-09 批次 5-㊻）。
+        //
+        // 改之前这里是逐个写 `baseURL:` / `apiKey:` / `model:`，
+        // 于是 `authHeader` 成了**死字段**：`TurnDeps.provider` 上声明了、
+        // `StreamRequestLike` 上也声明了，唯独这里没递下去。
+        // 后果与当初一模一样——小米 MiMo 那条连接永远发 `Authorization: Bearer`
+        // 而不是 `api-key`，界面全对、请求永远 401，而代码上完全看不出原因。
+        //
+        // 逐字段点名 = 每加一个连接级字段就再犯一次（`thinkingWire` 差点就是第二个）。
+        // 铺开 = `ProviderSettings.config()` 上多一个字段，它自己就到出站了。
+        // 每轮开关（档位/联网）在下面显式覆盖，它们归这一轮管、不归连接管。
+        ...deps.provider,
         messages,
         // 花名册那五个，外加插件注册进来的（没有插件时就是逐字原来那份）。
         tools: [...TOOL_SPECS, ...extraSpecsOf(deps.host)],

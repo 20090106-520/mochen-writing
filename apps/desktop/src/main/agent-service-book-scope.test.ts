@@ -193,6 +193,7 @@ async function buildService(
     providerId: "custom",
     baseURL: "http://mock/v1",
     authHeader: "bearer",
+    thinkingWire: "standard",
     apiKey: null
   });
   const connectionId = seeded.connections[0]?.id ?? "";

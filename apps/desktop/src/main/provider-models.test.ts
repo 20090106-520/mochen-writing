@@ -24,7 +24,8 @@ const CONN = "conn-1";
 function settingsStub(
   baseURL: string,
   key: string | null,
-  authHeader: "bearer" | "api-key" = "bearer"
+  authHeader: "bearer" | "api-key" = "bearer",
+  thinkingWire: "standard" | "xhigh" = "standard"
 ): ProviderSettings {
   return {
     // list 只用读侧两条（view 找启用中那条、connectionTarget 取它那条连接的地址与密钥）；
@@ -40,6 +41,7 @@ function settingsStub(
                 label: "自定义（自己填地址）",
                 baseURL,
                 authHeader,
+                thinkingWire,
                 hasKey: key !== null,
                 keyMask: ""
               }

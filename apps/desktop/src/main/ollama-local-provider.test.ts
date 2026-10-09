@@ -101,6 +101,7 @@ describe("本机 Ollama · 切过去的那一步", () => {
         providerId: "custom",
         baseURL: "https://api.cloud.example/v1",
         authHeader: "bearer",
+        thinkingWire: "standard",
         apiKey: "sk-cloud-secret"
       });
       const connectionId = cloud.connections[0]?.id ?? "";
@@ -112,6 +113,7 @@ describe("本机 Ollama · 切过去的那一步", () => {
         providerId: "custom",
         baseURL: base,
         authHeader: "bearer",
+        thinkingWire: "standard",
         apiKey: ""
       });
       expect(view.connections[0]?.hasKey).toBe(false);
@@ -130,6 +132,7 @@ describe("本机 Ollama · 切过去的那一步", () => {
         providerId: "custom",
         baseURL: "https://api.cloud.example/v1",
         authHeader: "bearer",
+        thinkingWire: "standard",
         apiKey: "sk-cloud-secret"
       });
       const connectionId = cloud.connections[0]?.id ?? "";
@@ -139,6 +142,7 @@ describe("本机 Ollama · 切过去的那一步", () => {
         providerId: "custom",
         baseURL: "https://api.other.example/v1",
         authHeader: "bearer",
+        thinkingWire: "standard",
         apiKey: null
       });
       expect(view.connections[0]?.hasKey).toBe(true);
@@ -159,6 +163,7 @@ describe("本机 Ollama · 空密钥真的能把请求发出去", () => {
         providerId: "custom",
         baseURL: base,
         authHeader: "bearer",
+        thinkingWire: "standard",
         apiKey: ""
       });
       const connectionId = saved.connections[0]?.id ?? "";
@@ -187,6 +192,7 @@ describe("本机 Ollama · 空密钥真的能把请求发出去", () => {
         providerId: "custom",
         baseURL: base,
         authHeader: "bearer",
+        thinkingWire: "standard",
         apiKey: ""
       });
       const connectionId = saved.connections[0]?.id ?? "";

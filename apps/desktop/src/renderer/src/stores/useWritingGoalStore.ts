@@ -1,11 +1,23 @@
 /**
  * WritingGoalStore —— 写作目标管理
  *
- * 每日字数目标、写作会话计时、连续达标天数、本周热力图。
- * 持久化到 localStorage key `mochen.writing-goals.v1`。
+ * 每日字数目标、写作时长统计、连续达标天数、本周热力图。
+ *
+ * 数据持久化（2026-10-09 扫描总单 P0-7 改的）：落在**当前这本书**的
+ * `.mochen/data/writing-goal.json`，通路本体在 `composables/useBookFileData`。
+ * 原先它自己读写全局键 `mochen.writing-goals.v1` 并且 `catch {}`，于是两本书共用一份目标
+ * 与"今日已写"，存不下时屏上还挂着涨动的进度环。现在：目标、当日会话、连续天数都随书隔离，
+ * 写不下去由 `saveError` 说给人看。盘上那份长什么样、认不得时判什么，全在 `utils/goal-shape`。
  */
 import { defineStore } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
+import { useBookFileData } from "../composables/useBookFileData";
+import {
+  emptyWritingGoalData,
+  isDefaultWritingGoalData,
+  normalizeWritingGoalData,
+  type WritingGoalData
+} from "../utils/goal-shape";
 
 export interface WritingGoal {
   /** 每日字数目标（默认 1000） */
@@ -38,6 +50,20 @@ export interface GoalProgress {
   target: number;
   percentage: number;
   reached: boolean;
+  /**
+   * 这一日累计的写作时长（秒）。2026-10-09 扫描总单「假控件清单」第 1 行：这一族以前恒 0，
+   * 因为唯一写 `durationSeconds` 的 `startSession`/`endSession` 全仓零调用（专注模式 2026-10-05
+   * 下线时把调用方删净了，接口留在原地当死档）——现在由 `activity()` 逐次结算，见那里。
+   */
+  secondsWritten: number;
+  /** 每日时长目标（秒），0 = 没设。以前 `dailyTimeTarget` 只存不用（总单第 2 行），进度里现在认它。 */
+  targetSeconds: number;
+  timePercentage: number;
+  /**
+   * 时长目标单独判，**不**掺进 `reached`：连续达标天数（`recomputeStreak`）历来只按字数算，
+   * 让它忽然多一个条件会把用户已有的 streak 追溯改掉。
+   */
+  timeReached: boolean;
 }
 
 export interface WritingStreak {
@@ -47,59 +73,21 @@ export interface WritingStreak {
   lastReachDate: string | null;
 }
 
-interface PersistedState {
-  goal: WritingGoal;
-  sessions: WritingSession[];
-  streak: WritingStreak;
-}
+/** 迁移来源：P0-7 之前那份不带书标识的全局数据。盘上有东西时绝不碰它。 */
+const LEGACY_STORAGE_KEY = "mochen.writing-goals.v1";
 
-const STORAGE_KEY = "mochen.writing-goals.v1";
-
-const DEFAULT_GOAL: WritingGoal = {
-  dailyWordTarget: 1000,
-  dailyTimeTarget: 30,
-  enabled: true,
-  totalWordTarget: 0
-};
-
-const DEFAULT_STREAK: WritingStreak = {
-  currentStreak: 0,
-  longestStreak: 0,
-  lastReachDate: null
-};
+/**
+ * 空闲窗口：两次动笔之间超过这么久，就把这段停顿归给「人不在写」，一秒都不记进时长。
+ * 取 2 分钟而不是 30 秒——写作不同于编码：盯着屏幕想下一句怎么落是最正常的动作，
+ * 卡得太紧会把「想」判成「没写」，今日时长就会系统性地低于真实投入。
+ */
+const IDLE_GAP_MS = 120_000;
 
 function todayKey(d: Date = new Date()): string {
   const y = d.getFullYear();
   const m = `${d.getMonth() + 1}`.padStart(2, "0");
   const day = `${d.getDate()}`.padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-function loadState(): PersistedState {
-  if (typeof localStorage === "undefined") {
-    return { goal: { ...DEFAULT_GOAL }, sessions: [], streak: { ...DEFAULT_STREAK } };
-  }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { goal: { ...DEFAULT_GOAL }, sessions: [], streak: { ...DEFAULT_STREAK } };
-    const parsed = JSON.parse(raw) as Partial<PersistedState>;
-    return {
-      goal: { ...DEFAULT_GOAL, ...(parsed.goal ?? {}) },
-      sessions: parsed.sessions ?? [],
-      streak: { ...DEFAULT_STREAK, ...(parsed.streak ?? {}) }
-    };
-  } catch {
-    return { goal: { ...DEFAULT_GOAL }, sessions: [], streak: { ...DEFAULT_STREAK } };
-  }
-}
-
-function saveState(state: PersistedState): void {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // 静默
-  }
 }
 
 function genId(): string {
@@ -113,66 +101,85 @@ function countWords(text: string): number {
   return text.replace(/\s/g, "").length;
 }
 
+/** 某一日的字数与时长总数。三个出口（今日 / 本周 / getRecentDays）以前各算各的，收成这一处。 */
+function sumDay(rows: WritingSession[]): { wordsWritten: number; durationSeconds: number } {
+  return {
+    wordsWritten: rows.reduce((sum, s) => sum + s.wordsWritten, 0),
+    durationSeconds: rows.reduce((sum, s) => sum + s.durationSeconds, 0)
+  };
+}
+
+/** 百分比唯一算法：目标 ≤ 0 一律回 0，不许除零除出一个 Infinity 或 NaN 上屏。 */
+function toPercentage(value: number, target: number): number {
+  if (target <= 0) return 0;
+  return Math.min(100, Math.round((value / target) * 100));
+}
+
+/** 把「不足一秒的零头」攒起来，攒够一秒才入账；返回入账的整秒数与剩下的零头。 */
+function takeWholeSeconds(pendingMs: number): { seconds: number; restMs: number } {
+  const seconds = Math.floor(pendingMs / 1000);
+  return { seconds, restMs: pendingMs - seconds * 1000 };
+}
+
 export const useWritingGoalStore = defineStore("writingGoal", () => {
-  const persisted = loadState();
+  /**
+   * 这本书的目标数据，唯一真身：`goal` / `sessions` / `streak` 都是它的视图，
+   * 改动直接落在这份上，由通路一次写回 `.mochen/data/writing-goal.json`。
+   * 分成三枚 ref 是旧写法（那时"存"是三份 watch 各写各的 localStorage）；
+   * 现在只有一份要落盘的东西，所以也只有一个 ref——快照比对才有的比。
+   */
+  const data = ref<WritingGoalData>(emptyWritingGoalData());
+  const { saveError } = useBookFileData<WritingGoalData>({
+    key: "writing-goal",
+    legacyStorageKey: LEGACY_STORAGE_KEY,
+    data,
+    empty: emptyWritingGoalData,
+    normalize: normalizeWritingGoalData,
+    isEmpty: isDefaultWritingGoalData
+  });
 
-  const goal = ref<WritingGoal>({ ...persisted.goal });
-  const sessions = ref<WritingSession[]>([...persisted.sessions]);
-  const streak = ref<WritingStreak>({ ...persisted.streak });
+  const goal = computed<WritingGoal>(() => data.value.goal);
+  const sessions = computed<WritingSession[]>(() => data.value.sessions);
+  const streak = computed<WritingStreak>(() => data.value.streak);
 
-  // 当前进行中的会话计时（不进 state，不走响应式代理）
-  let sessionStartTs: number | null = null;
-  let pendingDocRelPath: string | undefined = undefined;
-
-  // 持久化
-  watch(
-    [goal, sessions, streak],
-    ([g, s, st]) => {
-      saveState({ goal: g, sessions: s, streak: st });
-    },
-    { deep: true }
-  );
+  // 上一次「动笔」的锚点（不进 state、不走响应式代理：它是结算用的时刻，不是要渲染的数）
+  let lastActivity: { docRelPath: string | undefined; atMs: number } | null = null;
+  /** 不足一秒的零头攒在这里，攒够一秒才入账。每次活动都四舍五入会让快打字的人永远 0 秒。 */
+  let pendingMs = 0;
 
   // ---- Getters ----
 
-  const todayProgress = computed<GoalProgress>(() => {
-    const key = todayKey();
-    const todayWords = sessions.value
-      .filter((s) => s.date === key)
-      .reduce((sum, s) => sum + s.wordsWritten, 0);
-    const pct =
-      goal.value.dailyWordTarget > 0
-        ? Math.min(100, Math.round((todayWords / goal.value.dailyWordTarget) * 100))
-        : 0;
+  /**
+   * 某一日的进度**唯一**算法。
+   * 以前 `todayProgress`、`recentProgress`、`getRecentDays` 是三份手抄的同一件事（台账「重复实现」那一族），
+   * 加时长字段时必须一次改三处、漏一处就让同一格在不同面板显示成不同数字——所以收成这一处，三个出口都走它。
+   */
+  function progressForDate(key: string): GoalProgress {
+    const { wordsWritten, durationSeconds } = sumDay(sessions.value.filter((s) => s.date === key));
+    const target = goal.value.dailyWordTarget;
+    const targetSeconds = Math.max(0, Math.round(goal.value.dailyTimeTarget * 60));
     return {
       date: key,
-      wordsWritten: todayWords,
-      target: goal.value.dailyWordTarget,
-      percentage: pct,
-      reached: todayWords >= goal.value.dailyWordTarget
+      wordsWritten,
+      target,
+      percentage: toPercentage(wordsWritten, target),
+      // 字数那一支保持旧口径（含「目标 0 也算达标」），因为它驱动连续达标天数；
+      // 改判会把用户已有的 streak 追溯改掉，那不是这一波要动的事（时长那一支是新加的，没有历史包袱）。
+      reached: wordsWritten >= target,
+      secondsWritten: durationSeconds,
+      targetSeconds,
+      timePercentage: toPercentage(durationSeconds, targetSeconds),
+      timeReached: targetSeconds > 0 && durationSeconds >= targetSeconds
     };
-  });
+  }
+
+  const todayProgress = computed<GoalProgress>(() => progressForDate(todayKey()));
 
   const recentProgress = computed<GoalProgress[]>(() => {
+    const now = Date.now();
     const result: GoalProgress[] = [];
-    const now = new Date();
     for (let i = 6; i >= 0; i -= 1) {
-      const d = new Date(now.getTime() - i * 86_400_000);
-      const key = todayKey(d);
-      const words = sessions.value
-        .filter((s) => s.date === key)
-        .reduce((sum, s) => sum + s.wordsWritten, 0);
-      const pct =
-        goal.value.dailyWordTarget > 0
-          ? Math.min(100, Math.round((words / goal.value.dailyWordTarget) * 100))
-          : 0;
-      result.push({
-        date: key,
-        wordsWritten: words,
-        target: goal.value.dailyWordTarget,
-        percentage: pct,
-        reached: words >= goal.value.dailyWordTarget
-      });
+      result.push(progressForDate(todayKey(new Date(now - i * 86_400_000))));
     }
     return result;
   });
@@ -198,14 +205,14 @@ export const useWritingGoalStore = defineStore("writingGoal", () => {
   // ---- Actions ----
 
   function updateGoal(partial: Partial<WritingGoal>): void {
-    goal.value = { ...goal.value, ...partial };
+    data.value.goal = { ...goal.value, ...partial };
   }
 
   /**
-   * 记录一次写入。每次保存时调用，累计今日字数。
+   * 记录一次写入。每次保存完成时调用，累计今日字数。
    * @param docRelPath 文档路径（可选）
    * @param fullContent 保存后的完整内容
-   * @param previousContent 保存前的内容（可选，用于算 delta；不传则用完整内容长度兜底）
+   * @param previousContent 保存前的内容（可选，用于算 delta；不传则按整篇长度兜底）
    */
   function recordWriting(
     docRelPath: string | undefined,
@@ -213,58 +220,64 @@ export const useWritingGoalStore = defineStore("writingGoal", () => {
     previousContent?: string
   ): void {
     if (!goal.value.enabled) return;
-    const key = todayKey();
     const wordsNow = countWords(fullContent);
     const wordsPrev = previousContent !== undefined ? countWords(previousContent) : 0;
-    const delta = Math.max(0, wordsNow - wordsPrev);
-
-    const existing = sessions.value.find((s) => s.date === key && s.docRelPath === docRelPath);
-    if (existing) {
-      existing.wordsWritten += delta;
-    } else {
-      sessions.value.push({
-        id: genId(),
-        date: key,
-        wordsWritten: delta,
-        durationSeconds: 0,
-        ...(docRelPath !== undefined ? { docRelPath } : {})
-      });
-    }
+    todayRow(docRelPath).wordsWritten += Math.max(0, wordsNow - wordsPrev);
 
     // 检查是否刚达标（用于连续天数）
     recomputeStreak();
   }
 
-  /** 开始计时会话（番茄钟）。 */
-  function startSession(docRelPath?: string): void {
-    sessionStartTs = Date.now();
-    pendingDocRelPath = docRelPath;
-  }
-
-  /** 结束计时会话，回填到当日 session。 */
-  function endSession(docRelPath?: string): void {
-    if (sessionStartTs === null) return;
-    const elapsed = Math.round((Date.now() - sessionStartTs) / 1000);
-    sessionStartTs = null;
+  /**
+   * 今日这一篇的会话行，没有就当场建一条。
+   * 字数与时长**共用同一行**——以前两条通路各推各的行，会出现「一行只有字数、一行只有时长」的半截记录。
+   */
+  function todayRow(docRelPath: string | undefined): WritingSession {
     const key = todayKey();
-    const path = docRelPath ?? pendingDocRelPath;
-    pendingDocRelPath = undefined;
-
-    const existing = sessions.value.find((s) => s.date === key && s.docRelPath === path);
-    if (existing) {
-      existing.durationSeconds += elapsed;
-    } else if (elapsed > 0) {
-      sessions.value.push({
-        id: genId(),
-        date: key,
-        wordsWritten: 0,
-        durationSeconds: elapsed,
-        ...(path !== undefined ? { docRelPath: path } : {})
-      });
-    }
+    const existing = sessions.value.find((s) => s.date === key && s.docRelPath === docRelPath);
+    if (existing) return existing;
+    const row: WritingSession = {
+      id: genId(),
+      date: key,
+      wordsWritten: 0,
+      durationSeconds: 0,
+      ...(docRelPath !== undefined ? { docRelPath } : {})
+    };
+    data.value.sessions.push(row);
+    return row;
   }
 
-  /** 重新计算连续达标天数。 */
+  /**
+   * 记一次「动笔」：结算**距上一次活动**的那段间隔，把它记进当前文稿的写作时长。
+   *
+   * 为什么不是「开始/结束」两个按钮：那两个接口（`startSession`/`endSession`）是番茄钟那一套留下的，
+   * 2026-10-05 专注模式整条下线时调用方删净了，接口留在原地没人调——于是面板底栏的
+   * 「平均速度」「今日时长」恒显示 0（2026-10-09 扫描总单「假控件与死路清单」第 1 行）。
+   * 时长该由**有没有在动笔**推出来，而不是由一个界面上已经不存在的按钮推出来。
+   *
+   * 三条不计入的空档，都是为了让这个数如实：
+   * - 第一次活动只立锚点（没有「上一次」可算）；
+   * - 换文稿的那一跨（人在挑稿，不是在这一篇上写；归属要落在真正在写的那一篇）；
+   * - 距上一次超过 `IDLE_GAP_MS`（那是离席，不是写作）。
+   * 时钟回拨与同一刻的重复事件同样不入账，免得凭空造出负数或 0 秒噪声。
+   */
+  function activity(docRelPath: string | undefined, atMs: number): void {
+    if (!goal.value.enabled) return;
+    const prev = lastActivity;
+    lastActivity = { docRelPath, atMs };
+    if (prev === null || prev.docRelPath !== docRelPath) return;
+    const elapsed = atMs - prev.atMs;
+    if (elapsed <= 0 || elapsed > IDLE_GAP_MS) return;
+    pendingMs += elapsed;
+    const { seconds, restMs } = takeWholeSeconds(pendingMs);
+    pendingMs = restMs;
+    if (seconds > 0) todayRow(docRelPath).durationSeconds += seconds;
+  }
+
+  /**
+   * 重新计算连续达标天数。
+   * 时长字段不进这里：这里的口径历来是「字数达标」，改判会追溯改掉用户已有的 streak。
+   */
   function recomputeStreak(): void {
     const dayMap = new Map<string, number>();
     for (const s of sessions.value) {
@@ -277,7 +290,7 @@ export const useWritingGoalStore = defineStore("writingGoal", () => {
       .sort((a, b) => b.localeCompare(a)); // 降序
 
     if (reachedDates.length === 0) {
-      streak.value = {
+      data.value.streak = {
         currentStreak: 0,
         longestStreak: streak.value.longestStreak,
         lastReachDate: null
@@ -318,38 +331,24 @@ export const useWritingGoalStore = defineStore("writingGoal", () => {
       }
     }
 
-    streak.value = {
+    data.value.streak = {
       currentStreak: current,
       longestStreak: Math.max(longest, streak.value.longestStreak),
       lastReachDate: mostRecent
     };
   }
 
-  /** 获得今日进度（替代旧接口，实际走 computed）。 */
+  /** 今日进度（替代旧接口，实际走 computed）。 */
   function getTodayProgress(): GoalProgress {
     return todayProgress.value;
   }
 
+  /** 最近 count 天的进度，与热力图同一份算法（`progressForDate`）。 */
   function getRecentDays(count: number): GoalProgress[] {
+    const now = Date.now();
     const result: GoalProgress[] = [];
-    const now = new Date();
     for (let i = count - 1; i >= 0; i -= 1) {
-      const d = new Date(now.getTime() - i * 86_400_000);
-      const key = todayKey(d);
-      const words = sessions.value
-        .filter((s) => s.date === key)
-        .reduce((sum, s) => sum + s.wordsWritten, 0);
-      const pct =
-        goal.value.dailyWordTarget > 0
-          ? Math.min(100, Math.round((words / goal.value.dailyWordTarget) * 100))
-          : 0;
-      result.push({
-        date: key,
-        wordsWritten: words,
-        target: goal.value.dailyWordTarget,
-        percentage: pct,
-        reached: words >= goal.value.dailyWordTarget
-      });
+      result.push(progressForDate(todayKey(new Date(now - i * 86_400_000))));
     }
     return result;
   }
@@ -366,6 +365,8 @@ export const useWritingGoalStore = defineStore("writingGoal", () => {
     goal,
     sessions,
     streak,
+    /** 落盘失败的原因（空串＝正常）；目标面板据此说一句人话。 */
+    saveError,
     todayProgress,
     recentProgress,
     recentSessions,
@@ -373,8 +374,7 @@ export const useWritingGoalStore = defineStore("writingGoal", () => {
     averageSpeed,
     updateGoal,
     recordWriting,
-    startSession,
-    endSession,
+    activity,
     recomputeStreak,
     getTodayProgress,
     getRecentDays,

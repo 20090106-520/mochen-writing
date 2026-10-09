@@ -7,6 +7,7 @@ import AppIcon from "./AppIcon.vue";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useProjectManagerStore } from "../stores/useProjectManagerStore";
 import { useBookStore } from "../stores/useBookStore";
+import { formatCharCount } from "../utils/char-count";
 
 const layout = useLayoutStore();
 const pm = useProjectManagerStore();
@@ -15,12 +16,6 @@ const book = useBookStore();
 const currentBookTitle = computed(() => pm.activeProject?.title ?? null);
 
 /** 字数展示：≥1万显示「X.X万」，否则显示千分位整数 */
-function formatChars(total: number): string {
-  if (total >= 10000) {
-    return `${(total / 10000).toFixed(1)}万字`;
-  }
-  return `${total.toLocaleString("zh-CN")}字`;
-}
 
 /** 最近打开时间：今天显示时分，同年显示月-日，跨年显示年-月-日 */
 function formatTime(timestamp: number): string {
@@ -82,7 +77,8 @@ async function switchProject(project: { id: string; rootPath: string }): Promise
             <AppIcon name="book" :size="12" />
             <span class="project-row-title">{{ project.title }}</span>
             <span class="project-row-meta"
-              >{{ formatChars(project.totalChars) }} · {{ formatTime(project.lastOpenedAt) }}</span
+              >{{ formatCharCount(project.totalChars) }} ·
+              {{ formatTime(project.lastOpenedAt) }}</span
             >
           </button>
           <button

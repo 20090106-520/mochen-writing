@@ -6,9 +6,16 @@ import { useFindReplaceStore } from "../stores/useFindReplaceStore";
 import AppIcon from "./AppIcon.vue";
 import { imeOwnsKey } from "../utils/slash-commands";
 
+/**
+ * `undo-notice` 由父层（DocumentPane）给：文案的唯一真身在 `utils/edit-undo.ts` 的 `undoNotice`，
+ * 面板这里只负责显示与把「撤销」这个动作发回去——面板自己拼一句「已替换 N 处」就是第二份实现。
+ */
+defineProps<{ undoNotice: string }>();
+
 const emit = defineEmits<{
-  replace: [nextText: string];
-  "replace-all": [nextText: string];
+  replace: [nextText: string, count: number];
+  "replace-all": [nextText: string, count: number];
+  undo: [];
 }>();
 
 const find = useFindReplaceStore();
@@ -58,12 +65,21 @@ function onReplaceKeydown(e: KeyboardEvent): void {
 
 function doReplace(): void {
   if (matchCount.value === 0) return;
-  emit("replace", find.replaceCurrent());
+  // 单处替换的处数恒为 1：这是语义，不是"当前匹配数"（匹配 12 处也只换光标那 1 处）。
+  emit("replace", find.replaceCurrent(), 1);
 }
 
 function doReplaceAll(): void {
   if (matchCount.value === 0) return;
-  emit("replace-all", find.replaceAll());
+  // 处数必须在替换**之前**取：`replaceAll` 内部会按新文本重算 positions，反序就只剩 0，
+  // 于是提示会写成"已替换 0 处"——一件确实发生了 12 次的事被界面报成没发生。
+  const count = matchCount.value;
+  emit("replace-all", find.replaceAll(), count);
+}
+
+/** 撤销那一下不在这儿做判定：文案与栈都在父层，这里只把动作发回去。 */
+function doUndo(): void {
+  emit("undo");
 }
 
 onMounted(() => microfocus());
@@ -187,6 +203,15 @@ onMounted(() => microfocus());
         </button>
       </div>
     </div>
+
+    <!-- 替换之后的退路（2026-10-09 扫描总单·不存在表）。
+         文案来自父层那份 undoNotice，这里只显示；没有可撤销的东西时整行不进 DOM。 -->
+    <p v-if="undoNotice" class="find-undo-row">
+      <span class="find-undo-notice">{{ undoNotice }}</span>
+      <button type="button" class="find-undo-btn" title="退回替换前的文本" @click="doUndo()">
+        撤销（Ctrl+Z）
+      </button>
+    </p>
   </div>
 </template>
 
@@ -375,5 +400,37 @@ onMounted(() => microfocus());
 .find-action-btn--muted:hover:not(:disabled) {
   background: var(--surface-hover, rgba(255, 255, 255, 0.05));
   filter: none;
+}
+
+/* 替换后的退路那一行：文案在左、按钮在右，字号与「替换/全部替换」那两枚同档。
+   颜色一律取本文件已经在用的 token，不引入没定义过的变量名（theme-token-guard 会咬）。 */
+.find-undo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+}
+
+.find-undo-notice {
+  color: var(--text-secondary, #ccc);
+  font-size: 0.714286rem;
+}
+
+.find-undo-btn {
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 5px;
+  background: transparent;
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.1));
+  color: var(--text-secondary, #ccc);
+  font-size: 0.714286rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.find-undo-btn:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.05));
+  color: var(--neutral-solid-contrast, #fff);
 }
 </style>

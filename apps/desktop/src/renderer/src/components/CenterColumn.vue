@@ -431,6 +431,7 @@ onBeforeUnmount(() => {
       :permission-saving="book.metaSaving"
       :permission-menu-open="book.hasBook && book.permissionMenuOpen"
       :thinking-level="agent.thinkingLevel"
+      :thinking-wire="provider.activeThinkingWire"
       :web-search-enabled="agent.webSearchEnabled"
       :model-label="provider.modelLabel"
       :base-url="provider.activeBaseURL"

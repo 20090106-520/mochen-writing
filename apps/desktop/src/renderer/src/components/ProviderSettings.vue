@@ -127,6 +127,15 @@ onUnmounted(() => {
             >
               api-key 头
             </span>
+            <!-- 思考档的线格式同样常显（2026-10-09 批次 5-㊻）：Agnes 那类端点把最高档叫 xhigh，
+                 发 high 上去整笔请求 400，而地址与密钥全对——不标出来用户只能靠撞报错反推。 -->
+            <span
+              v-if="group.connection.thinkingWire === 'xhigh'"
+              class="provider-connection-tag"
+              title="这条端点把「深度」叫 xhigh：发 reasoning_effort=high 会被它 400 拒收"
+            >
+              深度走 xhigh
+            </span>
           </div>
           <div class="provider-connection-actions">
             <button

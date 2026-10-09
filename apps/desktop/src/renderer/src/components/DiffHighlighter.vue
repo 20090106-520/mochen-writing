@@ -85,7 +85,7 @@ const lines = computed<DiffLine[]>(() => {
 
 .diff-marker {
   font-weight: 600;
-  font-size: 11px;
+  font-size: 0.785714rem;
 }
 
 .is-add .diff-marker {

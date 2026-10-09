@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDefaultAppearanceSettings } from "@mochen/contracts";
 import { createAppearanceStore, registerAppearanceIpc } from "./appearance-store.js";
+import { atomicFsBrokenAt } from "./atomic-write-fs-fixture.js";
 
 let dir = "";
 
@@ -111,5 +112,46 @@ describe("registerAppearanceIpc", () => {
     await handlers.get("appearance:save")?.({}, value);
     const snapshot = await handlers.get("appearance:get")?.({});
     expect(snapshot).toEqual({ persisted: true, settings: value });
+  });
+});
+
+/**
+ * P0-5 同族（2026-10-09 全仓扫描）：外观设置也走原子写。
+ *
+ * 裸 `writeFile(appearance.json, …)` 先截断再写：写到一半 ENOSPC／断电／杀软正在读这个文件，
+ * 留下的就是半截 JSON。外观这一份的后果比模型配置轻（读不动就退默认值，不挡启动），
+ * 但用户看到的仍然是「我配的配色没了」——而那份文件本来一直好好的。
+ */
+describe("外观落盘的原子性（P0-5 同族）", () => {
+  it("改名那步失败 ⇒ 盘上仍是原来那一份，且从没直接写过目标文件", async () => {
+    const good = createAppearanceStore({ dir });
+    const value = sampleSettings();
+    await good.save(value);
+    const file = path.join(dir, "appearance.json");
+    const before = await readFile(file, "utf8");
+
+    const broken = atomicFsBrokenAt("rename", "盘满了，写入没完成");
+    const store = createAppearanceStore({ dir, fs: broken.fs });
+    await expect(store.save({ ...sampleSettings(), mode: "light" })).rejects.toThrow(/盘满/);
+
+    // 半截不许出现在目标路径上：内容仍是上一次那份，一个字节都没变。
+    expect(await readFile(file, "utf8")).toBe(before);
+    // 直接 `writeFile(file, …)` 的写法在这里会被抓出来：第一次写的目标必须是同目录的临时件。
+    expect(broken.writeTargets).toHaveLength(1);
+    expect(broken.writeTargets[0]).not.toBe(file);
+    expect(path.dirname(broken.writeTargets[0] ?? "")).toBe(dir);
+    // 失败路径上临时件由 `writeFileAtomic` 自己清掉：留着就是往用户目录里堆垃圾。
+    const residue = (await readdir(dir)).filter((name) => name.includes("mochen-tmp"));
+    expect(residue).toEqual([]);
+  });
+
+  it("写成功时走的是同一条通路：目标只被改名盖住，没被直接写过", async () => {
+    const broken = atomicFsBrokenAt("unlink", "不该被用到");
+    const store = createAppearanceStore({ dir, fs: broken.fs });
+    await store.save(sampleSettings());
+    const file = path.join(dir, "appearance.json");
+    expect(broken.writeTargets).toEqual([expect.stringContaining("mochen-tmp")]);
+    expect(broken.renameFrom).toEqual([broken.writeTargets[0]]);
+    expect(JSON.parse(await readFile(file, "utf8")).mode).toBe("dark");
   });
 });

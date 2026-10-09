@@ -16,9 +16,11 @@ import {
   OLLAMA_BASE_URL,
   OLLAMA_FILL_LABEL,
   PROVIDER_DIALOG_GROUPS,
+  THINKING_WIRE_LABELS,
   detectProviderByBaseURL,
   presetOf,
-  type AuthHeader
+  type AuthHeader,
+  type ThinkingWire
 } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import { useModalFocus } from "../composables/useModalFocus";
@@ -43,6 +45,7 @@ const editingConnection = computed(
 const providerId = ref(editingConnection.value?.providerId ?? CUSTOM_PROVIDER_ID);
 const baseURL = ref(editingConnection.value?.baseURL ?? "");
 const authHeader = ref<AuthHeader>(editingConnection.value?.authHeader ?? "bearer");
+const thinkingWire = ref<ThinkingWire>(editingConnection.value?.thinkingWire ?? "standard");
 const apiKey = ref("");
 const showKey = ref(false);
 const keyTouched = ref(false);
@@ -221,6 +224,7 @@ async function save(): Promise<void> {
     providerId: providerId.value,
     baseURL: baseURL.value.trim(),
     authHeader: authHeader.value,
+    thinkingWire: thinkingWire.value,
     // 没碰过密钥框 ⇒ null（沿用）；碰过且清空 ⇒ ""（主进程据此 clear）。
     apiKey: keyTouched.value ? apiKey.value.trim() : null
   });
@@ -368,6 +372,27 @@ useModalFocus({ root: dialogRoot, close: () => emit("close") });
             </select>
             <small class="provider-field-note"
               >协议固定是 Chat Completions（OpenAI 兼容），暂不支持别的形态。</small
+            >
+          </label>
+
+          <!--
+            思考档的线格式（2026-10-09 批次 5-㊻）。与上面那格同一族：
+            **「OpenAI 兼容」不等于字段值一样**。
+            Agnes AI Hub 的真机回执原文——「Unexpected reasoning effort high.
+            Supported types are xhigh (default), medium, and low.」：
+            它照收 low / medium，唯独最高那一档叫 xhigh，我们发 high 上去**整笔请求 400**，
+            症状是「地址密钥全对但一个字都发不出去」。
+            分歧只在最高档（另两档各家一致），所以这一格只改那一档的字。
+          -->
+          <label class="provider-field">
+            <span>深度思考在线上叫什么</span>
+            <select v-model="thinkingWire">
+              <option value="standard">{{ THINKING_WIRE_LABELS.standard }}</option>
+              <option value="xhigh">{{ THINKING_WIRE_LABELS.xhigh }}</option>
+            </select>
+            <small class="provider-field-note"
+              >只有「深度」那一档会变：选 xhigh 时本轮出站发
+              <code>reasoning_effort=xhigh</code>，较低/标准两档照发 low / medium。</small
             >
           </label>
 

@@ -69,6 +69,44 @@ describe("useSnippetToolbar（接线住 .ts：本仓 .vue 零类型检查零运�
     expect(editor.setSelectionRange).toHaveBeenCalledWith(12, 23);
   });
 
+  it("接了撤销通路时，片段交出去写——工具栏自己不再直接改草稿，也不自己回设光标", async () => {
+    const book = useBookStore();
+    book.draft = text;
+    const onEdit = vi.spyOn(book, "onEdit");
+    const editor = stubEditor({ value: text, start: 10, end: 22 });
+    const commits: Array<{ nextText: string; caret: { start: number; end: number } }> = [];
+    const { applyToSelection } = useSnippetToolbar(ref(editor), (nextText, caret) => {
+      commits.push({ nextText, caret });
+      book.onEdit(nextText);
+    });
+
+    applyToSelection("bold");
+    await nextTick();
+
+    // 整篇赋值会清空 textarea 的原生撤销栈，所以这一笔必须由撤销栈记着；
+    // 工具栏只做"算出新文本与新光标"，写与回设光标都归那一条通路（只发生一次）。
+    const BOLD = "雾从海面涌上来。\n海**雾涌上来，铁锈味很冲。**";
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(commits).toHaveLength(1);
+    expect(commits.map((c) => c.nextText)).toEqual([BOLD]);
+    expect(commits.map((c) => c.caret)).toEqual([{ start: 12, end: 23 }]);
+    expect(editor.focus).not.toHaveBeenCalled();
+    expect(editor.setSelectionRange).not.toHaveBeenCalled();
+  });
+
+  it("没接撤销通路时仍自己写、自己把光标拿回来（旧行为不因此断掉）", async () => {
+    const book = useBookStore();
+    book.draft = text;
+    const editor = stubEditor({ value: text, start: 10, end: 22 });
+    const { applyToSelection } = useSnippetToolbar(ref(editor));
+
+    applyToSelection("bold");
+    await nextTick();
+
+    expect(book.draft).toBe("雾从海面涌上来。\n海**雾涌上来，铁锈味很冲。**");
+    expect(editor.focus).toHaveBeenCalledTimes(1);
+  });
+
   it("工具栏状态由 store 现值驱动：文稿态可点、没有活动文稿时整排 disabled、浏览与作品资料态隐藏", () => {
     const book = useBookStore();
     const { snippetToolbar } = useSnippetToolbar(ref(stubEditor({ value: "", start: 0, end: 0 })));

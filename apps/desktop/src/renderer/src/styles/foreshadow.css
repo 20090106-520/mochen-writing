@@ -15,7 +15,7 @@
   border: 1px solid var(--line, #dedfdf);
   border-radius: 10px;
   box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
-  font-size: 13px;
+  font-size: 0.928571rem;
   line-height: 1.6;
 }
 
@@ -35,14 +35,14 @@
   border-radius: 999px;
   background: var(--surface-dim, #f0f1f4);
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
   font-variant-numeric: tabular-nums;
 }
 
 .foreshadow-note {
   margin: 0;
   color: var(--text-dim, #6b6f76);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .foreshadow-note code {
@@ -50,7 +50,7 @@
   border-radius: 4px;
   background: var(--surface-dim, #f0f1f4);
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 11px;
+  font-size: 0.785714rem;
 }
 
 .foreshadow-empty {
@@ -76,12 +76,12 @@
 
 .foreshadow-stats dt {
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
 }
 
 .foreshadow-stats dd {
   margin: 0;
-  font-size: 15px;
+  font-size: 1.071429rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -159,21 +159,21 @@
 .foreshadow-status {
   grid-column: 3;
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
   white-space: nowrap;
 }
 
 .foreshadow-where {
   grid-column: 2 / -1;
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
   overflow-wrap: anywhere;
 }
 
 .foreshadow-hint {
   grid-column: 2 / -1;
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
   font-style: italic;
   overflow-wrap: anywhere;
 }

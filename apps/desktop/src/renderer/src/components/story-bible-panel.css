@@ -39,7 +39,7 @@
 }
 
 .bible-header-left h3 {
-  font-size: 14px;
+  font-size: 1rem;
   margin: 0;
   color: var(--text-primary, #e8e8e8);
   font-weight: 600;
@@ -97,7 +97,7 @@
 
 .bible-tab {
   padding: 8px 14px;
-  font-size: 12.5px;
+  font-size: 0.892857rem;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -117,6 +117,15 @@
   border-bottom-color: var(--accent, #4a76c4);
 }
 
+/* 设定没能落进这本书的目录（P0-7）：通路把原因留在 store.saveError，这一行是它唯一的出口。
+   颜色走 --danger 而不是抄一支十六进制；字号用 rem，跟着「界面字号」一起缩放。 */
+.bible-save-error {
+  margin: 8px 16px 0;
+  color: var(--danger, #e0556e);
+  font-size: 0.785714rem;
+  flex-shrink: 0;
+}
+
 /* New form */
 .bible-new-form {
   padding: 12px 16px;
@@ -134,7 +143,7 @@
 
 .type-chip {
   padding: 3px 12px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 12px;
@@ -155,7 +164,7 @@
 
 .btn-primary {
   padding: 5px 16px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   background: var(--accent, #4a76c4);
   border: none;
   border-radius: 6px;
@@ -169,7 +178,7 @@
 
 .btn-ghost {
   padding: 5px 16px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   background: transparent;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 6px;
@@ -218,7 +227,7 @@
   border: none;
   outline: none;
   color: var(--text-primary, #e8e8e8);
-  font-size: 12.5px;
+  font-size: 0.892857rem;
 }
 
 .bible-search-input::placeholder {
@@ -235,7 +244,41 @@
   padding: 16px 12px;
   text-align: center;
   color: var(--text-muted, #777);
-  font-size: 12px;
+  font-size: 0.857143rem;
+}
+
+/* 空态两行：一句说"这里没什么"，一句说"从哪儿开始"（文案判定在 utils/bible-scope） */
+.bible-empty-title {
+  margin: 0;
+  font-size: 0.857143rem;
+  color: var(--text-secondary, #999);
+}
+
+.bible-empty-hint {
+  margin: 4px 0 0;
+  font-size: 0.785714rem;
+  line-height: 1.5;
+  color: var(--text-muted, #777);
+}
+
+/* 新建表单底下那句"建完直接进编辑态"：说的是真的会发生的事 */
+.bible-new-hint {
+  margin: 0;
+  font-size: 0.785714rem;
+  color: var(--text-muted, #777);
+}
+
+/* 归档双向：已归档那条的详情头里，归档钮换成「取回」——写在 .icon-btn 之后才盖得住它的方宽度 */
+.bible-restore-btn {
+  width: auto;
+  padding: 0 10px;
+  font-size: 0.785714rem;
+  color: var(--accent, #4a76c4);
+}
+
+.bible-restore-btn:hover {
+  background: var(--accent-soft, rgba(74, 118, 196, 0.12));
+  color: var(--text-primary, #e8e8e8);
 }
 
 .bible-list-item {
@@ -276,7 +319,7 @@
 }
 
 .bible-item-title {
-  font-size: 13px;
+  font-size: 0.928571rem;
   color: var(--text-primary, #e8e8e8);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -290,7 +333,7 @@
 }
 
 .bible-type-tag {
-  font-size: 10px;
+  font-size: 0.714286rem;
   padding: 0 5px;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.05);
@@ -298,7 +341,7 @@
 }
 
 .bible-item-time {
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
 }
 
@@ -321,11 +364,11 @@
 
 .bible-no-selection p {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.928571rem;
 }
 
 .bible-no-selection span {
-  font-size: 11px;
+  font-size: 0.785714rem;
   opacity: 0.7;
 }
 
@@ -345,7 +388,7 @@
 }
 
 .bible-detail-title {
-  font-size: 16px;
+  font-size: 1.142857rem;
   margin: 0;
   color: var(--text-primary, #e8e8e8);
   font-weight: 600;
@@ -353,7 +396,7 @@
 }
 
 .bible-detail-type {
-  font-size: 11px;
+  font-size: 0.785714rem;
   padding: 2px 8px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.06);
@@ -383,19 +426,19 @@
 }
 
 .bible-meta-label {
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .bible-meta-value {
-  font-size: 13px;
+  font-size: 0.928571rem;
   color: var(--text-primary, #e8e8e8);
 }
 
 .bible-importance-badge {
-  font-size: 11px;
+  font-size: 0.785714rem;
   padding: 1px 8px;
   border-radius: 4px;
   font-weight: 500;
@@ -417,7 +460,7 @@
 }
 
 .bible-detail-content {
-  font-size: 13.5px;
+  font-size: 0.964286rem;
   line-height: 1.7;
   color: var(--text-secondary, #bbb);
   margin: 0 0 12px;
@@ -433,7 +476,7 @@
 
 .bible-tag {
   padding: 2px 10px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 10px;
@@ -441,7 +484,7 @@
 }
 
 .bible-detail-footer {
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   padding-top: 12px;
   border-top: 1px solid var(--border-light, rgba(255, 255, 255, 0.04));
@@ -461,7 +504,7 @@
 }
 
 .bible-edit-field label {
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -473,7 +516,7 @@
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 6px;
   color: var(--text-primary, #e8e8e8);
-  font-size: 13px;
+  font-size: 0.928571rem;
   outline: none;
   transition: border-color 0.15s;
 }
@@ -488,7 +531,7 @@
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 6px;
   color: var(--text-primary, #e8e8e8);
-  font-size: 13px;
+  font-size: 0.928571rem;
   line-height: 1.6;
   outline: none;
   resize: vertical;
@@ -506,7 +549,7 @@
 
 .importance-btn {
   padding: 3px 14px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 6px;
@@ -560,7 +603,7 @@
 }
 
 .bible-color-clear {
-  font-size: 11px;
+  font-size: 0.785714rem;
   background: transparent;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
@@ -585,7 +628,7 @@
   gap: 16px;
   padding: 8px 16px;
   border-top: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
   flex-shrink: 0;
 }
@@ -596,5 +639,5 @@
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 3px;
   margin: 0 2px;
-  font-size: 10px;
+  font-size: 0.714286rem;
 }

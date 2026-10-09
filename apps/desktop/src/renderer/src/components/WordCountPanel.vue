@@ -6,6 +6,7 @@ import { useBookStore } from "../stores/useBookStore";
 import { useWritingGoalStore } from "../stores/useWritingGoalStore";
 import { useModalFocus } from "../composables/useModalFocus";
 import AppIcon from "./AppIcon.vue";
+import { formatCharCount } from "../utils/char-count";
 
 const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -85,11 +86,6 @@ const shortestChapter = computed(() =>
   })
 );
 
-function formatChars(n: number): string {
-  if (n >= 10_000) return `${(n / 10_000).toFixed(2)} 万字`;
-  return `${n.toLocaleString("zh-CN")} 字`;
-}
-
 function openChapter(relPath: string): void {
   void book.openDocTab(relPath);
   emit("close");
@@ -126,10 +122,15 @@ function enableGoal(): void {
         </button>
       </header>
 
+      <!-- 这一格的存盘失败来自 store 的 saveError：不是本地状态，也不是 console -->
+      <p v-if="goalStore.saveError" class="wc-save-error" role="status" aria-live="polite">
+        {{ goalStore.saveError }}
+      </p>
+
       <!-- 概览卡片 -->
       <div class="wc-overview">
         <div class="wc-stat-card wc-stat-total">
-          <span class="wc-stat-value">{{ formatChars(totalChars) }}</span>
+          <span class="wc-stat-value">{{ formatCharCount(totalChars) }}</span>
           <span class="wc-stat-label">总正文</span>
         </div>
         <div class="wc-stat-card">
@@ -137,7 +138,7 @@ function enableGoal(): void {
           <span class="wc-stat-label">章节数</span>
         </div>
         <div class="wc-stat-card">
-          <span class="wc-stat-value">{{ formatChars(avgCharsPerChapter) }}</span>
+          <span class="wc-stat-value">{{ formatCharCount(avgCharsPerChapter) }}</span>
           <span class="wc-stat-label">平均章字数</span>
         </div>
       </div>
@@ -153,8 +154,8 @@ function enableGoal(): void {
             <div class="wc-goal-fill" :style="{ width: wordGoalPercent + '%' }" />
           </div>
           <div class="wc-goal-numbers">
-            <span>{{ formatChars(totalChars) }}</span>
-            <span>目标 {{ formatChars(wordGoalTarget) }}</span>
+            <span>{{ formatCharCount(totalChars) }}</span>
+            <span>目标 {{ formatCharCount(wordGoalTarget) }}</span>
           </div>
         </template>
         <button v-else class="wc-goal-enable" type="button" @click="enableGoal">
@@ -177,7 +178,7 @@ function enableGoal(): void {
             <div class="wc-bar-track">
               <div class="wc-bar-fill" :style="{ width: stat.percentage + '%' }" />
             </div>
-            <span class="wc-bar-count">{{ formatChars(stat.chars) }}</span>
+            <span class="wc-bar-count">{{ formatCharCount(stat.chars) }}</span>
           </div>
         </div>
       </div>
@@ -186,14 +187,18 @@ function enableGoal(): void {
       <div v-if="chapterStats.length > 1" class="wc-extremes">
         <div v-if="longestChapter.chars > 0" class="wc-extreme">
           <AppIcon name="arrow-up" :size="12" class="wc-extreme-icon is-up" />
-          <span>最长：{{ longestChapter.title }}（{{ formatChars(longestChapter.chars) }}）</span>
+          <span
+            >最长：{{ longestChapter.title }}（{{ formatCharCount(longestChapter.chars) }}）</span
+          >
         </div>
         <div
           v-if="shortestChapter.chars !== Infinity && shortestChapter.chars > 0"
           class="wc-extreme"
         >
           <AppIcon name="chart" :size="12" class="wc-extreme-icon is-down" />
-          <span>最短：{{ shortestChapter.title }}（{{ formatChars(shortestChapter.chars) }}）</span>
+          <span
+            >最短：{{ shortestChapter.title }}（{{ formatCharCount(shortestChapter.chars) }}）</span
+          >
         </div>
       </div>
     </div>
@@ -232,8 +237,17 @@ function enableGoal(): void {
 
 .wc-header h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 1.071429rem;
   color: var(--text-primary, #e8e8e8);
+}
+
+.wc-save-error {
+  margin: 0 0 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--danger, #e0556e);
+  border-radius: 6px;
+  color: var(--danger, #e0556e);
+  font-size: 0.785714rem;
 }
 
 .icon-btn {
@@ -276,13 +290,13 @@ function enableGoal(): void {
 }
 
 .wc-stat-value {
-  font-size: 18px;
+  font-size: 1.285714rem;
   font-weight: 600;
   color: var(--text-primary, #e8e8e8);
 }
 
 .wc-stat-label {
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-muted, #777);
   margin-top: 4px;
 }
@@ -297,7 +311,7 @@ function enableGoal(): void {
 .wc-goal-head {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 0.857143rem;
   color: var(--text-secondary, #999);
   margin-bottom: 6px;
 }
@@ -324,7 +338,7 @@ function enableGoal(): void {
 .wc-goal-numbers {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
   margin-top: 4px;
 }
@@ -335,7 +349,7 @@ function enableGoal(): void {
   gap: 6px;
   width: 100%;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px dashed var(--border, rgba(255, 255, 255, 0.15));
   border-radius: 6px;
@@ -356,7 +370,7 @@ function enableGoal(): void {
 
 .wc-distribution h4 {
   margin: 0 0 8px;
-  font-size: 12px;
+  font-size: 0.857143rem;
   color: var(--text-secondary, #999);
   font-weight: 500;
 }
@@ -382,7 +396,7 @@ function enableGoal(): void {
 
 .wc-bar-title {
   width: 70px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-secondary, #999);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -409,7 +423,7 @@ function enableGoal(): void {
 .wc-bar-count {
   width: 56px;
   text-align: right;
-  font-size: 10px;
+  font-size: 0.714286rem;
   color: var(--text-muted, #777);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
@@ -422,7 +436,7 @@ function enableGoal(): void {
   padding: 8px 10px;
   border: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 0.785714rem;
   color: var(--text-secondary, #999);
 }
 

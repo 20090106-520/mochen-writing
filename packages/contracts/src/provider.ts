@@ -6,7 +6,9 @@ export const providerConfigSchema = z.object({
   baseURL: z.string().min(1).regex(httpUrl, "baseURL 必须以 http:// 或 https:// 开头"),
   model: z.string().min(1),
   /** 密钥放哪个头。带 default 是为了让 v1 旧形状（没有这一项）照样能读。 */
-  authHeader: z.enum(["bearer", "api-key"]).default("bearer")
+  authHeader: z.enum(["bearer", "api-key"]).default("bearer"),
+  /** 最高档思考在线上叫什么。同样带 default：老配置里没有这一项，按通用值走。 */
+  thinkingWire: z.enum(["standard", "xhigh"]).default("standard")
 });
 export type ProviderConfig = z.infer<typeof providerConfigSchema>;
 
@@ -24,6 +26,34 @@ export type ProviderGroup = "cn" | "global" | "custom";
  * 值为 null 的用户预设（自填地址）默认 Bearer，仍可在界面上改成 api-key。
  */
 export type AuthHeader = "bearer" | "api-key";
+
+/**
+ * **深度思考那一档在线上叫什么**（2026-10-09 批次 5-㊻）。
+ *
+ * 与 `AuthHeader` 同一族的问题：**「OpenAI 兼容」不等于字段值也一样**。
+ * Agnes AI Hub 的真机回执写得很直白——
+ * `Unexpected reasoning effort high. Supported types are xhigh (default), medium, and low.`
+ * 也就是说 `low` / `medium` 两档它照收，唯独最高那一档它叫 `xhigh`，
+ * 我们发 `high` 上去就被**整笔请求 400**，于是用户「一个字都发不出去，
+ * 而地址与密钥全是对的」——与当初 MiMo 只认 `api-key` 头是同一种死法。
+ *
+ * 形状照 `authHeader` 定：两档枚举、默认 `standard`、存在**连接**上（不是全局一份）。
+ * 为什么是「连接」而不是「用户设置」：`low` / `medium` 两档各家一致，
+ * 分歧只发生在最高那一档，而不同端点的分歧是不同的——按端点存才对。
+ */
+export type ThinkingWire = "standard" | "xhigh";
+
+/** 两档在线上分别发什么字。唯一真身，`per-run-fields` 与输入卡那枚 chip 的提示都读它。 */
+export const THINKING_WIRE_LABELS: Record<ThinkingWire, string> = {
+  standard: "high（OpenAI 兼容的通用值）",
+  xhigh: "xhigh（把最高档叫 xhigh 的端点）"
+};
+
+/** 最高档在线上的真身字。`standard` 原样，`xhigh` 换名；其余两档两家一致，不动。 */
+export const THINKING_WIRE_TOP_VALUE: Record<ThinkingWire, string> = {
+  standard: "high",
+  xhigh: "xhigh"
+};
 
 /** 协议形态。本仓出网只实现了 Chat Completions（`/chat/completions`）；Responses 另算一套。 */
 export type ApiType = "chat";
@@ -363,7 +393,14 @@ export const providerConnectionSchema = z.object({
   id: z.string().min(1),
   providerId: z.string().min(1),
   baseURL: z.string().regex(httpUrl, "baseURL 必须以 http:// 或 https:// 开头"),
-  authHeader: z.enum(["bearer", "api-key"])
+  authHeader: z.enum(["bearer", "api-key"]),
+  /**
+   * `.default` 在这里是**能不能升级**的问题，不是偷懒：
+   * 2026-10-09 之前存下的每一份 config.json 都没有这个键，
+   * 不给默认值的话 schema 直接判失败 → 用户的连接**全部读不出来**，
+   * 界面上变成「还没有模型」，而他明明配过。
+   */
+  thinkingWire: z.enum(["standard", "xhigh"]).default("standard")
 });
 export type ProviderConnection = z.infer<typeof providerConnectionSchema>;
 
@@ -448,7 +485,9 @@ export function migrateProviderStore(parsed: unknown): MigrationOutcome {
       id: LEGACY_CONNECTION_ID,
       providerId: guessProviderIdOf(v2.data.baseURL),
       baseURL: v2.data.baseURL,
-      authHeader: defaultAuthHeaderOf(guessProviderIdOf(v2.data.baseURL))
+      authHeader: defaultAuthHeaderOf(guessProviderIdOf(v2.data.baseURL)),
+      // 老配置里没有这一项，按通用值走（那个年代还没有「最高档叫 xhigh 的端点」这件事）。
+      thinkingWire: "standard"
     };
     return {
       store: {
@@ -466,7 +505,8 @@ export function migrateProviderStore(parsed: unknown): MigrationOutcome {
       id: LEGACY_CONNECTION_ID,
       providerId,
       baseURL: v1.data.baseURL,
-      authHeader: defaultAuthHeaderOf(providerId)
+      authHeader: defaultAuthHeaderOf(providerId),
+      thinkingWire: "standard"
     };
     return {
       store: {
@@ -496,6 +536,8 @@ export interface ProviderConnectionView {
   label: string;
   baseURL: string;
   authHeader: AuthHeader;
+  /** 最高档思考在线上叫什么。界面上要能看见它——不然用户只能靠撞 400 才知道自己这条端点的口径。 */
+  thinkingWire: ThinkingWire;
   /** 这一条有没有存过密钥（只有这个，没有明文）。 */
   hasKey: boolean;
   keyMask: string;
@@ -537,6 +579,7 @@ export const connectionDraftSchema = z.object({
     .min(1, "baseURL 不能为空")
     .regex(httpUrl, "baseURL 必须以 http:// 或 https:// 开头"),
   authHeader: z.enum(["bearer", "api-key"]),
+  thinkingWire: z.enum(["standard", "xhigh"]),
   apiKey: z.string().nullable()
 });
 export type ConnectionDraft = z.infer<typeof connectionDraftSchema>;

@@ -16,7 +16,7 @@
   border: 1px solid var(--line, #dedfdf);
   border-radius: 10px;
   box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
-  font-size: 13px;
+  font-size: 0.928571rem;
   line-height: 1.6;
 }
 
@@ -37,7 +37,7 @@
   border-radius: 999px;
   background: var(--surface-dim, #f0f1f4);
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -46,7 +46,7 @@
 .timeline-check-verdict {
   margin: 0;
   color: var(--text-dim, #6b6f76);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .timeline-check-note {
@@ -57,7 +57,7 @@
   padding: 0 4px;
   border-radius: 4px;
   background: var(--surface-dim, #f0f1f4);
-  font-size: 11px;
+  font-size: 0.785714rem;
 }
 
 .timeline-check-error {
@@ -66,7 +66,7 @@
   border-radius: 7px;
   background: var(--danger-soft, rgb(214 69 69 / 12%));
   color: var(--danger, #d64545);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 /* 结论：干净时转中性色，有问题时转琥珀——只是「要核一核」，不是判你写错了。 */
@@ -110,12 +110,12 @@
 
 .timeline-issue-text {
   color: var(--text-primary, #23262b);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .timeline-issue-reading {
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -133,7 +133,7 @@
   background: var(--surface, #fff);
   color: var(--text-dim, #6b6f76);
   font: inherit;
-  font-size: 11px;
+  font-size: 0.785714rem;
   cursor: pointer;
 }
 
@@ -166,7 +166,7 @@
 .timeline-date {
   grid-row: 1;
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -194,7 +194,7 @@
   grid-column: 1 / -1;
   grid-row: 2;
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
   overflow-wrap: anywhere;
 }
 
@@ -214,7 +214,7 @@
 .timeline-blind-title {
   margin: 0 0 3px;
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
   font-weight: 600;
 }
 
@@ -222,5 +222,5 @@
   margin: 0;
   padding-left: 16px;
   color: var(--text-dim, #6b6f76);
-  font-size: 11px;
+  font-size: 0.785714rem;
 }

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   DEFAULT_CHANGE_RETENTION,
@@ -6,6 +6,7 @@ import {
   type ChangeRetention,
   type ChangeRetentionSnapshot
 } from "@mochen/contracts";
+import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "@mochen/fs-store";
 import type { ReadTextFile } from "./credential-store.js";
 
 export interface ChangeRetentionStore {
@@ -38,9 +39,12 @@ export interface ChangeRetentionStore {
 export function createChangeRetentionStore(deps: {
   dir: string;
   readFile?: ReadTextFile;
+  /** 写盘缝（P0-5 同族）：默认真 fs，测试注入「只坏一步」的实现。命名同 book-service。 */
+  fs?: AtomicWriteFs;
 }): ChangeRetentionStore {
   const configFile = path.join(deps.dir, "change-retention.json");
   const readText: ReadTextFile = deps.readFile ?? ((p) => readFile(p, "utf8"));
+  const writeFs: AtomicWriteFs = deps.fs ?? defaultAtomicFs;
   const fallback = (): ChangeRetentionSnapshot => ({
     persisted: false,
     retention: { ...DEFAULT_CHANGE_RETENTION }
@@ -80,8 +84,9 @@ export function createChangeRetentionStore(deps: {
     // 存之前先夹。界面只递档位表里的值，所以正常路径夹不动；真夹动了说明有人递了脏数据，
     // 此时把夹完的结果回传，界面显示的就是盘上真实的那一份，不会有「显示 A 实际 B」。
     const clean = sanitizeChangeRetention(retention);
-    await mkdir(deps.dir, { recursive: true });
-    await writeFile(configFile, `${JSON.stringify(clean, null, 2)}\n`, "utf8");
+    // 原子写（P0-5 同族，理由见 provider-settings.ts 的 `writeStore`）：这份上限管的是
+    // 「写盘时删掉多少改稿历史」，文件半截 ⇒ 下次读不过 zod ⇒ 悄悄退回默认档 ⇒ 按用户没选过的上限开始删。
+    await writeFileAtomic(configFile, `${JSON.stringify(clean, null, 2)}\n`, writeFs);
     // 只在**真的写成了**之后才换缓存值：写盘失败时缓存还停在旧值，
     // 于是下一次自动保存仍按旧上限淘汰——宁可少按一次新上限，也不能让界面与盘上分家。
     cached = clean;

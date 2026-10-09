@@ -61,6 +61,7 @@ const view: ProviderView = {
       label: "自定义（自己填地址）",
       baseURL: "http://127.0.0.1:8787/v1",
       authHeader: "bearer",
+      thinkingWire: "standard",
       hasKey: true,
       keyMask: "••••"
     }
@@ -270,6 +271,9 @@ export const api = {
     listeners.add(listener);
     return () => listeners.delete(listener);
   }),
+  // 退出握手（P0-6）：这一格用例不碰它，给一对无害的假身即可过 RendererApi 的形状关。
+  onQuitFlushRequest: () => () => {},
+  quitFlushDone: async () => {},
   saveFile: vi.fn(async () => true),
   buildExport: vi.fn(async () => ({
     content: "",
@@ -310,6 +314,14 @@ export const api = {
   },
   readPluginSource: async () => {
     throw new Error("不该读插件源码");
+  },
+  // 设定落盘两枚（2026-10-09 扫描总单 P0-7）：satisfies RendererApi 要求它们在场，
+  // 但 agent 这条路一个都不用——真被调到就是越界，抛出来比静默返回空表更容易发现。
+  readBookData: async () => {
+    throw new Error("不该读书里的设定文件");
+  },
+  writeBookData: async () => {
+    throw new Error("不该写书里的设定文件");
   }
 } satisfies RendererApi;
 

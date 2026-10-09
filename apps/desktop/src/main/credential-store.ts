@@ -1,5 +1,6 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
+import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "@mochen/fs-store";
 
 export interface Cipher {
   available: boolean;
@@ -56,7 +57,13 @@ export function secretFileNameOf(ref: string): string {
 export function createCredentialStore(
   dir: string,
   cipher: Cipher,
-  readFileFn: ReadTextFile = (p) => readFile(p, "utf8")
+  readFileFn: ReadTextFile = (p) => readFile(p, "utf8"),
+  /**
+   * 写盘缝（P0-5 同族，命名与默认值同 book-service）：默认真 fs，测试注入「只坏一步」的实现。
+   * 注：临时件名 `<ref>.enc.mochen-tmp-xxxx` 不以 `.enc` 结尾，且全仓没有扫这个目录的代码，
+   * 所以不会被任何「按文件名回收密钥」的逻辑当成真密钥。
+   */
+  writeFs: AtomicWriteFs = defaultAtomicFs
 ): CredentialStore {
   const legacyTarget = path.join(dir, LEGACY_SECRET_FILE);
   const dirOf = (ref: string): string => path.join(dir, SECRET_DIR, secretFileNameOf(ref));
@@ -111,8 +118,10 @@ export function createCredentialStore(
       const text = cipher.encrypt(key);
       if (text.includes(key)) throw new Error("加密结果仍含明文，已拒绝落盘。");
       const target = dirOf(ref);
-      await mkdir(path.dirname(target), { recursive: true });
-      await writeFile(target, text, "utf8");
+      // 原子写（P0-5 同族，理由见 provider-settings.ts 的 `writeStore`）：裸 writeFile 先截断再写，
+      // 半截密文下次 decrypt 直接失败 ⇒ 这条连接的密钥凭空没了，而界面还显示「已保存」。
+      // 建目录由 writeFileAtomic 按目标路径自己做；落进去的仍然只是密文，保密口径一个字没变。
+      await writeFileAtomic(target, text, writeFs);
     },
 
     async clear(ref) {

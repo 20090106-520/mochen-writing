@@ -8,6 +8,14 @@ import {
   type BibleEntry,
   type BibleEntryType
 } from "../stores/useStoryBibleStore";
+import {
+  BIBLE_SCOPES,
+  BIBLE_TYPE_LABEL,
+  bibleScopeEmptyText,
+  visibleEntries,
+  type BibleScope
+} from "../utils/bible-scope";
+import { parseTags } from "../utils/tag-input";
 import { useModalFocus } from "../composables/useModalFocus";
 
 const props = defineProps<{ visible: boolean }>();
@@ -28,7 +36,8 @@ useModalFocus({
 
 const bible = useStoryBibleStore();
 
-const filterTab = ref<"all" | BibleEntryType>("all");
+/** 档位是 `BIBLE_SCOPES` 那五档（含「已归档」——归档不再是单向门）。 */
+const filterTab = ref<BibleScope>("all");
 const searchQuery = ref("");
 const selectedId = ref<string | null>(null);
 const editingId = ref<string | null>(null);
@@ -44,11 +53,12 @@ const editParentLocation = ref("");
 const editEventDate = ref("");
 const editImportance = ref<"high" | "medium" | "low">("medium");
 
-// 新建态
+// 新建态：类型、名称、描述、标签四件都能真的落库（建完直接进编辑态补类型专属字段）
 const showNewForm = ref(false);
 const newType = ref<BibleEntryType>("character");
 const newTitle = ref("");
 const newContent = ref("");
+const newTags = ref("");
 
 watch(
   () => props.visible,
@@ -56,27 +66,31 @@ watch(
     if (!vis) {
       editingId.value = null;
       showNewForm.value = false;
+      newTags.value = "";
     }
   }
 );
 
-// 过滤后的条目列表
-const filteredEntries = computed(() => {
-  let list: BibleEntry[];
-  if (searchQuery.value.trim()) {
-    list = bible.searchEntries(searchQuery.value);
-  } else {
-    list = bible.activeEntries;
-  }
-  if (filterTab.value !== "all") {
-    list = list.filter((e) => e.type === filterTab.value);
-  }
-  return list;
-});
-
-const selectedEntry = computed(
-  () => filteredEntries.value.find((e) => e.id === selectedId.value) ?? null
+/**
+ * 列表 = 档位 + 搜索叠在一起，判定住在 `utils/bible-scope`。
+ * 旧写法是「store 的 searchEntries 或 activeEntries，再按类型 filter」，而归档件根本进不了这个视图——
+ * 所以点过归档的条目既看不见也取不回。
+ */
+const filteredEntries = computed(() =>
+  visibleEntries(
+    filterTab.value,
+    { active: bible.activeEntries, archived: bible.archivedEntries },
+    searchQuery.value
+  )
 );
+
+/**
+ * 详情按 id 在**全量**里查，不在"筛完的列表"里查。
+ *
+ * 旧写法 `filteredEntries.find(...)` 有一个真实后果：选中一条人物后切到「地点」那一档，
+ * 右侧整块立刻变成"未选中"占位——用户以为条目丢了，其实只是筛选把它挡掉了。
+ */
+const selectedEntry = computed(() => bible.entries.find((e) => e.id === selectedId.value) ?? null);
 
 function selectEntry(entry: BibleEntry): void {
   selectedId.value = entry.id;
@@ -111,18 +125,14 @@ function saveEdit(): void {
   const partial: Partial<BibleEntry> = {
     title: editTitle.value.trim() || "未命名",
     content: editContent.value,
-    tags: editTags.value
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean),
+    // 标签与别名共用 `utils/tag-input` 那一份切法：中文逗号也认、去重、不产空标签。
+    // 这里原本手抄了两份 `.split(",")`，作者用中文输入法打「伏笔，转折」就会被存成一整条。
+    tags: parseTags(editTags.value),
     color: editColor.value
   };
 
   if (entry.type === "character") {
-    partial.aliases = editAliases.value
-      .split(",")
-      .map((a) => a.trim())
-      .filter(Boolean);
+    partial.aliases = parseTags(editAliases.value);
     partial.role = editRole.value.trim() || undefined;
   }
   if (entry.type === "location") {
@@ -152,12 +162,19 @@ function confirmDelete(entry: BibleEntry): void {
 function createEntry(): void {
   if (!newTitle.value.trim()) return;
   const entry = bible.addEntry(newType.value, newTitle.value, newContent.value, {
-    tags: []
+    tags: parseTags(newTags.value)
   });
   showNewForm.value = false;
   newTitle.value = "";
   newContent.value = "";
+  newTags.value = "";
   selectedId.value = entry.id;
+  /*
+   * 建完直接进编辑态。新建表单只收类型、名称、描述、标签四件，而人物别名/身份、地点上级、
+   * 时间线日期与重要度这些**类型专属字段**只有编辑态才有输入框——不自动进编辑态，
+   * 用户要么不知道有这些字段，要么得再点一次"编辑"。
+   */
+  startEdit(entry);
 }
 
 function toggleColor(current: string | undefined, color: string): string | undefined {
@@ -177,11 +194,16 @@ function formatTime(ts: number): string {
   return d.toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
 }
 
-const typeLabel: Record<BibleEntryType, string> = {
-  character: "人物",
-  location: "地点",
-  timeline: "时间线"
-};
+/** 类型标签的唯一一份在 `utils/bible-scope`；这里只留一个别名给模板用，避免第二处定义。 */
+const typeLabel = BIBLE_TYPE_LABEL;
+
+const emptyText = computed(() =>
+  bibleScopeEmptyText({
+    scope: filterTab.value,
+    libraryEmpty: bible.activeEntries.length === 0,
+    query: searchQuery.value
+  })
+);
 
 const importanceLabel: Record<string, string> = {
   high: "高",
@@ -221,18 +243,24 @@ const importanceLabel: Record<string, string> = {
         </div>
       </header>
 
-      <!-- Filter Tabs -->
+      <!-- Filter Tabs：档位表来自 utils/bible-scope，第五档「已归档」把取回通路摆在明面上 -->
       <nav class="bible-tabs">
         <button
-          v-for="t in ['all', 'character', 'location', 'timeline'] as const"
-          :key="t"
-          :class="['bible-tab', { 'is-active': filterTab === t }]"
+          v-for="s in BIBLE_SCOPES"
+          :key="s.id"
+          :class="['bible-tab', { 'is-active': filterTab === s.id }]"
           type="button"
-          @click="filterTab = t"
+          @click="filterTab = s.id"
         >
-          {{ t === "all" ? "全部" : typeLabel[t] }}
+          {{ s.label }}
         </button>
       </nav>
+
+      <!-- 落盘失败必须上屏（P0-7）：原因住在 store.saveError，这一行是它唯一的出口。
+           设定存不进这本书的目录时，条目列表照涨——屏上看着像存好了，盘上什么都没有。 -->
+      <p v-if="bible.saveError" class="bible-save-error" role="status" aria-live="polite">
+        {{ bible.saveError }}
+      </p>
 
       <!-- 新建表单 -->
       <div v-if="showNewForm" class="bible-new-form">
@@ -254,6 +282,15 @@ const importanceLabel: Record<string, string> = {
           :placeholder="`${typeLabel[newType]}名称…`"
         />
         <textarea v-model="newContent" class="bible-textarea" rows="3" placeholder="描述内容…" />
+        <input
+          v-model="newTags"
+          type="text"
+          class="bible-input"
+          placeholder="标签，逗号分隔（可留空）"
+        />
+        <p class="bible-new-hint">
+          创建后直接进编辑态，可以补上「{{ typeLabel[newType] }}」的专属字段。
+        </p>
         <div class="bible-new-actions">
           <button class="btn-primary" type="button" @click="createEntry">创建</button>
           <button class="btn-ghost" type="button" @click="showNewForm = false">取消</button>
@@ -274,7 +311,11 @@ const importanceLabel: Record<string, string> = {
             />
           </div>
           <div class="bible-list">
-            <div v-if="filteredEntries.length === 0" class="bible-empty">没有匹配的条目</div>
+            <!-- 空态两行按状态分岔：整库空、这一档空、还是在搜一个筛不出来的词，是三件事 -->
+            <div v-if="filteredEntries.length === 0" class="bible-empty">
+              <p class="bible-empty-title">{{ emptyText.title }}</p>
+              <p class="bible-empty-hint">{{ emptyText.hint }}</p>
+            </div>
             <button
               v-for="entry in filteredEntries"
               :key="entry.id"
@@ -437,6 +478,16 @@ const importanceLabel: Record<string, string> = {
                     <AppIcon name="pen" :size="13" />
                   </button>
                   <button
+                    v-if="selectedEntry.archived"
+                    class="icon-btn bible-restore-btn"
+                    type="button"
+                    title="把这条取回设定列表"
+                    @click="bible.restoreEntry(selectedEntry.id)"
+                  >
+                    取回
+                  </button>
+                  <button
+                    v-else
                     class="icon-btn"
                     type="button"
                     title="归档"

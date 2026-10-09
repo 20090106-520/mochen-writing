@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   CUSTOM_PROVIDER_ID,
@@ -25,6 +25,7 @@ import {
   type ProviderStoreFile,
   type ProviderView
 } from "@mochen/contracts";
+import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "@mochen/fs-store";
 import type { CredentialStore, ReadTextFile } from "./credential-store.js";
 
 export interface ProviderSettings {
@@ -75,11 +76,23 @@ export function createProviderSettings(deps: {
   dir: string;
   credentials: CredentialStore;
   readFile?: ReadTextFile;
+  /** 写盘缝（P0-5）：默认真 fs，测试注入「只坏一步」的实现来证明中途失败时目标文件完好。命名同 book-service。 */
+  fs?: AtomicWriteFs;
 }): ProviderSettings {
   const configFile = path.join(deps.dir, "config.json");
   const readText: ReadTextFile = deps.readFile ?? ((p) => readFile(p, "utf8"));
+  const writeFs: AtomicWriteFs = deps.fs ?? defaultAtomicFs;
   // 装载一次后驻内存（本进程是这份文件的唯一写者）：id 从此稳定，
   // 也不必每次读盘都重走一遍迁移。写操作内存改完即落盘。
+  //
+  // 【`loaded` 什么时候才许抬上去——P0-5 的全部教训在这两行】
+  // 原先是「先置 loaded = true 再 await 读盘」：非 ENOENT 的 IO 错误（EBUSY/EACCES——Windows 上
+  // 杀软、OneDrive、备份正在扫这个文件）确实抛了，可 `loaded` 已经抬上去、`cached` 停在 null，
+  // 于是**第二次起这份配置就被当成「从来没配过」**：设置页显示空、`config()` 返 null，
+  // 用户照着提示填一条连接 ⇒ `saveConnection` 以 `store === null` 走新建分支、整份重写 config.json，
+  // 其余连接与全部模型档案一次冲掉，密钥文件按新 UUID 改名、旧的 `<连接id>.enc` 再也清不掉。
+  // 现在只在**真的读完**（含合法的「文件不存在 = null」）之后才置位：读失败就保持未装载，
+  // 下一次调用重新读一遍——盘恢复了自己就好，盘没恢复就一直抛人话，中间没有任何静默覆盖。
   let cached: ProviderStoreFile | null = null;
   let loaded = false;
 
@@ -98,16 +111,28 @@ export function createProviderSettings(deps: {
     }
   }
 
+  /**
+   * 落盘：走原子通路（P0-5 与 P0-1 同一条线）。
+   *
+   * 裸 `writeFile(configFile, …)` 是「先截断再写」：写到一半 ENOSPC / 断电 / 杀软正在读这个文件，
+   * 留下的就是半截 JSON——下次启动 `JSON.parse` 直接失败，用户的全部模型配置没了，
+   * 而且一句提示都收不到。同目录临时文件 + 一次改名：外界要么看到旧的一份，要么看到新的一份。
+   * `mkdir` 由 `writeFileAtomic` 自己按目标目录做，这里不再单独来一遍。
+   */
   async function writeStore(store: ProviderStoreFile): Promise<void> {
-    await mkdir(deps.dir, { recursive: true });
-    await writeFile(configFile, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+    await writeFileAtomic(configFile, `${JSON.stringify(store, null, 2)}\n`, writeFs);
   }
 
+  /**
+   * 装载一次并缓住。**抛出去的每一条路径都不许留下「已装载」**——理由见上面 `loaded` 那段。
+   */
   async function ensure(): Promise<ProviderStoreFile | null> {
     if (loaded) return cached;
-    loaded = true;
     const raw = await readRawText();
-    if (raw === null || raw.trim() === "") return (cached = null);
+    if (raw === null || raw.trim() === "") {
+      loaded = true;
+      return (cached = null);
+    }
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
@@ -119,7 +144,10 @@ export function createProviderSettings(deps: {
     }
     // v1 / v2 / v3 三代都在这里收住（migrateProviderStore 是纯函数，出网与落盘都不归它管）。
     const { store, migrated } = migrateProviderStore(parsed);
-    if (!migrated) return (cached = store);
+    if (!migrated) {
+      loaded = true;
+      return (cached = store);
+    }
     // 迁移后写回：从此往后这份文件是 v3，不必每次读盘都重走一遍。
     //
     // **密钥要一起搬**：老版那一份在 `secrets.enc`，v3 存在 `secrets/<连接id>.enc`。
@@ -133,6 +161,7 @@ export function createProviderSettings(deps: {
       console.error("旧密钥搬移失败，用户需要在模型设置里重新填一次 API Key", error);
     }
     await writeStore(store);
+    loaded = true;
     return (cached = store);
   }
 
@@ -157,6 +186,7 @@ export function createProviderSettings(deps: {
         label: connectionLabelOf(connection),
         baseURL: connection.baseURL,
         authHeader: connection.authHeader,
+        thinkingWire: connection.thinkingWire,
         hasKey: key !== null,
         keyMask: key === null ? "" : maskApiKey(key)
       });
@@ -185,7 +215,10 @@ export function createProviderSettings(deps: {
       return {
         baseURL: connection.baseURL,
         model: enabled.model,
-        authHeader: connection.authHeader
+        authHeader: connection.authHeader,
+        // 最高档思考在线上叫什么（Agnes 那类端点叫 xhigh）。和 authHeader 一样**整个递下去**：
+        // agent-service 把 config 铺进 TurnDeps.provider，tool-loop 再铺进出站请求。
+        thinkingWire: connection.thinkingWire
       };
     },
 
@@ -234,7 +267,8 @@ export function createProviderSettings(deps: {
         id: existing?.id ?? randomUUID(),
         providerId: parsed.data.providerId,
         baseURL: parsed.data.baseURL,
-        authHeader: parsed.data.authHeader
+        authHeader: parsed.data.authHeader,
+        thinkingWire: parsed.data.thinkingWire
       });
       const connections =
         store === null

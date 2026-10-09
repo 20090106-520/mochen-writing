@@ -44,6 +44,7 @@ function chipInput(over: Partial<Parameters<typeof composerChips>[0]> = {}) {
     workMode: "act" as const,
     saving: false,
     thinkingLevel: "off" as const,
+    thinkingWire: "standard" as const,
     webSearchEnabled: false,
     modelLabel: "mochen-mock",
     baseURL: "http://127.0.0.1:8787/v1",

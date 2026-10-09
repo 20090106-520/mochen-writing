@@ -223,7 +223,7 @@ describe("三种插件形态（官方文档的三档写法）", () => {
           );
         }
       }
-    } as PluginModule);
+    });
     expect(rec.ok).toBe(true);
     expect(app.tools().map((t) => t.name)).toEqual(["obj_tool"]);
   });
@@ -287,7 +287,7 @@ describe("三种插件形态（官方文档的三档写法）", () => {
       apply(ctx) {
         seen = ctx.get<{ label: string }>("widget")?.label ?? null;
       }
-    } as PluginModule);
+    });
     expect(rec.ok).toBe(true);
     expect(seen).toBe("窗口服务");
   });

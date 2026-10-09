@@ -787,7 +787,7 @@ html[data-theme="dark"] .document-editor:focus-visible {
 .editor-skeleton-label {
   margin: 0 0 4px;
   color: var(--text-tertiary);
-  font-size: 12px;
+  font-size: 0.857143rem;
 }
 
 .editor-skeleton-line {
@@ -842,7 +842,7 @@ html[data-theme="dark"] .document-editor:focus-visible {
   margin: 0;
   padding: 0 24px;
   color: var(--text-tertiary);
-  font-size: 13px;
+  font-size: 0.928571rem;
   line-height: 1.7;
   text-align: center;
 }
