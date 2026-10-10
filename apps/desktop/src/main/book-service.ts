@@ -21,6 +21,7 @@ import {
 import {
   createBookSkeleton,
   createDocFile,
+  docRefFor,
   isBookDataKey,
   readBookData,
   readDocFile,
@@ -230,11 +231,23 @@ export function createBookService(deps: BookServiceDeps): BookService {
         return { ok: false, reason: "invalid-path", message: "标题起不了文件名，换一个名字。" };
       const result = await createDocFile(snapshot.root, relPath, cleanTitle, deps.fs);
       if (!result.ok) return result;
-      // 盘上多了新文件：重扫一次让 docs 与磁盘对齐（excerpt/chars 一并补齐），再回报指纹。
-      snapshot = {
-        ...snapshot,
-        docs: sortChapters(await scanBook(snapshot.root), snapshot.meta.chapterOrder)
-      };
+      // P1-4（2026-10-09 全仓扫描）：这一行过去是 `sortChapters(await scanBook(snapshot.root), …)`——
+      // 建一章把**整本**读一遍。1000 章 × 3000 字（盘上 8.66 MB）实测整本重扫 99–136 ms，
+      // 而只算新那一篇的 docRefFor 是 1 ms（夹具与数字记在扫描总单 P1-4 那一行）。
+      // 现在只算新那一篇：判据仍是 fs-store 的 `docRefFor`，与 `scanBook` 同一份（铁律 6，不另立第二套
+      // title/excerpt/chars 口径），落位仍由同一条 `sortChapters` 决定（主进程不自己排）。
+      const fresh = await docRefFor(snapshot.root, relPath);
+      let docs: DocRef[];
+      if (fresh === null) {
+        // 刚写完却读不回这一篇（盘被外部改动、权限、杀软占用……）：退回整本重扫。
+        // 这条兜底不装作免费——它确实要读全本书，但它只在异常路径上烧，烧完 docs 仍是真数据；
+        // 另一条路（拿文件名倒推一个 DocRef 挂上去）会让界面显示「有这一章」而盘上读不到，两处从此分家。
+        docs = await scanBook(snapshot.root);
+      } else {
+        // 同 relPath 以新值为准：重名建章已被 createDocFile 的 already-exists 挡住，这里是防外力的第二层。
+        docs = [...snapshot.docs.filter((doc) => doc.relPath !== fresh.relPath), fresh];
+      }
+      snapshot = { ...snapshot, docs: sortChapters(docs, snapshot.meta.chapterOrder) };
       return { ok: true, relPath, fingerprint: result.fingerprint };
     },
 

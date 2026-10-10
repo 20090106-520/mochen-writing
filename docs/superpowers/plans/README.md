@@ -6791,4 +6791,113 @@ A 段 `turn-gate` 那份 `let root = ""` 只赋值不读取（`tsc` 的 TS6133 �
 三段并行 + 我这三条**合并成一整批**入库（提交前全仓门禁如上实测全绿）。
 推送只走 `feat/plan3-interaction-and-assembly`，**不碰主干**。
 
+## 第 2 波 · 规模这一刀（2026-10-10）：P1-4 / P1-5 先量后改，数字全部落盘
+
+这一批的起因是总单第六节第 3 条那句「验收样本是玩具级」——两本冒烟书 5 篇与 2 篇，
+而产品面向的是 1000–3000 章的作者。所以这一批的顺序刻意反过来：**先造夹具量出放大倍数，
+再动代码，改完用同一把尺复量**。三处判断都要求用户当场拍板过（并发度、顺序一致性、touchFiles），
+所以下面每条都写清「谁定的」与「量到的」。
+
+### ① 并发度 = 文稿数，不设固定上限（用户裁定，覆盖我原先的限 8）
+
+我先按自己的判断写了限并发 8 的版本并量了一组数，那组数里 pool8 比不设上限快（74–83 vs 85–96 ms），
+我据此准备保留上限。**复跑否掉了自己**：本机空负载连跑两遍各 3 次，夹具 1000 章 × 3000 字（盘上 8.66 MB）——
+
+| 读法 | 第一遍 | 第二遍 |
+| --- | --- | --- |
+| 串行 `for await`（改动前的形状） | 152 / 145 / 157 ms | 133 / 126 / 136 ms |
+| 限并发 8 | 35 / 35 / 43 ms | 34 / 29 / 34 ms |
+| **并发度 = 文稿数（`Promise.all`）** | 30 / 27 / 21 ms | 21 / 31 / 27 ms |
+
+先前那组「限 8 更快」的读数出在 dev 实例并发抢 IO 的窗口里，重复测量不成立。
+按用户裁定落成不设上限，代码里 `mapLimited` 与 `DOC_READ_CONCURRENCY` 一并删净（不留第二套读法）。
+
+内存那一处必须把话改回来，**不能顺着结论写注释**：用户给的判断是「正文读一次算完就丢，驻留峰值只有一个 chunk」，
+这句在 `readFile` 下不成立——`readFile` 每个请求按文件大小先分配一块 buffer，1000 个请求在途时它们可以同时在世，
+峰值不是一个 chunk。实测峰值堆：串行 29.8–46 MB，不设上限 33–35.5 MB（同量级，差在噪声内）。
+所以注释里记的是这三条代价（句柄数=文稿数、buffer 峰值如上有实测、`chars` 要数完整篇所以不能像
+`rollout.ts` 那样只读头部），而不是抄一句没量过的话。真要压到一个 chunk 得换流式读，那是另一刀。
+
+### ② 单点重扫与整本扫描的顺序一致性（用户点名要加测试）
+
+`createDoc` 建完一章过去是整本重扫（`scanBook`），实测那一步 99–136 ms；改成 `docRefFor` 只算新那一篇是 **1 ms**。
+`docRefFor` 不另立判据：认目录用同一个 `kindOf`，出标题/摘录/字数用同一个 `docMetaOf`，
+所以「增量拼出来的 docs 必须与整本重扫逐字相同」是可以直接断言的。`book-service-create-doc-io.test.ts` 八条里
+三条就是这条闸（整本 vs 增量 `toEqual`、新那篇与重扫的同一篇 `toEqual`、`sortChapters` 导出核对），
+夹具的 `chapterOrder` 故意不是文件名顺序，位置写错当场红。
+
+### ③ `touchFiles`：这个符号在本仓**不存在**，没做假控件
+
+用户说「墨宸有这功能，你去搜 touchFiles 这个符号」。我按点名搜了：
+`grep -rn` 大小写不敏感扫 `packages`/`apps`/`docs` 只命中 `changes.ts` 的 `touchedStamps`（无关）；
+`git log --all -S touchFiles` 零命中；`git grep touchFiles` 覆盖最近 40 个修订零命中；
+`IPC_CHANNELS` 全表里没有 export/touch 相关通道；所有 `mkdir` 调用点逐个看过，没有「建空目录不写」的那条通路；
+参考仓 `Desktop\deepwrite` 也搜了，同样没有。
+按「逐条答真/半真/不存在、缺契约就写清缺什么、禁止做假控件凑形似」这条规矩，这一项报**不存在**并附上搜索证据，
+而不是照着想象补一个 `touchFiles` 出来。如果它指的是别的名字（比如导出打包那条），点名我再做。
+
+### P1-5：会话定位不再整篇读 JSONL（改前实测放大 59×–681×）
+
+`findLatestSession`/`findSessionById`/`listSessions` 三个函数原先都为拿首行（或首条用户输入）把整个 jsonl 读进内存。
+新做法是 `readRawLines`：`open` + 16 KB chunk + `TextDecoder("utf-8", {stream:true})`，
+拿到就要的那行立刻 `break`，靠生成器的 `finally` 关句柄，尾部不读。
+判据只有一份——`titleOfLine` 一行判定同时服务旧的整篇读路径与新的 `readSessionHead`（铁律 6），
+空行过滤与「首行坏掉只跳过这一条、不整本抛」都照旧口径复现。
+
+`rollout-head-read.test.ts` 十二条分两族。IO 形状四条用**字节跨度**而不是墙钟（机上跑着实例，时间断言必抖）：
+`readFile` 调用数 = 0、每函数各 `open` 一次、150 条事件与 1500 条事件的字节跨度**必须相等**且 < 64 KB
+——反向鉴别写得清楚：整篇读时后者要读完 300 KB，两者绝无可能相等。等价性八条覆盖
+首条用户输入埋在 120 KB 之后、单行 48 KB 跨块、200 KB 巨型首行、无尾换行、空文件、只有 meta 的行、坏首行，
+外加**首行是空行、meta 落在第二行**这条。最后那条钉的不是"统一口径"，而是**两处旧口径本来就不一样**：
+`findLatestSession` 走 `readFirstLine`，对应旧的 `split("\n")[0]`，**不滤空行**；`listSessions` 走
+`readSessionHead`，对应旧的 `split("\n").filter(非空)`，**滤空行**。所以同一份夹具下前者照样判坏、定位不到，
+后者照常上面板拿到标题——这是历史事实，顺手把它们统一掉就会改变 `findLatestSession` 的行为。
+
+变异四只：① 恢复整篇 `readFile` → 字节跨度那条红；② 去掉 `{stream:true}` → **一开始全绿**，
+查因是 `TITLE_MAX = 60` 的截断把跨块损伤藏进了看不见的后半段，于是补一条 ASCII 填充用例
+（CJK 每字 3 字节，mod-6 余数永远凑不到边界落在标题第一个字内部；换 ASCII 后 gap 落在 1–2 字节），
+这条当场红，量到 `\ufffd\ufffd渊之下…`；③ 给 `readFirstLine` 加上空行过滤（它过去不滤）→ 那条新用例红在
+`expected '.mochen/sessions/…jsonl' to be null`；④ 把 `readSessionHead` 的空行过滤去掉（它过去滤）→
+**同一条**用例红在 `expected [] to deeply equal [ 's-blank' ]`。一条用例被两个相反方向的变异各打红一次，
+才证明它有双向鉴别力，而不是只钉住了我随手写的那一半。
+两只"看起来通过"的假绿也补过：字节跨度断言起初会满足 `0 === 0`，加了 `> 0` 才有利。
+
+### 这一刀没切到的另一半（照直写）
+
+渲染层 `useBookStore.refreshDocs()`（`stores/useBookStore.ts:209`）走的是 `openBook` 又一次整本重扫，
+建章/改名/卷次重排四处都调它，所以**界面上点「新建一章」仍会把全书读一遍**。
+没顺手改它的理由是一条硬的：渲染层 `sortDocsByOrder`（`utils/doc-order.ts:30-39`）对
+「都不在 chapterOrder 里的两篇」返回 0（保持原相对序），而 fs-store `sortChapters`（`scan.ts:171-181`）按名字排它们。
+两处判据不同，本地拼一根 `DocRef` 进去就和整本重扫**不等价**——而顺序等价正是用户这批点名要保的那条。
+所以下一刀的顺序是：先把排序判据合成一份（contracts 出 `sortDocs`），再让 `doc:create` 带回新那篇、渲染层本地拼。
+总单 P1-4 那一行因此写的是「半收口」，不是「已修」。
+
+另一处已知取舍也用例钉住了：建章不再刷别篇的缓存摘录（外力改盘后那一格是旧值）。
+这条断言刻意断言**旧值**——过去那句整本 `scanBook` 会顺手把它刷成新内容，现在不会了，
+丢掉的东西必须被看见，不能藏在 diff 里。
+
+### 门禁实测（2026-10-10，六段各自取码 + 回读日志内容）
+
+| 段 | 命令 | 退出码 | 日志里的第二证据 |
+| --- | --- | --- | --- |
+| 类型 | `pnpm typecheck`（6 个 tsc 工程串行） | 0 | 零 `error TS`。这一段当场抓出两处我自己带进去的真回归：测试文件里一个没用到的 `AgentEvent` 类型导入（TS6196），和一处 `ORDER[0]` 在 `noUncheckedIndexedAccess` 下的 `Object is possibly 'undefined'`（TS2532）——都改了代码而不是改断言 |
+| ESLint | `pnpm lint:eslint`（`--max-warnings=0`） | 0 | 零 problem |
+| 包边界 | `pnpm lint:boundary` | 0 | 「边界检查通过」 |
+| 行数预算 | `pnpm lint:budget` | 0 | 「行数预算通过（604 份，含 .mjs/.cjs）」——三个新测试文件都在预算内 |
+| 格式 | `pnpm format:check` | 0 | 「All matched files use Prettier code style!」 |
+| 全量测试 | `pnpm test`（`vitest run --maxWorkers=4`） | 0 | **301 个测试文件全过 / 3939 passed \| 2 skipped**，31.27 s，无一条 timeout；本批新增 27 条（`rollout-head-read` 12 + `book-service-create-doc-io` 8 + `scan-concurrency` 7）在日志里逐条点名通过 |
+
+跑门禁时机上那只 dev 实例仍在（5 个 electron.exe 进程），所以上面这套判据全是确定性的（调用次数、字节跨度、
+树形 `toEqual`），没有一条依赖墙钟——这也是这批敢在有并行实例的机器上收口的唯一理由。
+
+### 三件量具没有入库（也没删，按规矩删除要用户点头）
+
+`tmp-scale-probe.test.ts`（1000 章生成 + 三种读法 + 两条建章通路的复量夹具）、`tmp-session-probe.test.ts`
+（会话长度放大倍数的量具）、`book-service-createdoc.test.ts`（`book-service-create-doc-io.test.ts` 的**前一版草稿**，
+跨用例共用夹具，整文件跑会互相污染，已被那份取代）三份都**移出仓库**放在 `~/dw-scratch/2026-10-10/`，没有 `rm`。
+前两份是量具不是闸：它们每次跑都要往临时盘写 8.66 MB（1000 篇 × 3000 字）并生成一遍夹具，把这种一次性物理事实
+变成每次提交都跑的断言不划算——**注意这里没写具体秒数**，我没单独量过"留在仓里全量测试多花多久"，
+只量过夹具本身的写盘量（8.66 MB）。要彻底删掉这三份请点名。
+
+
 
