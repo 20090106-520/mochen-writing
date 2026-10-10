@@ -70,33 +70,50 @@ describe("骨架要挡住编辑区**和**预览区", () => {
   });
 });
 
+/**
+ * store 那道闸不许被拆掉（2026-10-10：令牌判定搬进 `utils/doc-read`，接线仍在这里）。
+ *
+ * 搬走之后这里钉的是**两件事**：① 那条通路真的被 store 接上了（摆态、换书作废、失败清空
+ * 都在 store 这一侧，不是 util 里自说自话）；② 判定只有一份真身——store 里不许再出现
+ * `docLoadToken` 这个名字，否则就是第二份令牌闸，两处各有自己的号，竞态照样赢。
+ * 判定本身逐条钉在 `utils/doc-read.test.ts`。
+ */
 describe("store 那道闸不许被拆掉", () => {
+  const docRead = typeScriptSource("utils/doc-read.ts");
+
   it("读回来先对令牌：对不上就丢弃，不许盖掉后一次的结果", () => {
-    expect(store).toContain("const token = ++docLoadToken;");
-    expect(store).toContain("if (token !== docLoadToken) return;");
+    expect(docRead).toContain("const token = (docLoadToken += 1);");
+    expect(docRead).toContain("if (token !== docLoadToken) return;");
+    // 失败那一路同样要对令牌：废弃的那次不许把理由写进新那一格。
+    expect(countNeedle("if (token !== docLoadToken) return;", docRead)).toBe(2);
   });
 
   it("在途标志只有持有令牌的那次才收（废弃的那次会把骨架提前撤掉）", () => {
-    expect(store).toContain("if (token === docLoadToken) this.docLoading = false;");
+    expect(docRead).toContain("if (token === docLoadToken) io.setLoading(false);");
+    // 而那个标志接的确实是 store 的 docLoading——不然骨架摆的是别处。
+    expect(store).toContain("this.docLoading = value;");
   });
 
   it("换书作废上一本的在途读：不然那一次会把上一本的正文写进这一本", () => {
-    expect(countNeedle("docLoadToken += 1;", store)).toBe(1);
+    expect(store).toContain("bumpDocLoadToken();");
+    // 令牌只有一处真身：store 里再出现这个名字就是第二份闸。
+    expect(store).not.toContain("docLoadToken");
   });
 
   it("读失败清空正文，不留上一篇在新标题底下（撒谎比空着更坏）", () => {
     // 2026-10-09 P0-3：清空不再逐字段抄一遍，改走 EMPTY_DOC 那一份样子。
     // 钉的是**这一对次序**——先把这一格归零、再说明白哪一篇没打开；少了归零就是撒谎。
     expect(store).toMatch(
-      /Object\.assign\(this, EMPTY_DOC\);\s*\n\s*this\.notice = `没能打开 \$\{relPath\}/
+      /Object\.assign\(this, EMPTY_DOC\);\s*\n\s*this\.notice = `没能打开 \$\{one\}/
     );
   });
 
   // 有暂存副本时不发 IPC 就不该进在途：否则中栏为一次同步赋值抖一下骨架。
   it("有暂存就零延迟换过去，不进在途态", () => {
-    expect(store).toContain("if (stashed) {");
-    const stashBlock = /if \(stashed\) \{([\s\S]*?)\n {6}\}/.exec(store)?.[1] ?? "";
-    expect(stashBlock).not.toContain("docLoading");
+    expect(docRead).toContain("if (stashed !== null) {");
+    const stashBlock = /if \(stashed !== null\) \{([\s\S]*?)\n {2}\}/.exec(docRead)?.[1] ?? "";
+    expect(stashBlock).not.toContain("setLoading");
+    expect(stashBlock).toContain("io.applyStashed(relPath, stashed);");
   });
 });
 

@@ -10,6 +10,8 @@ import {
   type SkillSource
 } from "@mochen/contracts";
 import { createSkillService, registerSkillIpc } from "./skill-service.js";
+// 来源闸（P1-7）：夹具只造事件形状，判据仍只在 ipc-guard 一份。
+import { trustedRendererEvent } from "./ipc-trust-fixture.js";
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
@@ -153,7 +155,7 @@ describe("registerSkillIpc", () => {
         return { relPath, content: "", truncated: false };
       }
     });
-    await handlers.get("skills:read")?.({}, "book", `节奏/${SKILL_FILE_NAME}`);
+    await handlers.get("skills:read")?.(trustedRendererEvent(), "book", `节奏/${SKILL_FILE_NAME}`);
     expect(seen).toEqual([["book", `节奏/${SKILL_FILE_NAME}`]]);
   });
 });

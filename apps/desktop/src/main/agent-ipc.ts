@@ -13,25 +13,35 @@ import {
 import type { ProviderSettings } from "./provider-settings.js";
 import type { ModelLister } from "./provider-models.js";
 import type { AgentService } from "./agent-service.js";
+// 来源闸与形状闸（2026-10-10 全仓扫描 P1-7）：这十六道原先都是 `(_event, …)` 直接放行，
+// 其中 `agent:start-turn` 能让模型读书、写盘，`app:open-external` 能把地址交给系统浏览器——
+// 「谁发的」不看，就等于默认渲染层永远可信，而渲染层是唯一一层跑着用户可见文件的。
+import { handleTrusted } from "./ipc-guard.js";
 
 /** electron 的 ipcMain.handle 的窄形状：装配处传进来，测试处传注册表。 */
 type Handler = (channel: string, fn: (...args: unknown[]) => unknown) => void;
 
 /** 只注册 IPC_CHANNELS 白名单里那七条 agent 通道，一条不多一条不少。 */
 export function registerAgentIpc(handle: Handler, service: AgentService): void {
-  handle(IPC_CHANNELS.agentStartTurn, (_event, input) =>
+  handleTrusted(handle, IPC_CHANNELS.agentStartTurn, (_event, input) =>
     service.startTurn(input as StartTurnInput)
   );
-  handle(IPC_CHANNELS.agentInterrupt, (_event, turnId) => service.interrupt(turnId as string));
-  handle(IPC_CHANNELS.agentDecide, (_event, input) => service.decide(input as DecideInput));
-  handle(IPC_CHANNELS.agentDiff, (_event, proposalId) => service.diffOf(proposalId as string));
+  handleTrusted(handle, IPC_CHANNELS.agentInterrupt, (_event, turnId) =>
+    service.interrupt(turnId as string)
+  );
+  handleTrusted(handle, IPC_CHANNELS.agentDecide, (_event, input) =>
+    service.decide(input as DecideInput)
+  );
+  handleTrusted(handle, IPC_CHANNELS.agentDiff, (_event, proposalId) =>
+    service.diffOf(proposalId as string)
+  );
   // sessionId 可能是 undefined（没指名 = 读最近那条）：原样转交，由 service 归一，不在这里替它决定。
-  handle(IPC_CHANNELS.agentLoadSession, (_event, threadKey, sessionId) =>
+  handleTrusted(handle, IPC_CHANNELS.agentLoadSession, (_event, threadKey, sessionId) =>
     service.loadSession(threadKey as string, sessionId as string | undefined)
   );
-  handle(IPC_CHANNELS.agentListSessions, () => service.listSessions());
+  handleTrusted(handle, IPC_CHANNELS.agentListSessions, () => service.listSessions());
   // 上下文占用条：渲染层只问「会装多少」，正文由 service 自己在 startTurn 时装配。
-  handle(IPC_CHANNELS.agentContextPreview, (_event, query) =>
+  handleTrusted(handle, IPC_CHANNELS.agentContextPreview, (_event, query) =>
     service.contextPreview(query as ContextPreviewQuery)
   );
 }
@@ -46,19 +56,19 @@ export function registerProviderIpc(
   settings: ProviderSettings,
   models: ModelLister
 ): void {
-  handle(IPC_CHANNELS.providerGet, () => settings.view());
-  handle(IPC_CHANNELS.providerSave, (_event, draft) =>
+  handleTrusted(handle, IPC_CHANNELS.providerGet, () => settings.view());
+  handleTrusted(handle, IPC_CHANNELS.providerSave, (_event, draft) =>
     settings.saveConnection(draft as ConnectionDraft)
   );
   // 删连接会连它下面的档案一起删（主进程保证外键不留悬空）。
-  handle(IPC_CHANNELS.providerConnectionRemove, (_event, id) =>
+  handleTrusted(handle, IPC_CHANNELS.providerConnectionRemove, (_event, id) =>
     settings.removeConnection(id as string)
   );
-  handle(IPC_CHANNELS.providerListModels, (_event, query) =>
+  handleTrusted(handle, IPC_CHANNELS.providerListModels, (_event, query) =>
     models.list(query as ModelListQuery | undefined)
   );
   // 软校验：回答「现在连不连得上」，**不**决定能不能存（硬校验会把「服务没起」变成死路）。
-  handle(IPC_CHANNELS.providerVerify, async (_event, connectionId) => {
+  handleTrusted(handle, IPC_CHANNELS.providerVerify, async (_event, connectionId) => {
     const checkedAt = new Date().toISOString();
     try {
       const target = await settings.connectionTarget(connectionId as string);
@@ -81,16 +91,18 @@ export function registerProviderIpc(
       } satisfies VerifyResult;
     }
   });
-  handle(IPC_CHANNELS.providerProfileUpsert, (_event, draft) =>
+  handleTrusted(handle, IPC_CHANNELS.providerProfileUpsert, (_event, draft) =>
     settings.upsertProfile(draft as ProfileDraft)
   );
-  handle(IPC_CHANNELS.providerProfileRemove, (_event, id) => settings.removeProfile(id as string));
-  handle(IPC_CHANNELS.providerProfileEnable, (_event, id, enabled) =>
+  handleTrusted(handle, IPC_CHANNELS.providerProfileRemove, (_event, id) =>
+    settings.removeProfile(id as string)
+  );
+  handleTrusted(handle, IPC_CHANNELS.providerProfileEnable, (_event, id, enabled) =>
     settings.enableProfile(id as string, enabled as boolean)
   );
   // 「获取 API 密钥」：只收 providerId，地址由主进程从预设表查出来。
   // 渲染层递不了任意 URL 出去——那条路会把 file:// 与内网地址一并放行。
-  handle(IPC_CHANNELS.appOpenExternal, async (_event, providerId) => {
+  handleTrusted(handle, IPC_CHANNELS.appOpenExternal, async (_event, providerId) => {
     const preset = presetOf(providerId as string);
     if (preset === null) {
       throw new Error("这家没有可跳转的密钥页面，请自己到服务商官网取。");

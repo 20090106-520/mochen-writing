@@ -1,5 +1,6 @@
 export * from "./paths.js";
 export * from "./atomic-write.js";
+export * from "./write-queue.js";
 export * from "./book-meta.js";
 export * from "./book-data.js";
 export * from "./fingerprint.js";

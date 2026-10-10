@@ -10,6 +10,8 @@ import {
   type SkillSource
 } from "@mochen/contracts";
 import { scanSkills } from "@mochen/fs-store";
+// 来源闸 + 参数形状闸的唯一出处（P1-7）：注册通道只许走 handleTrusted。
+import { handleTrusted } from "./ipc-guard.js";
 
 /** electron 的 ipcMain.handle 的窄形状（与 skill-service 同款）：装配处传进来，测试处传注册表。 */
 type Handler = (channel: string, fn: (...args: unknown[]) => unknown) => void;
@@ -161,7 +163,7 @@ function reasonOf(err: unknown): string {
  * 渲染层不能传路径、不能传来源，只能指清单里的某一条（主进程再自己解析成绝对路径）。
  */
 export function registerSkillMarketIpc(handle: Handler, market: SkillMarketService): void {
-  handle(IPC_CHANNELS.marketList, () => market.list());
-  handle(IPC_CHANNELS.marketInstall, (_event, id) => market.install(String(id)));
-  handle(IPC_CHANNELS.marketUninstall, (_event, id) => market.uninstall(String(id)));
+  handleTrusted(handle, IPC_CHANNELS.marketList, () => market.list());
+  handleTrusted(handle, IPC_CHANNELS.marketInstall, (_event, id) => market.install(String(id)));
+  handleTrusted(handle, IPC_CHANNELS.marketUninstall, (_event, id) => market.uninstall(String(id)));
 }

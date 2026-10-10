@@ -63,6 +63,24 @@ export const WEB_SEARCH_INSTRUCTION =
   "搜到的资料要保存时，整理成文稿写进 materials/ 或 skills/。";
 
 /**
+ * 档案的写入范围说成一句人话（spec §5.1 约束 3：写入范围是**上限**，不是授权）。
+ *
+ * 为什么这句必须在这里而不是 agent-service：它和上面两段一样，是「排成一段人读的话」，
+ * 不参与裁决与落盘；而闸（`checkWritePermission`）在 service 那边照旧独立生效——
+ * 模型听没听懂都拦得住它，这句只是让它少撞几次墙、也少给用户解释一遍为什么。
+ */
+export function writeScopeSentence(profile: AgentProfile): string {
+  const scope = profile.writeScope;
+  if (scope.kind === "none") return `本轮你是「${profile.name}」，只出批注式提案，不直接改文稿。`;
+  if (scope.kind === "current-chapter") {
+    return scope.appendOnly === true
+      ? `本轮你是「${profile.name}」，改动只限当前章，且默认只在文末追加；改前文要单独提案。`
+      : `本轮你是「${profile.name}」，改动只限当前章。`;
+  }
+  return `本轮你是「${profile.name}」，改动只限：${scope.kinds.join(" / ")}。`;
+}
+
+/**
  * Plan 2 的临时装配：只带作品名、阶段名、当前文稿与权限档。
  * Plan 3 起在末尾接上「档案提示词 + 上下文包」——spec §5 的上下文包（#6 档案线）由
  * agent-runtime 的 assembleContext 装，本函数只负责把它排成一段人读的话。

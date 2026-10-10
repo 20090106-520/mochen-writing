@@ -1,9 +1,9 @@
-import { readdir, readFile, realpath, rm, stat } from "node:fs/promises";
+import { readdir, readFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import type { ChangeEntry, DocWriteResult } from "@mochen/contracts";
 import { makeFingerprint } from "./fingerprint.js";
 import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "./atomic-write.js";
-import { assertSafeRelPath } from "./paths.js";
+import { assertSafeRelPath, isPathUnderRoot, realPath, type LinkResolver } from "./paths.js";
 import { DEFAULT_CHANGE_RETENTION, resolveRetention } from "./retention-defaults.js";
 
 /**
@@ -28,22 +28,11 @@ const CHANGES_POSIX = ".mochen/changes";
 
 export type { ChangeEntry } from "@mochen/contracts";
 
-/** Windows 上 realpath 可能回不同大小写或 8.3 短名（临时目录尤其明显），逐字相等会误伤合法路径。 */
-function samePath(a: string, b: string): boolean {
-  return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
-}
-
-async function isUnder(child: string, parent: string): Promise<boolean> {
-  try {
-    const realParent = await realpath(parent);
-    const realChild = await realpath(child);
-    const prefix = realParent.endsWith(path.sep) ? realParent : realParent + path.sep;
-    return samePath(realChild.slice(0, prefix.length), prefix);
-  } catch {
-    // 解不出真实路径 = 这一秒读不到它，按 skills 的同款口径当作不可用。
-    return false;
-  }
-}
+/**
+ * 「这条路径的真实位置还在书里吗」——判定不在这里，住在 `paths.ts` 的 `isPathUnderRoot`（P2-2）。
+ * 原来这一份与 `skills.ts` 里各写了一份，而读正文/写正文两条路一份都没有：
+ * 书目录里一个指向书外的软链，写法逐字合法，读与写都拦不住。
+ */
 
 /** `.mochen/changes/<时间戳>/<文稿路径>.bak` → `{ stamp, docRelPath }`；形状不对一律 null。 */
 function parseBackupRelPath(backupRelPath: string): { stamp: string; docRelPath: string } | null {
@@ -70,6 +59,36 @@ function backupAbs(root: string, backupRelPath: string): string {
   if (parsed === null)
     throw new Error(`invalid-path: 这不是一条改稿备份的路径，收到 ${backupRelPath}`);
   return path.join(root, CHANGES_DIR, parsed.stamp, ...parsed.docRelPath.split("/")) + ".bak";
+}
+
+/**
+ * 备份句柄 → 真实绝对路径，并且把「能不能读」一次性判完（形状 → 越界 → 在不在）。
+ *
+ * 为什么要把三道闸收到一处（2026-10-10 扫描总单 P2-2 的连带账）：`isPathUnderRoot` 现在对
+ * **不存在**的目标会退到父目录再判（新建一章要靠这个），于是「这一份备份压根不在盘上」
+ * 也能过位置闸，接下来 `readFile` 抛裸 ENOENT 一路甩到渲染层——界面拿到的是一句英文错误码，
+ * 而不是「这份改稿备份读不到」。原来这份判据靠 `realpath` 抛错顺手挡掉了，那是巧合不是设计。
+ * 顺序仍然是：先形状、再位置、最后存在性——「被删了」与「越界」是两件不同的事，别混成一句。
+ *
+ * `resolve` 是那道解真实路径的缝（同 `paths.ts` 与 `atomic-write.ts` 的理由：本机非开发者模式，
+ * `fs.symlink` 直接 EPERM，造不出真软链）。没有缝，「备份句柄指向书外」这一条分支就永远只有代码、
+ * 没有用例——删掉上面那道位置闸不会有测试变红，那等于没有闸。
+ */
+async function readableBackupAbs(
+  root: string,
+  backupRelPath: string,
+  resolve?: LinkResolver
+): Promise<string> {
+  const abs = backupAbs(root, backupRelPath);
+  if (!(await isPathUnderRoot(abs, path.join(root, CHANGES_DIR), resolve ?? realPath))) {
+    throw new Error(`outside-book: 备份路径越界 ${backupRelPath}`);
+  }
+  try {
+    await stat(abs);
+  } catch {
+    throw new Error(`missing-backup: 改稿历史里没有这一份备份：${backupRelPath}`);
+  }
+  return abs;
 }
 
 /** 这次改动会把哪篇文稿盖掉（回滚句柄 → 目标文稿）。 */
@@ -110,7 +129,7 @@ export async function listChanges(root: string): Promise<ChangeEntry[]> {
         } catch {
           continue;
         }
-        if (!(await isUnder(full, changesRoot))) continue;
+        if (!(await isPathUnderRoot(full, changesRoot))) continue;
         const size = await stat(full).then(
           (s) => s.size,
           () => 0
@@ -132,15 +151,14 @@ export async function listChanges(root: string): Promise<ChangeEntry[]> {
   return out;
 }
 
-/** 读一条备份的正文（给回滚前预览用）。解不出形状 / 越界 / 读不到，一律抛错。 */
+/** 读一条备份的正文（给回滚前预览用）。解不出形状 / 越界 / 读不到，一律抛中文错，不甩 ENOENT。 */
 export async function readChange(
   root: string,
-  backupRelPath: string
+  backupRelPath: string,
+  /** 解真实路径的缝，只为让「越界」那条分支在 Windows 上也可测（见 `readableBackupAbs`）。 */
+  resolve?: LinkResolver
 ): Promise<{ content: string; fingerprint: string }> {
-  const abs = backupAbs(root, backupRelPath);
-  if (!(await isUnder(abs, path.join(root, CHANGES_DIR)))) {
-    throw new Error(`outside-book: 备份路径越界 ${backupRelPath}`);
-  }
+  const abs = await readableBackupAbs(root, backupRelPath, resolve);
   const content = await readFile(abs, "utf8");
   return { content, fingerprint: makeFingerprint(content) };
 }
@@ -223,7 +241,7 @@ export async function pruneChanges(
     const parsed = parseBackupRelPath(entry.backupRelPath);
     if (parsed === null) continue;
     const abs = backupAbs(root, entry.backupRelPath);
-    if (!(await isUnder(abs, changesRoot))) continue;
+    if (!(await isPathUnderRoot(abs, changesRoot))) continue;
     try {
       await rm(abs, { force: true });
       removed += 1;
@@ -323,10 +341,7 @@ export async function restoreChange(
   /** 原子写的 fs 缝，与 `writeDocFile` 同一份实现、同一个理由（P0-1/P2-1）。 */
   fs: AtomicWriteFs = defaultAtomicFs
 ): Promise<DocWriteResult & { restoredFrom: string }> {
-  const abs = backupAbs(root, backupRelPath);
-  if (!(await isUnder(abs, path.join(root, CHANGES_DIR)))) {
-    throw new Error(`outside-book: 备份路径越界 ${backupRelPath}`);
-  }
+  const abs = await readableBackupAbs(root, backupRelPath);
   const docRelPath = targetOfBackup(backupRelPath);
   const target = path.join(root, ...docRelPath.split("/"));
 
@@ -342,7 +357,7 @@ export async function restoreChange(
     };
   }
   // 目标文稿的 realpath 也要在书根之下：chapters/01.md 可能是个指向书外的软链。
-  if (!(await isUnder(target, root))) {
+  if (!(await isPathUnderRoot(target, root))) {
     throw new Error(`outside-book: 目标文稿越界 ${docRelPath}`);
   }
 

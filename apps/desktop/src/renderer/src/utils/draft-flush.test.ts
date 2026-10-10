@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DocWriteResult } from "@mochen/contracts";
 import {
+  docStateOf,
   EMPTY_DOC,
   flushAllBeforeQuit,
   flushDocBeforeDrop,
+  flushIOFor,
+  hasPendingDraft,
   saveOutcomeOf,
   type DocState,
   type FlushIO
@@ -276,5 +279,68 @@ describe("saveOutcomeOf", () => {
     expect(outcome.patch).toEqual({});
     expect(outcome.notice).toBe("保存失败：磁盘满了");
     expect(outcome.reschedule).toBe(false);
+  });
+});
+
+/**
+ * `docStateOf`（2026-10-10 行数预算尾巴）：这份四格拷贝原先在 store 的 `snapshot()`
+ * 与 `flushIOFor.stateOf` 各写了一遍，两处必须永远一致，所以只留一份实现。
+ * 钉的是它**唯一不显然**的那件事：`conflict` 要另造一个对象。
+ */
+describe("docStateOf", () => {
+  it("四格照抄，冲突那份另造对象：暂存副本与内存里那份不许共享同一个引用", () => {
+    const subject = {
+      activeDocTab: A,
+      draft: "改到一半\n",
+      savedFingerprint: "fp-a",
+      dirty: true,
+      conflict: { currentFingerprint: "fp-external" },
+      draftsByPath: {}
+    };
+    const state = docStateOf(subject);
+    expect(state).toEqual({
+      draft: "改到一半\n",
+      savedFingerprint: "fp-a",
+      dirty: true,
+      conflict: { currentFingerprint: "fp-external" }
+    });
+    expect(state.conflict).not.toBe(subject.conflict);
+    // 共享引用的后果：外部再来一次改动，只改一处，另一处的判定跟着变。
+    if (state.conflict) state.conflict.currentFingerprint = "fp-changed";
+    expect(subject.conflict.currentFingerprint).toBe("fp-external");
+  });
+
+  it("没冲突时给 null，而不是一个空的 {}（hasPendingDraft 认的是 null）", () => {
+    const subject = {
+      activeDocTab: A,
+      draft: "",
+      savedFingerprint: "",
+      dirty: false,
+      conflict: null,
+      draftsByPath: {}
+    };
+    expect(docStateOf(subject).conflict).toBeNull();
+    expect(hasPendingDraft(docStateOf(subject))).toBe(false);
+  });
+
+  it("flushIOFor 读活动那一格走的也是这一处：拿到的冲突同样是另造的", () => {
+    const subject = {
+      activeDocTab: A,
+      draft: "手上这份\n",
+      savedFingerprint: "fp-a",
+      dirty: true,
+      conflict: { currentFingerprint: "fp-external" },
+      draftsByPath: {}
+    };
+    const io = flushIOFor(subject, async () => ({
+      ok: true,
+      fingerprint: "fp-next",
+      backupRelPath: null
+    }));
+    const live = io.stateOf(A);
+    expect(live?.conflict).toEqual({ currentFingerprint: "fp-external" });
+    expect(live?.conflict).not.toBe(subject.conflict);
+    // 非活动那格仍取存档，取不到给 null——这条不许被这次合并带坏。
+    expect(io.stateOf("chapters/99-没待过.md")).toBeNull();
   });
 });

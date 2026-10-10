@@ -187,6 +187,22 @@ export interface ContextPreviewItem {
   active: boolean;
 }
 
+/**
+ * 历史切片在占用条上的那一项（P1-3）。
+ * 只回数字不回正文——与 ContextPreviewItem 同一口径：渲染层不需要也不该拿到历史正文。
+ */
+export interface ContextHistoryStat {
+  /** 这一轮**实际发给模型**的历史条数（切片后的 kept）。 */
+  entries: number;
+  /** kept 的字符数：人话展示用「约 M 字」，不是 token。 */
+  chars: number;
+  /** kept 的 token 估算：占用条把历史这一格算进去，不许再当免费。 */
+  approxTokens: number;
+  /** 被切掉的条数/字数；0 或缺失＝没截断，不许谎报「丢了」。 */
+  droppedCount?: number;
+  droppedChars?: number;
+}
+
 /** agent:context-preview 的返回：占用条（spec §5「token 估算 + 已装配条目数」）的真身。 */
 export interface ContextPreview {
   profileId: string;
@@ -196,6 +212,12 @@ export interface ContextPreview {
   approxTokens: number;
   /** 没开书 / 装不出任何条目时为 true；渲染层据此隐藏整条占用条。 */
   empty: boolean;
+  /**
+   * 会话历史这一路的占用（P1-3 零截断）。
+   * **可选**字段：老渲染层拿不到它就是 undefined，旧历史回放不受影响——
+   * 新字段只加不改，契约里已有序列化路径一个字都不动。
+   */
+  history?: ContextHistoryStat;
 }
 
 export interface RendererApi {

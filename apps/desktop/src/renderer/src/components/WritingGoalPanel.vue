@@ -1,9 +1,11 @@
-<!-- 写作目标面板：右侧浮层，今日进度环 + 连续天数 + 本周热力图 + 设置 + 底部统计 -->
+<!-- 写作目标面板：右侧浮层，今日进度环 + 连续天数 + 近 7 天热力图 + 设置 + 底部统计 -->
 <script setup lang="ts">
 import { computed, ref, watch, toRef } from "vue";
 import { storeToRefs } from "pinia";
 import { useWritingGoalStore } from "../stores/useWritingGoalStore";
 import { heatBorder, heatFill, ringStroke } from "../utils/writing-goal-heat";
+// 星期与号数都由那一格自己的日期算（P1-10）；判据住在 util，面板不抄第二张表。
+import { shortDateLabelOfDateKey, weekdayLabelOfDateKey } from "../utils/goal-heat-labels";
 import { useModalFocus } from "../composables/useModalFocus";
 import AppIcon from "./AppIcon.vue";
 
@@ -64,15 +66,10 @@ function formatDuration(seconds: number): string {
   return `${hrs}小时${remainMins}分`;
 }
 
-function formatShortDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-/** 热力格与进度圈的颜色判定住 `utils/writing-goal-heat`（逐档有用例钉），这里只挂进 :style。 */
-
-const weekdayLabels = ["一", "二", "三", "四", "五", "六", "日"];
-
+/**
+ * 热力格与进度圈的颜色判定住 `utils/writing-goal-heat`，星期/号数住 `utils/goal-heat-labels`
+ * （两边都有逐档用例），这里只把算出来的值挂进模板。
+ */
 const heatDays = computed(() => recentProgress.value);
 </script>
 
@@ -179,22 +176,22 @@ const heatDays = computed(() => recentProgress.value);
           <p class="goal-streak-record">最长记录：{{ streak.longestStreak }} 天</p>
         </section>
 
-        <!-- ===== 本周热力图 ===== -->
+        <!-- ===== 近 7 天热力图 ===== -->
         <section class="goal-section goal-heatmap-section">
-          <span class="goal-section-label">本周热力图</span>
+          <span class="goal-section-label">近 7 天热力图</span>
           <div class="goal-heatmap">
             <div class="goal-heatmap-grid">
               <div
-                v-for="(day, idx) in heatDays"
+                v-for="day in heatDays"
                 :key="day.date"
                 class="goal-heat-cell"
                 :style="{
                   backgroundColor: heatFill(day.percentage, day.reached),
                   border: heatBorder(day.percentage)
                 }"
-                :title="`${formatShortDate(day.date)}：${day.wordsWritten} 字 (${day.percentage}%)`"
+                :title="`${shortDateLabelOfDateKey(day.date)}：${day.wordsWritten} 字 (${day.percentage}%)`"
               >
-                <span class="goal-heat-label">{{ weekdayLabels[idx] }}</span>
+                <span class="goal-heat-label">{{ weekdayLabelOfDateKey(day.date) }}</span>
               </div>
             </div>
           </div>

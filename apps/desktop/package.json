@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "test": "vitest run src/main --maxWorkers=4",
+    "test": "vitest run --root ../.. apps/desktop/src/main apps/desktop/src/renderer --maxWorkers=4",
     "gen:scene-svgs": "node scripts/gen-scene-svgs.mjs",
     "check:scene-art": "node scripts/check-scene-art.mjs"
   },

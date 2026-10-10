@@ -6,6 +6,7 @@ import {
   type WebSource,
   type WorkMode
 } from "@mochen/contracts";
+import { wireToolsFor } from "./per-run-fields.js";
 import type { AssistantToolCall } from "./chat-message.js";
 import type { ChatToolSpec } from "./provider-client.js";
 
@@ -74,13 +75,61 @@ export function extraSpecsOf(host: ToolHost): ChatToolSpec[] {
   return specs.filter((spec) => toolNameOf(spec.name) === null);
 }
 
+/** 花名册那五个 + 插件注册进来的那些：本轮还没按开关过滤之前的全量。 */
+function rosterSpecs(host: ToolHost): ChatToolSpec[] {
+  return [...TOOL_SPECS, ...extraSpecsOf(host)];
+}
+
 /**
- * 这个名字叫不叫得动：花名册那五个，或者插件注册进来的那些。
- * 判定与「发给模型的清单」用**同一个函数**，两边不许各判一次——
- * 上一轮就栽在「清单里没给、却允许调」这种缝上。
+ * 这一轮真正在场的工具清单（出站与派发的**同一份**判据，P1-2）。
+ *
+ * 改之前这里只有一句 `extraSpecsOf` 拼接、联网开关只作用在发给模型的 tools 上
+ * （`wireToolsFor` 在 provider-client 那一处），于是「关掉联网」只是**看不见**，
+ * 模型仿历史里那条 `web_search` 调一次照样真出网——清单和权限用了两套判据。
+ * 现在两边都从这一个函数取，`wireToolsFor` 仍是唯一那份映射（这里调它，不改它）。
  */
-export function isCallableTool(host: ToolHost, name: string): boolean {
-  return toolNameOf(name) !== null || extraSpecsOf(host).some((spec) => spec.name === name);
+export function toolsFor(host: ToolHost, webSearchEnabled: boolean): ChatToolSpec[] {
+  return wireToolsFor(rosterSpecs(host), webSearchEnabled);
+}
+
+/**
+ * 这个名字这一轮叫不叫得动，以及叫不动时那句给人看/给模型读的中文。
+ * 判据与清单同源：`allowed` 就是「在这轮的 toolsFor 里」，理由也只有这一处措辞。
+ *
+ * 分成 `unknown` 与 `off-this-round` 两档是因为**处置不同**：
+ * 前者是模型凭空造了一枚不存在的工具（走 error 事件，界面上没有对应的工具卡可画），
+ * 后者是工具明明在、只是用户这一轮把它关了（走既有的工具失败回执，画一张「失败」的工具卡，
+ * 用户在时间线上看得见「它想搜，被闸住了」，而不是一句飘着的错误）。
+ */
+export type ToolGate =
+  { allowed: true } | { allowed: false; kind: "unknown" | "off-this-round"; reason: string };
+
+export function toolGateOf(host: ToolHost, name: string, webSearchEnabled: boolean): ToolGate {
+  const round = toolsFor(host, webSearchEnabled);
+  if (round.some((spec) => spec.name === name)) return { allowed: true };
+  const roster = round.map((spec) => spec.name).join("、");
+  if (!rosterSpecs(host).some((spec) => spec.name === name))
+    return {
+      allowed: false,
+      kind: "unknown",
+      reason: `模型请求了不存在的工具「${name}」，这条调用已被忽略。可用工具只有 ${roster}。`
+    };
+  return {
+    allowed: false,
+    kind: "off-this-round",
+    reason:
+      `这一轮的联网开关是关闭的，所以「${name}」没有执行，也一个字都没有出网。` +
+      "要查网络资料请先在输入区打开联网开关再问一次；这一轮请基于已有文稿回答。"
+  };
+}
+
+/**
+ * 这个名字叫不叫得动：花名册那五个（或插件注册进来的那些）**并且**这一轮的开关没把它摘掉。
+ * `webSearchEnabled` 是必填的第三枚——**故意不给默认值**：这一层漏判一次就是「关掉联网仍出网」
+ * （P1-1/P1-2 的原案），默认值只会让新调用点悄悄复制同一个洞。
+ */
+export function isCallableTool(host: ToolHost, name: string, webSearchEnabled: boolean): boolean {
+  return toolGateOf(host, name, webSearchEnabled).allowed;
 }
 
 const object = (
@@ -144,19 +193,21 @@ export const TOOL_SPECS: ChatToolSpec[] = [
   }
 ];
 
-/** 本轮真正叫得动的全部工具名（花名册五个 + 插件那些），按清单顺序。 */
-export function callableToolNames(host: ToolHost): string[] {
-  return [...AGENT_TOOL_NAMES, ...extraSpecsOf(host).map((spec) => spec.name)];
+/** 本轮真正叫得动的全部工具名（花名册 + 插件，再按本轮开关过滤），按清单顺序。 */
+export function callableToolNames(host: ToolHost, webSearchEnabled: boolean): string[] {
+  return toolsFor(host, webSearchEnabled).map((spec) => spec.name);
 }
 
 export async function dispatchToolCall(
   host: ToolHost,
-  call: AssistantToolCall
+  call: AssistantToolCall,
+  webSearchEnabled: boolean
 ): Promise<ToolOutcome> {
-  if (!isCallableTool(host, call.name))
+  const gate = toolGateOf(host, call.name, webSearchEnabled);
+  if (!gate.allowed)
     return {
       ok: false,
-      text: `没有这个工具：${call.name}。可用工具只有 ${callableToolNames(host).join("、")}。`,
+      text: gate.reason,
       proposals: []
     };
   let args: unknown;

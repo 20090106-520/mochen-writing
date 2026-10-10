@@ -10,7 +10,7 @@ import type {
   WebSource
 } from "@mochen/contracts";
 import { parseProtocolBlocks } from "./patch-protocol.js";
-import { ProviderError } from "./provider-client.js";
+import { ProviderError, TRUNCATED_TOOL_CALL_RECEIPT, truncationNotice } from "./provider-client.js";
 import type { ChatToolSpec, StreamEvent } from "./provider-client.js";
 import {
   assistantToolMessage,
@@ -19,14 +19,9 @@ import {
   type AssistantToolCall,
   type ChatMessage
 } from "./chat-message.js";
-import {
-  dispatchToolCall,
-  TOOL_SPECS,
-  isCallableTool,
-  extraSpecsOf,
-  callableToolNames,
-  type ToolHost
-} from "./tools.js";
+import { dispatchToolCall, toolGateOf, toolsFor, type ToolHost } from "./tools.js";
+import { estimateTokens } from "./context.js";
+import { fitHistoryToWindow } from "./history-window.js";
 
 export interface TurnInput {
   turnId: string;
@@ -78,10 +73,24 @@ export interface TurnOutcome {
   message: string;
 }
 
+/**
+ * 打断这句话只留一份：它同时进 `turn-end` 的 message（界面右上那条）与用例断言。
+ * 三处各抄一遍迟早会变成三种说法，而用户要靠这句话判断自己丢没丢字。
+ */
+const INTERRUPTED_MESSAGE = "已打断当前轮次，已流出的内容保留。";
+
+/** 一轮里没轮到执行的那些工具调用的回执（同一句，逐条配对，绝不留悬空 tool_call）。 */
+const SKIPPED_BY_INTERRUPT = "这一轮已打断，这条调用没有执行。";
+
 interface Collected {
   reasoning: string;
   text: string;
   calls: AssistantToolCall[];
+  /**
+   * 参数没收全的那些调用（P2-5）。provider-client 仍然不把它们当可执行调用交出来，
+   * 但也不再静默丢：这里逐条落一张 ok:false 的回执卡，用户看得见「它想调，被截断了」。
+   */
+  truncatedCalls: AssistantToolCall[];
   finishReason: string;
 }
 
@@ -122,6 +131,7 @@ type EmitBody =
       backupRelPath: string | null;
     }
   | { type: "interrupted"; pendingProposals: number }
+  | { type: "history-truncated"; droppedCount: number; droppedChars: number }
   | { type: "error"; message: string };
 
 export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOutcome> {
@@ -133,15 +143,56 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
   };
   emitSimple({ type: "user-message", text: input.userText });
 
+  /**
+   * 打断的收尾只有一份：三个入口（流式期打断、一轮工具跑一半被打断、上一轮工具执行期间
+   * 被打断）此前各写各的，句子与事件顺序迟早会分家——同一个处境两种说法是这仓反复栽过的。
+   */
+  const finishInterrupted = (pending: number): TurnOutcome => {
+    emitSimple({ type: "interrupted", pendingProposals: pending });
+    return { status: "interrupted", message: INTERRUPTED_MESSAGE };
+  };
+
+  /**
+   * 发出去之前把历史切窗（2026-10-10 扫描总单 P1-3）。
+   *
+   * 原来这里是 `...input.history` 原样端出去：长会话（一天几十轮）必然越过上游窗口，
+   * 上游回一句 context_length_exceeded，界面上只有一句「请求失败」——用户既不知道为什么，
+   * 也没有任何办法继续（除了新开会话，而那意味着丢掉全部上下文）。
+   * 切窗的口径只在 `history-window.ts` 一处（系统提示必留、tool 调用与回执同进同出、从后往前贪心）；
+   * 这里只负责**在真正的派发点上调用它**，并把「裁了多少」如实说出去。
+   */
+  const fit = fitHistoryToWindow({
+    history: input.history,
+    systemTokens: estimateTokens(input.systemPrompt),
+    userTokens: estimateTokens(input.userText)
+  });
+  if (fit.droppedCount > 0)
+    emitSimple({
+      type: "history-truncated",
+      droppedCount: fit.droppedCount,
+      droppedChars: fit.droppedChars
+    });
+
   const messages: ChatMessage[] = [
     chatMessage("system", input.systemPrompt),
-    ...input.history,
+    ...fit.kept,
     chatMessage("user", input.userText)
   ];
   let pendingProposals = 0;
 
   for (let round = 0; round < deps.maxToolRounds; round += 1) {
-    const collected: Collected = { reasoning: "", text: "", calls: [], finishReason: "" };
+    // P1-1 的③之一：**每轮开头**查一次打断。
+    // 上一轮那条工具可能正好跑着用户按了 Esc——那时照样发下一笔请求，界面上就是
+    // 「按了打断还在转圈」。（这里不做整轮硬总时长：长回答会被误杀，只掐「没有任何新字节」，
+    // 那一条在上游看门狗 provider-fetch.ts。）
+    if (deps.signal.aborted) return finishInterrupted(pendingProposals);
+    const collected: Collected = {
+      reasoning: "",
+      text: "",
+      calls: [],
+      truncatedCalls: [],
+      finishReason: ""
+    };
     try {
       for await (const event of deps.stream({
         // **整个 provider 铺开**，不逐字段点名（2026-10-09 批次 5-㊻）。
@@ -157,8 +208,11 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
         // 每轮开关（档位/联网）在下面显式覆盖，它们归这一轮管、不归连接管。
         ...deps.provider,
         messages,
-        // 花名册那五个，外加插件注册进来的（没有插件时就是逐字原来那份）。
-        tools: [...TOOL_SPECS, ...extraSpecsOf(deps.host)],
+        // 本轮在场的工具（花名册 + 插件，再按本轮联网开关过滤）。
+        // **清单与派发用同一份判据**（P1-2）：派发那一层调的也是这个函数，
+        // provider-client 的 `wireToolsFor` 再作用一次是幂等的，留着是因为它对
+        // 任何调用方都成立（不许只靠调用方自觉）。
+        tools: toolsFor(deps.host, input.webSearchEnabled),
         signal: deps.signal,
         thinkingLevel: input.thinkingLevel,
         webSearchEnabled: input.webSearchEnabled
@@ -170,6 +224,9 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
           collected.text += event.text;
           deps.emitDelta("message", event.text);
         } else if (event.kind === "tool-call") collected.calls.push(event.call);
+        // 这一支必须在 `else collected.finishReason` 之前：漏掉它，截断标记会被当成收尾原因，
+        // 于是 `reason` 是 undefined、上面那句人话也就发不出去了。
+        else if (event.kind === "tool-call-truncated") collected.truncatedCalls.push(event.call);
         else collected.finishReason = event.reason;
       }
     } catch (error) {
@@ -186,8 +243,7 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
       // §6.3：半截文本入库并标注；未收全的 tool_call 视为不存在；pending 提案保持不动。
       if (collected.text !== "")
         emitSimple({ type: "message", text: collected.text, interrupted: true });
-      emitSimple({ type: "interrupted", pendingProposals });
-      return { status: "interrupted", message: "已打断当前轮次，已流出的内容保留。" };
+      return finishInterrupted(pendingProposals);
     }
 
     const parsed = parseProtocolBlocks(collected.text);
@@ -200,6 +256,28 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
       });
     if (collected.text !== "")
       emitSimple({ type: "message", text: parsed.prose, interrupted: false });
+
+    /**
+     * P2-5：被截断的一轮不再是「答完了」。位置在打断分支之后——用户自己按的 Esc 不是模型被截断，
+     * 那条路已有 INTERRUPTED_MESSAGE，这里再补一句就成两句话说同一件事。
+     * 轮级事实走既有的 `error` 事件（进时间线、写 lastError，与 history-truncated 同一条先例），
+     * 不新造事件类型：契约没动，渲染层与回放自动认得。
+     */
+    const truncation = truncationNotice(collected.finishReason);
+    if (truncation !== "") emitSimple({ type: "error", message: truncation });
+    for (const dropped of collected.truncatedCalls) {
+      // 半截参数逐条回一张 ok:false 的配对回执，口径照 SKIPPED_BY_INTERRUPT：绝不静默丢。
+      // 但它**不**进 messages：那串解析不了的 arguments 一旦回喂上游就是整批 400，
+      // 那正是 provider-client 的 argumentsComplete 门禁要防的事（这里只补可见性，不放宽门禁）。
+      emitSimple({
+        type: "tool-call",
+        callId: dropped.id,
+        tool: dropped.name,
+        args: dropped.args,
+        ok: false,
+        resultText: TRUNCATED_TOOL_CALL_RECEIPT
+      });
+    }
 
     // 双路汇聚（§6.1）：文本块这条路也走同一个 host 调用、产出同一个 EditProposal schema。
     // 没有走 dispatchToolCall 是因为这条路不是原生 tool_calls，但仍要落一张工具卡，
@@ -230,18 +308,52 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
     if (collected.calls.length === 0) return { status: "done", message: "" };
 
     messages.push(assistantToolMessage("", collected.calls));
-    for (const call of collected.calls) {
-      if (!isCallableTool(deps.host, call.name)) {
+    for (const [index, call] of collected.calls.entries()) {
+      // P1-1 的③之二：**每条工具执行前**查一次打断。
+      // 一轮可以派发好几条调用，而它们是一次性从流里给出的；真机情形正是
+      // 「第一条（联网搜索）跑到一半用户按了 Esc」——不查就会把剩下的挨个跑完。
+      // 没轮到执行的那几条照样逐条给回执：一句中文说清「没有执行」，
+      // 既让时间线上看得见，也不给模型留悬空 tool_call（下一轮直接 400 那种）。
+      if (deps.signal.aborted) {
+        for (const skipped of collected.calls.slice(index)) {
+          emitSimple({
+            type: "tool-call",
+            callId: skipped.id,
+            tool: skipped.name,
+            args: skipped.args,
+            ok: false,
+            resultText: SKIPPED_BY_INTERRUPT
+          });
+          messages.push(toolMessage(skipped.id, SKIPPED_BY_INTERRUPT));
+        }
+        return finishInterrupted(pendingProposals);
+      }
+      const gate = toolGateOf(deps.host, call.name, input.webSearchEnabled);
+      if (!gate.allowed) {
         // §4 裁定：对模型的拒绝必须用中文回喂，绝不静默丢弃。
-        // error 事件让这件事在 UI 与审计日志里可见；tool 回执则保证上面那条 assistant 消息里的
-        // **每一条** tool_call 都有配对——缺回执时 toWireMessages 发出悬空 tool_calls，
-        // OpenAI 兼容端点直接 400，整轮会被 runTurn 判成 failed。
-        const reason = `模型请求了不存在的工具「${call.name}」，这条调用已被忽略。可用工具只有 ${callableToolNames(deps.host).join("、")}。`;
-        emitSimple({ type: "error", message: reason });
-        messages.push(toolMessage(call.id, reason));
+        // tool 回执保证上面那条 assistant 消息里的**每一条** tool_call 都有配对——缺回执时
+        // toWireMessages 发出悬空 tool_calls，OpenAI 兼容端点直接 400，整轮会被 runTurn 判成 failed。
+        if (gate.kind === "unknown") {
+          // 模型凭空造了一枚不存在的工具：界面上没有对应的工具卡可画，走 error 事件。
+          emitSimple({ type: "error", message: gate.reason });
+          messages.push(toolMessage(call.id, gate.reason));
+          continue;
+        }
+        // 工具明明在花名册上，只是这一轮的开关把它摘了（P1-2）。
+        // 这里走**既有的工具失败回执通路**：tool-call 事件本来就装得下 ok:false + 一句原因，
+        // 不新造事件类型——契约没动，渲染层与历史回放（eventsToMessages）自动认得这张卡。
+        emitSimple({
+          type: "tool-call",
+          callId: call.id,
+          tool: call.name,
+          args: call.args,
+          ok: false,
+          resultText: gate.reason
+        });
+        messages.push(toolMessage(call.id, gate.reason));
         continue;
       }
-      const outcome = await dispatchToolCall(deps.host, call);
+      const outcome = await dispatchToolCall(deps.host, call, input.webSearchEnabled);
       emitSimple({
         type: "tool-call",
         callId: call.id,

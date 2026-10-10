@@ -9,6 +9,8 @@ import {
   type StartTurnInput
 } from "@mochen/contracts";
 import { registerAgentIpc, registerProviderIpc } from "./agent-ipc.js";
+// 来源闸（P1-7）装上之后，handler 只认「我们那一帧发来的事件」；夹具只造形状，不比判据。
+import { trustedRendererEvent } from "./ipc-trust-fixture.js";
 import type { ModelLister } from "./provider-models.js";
 import type { AgentService } from "./agent-service.js";
 import type { ProviderSettings } from "./provider-settings.js";
@@ -55,7 +57,8 @@ function registry(): {
 async function fire(fns: Map<string, Fn>, channel: string, ...args: unknown[]): Promise<unknown> {
   const fn = fns.get(channel);
   if (fn === undefined) throw new Error(`通道 ${channel} 没有注册`);
-  return fn({ senderId: 1 }, ...args);
+  // `senderId` 保留：它证明「事件里除了 senderFrame 还有别的字段」不影响判定，判据只看那一帧。
+  return fn({ senderId: 1, ...trustedRendererEvent() }, ...args);
 }
 
 function stubService(seen: unknown[]): AgentService {

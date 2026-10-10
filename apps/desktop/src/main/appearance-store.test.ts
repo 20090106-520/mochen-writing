@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDefaultAppearanceSettings } from "@mochen/contracts";
 import { createAppearanceStore, registerAppearanceIpc } from "./appearance-store.js";
 import { atomicFsBrokenAt } from "./atomic-write-fs-fixture.js";
+// 来源闸（P1-7）：夹具只造事件形状，判据仍只在 ipc-guard 一份。
+import { trustedRendererEvent } from "./ipc-trust-fixture.js";
 
 let dir = "";
 
@@ -109,8 +111,8 @@ describe("registerAppearanceIpc", () => {
     expect([...handlers.keys()].sort()).toEqual(["appearance:get", "appearance:save"]);
 
     const value = sampleSettings();
-    await handlers.get("appearance:save")?.({}, value);
-    const snapshot = await handlers.get("appearance:get")?.({});
+    await handlers.get("appearance:save")?.(trustedRendererEvent(), value);
+    const snapshot = await handlers.get("appearance:get")?.(trustedRendererEvent());
     expect(snapshot).toEqual({ persisted: true, settings: value });
   });
 });

@@ -39,6 +39,9 @@ import { IPC_CHANNELS } from "@mochen/contracts";
 import type { PluginListResult } from "@mochen/contracts";
 import { entryOf, loadPluginFrom } from "./plugin-loader.js";
 import { BUILTIN_PLUGINS } from "./builtin-plugins.js";
+// 来源闸（P1-7）：`plugins:list` 会真的 `import()` 插件目录里的 js，
+// 「谁发的这条」不看，就等于渲染层（或被导航出去的那个页面）能直接叫主进程执行任意代码。
+import { handleTrusted } from "./ipc-guard.js";
 
 /** 与 skill-market-service.ts 同款：只用来登记通道，不直接依赖 electron。 */
 type Handler = (channel: string, fn: (...args: unknown[]) => unknown) => void;
@@ -317,18 +320,18 @@ function createDocsService(book: PluginServiceOptions["book"]): DocsService {
  * 重挂的失败要如实回给界面，不许假装成功。
  */
 export function registerPluginIpc(handle: Handler, plugins: PluginService): void {
-  handle(IPC_CHANNELS.pluginsList, async () => {
+  handleTrusted(handle, IPC_CHANNELS.pluginsList, async () => {
     await plugins.mountAll();
     return pluginListRows(plugins);
   });
-  handle(IPC_CHANNELS.pluginsToggle, async (_event, dirName, enabled) => {
+  handleTrusted(handle, IPC_CHANNELS.pluginsToggle, async (_event, dirName, enabled) => {
     plugins.setDisabled(String(dirName), enabled !== true);
     await plugins.mountAll();
     return enabled === true
       ? `已启用「${dirName}」。`
       : `已停用「${dirName}」，这一轮它带的工具模型调不到了。`;
   });
-  handle(IPC_CHANNELS.pluginsUninstall, async (_event, dirName) => {
+  handleTrusted(handle, IPC_CHANNELS.pluginsUninstall, async (_event, dirName) => {
     const name = String(dirName);
     plugins.removePlugin(name);
     // 顺手把它从停用清单里摘掉：否则目录没了、清单里还留着一条幽灵。
@@ -336,7 +339,9 @@ export function registerPluginIpc(handle: Handler, plugins: PluginService): void
     await plugins.mountAll();
     return `已卸载「${name}」。`;
   });
-  handle(IPC_CHANNELS.pluginsSource, (_event, dirName) => plugins.readSource(String(dirName)));
+  handleTrusted(handle, IPC_CHANNELS.pluginsSource, (_event, dirName) =>
+    plugins.readSource(String(dirName))
+  );
 }
 
 /**

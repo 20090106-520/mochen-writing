@@ -9,6 +9,8 @@ import {
 } from "@mochen/contracts";
 import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "@mochen/fs-store";
 import type { ReadTextFile } from "./credential-store.js";
+// 来源闸 + 参数形状闸的唯一出处（P1-7）：注册通道只许走 handleTrusted。
+import { handleTrusted } from "./ipc-guard.js";
 
 /** electron 的 ipcMain.handle 的窄形状（与 agent-ipc 同款）：装配处传进来，测试处传注册表。 */
 type Handler = (channel: string, fn: (...args: unknown[]) => unknown) => void;
@@ -73,8 +75,8 @@ export function createAppearanceStore(deps: {
 
 /** 只注册白名单里的两条外观通道：读（带 persisted 标志）与整份写回。 */
 export function registerAppearanceIpc(handle: Handler, store: AppearanceStore): void {
-  handle(IPC_CHANNELS.appearanceGet, () => store.read());
-  handle(IPC_CHANNELS.appearanceSave, (_event, settings) =>
+  handleTrusted(handle, IPC_CHANNELS.appearanceGet, () => store.read());
+  handleTrusted(handle, IPC_CHANNELS.appearanceSave, (_event, settings) =>
     store.save(settings as AppearanceSettings)
   );
 }

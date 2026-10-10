@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { IPC_CHANNELS } from "@mochen/contracts";
 import { registerPickDirectoryIpc } from "./pick-directory.js";
+// 来源闸（P1-7）：夹具只造「我们那一帧」的事件形状，判据仍只在 ipc-guard 一份。
+import { trustedRendererEvent } from "./ipc-trust-fixture.js";
 
 interface DialogStub {
   showOpenDialog(options: {
@@ -20,7 +22,10 @@ function harness(result: { canceled: boolean; filePaths: string[] }) {
   registerPickDirectoryIpc(ipcMain, dialog);
   return {
     dialog,
-    pick: () => handlers.get(IPC_CHANNELS.bookPick)?.({} as never) as Promise<string | null>
+    pick: () =>
+      handlers.get(IPC_CHANNELS.bookPick)?.(trustedRendererEvent() as never) as Promise<
+        string | null
+      >
   };
 }
 

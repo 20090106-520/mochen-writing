@@ -82,17 +82,26 @@ describe("HTML 转义只有一份真身", () => {
     expect(definers()).toEqual(["packages/fs-store/src/export-shared.ts"]);
   });
 
-  it("渲染层不再自己定义，改为 import 那一份", () => {
-    const src = scriptSource("components/DocumentPane.vue");
+  it("渲染层不再自己定义，改为 import 那一份（真身 2026-10-10 搬进 utils/find-mirror 后仍只有一份）", () => {
+    // 高亮 mirror 的切分原先长在 DocumentPane 的 computed 里，现已抽进 `utils/find-mirror`，
+    // 所以「每一段正文都过共享那一份」这条规矩改钉在 util 上；组件侧钉得更严：既不引也不 call。
+    const util = fs.readFileSync(
+      path.join(REPO_ROOT, "apps/desktop/src/renderer/src/utils/find-mirror.ts"),
+      "utf8"
+    );
     // 从共享真身那一条 import 里取 escapeHtml（走子路径，不是 barrel）。
-    expect(src).toMatch(
+    expect(util).toMatch(
       /import\s*\{[^}]*\bescapeHtml\b[^}]*\}\s*from\s*"@mochen\/fs-store\/export-shared"/
     );
-    expect(src).not.toMatch(DEFINITION);
+    expect(util).not.toMatch(DEFINITION);
     // 高亮 mirror 的每一段正文都走那一份，渲染层不留第二套 replace 链。
-    expect(src).toContain("escapeHtml(text.slice(pos.start, pos.end))");
-    // 渲染层不再自己拼转义链：整份脚本里不该再出现实体名（真身在 fs-store 那一份里）。
-    expect(src).not.toContain("&amp;");
+    expect(util).toContain("escapeHtml(text.slice(pos.start, pos.end))");
+    // 不再自己拼转义链：整份源码里不该再出现实体名（真身在 fs-store 那一份里）。
+    expect(util).not.toContain("&amp;");
+
+    const src = scriptSource("components/DocumentPane.vue");
+    expect(src).not.toMatch(DEFINITION);
+    expect(src).not.toMatch(/escapeHtml\s*\(/);
   });
 
   it("共享真身所在子路径在 fs-store 的 exports 里显式声明（渲染层引它才证明是安全的）", () => {

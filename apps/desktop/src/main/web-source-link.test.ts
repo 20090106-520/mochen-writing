@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { IPC_CHANNELS } from "@mochen/contracts";
 import { isOpenableWebSource, registerWebSourceIpc } from "./web-source-link.js";
+// 来源闸（P1-7）：夹具只造事件形状，判据仍只在 ipc-guard 一份。
+import { trustedRendererEvent } from "./ipc-trust-fixture.js";
 
 function harness() {
   const opened: string[] = [];
@@ -10,7 +12,10 @@ function harness() {
       opened.push(url);
     }
   });
-  return { opened, fire: (url: unknown) => fns.get(IPC_CHANNELS.appOpenWebSource)?.({}, url) };
+  return {
+    opened,
+    fire: (url: unknown) => fns.get(IPC_CHANNELS.appOpenWebSource)?.(trustedRendererEvent(), url)
+  };
 }
 
 describe("搜索来源链接的白名单", () => {
@@ -70,10 +75,13 @@ describe("来源点开那条 IPC", () => {
     expect(opened).toEqual([]);
   });
 
-  it("非字符串（渲染层递了 undefined/null/对象）也拒，不是 URL 的东西不许被 URL 兜底成「相对当前页」", async () => {
+  it("非字符串（渲染层递了 undefined/null/对象）也拒，不是 URL 的东西不许被 URL 兜底成「相对当前页」", () => {
     const { opened, fire } = harness();
+    // 形状闸排在业务 handler **之前**，而这条通道没有预设的回话形状，所以 `refuse` 走的是
+    // **同步抛错**——与 `ipc-guard.test.ts` 那三条同源。断言写成 `.rejects` 会假红：
+    // 那条路根本return不出 Promise。两种抛法都一样：`openExternal` 一次都不会被叫起来。
     for (const bad of [undefined, null, 42, { url: "https://a.com" }, ["https://a.com"]])
-      await expect(fire(bad), String(bad)).rejects.toThrow();
+      expect(() => fire(bad), String(bad)).toThrow(/不是一段文本/);
     expect(opened).toEqual([]);
   });
 

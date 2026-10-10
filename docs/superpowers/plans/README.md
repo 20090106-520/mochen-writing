@@ -6616,3 +6616,179 @@ fs-store `book-data.test.ts` 11、main `book-data-service.test.ts` 7、preload `
 - 「第 0 步」两条里 CI 仍未接（`plugin-kernel` 那半已接）。
 - P0-7 的真机复验、以及 `.mochen/data/` 在既有书上的第一次落盘（升级路径）都还没量过。
 
+## 第 2 波 · P1 第一批（2026-10-09 起，跨到 10-10）：打断真的停得下来、界面上不再有一句谎
+
+这一批做完四条：**P1-1**（上游挂起 + 打断不停）、**P1-2**（联网开关执行侧无闸）、**P1-9**（右栏浏览读盘三道闸）、
+**P1-10**（热力图六个星期标签标错）。P1-3 / P1-6 / P1-7+P1-8 由并行的三路一起做，本波的统一门禁留在收尾跑。
+
+### 根因（四条各自独立，但同一个味道：判据说了，代码没做）
+
+- **P1-1**：`provider-fetch.ts` 全文没有一个 timeout——上游 TCP 连上不吐字节时，这一轮**永远显示进行中**；
+  工具循环里（`tool-loop.ts`）只把用户的 `signal` 递给流式，循环内不查它，于是"点打断"要等下一轮流式才生效；
+  `agent-service.ts` 的 `webSearch` 拿的是裸 `fetch`，没接 signal，模型反复重搜时更停不下来。
+  这就是台账 `:6399` 那条挂了很久的「联网开着挂 200 秒零响应零报错」的机制解释。
+- **P1-2**：出站清单与派发判据是两份。`wireToolsFor` 按 `webSearchEnabled` 过滤了发给模型的 tools，
+  而 `isCallableTool` 静态放行整张花名册——关掉联网后模型只要**自己仿**历史里那条 `web_search` 调一次，照样真出网。
+  与已修的 ef46153 同族：声明的边界不是代码里的边界。
+- **P1-9**：`browse()` 一句 `void window.mochen.readDoc(relPath).then(...)`。没有 catch（IPC 抛错那一格永久空着且
+  一个字不说）、没有世代令牌（两本书同名文稿 `chapters/01.md`，旧书那次慢回包会写进新书缓存）、没有在途标记（连点三次发三次读盘）。
+  仓里 `openDocTab` 早就有 `docLoadToken` 这一套，只是这条路没接。
+  界面侧更难看：模板里 `browseContents[relPath] ?? "正在读取…"`，读失败之后那一格**永远停在「正在读取…」**——比空白更糟，它在撒谎。
+- **P1-10**：面板写死 `weekdayLabels = ["一"…"日"]` 并**按数组下标**贴标签，而数据是「最近 7 天滚动窗口」。
+  窗口起点几乎不可能是周一 ⇒ 除今天正好是周日之外，七天里有六天标错。这类错日期比缺功能更伤信任。
+
+### 改法
+
+- **P1-1 三层闸**：① 首字节 30s / 流中空闲 60s 两只看门狗（`HangWatchdog.guard(work, ms, message)`），超时抛
+  `UpstreamHangError extends ProviderError`——继承是有意的：`ProviderError` 已经有一条把人话送到界面的通路，
+  新造错误类型就得再修一遍装配面；`provider-client.ts` 里补一句 `if (error instanceof ProviderError) throw error;`
+  免得看门狗的句子被外层再包一层套娃。② `mergeAbortSignals`（手写监听器，不用 `AbortSignal.any`：那是 Node 20.3+
+  才有的静态方法，而这条链最老的运行时是 Electron 打进用户机器的那只；只有一只信号时原样返回，不多包一层）。
+  ③ 工具循环每轮开头查 `signal`、每次调用前查 `signal`，打断时未执行的 tool_call 一律补配对回执
+  （`SKIPPED_BY_INTERRUPT`），界面不会留一条"永远在转"的调用；已流出的内容保留（`INTERRUPTED_MESSAGE`）。
+- **P1-2 判据合并**：`toolsFor(host, webSearchEnabled)` 内部只调一次 `wireToolsFor`，`toolGateOf` 返回
+  `{allowed:true} | {allowed:false; kind:"unknown"|"off-this-round"; reason}`，`dispatchToolCall` 用它派发。
+  `isCallableTool` **故意不给开关留默认值**——漏传就编译不过，而不是默认放行。
+- **P1-9 三道闸 + 一格自己的话**：换书世代号 `bookEpoch` 与中栏 `docLoadToken` 分成两枚（一次开标签不该作废浏览的在途读）；
+  在途集合 keyed by relPath、换书时清空；**「在途」标记在知道结果那一刻就摘，不留到 `.finally`**——`.finally` 比 `.catch`
+  晚一个微任务，用户看到失败理由后立刻再点会撞进那次还没散的在途，"重试"被自己上一次失败挡掉，正是要治的病，不能靠多等一拍绕。
+  失败理由除了上 `notice`，还落进每格自己的 `browseErrors`，三态判据抽成 `utils/browse-body`（读到 / 读不动 / 还在读），
+  面板只挂线；失败那一态另有告警色 `.document-preview-empty.is-browse-failed`，不再用占位话术那种 tertiary 灰。
+- **P1-10 标签由日期算**：`utils/goal-heat-labels.ts` 放穷举的 `Record<Weekday,string>` 表 + `parseDateKey`
+  （正则卡 `YYYY-MM-DD`、范围校验、构造后回读验证），面板按 `day.date` 取值；写死的那张表和自算的 `formatShortDate` 删净。
+  顺带修一处不诚实的标题：那本是滚动 7 天，原来写着「本周热力图」（周日一到整片清零的话术不许留着）。
+
+### 守卫与变异
+
+新增/扩充的用例（本波新增条数由 `git diff HEAD` 当场计数，不是记忆）：
+`tools.test.ts` +6（含"两枚判据必须同源"）、`tool-loop.test.ts` +5、`provider-client.test.ts` +2、
+`provider-fetch.test.ts` +10、`agent-service-web-search-signal.test.ts` 1（新文件）；
+`useBookStore.browse.test.ts` 9（新文件）、`browse-body.test.ts` 8（新文件）、`document-pane-browse-body.test.ts` 3（新文件）；
+`goal-heat-labels.test.ts` 5、`goal-heat-weekday-wiring.test.ts` 5（两份新文件）。
+
+变异取证（只用 Edit 改源码，跑完即还原）：
+
+- P1-9 ①把 `.then` 里的 `if (epoch !== bookEpoch) return;` 摘掉 ⇒ `两本书同名文稿都在浏览中：旧书那次慢回包不许盖掉新书已经
+  落地的正文` 红：`AssertionError: expected 'A 书的正文\n' to be 'B 书的正文\n'`。
+  这一条是补出来的：原来那只"换书"用例只证明了「新书没开那一格时不写」——标签检查顺手挡住了它，世代号摘掉它照样绿。
+  **只有两本书里同一格都在浏览中，才是 P1-9 的原形**，那只用例才有牙。
+- P1-9 ②去掉在途去重 ⇒ `同一格在途时连点浏览，不再为同一篇发第二次读盘` 红：`expected "vi.fn()" to be called 1 times, but got 3 times`。
+- P1-9 ③把失败处理函数的两句写入清空 ⇒ 三条一起红（`expected '' to contain '没能读到正文'`、
+  `browseErrors` 那条 `the given combination of arguments (undefined and string) is invalid`、换书清理那条）。
+- P1-9 ④去掉"关掉那一格"的标签检查 ⇒ `浏览中途关掉那一格：回包落地后不许留下缓存条目` 红。
+- P1-9 ⑤把 util 的 `content !== undefined` 换成 `if (content)` ⇒ `空正文（那一篇本来就是空的）不许被当成「还没读回来」` 红。
+- P1-10 的鉴别力问题：这台机是 UTC+8，`new Date("2026-10-09")` 与本地日期恰好一致，"UTC 漂移"那条断言**根本红不了**。
+  改成立即切 `process.env.TZ` 到 `America/New_York` 再断言，变异（改成按 UTC 构造）当场出 `expected '四' to be '五'`。
+
+### 真机
+
+**没做**。P1-9 / P1-10 都改在渲染层，"换书后旧回包不落新书缓存""失败那一格出告警色""热力格星期对得上日子"
+这三条要重新构建并起实例才看得见，而机上那只 `electron.exe` 属并行会话现场，我没有动它。
+P1-1/P1-2 的看门狗与联网拒执也只证明到用例：真端点挂 200 秒那种现象要真网络才量得到。
+
+### 门禁
+
+本批改动落地时跑的定向证据：渲染层全量 `vitest run apps/desktop/src/renderer` **182 文件 / 2389 用例**全绿
+（`$HOME/dw-gate/p1-9-renderer.log`）；agent-runtime 那一簇（P1-1/P1-2）当时 53 文件 / 714 用例全绿。
+六路 typecheck + eslint + boundary + budget + format + 全量 `pnpm test` 留到第 2 波收尾统一跑，实测数字写在本波收尾条目里。
+
+## 第 2 波 · 收尾（2026-10-10）：P1 余下条目 + P2 十四条逐条对盘回读，全仓门禁第一次真跑通
+
+上一条把全量门禁的数字许给了这一条，所以这一条的第一职责是**把那个数字落成实测**，
+第二职责是把 P2 那十四条一次核干净——总单写的是「问题」，不是「现状」，隔了两天、跨了三段并行工作，
+现状必须重新读盘才敢写。逐条判据与落点在总单新增的两节里（`2026-10-09-full-scan-report.md`
+第四节「四之三 P1 现状总表」已补完 + 第五节之二「P2 现状总表」），本节只记这一批做了什么、量到什么、还欠什么。
+
+### 并行现场与「谁改的」这条账怎么记
+
+三段并行（A：运行时/agent 侧 P1-3/P1-6/P2-5~P2-8；B：渲染层 P2-13/P2-14；C：fs-store P2-2/P2-3）
+加我自己手上的 P2-9/P2-10/P2-12。B 与 C 各自把报告落在
+`docs/superpowers/plans/notes/2026-10-10-wave-{b-renderer,c-fsstore}.md`，**A 段没有报告**——
+它在 150 轮上限处被切断，最后一句停在"正在给 P2-5 做变异"。所以 A 段留下的东西我按
+"报告说的不算，盘上有的才算"重核了一遍：`history-window.ts`、`tool-loop` 的接线、
+`provider-client` 的截断人话、`foldOrphanUserMessages`、按线程键的轮次闸门，逐项 grep 到行号、
+并单独跑过它们的用例（agent-runtime 全套 15 文件 / 215 条，turn-gate 9 条，history-window 三处 44 条）。
+**结论是 A 段的代码是完整的、只是没写报告**，但它的变异取证没有落盘，
+所以 P2-5/P2-6/P2-7 这几行在现状表里给的是"用例钉住了什么"，不是"变异杀过什么"。
+
+### 三段并行的报告我都读盘复核过，其中 C 段纠了总单一处过期判断
+
+C 段先读盘发现 **P2-2 的 realpath 那半边前几波已经落地**（`paths.ts:56` `isPathUnderRoot`，
+`readDocFile`/`writeDocFile` 都已过闸），于是没有重复改，只补了缺的 Windows 保留名——
+这条纠偏我复核过行号是真的，总单 P2-2 那一行原文的判断已经过期，现状表里照实写了。
+它更值钱的一笔是**实测推翻了总单的推测**：原以为保留名会由平台报错所以"失败自然可见"，
+本机 win32 + Node 24 写 `CON.txt` **不抛错、静默落盘**，所以只能在命名层当场拒。
+它留下的 8 条残留（`createDocFile`/`scanBook`/`skills.ts` 的闸缺口、导出名撞保留名要裁"改名 vs 拒绝"、
+`ipc-guard.ts:42` 是全仓第二处 `realpath`）都在未点名文件里、只记不改，
+**这几条需要下一步决定**，其中「第二处 realpath」与铁律 6 有张力，属于要拍板的设计问题而不是 bug。
+B 段的三处变异都有红字原文，`v-if="findVisible"`(L713)、`watch(findVisible,…)`(L284)、
+`openDocTab` 里的 `cancelAutoSave()`(L319) 全部 grep 到行号确认在场。
+
+### 我自己那三条
+
+- **P2-9（窗口地板）**：`minWidth: 1000` / `minHeight: 700` 是**算出来的**不是抄来的——三栏窄档
+  262+395+320=977、纵向 `min(360px, …)` 那格要 680。`window-min-size.test.ts` 5 条读的是样式与
+  布局 store 的真身，`pxToken()` 在令牌从 CSS 里消失时**抛错**而不是放行：布局改了而地板没跟着改，
+  这条闸要说话。
+- **P2-10（四条门禁盲区）**：扩行预算闸到 `.mjs`+`tools/`+`scripts/` 之后当场爆出一份 851 行的
+  `gen-scene-svgs.mjs`。**没有为了过闸把闸改窄**，而是把 199 行调色板搬成 `scene-palettes.mjs`，
+  验收口径是六张场景画**逐字节复现**（`sha256sum` 搬前、搬后、prettier 后各核一次）。
+  边界闸补了渲染层→主进程、渲染层→包源码、Node 侧伸进渲染层三条路 + "两个根都不在就叫空扫、空扫不叫通过"。
+  `.prettierignore` 整目录排除 `docs/superpowers` 这条我**没有偷偷留着，也没有为好看去重排台账**：
+  实测要改 20 个文件、−34575/+38530 行，所以改成挂着牌子的声明式豁免，由 `prettier-scope.test.mjs` 钉住
+  「只许这一条豁免、旁边必须有中文理由、README 与真源码不许被排除」。
+  桌面包那条 `test` 脚本实测比总单说的更糟：从该目录跑**一条用例都不收集**（"No test files found"、exit 1），
+  修成 `vitest run --root ../.. …src/main …src/renderer`，`tools/ci-gate.test.mjs` 新增一条钉住「跑的是整包不是半套」。
+- **P2-12（插件挂载）**：cache-buster 从 `Date.now()` 改成改写后内容的 sha256 前缀 + 只在内容真变时重写产物。
+  三条用例按**行为**判（副作用计数器住在夹具插件源码里），三次变异各自杀掉，红字照日志原文抄：
+  ① cache-buster 换成常量 ⇒ `改了插件却拿回旧的那份，等于界面永远看不见用户的改动: expected 1 to be 2`；
+  ② 重写闸只判文件在不在、不判哈希 ⇒ `expected '甲' to be '乙'`（拿回的是旧那份模块）；
+  ③ 恢复无条件重写 ⇒ `内容未变仍重写了产物文件: expected … to contain '记号'`。
+  夹具自己也回炉过一次：第一版漏建插件目录，三条全红在 `ENOENT … counter-plugin\client.js` 上——
+  那是夹具的错不是被测代码的错，**红错了原因就等于没红**。
+
+### 全仓门禁第一次真跑通：它当场抓出三条并行遗留，这三条正是 P2-10 那节盲区的现场证据
+
+**跑之前先纠一处判断**：这台机上有 5 只 `electron.exe`（并行会话的 dev 现场），
+按本机既有教训，全量 vitest 在 dev 在跑时容易只报 timeout 且每次红在不同文件。所以门禁**分段跑**，
+每段退出码落变量、日志落盘后再回读内容（`| tail` 那种把码吞掉的写法一次都没用）。实测：
+
+| 段 | 命令 | 退出码 | 日志内容（回读，不是信退出码） |
+| --- | --- | --- | --- |
+| 格式 | `prettier . --check` | **1 → 0** | 第一次红在 **19 个文件**（并行现场没格式化过），`--write` 后 `All matched files use Prettier code style!` |
+| 类型 | 6× `tsc --noEmit` | **0** | contracts / fs-store / agent-runtime / plugin-kernel / tsconfig.node / tsconfig.web 各 0，日志里 0 个 `error TS` |
+| 静态 | `eslint . --max-warnings=0` | **1 → 0** | 两条真错：`agent-service-history-window.test.ts:129` `prefer-const`、`path-boundary.test.ts:323` **ESM 里用了 `require()`** |
+| 边界 | `node tools/check-package-boundary.mjs` | **0** | `边界检查通过` |
+| 行数 | `node tools/check-source-line-budget.mjs` | **0** | `行数预算通过（601 份，含 .mjs/.cjs）` |
+| 测试 | `vitest run --maxWorkers=4` | **0** | **298 文件全绿 / 3912 passed、2 skipped (3914)**，31.11s，日志内 0 条 `FAIL`/`AssertionError`/`Unhandled` |
+
+**这三条红是并行的证据而不是我的**：它们全都在我没点名的文件里，而且**只有全仓门禁能看见**——
+A 段 `turn-gate` 那份 `let root = ""` 只赋值不读取（`tsc` 的 TS6133 直接挡下提交），
+`require()` 那条 ESLint 规则此前从没扫到过那个新测试文件。这正是总单 P2-10 说的门禁盲区落在真实场景里的样子：
+**并行 agent 各自跑定向门禁，谁都没跑过全仓那一道**，于是三份"我这边绿"叠起来是一棵红的树。
+修法是三条最小改动（删死变量、把 `require` 换成顶部那条 `node:fs` import、`let`→`const` 用 eslint `--fix`），
+**没有动任何一段并行的判定逻辑**，改完各自复跑用例仍绿（24 条 + 3 条 plugin-loader + 9 条 turn-gate 回读确认）。
+
+单一事实源数字（本波实测）：**298 个测试文件 / 3912 条用例通过、2 条跳过**。
+台账里先前那些 215/3014、217/3037 的口径差异以这一行为准覆盖。
+
+### 还没做完的（照直写，不抹平）
+
+1. **P1-4 / P1-5 一条没动**：1000 章夹具与实测数字。`scan.ts` 的串行全量读、`createDoc` 后整本重扫、
+   `findLatestSession`/`listSessions` 整篇读 JSONL 三处都在原地。这是台账第六节那条
+   「验收样本是玩具级」的方法性缺口，属于**不写代码也能闭**的那一类，需要一次真规模测量。
+2. **P2-11 等一句话**：`pnpm-workspace.yaml:16` 的 `naive-ui` 死条目还在。删它是删除动作，
+   本波授权是"除删除之外全开"，所以停在这里。
+3. **P2-12 还剩两子项**：`tools/build-brand-icons.ps1` 仍是 Windows PowerShell 专用；
+   跟踪文档里那两处绝对路径是"不许拿这个目录之外的真人书稿做测试"的**约束原文**，不是配置项，改它属于换皮，留着。
+4. **P1-11 只有一半**：`.vue` 进了语法/绑定关卡（`utils/sfc-compile.ts` 用 `vue/compiler-sfc`，零新依赖），
+   **类型检查仍未做**——那要 `vue-tsc`，本仓没装、这台离线机装不上，`vue-shim.d.ts` 把 props 全当 any 照旧。
+5. **真机目检一批**：P2-13 的打字延迟、P2-8 的长会话内存、P1-3 的截断提示、P1-9/P1-10 的界面行为，
+   全部只证明到用例与门禁。机上那 5 只 `electron.exe` 属并行会话现场，我没有动它。
+
+### 本波入库范围
+
+三段并行 + 我这三条**合并成一整批**入库（提交前全仓门禁如上实测全绿）。
+推送只走 `feat/plan3-interaction-and-assembly`，**不碰主干**。
+
+

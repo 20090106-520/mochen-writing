@@ -6,6 +6,8 @@ import { DEFAULT_CHANGE_RETENTION, IPC_CHANNELS, type ChangeEntry } from "@moche
 import { listChanges, makeFingerprint, writeDocFile } from "@mochen/fs-store";
 import { createChangesService, registerChangesIpc } from "./changes-service.js";
 import type { ChangeRetentionStore } from "./change-retention-store.js";
+// 来源闸（P1-7）：夹具只造事件形状，判据仍只在 ipc-guard 一份。
+import { trustedRendererEvent } from "./ipc-trust-fixture.js";
 
 /**
  * 改稿历史的主进程真身。
@@ -190,7 +192,7 @@ describe("registerChangesIpc", () => {
     if (!written.ok || written.backupRelPath === null) throw new Error("夹具没造出备份");
 
     const readBack = (await handlers.get(IPC_CHANNELS.changesRead)?.(
-      {},
+      trustedRendererEvent(),
       written.backupRelPath
     )) as {
       content: string;
@@ -198,7 +200,7 @@ describe("registerChangesIpc", () => {
     expect(readBack.content).toBe(V1);
 
     const restored = (await handlers.get(IPC_CHANNELS.changesRestore)?.(
-      {},
+      trustedRendererEvent(),
       written.backupRelPath,
       makeFingerprint(V2)
     )) as { ok: boolean };

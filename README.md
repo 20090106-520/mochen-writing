@@ -37,8 +37,15 @@ pnpm build && pnpm smoke     # 构建后起一次真实例做冒烟
 
 ## 门禁：`pnpm verify`
 
-一条命令串起五道闸，任何一道红就不能提交：prettier 全仓格式、`tsc --noEmit`（5 个类型程序）、
+一条命令串起五道闸，任何一道红就不能提交：prettier 全仓格式、`tsc --noEmit`（6 个类型程序）、
 eslint（`--max-warnings=0`）、包边界检查、**单文件 800 行预算**，最后 `vitest run`（当前 215 文件 / 3014 用例）。
+
+这句话在 2026-10-09 之前是半真的：闸是真闸，但**没人强制跑**——本机既没有 CI（`.github` 目录不存在），
+也没有 git 钩子（`core.hooksPath` 为空，`.git/hooks` 里只有 sample 文件），全靠人记得敲一次 `pnpm verify`。
+现在 `.github/workflows/verify.yml` 在每次 push 与 pull_request 上跑同一条 `pnpm verify`
+（`--frozen-lockfile` 装依赖，一步都不许包进管道——管道会把退出码换成最后一个命令的码），
+并由 `tools/ci-gate.test.mjs`（5 条）把"CI 在场、跑的是整条 verify、不吞码"这三件事钉成断言。
+本机仍然要自己跑：CI 只能证明推上去的那棵树是绿的。
 
 几条反复被真机打脸的硬规矩，改代码前先读：
 

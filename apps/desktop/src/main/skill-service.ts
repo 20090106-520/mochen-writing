@@ -6,6 +6,8 @@ import {
   type SkillSource
 } from "@mochen/contracts";
 import { mergeSkillRefs, readSkillFile, scanSkills } from "@mochen/fs-store";
+// 来源闸 + 参数形状（P1-7）：判据只有 ipc-guard 那一份。
+import { handleTrusted } from "./ipc-guard.js";
 
 /** electron 的 ipcMain.handle 的窄形状（与 appearance-store 同款）：装配处传进来，测试处传注册表。 */
 type Handler = (channel: string, fn: (...args: unknown[]) => unknown) => void;
@@ -58,8 +60,8 @@ export function createSkillService(deps: {
 
 /** 只注册白名单里的两条技能通道：列与读。写路径压根不存在，所以这里不可能漏一道写闸。 */
 export function registerSkillIpc(handle: Handler, skills: SkillService): void {
-  handle(IPC_CHANNELS.skillsList, () => skills.list());
-  handle(IPC_CHANNELS.skillsRead, (_event, source, relPath) =>
+  handleTrusted(handle, IPC_CHANNELS.skillsList, () => skills.list());
+  handleTrusted(handle, IPC_CHANNELS.skillsRead, (_event, source, relPath) =>
     skills.read(source as SkillSource, relPath as string)
   );
 }

@@ -562,6 +562,12 @@ html[data-theme="dark"] .document-editor:focus-visible {
   color: var(--text-tertiary);
 }
 
+/* 浏览读盘失败那一格（2026-10-09 扫描总单 P1-9）：错误不许再用占位话术那种灰，
+   否则「没能读到正文」和「正在读取…」在眼睛里没有区别，等于白说。 */
+.document-preview-empty.is-browse-failed {
+  color: var(--danger-text);
+}
+
 /* 作品资料（右栏第三页签）：只读摘要卡，全部吃既有 token。 */
 .book-dossier {
   min-height: 0;

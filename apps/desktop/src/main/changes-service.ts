@@ -8,6 +8,8 @@ import {
 } from "@mochen/contracts";
 import { listChanges, pruneAllChanges, readChange, restoreChange } from "@mochen/fs-store";
 import type { ChangeRetentionStore } from "./change-retention-store.js";
+// 来源闸 + 参数形状闸的唯一出处（P1-7）：注册通道只许走 handleTrusted。
+import { handleTrusted } from "./ipc-guard.js";
 
 /** electron 的 ipcMain.handle 的窄形状（与 skill-service 同款）：装配处传进来，测试处传注册表。 */
 type Handler = (channel: string, fn: (...args: unknown[]) => unknown) => void;
@@ -87,16 +89,16 @@ export function createChangesService(deps: {
  * 另开一条清理逻辑就等于有两份「该删哪些」的判定。
  */
 export function registerChangesIpc(handle: Handler, changes: ChangesService): void {
-  handle(IPC_CHANNELS.changesList, () => changes.list());
-  handle(IPC_CHANNELS.changesRead, (_event, backupRelPath) =>
+  handleTrusted(handle, IPC_CHANNELS.changesList, () => changes.list());
+  handleTrusted(handle, IPC_CHANNELS.changesRead, (_event, backupRelPath) =>
     changes.read(backupRelPath as string)
   );
-  handle(IPC_CHANNELS.changesRestore, (_event, backupRelPath, expectedFingerprint) =>
+  handleTrusted(handle, IPC_CHANNELS.changesRestore, (_event, backupRelPath, expectedFingerprint) =>
     changes.restore(backupRelPath as string, expectedFingerprint as string)
   );
-  handle(IPC_CHANNELS.changesRetentionGet, () => changes.retentionGet());
-  handle(IPC_CHANNELS.changesRetentionSave, (_event, retention) =>
+  handleTrusted(handle, IPC_CHANNELS.changesRetentionGet, () => changes.retentionGet());
+  handleTrusted(handle, IPC_CHANNELS.changesRetentionSave, (_event, retention) =>
     changes.retentionSave(retention as ChangeRetention)
   );
-  handle(IPC_CHANNELS.changesPruneNow, () => changes.pruneNow());
+  handleTrusted(handle, IPC_CHANNELS.changesPruneNow, () => changes.pruneNow());
 }

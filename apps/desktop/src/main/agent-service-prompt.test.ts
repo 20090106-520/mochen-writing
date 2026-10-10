@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { defaultProfile, findProfile, type DocRef } from "@mochen/contracts";
+import { AGENT_PROFILES, defaultProfile, findProfile, type DocRef } from "@mochen/contracts";
 import { renderContextBlock } from "@mochen/agent-runtime";
 import {
   defaultPromptFor,
   PLAN_MODE_INSTRUCTION,
-  WEB_SEARCH_INSTRUCTION
+  WEB_SEARCH_INSTRUCTION,
+  writeScopeSentence
 } from "./prompt-assembly.js";
 
 /**
@@ -218,5 +219,50 @@ describe("renderContextBlock · 上下文块", () => {
     });
     expect(block).toContain("正文（本章）");
     expect(block).toContain("雾从海面涌上来。");
+  });
+});
+
+/**
+ * 写入范围那一句（2026-10-10 从 agent-service.ts 搬来时补的用例——搬之前它一条测试都没有）。
+ *
+ * 三档措辞对应 `WriteScope` 的三种形状，说错了会直接误导模型：
+ * 只读档说成「能改某类」它会去提写入提案，白吃闸；追加档说成「随便改当前章」它会动前文。
+ */
+describe("writeScopeSentence · 档案能写哪里", () => {
+  const of = (id: string) => {
+    const profile = AGENT_PROFILES.find((p) => p.id === id);
+    if (profile === undefined) throw new Error(`夹具里的档案 id 不对：${id}`);
+    return profile;
+  };
+
+  it("只读档（审稿）⇒ 明说只出提案、不改文稿", () => {
+    expect(writeScopeSentence(of("reviewer"))).toContain("只出批注式提案，不直接改文稿");
+  });
+
+  it("当前章档（主笔）⇒ 只限当前章，且不带「文末追加」那句", () => {
+    const text = writeScopeSentence(of("lead-writer"));
+    expect(text).toContain("改动只限当前章");
+    expect(text).not.toContain("追加");
+  });
+
+  it("追加档（续写）⇒ 多一句「改前文要单独提案」", () => {
+    expect(writeScopeSentence(of("continuer"))).toContain("默认只在文末追加；改前文要单独提案");
+  });
+
+  it("指定类型档（角色）⇒ 把 kinds 逐条报出来，不含糊成「可以改设定」", () => {
+    expect(writeScopeSentence(of("character"))).toContain("改动只限：character");
+  });
+
+  it("句子里带档案名：六个人设各说一句，不许串台", () => {
+    for (const id of ["world", "chief-editor", "character", "lead-writer", "continuer"]) {
+      expect(writeScopeSentence(of(id))).toContain(of(id).name);
+    }
+    expect(writeScopeSentence(defaultProfile())).toBe(writeScopeSentence(of("lead-writer")));
+  });
+
+  it("findProfile 拿到的同一份档案说的是同一句话（措辞只有一份出处）", () => {
+    const byId = findProfile("reviewer");
+    if (byId === null) throw new Error("findProfile 认不出内置档案 id");
+    expect(writeScopeSentence(byId)).toBe(writeScopeSentence(of("reviewer")));
   });
 });

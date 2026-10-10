@@ -22,6 +22,7 @@
  * 一律不动——否则会把一句说明文字改成 import 路径，插件当场语法错误。
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { PluginModule } from "@mochen/plugin-kernel";
@@ -60,6 +61,23 @@ export function entryOf(dir: string): string | null {
 }
 
 /**
+ * 本进程已经写出过的产物：产物绝对路径 → 那一次写入内容的哈希。
+ *
+ * 【为什么要有这么一张表】
+ * 插件目录是用户可写的，产物文件也可能被别的进程改过。判断「要不要重写」不能看盘上现在
+ * 是什么——那会把「用户手动改了产物」当成「我上次写坏了」而反复覆盖；也不能压根不写——
+ * 那第一次装载就没人产出这份文件。所以这里只回答一个问题：**这个进程是否已经为同一份内容
+ * 写过一次**。写过就省掉这次磁盘写（每次 plugins:list 都 mountAll，原先等于每次 list
+ * 都要写一遍插件目录，2026-10-09 全仓扫描 P2-12 记的那笔账）。
+ *
+ * 【为什么表不会无限长】
+ * 键是产物路径，一个插件一个，上界就是插件个数；停用/删除插件时目录没了，条目最多留在
+ * 上一轮，不随调用次数增长。这跟原先用 Date.now() 当 cache-buster 的差别是关键：那个值
+ * 进了 import URL，Node 的 ESM 注册表按 URL 存模块，于是每次 list 都多一份永不回收的实例。
+ */
+const writtenArtifacts = new Map<string, string>();
+
+/**
  * 读一份插件并 import 进来。
  *
  * **失败一律抛中文单句**，由调用方（插件服务）记成一条 ok:false——
@@ -71,9 +89,16 @@ export async function loadPluginFrom(dir: string, shimPath: string): Promise<Plu
   const source = readFileSync(entry, "utf8");
   const rewritten = rewritePluginSource(source, shimPath);
   const out = join(dir, REWRITTEN_NAME);
-  writeFileSync(out, rewritten, "utf8");
-  // 带一个时间戳做 cache-buster：重装同一个插件时 Node 的 ESM 缓存会拿旧的那份，
-  // 于是「我改了插件」在真机上完全看不出变化——比报错更难查。
-  const url = `${pathToFileURL(out).href}?v=${Date.now()}`;
+  // cache-buster 用**内容哈希**而不是时间戳：
+  // ① 用户真改了插件 → 哈希变 → URL 变 → Node 重新 import，界面上照样看得见改动；
+  // ② 内容没改 → URL 一个字不变 → 命中 ESM 注册表里的同一份模块，顶层副作用不重跑，
+  //    也不再每轮多一份实例。原先用 Date.now()，把 ① 的正当需求办到了，却把 ② 全盘丢掉。
+  const contentHash = createHash("sha256").update(rewritten).digest("hex");
+  // 盘上文件被删（用户清理、换目录）时仍要补写一次，所以这里除了比对哈希还看存在性。
+  if (writtenArtifacts.get(out) !== contentHash || !existsSync(out)) {
+    writeFileSync(out, rewritten, "utf8");
+    writtenArtifacts.set(out, contentHash);
+  }
+  const url = `${pathToFileURL(out).href}?v=${contentHash.slice(0, 16)}`;
   return (await import(url)) as PluginModule;
 }

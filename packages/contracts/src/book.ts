@@ -110,13 +110,60 @@ export function parseBookMeta(raw: unknown): BookMeta {
  */
 const FILE_NAME_FORBIDDEN = /[<>:"/\\|?*]/g;
 
+/**
+ * Windows 的**系统保留名**（扫描总单 P2-2 的后半，2026-10-10 补）。
+ *
+ * `CON` / `PRN` / `AUX` / `NUL` / `COM1`-`COM9` / `LPT1`-`LPT9` 既不能当文件名也不能当目录名，
+ * 大小写无关，而且**带扩展名同样算**（`CON.txt` 在 Win32 眼里就是 CON 那台设备）——
+ * 这是 Microsoft「Naming a File」文档里写着的真实规则，不是多虑。
+ *
+ * 为什么必须在这里拒、而不是指望写盘那层报错：本机 win32 + Node 24 实测 `fs.writeFile('nul.md')`
+ * **不抛错**，文件真能落盘、Node 自己还读得回来。也就是说这条病全程零提示，
+ * 稿子会以一个 Windows 命名规则不认的名字躺在书目录里，等资源管理器拷贝、别的程序打开时才炸。
+ * 所以判定长在命名层，并且**跨平台一律拒**（同一本书迟早被拷回 Windows；CI 是 Linux 也得拒得过）。
+ *
+ * 判定只住这一处（铁律 6）：渲染层 `planDocRelPath` 先拒、主进程 `book-service.createDoc` 与
+ * fs-store `assertSafeRelPath` 各引**这同一条**再兜一遍，两处闸吃的是同一句理由。
+ */
+const WINDOWS_RESERVED_NAMES = new Set<string>([
+  "CON",
+  "PRN",
+  "AUX",
+  "NUL",
+  ...["1", "2", "3", "4", "5", "6", "7", "8", "9"].flatMap((n) => [`COM${n}`, `LPT${n}`])
+]);
+
+/**
+ * 「这一段名字是不是保留名」。口径照 Win32：先去掉**结尾**的空格与圆点（Windows 会把它们吃掉），
+ * 再看**第一个圆点之前**的那一截——所以 `CON.`、`NUL `、`COM1.backup.log` 全算命中。
+ */
+function isWindowsReservedNameSegment(segment: string): boolean {
+  const base = segment.replace(/[ .]+$/g, "").split(".")[0] ?? "";
+  return WINDOWS_RESERVED_NAMES.has(base.toUpperCase());
+}
+
+/**
+ * 撞上保留名 ⇒ 那句人话（**这条口径唯一的文案真身**）；没撞上返回 null。
+ * 入参可以是书名、章节标题，也可以是书内相对路径——逐段判，目录名同样是保留名。
+ */
+export function windowsReservedNameProblem(nameOrPath: string): string | null {
+  for (const segment of nameOrPath.replaceAll("\\", "/").split("/")) {
+    if (isWindowsReservedNameSegment(segment))
+      return `「${segment}」撞上了 Windows 的系统保留名（CON、PRN、AUX、NUL、COM1-COM9、LPT1-LPT9，带扩展名也一样），这个名字在 Windows 上落不了盘，换一个。`;
+  }
+  return null;
+}
+
 export function sanitizeDocFileName(title: string): string | null {
   const cleaned = Array.from(title.replace(FILE_NAME_FORBIDDEN, "-"))
     .filter((ch) => ch.charCodeAt(0) > 0x1f)
     .join("")
     .replace(/[\s.]+$/g, "")
     .trim();
-  return cleaned === "" ? null : cleaned;
+  if (cleaned === "") return null;
+  // 保留名**拒绝**而不是替换：把 `CON` 悄悄改成 `CON-1` 会让用户找不到自己起的那个名字，
+  // 而且改名后的文件照样可能撞别的稿子——起名这一步的失败必须让用户看得见、自己改。
+  return windowsReservedNameProblem(cleaned) === null ? cleaned : null;
 }
 
 /**

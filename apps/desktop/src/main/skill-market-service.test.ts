@@ -5,6 +5,8 @@ import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { IPC_CHANNELS, SKILL_FILE_NAME, type MarketSkill } from "@mochen/contracts";
 import { createSkillMarketService, registerSkillMarketIpc } from "./skill-market-service.js";
+// 来源闸（P1-7）：夹具只造事件形状，判据仍只在 ipc-guard 一份。
+import { trustedRendererEvent } from "./ipc-trust-fixture.js";
 
 const dirs: string[] = [];
 async function tmp(): Promise<string> {
@@ -317,12 +319,14 @@ describe("registerSkillMarketIpc", () => {
       IPC_CHANNELS.marketList,
       IPC_CHANNELS.marketUninstall
     ]);
-    expect(await handlers.get(IPC_CHANNELS.marketInstall)?.({}, "chapter-intent")).toContain(
-      "装好了"
-    );
-    expect(await handlers.get(IPC_CHANNELS.marketUninstall)?.({}, "chapter-intent")).toContain(
-      "卸掉了"
-    );
-    expect(await handlers.get(IPC_CHANNELS.marketList)?.({})).toMatchObject({ listed: true });
+    expect(
+      await handlers.get(IPC_CHANNELS.marketInstall)?.(trustedRendererEvent(), "chapter-intent")
+    ).toContain("装好了");
+    expect(
+      await handlers.get(IPC_CHANNELS.marketUninstall)?.(trustedRendererEvent(), "chapter-intent")
+    ).toContain("卸掉了");
+    expect(await handlers.get(IPC_CHANNELS.marketList)?.(trustedRendererEvent())).toMatchObject({
+      listed: true
+    });
   });
 });

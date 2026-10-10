@@ -1,9 +1,9 @@
 <!-- 右栏：结构、类名与标签/工具栏/页脚 markup 取自 deepwrite的 RightEditorPane.vue -->
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { proseCharCount, splitFrontmatter } from "@mochen/contracts";
-import { escapeHtml, markdownToSimpleHtml } from "@mochen/fs-store/export-shared";
+import { markdownToSimpleHtml } from "@mochen/fs-store/export-shared";
 import AppIcon from "./AppIcon.vue";
 import BookDossier from "./BookDossier.vue";
 import DocumentTabBar from "./DocumentTabBar.vue";
@@ -40,6 +40,8 @@ import {
 } from "../utils/editor-measure-preference";
 import { readingTimeLabel as formatReadingTime } from "../utils/reading-time";
 import { EDITOR_EMPTY_HINT, editorBodyState, editorLoadingLabel } from "../utils/editor-readout";
+import { browseBodyViewOf } from "../utils/browse-body";
+import { findMirrorHtml } from "../utils/find-mirror";
 import { BAND_LABELS, VIEW_TABS } from "../utils/right-pane-labels";
 import { saveStateLabel } from "../utils/save-state";
 
@@ -137,6 +139,16 @@ const browseDoc = computed(
   () => book.browseTabs.find((doc) => doc.relPath === book.activeBrowse) ?? null
 );
 
+/**
+ * 浏览那一格显示的正文（2026-10-09 扫描总单 P1-9）。
+ * 原来模板里直接写 `book.browseContents[relPath] ?? "正在读取…"`，于是读盘失败之后
+ * 那一格**永远停在「正在读取…」**——比空着更糟，它在撒谎。三态判据抽在
+ * `utils/browse-body`（那边逐档有用例），这里只负责把 store 的两张表交给它。
+ */
+const browseView = computed(() =>
+  browseBodyViewOf(book.browseContents, book.browseErrors, browseDoc.value?.relPath)
+);
+
 const breadcrumbs = computed(() => {
   const parts = [book.meta?.title ?? "未打开作品"];
   if (mode.value === "manuscript" && activeDoc.value) {
@@ -197,21 +209,15 @@ const { snippetToolbar, applyToSelection } = useSnippetToolbar(editorEl, (nextTe
 
 /**
  * 行距档 + 正文字号档 + 拼写检查（设置页「写作」）：设置中心与工作区是互斥挂载的两个视图，
- * 回到正文必然重新挂载，在这里读一次就够；拼写检查直接绑 textarea 的 :spellcheck
- * （原本写死 false，默认关=原行为）。
+ * 回到正文必然重新挂载，在这里读一次就够；拼写检查直接绑 textarea 的 :spellcheck（原本写死 false）。
  *
- * 行距/字号/列宽三档**一起**挂 `.editor-document`，不挂任何一个读稿子的盒子
- * （2026-10-06 批次 5-㉒ 定下的挂法；5-㉑ 曾挂在 `.editor-textarea-wrap`）：
- * 那一格 `.editor-document` 里同时住着 ①文稿 textarea 与压在它底下、专门画查找高亮的
- * `.find-replace-mirror`（position:absolute; inset:0 贴着 wrap）、②分栏预览 `.markdown-body`、
- * ③浏览态 `.document-preview`。三个面读的是**同一组变量、同一个兜底**（样式表里
- * `.document-editor, .document-preview` 一条规则、`.markdown-body` 一条规则），天生该同版；
- * 变量挂在其中任意一个上，另外几个就读不到，只能吃兜底。真机量到两种症状：
- *   · 挂在 textarea 上（5-㉑ 之前）：mirror 读不到 —— 字号 18px/行距 43.2px 对 15px/29.25px，行数 12 对 14；
- *   · 挂在 wrap 上（5-㉑）：预览与浏览两面读不到 —— 分栏视图左边 18px/43.2px、右边 15px/29.25px，
- *     同一篇稿子左右并排却是两种字号。
- * 挂共同祖先，四个盒子才真的读到同一份值。样式表 `var(xxx, 原值)` 在变量缺席时就是原值，
- * 两边不互相冒充默认档。
+ * 行距/字号/列宽三档**一起**挂 `.editor-document`（2026-10-06 批次 5-㉒ 定下的挂法；5-㉑ 曾挂
+ * `.editor-textarea-wrap`、更早挂 textarea）：那一格同时住着 ①文稿 textarea 与压在它底下的
+ * `.find-replace-mirror`（inset:0 贴 wrap）、②分栏预览 `.markdown-body`、③浏览态 `.document-preview`。
+ * 三个面读同一组变量、同一个兜底，天生该同版；变量挂其中任何一个盒子上，另外几个就读不到只能吃
+ * 兜底——两种症状（mirror 字号对不上、分栏左右两种字号）真机量过，逐条记录在 5-㉑/5-㉒ 与
+ * writing-preferences-contract 的用例里。挂共同祖先四个盒子才读到同一份值；
+ * `var(xxx, 原值)` 缺席即原值，两边不互相冒充默认档。
  */
 const editorLayoutStyle = {
   "--editor-leading": String(loadEditorLeading(editorLeadingPreferenceStorage())),
@@ -256,47 +262,30 @@ const tabs = computed(() =>
  */
 const previewHtml = computed(() => markdownToSimpleHtml(book.draft));
 
-/**
- * 按位置把文本切成「普通 / 匹配 / 当前匹配」三段交替的节点序列：
- * 整个算法只在字符串上切，零 DOM、零副作用，单测友好。
- * 位置由 store + watch 统一维护，这里只读——computed 纯函数。
- *
- * 为什么要把 escape 后的文本回显在 textarea 背后：找/替换的高亮必须和 textarea 用同一段文本算——
- * `highlightPositions` 在 store 里，它返回的位置直接在 book.draft（= textarea 的 :value）上标。
- * 所以只要模式是 manuscript、面板可见、查询非空，就可以渲染这一层高亮。
- *
- * 转义用的是 `@mochen/fs-store/export-shared` 那一份（它同时转 `& < > " '`）。
- * 这里原先自己抄了一份只转 `& < >` 的——少转引号在 mirror 这个位置（纯文本节点）不出事，
- * 但两份并存会让下一个人照抄渲染层那份、把文本往带引号的属性里塞，那就是一条真 XSS。
- * 普查与回归线：`utils/html-escape-single.test.ts`。
- */
+/** 高亮层 HTML：摆不摆是接线（模板 `v-if="findVisible"`，find-mirror-mount-wiring 钉着），
+ *  这里只剩内容闸（没开 / 非文稿 / 空查询 → 空串）；怎么切与逐段转义住 utils/find-mirror（铁律 6）。 */
 const highlightMirrorHtml = computed(() => {
   if (!findVisible.value || mode.value !== "manuscript" || findQuery.value === "") return "";
-  const text = book.draft;
-  const posList = find.positions;
-  if (posList.length === 0) return escapeHtml(text);
-
-  // 把切分点合成「按起止 + 颜色」一段段渲染。
-  let html = "";
-  let cursor = 0;
-  posList.forEach((pos, idx) => {
-    if (pos.start > cursor) html += escapeHtml(text.slice(cursor, pos.start));
-    const cls = idx === currentIndex.value ? "find-highlight-current" : "find-highlight";
-    html += `<mark class="${cls}">${escapeHtml(text.slice(pos.start, pos.end))}</mark>`;
-    cursor = pos.end;
-  });
-  if (cursor < text.length) html += escapeHtml(text.slice(cursor));
-  return html;
+  return findMirrorHtml(book.draft, find.positions, currentIndex.value);
 });
 
 /** textarea 滚，mirror 跟着滚——视觉上高亮要贴在文字背后。 */
 function syncMirrorScroll(): void {
   const ta = editorEl.value;
   const mirror = highlightMirrorEl.value;
+  // mirror 现在是条件挂载（P2-13）：面板关着时 ref 为 null，这里安静跳过。
   if (!ta || !mirror) return;
   if (mirror.scrollTop !== ta.scrollTop) mirror.scrollTop = ta.scrollTop;
   if (mirror.scrollLeft !== ta.scrollLeft) mirror.scrollLeft = ta.scrollLeft;
 }
+
+/** P2-13 的另一半：面板打开那一瞬刚挂上的层 scrollTop=0，textarea 可能已滚到半篇——
+ *  同拍跟一次，「打开面板 → 打字」才不错位（挂常驻时没这问题：那层从没被拆过）。 */
+watch(findVisible, async (visible) => {
+  if (!visible) return;
+  await nextTick();
+  syncMirrorScroll();
+});
 
 /**
  * 分栏模式滚动同步：textarea（左）滚到哪，预览区（右）按比例跟到哪。
@@ -716,10 +705,12 @@ function switchMode(next: RightPaneMode): void {
           <span v-for="n in SKELETON_LINES" :key="n" class="editor-skeleton-line" />
         </div>
         <div v-else class="editor-textarea-wrap">
-          <!-- eslint-disable vue/no-v-html -- 高亮 mirror：与 textarea 同尺寸、同字体/同 padding，behind textarea 渲染文字 + <mark> 高亮。
-               放行理由：highlightMirrorHtml 的每一段正文都过了 escapeHtml（那份真身在 @mochen/fs-store/export-shared，
-               全仓普查由 utils/html-escape-single.test.ts 钉着），输出的 <mark> 是我们自己拼的常量标签。 -->
+          <!-- eslint-disable vue/no-v-html -- 高亮 mirror（P2-13：只在面板开着时挂，关面板连 DOM 都不在）：
+               与 textarea 同尺寸、同字体/同 padding，behind textarea 渲染文字 + <mark> 高亮。
+               放行理由：highlightMirrorHtml 每一段正文都过 escapeHtml（真身在 @mochen/fs-store/export-shared，
+               普查由 utils/html-escape-single.test.ts 钉），<mark> 是我们自己拼的常量标签。 -->
           <div
+            v-if="findVisible"
             ref="highlightMirrorEl"
             class="find-replace-mirror"
             aria-hidden="true"
@@ -767,8 +758,12 @@ function switchMode(next: RightPaneMode): void {
         <p v-if="!browseDoc" class="document-preview-empty">
           在左栏点人物、剧情、大纲或素材即可在此浏览，当前文稿与标签不受影响。
         </p>
-        <p v-else class="document-preview-empty">
-          {{ book.browseContents[browseDoc.relPath] ?? "正在读取…" }}
+        <p
+          v-else
+          class="document-preview-empty"
+          :class="{ 'is-browse-failed': browseView.state === 'failed' }"
+        >
+          {{ browseView.text }}
         </p>
       </article>
     </div>

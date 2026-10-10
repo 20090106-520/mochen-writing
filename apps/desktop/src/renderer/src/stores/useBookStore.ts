@@ -1,9 +1,6 @@
 import { defineStore } from "pinia";
 import { toRaw } from "vue";
 import {
-  PERMISSION_LABELS,
-  WORK_MODE_LABELS,
-  findProfile,
   planDocRelPath,
   workModeOf,
   type BookKind,
@@ -15,8 +12,13 @@ import {
   type PermissionMode,
   type WorkMode
 } from "@mochen/contracts";
-import { activeStageOf } from "../utils/composer-context";
 import { absorbConflictNotice } from "../utils/agent-thread";
+import {
+  activeProfileStep,
+  activeStageStep,
+  permissionModeStep,
+  workModeStep
+} from "../utils/meta-mode-step";
 import { foreshadowRows, readForeshadowRaws, type ForeshadowRow } from "../utils/foreshadow";
 import { renameTitleInContent } from "../utils/doc-title";
 import { moveOrderItem, nextTabInCycle, sortDocsByOrder, tabAtIndex } from "../utils/doc-order";
@@ -28,6 +30,7 @@ import {
 import { autoAdoptApproved } from "../utils/auto-behavior-preference";
 import {
   EMPTY_DOC,
+  docStateOf,
   failureReasonOf,
   flushAllBeforeQuit,
   flushDocBeforeDrop,
@@ -40,6 +43,8 @@ import {
   type FlushOutcome
 } from "../utils/draft-flush";
 import { installQuitFlushListener } from "../utils/quit-flush-client";
+import { bumpDocLoadToken, readDocIntoTab } from "../utils/doc-read";
+import { browseFailureNotice, readBrowseBody, resetBrowseReadGates } from "../utils/browse-read";
 import { bookDataFlushNotice, withBookDataFlush } from "../composables/bookDataRegistry";
 
 /**
@@ -62,13 +67,6 @@ export const AUTO_SAVE_DELAY_MS = AUTOSAVE_DEFAULT_DELAY_MS;
 /** 定时器句柄放模块级：它不是视图状态，进 pinia state 只会被响应式代理白白包一层。 */
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-/**
- * 读稿的世代号（2026-10-05 批次 3 尾巴）。
- * 每发起一次读盘就 +1；读回来时令牌对不上就说明**期间又开了别的**，
- * 这次拿回来的是废弃答案，直接丢弃。放模块级同 autoSaveTimer：它不是视图状态。
- */
-let docLoadToken = 0;
-
 export const useBookStore = defineStore("book", {
   state: () => ({
     rootPath: null as string | null,
@@ -85,6 +83,11 @@ export const useBookStore = defineStore("book", {
     browseTabs: [] as DocRef[],
     activeBrowse: null as string | null,
     browseContents: {} as Record<string, string>,
+    /**
+     * 浏览这一格上一次读盘的失败理由（2026-10-09 扫描总单 P1-9）。
+     * 没有它，读失败之后中栏那一格会永远停在「正在读取…」——比空白更糟，因为它在撒谎。
+     */
+    browseErrors: {} as Record<string, string>,
     /** 右栏这一格当前展示文稿 / 浏览 / 作品资料；后两者永不改写文稿侧状态。 */
     rightPaneMode: "manuscript" as RightPaneMode,
     /** 权限档菜单是否展开；`/permissions` 与头部按钮共用的唯一开关。 */
@@ -166,13 +169,19 @@ export const useBookStore = defineStore("book", {
       this.browseTabs = [];
       this.activeBrowse = null;
       this.browseContents = {};
+      this.browseErrors = {};
       this.rightPaneMode = "manuscript";
       this.editorViewMode = "edit";
       this.draftsByPath = {};
       Object.assign(this, EMPTY_DOC);
       // 换书 = 上一本书的在途读全部作废。不作废的话，那次读回来会把**上一本书的正文**
-      // 写进这一本的中栏：令牌对不上，下面 openDocTab 的闸会把它丢掉。
-      docLoadToken += 1;
+      // 写进这一本的中栏：令牌对不上，`utils/doc-read` 那道闸会把它丢掉。
+      bumpDocLoadToken();
+      // 右栏「浏览」那条路同样要作废，而且用的是**另一枚号**（见 utils/browse-read 的注释：
+      // 浏览的在途读不该因为中栏切了个标签就跟着报废，但换书时必须整体报废）。
+      // 它同时清掉在途记账：上一本书那格还挂在 Set 里，这一本同 relPath 的那格就会被「已在途」挡掉，
+      // 而挡住它的那次读又会被世代号丢掉——那一格就永久读不出来了。
+      resetBrowseReadGates();
       this.docLoading = false;
     },
 
@@ -299,42 +308,47 @@ export const useBookStore = defineStore("book", {
       return true;
     },
 
-    async openDocTab(relPath: string) {
+    /**
+     * 打开一篇文稿：标签与指针先换过去，正文交给 `utils/doc-read` 那条通路
+     * （令牌闸住在那里，逐条钉在 `doc-read.test.ts`）；这里只把 store 那七八格摆好。
+     */
+    async openDocTab(relPath: string): Promise<void> {
+      // P2-14：先取消上一篇排下的自动保存窗。这一格先换指针再 await 读盘，挂着的那一窗
+      // 到点发的是「新路径 × 旧正文 × 旧指纹」——两篇内容恰好相同（新建章节的默认模板
+      // 恰恰容易相同）时盘侧期望指纹闸也拦不住。没落盘的字不丢：下面 stashActive 存档。
+      this.cancelAutoSave();
       this.stashActive();
       if (!this.docTabs.includes(relPath)) this.docTabs.push(relPath);
       this.activeDocTab = relPath;
       this.rightPaneMode = "manuscript";
-      const stashed = this.draftsByPath[relPath];
-      if (stashed) {
-        // 有暂存就零延迟换过去：不发 IPC 就不该进在途态，
-        // 否则中栏会为一次同步赋值抖一下骨架。
-        Object.assign(this, stashed);
-        return;
-      }
-      // 令牌：连点两个标签时，先发的那次读回来是**废弃答案**。
-      // 没有它，慢的那次会把中栏永久停在错的那一篇上（不是闪一下，是停在那儿）。
-      const token = ++docLoadToken;
-      this.docLoading = true;
-      try {
-        const loaded = await window.mochen.readDoc(relPath);
-        if (token !== docLoadToken) return;
-        this.draft = loaded.content;
-        this.savedFingerprint = loaded.fingerprint;
-        this.dirty = false;
-        this.conflict = null;
-        this.notice = "";
-        this.draftsByPath[relPath] = this.snapshot();
-      } catch (err) {
-        if (token !== docLoadToken) return;
-        // 读不出来时**必须清空正文**：留着上一篇的正文，新标题底下就是撒谎，
-        // 用户一打字就会把上一篇写进这一篇。空着 + 说明白哪一篇没打开，比错着强。
-        // 清空走 EMPTY_DOC 那一份样子（与 closeTab 关到空、reloadActive 都同一处）。
-        Object.assign(this, EMPTY_DOC);
-        this.notice = `没能打开 ${relPath}：${failureReasonOf(err)}`;
-      } finally {
-        // 只有还持有令牌的这次才收标志：废弃的那次落地会把在读的那次的骨架提前撤掉。
-        if (token === docLoadToken) this.docLoading = false;
-      }
+      await readDocIntoTab(
+        {
+          stashed: (one) => this.draftsByPath[one] ?? null,
+          read: (one) => window.mochen.readDoc(one),
+          applyStashed: (_one, state) => {
+            Object.assign(this, state);
+          },
+          applyLoaded: (one, loaded) => {
+            this.draft = loaded.content;
+            this.savedFingerprint = loaded.fingerprint;
+            this.dirty = false;
+            this.conflict = null;
+            this.notice = "";
+            this.draftsByPath[one] = docStateOf(this);
+          },
+          // 读不出来时**必须清空正文**：留着上一篇的正文，新标题底下就是撒谎，
+          // 用户一打字就会把上一篇写进这一篇。空着 + 说明白哪一篇没打开，比错着强。
+          // 清空走 EMPTY_DOC 那一份样子（与 closeTab 关到空、reloadActive 都同一处）。
+          applyFailure: (one, reason) => {
+            Object.assign(this, EMPTY_DOC);
+            this.notice = `没能打开 ${one}：${reason}`;
+          },
+          setLoading: (value) => {
+            this.docLoading = value;
+          }
+        },
+        relPath
+      );
     },
 
     /** 关标签（P0-3）：有没落盘的字就先写回盘上，写成了才允许它消失；判定与理由在 utils/draft-flush。 */
@@ -508,21 +522,41 @@ export const useBookStore = defineStore("book", {
       this.editorViewMode = order[(idx + 1) % 3] as EditorViewMode;
     },
 
-    /** 浏览：把右栏这一格切到浏览，但绝不触碰文稿标签与草稿。 */
+    /**
+     * 浏览：把右栏这一格切到浏览，但绝不触碰文稿标签与草稿。
+     *
+     * 读盘那三道闸（世代号 / 在途集合 / 失败可见，2026-10-09 扫描总单 P1-9）住在
+     * `utils/browse-read`——那里逐条钉着在用例里，这里只负责把 store 的三张表接上去。
+     */
     browse(ref: DocRef) {
       if (!this.browseTabs.some((doc) => doc.relPath === ref.relPath)) this.browseTabs.push(ref);
       this.activeBrowse = ref.relPath;
       this.rightPaneMode = "browse";
-      if (this.browseContents[ref.relPath] === undefined) {
-        void window.mochen.readDoc(ref.relPath).then((loaded) => {
-          this.browseContents[ref.relPath] = loaded.content;
-        });
-      }
+      readBrowseBody(
+        {
+          hasCached: (relPath) => this.browseContents[relPath] !== undefined,
+          // 中途关掉那一格：回包再回来也不许留缓存条目，否则重开那一格会看到旧快照而不是新读。
+          isOpen: (relPath) => this.browseTabs.some((doc) => doc.relPath === relPath),
+          read: (relPath) => window.mochen.readDoc(relPath),
+          clearFailure: (relPath) => {
+            delete this.browseErrors[relPath];
+          },
+          onResult: (relPath, content) => {
+            this.browseContents[relPath] = content;
+          },
+          onFailure: (relPath, reason) => {
+            this.browseErrors[relPath] = reason;
+            this.notice = browseFailureNotice(relPath, reason);
+          }
+        },
+        ref.relPath
+      );
     },
 
     closeBrowse(relPath: string) {
       this.browseTabs = this.browseTabs.filter((doc) => doc.relPath !== relPath);
       delete this.browseContents[relPath];
+      delete this.browseErrors[relPath];
       if (this.activeBrowse === relPath)
         this.activeBrowse = this.browseTabs[this.browseTabs.length - 1]?.relPath ?? null;
     },
@@ -549,7 +583,7 @@ export const useBookStore = defineStore("book", {
       }, delay);
     },
 
-    /** 取消挂起的自动保存：排程与退出都调它（清句柄这件事只留这一处真身）。 */
+    /** 取消挂起的自动保存：排程、退出与切标签（P2-14）都调它（清句柄这件事只留这一处真身）。 */
     cancelAutoSave(): void {
       if (autoSaveTimer !== null) {
         clearTimeout(autoSaveTimer);
@@ -601,7 +635,7 @@ export const useBookStore = defineStore("book", {
       this.dirty = false;
       this.conflict = null;
       this.notice = "已重载盘上内容";
-      this.draftsByPath[this.activeDocTab] = this.snapshot();
+      this.draftsByPath[this.activeDocTab] = docStateOf(this);
     },
 
     /**
@@ -640,17 +674,8 @@ export const useBookStore = defineStore("book", {
       await this.refreshDocs();
     },
 
-    snapshot(): DocState {
-      return {
-        draft: this.draft,
-        savedFingerprint: this.savedFingerprint,
-        dirty: this.dirty,
-        conflict: this.conflict ? { ...this.conflict } : null
-      };
-    },
-
     stashActive() {
-      if (this.activeDocTab) this.draftsByPath[this.activeDocTab] = this.snapshot();
+      if (this.activeDocTab) this.draftsByPath[this.activeDocTab] = docStateOf(this);
     },
 
     /** 只搬标志位：档位真正落盘在 setPermissionMode，这里绝不写 meta。 */
@@ -696,20 +721,17 @@ export const useBookStore = defineStore("book", {
     },
 
     /**
-     * 切权限档：渲染层唯一的 saveMeta 调用方。本地 meta 必须一起改，否则头部标签还停在旧档；
-     * 失败时一个字都不改，原因进 notice。
+     * 切权限档：判定在 `utils/meta-mode-step`，这里是渲染层唯一的 saveMeta 调用方。
+     * 失败时一个字都不改（`persistMeta` 那条通路保证），原因进 notice。
      */
     async setPermissionMode(mode: PermissionMode): Promise<void> {
-      if (!this.meta) {
-        this.notice = "还没打开作品目录，权限档改不了。";
+      const step = permissionModeStep(this.meta, mode);
+      if (step.kind === "refuse") {
+        this.notice = step.notice;
         return;
       }
-      if (this.meta.permissionMode === mode) {
-        this.notice = `已经是这一档了：「${PERMISSION_LABELS[mode]}」。`;
-        return;
-      }
-      if (!(await this.persistMeta({ permissionMode: mode }, "权限档没改过来"))) return;
-      this.notice = `权限档已切到「${PERMISSION_LABELS[this.meta.permissionMode]}」，下一次审批就用这一档判断。`;
+      if (!(await this.persistMeta(step.patch, step.failPrefix))) return;
+      this.notice = step.doneNotice;
       this.closePermissionMenu();
     },
 
@@ -719,19 +741,13 @@ export const useBookStore = defineStore("book", {
 
     /** 切工作模式（2026-10-05 批次 4）：先计划 ⇄ 直接动手，走 persistMeta 那一条通路。 */
     async setWorkMode(mode: WorkMode): Promise<void> {
-      if (!this.meta) {
-        this.notice = "还没打开作品目录，工作模式改不了（它是这本书的设置）。";
+      const step = workModeStep(this.meta, mode);
+      if (step.kind === "refuse") {
+        this.notice = step.notice;
         return;
       }
-      if (workModeOf(this.meta) === mode) {
-        this.notice = `已经是这一档了：「${WORK_MODE_LABELS[mode]}」。`;
-        return;
-      }
-      if (!(await this.persistMeta({ workMode: mode }, "工作模式没改过来"))) return;
-      this.notice =
-        mode === "plan"
-          ? `工作模式已切到「${WORK_MODE_LABELS.plan}」：它只讲打算，提案批了也不落盘。`
-          : `工作模式已切到「${WORK_MODE_LABELS.act}」：提案经你批准就会写入磁盘。`;
+      if (!(await this.persistMeta(step.patch, step.failPrefix))) return;
+      this.notice = step.doneNotice;
     },
 
     /** chip 那一枚：开着就关、关着就开。取反读 workModeOf，老书自然落在「动手」这一侧。 */
@@ -741,22 +757,13 @@ export const useBookStore = defineStore("book", {
 
     /** #113c 切阶段：走 persistMeta 那一条落盘通路。刻意**不**碰 permissionMenuOpen（切阶段没资格替用户收它）。 */
     async setActiveStage(stageId: string): Promise<void> {
-      if (!this.meta) {
-        this.notice = "还没打开作品目录，阶段改不了。";
+      const step = activeStageStep(this.meta, stageId);
+      if (step.kind === "refuse") {
+        this.notice = step.notice;
         return;
       }
-      if (!this.meta.stages.some((stage) => stage.id === stageId)) {
-        // 主进程的 bookSchema 会拒「activeStage 不在 stages 中」；先在渲染层说明白，省一次无谓写盘。
-        this.notice = "这一档不在本书的阶段列表里，没去改。";
-        return;
-      }
-      if (this.meta.activeStage === stageId) {
-        // 走同一条查表通路取档名（这一支里 stageId 就是当前档 ⇒ activeStageOf 正是它），不再抄第四份 find。
-        this.notice = `已经是这个阶段了：「${activeStageOf(this.meta)?.name ?? "无"}」。`;
-        return;
-      }
-      if (!(await this.persistMeta({ activeStage: stageId }, "阶段没改过来"))) return;
-      this.notice = `阶段已切到「${activeStageOf(this.meta)?.name ?? "无"}」，下一轮对话按这一档装配上下文。`;
+      if (!(await this.persistMeta(step.patch, step.failPrefix))) return;
+      this.notice = step.doneNotice;
     },
 
     /**
@@ -765,21 +772,13 @@ export const useBookStore = defineStore("book", {
      * 档案的 writeScope 只是上限，实际能不能落盘仍由 permissionMode 裁决（spec §5.1 约束 3）。
      */
     async setActiveProfile(profileId: string): Promise<void> {
-      if (!this.meta) {
-        this.notice = "还没打开作品目录，档案改不了。";
+      const step = activeProfileStep(this.meta, profileId);
+      if (step.kind === "refuse") {
+        this.notice = step.notice;
         return;
       }
-      const profile = findProfile(profileId);
-      if (profile === null) {
-        this.notice = `没有这一枚档案：${profileId}。`;
-        return;
-      }
-      if (this.meta.activeProfile === profile.id) {
-        this.notice = `已经是「${profile.name}」这一枚档案了。`;
-        return;
-      }
-      if (!(await this.persistMeta({ activeProfile: profile.id }, "档案没换过来"))) return;
-      this.notice = `已切到「${profile.name}」。下一轮对话按它的提示词与上下文包装配。`;
+      if (!(await this.persistMeta(step.patch, step.failPrefix))) return;
+      this.notice = step.doneNotice;
     },
 
     /**

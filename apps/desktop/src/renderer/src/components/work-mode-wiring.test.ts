@@ -48,11 +48,18 @@ describe("chip 那一枚", () => {
 });
 
 describe("store 落盘通路", () => {
+  // 2026-10-10：四档开关的判定（拒绝理由、要写的补丁、成功提示）搬进 `utils/meta-mode-step`，
+  // 行为逐条钉在 `utils/meta-mode-step.test.ts`。这里钉的是接线与「只有一份真身」。
+  const step = typeScriptSource("utils/meta-mode-step.ts");
+
   it("setWorkMode 走 saveMeta 且失败一个字不改（照 setPermissionMode 的形状）", () => {
     expect(store).toContain("async setWorkMode(mode: WorkMode)");
-    expect(store).toContain("workMode: mode");
-    expect(store).toContain("await window.mochen.saveMeta(next)");
-    expect(store).toContain("工作模式没改过来");
+    expect(store).toContain("workModeStep(this.meta, mode)");
+    expect(store).toContain("await this.persistMeta(step.patch, step.failPrefix)");
+    expect(step).toContain("patch: { workMode: mode }");
+    expect(step).toContain("工作模式没改过来");
+    // store 里不许留第二份理由：留了就有两处口径，改一处红一处。
+    expect(store).not.toContain("工作模式没改过来");
   });
 
   it("toggleWorkMode 取反读 workModeOf，不自己判「现在是哪一档」", () => {
@@ -60,7 +67,14 @@ describe("store 落盘通路", () => {
   });
 
   it("没开书时不改状态，只把原因说清楚（不给用户一颗按了没反应的按钮）", () => {
-    expect(store).toContain("还没打开作品目录，工作模式改不了");
+    expect(step).toContain("还没打开作品目录，工作模式改不了");
+    // 而且这一支一个字都不落盘：refuse 分支的 return 排在 persistMeta 之前。
+    const body =
+      /async setWorkMode\(mode: WorkMode\): Promise<void> \{([\s\S]*?)\n {4}\}/.exec(store)?.[1] ??
+      "";
+    expect(body).not.toBe("");
+    expect(body).toContain("this.notice = step.notice;");
+    expect(body.indexOf("return;")).toBeLessThan(body.indexOf("persistMeta"));
   });
 });
 

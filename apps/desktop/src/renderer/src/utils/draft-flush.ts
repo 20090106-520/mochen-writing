@@ -128,6 +128,25 @@ export interface FlushSubject {
   draftsByPath: Record<string, DocState>;
 }
 
+/** 只取 live 那四格所需的最小形状：`useBookStore` 的本体与之相容，直接传进来。 */
+export type LiveDocFields = Pick<FlushSubject, "draft" | "savedFingerprint" | "dirty" | "conflict">;
+
+/**
+ * live 那四格 → 一份 `DocState`（2026-10-10 行数预算尾巴）。
+ *
+ * 为什么只留一份：这份「四格照抄 + `conflict` 另造对象」的写法原先在 store 的 `snapshot()`
+ * 与下面的 `flushIOFor.stateOf` 各写了一遍，而两者必须永远一致——暂存那份漏掉另造，
+ * 切回来时两处就共享同一个冲突对象，外部再改一次会把两处判定一起带跑。
+ */
+export function docStateOf(subject: LiveDocFields): DocState {
+  return {
+    draft: subject.draft,
+    savedFingerprint: subject.savedFingerprint,
+    dirty: subject.dirty,
+    conflict: subject.conflict ? { ...subject.conflict } : null
+  };
+}
+
 /**
  * store → `FlushIO` 的转换：把「活动那一格的 live 状态 vs 存档，谁说了算」钉在这一处。
  *
@@ -141,12 +160,7 @@ export function flushIOFor(
   return {
     stateOf: (relPath) =>
       relPath === subject.activeDocTab
-        ? {
-            draft: subject.draft,
-            savedFingerprint: subject.savedFingerprint,
-            dirty: subject.dirty,
-            conflict: subject.conflict ? { ...subject.conflict } : null
-          }
+        ? docStateOf(subject)
         : (subject.draftsByPath[relPath] ?? null),
     write: (relPath, content, expectedFingerprint) => write(relPath, content, expectedFingerprint),
     markClean: (relPath, fingerprint) => {

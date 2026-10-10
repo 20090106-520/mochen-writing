@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { AgentEvent, EditProposal } from "@mochen/contracts";
+import { AGENT_TOOL_NAMES, type AgentEvent, type EditProposal } from "@mochen/contracts";
+import { wireToolsFor } from "../src/per-run-fields.js";
 import { chatMessage, type ChatMessage } from "../src/chat-message.js";
 import { ProviderError, type StreamEvent } from "../src/provider-client.js";
 import { runTurn, type TurnInput } from "../src/tool-loop.js";
@@ -27,19 +28,38 @@ interface Harness {
   deltas: { kind: string; text: string }[];
   hostCalls: { name: string; args: Record<string, unknown> }[];
   sentMessages: ChatMessage[][];
+  /** 每次请求带出去的 tools 名字（出站那一跳的输入；provider-client 的 wireToolsFor 就作用在它上面）。 */
+  sentTools: string[][];
 }
 
-function makeDeps(script: StreamEvent[][], hostOutcome: ToolOutcome, abortAfter?: number) {
-  const harness: Harness = { events: [], deltas: [], hostCalls: [], sentMessages: [] };
+function makeDeps(
+  script: StreamEvent[][],
+  hostOutcome: ToolOutcome,
+  abortAfter?: number,
+  /**
+   * 第 N 次（1 起）host.call 执行**期间**按下打断键：真机情形就是「用户在搜索跑着的时候按了 Esc」。
+   * P1-1 的③要的就是这一格——派发循环里那次 abort 检查只能在这种时序下才量得到。
+   */
+  abortOnHostCall?: number
+) {
+  const harness: Harness = {
+    events: [],
+    deltas: [],
+    hostCalls: [],
+    sentMessages: [],
+    sentTools: []
+  };
   const controller = new AbortController();
   let round = 0;
   const deps = {
     stream: async function* (req: {
       messages: ChatMessage[];
+      tools: { name: string }[];
       signal: AbortSignal;
     }): AsyncGenerator<StreamEvent> {
       // 存快照而非引用：runTurn 会往同一个 messages 数组 push，第二轮会污染第一轮的记录。
       harness.sentMessages.push(req.messages.map((message) => ({ ...message })));
+      harness.sentTools.push(req.tools.map((tool) => tool.name));
       const events = script[round] ?? [{ kind: "finish", reason: "stop" } as StreamEvent];
       round += 1;
       for (const [index, event] of events.entries()) {
@@ -56,6 +76,7 @@ function makeDeps(script: StreamEvent[][], hostOutcome: ToolOutcome, abortAfter?
       context: () => ({ docRelPath: "chapters/01.md", permissionMode: "read-only" }),
       call: async (name: string, args: Record<string, unknown>) => {
         harness.hostCalls.push({ name, args });
+        if (abortOnHostCall === harness.hostCalls.length) controller.abort();
         return hostOutcome;
       }
     } as unknown as ToolHost,
@@ -263,7 +284,13 @@ describe("runTurn", () => {
   });
 
   it("provider 失败：error 事件 + failed 收尾，原因中文可见（§9）", async () => {
-    const harness: Harness = { events: [], deltas: [], hostCalls: [], sentMessages: [] };
+    const harness: Harness = {
+      events: [],
+      deltas: [],
+      hostCalls: [],
+      sentMessages: [],
+      sentTools: []
+    };
     const out = await runTurn(
       {
         stream: async function* (): AsyncGenerator<StreamEvent> {
@@ -388,5 +415,275 @@ describe("runTurn", () => {
     expect(receipts[0]?.content).toContain("不存在的工具");
     expect(receipts[0]?.content).toBe(reason);
     expect(receipts[1]?.content).toBe("清单");
+  });
+});
+
+/**
+ * P1-2：联网开关只门控出站清单、不门控执行。
+ *
+ * 关掉联网后 `wireToolsFor` 把 web_search 从发给模型的清单里摘掉了，可派发那一层原先
+ * 静态放行花名册全部工具——模型只要**仿历史里那条 web_search** 调一次，照样真出网。
+ * 所以这三条验的是「清单与执行同一份判据」，而不只是 body 里少一个名字。
+ */
+describe("runTurn · 联网关闭那一轮的执行闸（P1-2）", () => {
+  const webSearchTurn: StreamEvent[][] = [
+    [
+      { kind: "tool-call", call: { id: "c1", name: "web_search", args: '{"query":"雾 写法"}' } },
+      { kind: "finish", reason: "tool_calls" }
+    ],
+    [
+      { kind: "text-delta", text: "那我基于已有文稿写" },
+      { kind: "finish", reason: "stop" }
+    ]
+  ];
+
+  it("关掉联网：模型仿历史调 web_search，派发层拒它、host 一次都没被叫，回执是一句能看懂的中文", async () => {
+    const { deps, harness } = makeDeps(webSearchTurn, {
+      ok: true,
+      text: "来源：360 搜索\n[a] 某页",
+      proposals: []
+    });
+    const out = await runTurn(deps, { ...input, webSearchEnabled: false });
+    expect(out.status).toBe("done");
+    // 真身没被叫到 = 一个字都没出网。这条断言才是 P1-2 的正身：清单过滤拦不住执行。
+    expect(harness.hostCalls).toEqual([]);
+    const card = harness.events.find((event) => event.type === "tool-call");
+    expect(card?.type === "tool-call" && card.ok).toBe(false);
+    const text = card?.type === "tool-call" ? card.resultText : "";
+    expect(text).toContain("联网");
+    expect(text).toContain("web_search");
+    // 关掉的那一轮也不许给模型留悬空 tool_call：这条调用有配对回执，下一轮才发得出去。
+    const second = harness.sentMessages[1] ?? [];
+    expect(second.map((one) => one.role)).toEqual(["system", "user", "user", "assistant", "tool"]);
+    expect(second[4]?.content).toContain("联网");
+  });
+
+  it("开着联网：同一份脚本照常派发到 host（闸只关该关的，不是把工具从花名册摘掉）", async () => {
+    const { deps, harness } = makeDeps(webSearchTurn, {
+      ok: true,
+      text: "来源：360 搜索",
+      proposals: []
+    });
+    const out = await runTurn(deps, { ...input, webSearchEnabled: true });
+    expect(out.status).toBe("done");
+    expect(harness.hostCalls.map((one) => one.name)).toEqual(["web_search"]);
+    const card = harness.events.find((event) => event.type === "tool-call");
+    expect(card?.type === "tool-call" && card.ok).toBe(true);
+  });
+
+  it("清单与执行是同一份判据：模型这一轮看得见哪几枚，就只叫得动哪几枚（逐枚对照开关两态）", async () => {
+    for (const enabled of [true, false]) {
+      for (const name of [...AGENT_TOOL_NAMES]) {
+        const { deps, harness } = makeDeps(
+          [
+            [
+              { kind: "tool-call", call: { id: "c1", name, args: "{}" } },
+              { kind: "finish", reason: "tool_calls" }
+            ],
+            [{ kind: "finish", reason: "stop" }]
+          ],
+          { ok: true, text: "跑了", proposals: [] }
+        );
+        await runTurn(deps, { ...input, webSearchEnabled: enabled });
+        // provider-client 拼 body 时对 req.tools 做的正是这一次映射，所以这里量的是真出站清单。
+        const visible = wireToolsFor(
+          (harness.sentTools[0] ?? []).map((tool) => ({ name: tool })),
+          enabled
+        ).map((tool) => tool.name);
+        expect(harness.hostCalls.length === 1).toBe(visible.includes(name));
+      }
+    }
+  });
+});
+
+/**
+ * P1-1 的③：工具执行不受打断约束。
+ *
+ * 台账 README:6399 那条「联网开着挂 200 秒零响应零报错」的另一半原因就在这里：
+ * 用户按了 Esc，而派发循环从头到尾没查过 signal，于是这一轮的工具照样一个个跑完。
+ */
+describe("runTurn · 工具派发要受打断约束（P1-1 的③）", () => {
+  const twoCalls: StreamEvent[][] = [
+    [
+      { kind: "tool-call", call: { id: "c1", name: "list_docs", args: "{}" } },
+      { kind: "tool-call", call: { id: "c2", name: "search_docs", args: '{"query":"雾"}' } },
+      { kind: "finish", reason: "tool_calls" }
+    ],
+    [{ kind: "finish", reason: "stop" }]
+  ];
+
+  it("第一条工具跑到一半按下打断：第二条不再执行，逐条留下回执并按 interrupted 干净收尾", async () => {
+    const { deps, harness } = makeDeps(
+      twoCalls,
+      { ok: true, text: "跑了", proposals: [] },
+      undefined,
+      1
+    );
+    const out = await runTurn(deps, input);
+    expect(out.status).toBe("interrupted");
+    expect(harness.hostCalls.map((one) => one.name)).toEqual(["list_docs"]);
+    const cards = harness.events.filter((event) => event.type === "tool-call");
+    expect(cards.length).toBe(2);
+    expect(cards[0]?.type === "tool-call" && cards[0].ok).toBe(true);
+    const skipped = cards[1];
+    expect(skipped?.type === "tool-call" && skipped.ok).toBe(false);
+    expect(skipped?.type === "tool-call" ? skipped.resultText : "").toContain("打断");
+    expect(harness.events.at(-1)?.type).toBe("interrupted");
+  });
+
+  it("工具执行期间才按下的打断，不许再往上游发下一笔请求（每轮开头也查 signal）", async () => {
+    const { deps, harness } = makeDeps(
+      [[{ kind: "tool-call", call: { id: "c1", name: "list_docs", args: "{}" } }], []],
+      { ok: true, text: "跑了", proposals: [] },
+      undefined,
+      1
+    );
+    const out = await runTurn(deps, input);
+    expect(out.status).toBe("interrupted");
+    expect(harness.sentMessages.length).toBe(1);
+    expect(harness.events.at(-1)?.type).toBe("interrupted");
+  });
+});
+
+/**
+ * P2-5（2026-10-10 扫描总单）：被截断的一轮必须是一个**上屏的事实**。
+ *
+ * 上游回 `finish_reason:"length"`（撞到输出上限）或流断成 `"incomplete"` 时，原先与正常 `stop`
+ * 走的是同一条路：循环只看 `collected.calls.length === 0` 就 `done` 收尾，界面上写「完成」。
+ * 用户读到半截回答、还以为模型答完了；那一轮里没传完的 tool_call 更是连一张卡都没留下。
+ *
+ * 修法用既有通路，不新造事件类型：
+ *   - 轮级事实 → 既有的 `error` 事件（进时间线、写 lastError，`history-truncated` 同一条先例）；
+ *   - 半截调用 → 既有的 `tool-call` 事件配一句 `ok:false` 回执，与 SKIPPED_BY_INTERRUPT 同款口径。
+ */
+describe("runTurn · 被截断的一轮要上屏（P2-5）", () => {
+  it("finish_reason:length：回答之外多发一条 error，说清这段不是完整回答", async () => {
+    const { deps, harness } = makeDeps(
+      [
+        [
+          { kind: "text-delta", text: "开头改紧了" },
+          { kind: "finish", reason: "length" }
+        ]
+      ],
+      { ok: true, text: "", proposals: [] }
+    );
+    const out = await runTurn(deps, input);
+    expect(harness.events.map((e) => e.type)).toEqual(["user-message", "message", "error"]);
+    const error = harness.events[2];
+    const message = error?.type === "error" ? error.message : "";
+    expect(message).toContain("截断");
+    // 内容已经流出去、也落了盘，这一轮不该被改判成失败；「没答完」由那条 error 说。
+    expect(out.status).toBe("done");
+  });
+
+  it("断流收尾 incomplete：同样上屏，句子说的是「流断了」而不是「长度上限」", async () => {
+    const { deps, harness } = makeDeps(
+      [
+        [
+          { kind: "text-delta", text: "说到一半" },
+          { kind: "finish", reason: "incomplete" }
+        ]
+      ],
+      { ok: true, text: "", proposals: [] }
+    );
+    const out = await runTurn(deps, input);
+    expect(harness.events.map((e) => e.type)).toEqual(["user-message", "message", "error"]);
+    const message = harness.events[2]?.type === "error" ? harness.events[2].message : "";
+    expect(message).toContain("流");
+    expect(message).not.toContain("长度上限");
+    expect(out.status).toBe("done");
+  });
+
+  it("正常 stop 收尾不许冒出截断那句话（不许对答完的人道歉）", async () => {
+    const { deps, harness } = makeDeps(
+      [
+        [
+          { kind: "text-delta", text: "写完了" },
+          { kind: "finish", reason: "stop" }
+        ]
+      ],
+      { ok: true, text: "", proposals: [] }
+    );
+    await runTurn(deps, input);
+    expect(harness.events.map((e) => e.type)).toEqual(["user-message", "message"]);
+  });
+
+  it("参数没收全的 tool_call 回一条 ok:false 的配对回执：同一 callId、host 一次都没被叫", async () => {
+    const { deps, harness } = makeDeps(
+      [
+        [
+          {
+            kind: "tool-call-truncated",
+            call: { id: "c1", name: "read_doc", args: '{"doc": "c' }
+          },
+          { kind: "finish", reason: "tool_calls" }
+        ]
+      ],
+      { ok: true, text: "这条绝不该被执行", proposals: [] }
+    );
+    const out = await runTurn(deps, input);
+    const card = harness.events[1];
+    if (card?.type !== "tool-call") throw new Error("半截调用没有落成回执卡");
+    expect(card.callId).toBe("c1");
+    expect(card.tool).toBe("read_doc");
+    expect(card.args).toBe('{"doc": "c');
+    expect(card.ok).toBe(false);
+    expect(card.resultText).toContain("没有被执行");
+    // 派发没发生 = 一半都没跑；用户看得见这张卡，而不是以为模型答完了。
+    expect(harness.hostCalls).toEqual([]);
+    expect(out.status).toBe("done");
+  });
+
+  it("半截参数绝不回喂上游：那张卡只上屏，不进 messages（回喂就是 400）", async () => {
+    // 上一轮的 assistant 消息只带**收全的**那些调用；本轮的 messages 里既没有半截 tool_call，
+    // 也没有为它配的 tool 回执——因为半截 JSON 一旦出站，严格端点整批拒收。
+    const { deps, harness } = makeDeps(
+      [
+        [
+          { kind: "tool-call", call: { id: "c1", name: "list_docs", args: "{}" } },
+          {
+            kind: "tool-call-truncated",
+            call: { id: "c2", name: "read_doc", args: '{"doc": "chap' }
+          },
+          { kind: "finish", reason: "tool_calls" }
+        ],
+        [
+          { kind: "text-delta", text: "那我看清单来写" },
+          { kind: "finish", reason: "stop" }
+        ]
+      ],
+      { ok: true, text: "跑了", proposals: [] }
+    );
+    await runTurn(deps, input);
+    const second = harness.sentMessages[1] ?? [];
+    const calls = second.find((m) => m.role === "assistant")?.toolCalls ?? [];
+    expect(calls.map((c) => c.id)).toEqual(["c1"]);
+    expect(second.filter((m) => m.role === "tool").map((m) => m.toolCallId)).toEqual(["c1"]);
+    expect(JSON.stringify(second)).not.toContain('{"doc": "chap');
+    // 两条都要在事件流里看得见：收全的那条 ok:true，半截的那条 ok:false（卡片顺序不作数）。
+    const executed = harness.events.find((e) => e.type === "tool-call" && e.callId === "c1");
+    const droppedCard = harness.events.find((e) => e.type === "tool-call" && e.callId === "c2");
+    expect(executed?.type === "tool-call" && executed.ok).toBe(true);
+    expect(droppedCard?.type === "tool-call" && droppedCard.ok).toBe(false);
+    expect(droppedCard?.type === "tool-call" ? droppedCard.resultText : "").toContain("没有被执行");
+  });
+
+  it("打断的那一路不冒截断句：半截参数本来就是这次 Esc 的产物", async () => {
+    const { deps, harness } = makeDeps(
+      [
+        [
+          { kind: "text-delta", text: "说了一半" },
+          {
+            kind: "tool-call-truncated",
+            call: { id: "c1", name: "read_doc", args: '{"doc"' }
+          },
+          { kind: "finish", reason: "aborted" }
+        ]
+      ],
+      { ok: true, text: "", proposals: [] }
+    );
+    const out = await runTurn(deps, input);
+    expect(out.status).toBe("interrupted");
+    expect(harness.events.map((e) => e.type)).toEqual(["user-message", "message", "interrupted"]);
   });
 });

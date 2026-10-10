@@ -37,6 +37,13 @@ import { createChangeRetentionStore } from "./change-retention-store.js";
 import { createBookService, registerBookIpc } from "./book-service.js";
 import { installCrashGuard } from "./crash-guard.js";
 import { installQuitFlush } from "./quit-flush.js";
+// 来源闸与窗口闸（2026-10-10 全仓扫描 P1-7 / P1-8）：判据只有 ipc-guard 那一份，装配层只负责装上。
+import {
+  installRendererTrust,
+  installWindowGuards,
+  resolveRendererLoad,
+  trustedHandler
+} from "./ipc-guard.js";
 import { createCredentialStore } from "./credential-store.js";
 import { electronCipher } from "./electron-cipher.js";
 import { registerPickDirectoryIpc } from "./pick-directory.js";
@@ -148,9 +155,27 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   // 无边框：原生标题条整条去掉（用户裁定，QQ/微信同款形态）。顶部拖动用渲染层栏头现成的
   // drag 区，右上角 —□× 走系统窗控叠加区（titleBarOverlay），高度对齐栏头的 50px，配色跟主题走。
+  // 【P1-8：加载哪里 = 谁算自己人，一次算完】
+  // 打包版**忽略** `ELECTRON_RENDERER_URL`：env 对同用户的任何本机进程都可读可写，
+  // 而那条 URL 带着整套 `window.mochen`（preload 不按打包态收窄）。开发态才认它，且只认 http/https。
+  const rendererLoad = resolveRendererLoad({
+    isPackaged: app.isPackaged,
+    envRendererUrl: process.env.ELECTRON_RENDERER_URL,
+    packagedIndex: fileURLToPath(new URL("../renderer/index.html", import.meta.url))
+  });
+  // 来源判定装上：所有 IPC 通道与 `will-navigate` 用的就是这一份（`ipc-guard.ts` 里唯一那份）。
+  installRendererTrust(rendererLoad.trust);
+
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
+    // 【P2-9：窗口地板】这套三栏布局在地板以下是**裁掉**而不是出滚动条（`.desktop-shell` 是整屏 grid，
+    // 再套一层 `overflow: hidden`，三根列各有下限）。数值不抄台账那句「1000 左右」，现读样式与布局
+    // store 的真身算出来，逐条钉在 `window-min-size.test.ts`：横向地板 1000 既容得下窄档三列之和（977），
+    // 又落在右栏自动收起档（1100）之下——收栏发生在撞地板之前；纵向地板 700 容得下思考窗那一格
+    // 按视口扣减后索要的 680。
+    minWidth: 1000,
+    minHeight: 700,
     show: false,
     title: "墨宸 AI",
     icon: fileURLToPath(new URL("../../resources/icon.ico", import.meta.url)),
@@ -170,6 +195,31 @@ app.whenReady().then(async () => {
     }
   });
   win.once("ready-to-show", () => win.show());
+
+  /**
+   * 【P1-8：窗口侧两道闸，装在任何加载动作之前】
+   *
+   * - `will-navigate`：只许继续停在我们那一份页面上（重载、HMR 整页重载、带 query/hash）。
+   *   放走一次导航，preload 就把整套 `window.mochen` 注给了外部页面——那是 P1-7 那条链的前半段。
+   * - `setWindowOpenHandler`：一律 `deny`（这产品没有第二扇窗），外链只在**现有** http/https 白名单
+   *   内交给系统浏览器（`web-source-link.ts` 的 `isOpenableWebSource`，判据不另立第二份）。
+   *
+   * 为什么 `notify` 只到系统通知＋主进程日志、不是应用内横幅：本轮不许改 `renderer/src/**`，
+   * 而主进程→渲染层现有的推送通道只有 `agentEvent` 与退出握手两条。若系统设置里本应用的通知被关掉，
+   * 用户在界面上**看不到**这次拦截，只有 console 与 crash.log 里有痕——这条局限写在这里，也写在报告里。
+   */
+  installWindowGuards({
+    onWillNavigate: (handler) => win.webContents.on("will-navigate", handler),
+    setWindowOpenHandler: (handler) => win.webContents.setWindowOpenHandler(handler),
+    openExternal: (url) => {
+      void shell.openExternal(url);
+    },
+    notify: (text) => {
+      if (Notification.isSupported()) {
+        new Notification({ title: "墨宸 AI · 拦下一次窗口跳转", body: text }).show();
+      }
+    }
+  });
 
   // 窗控叠加区配色随主题刷新：外观保存（下面 wrapper）与系统深浅切换（这里）各一条通路。
   // Linux 没有 setTitleBarOverlay 这个方法，typeof 守卫跳过；mode 定死 light/dark 时
@@ -298,11 +348,22 @@ app.whenReady().then(async () => {
   // 所以「跑字节的」住主进程，渲染层只留纯函数（估大小 / 文件名 / markdown→html）。
   ipcMain.handle(
     IPC_CHANNELS.buildExport,
-    async (_evt, docs: ExportableDoc[], meta: BookMeta | null, options: Partial<ExportOptions>) => {
-      const result = buildExportContent(docs, meta, options);
-      // Buffer 经 contextBridge 出去要变成 Uint8Array 才认得（Buffer 是它的子类，但结构化克隆按原型看）
-      return { ...result, bytes: result.bytes === null ? null : new Uint8Array(result.bytes) };
-    }
+    // 通道名在这里出现两次是有意的：一次给 electron 注册，一次给闸认「这条被挡时回什么形状、日志写谁」。
+    // 渲染层有一条源码契约测试钉着上面那句字面量（`export-dialog-wiring.test.ts`），所以不改注册写法，
+    // 只把 handler 交给 `trustedHandler` 包一层——判据仍然只有 `ipc-guard.ts` 那一份。
+    trustedHandler(
+      IPC_CHANNELS.buildExport,
+      async (
+        _evt,
+        docs: ExportableDoc[],
+        meta: BookMeta | null,
+        options: Partial<ExportOptions>
+      ) => {
+        const result = buildExportContent(docs, meta, options);
+        // Buffer 经 contextBridge 出去要变成 Uint8Array 才认得（Buffer 是它的子类，但结构化克隆按原型看）
+        return { ...result, bytes: result.bytes === null ? null : new Uint8Array(result.bytes) };
+      }
+    )
   );
 
   // 文件导出保存桥：渲染层递内容和文件名，主进程弹保存对话框并写盘。
@@ -312,30 +373,39 @@ app.whenReady().then(async () => {
   // 三处各多一份，而这里一个联合类型就够，且不新开通道＝不改 IPC 计数。
   ipcMain.handle(
     IPC_CHANNELS.saveFileExport,
-    async (_evt, content: string | Uint8Array, filename: string, title?: string) => {
-      const result = await dialog.showSaveDialog(win, {
-        title: title ?? "保存文件",
-        defaultPath: filename,
-        filters: [{ name: "所有文件", extensions: ["*"] }]
-      });
-      if (result.canceled || !result.filePath) return false;
-      const fs = await import("node:fs/promises");
-      if (typeof content === "string") {
-        await fs.writeFile(result.filePath, content, "utf-8");
-      } else {
-        // 字节直写：Buffer.from 复制一份，避免把渲染层那块内存直接交给 fs 去写
-        await fs.writeFile(result.filePath, Buffer.from(content));
+    // 同 buildExport：注册字面量有契约测试钉着，闸以包 handler 的方式加进来（判据一份，在 ipc-guard）。
+    trustedHandler(
+      IPC_CHANNELS.saveFileExport,
+      async (_evt, content: string | Uint8Array, filename: string, title?: string) => {
+        const result = await dialog.showSaveDialog(win, {
+          title: title ?? "保存文件",
+          defaultPath: filename,
+          filters: [{ name: "所有文件", extensions: ["*"] }]
+        });
+        if (result.canceled || !result.filePath) return false;
+        const fs = await import("node:fs/promises");
+        if (typeof content === "string") {
+          await fs.writeFile(result.filePath, content, "utf-8");
+        } else {
+          // 字节直写：Buffer.from 复制一份，避免把渲染层那块内存直接交给 fs 去写
+          await fs.writeFile(result.filePath, Buffer.from(content));
+        }
+        return true;
       }
-      return true;
-    }
+    )
   );
 
   // 系统通知桥
-  ipcMain.handle(IPC_CHANNELS.appNotify, async (_evt, title: string, body: string) => {
-    if (Notification.isSupported()) {
-      new Notification({ title, body }).show();
-    }
-  });
+  // 【P1-7】这条以前也是裸 `_event`：任何来源都能弹一条系统通知——那是钓鱼与「渲染层被劫持后
+  // 还在装正常」的最省事用法，现在来源不对就什么都不弹。
+  ipcMain.handle(
+    IPC_CHANNELS.appNotify,
+    trustedHandler(IPC_CHANNELS.appNotify, async (_evt, title: string, body: string) => {
+      if (Notification.isSupported()) {
+        new Notification({ title, body }).show();
+      }
+    })
+  );
   win.on("closed", () => agent.dispose());
 
   /**
@@ -350,9 +420,14 @@ app.whenReady().then(async () => {
       app.on("before-quit", handler);
     },
     onFlushReply: (handler) => {
-      ipcMain.handle(IPC_CHANNELS.appFlushQuitDone, (_evt, reply: FlushQuitReply) => {
-        handler(reply);
-      });
+      // 【P1-7】退出握手收的是渲染层递来的「哪些稿子没落盘」：来源不对就一条都不认，
+      // 否则一个外部页面能拿这句把关闭流程按在「有稿子没落盘」上（挡用户退出）。
+      ipcMain.handle(
+        IPC_CHANNELS.appFlushQuitDone,
+        trustedHandler(IPC_CHANNELS.appFlushQuitDone, (_evt, reply: FlushQuitReply) => {
+          handler(reply);
+        })
+      );
     },
     sendFlushRequest: () => {
       win.webContents.send(IPC_CHANNELS.appFlushQuitRequest);
@@ -379,7 +454,8 @@ app.whenReady().then(async () => {
     quit: () => app.quit()
   });
 
-  const rendererUrl = process.env.ELECTRON_RENDERER_URL;
-  if (rendererUrl) void win.loadURL(rendererUrl);
-  else void win.loadFile(fileURLToPath(new URL("../renderer/index.html", import.meta.url)));
+  // 【P1-8】加载的目标由上面 `resolveRendererLoad` 那一次算完：打包态永远落在本地 index.html 上，
+  // env 只在开发态生效；判据与 trust 用的是同一份，所以「加载的是哪」与「谁算自己人」不会对不上。
+  if (rendererLoad.kind === "url") void win.loadURL(rendererLoad.target);
+  else void win.loadFile(rendererLoad.target);
 });

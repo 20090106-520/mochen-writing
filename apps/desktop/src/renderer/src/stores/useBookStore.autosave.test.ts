@@ -9,6 +9,7 @@ import {
   DEFAULT_CHANGE_RETENTION,
   DEFAULT_PERMISSION_MODE,
   type BookOpenResult,
+  type DocContent,
   type DocWriteResult,
   type RendererApi
 } from "@mochen/contracts";
@@ -247,5 +248,65 @@ describe("scheduleAutoSave × 设置档", () => {
     await vi.advanceTimersByTimeAsync(60_000);
     // 第一笔的排程在第二笔 onEdit 时被重置，重置后读到 0 ，两次都不落盘。
     expect(writeDoc).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * P2-14（2026-10-10 扫描总单）：切标签那一瞬的「按新路径写旧内容」窗口。
+ * `openDocTab` 先换 `activeDocTab` 再 await 读盘，而挂起的自动保存窗原先**不在这次切换里取消**——
+ * 到点那次发的是「B 的路径 × A 的正文 × A 的指纹」。写盘侧的期望指纹闸只在两篇内容不同时兜得住；
+ * 新建章节的默认模板恰好相同，那种场合闸会放行，A 的字就真写进了 B 那一格。
+ * 修法取第一种形状：**切标签先 `cancelAutoSave()`**（闸的真身在 cancelAutoSave，这里只接线），
+ * 没落盘的字由 stashActive 留在暂存副本里，等切回来编辑、手动保存或退出兜底落盘。
+ */
+describe("切标签取消挂起的自动保存（P2-14）", () => {
+  it("A 脏 + 静默窗挂着、B 读盘在途：窗到点时一个字都不许发出去", async () => {
+    const store = await openedBook();
+    store.onEdit("A 篇没落盘的字\n");
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // 把 B 的读盘吊住，让 2000ms 静默窗正好落在「指针已是 B、正文还是 A」的危险窗里。
+    let releaseRead: ((doc: DocContent) => void) | undefined;
+    api.readDoc.mockImplementationOnce(
+      () =>
+        new Promise<DocContent>((resolve) => {
+          releaseRead = resolve;
+        })
+    );
+    const switching = store.openDocTab("chapters/02-b.md");
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // 钉死的失败形状：要么根本没发，要么发的仍是 A 的路径与 A 的正文——
+    // 绝不能按 B 的路径写 A 的正文。修法选了取消，所以这里断言一次都没发。
+    expect(writeDoc).not.toHaveBeenCalled();
+
+    releaseRead?.({
+      relPath: "chapters/02-b.md",
+      content: "B 篇正文\n",
+      fingerprint: "fp-b"
+    });
+    await switching;
+    expect(store.draft).toBe("B 篇正文\n");
+    // 取消不许丢字：A 的未保存内容还在暂存副本里，且仍标脏。
+    const stashedA = store.draftsByPath["chapters/01-a.md"];
+    expect(stashedA?.draft).toBe("A 篇没落盘的字\n");
+    expect(stashedA?.dirty).toBe(true);
+    // 也不会有一发「迟到复活」的保存：那次排程整体作废了。
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(writeDoc).not.toHaveBeenCalled();
+  });
+
+  it("切到有暂存副本的标签（零延迟、不等读盘）：同样取消 A 排的那一窗", async () => {
+    const store = await openedBook();
+    await store.openDocTab("chapters/02-b.md");
+    store.onEdit("B 篇的字\n");
+    // 切回 A：走暂存通路，没有任何 await——旧写法里 B 那一窗照样挂在那儿，
+    // 到点会拿着「此刻的 activeDocTab=A」去发保存，存的是 A 的干净稿、动作却纯属幽灵。
+    await store.openDocTab("chapters/01-a.md");
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(writeDoc).not.toHaveBeenCalled();
+    // B 的字没丢：还在暂存副本里等下一次编辑/手动/退出兜底。
+    expect(store.draftsByPath["chapters/02-b.md"]?.draft).toBe("B 篇的字\n");
+    expect(store.draftsByPath["chapters/02-b.md"]?.dirty).toBe(true);
   });
 });

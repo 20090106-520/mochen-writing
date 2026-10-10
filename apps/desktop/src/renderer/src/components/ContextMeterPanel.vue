@@ -16,6 +16,11 @@ const props = defineProps<{
   anchor: HTMLElement;
   rows: readonly ContextMeterRow[];
   profileName: string;
+  /**
+   * P1-3 截断提示：那句话整句由 utils/history-window.ts 组好，面板只渲染。
+   * 可选——空串/缺省都不显形；面板不许自己碰条数字（判据只许一处）。
+   */
+  historyNotice?: string;
 }>();
 const emit = defineEmits<{ close: [] }>();
 
@@ -74,6 +79,8 @@ function keydown(event: KeyboardEvent): void {
           <span class="context-meter-chars">{{ row.charsLabel }}</span>
         </li>
       </ul>
+      <!-- P1-3 截断提示：整句话由 util 组好递进来，面板不数条数（v-if 挂在值上，空串即不显形）。 -->
+      <p v-if="historyNotice" class="context-meter-history-notice">{{ historyNotice }}</p>
     </section>
   </Teleport>
 </template>

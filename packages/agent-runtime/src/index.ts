@@ -6,6 +6,7 @@ export * from "./diff.js";
 export * from "./patch-protocol.js";
 export * from "./rollout.js";
 export * from "./context.js";
+export * from "./history-window.js";
 export * from "./permission.js";
 export * from "./tools.js";
 export * from "./tool-loop.js";

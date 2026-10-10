@@ -77,6 +77,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* P1-3 截断提示：面板底部的单独一句「更早的 N 条没有发给模型」。
+   用次级警示色而不是红的——这不是错误，是预算事实；但必须比 note 灰更跳，
+   否则用户扫面板时那行字就混进装饰里了（失败可见，spec §9）。 */
+.context-meter-history-notice {
+  margin: 0;
+  padding: 3px 6px;
+  border-radius: 8px;
+  background: var(--warning-soft, rgb(217 154 0 / 10%));
+  color: var(--text-secondary, #999);
+}
+
 html[data-theme="dark"] .context-meter-panel {
   box-shadow:
     0 20px 52px color-mix(in srgb, var(--theme-foreground) 38%, transparent),

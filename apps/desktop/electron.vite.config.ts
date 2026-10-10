@@ -2,6 +2,8 @@ import vue from "@vitejs/plugin-vue";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "electron-vite";
+// CSP 的策略与插入位置都在这一份里（P1-8）：开发态与打包态各一条，装配点只负责挂上。
+import { rendererCspPlugin } from "./src/main/renderer-csp.js";
 
 // 版本号的单一真源是 apps/desktop/package.json：这里读进来 define 进 import.meta.env，
 // 渲染层「关于」页展示它——不许在页面里再写死一份版本字符串。
@@ -33,7 +35,9 @@ export default defineConfig({
     }
   },
   renderer: {
-    plugins: [vue()],
+    // 顺序要紧：`rendererCspPlugin` 在 `configResolved` 里按 command 选策略，
+    // 打包产物与开发服务端各自拿到自己那一条（两态共用一条会同时导致「白屏」与「白装」）。
+    plugins: [vue(), rendererCspPlugin()],
     define: {
       "import.meta.env.APP_VERSION": JSON.stringify(pkg.version)
     }

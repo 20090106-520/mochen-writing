@@ -28,10 +28,13 @@ import {
   assembleContext,
   checkWritePermission,
   createSession,
+  estimateTokens,
   eventsToMessages,
+  fitHistoryToWindow,
   findLatestSession,
-  findSessionById,
-  listSessions as listRolloutSessions,
+  foldOrphanUserMessages,
+  historyNotice,
+  historyStatFor,
   readSession,
   renderContextBlock,
   runTurn,
@@ -49,26 +52,24 @@ import type { ProviderSettings } from "./provider-settings.js";
 import { createBookScope, scopedApprovalKey } from "./book-scope.js";
 import { readForApproval } from "./approval-read.js";
 import { createDocToolHost } from "./doc-tools-host.js";
+// 会话的只读回程（回放与全书总览）住在 agent-session-read.ts：它不跑 turn、不碰提案，与服务编排不共享状态。
+import { listBookSessions, loadSavedSession } from "./agent-session-read.js";
 import { webSearch } from "./web-search.js";
+// 打断与出网时限的接线住在 provider-fetch.ts：这一层只负责把「这一轮那只 signal」递进去。
+import { abortableFetch } from "./provider-fetch.js";
 import { withPlugins, type PluginTools } from "./plugin-host.js";
 // 提示词装配住在 prompt-assembly.ts：那里只把「一轮的现场」排成一段话，与服务编排不共享状态。
-import type { PromptContext } from "./prompt-assembly.js";
+// 档案写入范围那句人话同属那一层（2026-10-10 搬过去，那边有测试；这里只是调用点）。
+import { writeScopeSentence, type PromptContext } from "./prompt-assembly.js";
 
 // UNBOUND 取自 contracts：它与渲染层是同一个跨进程哨兵。这里曾经另有一份本地声明，
 // 与渲染层 utils/agent-thread.ts 那份只靠一句注释绑定——同值只是巧合，改一边另一边照样编译通过。
 const MAX_TOOL_ROUNDS = 4;
 
-/** 档案可写范围的中文一句（spec §5.1 约束 3：写入范围是上限，不是授权）。 */
-function writeScopeSentence(profile: AgentProfile): string {
-  const scope = profile.writeScope;
-  if (scope.kind === "none") return `本轮你是「${profile.name}」，只出批注式提案，不直接改文稿。`;
-  if (scope.kind === "current-chapter") {
-    return scope.appendOnly === true
-      ? `本轮你是「${profile.name}」，改动只限当前章，且默认只在文末追加；改前文要单独提案。`
-      : `本轮你是「${profile.name}」，改动只限当前章。`;
-  }
-  return `本轮你是「${profile.name}」，改动只限：${scope.kinds.join(" / ")}。`;
-}
+// 这条线程已有一轮在跑时那句当场拒绝（P2-7）：只住这一处，由 startTurn 抛出、走既有拒绝通路
+// （useAgentStore.ts:397 把原话写进 notice 与该线程 lastError，渲染层一个字都不许抄，铁律 6）。
+const THREAD_BUSY_REASON =
+  "这条对话线程上一轮还在生成，不能同时跑两轮。请等它答完，或先按 Esc 打断当前这一轮。";
 
 /** 挂入的技能在装配层的形状：正文已经读好，relPath 是 `${source}:${dirName}`（与 SkillRef.id 同形）。 */
 export interface PinnedSkill {
@@ -129,6 +130,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
   const diffs = new Map<string, string>();
   const threads = new Map<string, string>();
   const controllers = new Map<string, AbortController>();
+  // 同一条线程当前在跑的那一轮（threadKey -> turnId，P2-7）：键用归一后的 threadKey（与 threads、
+  // publish 同一把），值带 turnId 是让 finally 只摘自己那一轮——替别人删锁是另一类事故。
+  const runningTurns = new Map<string, string>();
   // §6 的 a / p 两态：a 键在会话线程，p 键在「文档::工具」——两者都只存**并入书根之后**的键
   // （`scopedApprovalKey`，单一真身在 book-scope.ts），所以 A 书的授权不会命中 B 书的撞名文稿。
   // Plan 3 引入 AgentProfile 后把 autoSession 的本地那一半换成 profileId（spec §5.1 约束 1）。
@@ -362,7 +366,12 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     autos = autos.then(() => applyDecision(proposal.id, decision, "", true));
   }
 
-  function buildHost(turnId: string, threadKey: string, docRelPath: string | null): ToolHost {
+  function buildHost(
+    turnId: string,
+    threadKey: string,
+    docRelPath: string | null,
+    signal: AbortSignal
+  ): ToolHost {
     const base = createDocToolHost({
       root: () => deps.book.current()?.root ?? null,
       docs: () => deps.book.current()?.docs ?? [],
@@ -375,7 +384,12 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
       onProposal: (proposal, baseline) => registerProposal(turnId, threadKey, proposal, baseline),
       newId: deps.newId,
       now: deps.isoNow,
-      webSearch: (query) => webSearch(query, { fetchImpl: fetch })
+      // P1-1 的②：联网搜索必须接上**这一轮**那只 AbortController。
+      // 为什么接在这里而不是改 web-search.ts：它每个源都在 timedFetch 里把 init.signal
+      // 覆写成 `AbortSignal.timeout(6000)`（5-⑨ 量出来的防挂死闸门，不许拿掉），
+      // 所以 `abortableFetch` 在最外面这一层把两只并成一只——单源有界照旧，Esc 当场停下。
+      // 也不用全局状态去读「有没有打断」：换一轮就是另一只 signal，与每轮开关同一口径。
+      webSearch: (query) => webSearch(query, { fetchImpl: abortableFetch(fetch, signal) })
     });
     // 插件工具**叠加**（2026-10-07 批次 5-㉘）；那层住 plugin-host.ts。
     return withPlugins(base, deps.plugins);
@@ -536,6 +550,11 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         throw new Error(firstIssueMessage(parsed.error, "这一轮的参数不对，请重新发送。"));
       const turnId = deps.newId();
       const threadKey = input.threadKey.trim() === "" ? UNBOUND : input.threadKey.trim();
+      // P2-7 闸门（判定只在这一处）：这条线程已有一轮在跑 ⇒ 当场拒，一个 outbound 都不发。渲染层那个
+      // running 只是某个窗口自己的状态（两个窗口／IPC 重放都能叠两轮进同一个 JSONL）。位置必须在
+      // emit(turn-start) 之前：先发再拒，界面已挂上 running 却等不到自己那一轮的 turn-end。
+      if (runningTurns.has(threadKey)) throw new Error(THREAD_BUSY_REASON);
+      runningTurns.set(threadKey, turnId);
       const docRelPath = input.docRelPath ?? null;
       deps.emit({ type: "turn-start", turnId, threadKey });
       const controller = new AbortController();
@@ -579,7 +598,14 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         // 坏线程如实失败：把「读不回历史」当成「没有历史」会让模型失忆而用户毫不知情。
         const stored = await readSession(current.root, rel);
         // 历史只到上一次为止：本轮的 user 文本由 runTurn 自己追加，重复塞会看到两行一样的 user
-        const history: ChatMessage[] = eventsToMessages(stored.events);
+        // 注意：fullHistory 只是**候选**——下面 fitHistoryToWindow 之前它一条都不许上桌（P1-3）。
+        // P2-6：上一轮失败留下的孤儿 user（开流前就落盘）在这里折掉；判据只在 foldOrphanUserMessages 一处。
+        const folded = foldOrphanUserMessages({
+          history: eventsToMessages(stored.events),
+          userText: input.userText
+        });
+        if (folded.notice !== "") emitOnly(threadKey, turnId, folded.notice);
+        const fullHistory: ChatMessage[] = folded.kept;
         // 档案与上下文包（spec §5 / §5.1）：换档案只换提示词与上下文构造器，不换这条线程。
         const profile = profileOf(current, input.stageId);
         const { skills, missing } = await readPinnedSkills(input.skillPaths);
@@ -605,10 +631,23 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         // 档案的写入范围写进提示词：它是上限不是授权，模型自己先知道能碰哪些目录。
         const prompt = `${deps.promptFor(context)}\n${writeScopeSentence(profile)}`;
         const contextBlock = renderContextBlock(assembled);
+        const systemPromptText =
+          contextBlock === "" ? prompt : `${prompt}\n\n【已装配的上下文】\n${contextBlock}`;
+        // P1-3 历史切片：整段历史不再上桌。预留递的是**最终**系统提示词整串——上下文包已并进
+        // 它里再单独报 contextPackTokens 会双重扣减、历史被冤枉切掉；判据只在 fitHistoryToWindow 一处。
+        const fitted = fitHistoryToWindow({
+          history: fullHistory,
+          systemTokens: estimateTokens(systemPromptText),
+          userTokens: estimateTokens(input.userText)
+        });
+        // 截断必须让用户看见（spec §9）：走 emitOnly 既有 notice 通路（落一条 error 事件），
+        // 不新造事件类型；句子由 historyNotice 组，数字只有 fitted 那一份。
+        const notice = historyNotice(fitted);
+        if (notice !== "") emitOnly(threadKey, turnId, notice);
         const outcome = await runTurn(
           {
             stream: (req) => streamChat({ ...req, fetchImpl: deps.fetchImpl }),
-            host: buildHost(turnId, threadKey, docRelPath),
+            host: buildHost(turnId, threadKey, docRelPath, controller.signal),
             emit: (event) => publish(threadKey, event),
             emitDelta: (deltaKind, text) =>
               deps.emit({ type: "delta", turnId, threadKey, deltaKind, text }),
@@ -622,9 +661,8 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
           {
             turnId,
             threadKey,
-            systemPrompt:
-              contextBlock === "" ? prompt : `${prompt}\n\n【已装配的上下文】\n${contextBlock}`,
-            history,
+            systemPrompt: systemPromptText,
+            history: fitted.kept,
             userText: input.userText,
             thinkingLevel: input.thinkingLevel,
             webSearchEnabled: input.webSearchEnabled
@@ -647,6 +685,10 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         });
         deps.emit({ type: "turn-end", turnId, threadKey, status: "failed", message });
       } finally {
+        // 摘锁在 await drain() **之前**、覆盖每一条出口（早退／失败／异常）：漏一次这条线程就永久锁死，
+        // 而 drain 还挂在队列自动送上——它接到 turn-end 立刻打下一轮进来，那时占着就是被自己的闸门误拒。
+        // interrupt 不是捷径：它只让流收尾，槽位在这一句才空（本轮 turn-end 没出去之前仍占着）。
+        if (runningTurns.get(threadKey) === turnId) runningTurns.delete(threadKey);
         controllers.delete(turnId);
         await drain();
       }
@@ -678,46 +720,13 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
 
     async loadSession(threadKey: string, sessionId?: string): Promise<SessionLoadResult> {
       bookScope.sync();
-      // 入参守卫与 startTurnInputSchema 同口径（spec §4.1，裁定 n 延续）：越界抛单句中文，
-      // 非字符串（畸形 preload/被改写的载荷）归一成空串走 unbound，绝不崩在 .trim() 上。
-      const raw = typeof threadKey === "string" ? threadKey : "";
-      if (raw.length > 200) throw new Error("会话线程标识过长（最多 200 字），历史读不回来。");
-      const key = raw.trim() === "" ? UNBOUND : raw.trim();
-      // sessionId 与 threadKey 同一口径归一：非字符串/空白都当成「没指名」，走下面「最近那条」的老路径。
-      const id = typeof sessionId === "string" ? sessionId.trim() : "";
-      const current = deps.book.current();
-      if (current === null)
-        return { found: false, reason: "no-book", message: "还没打开作品目录，历史读不回来。" };
-      // 先查缓存：threads 只在拿到真实相对路径时才写入（threadFor 同口径），且换书即失效——
-      // 所以这里拿到的 rel 一定落在**当前这本书**里，不存在「缓存了查不到的线程」。
-      const cached = threads.get(key);
-      // 指名回放只认这一条 id 对应的文件，找不到就 no-session，**绝不退化成「最近那条」**：
-      // 面板点的 A 却回放 B，比读不到更糟。
-      const rel =
-        id !== ""
-          ? await findSessionById(current.root, key, id)
-          : (cached ?? (await findLatestSession(current.root, key)));
-      if (rel === null)
-        return { found: false, reason: "no-session", message: "这本书里没有这条线程的历史。" };
-      // 读到即缓存，与 threadFor 用同一个 Map：随后这一章第一次发轮会 append 到同一份 JSONL。
-      // 指名的那一条要**覆盖**缓存——选中即改写入目标，否则下一轮又被 threadFor 拉回最近那条。
-      if (id !== "" || cached === undefined) threads.set(key, rel);
-      // 首行坏：readSession 直接抛中文（rollout.ts:77-80 原文），这里不吞、不转 found:false。
-      const stored = await readSession(current.root, rel);
-      return {
-        found: true,
-        relPath: rel,
-        meta: stored.meta,
-        events: stored.events,
-        droppedLines: stored.droppedLines
-      };
+      // 只读回程住在 agent-session-read.ts（同 prompt-assembly.ts：为 800 行预算拆出去，且不共享状态）。
+      // 缓存回填用的还是这里那一张 threads 表——threadFor 与它必须共用，否则下一轮又拉回最近那条。
+      return loadSavedSession({ book: deps.book, threads }, threadKey, sessionId);
     },
 
     async listSessions(): Promise<SessionListItem[]> {
-      const current = deps.book.current();
-      // 无书返回空数组而不是抛错：面板那颗钮在无书时禁用，通路这边也不许谎报有会话。
-      if (current === null) return [];
-      return listRolloutSessions(current.root);
+      return listBookSessions(deps.book);
     },
 
     /**
@@ -736,11 +745,29 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
           items: [],
           chars: 0,
           approxTokens: 0,
-          empty: true
+          empty: true,
+          // 没开书＝没历史：给全零而不是省略，面板不必再猜 undefined 的含义。
+          history: historyStatFor(null)
         };
       const profile = profileOf(current, query.profileId ?? current.meta.activeStage);
       const { skills } = await readPinnedSkills(query.pinned ?? []);
       const assembled = await assembleFor(current, query.docRelPath, profile, [], skills);
+      // P1-3：占用条必须把历史这一格算进去——不报历史，剩余预算就是假的（面板上的「还能塞」骗人）。
+      // 读盘失败/没会话只少报这一格，不抛：预览是辅助信息，不该让界面报错（与上面装配同口径）。
+      // 数字只有 `historyStatFor` 那一份判据：这里再手搓一遍字段映射，就是第二套口径（铁律 6）。
+      let historyStat = historyStatFor(null);
+      try {
+        const key = query.docRelPath ?? UNBOUND;
+        const rel = threads.get(key) ?? (await findLatestSession(current.root, key));
+        if (rel !== null) {
+          const stored = await readSession(current.root, rel);
+          // 预览按「预留为零」的上界算（historyStatFor 里钉着）：真实 startTurn 只会切得更狠、
+          // 不会更松，占用条宁可略保守也不骗人说还有余量。
+          historyStat = historyStatFor(eventsToMessages(stored.events));
+        }
+      } catch {
+        // 坏线程/坏 JSONL：历史这一格归零，占用条其余部分照常。
+      }
       return {
         profileId: profile.id,
         profileName: profile.name,
@@ -754,7 +781,8 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         })),
         chars: assembled.chars,
         approxTokens: assembled.approxTokens,
-        empty: assembled.items.length === 0
+        empty: assembled.items.length === 0,
+        history: historyStat
       };
     },
 

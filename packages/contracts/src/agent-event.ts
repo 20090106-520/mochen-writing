@@ -93,6 +93,20 @@ export const agentEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({ ...turn, type: z.literal("interrupted"), pendingProposals: z.number().int().min(0) }),
   /**
+   * 这一轮的发历史上做了切窗（2026-10-10 扫描总单 P1-3）。
+   *
+   * 为什么必须是一条**事件**而不是 turn-end 的一句 message：截断发生在发请求之前，
+   * 而 `turn-end.message` 只在 `status==="failed"` 时才被界面摆出来（见 useAgentStore 的 turn-end 分支），
+   * 挂在那儿等于「只有失败才看得见」——正常回答完的一轮，用户永远不知道模型其实没读过前十轮。
+   * `droppedChars` 存的是**字符数**而不是 token：token 是本机估算，用户读不懂；字数读得懂。
+   */
+  z.object({
+    ...turn,
+    type: z.literal("history-truncated"),
+    droppedCount: z.number().int().min(0),
+    droppedChars: z.number().int().min(0)
+  }),
+  /**
    * 错误事件。`proposalId` 只在「这条提案已经确定失效」的三处出现（指纹不符 / 锚点不唯一 /
    * 写盘撞指纹）：那三处 pending 已删，卡上的状态必须随回放存活（缺陷③）。
    * 权限挡下与读盘失败**刻意不带**——提案还在待审队列里，标了就是谎报失效。

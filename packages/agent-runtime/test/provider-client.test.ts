@@ -280,9 +280,11 @@ describe("streamChat", () => {
     }
     expect(events.at(-1)).toEqual({ kind: "finish", reason: "aborted" });
     expect(events.some((e) => e.kind === "tool-call")).toBe(false);
+    // P2-5 的反向半边：用户自己按下的打断不是「模型被截断」，不该冒出截断回执去道歉。
+    expect(events.some((e) => e.kind === "tool-call-truncated")).toBe(false);
   });
 
-  it("流提前断开且工具参数未收全时，丢弃半截调用并收尾为 incomplete", async () => {
+  it("流提前断开且工具参数未收全时，收尾标 incomplete 并把半截调用如实递出去", async () => {
     // 无 finish_reason、也无 abort：走非 abort 的 incomplete 收尾分支（F2 修复点）。
     const { fetchImpl } = makeFetch(
       sse(
@@ -307,7 +309,13 @@ describe("streamChat", () => {
       )
     );
     const events = await run(fetchImpl);
-    expect(events).toEqual([{ kind: "finish", reason: "incomplete" }]);
+    // P2-5 改的就是「丢弃」这个动作本身：半截调用不再静默消失，而是以
+    // tool-call-truncated 递出去，由 runTurn 落成一张 ok:false 的回执卡。
+    // 「不许伪装成可执行调用」这半边一个字没松（下面紧邻的 length 用例同钉这一点）。
+    expect(events).toEqual([
+      { kind: "tool-call-truncated", call: { id: "c1", name: "read_doc", args: '{"doc": "c' } },
+      { kind: "finish", reason: "incomplete" }
+    ]);
   });
 
   it("流提前断开但工具参数已收全时，incomplete 收尾仍交出完整调用", async () => {
@@ -375,9 +383,10 @@ describe("streamChat", () => {
     ]);
   });
 
-  it("正常收尾（finish_reason）也必须丢弃参数未收全的工具调用（§6.3）", async () => {
-    // 钉 parked 项 (a)：finish_reason 分支此前只按 name==="" 过滤，不看 arguments 是否收全，
-    // 于是截断的工具参数会在「端点正常收尾」这条路上被原样交给下游（Task 8 会直接 JSON.parse 炸）。
+  it("正常收尾（finish_reason）也不许把参数未收全的调用伪装成可执行调用（§6.3 + P2-5）", async () => {
+    // 钉 parked 项 (a)：端点正常收尾时，参数未收全的 tool_call 仍然**不能**当可执行调用交出去——
+    // Task 8 会把这些 arguments 原样 JSON.parse，半截串就炸。
+    // P2-5 补上另一半：它不再是「静默丢弃」，而是一条 tool-call-truncated，界面上要看得见。
     const { fetchImpl } = makeFetch(
       sse(
         {
@@ -394,8 +403,11 @@ describe("streamChat", () => {
         { choices: [{ delta: {}, finish_reason: "tool_calls" }] }
       )
     );
-    // 断言完整事件序列：半截调用被丢弃，只剩收尾的 finish；等价于「不产出 tool-call」。
-    expect(await run(fetchImpl)).toEqual([{ kind: "finish", reason: "tool_calls" }]);
+    // 断言完整事件序列：可执行的那条没有产出，取而代之的是截断标记 + 收尾原因。
+    expect(await run(fetchImpl)).toEqual([
+      { kind: "tool-call-truncated", call: { id: "c1", name: "read_doc", args: '{"doc": "c' } },
+      { kind: "finish", reason: "tool_calls" }
+    ]);
   });
 
   it("abort 后停止消费后续帧：只产出已流出文本，第二帧 delta 绝不出现", async () => {
@@ -510,6 +522,129 @@ describe("streamChat", () => {
     expect(events).toEqual([
       { kind: "reasoning-delta", text: "想了一半" },
       { kind: "finish", reason: "aborted" }
+    ]);
+  });
+});
+
+/**
+ * P1-1 的①：上游空闲看门狗抛的那句话必须**原样**到用户眼前。
+ *
+ * 中文句子始终住在抛它的那一行（本仓既有约定），而 provider-client 对连接期的任何异常都套一层
+ * `无法连接模型服务端：`。套在裸 `fetch failed` 上是对的（那句英文用户读不懂），
+ * 套在**已经是人话**的看门狗句子上就变成两句话叠在一起、还谎称「连不上」——
+ * 真机情形是「连上了，是它不回话」。所以这里按 ProviderError 分流：已经成人话的不再套。
+ */
+describe("streamChat · 看门狗句子不许二次包装（P1-1 的①）", () => {
+  const hangMessage = "模型服务端 30 秒没有给出任何响应，已停止等待。";
+
+  it("fetchImpl 抛的是 ProviderError（看门狗那句）：整句原样上抛，不再加前缀", async () => {
+    const fetchImpl = async (): Promise<ProviderFetchResult> => {
+      throw new ProviderError(hangMessage);
+    };
+    const caught = await run(fetchImpl).catch((error: unknown) =>
+      error instanceof Error ? error.message : String(error)
+    );
+    expect(caught).toBe(hangMessage);
+    expect(caught).not.toContain("无法连接模型服务端");
+  });
+
+  it("裸网络错误仍然套上「无法连接模型服务端」：它自己不是人话", async () => {
+    const fetchImpl = async (): Promise<ProviderFetchResult> => {
+      throw new Error("fetch failed");
+    };
+    const caught = await run(fetchImpl).catch((error: unknown) =>
+      error instanceof Error ? error.message : String(error)
+    );
+    expect(caught).toContain("无法连接模型服务端");
+    expect(caught).toContain("fetch failed");
+  });
+});
+
+/**
+ * P2-5（2026-10-10 扫描总单）：`finish_reason:"length"` 与断流 `"incomplete"` 都不是「答完了」。
+ *
+ * 改之前这两种收尾与正常 `stop` 走的是同一条路——收尾原因虽然原样递下去了，但攒到一半、
+ * JSON 解析不了的 tool_call 在两个收尾分支里都是 `continue` 直接消失，界面上什么痕迹都没有。
+ * 这一层要钉住的有两件：
+ *   1. 收尾原因照原样递（`length` / `incomplete` 不许被折成 `stop`，那句人话由 runTurn 组）；
+ *   2. 半截调用改成一条独立的 `tool-call-truncated`，**不再静默**，但它也绝不冒充可执行调用。
+ */
+describe("streamChat · 被截断的收尾不再等于答完（P2-5）", () => {
+  it("finish_reason:length 且参数没收全 ⇒ 截断标记与 length 原因两条都递出去", async () => {
+    const { fetchImpl } = makeFetch(
+      sse(
+        {
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  { index: 0, id: "c1", function: { name: "read_doc", arguments: '{"doc": "c' } }
+                ]
+              }
+            }
+          ]
+        },
+        { choices: [{ delta: {}, finish_reason: "length" }] }
+      )
+    );
+    expect(await run(fetchImpl)).toEqual([
+      { kind: "tool-call-truncated", call: { id: "c1", name: "read_doc", args: '{"doc": "c' } },
+      { kind: "finish", reason: "length" }
+    ]);
+  });
+
+  it("finish_reason:length 但参数已经收全 ⇒ 那条调用照常可执行（截断不等于一律作废）", async () => {
+    // 反向钉桩：新事件类型只收「解析不了」的那些。把门禁扩成「length 一律丢弃」会让
+    // 模型这一轮真的能做的调用凭空消失——那是同一个洞的另一面。
+    const { fetchImpl } = makeFetch(
+      sse(
+        {
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  { index: 0, id: "c1", function: { name: "list_docs", arguments: "{}" } }
+                ]
+              }
+            }
+          ]
+        },
+        { choices: [{ delta: {}, finish_reason: "length" }] }
+      )
+    );
+    expect(await run(fetchImpl)).toEqual([
+      { kind: "tool-call", call: { id: "c1", name: "list_docs", args: "{}" } },
+      { kind: "finish", reason: "length" }
+    ]);
+  });
+
+  it("两条调用一条收全一条半截 ⇒ 收全的照常执行、半截的单独标记，顺序仍按 index", async () => {
+    // 逐条判定，不是「这一轮有半截就整批作废」，也不是「有一条能跑就把半截的那条藏起来」。
+    const { fetchImpl } = makeFetch(
+      sse(
+        {
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  { index: 0, id: "c1", function: { name: "list_docs", arguments: "{}" } },
+                  {
+                    index: 1,
+                    id: "c2",
+                    function: { name: "read_doc", arguments: '{"doc": "chap' }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        { choices: [{ delta: {}, finish_reason: "length" }] }
+      )
+    );
+    expect(await run(fetchImpl)).toEqual([
+      { kind: "tool-call", call: { id: "c1", name: "list_docs", args: "{}" } },
+      { kind: "tool-call-truncated", call: { id: "c2", name: "read_doc", args: '{"doc": "chap' } },
+      { kind: "finish", reason: "length" }
     ]);
   });
 });

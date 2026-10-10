@@ -28,7 +28,37 @@ export type StreamEvent =
   | { kind: "reasoning-delta"; text: string }
   | { kind: "text-delta"; text: string }
   | { kind: "tool-call"; call: AssistantToolCall }
+  /**
+   * 参数没收全、因此**没有**交给执行的那条调用（P2-5）。
+   *
+   * 它不是可执行调用——上面 `argumentsComplete` 那道门禁一个字没松，半截 JSON 仍然不许出站
+   * （Task 8 原样 JSON.parse 会炸，严格端点回喂半截 arguments 直接 400）。
+   * 新增这一条是因为「丢弃」这个动作曾经是**静默**的：用户看到「模型答完了」，
+   * 实际有一条工具调用凭空消失。现在它成为一个事实，由 runTurn 落成一张 ok:false 的回执卡。
+   */
+  | { kind: "tool-call-truncated"; call: AssistantToolCall }
   | { kind: "finish"; reason: string };
+
+/**
+ * 「这一轮是被截断的」那句人话（P2-5）。句子只住这一处，与它判的那个 reason 同源：
+ * runTurn 只负责把非空串发成既有的 `error` 事件，渲染层与 agent-service 都不许再抄一份
+ * `reason === "length"`（铁律 6）。不是截断的收尾（stop / tool_calls / aborted）回空串，
+ * 界面就不出行——「对答完的人道歉」是这类 notice 最常见的坏死法。
+ */
+export function truncationNotice(reason: string): string {
+  if (reason === "length")
+    return "这一轮被模型的输出长度上限截断了：上面那段不是完整回答。要更长的内容请把要求拆开、分几次发。";
+  if (reason === "incomplete")
+    return "这一轮的响应流在中途断了，模型没有说完，工具调用也可能压根没发出来。重来一次，或把要求拆短一点再发。";
+  return "";
+}
+
+/**
+ * 半截 tool_call 那张回执卡上的句子（与 truncationNotice 同一处措辞）。
+ * 口径照 `SKIPPED_BY_INTERRUPT`：一句中文说清「没有执行」，逐条配对，绝不静默丢。
+ */
+export const TRUNCATED_TOOL_CALL_RECEIPT =
+  "模型这一轮的这条工具调用参数没有传全（JSON 解析不了），所以它没有被执行。";
 
 export interface StreamRequest {
   fetchImpl: ProviderFetch;
@@ -143,6 +173,31 @@ function argumentsComplete(args: string): boolean {
   }
 }
 
+/**
+ * 收尾时把攒下的分片调用摊成事件——正常 finish_reason 与断流两个分支共用同一段判定。
+ *
+ * 按 index 升序；`name` 为空的当作没发生过（§6.3 规则 2）；参数没收全的那一条
+ * **不再静默 continue**，改成 tool-call-truncated 递下去（P2-5）。仍然不作为可执行调用交出，
+ * 所以「半截 JSON 不许进 messages / 不许回喂上游」这半边一点没松。
+ */
+function pendingCallEvents(calls: Map<number, PendingCall>): StreamEvent[] {
+  const events: StreamEvent[] = [];
+  for (const [index, call] of [...calls.entries()].sort(([a], [b]) => a - b)) {
+    if (call.name === "") continue;
+    const shaped: AssistantToolCall = {
+      id: call.id === "" ? `call_${index}_${calls.size}` : call.id,
+      name: call.name,
+      args: call.args
+    };
+    events.push(
+      argumentsComplete(call.args)
+        ? { kind: "tool-call", call: shaped }
+        : { kind: "tool-call-truncated", call: shaped }
+    );
+  }
+  return events;
+}
+
 export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEvent> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
@@ -182,6 +237,12 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
     })
     .catch((error: unknown) => {
       if (req.signal.aborted) return null;
+      // 已经是人话的 ProviderError（上游看门狗那句「30 秒没响应」）原样抛出，不再套前缀。
+      // 为什么不套：本层的「无法连接模型服务端」只描述连不上，而看门狗触发时连接往往是通的、
+      // 只是对面不再吐字节——套上前缀会让用户改去看网络/密钥，方向就错了。
+      // 而且这句话在 provider-fetch.ts 里只写了一遍（铁律 6），这里再包一层等于两处说同一件事。
+      // 非 ProviderError（真·发不出请求，如 DNS 失败）仍走原有包装，语义一字不改。
+      if (error instanceof ProviderError) throw error;
       throw new ProviderError(
         `无法连接模型服务端：${snippet(error instanceof Error ? error.message : String(error))}`,
         {
@@ -228,20 +289,7 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
         calls.set(index, held);
       }
       if (delta.finishReason !== "") {
-        for (const [index, call] of [...calls.entries()].sort(([a], [b]) => a - b)) {
-          if (call.name === "") continue;
-          // §6.3 与下方断流分支同一条门禁：端点正常收尾（finish_reason）时，
-          // 参数未收全的 tool_call 也必须丢弃——Task 8 会把这些 arguments 原样 JSON.parse，半截串就炸。
-          if (!argumentsComplete(call.args)) continue;
-          yield {
-            kind: "tool-call",
-            call: {
-              id: call.id === "" ? `call_${index}_${calls.size}` : call.id,
-              name: call.name,
-              args: call.args
-            }
-          };
-        }
+        for (const event of pendingCallEvents(calls)) yield event;
         yield { kind: "finish", reason: delta.finishReason };
         return;
       }
@@ -255,18 +303,13 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
     yield { kind: "finish", reason: "aborted" };
     return;
   }
-  // 端点没给 finish_reason 就断流了：只把参数收全的工具调用交出去，其余丢弃，再标 incomplete。
-  for (const [index, call] of [...calls.entries()].sort(([a], [b]) => a - b)) {
-    if (call.name === "") continue;
-    if (!argumentsComplete(call.args)) continue;
-    yield {
-      kind: "tool-call",
-      call: {
-        id: call.id === "" ? `call_${index}_${calls.size}` : call.id,
-        name: call.name,
-        args: call.args
-      }
-    };
+  // 端点没给 finish_reason 就断流了：收全的调用照常交出，没收全的那条标成截断（不再静默丢），
+  // 再由收尾原因 incomplete 让 runTurn 把「这一轮没说完」说给人听（P2-5）。
+  for (const event of pendingCallEvents(calls)) {
+    // 打断这一路不报截断：那条半截参数是用户这次 Esc 自己的产物，
+    // 循环那侧已有 INTERRUPTED_MESSAGE，再冒一句「模型被截断」就是把打断说成模型的错。
+    if (event.kind === "tool-call-truncated" && req.signal.aborted) continue;
+    yield event;
   }
   yield { kind: "finish", reason: req.signal.aborted ? "aborted" : "incomplete" };
 }

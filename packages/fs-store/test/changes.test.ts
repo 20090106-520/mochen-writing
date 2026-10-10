@@ -95,16 +95,64 @@ describe("readChange", () => {
     expect(read.fingerprint).toBe(makeFingerprint(before));
   });
 
-  it("形状不对的句柄一律拒（`${writeDocFile}` 只会写第一种形状）", async () => {
-    for (const bad of [
-      "chapters/01-开局.md", // 不是备份
-      ".mochen/changes/not-a-stamp/chapters/01-开局.md.bak", // 时间戳目录名不合式
-      ".mochen/changes/2026-10-05T12-00-00-000Z/01-开局.md.bak", // 少一层
-      ".mochen/changes/2026-10-05T12-00-00-000Z/chapters/../../evil.md.bak", // 想翻出书外
-      ".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak.bak"
-    ]) {
-      await expect(readChange(root, bad)).rejects.toThrow(/invalid-path|outside-book/);
+  it("句柄不对时回的是**那一条**对不上的理由，不是一句笼统的拒", async () => {
+    // 逐条钉真实理由（原来五条共用 /invalid-path|outside-book/ 一条正则糊过去）：
+    // 形状不合法与盘上没有是两件事，混成一句用户就不知道该干什么。
+    // 后两条原本也算「形状不对」，其实不是——`<文稿>.bak` 这种文稿名是合法相对路径，
+    // 产品只是不会写出这种备份，所以真相由是「盘上没有这一份」。
+    const cases: ReadonlyArray<readonly [string, RegExp, string]> = [
+      ["chapters/01-开局.md", /invalid-path/, "不是备份"],
+      [".mochen/changes/not-a-stamp/chapters/01-开局.md.bak", /invalid-path/, "时间戳目录名不合式"],
+      [
+        ".mochen/changes/2026-10-05T12-00-00-000Z/chapters/../../evil.md.bak",
+        /invalid-path/,
+        "想翻出书外"
+      ],
+      [
+        ".mochen/changes/2026-10-05T12-00-00-000Z/01-开局.md.bak",
+        /missing-backup/,
+        "盘上没有这一份"
+      ],
+      [
+        ".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak.bak",
+        /missing-backup/,
+        "双后缀"
+      ]
+    ];
+    for (const [bad, reason, why] of cases) {
+      await expect(readChange(root, bad), why).rejects.toThrow(reason);
     }
+  });
+
+  it("读不到的备份回中文错，不把裸 ENOENT 甩到渲染层", async () => {
+    const error = await readChange(
+      root,
+      ".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak"
+    ).catch((e: unknown) => e as Error);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/改稿历史里没有这一份备份/);
+    expect((error as Error).message).not.toMatch(/ENOENT|no such file/i);
+  });
+
+  it("备份句柄解到书外 ⇒ outside-book，且书外那份内容一个字都不读回来", async () => {
+    // 上面几条挡的是**写法**；这一条挡的是「写法逐字合法、真实位置在书外」。
+    // 本机非开发者模式，fs.symlink 直接 EPERM，所以走 `readChange` 的解析器缝：
+    // 注入一个把那条 .bak 解到书外的实现，等价于书目录里躺着一个指向书外的软链。
+    const scratch = await mkdtemp(path.join(tmpdir(), "mochen-readlink-"));
+    const stamp = "2026-10-05T12-00-00-000Z";
+    const bakRel = path.join(".mochen", "changes", stamp, "chapters", "01-开局.md.bak");
+    await mkdir(path.join(scratch, path.dirname(bakRel)), { recursive: true });
+    await writeFile(path.join(scratch, bakRel), "书内的真备份。", "utf8");
+    const outside = path.join(other, "private.bak");
+    await writeFile(outside, "书外的私人内容。", "utf8");
+    const handle = `.mochen/changes/${stamp}/chapters/01-开局.md.bak`;
+
+    const resolved = path.join(scratch, bakRel);
+    const linkOut = async (target: string) => (target === resolved ? outside : target);
+    await expect(readChange(scratch, handle, linkOut)).rejects.toThrow(/outside-book/);
+    // 逐字合法的那条句柄仍照常读得回——闸不许把日常预览判成越界。
+    expect((await readChange(scratch, handle)).content).toBe("书内的真备份。");
+    await rm(scratch, { recursive: true, force: true });
   });
 });
 
@@ -196,33 +244,34 @@ describe("restoreChange", () => {
     await rm(scratch, { recursive: true, force: true });
   });
 
-  it("目标文稿是指向书外的软链 ⇒ 拒（形状检查看不出来，只有 realpath 看得穿）", async () => {
-    // Windows 上建**文件**软链要管理员权限或开发者模式，CI/本机常常 EPERM。
-    // 这条守卫在 Windows 上造不出该形状，如实跳过而不是写个恒绿的假用例；
-    // 同一道守卫的目录版本（下一条用 junction）在本机是跑得起来的。
-    if (process.platform === "win32") return;
-    const scratch = await mkdtemp(path.join(tmpdir(), "mochen-restore-link-"));
-    await mkdir(path.join(scratch, "chapters"), { recursive: true });
-    await mkdir(path.join(scratch, ".mochen", "changes"), { recursive: true });
-    const stamp = "2026-10-05T12-00-00-000Z";
-    await mkdir(path.join(scratch, ".mochen", "changes", stamp, "chapters"), { recursive: true });
-    await writeFile(
-      path.join(scratch, ".mochen", "changes", stamp, "chapters", "01-开局.md.bak"),
-      CONTENT_V1,
-      "utf8"
-    );
-    // 库外那个文件绝不能被改
-    const victim = path.join(other, "victim.md");
-    await writeFile(victim, "库外原文，绝不能被动。", "utf8");
-    await symlink(victim, path.join(scratch, "chapters", "01-开局.md"), "file");
+  it.skipIf(process.platform === "win32")(
+    "目标文稿是指向书外的软链 ⇒ 拒（形状检查看不出来，只有 realpath 看得穿）",
+    async () => {
+      // Windows 上建**文件**软链要管理员权限或开发者模式，本机 EPERM ⇒ 如实标成 skip 而不是
+      // 写一条 `if (win32) return` 的恒绿假用例；同一道守卫在 Windows 上由注入解析器那条用例真跑。
+      const scratch = await mkdtemp(path.join(tmpdir(), "mochen-restore-link-"));
+      await mkdir(path.join(scratch, "chapters"), { recursive: true });
+      await mkdir(path.join(scratch, ".mochen", "changes"), { recursive: true });
+      const stamp = "2026-10-05T12-00-00-000Z";
+      await mkdir(path.join(scratch, ".mochen", "changes", stamp, "chapters"), { recursive: true });
+      await writeFile(
+        path.join(scratch, ".mochen", "changes", stamp, "chapters", "01-开局.md.bak"),
+        CONTENT_V1,
+        "utf8"
+      );
+      // 库外那个文件绝不能被改
+      const victim = path.join(other, "victim.md");
+      await writeFile(victim, "库外原文，绝不能被动。", "utf8");
+      await symlink(victim, path.join(scratch, "chapters", "01-开局.md"), "file");
 
-    const handle = `.mochen/changes/${stamp}/chapters/01-开局.md.bak`;
-    await expect(restoreChange(scratch, handle, makeFingerprint("任意"))).rejects.toThrow(
-      /outside-book/
-    );
-    expect(await readFile(victim, "utf8")).toBe("库外原文，绝不能被动。");
-    await rm(scratch, { recursive: true, force: true });
-  });
+      const handle = `.mochen/changes/${stamp}/chapters/01-开局.md.bak`;
+      await expect(restoreChange(scratch, handle, makeFingerprint("任意"))).rejects.toThrow(
+        /outside-book/
+      );
+      expect(await readFile(victim, "utf8")).toBe("库外原文，绝不能被动。");
+      await rm(scratch, { recursive: true, force: true });
+    }
+  );
 
   it("备份区整个是指向书外的 junction ⇒ 拒（用目录链接代文件软链：Windows 不需要管理员权限）", async () => {
     const scratch = await mkdtemp(path.join(tmpdir(), "mochen-restore-junction-"));
@@ -250,8 +299,7 @@ describe("restoreChange", () => {
     await rm(scratch, { recursive: true, force: true });
   });
 
-  it("备份句柄自己是指向书外的软链 ⇒ 拒", async () => {
-    if (process.platform === "win32") return;
+  it.skipIf(process.platform === "win32")("备份句柄自己是指向书外的软链 ⇒ 拒", async () => {
     const scratch = await mkdtemp(path.join(tmpdir(), "mochen-restore-badlink-"));
     await mkdir(path.join(scratch, "chapters"), { recursive: true });
     await mkdir(path.join(scratch, ".mochen", "changes", "2026-10-05T12-00-00-000Z", "chapters"), {

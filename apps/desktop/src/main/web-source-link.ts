@@ -1,4 +1,6 @@
 import { IPC_CHANNELS } from "@mochen/contracts";
+// 来源闸与参数形状（P1-7）：判据只有一份，住在 ipc-guard.ts。
+import { handleTrusted } from "./ipc-guard.js";
 
 /**
  * 「点开这条搜索来源」的那一条 IPC（2026-10-06 批次 5-⑨）。
@@ -46,7 +48,10 @@ type Handler = (channel: string, fn: (...args: unknown[]) => unknown) => void;
 
 /** 只注册这一条通道。它不碰任何 store，纯粹是 shell 动作。 */
 export function registerWebSourceIpc(handle: Handler, shell: ExternalOpener): void {
-  handle(IPC_CHANNELS.appOpenWebSource, async (_event, url) => {
+  // 【2026-10-10 全仓扫描 P1-7】这条是**唯一**由渲染层递 URL 出去的通道，白名单只挡住了协议，
+  // 挡不住「谁在发这条」：远程页面若被导航进来（P1-8），照样能一条一条地叫系统浏览器打开地址。
+  // 来源与形状判定都在 ipc-guard，这里只留那条 http/https 白名单（它才是本文件的判据）。
+  handleTrusted(handle, IPC_CHANNELS.appOpenWebSource, async (_event, url) => {
     const raw = typeof url === "string" ? url : "";
     if (!isOpenableWebSource(raw)) throw new Error("只允许打开 http/https 的搜索来源链接。");
     await shell.openExternal(raw);

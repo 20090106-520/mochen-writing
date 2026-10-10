@@ -18,6 +18,8 @@ import {
   contextMeterRows,
   contextMeterSummary
 } from "../utils/context-meter";
+// P1-3：历史这一格的判据只住在 utils/history-window.ts，这里只挂线（铁律 6）。
+import { appendHistoryRow, historyNoticeText } from "../utils/history-window";
 import { activeProfileOf } from "../utils/profile-options";
 import { threadKeyFor, useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
@@ -44,7 +46,11 @@ const source = computed(() => ({
 }));
 const key = computed(() => contextMeterQueryKey(source.value));
 const summary = computed(() => contextMeterSummary(agent.contextPreview));
-const rows = computed(() => contextMeterRows(agent.contextPreview));
+// 占用条把历史这一格算进去（P1-3）：不报历史的剩余预算是假的。判据在 util，这里只串。
+const rows = computed(() =>
+  appendHistoryRow(contextMeterRows(agent.contextPreview), agent.contextPreview)
+);
+const historyNotice = computed(() => historyNoticeText(agent.contextPreview));
 
 async function refresh(): Promise<void> {
   const ticket = (inflight += 1);
@@ -96,6 +102,7 @@ function toggle(event: MouseEvent): void {
     :anchor="anchor"
     :rows="rows"
     :profile-name="agent.contextPreview?.profileName ?? ''"
+    :history-notice="historyNotice"
     @close="open = false"
   />
 </template>

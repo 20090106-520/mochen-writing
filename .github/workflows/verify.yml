@@ -1,0 +1,57 @@
+# 门禁（CI）——扫描总单第八节「第 0 步」那条：接一条 CI 跑 `pnpm verify`，退出码不吞。
+#
+# 为什么值得单独一条：README 的门面写着「一条命令串起五道闸，任何一道红就不能提交」，
+# 而这次扫描实跑确认过——既没有 CI（`.github` 当时不存在），也没有 git 钩子
+# （`core.hooksPath` 为空、`.git/hooks` 里只有 sample 文件）。那句话原来全靠人记得跑。
+#
+# 为什么这里不用 `| tail`、`continue-on-error`、`|| true` 之类的写法：
+# CI 的价值就是把"红"变成拦得住的东西。管道会把退出码换成最后一个命令的码，
+# 本机就吃过这个亏（typecheck 日志里同时有 `error TS2300` 与 `[ELIFECYCLE] ... exit code 2`，
+# 而外面报的是 exit 0）。GitHub Actions 默认逐步检查非零码，所以一步都不许包进管道。
+name: 门禁 pnpm verify
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# 同一分支上后推的提交会把前一次还在跑的 job 取消：CI 时长和 runner 都一样，
+# 但只有最后那次才是真要看的结果。
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: 六路 typecheck + lint + boundary + budget + 全量测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 版本从 package.json 的 packageManager 读（corepack 口径），这里不再钉一份号。
+      - uses: pnpm/action-setup@v4
+        name: 准备 pnpm（读 packageManager 字段）
+
+      - uses: actions/setup-node@v4
+        name: 准备 Node
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: 工具版本自证（拿不到版本号就别继续）
+        run: |
+          node --version
+          corepack --version
+          pnpm --version
+
+      # electron / esbuild 的 postinstall 会去下载上百 MB 二进制，而 `pnpm verify` 里没有任何一步
+      # 真起窗口：测试全在 node 环境、electron 由用例 mock。CI 上跳过下载，省下来的都是排队时间。
+      - name: 安装依赖（frozen lockfile，锁不上就是红）
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: pnpm install --frozen-lockfile
+
+      # 唯一的一道闸：整条 verify。它内部是 `&&` 串起来的，任何一段红都会把整个 job 变红。
+      - name: pnpm verify
+        run: pnpm verify

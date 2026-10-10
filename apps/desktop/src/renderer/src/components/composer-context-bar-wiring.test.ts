@@ -132,7 +132,13 @@ describe("绑定条两格 · 有真契约的那一格才许挂弹层（裁定 R1
     const store = typeScriptSource("stores/useBookStore.ts");
     expect(store).toContain("async setActiveStage(stageId: string): Promise<void>");
     expect(store).toContain("await window.mochen.saveMeta(next)");
-    expect(store).toContain("这一档不在本书的阶段列表里，没去改。");
+    // 2026-10-10：这一句理由搬进了 `utils/meta-mode-step`（四档开关的判定共一处），
+    // 所以这里钉两件事——判定在那一份真身里，且 store 里不许留第二份。
+    expect(typeScriptSource("utils/meta-mode-step.ts")).toContain(
+      "这一档不在本书的阶段列表里，没去改。"
+    );
+    expect(store).not.toContain("这一档不在本书的阶段列表里");
+    expect(store).toContain("activeStageStep(this.meta, stageId)");
     expect(store).not.toContain("this.meta.activeStage = stageId");
   });
 });

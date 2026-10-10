@@ -11,6 +11,8 @@ import {
 import { defaultAtomicFs, type AtomicWriteFs } from "@mochen/fs-store";
 
 import { createBookService, registerBookIpc, type BookService } from "./book-service.js";
+// 来源闸（P1-7）：夹具只造事件形状，判据仍只在 ipc-guard 一份。
+import { trustedRendererEvent } from "./ipc-trust-fixture.js";
 
 /**
  * 设定数据走主进程落盘（2026-10-09 扫描总单 P0-7·主进程这一层）。
@@ -163,16 +165,18 @@ describe("book-data：IPC 注册", () => {
     await service.open(rootA);
     // handler 的第一枚实参是 Electron 的 event，渲染层递来的参数从第二枚起——
     // 这里若少递一位，键就会落到 event 位上，下面的断言当场红。
-    expect(await write(undefined, "writing-goal", JSON.stringify({ goal: 1 }))).toEqual({
+    expect(
+      await write(trustedRendererEvent(), "writing-goal", JSON.stringify({ goal: 1 }))
+    ).toEqual({
       ok: true
     });
-    expect(await read(undefined, "writing-goal")).toEqual({
+    expect(await read(trustedRendererEvent(), "writing-goal")).toEqual({
       ok: true,
       json: JSON.stringify({ goal: 1 })
     });
     // 跨进程来的东西一律当不可信：频道这层也要挡住非法键。
-    expect(readReason((await read(undefined, "../book.json")) as BookDataReadResult)).toBe(
-      "invalid-key"
-    );
+    expect(
+      readReason((await read(trustedRendererEvent(), "../book.json")) as BookDataReadResult)
+    ).toBe("invalid-key");
   });
 });

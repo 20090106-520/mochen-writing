@@ -1,6 +1,13 @@
+# 依赖与构建产物：不是人手写的，不参与格式闸。
 pnpm-lock.yaml
 node_modules
 out
 dist
-docs/superpowers
 .superpowers
+
+# 【P2-10 的声明式豁免】历史台账与方案/规格文档不参与 format 检查——理由与代价都记在这儿：
+# 真把它们放进闸，prettier 要改 20 个文件、-34575 / +38530 行（它连 markdown 里的代码块一起重排），
+# 等于把整条开发台账重写一遍，换来的只是排版一致。
+# 这条排除由 `tools/prettier-scope.test.mjs` 钉着：名单之外再出现源码树级别的排除，闸直接红；
+# 这条理由注释被删掉，闸也直接红。盲区可以存在，但必须挂着牌子。
+docs/superpowers

@@ -6,6 +6,7 @@ import {
   IPC_CHANNELS,
   parseBookMeta,
   sanitizeDocFileName,
+  windowsReservedNameProblem,
   type BookCreateInput,
   type BookCreateResult,
   type BookDataReadResult,
@@ -30,6 +31,8 @@ import {
   writeDocFile,
   type AtomicWriteFs
 } from "@mochen/fs-store";
+// 来源闸 + 参数形状 + 书根 realpath 判定：判据只有这一份，注册点只调不改写（P1-7）。
+import { handleTrusted, relPathStaysInsideRoot, type IpcRegistrar } from "./ipc-guard.js";
 
 export interface BookSnapshot {
   root: string;
@@ -64,22 +67,65 @@ export function registerBookIpc(
   ipcMain: { handle(channel: string, fn: (...args: unknown[]) => unknown): void },
   service: BookService
 ): void {
-  ipcMain.handle(IPC_CHANNELS.bookOpen, (_event, rootPath) => service.open(rootPath as string));
-  ipcMain.handle(IPC_CHANNELS.bookCreate, (_event, input) =>
+  // 【2026-10-10 全仓扫描 P1-7】这八条原先一律写成 `(_event, …)`：主进程从不问「这条是谁发的」，
+  // 于是 `book:open` 收来的 string 会被当成**绝对路径**直接去读 `book.json`。
+  // 来源与参数形状的判定只在 `ipc-guard.ts` 有一份，这里只负责「注册」和「当前这本书的根在哪」。
+  const register: IpcRegistrar = (channel, fn) => ipcMain.handle(channel, fn);
+
+  handleTrusted(register, IPC_CHANNELS.bookOpen, (_event, rootPath) =>
+    service.open(rootPath as string)
+  );
+  handleTrusted(register, IPC_CHANNELS.bookCreate, (_event, input) =>
     service.createBook(input as BookCreateInput)
   );
-  ipcMain.handle(IPC_CHANNELS.bookSaveMeta, (_event, meta) => service.saveMeta(meta as BookMeta));
-  ipcMain.handle(IPC_CHANNELS.docRead, (_event, relPath) => service.readDoc(relPath as string));
-  ipcMain.handle(IPC_CHANNELS.docWrite, (_event, relPath, content, expectedFingerprint) =>
-    service.writeDoc(relPath as string, content as string, expectedFingerprint as string)
+  handleTrusted(register, IPC_CHANNELS.bookSaveMeta, (_event, meta) =>
+    service.saveMeta(meta as BookMeta)
   );
-  ipcMain.handle(IPC_CHANNELS.docCreate, (_event, relPath, title) =>
-    service.createDoc(relPath as string, title as string)
+  handleTrusted(register, IPC_CHANNELS.docRead, (_event, relPath) =>
+    service.readDoc(relPath as string)
+  );
+  handleTrusted(
+    register,
+    IPC_CHANNELS.docWrite,
+    (_event, relPath, content, expectedFingerprint) =>
+      service.writeDoc(relPath as string, content as string, expectedFingerprint as string),
+    { check: insideCurrentBook("存稿", service) }
+  );
+  handleTrusted(
+    register,
+    IPC_CHANNELS.docCreate,
+    (_event, relPath, title) => service.createDoc(relPath as string, title as string),
+    { check: insideCurrentBook("新建文稿", service) }
   );
   // 设定数据这两条**不把参数 cast 成 string 再交给 service**：键与文本都要由 service 按 unknown
   // 判一遍（白名单、有没有开书）。在这里 `as BookDataKey` 等于把判定推到调用方，白名单就白了。
-  ipcMain.handle(IPC_CHANNELS.bookDataRead, (_event, key) => service.readData(key));
-  ipcMain.handle(IPC_CHANNELS.bookDataWrite, (_event, key, json) => service.writeData(key, json));
+  handleTrusted(register, IPC_CHANNELS.bookDataRead, (_event, key) => service.readData(key));
+  handleTrusted(register, IPC_CHANNELS.bookDataWrite, (_event, key, json) =>
+    service.writeData(key, json)
+  );
+}
+
+/**
+ * 「这一条 `doc:*` 只能落在当前那本书的目录里面」——realpath 级。
+ *
+ * 为什么 fs-store 那层词法检查不够（P1-7 后半段）：`chapters/01.md` 完全可能是个指向
+ * `<appData>/plugins/x/index.js` 的软链，逐字形状检查全对；而插件目录里的 js 会被 `plugins:list`
+ * 的 `import()` 执行 ⇒ 渲染层递一次路径就能在主进程跑任意代码。
+ *
+ * 没开书时放行（返回 null）：「没开书」该回什么形状归 service 自己定（`writeDoc` 回 io-error、
+ * `createDoc` 回 no-book），闸不替它编第四种理由。
+ */
+function insideCurrentBook(
+  label: string,
+  service: BookService
+): (args: unknown[]) => Promise<string | null> {
+  return async (args) => {
+    const snapshot = service.current();
+    if (snapshot === null) return null;
+    const rel = typeof args[0] === "string" ? args[0] : "";
+    if (await relPathStaysInsideRoot(snapshot.root, rel)) return null;
+    return `这条${label}的路径落在这本书外面（书根 ${snapshot.root}，递来的 ${rel === "" ? "空路径" : rel}）：软链与越界都按写不到书外处理。`;
+  };
 }
 
 /**
@@ -174,6 +220,11 @@ export function createBookService(deps: BookServiceDeps): BookService {
     async createDoc(relPath, title) {
       if (snapshot === null)
         return { ok: false, reason: "no-book", message: "尚未打开作品目录，建不了新文档。" };
+      // 先单问一次保留名（P2-2 的后半）：`sanitizeDocFileName` 对保留名也回 null，但那是「起不出文件名」
+      // 这一档的笼统理由。用户撞上的时候需要知道**为什么**起不出来——那句人话的真身在 contracts，
+      // 这里只是把它递上屏，不另编第二份文案。
+      const reserved = windowsReservedNameProblem(title);
+      if (reserved !== null) return { ok: false, reason: "invalid-path", message: reserved };
       const cleanTitle = sanitizeDocFileName(title);
       if (cleanTitle === null)
         return { ok: false, reason: "invalid-path", message: "标题起不了文件名，换一个名字。" };

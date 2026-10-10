@@ -1,4 +1,4 @@
-import { readdir, readFile, realpath } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import path from "node:path";
 import {
@@ -9,6 +9,7 @@ import {
   type SkillSource
 } from "@mochen/contracts";
 import { parseFrontmatter } from "./frontmatter.js";
+import { isPathUnderRoot, realPath, type LinkResolver } from "./paths.js";
 
 export type { SkillRef, SkillSource };
 
@@ -108,7 +109,9 @@ function firstLine(body: string): string {
  */
 export async function readSkillFile(
   skillsDir: string,
-  relPath: string
+  relPath: string,
+  /** 位置闸的真实路径解法缝；默认 `fs.realpath`，测试注入「解到目录外」来造软链那一档（P2-2）。 */
+  resolve?: LinkResolver
 ): Promise<{ relPath: string; content: string; truncated: boolean }> {
   const posix = relPath.replaceAll("\\", "/");
   const segments = posix.split("/");
@@ -124,25 +127,12 @@ export async function readSkillFile(
   const root = path.resolve(skillsDir);
   const full = path.join(root, segments[0]!, SKILL_FILE_NAME);
   // ② 真实路径必须仍在 skills 目录内。这一条拦的是符号链接：`<目录>/SKILL.md` 可以是个指向
-  //    目录外的软链，形状检查逐字都对，只有 realpath 才看得穿。解不出真实路径 ⇒ 当作读不到。
-  //    判据用「在根之下」而不是「父目录逐字相等」：Windows 上 realpath 可能回大小写不同或
-  //    8.3 短名（临时目录尤其明显），逐字相等会把完全合法的技能也判成越界。
-  try {
-    const realRoot = await realpath(root);
-    const realFull = await realpath(full);
-    const prefix = realRoot.endsWith(path.sep) ? realRoot : realRoot + path.sep;
-    const sameCase =
-      process.platform === "win32"
-        ? (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
-        : (a: string, b: string) => a === b;
-    if (!sameCase(realFull.slice(0, prefix.length), prefix)) {
-      throw new Error(`技能路径越界：${relPath}`);
-    }
-  } catch (error) {
-    if (error instanceof Error && error.message.startsWith("技能路径越界")) throw error;
-    // cause 挂着原始 fs 错误：用户看的是中文这句，日志里要能追到到底是 ENOENT 还是别的。
-    throw new Error(`读不到这份技能：${relPath}`, { cause: error });
-  }
+  //    目录外的软链，形状检查逐字都对，只有 realpath 才看得穿。
+  //    判定住在 `paths.ts` 的 `isPathUnderRoot`（P2-2：整仓只许一份「在根之下」的口径，
+  //    原来这里与 `changes.ts` 各写了一份，而读正文与写正文两条路一份都没有）。
+  //    解不出真实路径时它退到父目录再判——父目录也在目录外才算越界，读不到由下面的 readFile 报。
+  if (!(await isPathUnderRoot(full, root, resolve ?? realPath)))
+    throw new Error(`技能路径越界：${relPath}`);
   let raw: string;
   try {
     raw = await readFile(full, "utf8");
