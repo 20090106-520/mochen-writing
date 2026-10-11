@@ -27,13 +27,20 @@ jobs:
     name: 六路 typecheck + lint + boundary + budget + 全量测试
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # 三枚 action 都升到「跑在 Node.js 24 上的那一批大版本」：原来钉 v4 时，runner 每次都在
+      # 日志里念一句弃用告警（action 声明的 runtime 是 Node 20，却被强制跑到 24 上）。
+      # 依据是从上游仓库当场读回来的 CHANGELOG 与 `action.yml`，不是记忆：checkout 的 CHANGELOG 写着
+      # v5.0.0 就是 "use node 24"，v6.0.0 改的是「凭据写进单独文件」、v7.0.0 挡的是 `pull_request_target` /
+      # `workflow_run` 的 fork 检出——本条流水线只在 push / pull_request 里检出、且从不往回推，
+      # 两条都碰不到；setup-node v7 与 pnpm/action-setup v6 的 `runs.using` 均为 node24，
+      # 而我们用到的输入只有 `node-version` 与 `cache`（v7 的 `cache` 仍支持 npm / yarn / pnpm）。
+      - uses: actions/checkout@v7
 
       # 版本从 package.json 的 packageManager 读（corepack 口径），这里不再钉一份号。
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         name: 准备 pnpm（读 packageManager 字段）
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         name: 准备 Node
         with:
           node-version: "24"
