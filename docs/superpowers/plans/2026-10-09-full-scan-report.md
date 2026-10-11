@@ -650,4 +650,12 @@ M7 把 `waiting = false` 抄进装配文件 → 恰 1 红（#6）；M8 把字段
 `useAgentStore.listening.test.ts` 钉住在代码层（且 B 轮实测它们会红），应用级 A/B 是一次性测量而非可重复门禁——
 把「起实例 + 打桩 + 比时间戳」焊进 CI 需要新的通路，按门面那条铁律（不给不会天天发生的场景加通路）先不做，如实记在这儿。
 
+**CI**：#16（run `38132353321`，`fix/ci-path-platform-neutrality`，1m 40s）与 #17（run `38132356575`，
+`feat/plan3-interaction-and-assembly`，1m 50s）都 **completed successfully**（页面 `aria-label` 读回来的，不是看勾）。
+
+**顺带纠正一处编号口径**（我上一轮口头报的，台账里从来没错过）：`44bc159` 的两轮其实是 **#14 与 #15**
+（`38130752915` = fix 分支 2m 22s、`38130755682` = feat 分支 2m 17s，两枚 `aria-label` 都是 completed successfully），
+而 **#13 属 `92d004b`**（第十七节那条，1m 42s）。我说的「#13/#14 双绿」把两轮的归属错开了一格——
+**结论不变（两次都绿），但编号只认从页面读回来的这一版。**
+
 
