@@ -25,7 +25,11 @@ concurrency:
 jobs:
   verify:
     name: 六路 typecheck + lint + boundary + budget + 全量测试
-    runs-on: ubuntu-latest
+    # 钉死镜像版本，不用 `ubuntu-latest`：GitHub 定在 2026-10-19 把 `ubuntu-latest` 自动切到
+    # Ubuntu 26。那一天没有任何一行我们的代码改过，门禁却可能凭空变红——而"红"必须能归因到
+    # 某一次具体提交，否则整条流水线的价值就没了（这条风险的原文登记在扫描总单第十五节）。
+    # 要升级镜像是另一刀：换这行、跑一次 CI、看日志，而不是让上游在我们睡觉时替我们换。
+    runs-on: ubuntu-24.04
     steps:
       # 三枚 action 都升到「跑在 Node.js 24 上的那一批大版本」：原来钉 v4 时，runner 每次都在
       # 日志里念一句弃用告警（action 声明的 runtime 是 Node 20，却被强制跑到 24 上）。
