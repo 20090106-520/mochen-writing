@@ -658,4 +658,38 @@ M7 把 `waiting = false` 抄进装配文件 → 恰 1 红（#6）；M8 把字段
 而 **#13 属 `92d004b`**（第十七节那条，1m 42s）。我说的「#13/#14 双绿」把两轮的归属错开了一格——
 **结论不变（两次都绿），但编号只认从页面读回来的这一版。**
 
+### 这一节自己捅的娄子：探针把假配置写进了用户的真身设置（当场还原）
+
+**事实**：上面「手法」里那两次 CDP 调用（`providerSave` / `profileUpsert`）**落到了 `%APPDATA%/mochen-ai`**，
+不是我指定的临时 profile。原因是 `--user-data-dir` 只搬 Chromium 那一半，主进程的配置根目录另有真身——
+`apps/desktop/src/main/index.ts:65` 的 `APP_DIR_NAME = "mochen-ai"` 与 `:241` 的
+`createProviderSettings({ dir: activeDir, credentials })`。第十七节记的是 `appearance.json` 住在这里，
+**provider 配置与 `secrets/` 同样住在这里**，我这一轮把它当成只影响外观的老账翻了一遍，没料到会污染连接与模型。
+
+**后果**（18:28 读盘看到的形状）：`config.json` 从 1 条连接 / 3 枚档案变成 **5 条 / 7 枚**，
+而且 `enabled:true` 被我最后建的那枚 mock 档案（`2e837081-0467-43cb-a527-e5068582cc08`）抢走，
+他真实的三枚 agnes 档案全被挤成 `enabled:false`——下一次开应用会往 `127.0.0.1:8787` 发请求，
+而桩进程早停了，症状是「模型没响应」，屏幕上不会有任何一句指向「配置被探针改过」。
+`secrets/` 也多了 4 枚 52 字节的假密钥（`1ca84f7d…` / `b0d5e588…` / `41e7c2f0…` / `f3d7354c…`，18:19–18:28）。
+
+**还原目标不靠猜**：`Documents/墨宸示例书/.mochen/sessions/2026/10/08/` 那份 rollout 的**首行 `session-meta`
+记着 `"model":"agnes-3.0-flash"`**（文件最后写入 2026-10-10 12:59，是他最近一次真用过的一轮；
+更早那份 10/02 记的是 `mochen-mock`）。所以 `enabled` 该给回 `5e66558e-52e9-49f4-8d1c-ef1f66e90467`。
+
+**动作与回读**：动手前先确认没有实例会把内存里的旧值写回去——`Get-Process electron,MoChenAI` 返回空，
+且 9222 / 8787 都没有 LISTENING。然后 `cp` 现状到 `%TEMP%/mochen-probe-cleanup-20261011-1845/config.json.before-20261011-1845`
+（2333 B / sha256 `e99747db9d712b57fc8397523c370bf4ac3f8b958b91e1c102d13b466ff6c179`）→
+只留连接 `72c5e589-641c-4210-a74d-06ec20cc328d` 与它的三枚档案、`enabled` 给回 agnes-3.0-flash →
+那 4 枚假密钥**移进同一备份目录**（没直接删）。回读：**801 B / sha256 `98841130023a66914c8244be02ff4829779fcdc08c3e4e128adb10541f75f26d`**，
+`secrets/` 只剩他 10-06 那枚 112 字节的原文件，前后一个字节没动。
+
+**下一轮探针的规矩**（同时进记忆）：起手先读 `providerView()`，**有能用的连接就复用它的 `connectionId`**，
+别一上来就新建；收尾要么用 `providerConnectionRemove`（`contracts/src/ipc.ts:273`）/ `profileRemove`（同文件 `:310`）
+把自己建的删干净，要么照上面这条路「备份 → 还原 → 回读」。以及一条更硬的选择：**能在 mock provider 上读判据的，就别碰 provider 配置**——
+这一格的结论本来只依赖中栏卸载与否，配置那一步是我图省事直接建真连接，代价由他的设置表承担了。
+
+**留给他裁定的一条（我不动手）**：dev / 探针实例与打包应用**共用同一份 `activeDir` 配置**，
+所以任何一次真机验证都可能像这次一样写到用户正在用的设置上。要不要给开发态一个独立目录
+（比如按环境变量派生 `mochen-ai-dev`）是改产品行为，不是一句注释能替拍的。
+
 
