@@ -194,6 +194,21 @@ function slowFrames() {
 }
 
 /**
+ * 「模型自己把这一轮截断了」那一档（P2-5 的真机取证用）。
+ * 形状照 OpenAI：正文说了半截，最后一帧的 `finish_reason` 是 `length` 而不是 `stop`。
+ * 桩不判「该不该提示」——那句人话住 `provider-client.ts` 的 `truncationNotice`，这里只负责把它送进真链路。
+ */
+function truncatedFrames() {
+  const content = "海雾从船头漫过来，甲板上那盏灯的轮廓先软了半";
+  const out = [];
+  for (let i = 0; i < content.length; i += 4) {
+    out.push({ choices: [{ delta: { content: content.slice(i, i + 4) } }] });
+  }
+  out.push({ choices: [{ delta: {}, finish_reason: "length" }] });
+  return out;
+}
+
+/**
  * 每轮两个开关（#101）在桩这一侧的回显：思考档与联网工具各自打进 reasoning 一句标记。
  * 桩不演业务规则，但必须演「服务端看得见的形状」——否则输入区那两枚 chip 在真机上无法证伪。
  * 关档时没有任何标记：不发 reasoning_effort、tools 里也没有 web_search，回显跟着出站形状走。
@@ -383,6 +398,7 @@ function framesFor(body, text) {
     out.push({ choices: [{ delta: {}, finish_reason: "stop" }] });
     return out;
   }
+  if (text.includes("截断")) return truncatedFrames();
   if (text.includes("慢") || text.includes("打断")) return slowFrames();
   const out = [{ choices: [{ delta: { reasoning_content: reasoningText(body) } }] }];
   if (text.includes("计划")) out.push(...planBlock());
