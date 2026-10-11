@@ -425,6 +425,10 @@ M4 trust 指向 `path.dirname(index)` → 2 红（两条 file 用例，证明那
 `tsc --listFiles` 回读确认这份 test 真在类型项目里（否则 EXIT=0 是假的）。
 **Linux 形状本机验不了**（无 WSL、无 docker，`pathToFileURL` 的 win32 绑定改桩也翻不过来），所以这一刀的
 Linux 证据就是 CI 本身：分支推上去 `verify.yml` 会在 ubuntu runner 跑全量 `pnpm verify`。
+**已回读对上**：run `38123064023`（门禁 pnpm verify #4，commit `00a0984`，push 事件触发）
+Status **Success**，job「六路 typecheck + lint + boundary + budget + 全量测试」2m14s——`b1fc79a` 以来第一次绿。
+那条 run 只剩一枚与本刀无关的告警：`actions/checkout@v4` 等 action 仍标 Node.js 20（GitHub 侧的弃用告警，
+不是我们 `engines` 的问题；对应第三方审查里「Node.js 版本要求」那条，另议）。
 
 **没跟着改的两处，以及为什么不改**：`:43` 的 `PACKAGED` 与 `:550` 那组 `file:///C:/repo/…` 字面量确实是
 Windows 形状，但它们在断言两端是**同一串不透明 URL**，`isSameRendererOrigin` 走的是 URL 解析 + 字符串比较，
@@ -433,5 +437,8 @@ Windows 形状，但它们在断言两端是**同一串不透明 URL**，`isSame
 
 **登记一条并行现场的撞车风险**：`ipc-guard.ts` 与它的 test 此刻都被并行会话改着（+75/+69，落在
 `isUnderReal`、形状表和他们新加的通道上，hunk 起点 224/341/513/558）。我这一刀只碰 155–190 与
-515 之后的两段，与那些 hunk 不重叠，合并应能自动接上；合完必须重跑这个文件确认。
+515 之后的两段。这句不是推测：把他们那份未提交 diff 导出成 patch，在我这个 commit 之上
+`git apply --check`（以及 `--check --3way`）双双 EXIT=0，装得干净；再 grep 他们新增的行，
+没有 `C:/`、`file:///`、`pathToFileURL`、`resolveRendererLoad` 或大小写类断言——也就是说他们不会把
+这三条红灯以另一种形状带回来。**合完必须重跑这个文件**，因为「patch 装得上」只证明文本不冲突，不证明语义不冲突。
 
