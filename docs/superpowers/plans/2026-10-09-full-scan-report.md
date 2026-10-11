@@ -520,7 +520,8 @@ Annotations 整页现在是**空的**：第十五节那条「10-19 迁 Ubuntu 26
 
 | 模式 | 量到什么 |
 | --- | --- |
-| `plain`（现状接线） | `close` → `closed`（窗口已销毁）→ `window-all-closed`，**没有 before-quit**；探针兜底记的 `STILL ALIVE`（3 秒后进程还在）；补一次 `app.quit()` 才来 `before-quit`，而那一刻 `hasWindow=false` ⇒ `quit-flush.ts:79` 直接 return。**两个后果同时成立：稿子没落盘 + 进程留在后台** |
+| `plain`（现状接线） | `close` → `closed`（窗口已销毁）→ `window-all-closed`，**没有 before-quit**；探针兜底记的 `STILL ALIVE`（3 秒后进程还在）；补一次 `app.quit()` 才来 `before-quit`，而那一刻 `hasWindow=false` ⇒ `quit-flush.ts:79` 直接 return。**探针现场里同时出现「稿子没落盘」与「进程留在后台」**——
+后者到下面 A/B 那一段才被限定：真应用的对照轮里进程是退的，没退的是「落盘」这一半 |
 | `intercept`（我第一版想当然的修法） | 在 `'close'` 里 `preventDefault()` 之后**同步** `app.quit()`：`close` 被触发**两次**，然后 `STILL ALIVE`——quit 卡在 close 里，这一形是错的，撤了 |
 | `wired` | close 被拦下时 `window alive=true`，request 发得出去；回话后 `destroy()` → `window-all-closed` → `app.quit()` → 干净退出 |
 | `quitflush` / `qf-nowc` | 直接 require 本仓**真模块**（`quit-flush.ts` 经 esbuild 去型）。close 被拦 → `sendFlushRequest; window alive=true` → 渲染层回话（模拟一跳 IPC）→ `deps.quit()` → `before-quit fired; hasWindow=true` 时**不再拦**（`released` 生效，规则①在真进程里成立）→ `closed` → `will-quit` → `quit`，800ms 量级退出（`quitflush` 795ms、`qf-nowc` 831ms），**没有 `STILL ALIVE`**。两档差别是有没有 `window-all-closed → app.quit()`：**都干净**，所以那层兜底不该加 |
@@ -570,8 +571,24 @@ M7 把 `waiting = false` 抄进装配文件 → 恰 1 红（#6）；M8 把字段
 五份日志只命中 1 条，且它就是用例自己印的那行环境噪音（`ipc-guard.test.ts:536`：本机非开发者模式建不了符号链接，
 软链逃逸那一条没验到），同档 `test_EXIT=0` 且该文件 45 条全过。
 
-**这一刀只到「探针级」，没到「应用级」**：探针用的是本仓真的 `quit-flush` 模块 + 真的事件顺序，
-但渲染层回话是模拟的一跳，落盘的是探针里的假 handler。**应用内那条（脏稿 → 真点关闭 → 盘上真有那几个字 →
-进程干净退出）还没量过**，它和第十二、十三节欠的是同一步，仍是这一族唯一的未收口项。
+**这一刀到探针级为止的部分到此结束，应用内那一格同日补上了**（下面这段是 A/B，不是推理）：
+构建产物起自**本机自起的实例**（`--remote-debugging-port=9246/9247` + 独立 `--user-data-dir`，用户的 9222 那台全程没碰），
+书用的是《墨宸冒烟书》**复制到 `Temp/mochen-quit-probe/book-a` 的那一份**（不是用户正在用的那本），
+起手先把自动保存那档设成 0（`localStorage["mochen.autosaveDelay"]`），否则两秒静默窗会替我们把字写了、测的就不是握手。
+驱动走 CDP：`openBook()` → `openDocTab("chapters/01-开局.md")` → `onEdit(draft + "…PROBE-9F3A")`，
+然后**用 `taskkill`（不带 `/F`）发 WM_CLOSE**——那就是「点关闭」那一条路，不是 `app.quit()`、也不是渲染层那句会绕过 `'close'` 的 `window.close()`。
+
+| 轮次 | 接线 | 量到什么 |
+| --- | --- | --- |
+| A | 本刀改后（`out/main/index.js:15848-15850` 里 `win.on("close")` 在） | WM_CLOSE 落在 18:02:47.541，稿文件在 **18:02:47.578** 被写——**37ms 后那句只在内存里的字上了盘**（`grep -c PROBE-9F3A` = 1，7 行变 10 行，SHA256 从 `8a0ffe…` 变 `c77d7e…`），进程自己退干净（收尾 `netstat -ano | grep -cE ":924[67].*LISTENING"` 读到 **0**，两个端口都不再有人听——没拿后台任务那句 exit 0 当证据） |
+| B（对照） | `git show 434e408^` 那一版重新构建（包里 `grep -c 'win.on("close"'` = **0**） | 同一个临时书、同一个触发钮：`grep -c` = **0**、文件 mtime 停在覆盖前的 18:03:26 没动过 ⇒ **一个字节都没落盘**，稿子随窗口没了 |
+
+对照轮里还纠正了我自己上一条断言：**「进程留在后台」只在探针那一档成立，真应用里没复现**——B 轮发完 WM_CLOSE 两秒内端口就不 LISTENING、进程自己退了
+（大概是默认那条「所有窗口关了就走」在真窗口 + 真 WM_CLOSE 下确实发了 `app.quit()`，而这正是探针 `plain` 档量到的「`before-quit` 来时 `hasWindow` 已 false」那一半）。
+所以这一刀真正修掉的是**前半条：落盘**；后半条我不拿探针现场当真应用的结论写，留作未收口的观察（要追就得再开一轮专门量退出路径的探针）。
+
+**CI**：run `38130145421` = 门禁 pnpm verify **#13**（commit `92d004b`，push 触发）**completed successfully**，1m 42s。
+这一刀的关卡本来在真机而不在 Linux runner，所以 CI 只承担「全仓没被改红」这一半；
+另一半是上面那张 A/B 表。
 
 
