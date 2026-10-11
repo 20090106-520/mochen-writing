@@ -1228,7 +1228,12 @@ run `38184397573`（`fix/ci-path-platform-neutrality`，Success，1m 59s），�
 Vitest job summary 都是 304 文件 / 3965 用例全过。**
 这次没有「留给下一格」：**回读动作本身跑在 CI 之外**，我是在推完之后重新打开 run 页读的，所以结论已经出生、可以直接落表。
 ——这也说明第二十二节那句「固有滞后」其实**可以消掉**：只要在同一格内等到 run 结束再读页面，就不欠代读。
-本条补充自己那两笔提交（下面这段「拆分那一刀的阻塞证据」）的两轮，仍按同一口径由下一格代读或直接补读。
+顺带把补读那一笔自己的数也读回来（同一次会话内推完等跑完，run 页逐字回读）：
+**`083ecc3` = run `38184713236`（`feat/plan3-interaction-and-assembly`，Success，2m 25s）与
+run `38184713717`（`fix/ci-path-platform-neutrality`，Success，1m 38s）**，两枚 `completed successfully`，
+Vitest summary 同样是 **304 文件 / 3965 用例**。
+**留下的一格**：本段这段补写自己那笔提交的两轮 run，按同一口径由下一格补读——**这是「把结论写进需要 CI 证明的仓库」这一动作的固有结构**，
+不是漏记：任何一次「记录回读」都会新造一轮待回读的 run，能做的只是把窗口压到同一格内（本轮就是），而不是假装它不存在。
 
 **补一条本节漏掉的阻塞证据（第二刀与 `useBookStore` 拆分为什么现在都不能焊）**：
 并行会话那 53 条未跟踪里新增 `renderer/src/stores/{useBackupStore,useTrashStore}.ts`，
