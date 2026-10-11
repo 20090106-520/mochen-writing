@@ -1,3 +1,5 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, beforeEach } from "vitest";
 import { IPC_CHANNELS } from "@mochen/contracts";
 
@@ -50,6 +52,24 @@ function event(senderFrame?: FrameLike | null): SenderEventLike {
   // 但闸对两者都判不可信 ⇒ 这里只造形状、不判语义。
   // `exactOptionalPropertyTypes` 下不许把 `undefined` 塞进 `senderFrame?: FrameLike | null`，所以干脆不落这个键。
   return senderFrame === undefined ? {} : { senderFrame };
+}
+
+/**
+ * 临时把 `process.platform` 换成指定值跑一段，跑完原样装回去。
+ *
+ * 管得到的只有一件事：**调用时**读 `process.platform` 的代码（这里就是 `samePathText` 那枚平台分叉）。
+ * 管不到 node:path / node:url 内部的 win32 绑定——那些在模块加载时就定好了，桩改了也不回头重算。
+ * 所以走这个桩的用例只喂字面量 URL，不碰 `pathToFileURL`，免得「桩说的是 linux、path 干的是 win32」自己骗自己。
+ */
+function withPlatform<T>(value: NodeJS.Platform, run: () => T): T {
+  const descriptor = Object.getOwnPropertyDescriptor(process, "platform");
+  if (descriptor === undefined) throw new Error("process.platform 没有描述符，桩没法装回去");
+  Object.defineProperty(process, "platform", { ...descriptor, value });
+  try {
+    return run();
+  } finally {
+    Object.defineProperty(process, "platform", descriptor);
+  }
 }
 
 /** 一张假注册表：记下每条通道真正注册的 handler，好按 electron 的调用形状触发。 */
@@ -152,11 +172,20 @@ describe("isTrustedSender：只认这一个渲染层来源", () => {
     );
   });
 
-  it("file:// 的大小写差异认得（Windows 上 realpath 与 URL 的大小写本来就不一致）", () => {
+  it("Windows：file:// 的大小写差异认得（realpath 与 URL 的盘符大小写本来就不一致）", () => {
     const trust = { allowedUrl: "file:///C:/Users/me/out/renderer/index.html" };
-    expect(
+    const trusted = withPlatform("win32", () =>
       isTrustedSender(event(frame("file:///c:/users/me/out/renderer/index.html")), trust)
-    ).toBe(true);
+    );
+    expect(trusted).toBe(true);
+  });
+
+  it("Linux：只差大小写就是**另一个文件**，不许认（认了等于放行同一台机器上别的 html）", () => {
+    const trust = { allowedUrl: "file:///srv/mochen/out/renderer/index.html" };
+    const trusted = withPlatform("linux", () =>
+      isTrustedSender(event(frame("file:///srv/mochen/out/renderer/Index.html")), trust)
+    );
+    expect(trusted).toBe(false);
   });
 });
 
@@ -513,22 +542,31 @@ describe("relPathStaysInsideRoot：词法之上再加 realpath 级", () => {
 });
 
 describe("resolveRendererLoad：打包版不许被 env 牵着走", () => {
+  // 入口文件必须递**本机原生的绝对路径**，不许写死 `C:/…`：`pathToFileURL` 在 Windows 之外把
+  // `C:/…` 当相对路径拼到 cwd 上（`file:///home/runner/work/…/C:/…`），于是断言里那条字面量
+  // 在 CI（ubuntu）上永远对不上——那是用例自己的平台假设，不是闸的错。真实装配传的是
+  // `app.getAppPath()` 一类的原生路径，本来也不会是 `C:/…`。
+  const packagedIndex = path.resolve("mochen", "out", "renderer", "index.html");
+  const repoIndex = path.resolve("repo", "apps", "desktop", "out", "renderer", "index.html");
+
   it("打包态：ELECTRON_RENDERER_URL 被污染也必须忽略", () => {
     const load = resolveRendererLoad({
       isPackaged: true,
       envRendererUrl: "https://evil.example.com/payload",
-      packagedIndex: "C:/Programs/mochen/out/renderer/index.html"
+      packagedIndex
     });
     expect(load.kind).toBe("file");
-    expect(load.target).toBe("C:/Programs/mochen/out/renderer/index.html");
-    expect(load.trust.allowedUrl).toBe("file:///C:/Programs/mochen/out/renderer/index.html");
+    expect(load.target).toBe(packagedIndex);
+    // 判据绕一圈回磁盘路径，而不是拿 `pathToFileURL` 再算一遍比：要钉的是
+    // 「trust 指的就是这一份 html」，两边都换成平台写法就量不到了。
+    expect(fileURLToPath(load.trust.allowedUrl)).toBe(packagedIndex);
   });
 
   it("开发态：用 env 给的那条 URL，且 trust 就是它", () => {
     const load = resolveRendererLoad({
       isPackaged: false,
       envRendererUrl: DEV_URL,
-      packagedIndex: "C:/repo/apps/desktop/out/renderer/index.html"
+      packagedIndex: repoIndex
     });
     expect(load.kind).toBe("url");
     expect(load.target).toBe(DEV_URL);
@@ -536,12 +574,10 @@ describe("resolveRendererLoad：打包版不许被 env 牵着走", () => {
   });
 
   it("开发态没给 env ⇒ 退回本地文件，trust 也跟着换成 file://", () => {
-    const load = resolveRendererLoad({
-      isPackaged: false,
-      packagedIndex: "C:/repo/apps/desktop/out/renderer/index.html"
-    });
+    const load = resolveRendererLoad({ isPackaged: false, packagedIndex: repoIndex });
     expect(load.kind).toBe("file");
-    expect(load.trust.allowedUrl).toBe("file:///C:/repo/apps/desktop/out/renderer/index.html");
+    expect(load.target).toBe(repoIndex);
+    expect(fileURLToPath(load.trust.allowedUrl)).toBe(repoIndex);
   });
 });
 

@@ -388,3 +388,50 @@ scoped prettier EXIT=0、行数预算 EXIT=0；全量 `pnpm test` **328 文件 /
 **贴到 800 行就该拆，拆的依据是「不共享状态」**——建议把这一条单独立成一刀（候选切法：
 退出握手与自动保存排程这两族状态本就不共享），而不是等下一个改动撞墙时临时找地方塞。
 
+## 十四、2026-10-11 收口一条：CI 三条红灯 = 用例把 Windows 路径写死（第三方审查那条「CI 最紧急」）
+
+下面的行号按基线 `2487695`（改完会往后挪）。
+
+**先更正我自己的判定**：那条审查把「CI 门禁失败」列为最紧急，我第一遍判成**半真**、还把原因归给
+并行会话未提交的那枚 eslint 错。读 GitHub Actions 的记录后确认是**真**：`b1fc79a` 之后每一次 run 全红
+（含已提交的代码，不是在制品的锅），三条红用例全在 `apps/desktop/src/main/ipc-guard.test.ts`。
+
+**真因**（产品代码没问题，是用例的平台假设）：
+- `samePathText`（`ipc-guard.ts:95-100`）早就按 `process.platform` 分叉了——Windows 不区分大小写、
+  POSIX 区分，这是**正确行为**（POSIX 上 `/a/Index.html` 与 `/a/index.html` 是两个文件，认了就是放行别的 html）。
+  但 `:155` 那条用例只按 Windows 语义断言「大小写差异认得」，在 ubuntu runner 上必红。
+- `resolveRendererLoad`（`ipc-guard.ts:205-218`）返回 `pathToFileURL(packagedIndex).href`，也是对的。
+  用例递的是字面量 `"C:/Programs/…"` 并断言结果等于 `"file:///C:/Programs/…"`——`pathToFileURL` 在
+  Windows 之外把 `C:/…` 当**相对路径**拼到 cwd 上（实测本机：`file:///C:/Programs/…`；在 Linux 上会得到
+  `file:///home/runner/work/…/C:/Programs/…`），于是字面量永远对不上。真实装配递的是 `app.getAppPath()`
+  一类的原生绝对路径，本来就不会长成 `C:/…`。
+
+**改了什么**（只动 test 文件，`ipc-guard.ts` 一行没改）：
+1. 入口文件fixture 换成 `path.resolve(...)` 派生的**本机原生绝对路径**，断言从「等于某条字面量 URL」
+   改成绕回磁盘比：`fileURLToPath(load.trust.allowedUrl) === packagedIndex`。这条不依赖平台写法，
+   量的还是真 invariant——「判据指的就是加载的那一份 html」。
+2. 大小写那条拆成两条，用 `withPlatform()` 显式桩 `process.platform`（win32 ⇒ 认，linux ⇒ 拒）。
+   桩只影响**调用时**读 `process.platform` 的代码，管不到 node:path 模块加载时定好的 win32 绑定，
+   所以走桩的用例只喂字面量 URL、不碰 `pathToFileURL`——这点写在 `withPlatform` 的头注释里，免得下次有人拿它去测路径拼接。
+
+**证据（当场回读，不是记忆）**：本机 Windows `vitest run` 该文件 **45 条全绿**（原 44，拆出来 +1）。
+变异四只全部死：M1 `samePathText` 永远小写 → 恰 1 红（新加的 linux 那条）；M2 永远区分大小写 → 恰 1 红
+（win32 那条）；M3 打包态不再忽略 env（去掉 `!input.isPackaged`）→ 恰 1 红（「被污染也必须忽略」）；
+M4 trust 指向 `path.dirname(index)` → 2 红（两条 file 用例，证明那条绕回磁盘的断言**不是**自证式的重复计算，
+它抓的正是「加载的是这份、判据认的是别处」）。另加类型探针：`withPlatform("linuxx", …)` 让
+`tsc -p apps/desktop/tsconfig.node.json` 报 TS2345（EXIT=2），说明 `NodeJS.Platform` 这枚字面量类型是真关卡——
+这条有必要：linux 侧「任何非 win32 值都走精确比较」，拼错平台名不会让用例变红，只能靠编译期拦。
+分段门禁：scoped `tsc` EXIT=0、scoped eslint EXIT=0、scoped prettier EXIT=0、行数预算 EXIT=0（本文件 600/800），
+`tsc --listFiles` 回读确认这份 test 真在类型项目里（否则 EXIT=0 是假的）。
+**Linux 形状本机验不了**（无 WSL、无 docker，`pathToFileURL` 的 win32 绑定改桩也翻不过来），所以这一刀的
+Linux 证据就是 CI 本身：分支推上去 `verify.yml` 会在 ubuntu runner 跑全量 `pnpm verify`。
+
+**没跟着改的两处，以及为什么不改**：`:43` 的 `PACKAGED` 与 `:550` 那组 `file:///C:/repo/…` 字面量确实是
+Windows 形状，但它们在断言两端是**同一串不透明 URL**，`isSameRendererOrigin` 走的是 URL 解析 + 字符串比较，
+不碰文件系统也不碰 `process.platform`（除那枚大小写分叉），两条平台都绿；把它们改成派生值只会增加改动面、
+不增加鉴别力。**该钉的是「断言里不许出现只有某一个平台才成立的路径语义」，不是「不许出现反斜杠」**。
+
+**登记一条并行现场的撞车风险**：`ipc-guard.ts` 与它的 test 此刻都被并行会话改着（+75/+69，落在
+`isUnderReal`、形状表和他们新加的通道上，hunk 起点 224/341/513/558）。我这一刀只碰 155–190 与
+515 之后的两段，与那些 hunk 不重叠，合并应能自动接上；合完必须重跑这个文件确认。
+
