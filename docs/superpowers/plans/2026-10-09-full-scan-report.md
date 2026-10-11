@@ -853,6 +853,10 @@ CI 那一格按 Actions 行标签读：**`3e218e1`（本节）= Run 24 与 Run 2
 构建产物用的是 18:28 那一份（`out/renderer/assets/index-CZiP92eC.js` 里 `find-replace-mirror` 命中 2 处，
 即 `v-if` 那半枚确实在包里）；本节没有改动任何被跟踪的源码，故未重跑全量门禁。
 
+**CI 回读**（编号与 `svg[aria-label]` 都从 Actions 列表页读，不是看勾）：本节落盘 = `02aa39e`，
+一次推两个 ref ⇒ **Run 28（`feat/plan3-interaction-and-assembly`，run `38151290340`，1m 43s）与
+Run 29（`fix/ci-path-platform-neutrality`，run `38151290373`，1m 56s），两枚标签都是 `completed successfully`**。
+
 ## 二十一、2026-10-12 真机量 P2-8：长会话内存曲线，外加一次「摘掉回收」的 A/B
 
 §5之二③ 的最后一格（第一格在第十九节、第二格在第二十节）。**这一格动过一次被跟踪源码，但跑完就还原了**：
@@ -959,5 +963,10 @@ connections 1、profiles 3、`enabled` = `agnes-3.0-flash`；探针那条连接�
 `secrets/` 只剩他 10-06 那枚 112 B；`appearance.json` mtime 仍是 13:01（探针之前）。
 被跟踪源码只有这一份台账被改；`useAgentStore.ts` 的变异**已还原**（`git status` 干净），
 还原后重跑过 `corepack pnpm build`。
+
+**CI**（编号与时长仍从 Actions 列表页的 `svg[aria-label]` 读回来，一次推两个 ref ⇒ 两个 run）：
+**`847652d`（本节）= Run 30（`fix/ci-path-platform-neutrality`，run `38155122971`，2m 2s）与 Run 31
+（`feat/plan3-interaction-and-assembly`，run `38155123054`，2m 23s），两枚 `aria-label` 都是 `completed successfully`**；
+上一节 `02aa39e` = Run 28（run `38151290340`，1m 43s）与 Run 29（run `38151290373`，1m 56s），同样两条 `completed successfully`。
 
 
