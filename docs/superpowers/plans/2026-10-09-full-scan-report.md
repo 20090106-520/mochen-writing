@@ -774,4 +774,11 @@ T1–T5 新增 error-line 为**空集**，T6 新增一条且逐字是：**「更
 `out/main/index.js --remote-debugging-port=9345 --user-data-dir=%TEMP%/mochen-trunc/profile` = 3256），
 停完 8791 / 9345 均无 LISTENING。
 
+**门禁与 CI 的读数**（都是回读，不是推断）：本地 `corepack pnpm verify` 全链走完、真退出码落在
+`/tmp/dw-gate-19/verify.exit`（`VERIFY_EXIT=0`），日志内容侧第二证据是
+`Test Files 304 passed (304)` / `Tests 3966 passed | 2 skipped (3968)`，prettier / 六份 tsc / eslint /
+边界 / 行数预算（607 份）无一行红；桩自己的 `tools/mock-provider.test.mjs` 21 条另跑一遍也绿。
+CI 那一格按 Actions 行标签读：**`3e218e1`（本节）= Run 24 与 Run 25，两条 `completed successfully`**；
+顺带回读到 `46f4081` = #22/#23、`8f28a52` = #20/#21，与第十八节那两处编号自纠对得上。
+
 
