@@ -340,8 +340,8 @@ M3 `startListening` 去掉幂等闸 → 恰 1 红；M4 摘监听但忘记复位�
 分段门禁：`tsc -p apps/desktop/tsconfig.web.json` EXIT=0、scoped eslint EXIT=0、scoped prettier EXIT=0、
 行数预算 EXIT=0（`useAgentStore.ts` 769/800，**又顶近上限了**）；
 全量 `pnpm test` 328 文件 / 4255 用例（4253 通过 + 2 跳过）全绿。
-**未做真机复验**：这一条改的是订阅生命周期，要真起实例走「流式途中进设置页再回来」才量得到，
-而机上那只实例属并行会话现场，我没有动它。
+**真机复验已就地补上（2026-10-11，见第十八节）**：这一条改的是订阅生命周期，要真起实例走「流式途中进设置页再回来」才量得到——
+那一格已经在应用内量过 A/B 两轮（A 绿、B 用刻意加回去的错接法证明它真的会红），当时没量是因为机上那只实例属并行会话现场，我没有动它。
 
 **顺带两处发现**：① `useBookStore.ts:388` 把 `installQuitFlushListener` 的返回句柄同样丢在地上
 （`quitFlushListening` 还是那枚布尔）——同一形状的第二处，退出握手是一次性的，暂时不会累积，
@@ -381,7 +381,8 @@ M3 在任一组件里摸 `quitFlushOff` → 恰 1 红（真身只有一处那条
 scoped prettier EXIT=0、行数预算 EXIT=0；全量 `pnpm test` **328 文件 / 4261 用例**（4259 通过 + 2 跳过）全绿，
 日志 grep 失败痕迹 0 条；全仓 `prettier . --check` EXIT=0；全仓 eslint 仍 1 红 = `SideNavNoticeDialog.vue:27`
 未使用的 `useBookStore` import，属并行会话未提交的在制品（`git diff` 里有这一行、`git show HEAD:` 里没有），不归这一刀。
-**未做真机复验**：与十二同一条理由——量「关闭前真的落盘」要真起实例，机上那只属并行会话现场。
+**真机复验已量（2026-10-11，第十七节末的应用内 A/B）**：「关闭前真的落盘」那一条已经在真应用里量到 37ms 落盘、对照轮一个字节不落；
+量的过程与那一条欠的理由（机上那只实例属并行会话现场，我起的是自己的）都记在第十七节里。
 
 **顺带一条该登记的**：`useBookStore.ts` 已经 798/800。这一刀靠「删一行加一行」压在上限内，
 但它不再有余量放第二只动作（本次就是因此放弃了 wrapper 那条写法）。按门面那条硬规矩，
@@ -590,5 +591,63 @@ M7 把 `waiting = false` 抄进装配文件 → 恰 1 红（#6）；M8 把字段
 **CI**：run `38130145421` = 门禁 pnpm verify **#13**（commit `92d004b`，push 触发）**completed successfully**，1m 42s。
 这一刀的关卡本来在真机而不在 Linux runner，所以 CI 只承担「全仓没被改红」这一半；
 另一半是上面那张 A/B 表。
+
+## 十八、2026-10-11 把第十二节欠的那一格量掉：流式途中进设置页再回来（应用内 A/B）
+
+**量的是哪一格**：十二那一刀（提交 `2487695`）证据全在用例层（9 + 4 条）与五只变异，欠的是屏幕上那一行——
+一轮正在流式的时候用户去看设置，中栏被整页化卸载，那条回合的**收尾**与「自动发队首」（裁定 G3）还成不成立。
+这一节把那一格补成量出来的数，顺手把「关掉自动保存才能测到握手」之外的一条通用手法也记下来。
+
+**手法（照着能重跑）**：`node tools/mock-provider.mjs --port 8787 --doc chapters/01-开局.md`；
+书用《墨宸冒烟书》**复制到 `%TEMP%/mochen-cell-b/book`** 的那一份（`Documents` 里那本没动），
+实例是自己起的（`--remote-debugging-port=9341` + 独立 `--user-data-dir=%TEMP%/mochen-cell-b/profile`，
+用户的 9222 与并行会话那台全程没碰）；连接与档案由 CDP 直接调 `window.mochen.providerSave` / `profileUpsert`
+建（`providerId:"custom"`、`http://127.0.0.1:8787/v1`、模型 `mochen-mock`、假密钥 `sk-e2e`）——仓库与临时档里都没有真凭据。
+话术取 `agent.send("慢：…")`：**桩认「慢」这个字走 60ms 慢切片**，一轮约两秒，够把人中途调走。
+驱动 `scratch/cell-b/run.mjs`（git 忽略），日志 `scratch/cell-b/round-{A,A2,B}.log`。
+
+**两条现场教训，记下来免得重踩**：
+① 第一版把整轮编排写在页内 `setTimeout` 循环里，撞上**渲染层后台节流**——90 次 150ms 轮询实际跑了 65 秒，
+   而轮次跑在**主进程**、不受影响，于是读数看着像「慢」其实是「被节流」。节奏改由 Node 一侧驱动，页内只做动作与读数。
+② `Object.keys(agent.threads)[0]` 拿到的是 `"unbound"`（启动时中栏先挂过一次，那时还没开书），
+   第一版因此读了**另一条线程**、把跑成功的一轮读成「没起来」。键必须由 `book.activeDocTab` 现取现算——
+   代理指标不算证据，这条与本仓反复量的是一味药。
+
+**A 轮（`44bc159` 的接线；清掉临时书的 `.mochen/sessions` 后重跑，起点 `itemsBefore=0`）**：
+
+| ms（Node 侧表） | 中栏挂着 | running | items | 尾字长度 | 队里 | 读到的事 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 573 | **已卸载** | true | 1 | 0 | 1 | 只有 user-message，收尾还没来 |
+| 1382 | 已卸载 | true | 1 | 4 | 1 | **人不在中栏，增量照样进 store** |
+| 1797 | 已卸载 | true | 1 | 16 | 1 | 同上 |
+| 2212 | 已卸载 | true | 4 | 0 | **0** | 第一轮定稿 + **队首在这一行发出去了**（items 里多出第二条 user-message） |
+| 3019 / 3426 | 已卸载 | true | 4 | 4 → 16 | 0 | 第二轮在流 |
+| 3832 | 已卸载 | **false** | 6 | 0 | 0 | `endedAs="done"`——**收尾也发生在设置页那一段** |
+| 回工作区 | 挂着 | false | 6 | — | 0 | DOM 里同时有「我打算把开头那句收紧」与第二轮那句话，`notice` 空 |
+
+关键就是 2212 与 3832 那两行的 `paneMounted:false`：**队列往前走与回合收尾都不是我回来之后才补上的**。
+
+**B 轮（把十二撤掉的那条错接法原样加回去，证明这一格真能量红）**：临时给 `CenterColumn.vue:298` 的
+`onBeforeUnmount` 补一句 `agent.stopListening()`，`pnpm --filter @mochen/desktop build` 后同脚本重跑。
+60 行读数**从头到尾一模一样**（首行 545ms、末行 24579ms，跨 24.6 秒）：
+`items` 恒 10、尾字长度恒 0、`queued` 恒 1、`running` 恒 true、`endedAs` 恒空、`paneMounted` 恒 false；
+回工作区仍是 `running:true / queued:1 / endedAs:""`——界面停在「工作中」且排队不再往下走，与第十二节那段推断逐字对得上。
+
+**B 轮里量到一条只看界面看不出的**：临时书盘上 `.mochen/sessions/2026-10-11/rollout-…jsonl` 里，
+那一轮的 `reasoning`（30 字）与 `message`（20 字）**早就写好了**——主进程把整轮跑完并落了盘，丢的只是「没人听」。
+所以这一刀防住的不是丢字，是**卡死的「进行中」状态与停摆的队列**（重启后回放还能把那轮捡回来，但用户在此期间点什么都没动）。
+
+**同一句错接法在本仓用例层的红（当场跑，不是转述）**：变异态 `center-column-listening-wiring.test.ts`
+= **2 failed | 2 passed**，红的正是「卸载时不许出现 `stopListening`」与「组件层没有任何一处调 `stopListening`」两条；
+`git restore` 之后 `center-column-listening-wiring` + `useAgentStore.listening` 两份合跑 **13 passed**（`VITEST_EXIT=0`）。
+构建产物也回读：变异包 `grep -c stopListening` = **2**，恢复后 = **1**（只剩 store 里那枚定义）——
+「改了源码」不等于「跑的是改后的包」，这一格两个方向都验了。
+
+**一处如实的边角**：`showSettings()` 那一次调用返回时 `.conversation-pane` **还在**——Vue 的卸载要到下一个 flush 才落地，
+读数要到 ~545/570ms 那一行才变 `false`。不影响结论（判据取的是卸载之后的行），但别把它记成「点一下就立刻卸载」。
+
+**这一节没做的**：没往仓里加常驻用例。这一格的判据已经由 `center-column-listening-wiring.test.ts` 与
+`useAgentStore.listening.test.ts` 钉住在代码层（且 B 轮实测它们会红），应用级 A/B 是一次性测量而非可重复门禁——
+把「起实例 + 打桩 + 比时间戳」焊进 CI 需要新的通路，按门面那条铁律（不给不会天天发生的场景加通路）先不做，如实记在这儿。
 
 
