@@ -44,7 +44,7 @@ export async function replyQuitFlush(target: QuitFlushTarget, api: QuitFlushApi)
 }
 
 /**
- * 装上监听，返回退订函数。装配一次的责任在调用方（store 里那枚 `quitFlushListening`）：
+ * 装上监听，返回退订函数。不叠两层的责任在调用方（store 里那枚 `quitFlushOff`：装配那一行先摘旧再订新）：
  * 叠两层的后果是一次关闭落两遍盘、回两条话，主进程按第一条走，第二条纯属灌水。
  */
 export function installQuitFlushListener(target: QuitFlushTarget, api: QuitFlushApi): () => void {

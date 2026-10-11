@@ -310,3 +310,81 @@ P0-4（自动批准的键并入书根，或随 `clearBookScoped` 一起清——
 ## 十一、我核过、确认没问题的（省得重复劳动）
 
 凭据面：safeStorage 不可用即拒存、明文不落盘（`credential-store.ts:107-115`）、回渲染层只有 `••••后4位`、Ollama 空密钥连头都不发；XSS：两处 `v-html` 上游整体转义且有回归线（`markdownToSimpleHtml` 的注释就是当年那个洞的记录）；SSE 半包与跨 chunk UTF-8（`sse.ts:23-26` TextDecoder stream:true）；abort 真中止上游 fetch；每条 tool_call 都有配对回执；工具轮次有界（4 轮）无死循环；per-run 字段透传（`...deps.provider` 整铺 + 每轮字段显式覆盖）与 chip 提示同读一份判据；备份先于写盘、失败即中断写；删除类无硬删正文通路；`hydrate` 的「值对视图旧」有 computed 钉缓存回归；layoutStore/popover/voice/canvas 的监听与 rAF 收口到位；生产代码无 `child_process`。
+
+## 十二、2026-10-11 收口一条：中栏订阅的退订函数（台账 `README.md:12` 那半条）
+
+**改了什么**：`useAgentStore` 的 `listening` 布尔换成 preload 交回的那只退订函数本身（`agentEventOff`），
+新增 `stopListening()`。原病的形状不是「少写一个函数」而是**判据错位**——布尔只决定「要不要再注册」，
+它撤不掉已经注册的那一只；而 `renderer-api.ts:26-33` 的 `createIpcOn` 注释早就写明，包装后的箭头
+不是原始 listener，摘的时候**只认这个引用**。换成存句柄之后，「挂没挂」和「怎么摘」共用一份判据。
+同仓其实已有正确先例：`quit-flush-client.ts:50` 的 `installQuitFlushListener` 就是「装上监听、返回退订函数」，
+中栏这一条是漏网的。
+
+**一条判定被实测推翻了，如实记**：我先把 `agent.stopListening()` 接进了 `CenterColumn` 的 `onBeforeUnmount`，
+读回真机形状才发现那是**回归**——设置中心整页化会卸载中栏（判据在 `App.vue:133` 的注释与模板
+`v-if="centerView === 'chat'"`），而一轮对话正好可以在用户去看设置的几秒里收尾；`turn-end` 除了收尾那一轮
+还负责发队首的下一条（裁定 G3），监听一摘那条推送没人接，界面永远停在「进行中」且排队不再往下走。
+于是接线改成反向：**卸载时不许摘**，判据落在两处而不是注释里——`stopListening` 的头注释写明不许在中栏卸载时调，
+`center-column-listening-wiring.test.ts` 用「`onBeforeUnmount` 体内不许出现 `stopListening`」把这条钉成红。
+后果由用例量出来（摘掉监听 → `running` 停在 true → 重新挂上同一条推送才收得掉）。
+所以 `stopListening` 在生产里零调用是**刻意的**，与前几波那些「写好了没人调」的假控件不是一回事：
+那几条缺的是通路，这一条缺的是「该摘的时机」，而本应用的订阅是窗口级的。
+（曾把这段理由也写进 `CenterColumn.vue:295` 那块旁边，随即撤了：那个文件压着并行会话的未提交改动，
+留注释会让这一刀没法单独入库。）
+
+**证据（当场回读，不是记忆）**：新增两文件 13 条用例——`stores/useAgentStore.listening.test.ts`（9 条）、
+`components/center-column-listening-wiring.test.ts`（4 条）。变异五只全部死：
+M1 `stopListening` 只置 null 不调 disposer → 4 红；M2 装配处把调用改成不存在的方法名 → 2 红（接线）；
+M3 `startListening` 去掉幂等闸 → 恰 1 红；M4 摘监听但忘记复位句柄 → 恰 1 红（重挂载那条，
+证明「摘了但挂不回来」这形状也有牙）；M5 把我撤掉的错接法原样加回去 → 2 红（反向守卫确实咬得住）。
+分段门禁：`tsc -p apps/desktop/tsconfig.web.json` EXIT=0、scoped eslint EXIT=0、scoped prettier EXIT=0、
+行数预算 EXIT=0（`useAgentStore.ts` 769/800，**又顶近上限了**）；
+全量 `pnpm test` 328 文件 / 4255 用例（4253 通过 + 2 跳过）全绿。
+**未做真机复验**：这一条改的是订阅生命周期，要真起实例走「流式途中进设置页再回来」才量得到，
+而机上那只实例属并行会话现场，我没有动它。
+
+**顺带两处发现**：① `useBookStore.ts:388` 把 `installQuitFlushListener` 的返回句柄同样丢在地上
+（`quitFlushListening` 还是那枚布尔）——同一形状的第二处，退出握手是一次性的，暂时不会累积，
+但它与这条是同一个病，下一刀顺手就该并过来；② 门面 `README.md:41` 那句「当前 215 文件 / 3014 用例」
+与本总单第二节的 217/3037 已经双双过期，已改成「最近一次实测 + 日期」并写明要准数请跑 `pnpm test`
+（对应第六节第 4 条「测试数没有单一事实源」）。
+
+## 十三、2026-10-11 收口第二处：退出握手的订阅句柄（上一条的顺带发现①，与十二并成一刀入库）
+
+**改了什么**：`useBookStore` 的 `quitFlushListening` 布尔换成 `quitFlushOff`（preload 交回的那只退订函数），
+`listenQuitFlush()` 的形状从「查布尔、布尔为真就直接返回」改成**先摘手里那只、再订新的并把句柄写进同一格**。
+`quit-flush-client.ts:47` 那句注释原先指着 `quitFlushListening`，一并改了口径——注释教人去找一枚已经不存在的字段，
+是第二份判据的幽灵形状，所以它也被钉成了一条断言（见下）。
+
+**我按十二那个形状写完，被自己的第三条用例当场打红了**：`if (this.quitFlushOff !== null) return;` 只把判据换了个名字，
+没换它能不能失效——订阅被摘走之后，句柄不会自己归零，于是那一格还在说「挂着」，重装配照样被静默跳过。
+**布尔的「装作还在听」换成了句柄的「装作还挂着」，同一味药没治好。** 退出握手断掉的后果比十二那条更重：
+用户点关闭，一个字都不会落盘。红在那条用例上（`摘掉之后重新装配要真的重订`），不是读出来的。
+改成「先摘旧再订新」之后判据只剩一句话：**手里这只是什么**——它既是摘法也是记录，不再需要第二格状态。
+（另一条路是给句柄套一层「调用即归零」的 wrapper，要多 4 行；这文件 798/800 顶到上限，塞不下，
+而且套一层就得再解释「为什么要套」，反而是把判据拆成两处。）
+
+**为什么这里可以让装配重订，而十二那条偏偏不许**：`listenQuitFlush()` 全仓只有一个调用点（`App.vue:262` 根组件
+`onMounted`，注释写明不接在中栏的理由是「中栏会随页面卸载，握手却该在应用的整个生命期里都在」），
+生产里调一次，摘旧订新是恒等操作；十二那条的隐患来自中栏会随设置页开合反复卸载重挂。
+
+**证据（当场回读，不是记忆）**：改动 4 个文件——`stores/useBookStore.ts`（798/800，行数未涨）、
+`utils/quit-flush-client.ts`（注释口径）、`stores/useBookStore.draft-loss.test.ts`（P0-6 接线那一族 +3 条行为用例，
+并把「重复装配只订阅一次」从量机制（`onQuitFlushRequest` 调用次数）改成量后果（活监听一只、点火一次只落一遍盘只回一条话）——
+句柄版本下调用次数会变成两次，代理指标会把正确实现报成错）、`components/quit-flush-wiring.test.ts`（2 条 → 5 条）。
+先红 6 条再实现，红的都是断言原文（`expected 'undefined' to be 'function'`、`expected [ [Function] ] to have a length of +0 but got 1` ×2、
+两条 `toMatch` 未命中、client 注释含旧布尔名）。变异四只：
+M1 删掉「先摘旧」那行 → 恰 2 红（行为 + 接线）；M2 把存的句柄换成 `() => {}` 假摆设 → 恰 4 红
+（`typeof === "function"` 那条**没红**，是两条行为用例咬住的——形状断言不是凭据，退订真的生效才是）；
+M3 在任一组件里摸 `quitFlushOff` → 恰 1 红（真身只有一处那条）；M4 把旧布尔名写回 client 注释 → 恰 1 红。
+分段门禁：scoped `tsc -p apps/desktop/tsconfig.web.json` EXIT=0（0 个 error TS）、scoped eslint EXIT=0、
+scoped prettier EXIT=0、行数预算 EXIT=0；全量 `pnpm test` **328 文件 / 4261 用例**（4259 通过 + 2 跳过）全绿，
+日志 grep 失败痕迹 0 条；全仓 `prettier . --check` EXIT=0；全仓 eslint 仍 1 红 = `SideNavNoticeDialog.vue:27`
+未使用的 `useBookStore` import，属并行会话未提交的在制品（`git diff` 里有这一行、`git show HEAD:` 里没有），不归这一刀。
+**未做真机复验**：与十二同一条理由——量「关闭前真的落盘」要真起实例，机上那只属并行会话现场。
+
+**顺带一条该登记的**：`useBookStore.ts` 已经 798/800。这一刀靠「删一行加一行」压在上限内，
+但它不再有余量放第二只动作（本次就是因此放弃了 wrapper 那条写法）。按门面那条硬规矩，
+**贴到 800 行就该拆，拆的依据是「不共享状态」**——建议把这一条单独立成一刀（候选切法：
+退出握手与自动保存排程这两族状态本就不共享），而不是等下一个改动撞墙时临时找地方塞。
+

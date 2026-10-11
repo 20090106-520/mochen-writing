@@ -304,8 +304,16 @@ describe("P0-6 接线：主进程拦下的那一次", () => {
     store.listenQuitFlush();
     store.listenQuitFlush();
 
-    expect(fx.api.onQuitFlushRequest).toHaveBeenCalledTimes(1);
+    // 原先这条钉的是 `onQuitFlushRequest` 只被调了一次——那是机制的代理指标。
+    // 换成句柄判据之后装配走的是「先摘旧再订新」，调用次数会变成两次，而标题里那句后果才是真要求：
+    // 活着的监听只许有一只，点火一次只落一遍盘。量后果，别量代理。
     expect(fx.quitRequests).toHaveLength(1);
+    store.onEdit("重复装配之后写的字\n");
+    fx.quitRequests[0]?.();
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(fx.writeDoc).toHaveBeenCalledTimes(1);
+    expect(fx.quitFlushDone).toHaveBeenCalledTimes(1);
   });
 
   it("书还没打开（没有一篇可落）：直接回 ok，别让主进程白等一趟超时", async () => {
@@ -317,5 +325,57 @@ describe("P0-6 接线：主进程拦下的那一次", () => {
 
     expect(fx.writeDoc).not.toHaveBeenCalled();
     expect(fx.quitFlushDone.mock.calls.map((call) => call[0])).toEqual([{ ok: true, blocked: [] }]);
+  });
+
+  /**
+   * 下面三条钉的是**句柄有没有落地**（2026-10-11 收口，台账 `README.md:12` 那一族的第二处）。
+   *
+   * 原先那格存的是布尔，而 `installQuitFlushListener()` 交回的那只退订函数直接丢在地上——
+   * preload 按引用摘 listener，只有这一只能摘掉已订的那一只（`preload/renderer-api.ts` 的 `createIpcOn`）。
+   * 布尔版本下第三条是红的：订阅被摘走之后布尔还写着「在听」，重装配被静默跳过，握手就此永久断掉，
+   * 用户点关闭时一个字都不会落盘。现在装配走「先摘旧再订新」，同一格既是判据也是摘法。
+   */
+  it("装配之后 store 里存的是那只退订函数，不是布尔", () => {
+    const store = useBookStore();
+    store.listenQuitFlush();
+
+    expect(typeof store.quitFlushOff).toBe("function");
+  });
+
+  it("用存下的那只退订：监听真的从 preload 面上摘掉了，此后再无兜底与答话", async () => {
+    const store = await openedStore();
+    store.listenQuitFlush();
+
+    store.quitFlushOff?.();
+    expect(fx.quitRequests).toHaveLength(0);
+    // 同一只再摘一次不许抛：preload 的 `removeListener` 对没挂上的引用是无操作。
+    store.quitFlushOff?.();
+
+    store.onEdit("退订之后写的字\n");
+    // 只给「现在还活着的」监听点火。攥着摘掉之前那只旧闭包直接调一次是假场景——
+    // 真身已被摘走，它在产品里再也收不到推送；量到的是测试自己留的后门，不是退订生效。
+    fx.quitRequests.forEach((fire) => fire());
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(fx.writeDoc).not.toHaveBeenCalled();
+    expect(fx.quitFlushDone).not.toHaveBeenCalled();
+  });
+
+  it("摘掉之后重新装配要真的重订：布尔判据在这儿会装作还在听，握手就此永久断掉", async () => {
+    const store = await openedStore();
+    store.listenQuitFlush();
+    // 外部把订阅摘走（将来的窗口销毁通路、或任何按句柄退订的代码）。
+    store.quitFlushOff?.();
+    // 这条不是重复上一条用例：少了它，下面「重订成一只」在布尔版本里也会**通过**——
+    // 因为那句 `?.()` 静默什么都不做，旧的监听从头到尾没被摘掉过，数目看着正好。
+    expect(fx.quitRequests).toHaveLength(0);
+
+    store.listenQuitFlush();
+    expect(fx.quitRequests).toHaveLength(1);
+
+    store.onEdit("重订之后写的字\n");
+    fx.quitRequests[0]?.();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fx.writeDoc).toHaveBeenCalledTimes(1);
   });
 });

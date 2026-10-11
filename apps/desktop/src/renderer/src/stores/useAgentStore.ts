@@ -76,7 +76,13 @@ export const useAgentStore = defineStore("agent", {
     proposals: {} as Record<string, ProposalView>,
     notice: "",
     seconds: 0,
-    listening: false,
+    /**
+     * 中栏订阅的**唯一真身**：preload `onAgentEvent` 交回的那只退订函数。
+     * 原先这里是一枚 `listening` 布尔，而布尔只决定「还要不要再注册」，**撤不掉已经注册的那一只**
+     * ——台账 `README.md:12` Plan 2 遗留那条就是这么来的。改成存句柄之后，
+     * 「挂没挂」与「怎么摘」用的是同一份判据，不可能各说一套。
+     */
+    agentEventOff: null as (() => void) | null,
     /** 同线程并发 ensureHydrated 合流到同一个 promise（Task 5 用；本任务先建位）。 */
     hydrateInflight: {} as Record<string, Promise<void>>,
     /** 输入框的值上收到的顶层 map（设计决定 3）：键是 threadKey，不进 ThreadView，切章不丢字。 */
@@ -171,11 +177,27 @@ export const useAgentStore = defineStore("agent", {
 
     /** 中栏唯一的订阅入口：装配处挂载时调一次，重复调用不叠加监听。 */
     startListening(): void {
-      if (this.listening) return;
-      this.listening = true;
-      window.mochen.onAgentEvent((payload) => {
+      if (this.agentEventOff !== null) return;
+      // 交回来的那只函数**必须存下**：它是 preload 按引用 removeListener 的唯一凭据
+      // （`preload/renderer-api.ts` 的 `createIpcOn`，包装后的箭头不是原始 listener，摘的时候只认这个引用）。
+      this.agentEventOff = window.mochen.onAgentEvent((payload) => {
         this.apply(payload);
       });
+    },
+
+    /**
+     * 撤掉中栏订阅，线程态一个字都不动（「迟到的旧轮推送」另有 `apply` 里的 turnId 守卫挡）。
+     *
+     * **中栏卸载时不许调它**——设置中心整页化会卸载中栏，而 `turn-end` 除了收尾那一轮还负责发队首的下一条
+     * （裁定 G3），监听一摘那条推送就没人接，界面停在「进行中」且排队不再往下走。
+     * 后果由 `useAgentStore.listening.test.ts` 末条用例量出来，防线由 `center-column-listening-wiring.test.ts` 钉住。
+     * 真正的摘除点是窗口销毁（随 renderer 一起没），所以这一只现在的作用是：**句柄有处可放，不再丢在地上**。
+     */
+    stopListening(): void {
+      const off = this.agentEventOff;
+      if (off === null) return;
+      this.agentEventOff = null;
+      off();
     },
 
     apply(outbound: AgentOutbound): void {

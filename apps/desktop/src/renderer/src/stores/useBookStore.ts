@@ -125,7 +125,8 @@ export const useBookStore = defineStore("book", {
      * 这格标志让中栏改摆骨架。判定在 utils/editor-readout，这里只报事实。
      */
     docLoading: false,
-    quitFlushListening: false
+    /** 退出握手订阅的退订句柄：装配那一行先摘它、再写新的进去，所以屏上永远不会叠两层。 */
+    quitFlushOff: null as (() => void) | null
   }),
 
   getters: {
@@ -381,11 +382,10 @@ export const useBookStore = defineStore("book", {
       return result;
     },
 
-    /** 退出握手（P0-6）装配点，中栏挂载时调一次；重复调用不叠加监听（一趟关闭落两遍盘、回两条话）。 */
+    /** 退出握手（P0-6）装配点，根组件挂载时调一次。重复调用先摘旧再订新：屏上永远只有一只监听（叠两层就是一趟关闭落两遍盘、回两条话）。 */
     listenQuitFlush(): void {
-      if (this.quitFlushListening) return;
-      this.quitFlushListening = true;
-      installQuitFlushListener(this, window.mochen);
+      this.quitFlushOff?.();
+      this.quitFlushOff = installQuitFlushListener(this, window.mochen);
     },
 
     /** Ctrl+1..9：越界返回 false 且不改状态。 */
