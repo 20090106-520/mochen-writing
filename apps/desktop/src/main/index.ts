@@ -416,7 +416,12 @@ app.whenReady().then(async () => {
    * 日志与崩溃钩子共用 `crash.log`——这两类事故本来就是同一次报障要看的两个现场。
    */
   installQuitFlush({
+    // 接线由真机量出来（Electron 42.5.0 / Windows，探针与六份日志在 `scratch/quit-order-probe/`）：
+    // 用户「点关闭」走的是**窗口的 close**；只挂 `before-quit` 时，那一刻要么根本没来（进程还留在后台），
+    // 要么来了而窗口已经销毁——`hasWindow()` 为 false，握手第一步就 return，稿子跟着窗口一起没。
+    // 两个事件交的是**同一个** handler：拦一次、超时放行、放行后不再拦，这套状态机的真身仍只有一份。
     onBeforeQuit: (handler) => {
+      win.on("close", handler);
       app.on("before-quit", handler);
     },
     onFlushReply: (handler) => {
