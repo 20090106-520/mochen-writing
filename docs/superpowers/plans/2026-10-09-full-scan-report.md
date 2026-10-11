@@ -474,4 +474,33 @@ apt 包名都可能跟着变。建议到期前另做一刀：把 `runs-on` 钉�
 这一刀没顺手做，是因为它换的是「runner 版本策略」这条独立决定，与「消掉 runtime 告警」不是同一件事，
 混在一起会让 CI 变红时分不清是哪一半引起的。
 
+## 十六、2026-10-11 把第十五节那条到期风险收口：`runs-on` 钉成 `ubuntu-24.04`
+
+**改了什么**（提交 `b137227`，只动 `.github/workflows/verify.yml` 一处）：`runs-on: ubuntu-latest` →
+`ubuntu-24.04`，另加四行注释写清「为什么不许用 latest」。理由就是第十五节登记的那句：GitHub 定在
+**2026-10-19** 把 `ubuntu-latest` 自动切到 Ubuntu 26，那一天本仓没有任何一行代码变过，门禁却可能凭空变红——
+而 CI 的全部价值在于「红」必须能归因到某一次具体提交。以后要换镜像是我们主动的一刀：改这行、跑一次、看日志。
+
+**本地证据**（改的是 YAML，仓库里没有 YAML 解析器，也不为此装依赖——铁律：不新增依赖）：
+`git diff -U0` 逐行回读只有这一段（`5 insertions(+), 1 deletion(-)`）；scoped `prettier --check
+.github/workflows/verify.yml` **EXIT=0**（`format:check` 覆盖 `.yml`）。
+
+**CI 证据**（这一刀的关卡只可能在 CI，本机没有 Linux runner）：
+run `38127538532`（门禁 pnpm verify **#9**，commit `b137227`，push 触发）**Success**，
+job `114434920168` succeeded in **2m 17s**（其中 `pnpm verify` 那一步 1m 59s）。
+关键是别只读「没变红」就当成生效——`Set up job` 日志里读回来了镜像本身：
+`Operating System: Ubuntu 24.04.5 LTS`、`Runner Image: Image: ubuntu-24.04`、
+`Version: 20261004.327.1`（同页 `Current runner version: '2.337.0'`）。
+Annotations 整页现在是**空的**：第十五节那条「10-19 迁 Ubuntu 26」的 notice 也一并消失，
+因为我们不再引用 `latest`，那条提示的触发条件本身没了。
+
+**这一刀买到的是时间窗，不是「Ubuntu 26 也没事」**：我们没有在 26 上跑过一次，所以将来切 26 仍是独立一刀，
+判据和这一样——换镜像、跑一次、把 `Set up job` 里的镜像版本读回来。同理 `ubuntu-24.04` 自己也有退役日；
+到期时按同一形状主动换，不要改回 `latest`。
+
+**落地方式**：`fix/ci-path-platform-neutrality` 与 `feat/plan3-interaction-and-assembly` 都 fast-forward 到
+`b137227`（无强推、可回退），推完用 `git ls-remote --heads origin` 回读远端哈希对上本地 HEAD。
+并行会话那边仍欠一步：把他们那批未提交的改动压在 `b137227` 之上后**重跑 `ipc-guard.test.ts`**——
+这条与第十四节末尾那句是同一件事，「patch 装得上」只证明文本不冲突，不证明语义不冲突。
+
 
