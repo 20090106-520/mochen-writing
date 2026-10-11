@@ -428,7 +428,7 @@ Linux 证据就是 CI 本身：分支推上去 `verify.yml` 会在 ubuntu runner
 **已回读对上**：run `38123064023`（门禁 pnpm verify #4，commit `00a0984`，push 事件触发）
 Status **Success**，job「六路 typecheck + lint + boundary + budget + 全量测试」2m14s——`b1fc79a` 以来第一次绿。
 那条 run 只剩一枚与本刀无关的告警：`actions/checkout@v4` 等 action 仍标 Node.js 20（GitHub 侧的弃用告警，
-不是我们 `engines` 的问题；对应第三方审查里「Node.js 版本要求」那条，另议）。
+不是我们 `engines` 的问题；对应第三方审查里「Node.js 版本要求」那条——已在第十五节收口）。
 
 **没跟着改的两处，以及为什么不改**：`:43` 的 `PACKAGED` 与 `:550` 那组 `file:///C:/repo/…` 字面量确实是
 Windows 形状，但它们在断言两端是**同一串不透明 URL**，`isSameRendererOrigin` 走的是 URL 解析 + 字符串比较，
@@ -441,4 +441,37 @@ Windows 形状，但它们在断言两端是**同一串不透明 URL**，`isSame
 `git apply --check`（以及 `--check --3way`）双双 EXIT=0，装得干净；再 grep 他们新增的行，
 没有 `C:/`、`file:///`、`pathToFileURL`、`resolveRendererLoad` 或大小写类断言——也就是说他们不会把
 这三条红灯以另一种形状带回来。**合完必须重跑这个文件**，因为「patch 装得上」只证明文本不冲突，不证明语义不冲突。
+
+## 十五、2026-10-11 门禁自身升版（第十四节末尾那句「另议」在这里收口）
+
+**那条审查的「Node.js 版本要求」得拆成两件事判**：把 `engines.node` 从 `>=24.0.0` 放宽到 `>=20` 是
+**不该做的**——Node 24 在本仓是硬前提（`packageManager` 钉 pnpm 11 系、Electron 42 的 postinstall、
+`tsconfig` 的 lib 都按它配），放宽只会把「本机装不动」换成「本机跑得动而 CI 测不出差异」；
+但同一枚 run 日志里那条告警是**真的**：`actions/checkout@v4`、`actions/setup-node@v4`、
+`pnpm/action-setup@v4` 声明的 runtime 还是 Node.js 20，被 runner 强制跑到 24 上，GitHub 明说这层兼容
+不会一直维持。**该修的是这三枚 action，不是 `engines`。**
+
+**升了哪些**（提交 `f94d985`，只动 `.github/workflows/verify.yml`）：`checkout v4→v7`、
+`setup-node v4→v7`、`pnpm/action-setup v4→v6`。用户原话是「升 v5」——v5 确实就够消警
+（checkout 的 CHANGELOG 里 **v5.0.0 就是 "use node 24"**），但上游当下已是 v7/v7/v6，
+所以按最新大版本走，逐条读回依据而不是照 tag 名硬猜：checkout v6.0.0 只改「凭据写进单独的文件」、
+v7.0.0 只挡 `pull_request_target` / `workflow_run` 的 fork 检出，本流水线在 `push` / `pull_request`
+里检出且从不往回推，两条都碰不到；`setup-node@v7` 与 `pnpm/action-setup@v6` 的 `action.yml` 里
+`runs.using` 均为 `node24`，我们用到的输入只有 `node-version` 与 `cache`，且 v7 的 `cache` 描述
+仍写着「Supported values: npm, yarn, pnpm」。
+
+**本地为什么没有 YAML 关卡**：仓库里没有 YAML 解析器，也不为此装依赖（铁律：不新增依赖）。
+所以本地的证据只有两条——`git diff -U0` 逐行回读（只有三行 `uses:` 变了，外加一段注释）、
+scoped `prettier --check` EXIT=0（`format:check` 覆盖 `.yml`）。真正的关卡是 CI：
+run `38124223928`（门禁 pnpm verify #6，commit `f94d985`）**Success**、2m27s，
+Annotations 从「1 warning and 1 notice」变成「1 notice」，且整页搜 `Node.js 20 is deprecated`
+已经**搜不到**。
+
+**顺手登记一条带到期日的外部风险**（不是本仓的债，但它有日子）：Annotations 现在换成了
+`ubuntu-latest` 将于 **2026-10-19** 迁到 Ubuntu 26。`verify.yml:28` 钉的是 `ubuntu-latest` 而不是
+具体镜像，所以那次迁移会**自动**发生在我们身上——native 依赖的预编译产物、镜像自带的 Node、
+apt 包名都可能跟着变。建议到期前另做一刀：把 `runs-on` 钉成 `ubuntu-24.04`，10-19 之后跑一次对照。
+这一刀没顺手做，是因为它换的是「runner 版本策略」这条独立决定，与「消掉 runtime 告警」不是同一件事，
+混在一起会让 CI 变红时分不清是哪一半引起的。
+
 
