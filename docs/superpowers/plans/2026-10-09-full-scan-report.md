@@ -65,7 +65,7 @@ Windows 机器上人工成立过，且产不出任何可安装的交付物。还
 | P0-3 | **已修** | `closeTab` 先交回未落盘的草稿再删格（`flushDocBeforeDrop`）：写成功才关，IPC 抛错 / 返回 `stale` / 预检冲突三种情形一律**不关**，并把「这一格给你留着，一个字都没丢」这句理由送到界面上 | `utils/draft-flush.ts` + `useBookStore.ts:341` + `useBookStore.draft-loss.test.ts`（4 条）；退出侧同一批原语由 `quit-flush-wiring.test.ts` 钉 |
 | P0-4 | **已修** | `ruleKey`/`threadKey` 之前加书根：自动批准的作用域变成「这本书 + 这一篇 + 这一枚工具」，`clearBookScoped()` 现在真的清 | `main/agent-service.ts` + `agent-service-auto-approve-scope.test.ts`、`agent-service-unbound-approve.test.ts`、`main/book-scope.test.ts` |
 | P0-5 | **已修** | `ensure()` 只在读成功（或确认 ENOENT）之后才置 `loaded`；一次 EBUSY/EACCES 之后仍能重读，且缓存未成立时**拒绝**整份重写 | `main/provider-settings.ts` + `provider-settings.test.ts` |
-| P0-6 | **已修** | 两层：主进程 `uncaughtException`/`unhandledRejection` 钩子写 `crash.log` 并提示（带节流与「记不了也别再炸一次」的兜底）；`before-quit` 握手（渲染层兜底 flush 完才放行，带超时与「留下」档，正文与设定一起交回）。**没做** `requestSingleInstanceLock`——双开实例这条仍在 P2 清单里 | `main/crash-guard.ts`（5 条）、`main/quit-flush.ts`（10 条）、`utils/quit-flush-client.ts`（7 条）、`components/quit-flush-wiring.test.ts`（2 条） |
+| P0-6 | **已修**（10-09 那版当时是**半真**：模块、10 条用例、渲染层兜底都在，但握手挂的事件不在真实退出路径上，用户点关闭时一步都不跑——10-11 用真机探针量出来并修好，见第十七节） | 两层：主进程 `uncaughtException`/`unhandledRejection` 钩子写 `crash.log` 并提示（带节流与「记不了也别再炸一次」的兜底）；`before-quit` 握手（渲染层兜底 flush 完才放行，带超时与「留下」档，正文与设定一起交回）。**没做** `requestSingleInstanceLock`——双开实例这条仍在 P2 清单里 | `main/crash-guard.ts`（5 条）、`main/quit-flush.ts`（10 条）、`utils/quit-flush-client.ts`（7 条）、`components/quit-flush-wiring.test.ts`（2 条） |
 | P0-7 | **已修**（本波） | 设定三本（笔记 / 故事圣经 / 写作目标）改走**主进程文件通路**：渲染层只递白名单键 `notes \| story-bible \| writing-goal`，路径由主进程拼，落在书内 `.mochen/data/*.json`，随书隔离；写盘复用 P0-1 的原子写；旧全局 localStorage 键**只在盘上没有这一类数据时**迁一次，迁成功才清；`no-book`/`invalid-key`/`unreadable`/`write-failed` 分档各有话；形状校验三份独立（认不得判读不懂并**停止写盘**） | 契约 `packages/contracts/src/book-data.ts`；文件层 `packages/fs-store/src/book-data.ts`（11 条）+ `book-data.test.ts`；主进程 `main/book-service.ts` 的 `readData/writeData` + `main/book-data-service.test.ts`（7 条）；preload `readBookData/writeBookData`（`preload/renderer-api.test.ts` 6 条）；渲染层通路 `composables/useBookFileData.ts`（18 条）+ `composables/bookDataRegistry.ts`（7 条）；三本 store 各一份 `*.book-data.test.ts`（9 + 8 + 12 条）；形状 `utils/{note,bible,goal}-shape.ts`（10 + 10 + 19 条） |
 | P0-8 | **已修** | 笔记档位表加第四档「已归档」、圣经加第五档，取回钮摆在明面上；`unarchiveNote`/`restoreEntry` 不再是零调用 | `components/NotesPanel.vue` + `notes-panel-wiring.test.ts`；`StoryBiblePanel.vue` + `story-bible-panel-wiring.test.ts`；取回归档视图的另一半由 `useStoryBibleStore.seeds.test.ts`（9 条）与 `utils/{note,bible}-scope` 钉 |
 
@@ -502,5 +502,76 @@ Annotations 整页现在是**空的**：第十五节那条「10-19 迁 Ubuntu 26
 `b137227`（无强推、可回退），推完用 `git ls-remote --heads origin` 回读远端哈希对上本地 HEAD。
 并行会话那边仍欠一步：把他们那批未提交的改动压在 `b137227` 之上后**重跑 `ipc-guard.test.ts`**——
 这条与第十四节末尾那句是同一件事，「patch 装得上」只证明文本不冲突，不证明语义不冲突。
+
+## 十七、2026-10-11 真机量出来的一条 P0：点关闭时退出握手一步都没跑
+
+**结论先放前面**：`main/quit-flush.ts` 那套状态机（拦一次、超时放行、放行后不再拦）从头到尾是对的，
+红的是**装配那两行**——`installQuitFlush` 只挂在 `app.on("before-quit")` 上，而 Windows 上用户「点关闭」
+根本不走 `before-quit`。这一条把第六节 P0-6 那行从「已修」纠正为「当时半真」：握手的零件齐全，
+通路却接错在事件上，**用户点关闭时一个字都不会落盘**，稿子跟着窗口一起没。
+
+**怎么量出来的**（不是推理，是跑出来的）：Electron 42.5.0（`pnpm-workspace.yaml:10` 的 catalog 钉版，
+本机装的是 `node_modules/.pnpm/electron@42.5.0`），探针在 `scratch/quit-order-probe/`（`scratch/` 被
+`.gitignore:11` 忽略，所以六份日志只在本机、仓库里查不到；要复现就照 `probe.js` 的 `MODE` 分支重跑）。
+探针的关键一条：**触发钮用主进程的 `win.close()`**——原先按渲染层 `window.close()` 试过一轮，它**绕过 `'close'` 事件**
+（这一条现在记在 `probe.js:5` 的注释里；当时那轮的日志被后面几档重跑覆盖了，所以它只有注、没有盘），
+那不是「点关闭」的模型。`main/index.ts:169` 建的是 `frame:false` + `titleBarStyle:'hidden'` 的无边框窗，
+标题栏按钮本来就走主进程那一条。六份日志读回来的顺序：
+
+| 模式 | 量到什么 |
+| --- | --- |
+| `plain`（现状接线） | `close` → `closed`（窗口已销毁）→ `window-all-closed`，**没有 before-quit**；探针兜底记的 `STILL ALIVE`（3 秒后进程还在）；补一次 `app.quit()` 才来 `before-quit`，而那一刻 `hasWindow=false` ⇒ `quit-flush.ts:79` 直接 return。**两个后果同时成立：稿子没落盘 + 进程留在后台** |
+| `intercept`（我第一版想当然的修法） | 在 `'close'` 里 `preventDefault()` 之后**同步** `app.quit()`：`close` 被触发**两次**，然后 `STILL ALIVE`——quit 卡在 close 里，这一形是错的，撤了 |
+| `wired` | close 被拦下时 `window alive=true`，request 发得出去；回话后 `destroy()` → `window-all-closed` → `app.quit()` → 干净退出 |
+| `quitflush` / `qf-nowc` | 直接 require 本仓**真模块**（`quit-flush.ts` 经 esbuild 去型）。close 被拦 → `sendFlushRequest; window alive=true` → 渲染层回话（模拟一跳 IPC）→ `deps.quit()` → `before-quit fired; hasWindow=true` 时**不再拦**（`released` 生效，规则①在真进程里成立）→ `closed` → `will-quit` → `quit`，800ms 量级退出（`quitflush` 795ms、`qf-nowc` 831ms），**没有 `STILL ALIVE`**。两档差别是有没有 `window-all-closed → app.quit()`：**都干净**，所以那层兜底不该加 |
+| `direct` | 不拦 close 直接发 request 的对照：照样走完，说明「窗口活着」才是关键，`preventDefault` 不是 |
+
+**改了什么**（一处代码 + 四行注释，`index.ts` 461 → 466 行）：
+
+```ts
+onBeforeQuit: (handler) => {
+  win.on("close", handler);
+  app.on("before-quit", handler);
+},
+```
+
+两个事件交**同一个** handler，状态机的真身仍只有一份。留着 `before-quit` 是因为程序主动退出（将来的自动更新重启、
+崩溃前的收尾）不经窗口 close。`hasWindow: () => !win.isDestroyed()` **一个字没动**——它正是拦在 close 上的理由：
+那一刻窗口还活着，脏稿还在，request 才发得出去。
+
+**为什么不补 `window-all-closed` 兜底**：拦下 close 之后每一次关窗都必经握手，而握手要么放行退出、要么超时放行，
+不存在「窗口没了而进程还留着」那条路（`qf-nowc` 档实测就是这条），全仓也查不到绕过 close 的销毁
+（`grep -rn --include=*.ts -e "new BrowserWindow" -e "\.destroy()" apps/desktop/src/main` 去掉用例后只剩 `index.ts:169`
+一处建窗，主进程代码里零 `.destroy()`——会绕过 close 的那条路根本不存在）。
+给不会发生的场景加通路，是本仓反复清理的那类假控件。
+
+**顺带一处口径修正**：`quit-flush.ts:25` 那行字段注释原先写「真身是 `app.on("before-quit", …)`」，
+接线改完它就只说对一半——注释教人去找半个现场，和第十三节那条「注释指着已经不存在的字段」是同味药，
+所以把它改了并同时钉成断言（第 7 条）。
+
+**证据（当场回读，不是记忆）**：新增 `main/quit-flush-close-arm.test.ts`（**7 条**）。装配文件直接 import electron、
+没有运行时单测入口，所以按本仓既有先例（`ipc-guard-coverage.test.ts`、`window-min-size.test.ts`）读源码当契约，
+注释一律先剥。先红后绿是**当场量出来的**：把 `index.ts` 与 `quit-flush.ts` 退回 `git show HEAD:` 那两版、只跑这份新用例，
+**3 红 4 绿**（红的正是 #1 挂 close、#3 同一个 handler、#7 字段注释；#2/#4/#5/#6 在旧接线上本来就成立——它们防的是往后改动），
+装好接线后 7 条全绿；变异逐只跑在**同一份最终状态**上——
+M1 删 `win.on("close", …)` → 恰 2 红（#1 + #3）；M2 删 `app.on("before-quit", …)` → 恰 2 红（#2 + #3）；
+M3 `hasWindow: () => true` → 恰 1 红（#4）；M4 把 close 的注册包一层 `(event) => handler(event)` → 恰 1 红（#3）；
+M5 两个事件交不同 handler → 恰 1 红（#3，`Set` 那条）；M6 多调一次 `installQuitFlush(` → 恰 1 红（#5）；
+M7 把 `waiting = false` 抄进装配文件 → 恰 1 红（#6）；M8 把字段注释改回只指 `before-quit` → 恰 1 红（#7）。
+**M4 是形状断言的假阳性边界，如实记**：`(event) => handler(event)` 语义等价而用例会红。装配文件没有运行时探针，
+这是唯一能拦住「两个 handler 各跑一半」的办法——宁可让一次等价重写红到人来解释，也不要真的分叉静默通过。
+（#3 原先写的是 `shared.map((one) => one.split(",").pop().trim()...)`，被 `tsc` 当场判红一条
+`quit-flush-close-arm.test.ts(61,40): error TS2532: Object is possibly 'undefined'`——不是环境噪音，是真实类型漏洞；
+改成 `matchAll` + `typeof name === "string"` 收窄后 M4/M5 两只变异**重跑过**，才敢写上面的结论。）
+
+**门禁**：五段逐段取码全 `EXIT=0`——`typecheck`（六份 tsconfig）、`test`、`lint:eslint`、`lint:boundary`、`format:check`；
+`node tools/check-source-line-budget.mjs` 单独跑也 `EXIT=0`（607 份）。全量测试 **304 文件 / 3966 通过 + 2 跳过**
+（这两个数就是当前树的全部，含本刀新增的 1 文件 / 7 条用例；HEAD 的基线数没有单独跑过，所以不写「比基线多几条」这种没法核对的话）。日志二次取证：`grep -nE "error TS|ELIFECYCLE|Command failed|^ FAIL|EPERM|EBUSY"`
+五份日志只命中 1 条，且它就是用例自己印的那行环境噪音（`ipc-guard.test.ts:536`：本机非开发者模式建不了符号链接，
+软链逃逸那一条没验到），同档 `test_EXIT=0` 且该文件 45 条全过。
+
+**这一刀只到「探针级」，没到「应用级」**：探针用的是本仓真的 `quit-flush` 模块 + 真的事件顺序，
+但渲染层回话是模拟的一跳，落盘的是探针里的假 handler。**应用内那条（脏稿 → 真点关闭 → 盘上真有那几个字 →
+进程干净退出）还没量过**，它和第十二、十三节欠的是同一步，仍是这一族唯一的未收口项。
 
 
