@@ -26,6 +26,11 @@
 Windows 机器上人工成立过，且产不出任何可安装的交付物。还有一条实打实的门禁漏洞：`plugin-kernel` 四包之一
 从未进过 typecheck，我单独跑它当场报 TS2352 + TS7006——带着两个类型错误全绿了不知多少轮。
 
+> 【2026-10-12 现状回读，逐条见第二十三节】上面这三句里**只剩中间那句还成立**：`.github/workflows/verify.yml` 现在在 HEAD 里
+> （每次 push 与 pull_request 跑整条 `pnpm verify`，runner 钉 `ubuntu-24.04`），`plugin-kernel` 也进了根 `typecheck` 的六个程序；
+> 而「产不出可安装的交付物」照旧——`git ls-files` 里没有任何打包配置。这三句按 2026-10-09 的现场**原样留着不删**，
+> 删掉就等于把「当年为什么判它危险」的证据一起抹了。
+
 ## 二、门禁实测（退出码逐条回读，未用管道吞码）
 
 | 门禁 | 结果 | 证据 |
@@ -251,6 +256,12 @@ MW7 `preventDefault()` 提到栈检查之前 → 2 红跨两层（行为层「�
 3. **验收样本规模是玩具级**：两本冒烟书分别是 5 篇和 2 篇（我实测 `find -name '*.md' | wc -l`），而产品面向的是 1000–3000 章的作者。P1-4/P1-5/P1-3 这一族全是「在小样本上恒绿」的问题。真机巡检做的都是视觉与控件级验证，从未量过规模。
 4. **台账数字口径互异**：`README.md:6317` 写 215 文件/3014 用例，`:6395` 写 217/3037，我实测当前树是 217/3037。测试数没有单一事实源，长期会让「用例数变多」这种话失去意义。
 
+> 【2026-10-12 逐条回读，全文见第二十三节】1 **已闭**（CI 在 HEAD 里，且 `tools/ci-gate.test.mjs` 把「CI 在场、跑整条 verify、不吞码」钉成断言）；
+> 2 **照旧成立**（HEAD 无任何打包配置），但并行会话正在做那块（未跟踪的 `apps/desktop/electron-builder.yml`、`auto-update.ts`、`release-e2e/`），我不重复动；
+> 3 **已量**（1000 章 × 3000 字夹具，P1-4/P1-5 两行的实测数字），只剩渲染层 `refreshDocs()` 那一半，被他们的未提交改动阻塞；
+> 4 当年只闭了一半（冻死数改成了「最近一次实测 + 日期」），**这一格才真闭**：本机那次读到 328/4261 是因为工作区里压着
+> 另一条会话未跟踪的 25 个 `*.test.ts`，而 CI 在干净提交树上报的是 304/3965——门面已写明「报数必须连着『哪棵树』一起说」。这一段原话**一字未删**——它是 2026-10-09 那棵树的事实。
+
 ## 七、台账里已记、这次仍在的开口（照录并核现状）
 
 | 台账出处 | 事项 | 本次核对的现状 |
@@ -340,6 +351,10 @@ M3 `startListening` 去掉幂等闸 → 恰 1 红；M4 摘监听但忘记复位�
 分段门禁：`tsc -p apps/desktop/tsconfig.web.json` EXIT=0、scoped eslint EXIT=0、scoped prettier EXIT=0、
 行数预算 EXIT=0（`useAgentStore.ts` 769/800，**又顶近上限了**）；
 全量 `pnpm test` 328 文件 / 4255 用例（4253 通过 + 2 跳过）全绿。
+> 【2026-10-12 注】这枚 **328** 是**本机那棵工作树**的读数，不是干净提交树的：同一族提交在 CI 上（run `38157657994`，
+> 提交 `e4b52e4`）报的是 **304 文件 / 3965 用例**。差的 24 个文件是并行会话**未跟踪**的 `*.test.ts` 被 vitest 收走了——
+> 所以这一行当年报的绿**不假**，只是它证明的是「我这棵树 + 别人没提交的用例」那一整片，而不是提交树单独是绿的。
+> 口径已写进门面与第二十三节第 4 条（「报数必须连着『跑在哪棵树上』一起说」）。
 **真机复验已就地补上（2026-10-11，见第十八节）**：这一条改的是订阅生命周期，要真起实例走「流式途中进设置页再回来」才量得到——
 那一格已经在应用内量过 A/B 两轮（A 绿、B 用刻意加回去的错接法证明它真的会红），当时没量是因为机上那只实例属并行会话现场，我没有动它。
 
@@ -379,6 +394,8 @@ M1 删掉「先摘旧」那行 → 恰 2 红（行为 + 接线）；M2 把存的
 M3 在任一组件里摸 `quitFlushOff` → 恰 1 红（真身只有一处那条）；M4 把旧布尔名写回 client 注释 → 恰 1 红。
 分段门禁：scoped `tsc -p apps/desktop/tsconfig.web.json` EXIT=0（0 个 error TS）、scoped eslint EXIT=0、
 scoped prettier EXIT=0、行数预算 EXIT=0；全量 `pnpm test` **328 文件 / 4261 用例**（4259 通过 + 2 跳过）全绿，
+（2026-10-12 注：这枚 328 同样是**本机工作树**的数——下面那行 eslint 红已经自己点明了「属并行会话未提交的在制品」；
+干净提交树上 CI 报 304 文件 / 3965 用例，口径见第二十三节第 4 条。）
 日志 grep 失败痕迹 0 条；全仓 `prettier . --check` EXIT=0；全仓 eslint 仍 1 红 = `SideNavNoticeDialog.vue:27`
 未使用的 `useBookStore` import，属并行会话未提交的在制品（`git diff` 里有这一行、`git show HEAD:` 里没有），不归这一刀。
 **真机复验已量（2026-10-11，第十七节末的应用内 A/B）**：「关闭前真的落盘」那一条已经在真应用里量到 37ms 落盘、对照轮一个字节不落；
@@ -1113,5 +1130,95 @@ P2-13 打字延迟（第二十节）、P2-8 内存曲线（第二十一节）—
 顺手补上回读那一笔自己欠的数：**`08f0f64`（第二十/二十一节的 CI 回读提交）= Run 32（run `38155473911`，2m 25s）与
 Run 33（run `38155477266`，1m 55s），同样两条 `completed successfully`**——`08f0f64` 那两枚在它自己推送时还没出生，
 当时记不下来，由本节代读；**本节这笔回读提交自己的两轮同理，留给下一格代读**（这是「回读」这一动作的固有滞后，不是漏记）。
+
+## 二十三、2026-10-12 回读第六节那四条「方法性缺口」：两条已闭、一条半闭、一条照旧，另抓到两处 stale
+
+**为什么轮到它**：第二十二节把 §5之二③ 收口后，本文里最后一批「写下就再没回读过」的判断是第六节整节（2026-10-09）。
+它第一条今天已经是**假的**。照着 stale 的「没有 CI」再搭一遍 CI，或照着「样本是玩具级」重做一遍 1000 章夹具，都是白烧一刀；
+而照着「没有打包链路」插进那一块，会正好撞在并行会话正在做的东西上。所以这一节**只回读、不改产品代码**。
+
+**回读只认一种证据**：`git ls-files`、直接读 HEAD 里的文件、`node -e "require('./package.json')"`，
+全部跑在隔离工作树 `深渊写作-worktrees/ci-platform-neutral`（HEAD=`e4b52e4`，`git status` 干净）。
+主目录那棵树此刻压着并行会话的 **112 条已跟踪改动 + 53 条未跟踪文件**，且他们本地 HEAD 是 `2487695`（落后远端 20 格）——
+在它上面 `Read`/`ls` 到的任何一行都可能是未评审的他们的版本，不能当 HEAD 的事实。
+
+### 四条逐条
+
+1. **「没有 CI」→ 已闭（本节就地更正这一行）**。盘上事实：`git ls-files .github` 只回一条 `.github/workflows/verify.yml`；
+   文件里 `name: 门禁 pnpm verify`，`on:` 是 `push` 的 `branches: ["**"]` + `pull_request` + `workflow_dispatch`，
+   一条 job `verify`（job 名 `六路 typecheck + lint + boundary + budget + 全量测试`），`runs-on: ubuntu-24.04`
+   在第 32 行（不用 latest，理由写在它上面那四行注释里，风险原文登记在第十五节），`concurrency.group: verify-${{ github.ref }}`
+   配 `cancel-in-progress: true`。门面 `README.md:48-53` 也已把「2026-10-09 之前是半真」和「现在由 `tools/ci-gate.test.mjs`
+   钉住 CI 在场、跑的是整条 verify、不吞码」写清。第十五～二十二节各自记着自己那轮的 run 编号、run id 与时长。
+   **这一条唯一还成立的部分**是 README:53 那句「本机仍然要自己跑：CI 只能证明推上去的那棵树是绿的」。
+   > 回读这条时顺手抓到一处**门面里的假数**：README:52 原写 `tools/ci-gate.test.mjs`（5 条），而 `npx vitest run --root .
+   > tools/ci-gate.test.mjs tools/prettier-scope.test.mjs`（TOOLS 那一跑 `TOOLTESTS_EXIT=0`）打印的是
+   > **ci-gate 6 tests / prettier-scope 5 tests**。已就地改成 6 条（prettier-scope 那句本来就对，不动）。
+   > 这与第六节第 4 条是同一个病：**「几条」这种话一旦写下就没人回头数**——所以我在这节里引的每条计数都是当场跑出来的，
+   > 不是从上一段抄的。
+2. **「没有打包/发布链路」→ HEAD 口径照旧成立，但这块正在被别人做**。`git ls-files` 里 grep
+   `electron-builder|electron-forge|nsis|installer` **0 命中**（我实跑，`grep -icE` 返回 0），所以「这个软件目前发不出去」
+   在 HEAD 上仍是事实，第 284 行那句「需要用户先拍板要不要」也照旧有效。**但并行会话的未跟踪文件里有
+   `apps/desktop/electron-builder.yml`、`src/main/auto-update.ts(+test)`、`release-e2e/`**（连同 `book-backup.ts`、
+   `doc-trash.ts`、`import-service.ts`、`useBackupStore.ts`、`useTrashStore.ts` 一整批）。**我不重复动，也不替他们提交**；
+   这条要闭合得等他们那批落地，而落地前必须先 FF 到当前 head 并重跑 `ipc-guard.test.ts` 与 `quit-flush-close-arm.test.ts`
+   （第十七、二十一节登记的口径）。
+3. **「验收样本是玩具级」→ 已量，严重度在 §5之二就地改过口径；只剩的一半正被阻塞**。今天的事实是 P1-4/P1-5 那两行
+   （2026-10-10）：夹具 **1000 章 × 3000 字 = 盘上 8.66 MB**，串行 133–157 ms → 并发度=文稿数 **21–31 ms**；
+   `createDoc` 从「整本重扫 99–136 ms」降到**单点 1 ms**；会话侧改前放大 **59×–681×**，改后由
+   `packages/agent-runtime/test/rollout-head-read.test.ts`（12 条）钉住 IO 形状。**仍未做的只有渲染层那一半**：
+   `useBookStore.refreshDocs()` 走 `window.mochen.openBook(rootPath)`，还是整本重扫，前置条件是
+   「`sortDocsByOrder`（`utils/doc-order.ts`）与 `sortChapters`（`packages/fs-store/src/scan.ts`）两份排序判据合成一份」——
+   而这两个文件此刻**都在他们那 112 条未提交改动里**（`packages/contracts/src/*` 也是）。这就是「第二刀被并行会话阻塞」
+   那条待办的实证，也是本格不焊它的理由。
+4. **「台账数字口径互异」→ 当年只闭了一半，这一格才真闭**。当年那句「改成最近一次实测 + 日期」解决的是**冻死数**
+   （215/3014 那种没人回头改的），但没解决**同一句话在两种树上不是同一个数**：门面 2026-10-11 写的是本机实跑的
+   **328 文件 / 4261 用例**，而 CI 在干净提交树 `e4b52e4` 的 job summary 里报的是
+   **`Test Files: ✅ 304 passes · 304 total` / `Test Results: ✅ 3965 passes · 3965 total`**（我从 run `38157657994`
+   页面逐字回读）。差的这 **24 个文件**大数对得上是谁的：他们那棵树的 `??` 里当场数得出 **25 个未跟踪的 `*.test.ts`**
+   （`auto-update`、`book-backup`、`doc-trash`、`import-service`、`web-search-body-timeout`、`contracts/test/{ai-flavor,
+   import,search-match,sort-docs}`、`renderer/src/utils/{doc-checkup,doc-tree,motion-spring,preview-debounce,
+   selection-rewrite,stats-rows,doc-order-single-source}` 等，未跟踪的 `release-e2e/` 目录另算）——未跟踪文件照样被 vitest 收集。
+   **我没做逐一对账**：328 那枚读数是 2026-10-11 那次本机跑的现场，而他们那棵树每时每刻在变，25 与 24 差一属于正常。
+   ⇒ 已在门面里把这条口径写死：**报数必须连着「哪棵树」一起说，干净树上的数以 CI 为准**。
+   与第二十二节沿用的规矩一致：**门面不回填「当前 N 用例」**。
+
+### 顺带抓到两处 stale（同样就地更正，指向本节）
+
+- 第 25-27 行把「`plugin-kernel` 四包之一从未进过 typecheck」与两条结构性缺口并列。它今天也闭了：
+  根 `package.json` 的 `typecheck` 原文是六个程序，`tsc --noEmit -p packages/plugin-kernel/tsconfig.json` 是其中第四个
+  （`node -e` 打印后逐字回读）。
+- 第六节第 1 条末尾「当前树又恰好是 prettier 红的（见第二节）」是 2026-10-09 的现场。prettier 现在是 verify 链的第一道闸，
+  而 `docs/superpowers/**` 那条排除是**挂着牌子的声明式豁免**（P2-10③ 的处理方式），由 `tools/prettier-scope.test.mjs`（5 条）
+  钉住「只许这一条、旁边必须有中文理由、README 与真源码不许被排除」。
+
+### 这一格把「回读 CI」这个动作本身的账也结掉
+
+第二十二节末尾那句「本节回读提交自己的两轮留给下一格代读」——现在代读，两枚 run 页都逐字回读过（不是列表页的快照）：
+
+| run id | 分支 | Status | 总时长 | job 时长 | `svg[aria-label]` |
+| --- | --- | --- | --- | --- | --- |
+| `38157657994` | `feat/plan3-interaction-and-assembly` | `Success` | **1m 31s** | 1m 27s | `completed successfully` |
+| `38157658309` | `fix/ci-path-platform-neutrality` | `Success` | **2m 13s** | 2m 9s | `completed successfully` |
+
+两枚都挂在同一个提交 `e4b52e4` 上，job 名都是「六路 typecheck + lint + boundary + budget + 全量测试」，
+Vitest job summary 都是 **304 文件 / 3965 用例全过**。**两枚都绿。**
+**`#NN` 标签不稳（本轮实测，立口径给以后）**：同一提交在不同快照里被读成 #35/#36 与 #36/#37，而 run 页 `h1` 末尾
+多出来的那个 `#36`/`#37` **来自提交标题文本本身**（第二十二节那条回读的标题里就写着编号），不是 run 编号——
+我第一次就是把 `#34` 当成 run 号抄下来的。⇒ **引 run 只认 run id + 分支 + 时长 + `aria-label`**，
+`#NN` 只能写成「某次快照里页面显示的那个数」。第二十二节那句「固有滞后」不受影响：它说的是结论还没出生，不是编号问题。
+
+**这一节不自证的东西**：第 2 条只证明「HEAD 里没有发布链路」，**没证明**「他们那批做完就能发」——那批代码我一行没读
+（未评审、且不在我的基线上）；第 3 条引用的 8.66 MB 夹具是 2026-10-10 的量具，跑完移出仓库放在 `~/dw-scratch/2026-10-10/`，
+本节**没有重跑**它——本节要回答的是「台账这句话还成不成立」，不是「数字有没有漂」。
+
+**现场与收尾**：本格零产品代码改动、未起任何实例、没碰他真身那份 `config.json`（无实例 ⇒ 没有写入通路）。
+动的只有两处文件：**这一份台账**，加上门面 `README.md` 门禁那一小段（改了两件事：`ci-gate.test.mjs` 的条数 5 → 6 实跑核对、
+测试数口径补上「哪棵树」与 CI 的 304/3965）；主目录那棵树一个文件都没动。
+`corepack pnpm exec prettier --check README.md` 当场回读 `PRETTIER_EXIT=0`（台账那份在 `docs/superpowers/**` 的声明式豁免里，
+由 `tools/prettier-scope.test.mjs` 5 条钉着，不在 prettier 范围内）；两份工具闸用例实跑 `TOOLTESTS_EXIT=0`、11 条全过。
+
+**CI**（读法同第二十二节，并按本节新立的口径：**只引 run id + 分支 + 时长 + `aria-label`，`#NN` 不当编号用**）：
+本节这笔提交的两轮由下一格代读。
 
 
