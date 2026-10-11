@@ -99,7 +99,7 @@ localStorage 那一侧的收尾对账：本波之后剩下的键全部是**应�
 | P1-2 | **已修** | 出站清单与派发判据合并成一份：`toolsFor(host, webSearchEnabled)` 内部只调一次 `wireToolsFor`，`toolGateOf`/`dispatchToolCall` 用同一枚 `ToolGate` 判定；关掉联网后模型真调 `web_search` 会被派发层拒掉，并回一条 `ok:false` 的配对回执（不是静默丢弃）。`isCallableTool` 特意**不给**开关留默认值——漏传就编译不过，而不是默认放行 | `packages/agent-runtime/src/tools.ts` + `tools.test.ts`（新增 6 条，含"两枚判据必须同源"那条） |
 | P1-9 | **已修** | 右栏「浏览」那条读盘通路补上三道闸：① 换书世代号 `bookEpoch`（与中栏的 `docLoadToken` 分开——一次开标签不该作废浏览的在途读），旧书那次慢回包在换书后一律丢弃；② 模块级在途集合，连点同一格只为同一篇发一次读盘，且**读到/读坏那一刻就摘**（留到 `.finally` 会晚一个微任务，用户看到失败后立刻再点会被自己上一次失败挡掉）；③ 失败理由上屏走 `failureReasonOf`，并新增每格自己的 `browseErrors`。界面侧原来只有一句 `browseContents[relPath] ?? "正在读取…"`，读失败后那一格**永远停在「正在读取…」**——比空白更糟，它在撒谎；现在三态判据抽成 `utils/browse-body`，面板只挂线，失败那一态另有告警色而不是占位话术那种灰 | `apps/desktop/src/renderer/src/stores/useBookStore.ts`（`bookEpoch`/`browseInFlight`/`browseErrors`）+ `useBookStore.browse.test.ts`（9 条）；`utils/browse-body.ts` + `browse-body.test.ts`（8 条）；`components/DocumentPane.vue` + `document-pane-browse-body.test.ts`（3 条）；样式侧 `styles/editor-pane.css` 的 `.document-preview-empty.is-browse-failed` |
 | P1-10 | **已修** | 星期标签与标题号数都改由**那一格自己的日期**算：`utils/goal-heat-labels.ts` 里放一张穷举的 `Record<Weekday,string>` 表 + `parseDateKey`（正则卡 `YYYY-MM-DD`、范围校验、构造后回读验证），面板按 `day.date` 取值，不再按数组下标贴。面板里那张写死的 `weekdayLabels` 与自算的 `formatShortDate` 一并删净。另修一处不诚实的标题：那本是「最近 7 天滚动窗口」，原来写着「本周热力图」——周日一到整片清零的话术不许留着 | `utils/goal-heat-labels.test.ts`（5 条，其中一条**当场把 `process.env.TZ` 切成 `America/New_York`** 才拿到鉴别力：这台机是 UTC+8，不切时区时"UTC 漂移"那条断言根本红不了）+ `components/goal-heat-weekday-wiring.test.ts`（5 条）+ `WritingGoalPanel.vue` |
-| P1-3 | **已修**（2026-10-10 收口，逐条读盘核对） | 历史滑动窗口落在**一份真身**上：`packages/agent-runtime/src/history-window.ts` 按 token 预算从最旧一轮起丢，**配对完整性优先**——丢一条 tool_call 必连带丢它的回执，绝不留下半条会让上游 400 的孤儿；被丢的条数与「为什么少了一段」由**主进程 `emitOnly` 落一条 `type:"error"` 事件**上屏（`agent-service.ts:638-646`），界面出显式截断提示而不是假装历史在用；**不是** `tool-loop.ts:164-174` 那枚 `history-truncated` 事件——桌面应用递进 `runTurn` 的已是切好的 `fitted.kept`，那半段在应用里恒不触发，契约枚举（`agent-event.ts:105`）在 `apps/desktop/src` 零消费方，机制与真机双证据见本文第十九节。占用条那一侧改判据：`ContextMeter` 的余量里从此**含历史**，不再是「显示还有余量」的假余量 | `packages/agent-runtime/test/history-window.test.ts`（23 条）+ `tool-loop-history-window.test.ts`（6 条，钉「全量 `...input.history` 那条路已经没了」）；`apps/desktop/src/renderer/src/utils/history-window.test.ts`（11 条）+ `components/history-window-wiring.test.ts`（7 条）+ `agent-service-history-window.test.ts`（3 条，真 service 端到端） |
+| P1-3 | **已修**（2026-10-10 收口，逐条读盘核对） | 历史滑动窗口落在**一份真身**上：`packages/agent-runtime/src/history-window.ts` 按 token 预算从最旧一轮起丢，**配对完整性优先**——丢一条 tool_call 必连带丢它的回执，绝不留下半条会让上游 400 的孤儿；被丢的条数与「为什么少了一段」由**主进程 `emitOnly` 落一条 `type:"error"` 事件**上屏（`agent-service.ts:638-646`），界面出显式截断提示而不是假装历史在用；**不是** `tool-loop.ts:164-174` 那枚 `history-truncated` 事件——桌面应用递进 `runTurn` 的已是切好的 `fitted.kept`，那半段在应用里恒不触发，契约枚举（`agent-event.ts:105`）在 `apps/desktop/src` 零消费方，机制与真机双证据见本文第十九节，占用条**面板那一屏**（面板逐条 × store × 盘上模板三源交叉 + 无会话章反向对照）见第二十二节。占用条那一侧改判据：`ContextMeter` 的余量里从此**含历史**，不再是「显示还有余量」的假余量 | `packages/agent-runtime/test/history-window.test.ts`（23 条）+ `tool-loop-history-window.test.ts`（6 条，钉「全量 `...input.history` 那条路已经没了」）；`apps/desktop/src/renderer/src/utils/history-window.test.ts`（11 条）+ `components/history-window-wiring.test.ts`（7 条）+ `agent-service-history-window.test.ts`（3 条，真 service 端到端） |
 | P1-5 | **已修**（2026-10-10 收口，实测数字） | 三个定位函数不再整篇读 JSONL：`readRawLines` 用 `open` + 16 KB chunk 流式解码（`TextDecoder(…,{stream:true})` 保证跨块的中文不被劈成乱码），拿到就要的那几行**当场 `break`**，生成器的 `finally` 关句柄，尾部一个字节都不读。判据只有一份——`titleOfLine` 同时服务旧的 `titleFromLines` 与新的 `readSessionHead`，改读头部之后与整篇读**逐字同口径**（含空行过滤、首行坏掉只跳过不整本抛）。夹具：同一本书两份会话，首两行完全一致，只差长度（150 条 / 1500 条事件） | 改前实测放大 **59×–681×**（只为取首行/标题）。改后的闸在 `packages/agent-runtime/test/rollout-head-read.test.ts`（12 条）：三条 IO 形状闸——`readFile` 调用数 = 0、每函数各 `open` 一次、**读过的字节跨度不随会话长度增长**（150 条与 1500 条量到同一个数，且 < 64 KB；反向鉴别：整篇读时长文件要读完 300 KB）；另有八条等价性闸（首条用户输入埋在 120 KB 之后仍取到、单行 48 KB 跨块不破词、首行 200 KB 巨型行、无尾换行、空文件、坏首行，以及**首行是空行、meta 落在第二行**这条——它把两处旧口径的分歧钉死：`findLatestSession` 走 `readFirstLine`，对应旧的 `split("\n")[0]`，**不滤空行**，所以那一格照样判坏、定位不到；`listSessions` 走 `readSessionHead`，对应旧的 `split("\n").filter(非空)`，**滤空行**，所以那条会话照常上面板、标题照拿。历史事实就是这样，两处不许被顺手统一）。变异四只全部死：恢复整篇读 → 字节跨度那条红；去掉 `{stream:true}` → 垫 ASCII 让块边界落进标题第一个字里，量到 `\ufffd\ufffd渊之下`；给 `readFirstLine` 加上空行过滤 → 那条红在 `expected '.mochen/sessions/…jsonl' to be null`；把 `readSessionHead` 的空行过滤去掉 → 同一条红在 `expected [] to deeply equal [ 's-blank' ]`。同一用例被两个相反方向的变异各打红一次，才证明它真的有双向鉴别力 |
 | P1-4 | **半收口**（主进程与 fs-store 这半边已修，渲染层那一半没动，写清楚） | 已做的两件事：① `scanBook` 的 `await` 从 for 循环里搬出来——先 `collect` 清单，再一次性并发读正文（2026-10-10 用户裁定：并发度 = 文稿数，不设固定上限），顺序由 `Promise.all` 按输入序落位保证与旧写法逐字一致；② 新建 `docRefFor(root, relPath)`（与 `scanBook` 同一份判据），`createDoc` 建完一章只算新那一篇再拼进树，不再整本重扫。**实测**（夹具 1000 章 × 3000 字 = 盘上 8.66 MB，本机空负载连跑两遍各 3 次）：串行 133–157 ms，限并发 8 为 29–43 ms，并发度=文稿数 **21–31 ms**（比限 8 还快，先前那轮"限 8 更快"是 dev 实例抢 IO 时的读数，复跑不成立）；峰值堆三种读法都在 30–46 MB 一档，不设上限没把峰值抬高一个量级。`createDoc` 那一步：**整本重扫 99–136 ms ⇒ 单点重扫 1 ms**。<br>没做的另一半：渲染层 `useBookStore.refreshDocs()`（`stores/useBookStore.ts:209`）走的是 `window.mochen.openBook(rootPath)`，也就是**又一次整本重扫**——建章/改名/卷次重排四处都调它，所以界面上点「新建一章」仍会把全书读一遍。这一刀没顺手改它的原因是**判据只有一份可拼**：渲染层 `sortDocsByOrder`（`utils/doc-order.ts:30-39`）对「都不在 chapterOrder 里的两篇」返回 0（保持原相对序），而 fs-store `sortChapters`（`scan.ts:171-181`）按名字排它们——本地拼一根进去就和整本重扫不等价，正是用户点名要防的那种不等。下一刀应把两处排序判据合成一份（contracts 出一份 `sortDocs`），再让 `createDoc` 的 IPC 带回新那篇的 `DocRef` 供渲染层拼 | `packages/fs-store/src/scan.ts` + `packages/fs-store/test/scan-concurrency.test.ts`（7 条：在途读 > 1、readFile 次数 = 篇数且顺序逐字、`docRefFor` 与 `scanBook` 同一篇逐字相同、非文稿目录给 null、盘上没有给 null、**问「在不在」只发一次 stat 且 readdir = 0**、传目录进来也给 null）；`apps/desktop/src/main/book-service.ts` + `book-service-create-doc-io.test.ts`（8 条，含三条变异已死：去掉 `sortChapters` → 两篇新章落位那条红；去掉同 relPath 去重 → 外力删后建回那条量到 2 条；把兜底换成文件名倒推的假 DocRef → `stat` 那条红 `expected +0 to be 7`）。测量夹具是一份 `tmp-scale-probe.test.ts`（1000 章生成 + 三种读法 + 两条建章通路），跑完**移出仓库放在本机 scratch 目录**（`~/dw-scratch/2026-10-10/`），没入库也没删除（删除要用户点名）——它是量具不是闸，每次跑都往临时盘写 8.66 MB 的夹具，把一次性物理事实变成每条提交都跑的断言不划算。 |
 | P1-6 | **已修** | 同一目标路径的写进互斥队列，不同路径照旧并发（全局串行会把 1000 章批量写拖死）；`release()` 放在 **finally**，前一个任务抛错不许把队列锁死。`writeDocFile` 的读-校验-备份-写整段落在锁里，连点两次 Ctrl+S 不再自撞出一次假冲突 | `packages/fs-store/src/write-queue.ts`（新）+ `packages/fs-store/test/write-queue.test.ts`（10 条）；`read-write.ts:134` 的 `runWriteExclusive` 临界区 |
@@ -242,7 +242,7 @@ MW7 `preventDefault()` 提到栈检查之前 → 2 红跨两层（行为层「�
 | P2-13 | **已修** | mirror 高亮层加 `v-if="findVisible"`（`DocumentPane.vue:713`），面板关着时那层连 DOM 都不在 ⇒ `highlightMirrorHtml` computed 无人读、彻底不重算；另一半是 `watch(findVisible, …)`（`:284`）在打开那一瞬 `nextTick()` 后补一次 `syncMirrorScroll()`（新挂载的层 scrollTop=0 而 textarea 可能已滚到半篇）。`editor-pane.css` **未改**并说明理由（脱流层不参与 wrap 布局）；分栏 `previewHtml` 刻意不动（注释里写明那是「草稿到预览零延迟」的既有取舍）。证据：`find-mirror-mount-wiring.test.ts`（7 条，含「全模板只此一枚 v-if」「与让位类同判据」「组件里零 `<mark` 拼接」） |
 | P2-14 | **已修** | `openDocTab` 开头 `this.cancelAutoSave();`（`useBookStore.ts:319`）——`activateTab`/`cycleTab`/`closeTab`/`createDoc` 全走这一个入口，一处收口。字不丢：A 篇未保存的字由 `onEdit` 既有的 `stashActive()` 留在 `draftsByPath`。两条行为用例把危险窗钉死（用 `mockImplementationOnce` 吊住 B 的读盘，让 2000ms 窗正好落在「指针=B、正文=A」，断言 `writeDoc` 一次没发、再空转 60s 无迟到复活） |
 
-**这一节仍然欠的三件事**（写在这儿而不是抹进表里）：① P2-11 等一句删除授权；② ~~P1-4/P1-5 的 1000 章夹具与实测数字~~ **已闭**（2026-10-10：夹具与数字见上表 P1-4/P1-5 两行；剩下的只有 P1-4 的渲染层那一半，判据合并是它的前置）；③ 全表证明到的是**用例与门禁**，不是屏幕上量到的行为——~~P1-3 的截断提示~~ **已真机目检**（2026-10-11，见第十九节：时间线那句逐字上屏 + 线上确实切窗 + 占用条数据面冷热两份；**占用条面板那一行仍未目检**，别把它算成已验）；~~P2-13 的打字延迟~~ **已真机量**（2026-10-11，见第二十节：单键主线程成本 挂载 8.8ms vs 未挂载 2.2ms，1.9×～4×，两档都未进 longtask）；~~P2-8 长会话内存曲线~~ **已真机量并做过 A/B**（2026-10-12，见第二十一节：每轮约 +90KB 堆、线性不复合；回收那一刀真实生效，但卡只占 1.2KB/轮，严重度已就地改口径）。**现在只剩「占用条面板那一行」没目检**（数据面两份都在第十九节量了，缺的是把面板展开、逐条读出装配条目那一屏）。
+**这一节仍然欠的三件事**（写在这儿而不是抹进表里。2026-10-12 更新：**只剩 ① 还欠一句授权**，② 与 ③ 都已闭合）：① P2-11 等一句删除授权；② ~~P1-4/P1-5 的 1000 章夹具与实测数字~~ **已闭**（2026-10-10：夹具与数字见上表 P1-4/P1-5 两行；剩下的只有 P1-4 的渲染层那一半，判据合并是它的前置）；③ 全表证明到的是**用例与门禁**，不是屏幕上量到的行为——~~P1-3 的截断提示~~ **已真机目检**（2026-10-11，见第十九节：时间线那句逐字上屏 + 线上确实切窗 + 占用条数据面冷热两份；**占用条面板那一行也已目检**（2026-10-12，第二十二节：面板逐条 × store × 盘上那句模板三源交叉，外加一篇无会话章的反向对照；顺带把第十九节那桩「ComposerContextBar 整个不见了」归因清楚——是 `showContextBar = hasBook && threadEmpty` 加会话回放，不是缺陷）；~~P2-13 的打字延迟~~ **已真机量**（2026-10-11，见第二十节：单键主线程成本 挂载 8.8ms vs 未挂载 2.2ms，1.9×～4×，两档都未进 longtask）；~~P2-8 长会话内存曲线~~ **已真机量并做过 A/B**（2026-10-12，见第二十一节：每轮约 +90KB 堆、线性不复合；回收那一刀真实生效，但卡只占 1.2KB/轮，严重度已就地改口径）。**到此 ③ 闭合：这一格不再欠屏幕上的一屏。**但它是**读出一条新账**收的口：折叠态那枚 chip 报「2 条 · ≈29 tokens / 33 字」，而同一轮真会带出去的还有面板里那一行 5,902 字（≈5.6k tokens）的会话历史，chip 与它的 tooltip 都不含这一笔，且 preview 本身是 reserve=0 的上限口径——登记为**待裁定**（三条出路见第二十二节），本格未动代码。
 
 ## 六、交付与验收的方法性缺口（我认为比单条 bug 更重要）
 
@@ -762,6 +762,13 @@ T1–T5 新增 error-line 为**空集**，T6 新增一条且逐字是：**「更
 另：探针里 `agent.contextPreview.history` 直接出桥会得到 `{}`，那是 Vue reactive 代理的序列化形状、
 不是数据形状，必须 `{...h}` 展开后再读（我差点把这条读成「字段没数」）。
 
+> **【2026-10-12 后补：这一格已量，且上面那句「怀疑」是错的】** 面板那一行在第二十二节逐条读到了（三源交叉 + 无会话章反向对照）。
+> 当时那桩「整条 `ComposerContextBar` 不在 DOM 里而 store 里 `contextPreview` 是好的」**与我删掉临时连接无关**：
+> 可见性判据是 `showContextBar = hasBook && threadEmpty`（`utils/composer-context.ts:78`），而我那一屏开的是**有会话的章**，
+> 会话回放把时间线灌成非空（实测 items 30）⇒ bar 按设计不挂载。store 里那份 preview 是**上一屏挂载期间**留下的读数
+> （全仓只有 `useAgentStore.ts:585` 那一处赋值，初值 `:64` 为 null，**没有任何反初始化路径**），
+> 所以才会出现「数据在、控件不在」。不是缺陷，也不必再查。
+
 ### 现场与收尾（照 §18 立的规矩走，并验证那条规矩有效）
 
 探针书 `%TEMP%/mochen-trunc/book`（章 98/99 只为拿干净线程）；日志
@@ -968,5 +975,136 @@ connections 1、profiles 3、`enabled` = `agnes-3.0-flash`；探针那条连接�
 **`847652d`（本节）= Run 30（`fix/ci-path-platform-neutrality`，run `38155122971`，2m 2s）与 Run 31
 （`feat/plan3-interaction-and-assembly`，run `38155123054`，2m 23s），两枚 `aria-label` 都是 `completed successfully`**；
 上一节 `02aa39e` = Run 28（run `38151290340`，1m 43s）与 Run 29（run `38151290373`，1m 56s），同样两条 `completed successfully`。
+
+## 二十二、2026-10-12 真机目检「占用条面板那一行」——§5之二③ 的三格就此量齐
+
+第十九节留了一句「**占用条面板那一行仍未目检**，别把它算成已验」。这一节补那一屏：把折叠的占用条点开，逐条读出面板里的装配条目、
+「会话历史」那一行、以及底部那句截断提示，并拿**三条互不依赖的来源**交叉——面板 DOM、store 里那份 `contextPreview`（主进程
+`assembleFor` + `historyStatFor` 的原样回包）、盘上 `utils/history-window.ts` 那句模板本身。
+
+### 现场与通路（零模型调用，所以零 provider 配置）
+
+工作树 `深渊写作-worktrees/ci-platform-neutral`（`847652d` + 台账 `08f0f64`），`corepack pnpm build` 后起实例，CDP 端口 9360，
+`--user-data-dir` 指到 `%TEMP%/mochen-meter/profile`。夹具**沿用第十九节那本** `mochen-trunc/book`，没新造书：
+`chapters/` 四篇 81 / 86 / 35 / 38 B，`.mochen/sessions/2026/10/11/` 两条 rollout——36,650 B（`chapters/01-开局.md`，
+9 个 `user-message`）与 34,523 B（`chapters/99-历史窗口探针.md`，6 轮 × 5 类事件）。两本都在 10-11 就躺在那儿（第十九节跑的），
+这一格只是把它们**读出来**。
+
+占用条的数据面是 `agent-service.ts` 的 `contextPreview`（`assembleFor` 给装配条目，`historyStatFor` 给历史与丢弃数），
+**不发一轮也能拿到全量读数**——所以这一格不像第二十一节那样要配 mock 档案与专用桩。探针 `scratch/meter/run.mjs`（243 行，git 忽略），
+产物 `%TEMP%/mochen-meter/{probe.log,panel-hot.png,panel-01.png,panel-cold.png,electron.log}`。断言的字符串也不手抄：探针从盘上抓
+`history-window.ts` 里 `return \`更早的…\`` 那段模板，按 `${…}` 切成字面段、段间拼 `\d+` 生成判据式；盘上读不到那句就抛
+「判据失效」。**模板一改，探针当场红**，而不是跟着文案漂。
+
+### 四屏读数（数字全部从 `probe.log` 回盘抄，不是记忆）
+
+**屏 1｜开 99 章（盘上有 6 轮会话）**（**这一屏要冷实例才成立**，热实例上重开同一章不回放，见下面那一节）：`items 30`、提案卡 6 枚、`hydrated true`、`barInDom false`、`meterInDom false`、
+`preview null`。⇒ **第十九节那桩「ComposerContextBar 整个不见了」的真身就在这里**：可见性判据是
+`showContextBar = hasBook && threadEmpty`（`utils/composer-context.ts:78`，用例钉在 `composer-context.test.ts:101-110`），
+而开章会把那条会话**回放**进时间线（`ensureHydrated → runHydrate → applyReplay → reduceEvent`），视图非空 ⇒ 整条 bar 不挂载。
+**这是设计里的取舍，不是缺陷**——但它在第十九节被我当成可疑现象记过一次，这一格把它归因干净了。
+
+**屏 2｜真鼠标点「新建对话」把这条线程的视图清空**（`clearThreadView` 置 `hydrated=true`，回放不再把它倒回来；按
+`.header-text-button-label` 的文案选钮，点完**当场断言** `items === 0`）：
+
+- 折叠态那行字：`2 条 · ≈29 tokens`；tooltip：`这一轮会连同下面这些一起发给「墨宸 · 主笔」：33 字，约 29 tokens（点开看装了什么；条目与 startTurn 同源，占用条上写的就是真会发出去的）`
+- store `contextPreview`：`profileName 墨宸 · 主笔`、`items 2`、`chars 33`、`approxTokens 29`、
+  `history {entries 28, chars 5902, approxTokens 5592, droppedCount 2, droppedChars 2648}`
+- 面板（rect 320×180 @ (671,577)）表头「这一轮会带这些上下文」、副注「按当前档案「墨宸 · 主笔」装配」，三行逐条：
+  `正文 | 第一章 · 开局 | 16 字`、`正文 | 第二章 · 中段 | 17 字`、
+  `会话历史 | 这一轮实际发送 28 条历史、5902 字（约 5.6k tokens）；更早的 2 条没有发给模型（约 2648 字）。 | 28 条 · 5902 字`
+- 底部那句：`更早的 2 条没有发给模型（约 2648 字）。`
+
+**屏 3｜换 01 章（9 轮）复核，免得结论钉死在 99 那一章上**：面板两行 `正文（本章） | 16 字`（这一章是当前绑定文档，
+所以类别标签带「（本章）」，`active=true`）、`会话历史 | 24 条 · 6336 字`；底部句 `更早的 3 条没有发给模型（约 3954 字）。`；
+store `history {entries 24, chars 6336, approxTokens 6000, droppedCount 3, droppedChars 3954}`。
+
+**屏 4｜反向对照（`chapters/98-空线程对照.md`，盘上没有这条会话）**：面板只有那两行正文，`notice` 是空串
+（DOM 里连 `.context-meter-history-notice` 节点都不存在），store 历史五项全 0。**没有会话就不许出现「会话历史」那一行**——
+这一条是屏 2/屏 3 那两行有鉴别力的前提。
+
+`PROBE_EXIT=0`，`fail: []`，`ALL_ASSERTIONS_PASS`。三张截图逐张看过（`panel-hot.png` 22,115 B / `panel-01.png` 21,289 B /
+`panel-cold.png` 13,607 B），面板里的字与 DOM 读数一致。断言共五类，正向两章各跑一遍：
+①「会话历史」那行的字数栏 === store 拼出的 `${entries} 条 · ${chars} 字`；② 底部那句必须匹配盘上模板派生的判据式；
+③ 句里两个数字分别 === `droppedCount` / `droppedChars`；④ 面板去掉历史行之后的行数 === `preview.items`；
+⑤ 折叠态那行字 === `${items} 条 · ≈${approxTokens<1000?原样:(n/1000).toFixed(1)+'k'} tokens`。
+另有反向三条（不许出历史行 / 不许出那句 / 对照章 store 历史必须为 0）与屏 1 一条（视图非空那一屏不许在 DOM 里有占用条）。
+
+### 这些断言证明过自己能红（三只变异全死），并复跑复核过一次
+
+按「断言必须证明它能失败」的规矩，我**把探针自己的判据改了三个地方**（产品代码一个字没动），同场再跑一次：
+
+| 变异 | 当场红成什么样 |
+| --- | --- |
+| 「会话历史」那行的期望改成 `${chars + 1} 字` | `99 章：那行的字数栏是「28 条 · 5902 字」，store 该是「28 条 · 5903 字」` + `01 章：…「24 条 · 6336 字」…「24 条 · 6337 字」` |
+| 句里第二个数字改成跟 `droppedCount` 比 | `99 章：句里的字数 2648 ≠ store 的 2` + `01 章：句里的字数 3954 ≠ store 的 3` |
+| 反向那条判据取反（要求对照章**必须**出历史行） | `反向失败：没有会话的章，面板却出了「会话历史」那一行` |
+
+`PROBE_EXIT=1`，五条红一次列出（`probe-mutated.log`）；三只都死 ⇒ 上面那些「三源对齐」不是把同一个数抄两遍自证。
+然后把三行改回去（`grep` 回读确认逐字复原），**冷实例复跑：`PROBE_EXIT=0` / `fail: []` / `ALL_ASSERTIONS_PASS`**。
+复跑读数与第一跑**逐字段相同**（`items`、`entries`、`chars`、`droppedCount`、`droppedChars`、`notice`、`meterText` 全部一致，
+`probe.log` vs `probe-green2.log`）——所以这一格的数不是单次现场。
+
+### 但这一格对「实例冷不冷」敏感：热实例复跑当红，两处，逐条归因
+
+中间那次复跑（没重启实例，直接在第二跑留下的现场上跑）**红了两条**，我把它当发现而不是当噪声：
+
+1. `第一屏不该有占用条（视图非空），却有` —— 屏 1 这次量到 `items 0 / hydrated true / barInDom true`。
+   根因是**回放只做一次**：`clearThreadView` 已把这条线程的 `hydrated` 置真，重开同一章不再把 JSONL 倒回时间线。
+   ⇒ 这其实是「视图空 + 盘上长会话」那格的**持久态**：用户点过「新建对话」之后，那一章的占用条会一直带着历史回来，
+   而不是只在清空那一瞬才出现。屏 1 的结论因此只在冷实例成立，我在下面的规矩里把它钉住。
+2. `对照章的面板没开起来，反向用例不作数` —— 面板开合状态也跨章延续，上一屏它是开着的，我这一步的点击把它**关掉**了。
+   这条不是产品问题，是探针没先复位。
+
+⇒ 补一条探针纪律进流程（不是只写进踩坑记录）：**这类「点控件读屏」的目检，每次跑之前重启实例**，
+别在同一实例里连跑两遍——现场状态（`hydrated`、面板开合、线程视图）会让第二次跑读到不同的形状，
+而两次的 store 数字却完全一样，最容易骗过只看数字的人。
+
+### 新读到一条**口径分裂**，登记，等他一句话，不擅自改
+
+折叠 chip 报的是「2 条 · ≈29 tokens / 33 字」，而同一轮面板里另有一行 **28 条 / 5,902 字（≈5.6k tokens）**的会话历史——
+chip 那行字与 tooltip 都**不含**它。可 tooltip 明写着「占用条上写的就是真会发出去的」。再叠上第二十一节已经查实的那半层：
+`contextPreview` 是 **reserve=0 的上限口径**，真 `startTurn` 还会再切一刀。于是同一枚小条上有两层「显示的数 ≠ 这一轮真发出去的数」，
+而且最大的一笔（历史）只在点开之后才看得见。这不是假控件（面板里那条是真数据、真上屏），是**一眼读到的数与总账不同源**。
+三条出路：① 折叠态把历史并入合计；② 折叠文案后面加「（另有 N 条历史）」；③ 原样留着并接受它只是「装配条目」的读数。
+**本格未动任何代码**，等裁定。
+
+### 这一格撞上的三处方法坑
+
+1. **第一版探针在屏 1 等 `contextPreview` 落地，八秒超时抛错**，我一开始读成「主进程没回包」。根因不在慢：那一屏整条
+   ComposerContextBar 没挂载，而**刷 `contextPreview` 的正是 `ContextMeter.vue` 那个 200ms 防抖 watch**——组件不在 DOM 里，
+   没人刷，store 里那个字段就一直是 `null`。改成「屏 1 只读 DOM，bar 挂载之后才 `waitPreview()`」。
+   ⇒ 规矩：**读一个 store 字段之前先找谁写它**；否则「字段是 null」会被读成「上游没数据」。
+2. **会话目录的显示又骗了我一次**：`bash find`/`ls` 把嵌套的 `sessions/2026/10/11/` 折叠打印成扁平的 `sessions/2026-10-11/`。
+   判据看 `rollout.ts` 的日期分目录，实测要用 node `readdirSync` 逐层走（这次走出来的就是 `2026` → `10` → `11` → 两条 jsonl）。
+   与第二十一节坑 4 是同一条，只是这次我自己又踩了一遍——说明**这条得写在流程里而不是只写在踩坑记录里**。
+3. **`contextPreview` 是「只有挂载者会刷、且从不反初始化」的字段**（全仓唯一赋值 `useAgentStore.ts:585`，初值 `:64` 为 null），
+   所以它的读数必须和「占用条当下在不在 DOM」**成对**看，否则会把上一屏挂载期间留下的残留当成这一屏的真数——
+   第十九节那桩「数据在、控件不在」正是这么误读出来的。本探针因此每屏都在取数**之前**先断言 `meterInDom`
+   （`run.mjs:157`、`:186`），并把屏 1 的 `preview null` 当成一条正向读数写进结论而不是当噪声扔掉。
+
+### 现场与收尾（零污染，逐条回读）
+
+实例 PID 28480（第一跑）/ 28972（变异跑与热实例跑）/ 15796（冷实例复跑）的命令行**各自当场回读**确认是我的之后
+`taskkill /F /T`（KILL_EXIT 全 0），9360 现读无 LISTENING。
+他的设置**这一格连写都没写过**：`%APPDATA%/mochen-ai/config.json` mtime 仍是 **00:15:33**（四趟探针跑在 00:36–00:51 之间），
+801 B / sha256 `98841130023a66914c8244be02ff4829779fcdc08c3e4e128adb10541f75f26d` 与第二十一节还原后的基线同串；
+connections 1（`72c5e589-…`，baseURL `https://apihub.agnes-ai.com/v1`）、profiles 3，`enabled:true` 那一条仍是
+`5e66558e-…`（model `agnes-3.0-flash`），另两条 false；
+`secrets/` 只剩他 10-06 那枚 112 B；`appearance.json` mtime 仍是 13:01。夹具书未变（四篇正文 81/86/35/38 B，
+两条 rollout 36,650 B @13:38:37Z 与 34,523 B @13:56:59Z）。被跟踪源码**只有这一份台账**被改。
+截图两次的字节数不同（`panel-hot.png` 第一跑 22,115 B、冷实例复跑 21,217 B）——那是 PNG 压缩随渲染时机浮动，
+**面板里的读数与第一跑逐字段相同**，我看的是 DOM 文本而不是文件大小。
+
+主日志里又读出那条与第二十一节同源的事实：`读取连接 72c5e589-… 的密钥失败 … safeStorage.decryptString`——
+dev 实例解不开他 10-06 的密文。**顺带把一条隐患写实**：`--user-data-dir` 只搬 Chromium 那半边，
+应用设置固定在 `app.getPath("appData")/mochen-ai`（`main/index.ts:98-100` 定的目录，`provider-settings.ts:82` 在那里拼 `config.json`），所以**探针实例读写的就是他那一份 config.json**。
+本格因为不需要模型所以一个字没写；但任何要存档案/密钥的探针都在动他的真身设置——这正是待他拍板的
+「dev / 探针设置目录拆不拆（`mochen-ai-dev`）」的实证，第二十一节那次「当场还原」的必要性也由它而来。
+
+**§5之二③ 到此闭合**：那一格当年列的三件「只证明到用例与门禁、没上屏」的事——P1-3 截断提示（第十九节）、
+P2-13 打字延迟（第二十节）、P2-8 内存曲线（第二十一节）——加上第十九节从 P1-3 里单独拆出来欠的那一屏
+（占用条面板那一行，本节）**全部量齐**。屏幕上「证明到的行为」不再只有用例与门禁——但本节**读出一条新的待裁定**
+（折叠 chip 与总账不同源），它不在③ 的三格里，是这一格顺带读出来的账。
 
 
