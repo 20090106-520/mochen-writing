@@ -1086,6 +1086,10 @@ chip 那行字与 tooltip 都**不含**它。可 tooltip 明写着「占用条�
 三条出路：① 折叠态把历史并入合计；② 折叠文案后面加「（另有 N 条历史）」；③ 原样留着并接受它只是「装配条目」的读数。
 **本格未动任何代码**，等裁定。
 
+> **【2026-10-12 就地更正】** 这一条已在**第二十七节**按出路① 修掉（七项清单第 1 项），原文照留。
+> 修的是「一眼读到的数与总账不同源」那一层；`reserve=0 上界`那一层**本刀没动**，
+> 第二十七节末尾把它列为残差。
+
 ### 这一格撞上的三处方法坑
 
 1. **第一版探针在屏 1 等 `contextPreview` 落地，八秒超时抛错**，我一开始读成「主进程没回包」。根因不在慢：那一屏整条
@@ -1473,5 +1477,87 @@ code style`（两个文件要重排，先 `--write` 到临时副本 `diff` 过�
 `VERIFY_EXIT=0` 两次都是日志里那行 echo，不是包装脚本的码。
 （报数连着「哪棵树」，CI 那侧仍以 run 页为准；本机这两次读数的 `2 skipped` 是
 `packages/fs-store/test/changes.test.ts:247,302` 那两条 `skipIf(win32)`，与第二十三节的口径一致。）
+
+## 二十七、2026-10-12 七项清单第四刀：占用条折叠态并入历史总账（第 1 项）——外加一枚让整份文件在 diff 里隐身的裸 NUL
+
+第二十二节登记的那条**口径分裂**等的是这一刀。三条出路里选了**①折叠态把历史并入合计**，理由只有一条：
+占用条存在的全部理由是「让人知道自己花了多少」，而同一轮里最大的一笔（屏 2 现场：会话历史 28 条 / 5,902 字 / ≈5.6k tokens，
+装配那一路只有 2 条 / 33 字 / 29 tokens）偏偏藏在要点开才看得见的地方——出路②加一句「（另有 N 条历史）」仍然把两笔数并排放、
+不告诉读者合账是多少；出路③等于承认那枚 chip 一眼读到的数是错的。
+
+### 改了什么（四份文件 + 一份新闸）
+
+| 位置 | 这一刀动了什么 |
+| --- | --- |
+| `utils/context-meter.ts:81-111` | `contextMeterSummary` 的总账：条数 = `items.length + history.entries`、字数 = `chars + history.chars`、token = `formatApproxTokens(approxTokens + history.approxTokens)`。**只做一次相加**，两路数字都来自主进程（`assembleFor` 与 `historyStatFor`），不重算阈值、不数条目、不碰正文；被窗口切掉的 `droppedChars` 不进合计（它本就没发出去），那句「丢了什么」仍由 `utils/history-window.ts` 说一遍，这里不复制 |
+| 同上 | 折叠那行字后面跟的 tooltip 改成**逐路拆项 + 合计 + 上界声明**，并把被第二十二节证伪的那句「占用条上写的就是真会发出去的」删掉 |
+| `components/ContextMeter.vue:1-16` | 文件头那段注释里同一句假话一并改掉：装配那一路与 `startTurn` 同源，历史这一路是**上界**不是发票 |
+| `utils/context-meter.test.ts:44-190` | 新 describe 八条，夹具照第二十二节屏 2 的真机读数摆（2 条 33 字 29 tokens + 历史 28 条 5902 字 5592 tokens 丢 2 条 2648 字） |
+| `components/context-meter-wiring.test.ts:57-63` | 新一条接线闸：组件（script 与 template）一个 `approxTokens` 都不许碰，util 必须真的读 `preview.history`——加法只许住一处 |
+| `tools/no-raw-control-chars.test.mjs`（新） | 全仓文本源码扫裸控制字符，见下面那一节 |
+
+现场读数用一次性探针打出来眼校（`%TEMP%/m9/print2.log`，探针跑完即删）：
+
+- 屏 2 那份回包现在读作 `30 条 · ≈5.6k tokens`，tooltip 全文
+  「这一轮会一起发给「墨宸 · 主笔」：装配 2 条 33 字 + 会话历史 28 条 5902 字，共 5935 字，约 5.6k tokens（逐条清单点开看；装配那一路与 startTurn 同源，历史按预留为零的上界报——真发出去的那一轮只会更少，不会更多）」；
+- 没有历史（`history` 字段缺失或全零）时折叠那行字**与旧口径一字不差**（`2 条 · ≈29 tokens`），且 tooltip 不提「会话历史」——
+  这两条是反向护栏，防止把「缺一格」渲染成一份假占用。
+
+### 这一刀顺手抓到一枚更脏的东西：`.ts` 源文件里有一个裸 NUL 字节
+
+`utils/context-meter.ts:28` 的 `contextMeterQueryKey` 用 `join("<0x00>")` 当键分隔符——**源文件里躺着一个裸 0x00 字节**，
+不是转义写法。它是原样进过 `git commit` 的（`git show HEAD` 与基线 `140acd4` 两份 blob 各有 1 枚 NUL，偏移都是 1246），
+所以不是我这次改出来的；全仓 679 份文本源码扫下来**只有这一份**命中。
+
+为什么这不只是难看：Git 判定二进制只看文件开头有没有 NUL，于是
+
+1. `git diff` 对这个文件只会说 `Bin 3727 -> 5087 bytes`——**这一刀的改动在 GitHub 网页上根本看不见**（他就是在那儿看一眼的人）；
+2. `.gitattributes` 给这份文件定的 `text=auto` / `eol=lf` 归一化对它**失效**（判成二进制就不转换）；
+3. `grep` 默认把它当二进制跳过（本轮现场：`grep` 报 "Binary file matches"，检索与统计都少算它）。
+
+改法是把同一枚字符换成转义写法 `join("\u0000")`——运行时字符串一字不变，文件重新是文本。行为零变化，所以不配新单测，
+配的是**一道闸**：`tools/no-raw-control-chars.test.mjs` 用 `git ls-files -z` 取清单、按扩展名筛文本源码、逐份读字节，
+允许 0x09/0x0a/0x0d 之外的 C0 控制字符一律点名（`文件 @ 0x..`）。它进门禁不需要改 CI：本仓 `vitest.config.ts` 的 include 已覆盖 `tools/*.test.mjs`。
+
+### 这些断言证明过自己能红：八只变异，逐只死
+
+按「断言必须证明它能失败」，先跑一次红基线（新文案没写进实现时 6 条当场红：`RED_EXIT=1`，
+其中一条正是「折叠那行字还是 `2 条 · ≈29 tokens`」），实现落下去转绿，再把**实现**改坏八次（`/tmp/m9/{m1..m8}.log`）：
+
+| 变异 | 当场红成什么样 |
+| --- | --- |
+| M1 夹具里放一枚裸 NUL（`git add -N` 一份 44 字节的临时件） | 新闸点名 `tools/scratch-nul-fixture.test.mjs @ 0x00`，`M1_EXIT=1`；夹具当场 `git rm --cached` + 删除，闸文件哈希回读与快照一致 |
+| M2 条数不加历史 | 「有历史 ⇒ 并进条数」、「被切掉的不进合计」、「取整只在合并之后」三条红 |
+| M3 字数把 `droppedChars` 也算进去 | 「tooltip 拆项」、「被切掉不进合计」（反向那句 `not.toContain("共 1033 字")` 当场抓到 1033）、「chip 总字数 === 面板逐行之和」红 |
+| M4 token 只报装配那一路 | 四条红，含 `30 条 · ≈5.6k` 读成 `≈29` |
+| M5 把旧那句「占用条上写的就是真会发出去的」放回 tooltip | 「tooltip 逐路拆项」一条红，抓它的正是 `not.toContain("就是真会发出去的")` |
+| M6 `hasHistory` 恒真（没历史也谎称有一路） | 「历史全零 ⇒ 一字不变」「旧回包 ⇒ 绝不编一份占用」两条红 |
+| M7 显形判据把 `preview.empty` 摘掉 | 「主进程说 empty 就不显形」红——**这条本来会是假绿**：原夹具 `items: []`，`items.length === 0` 先把它挡了，`empty` 那一路根本没被检验。补成 `items: [item()], empty: true` 之后 M7 才有牙（连同接线闸那条一起两条红） |
+| M8 把加法搬进组件（`ContextMeter.vue` 里引用 `approxTokens`） | 新那条接线闸红，报出 `const _mutationProbe = agent.contextPreview?.approxTokens` |
+
+八只全部落回原样，落盘后逐份 `sha256` 与变异前快照比过：`context-meter.ts` = `2af5da5a5efaff04…`、
+`ContextMeter.vue` = `bc46765aef279bd2…`、`no-raw-control-chars.test.mjs` = `b669e0d8f8a8af25…`，三份全 RESTORED。
+
+### 本刀**没**闭的那一层，照直写
+
+1. **`reserve=0` 上界**：预览不知道真发那一轮的系统提示词与本轮输入占多少，所以历史报的是上界（`historyStatFor` 里钉着）。
+   这一刀只把「显示的是哪几路」对齐了，没把「上界」变成「真值」——tooltip 里那句「只会更少，不会更多」是这件事唯一的交代。
+   要真闭得让 `contextPreview` 走真 `startTurn` 的预算，那是主进程那一侧的另一刀。
+2. **装配为空但历史非空那一格仍不显形**：显形判据仍以主进程的 `preview.empty` 为准（渲染层不与它互相猜），
+   所以「独立线程 + 长历史 + 档案什么都不装」那一轮 chip 还是不在场。这条现在有用例钉着（M7 那一条），是**决定**不是漏网。
+3. **真机没重跑**：这屏是 `pnpm verify` 那套单测 + 门禁覆盖的，第二十二节那套冷实例目检没重做——因为**旧探针的判据已经过期**：
+   它第 ⑤ 条钉的是旧公式（`items` 那一路），改完口径必然红。`scratch/meter/run.mjs` 已按新公式改好（条数与 token 都并进合账，
+   另加一条 tooltip 里必须有「共 N 字」），**但还没重跑过**。下一次目检按第二十二节那套纪律走：`build` 后冷实例、每跑重启。
+   ⇒ 本刀的完成状态是「代码 + 门禁 + 变异自证」，不是「目检过」。
+
+### 门禁（一整条 `pnpm verify`，日志 `%TEMP%/m9/verify-final.log`，392 行）
+
+`All matched files use Prettier code style!` ⇒ 6× `tsc --noEmit` ⇒ `eslint . --max-warnings=0` ⇒
+`check-package-boundary` ⇒ 行数预算通过（**612 份**，比上一刀的 611 正好多我这份新闸）⇒
+vitest **307 文件 / 3998 passed | 2 skipped（4000）**，`VERIFY_EXIT=0` 是日志里那行 echo。
+与上一刀的 306 / 3987 差 **+1 文件 / +11 条**，逐格对得上：`no-raw-control-chars.test.mjs` 一份文件 2 条、
+`context-meter.test.ts` +8、`context-meter-wiring.test.ts` +1。日志里唯一的 `EPERM` 命中是自带标签的那行
+「[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到」，与第二十三节口径一致；
+`2 skipped` 仍是 `changes.test.ts:247,302` 那两条 `skipIf(win32)`。
 
 

@@ -54,6 +54,14 @@ describe("折叠态那枚钮", () => {
     expect(meterTpl).not.toContain(".slice(");
   });
 
+  it("总账合并只许住在 util：组件一个 token 数都不碰，util 确实读了 preview.history", () => {
+    // 清单第 1 项的守护：把「装配 + 历史」的加法写进 .vue 就等于第二套口径（铁律 6），
+    // 而 util 若不读 preview.history，chip 上就还是那个不含历史的假总账。
+    expect(meter).not.toContain("approxTokens");
+    expect(meterTpl).not.toContain("approxTokens");
+    expect(meterUtil).toContain("preview.history");
+  });
+
   it("装配不出东西时整条不显形（v-if 落在 summary.visible 上），不是显示成 0 条", () => {
     expect(meterTpl).toContain('v-if="summary.visible"');
     expect(meterUtil).toContain("preview.empty");

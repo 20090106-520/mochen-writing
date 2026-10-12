@@ -69,18 +69,44 @@ export function formatApproxTokens(tokens: number): string {
   return `${(tokens / 1000).toFixed(1)}k`;
 }
 
+/**
+ * 折叠 chip 的总账（清单第 1 项，§22 那条口径分裂）。
+ *
+ * 口径：**装配条目 + 会话历史**，两路都是主进程报的数（`assembleFor` 给前者，
+ * `historyStatFor` 给后者），这里只做一次相加——不重算阈值、不数条目、不碰正文，
+ * 所以组件里不许出现第二份加法（钉在 `context-meter-wiring.test.ts`）。
+ * 被窗口切掉的历史（`droppedCount`）本就不发出去，因此**不进合计**；那句「丢了什么」
+ * 只由 `utils/history-window.ts` 说一遍，这里不重复那句话。
+ */
 export function contextMeterSummary(preview: ContextPreview | null): ContextMeterSummary {
   if (preview === null || preview.empty || preview.items.length === 0) {
     return { visible: false, text: "", title: "" };
   }
-  const count = preview.items.length;
+  const history = preview.history;
+  const historyEntries = history?.entries ?? 0;
+  const historyChars = history?.chars ?? 0;
+  const historyTokens = history?.approxTokens ?? 0;
+  const hasHistory = historyEntries + historyChars + historyTokens > 0;
+
+  const entries = preview.items.length + historyEntries;
+  const chars = preview.chars + historyChars;
+  const tokens = formatApproxTokens(preview.approxTokens + historyTokens);
+  // 拆项先摆出来再给合计：一眼读到的那个数是总账，但「哪一路占多少」不能糊掉。
+  const parts = [`装配 ${preview.items.length} 条 ${preview.chars} 字`];
+  if (hasHistory) parts.push(`会话历史 ${historyEntries} 条 ${historyChars} 字`);
+  // 有历史才需要「上界」这句提醒：装配那一路与 startTurn 同源，历史这一路按预留为零算，
+  // 真起一轮只会切得更狠（第二十一节查实），所以合计是**上界**，不许写成「就是发出去的」。
+  const note = hasHistory
+    ? "逐条清单点开看；装配那一路与 startTurn 同源，历史按预留为零的上界报——真发出去的那一轮只会更少，不会更多"
+    : "逐条清单点开看；条目与 startTurn 同源";
+
   return {
     visible: true,
-    text: `${count} 条 · ≈${formatApproxTokens(preview.approxTokens)} tokens`,
+    text: `${entries} 条 · ≈${tokens} tokens`,
     title:
-      `这一轮会连同下面这些一起发给「${preview.profileName}」：` +
-      `${preview.chars} 字，约 ${formatApproxTokens(preview.approxTokens)} tokens` +
-      `（点开看装了什么；条目与 startTurn 同源，占用条上写的就是真会发出去的）`
+      `这一轮会一起发给「${preview.profileName}」：${parts.join(" + ")}，` +
+      (hasHistory ? `共 ${chars} 字，` : "") +
+      `约 ${tokens} tokens（${note}）`
   };
 }
 

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { contextKindLabel, type ContextPreview, type ContextPreviewItem } from "@mochen/contracts";
+import {
+  contextKindLabel,
+  type ContextHistoryStat,
+  type ContextPreview,
+  type ContextPreviewItem
+} from "@mochen/contracts";
 import {
   contextMeterQuery,
   contextMeterQueryKey,
@@ -7,6 +12,8 @@ import {
   contextMeterSummary,
   formatApproxTokens
 } from "./context-meter";
+// 交叉核对用的是历史行的**同一条**拼装通路（chip 的总账必须等于面板逐行之和）。
+import { appendHistoryRow } from "./history-window";
 
 function preview(over: Partial<ContextPreview> = {}): ContextPreview {
   return {
@@ -40,6 +47,17 @@ describe("formatApproxTokens", () => {
   });
 });
 
+function stat(over: Partial<ContextHistoryStat> = {}): ContextHistoryStat {
+  return {
+    entries: 28,
+    chars: 5902,
+    approxTokens: 5592,
+    droppedCount: 2,
+    droppedChars: 2648,
+    ...over
+  };
+}
+
 describe("contextMeterSummary", () => {
   it("还没问过主进程（null）⇒ 不显形：null 是「未知」，不是「0 条」", () => {
     expect(contextMeterSummary(null).visible).toBe(false);
@@ -72,6 +90,115 @@ describe("contextMeterSummary", () => {
 
   it("empty 为假但 items 为空（主进程与渲染层不许互相猜）⇒ 同样不显形", () => {
     expect(contextMeterSummary(preview({ empty: false, items: [] })).visible).toBe(false);
+  });
+});
+
+/**
+ * 清单第 1 项（第二十二节登记的那条口径分裂）：折叠 chip 报的数必须与展开面板的总账同源。
+ *
+ * 夹具**照第二十二节屏 2 的真机读数摆**（装配 2 条 / 33 字 / 29 tokens；历史 28 条 /
+ * 5902 字 / 5592 tokens，另丢 2 条 2648 字），不是随手挑的整数——当时 chip 上写的
+ * 「2 条 · ≈29 tokens」正是缺陷本体，所以这一组数一有改动就必然撞红。
+ */
+describe("折叠 chip 的总账 = 装配条目 + 会话历史", () => {
+  const assembled = () =>
+    preview({
+      items: [
+        item({ chars: 16, title: "第一章 · 开局" }),
+        item({ chars: 17, title: "第二章 · 中段" })
+      ],
+      chars: 33,
+      approxTokens: 29
+    });
+
+  it("有历史 ⇒ 折叠那一行把历史并进条数与 token，不再只报装配那一路", () => {
+    // 2 + 28 = 30 条；29 + 5592 = 5621 tokens ⇒ 5.6k（屏 2 上面板与 store 的合账）
+    expect(contextMeterSummary({ ...assembled(), history: stat() }).text).toBe(
+      "30 条 · ≈5.6k tokens"
+    );
+  });
+
+  it("tooltip 逐路拆项并报合计，同时把「历史按上界算」这句说明白", () => {
+    const title = contextMeterSummary({ ...assembled(), history: stat() }).title;
+    expect(title).toContain("墨宸 · 主笔");
+    expect(title).toContain("装配 2 条 33 字");
+    expect(title).toContain("会话历史 28 条 5902 字");
+    expect(title).toContain("共 5935 字");
+    expect(title).toContain("5.6k");
+    // 上界口径（第二十一节已查实：预览按 reserve=0 算，真 startTurn 只会切得更狠）
+    expect(title).toContain("上界");
+    // 那句被证伪的旧话不许复活：「占用条上写的就是真会发出去的」
+    expect(title).not.toContain("就是真会发出去的");
+  });
+
+  it("被切掉的历史不进合计：条数与字数只算主进程报的 kept", () => {
+    const s = contextMeterSummary({
+      ...assembled(),
+      history: stat({
+        entries: 1,
+        chars: 100,
+        approxTokens: 100,
+        droppedCount: 3,
+        droppedChars: 900
+      })
+    });
+    // 2 条装配 + 1 条真发出去的历史 = 3 条；那 3 条 900 字**没上轮**，不许算进占用
+    expect(s.text).toBe("3 条 · ≈129 tokens");
+    expect(s.title).toContain("会话历史 1 条 100 字");
+    expect(s.title).toContain("共 133 字");
+    expect(s.title).not.toContain("共 1033 字");
+  });
+
+  it("取整只在合并之后做一次：两路 600 + 500 ⇒ 合计 1.1k，不是两个 k 缩写各自相加", () => {
+    const s = contextMeterSummary({
+      ...assembled(),
+      items: [item({ chars: 600 })],
+      chars: 600,
+      approxTokens: 600,
+      history: stat({ entries: 1, chars: 500, approxTokens: 500, droppedCount: 0, droppedChars: 0 })
+    });
+    expect(s.text).toBe("2 条 · ≈1.1k tokens");
+  });
+
+  it("历史全零（盘上没这条会话）⇒ 折叠那行一字不变，也不提会话历史", () => {
+    const s = contextMeterSummary({
+      ...assembled(),
+      history: stat({ entries: 0, chars: 0, approxTokens: 0, droppedCount: 0, droppedChars: 0 })
+    });
+    expect(s.text).toBe("2 条 · ≈29 tokens");
+    expect(s.title).not.toContain("会话历史");
+  });
+
+  it("旧回包（无 history 字段）⇒ 按「没有历史」显示，绝不编一份占用", () => {
+    const s = contextMeterSummary(assembled());
+    expect(s.text).toBe("2 条 · ≈29 tokens");
+    expect(s.title).not.toContain("会话历史");
+  });
+
+  it("显形判据仍归主进程那一边：empty 为真时，带多长的历史都不显形", () => {
+    // 夹具刻意给**非空 items**：否则这条会被 `items.length === 0` 那一路先挡掉，
+    // 于是「主进程说 empty 就不显形」这句话根本没被检验过（2026-10-12 自己抓到的假绿）。
+    const s = contextMeterSummary(
+      preview({
+        empty: true,
+        items: [item()],
+        chars: 33,
+        approxTokens: 29,
+        history: stat()
+      })
+    );
+    expect(s.visible).toBe(false);
+    expect(s.text).toBe("");
+  });
+
+  it("chip 的总字数 === 展开面板逐行字数之和（同一轮只看得到一份账）", () => {
+    const p = { ...assembled(), history: stat() };
+    const rowsChars = appendHistoryRow(contextMeterRows(p), p).reduce(
+      (sum, row) => sum + row.chars,
+      0
+    );
+    expect(rowsChars).toBe(5935);
+    expect(contextMeterSummary(p).title).toContain(`共 ${rowsChars} 字`);
   });
 });
 
