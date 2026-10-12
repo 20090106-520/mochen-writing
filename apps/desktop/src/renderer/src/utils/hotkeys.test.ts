@@ -254,6 +254,44 @@ describe("resolveHotkey · / 开面板", () => {
   });
 });
 
+describe("resolveHotkey · ? 开快捷键指南", () => {
+  // 键位表里「?」这一枚原先什么都没有：HotkeysPanel.vue 完整渲染着 HOTKEY_GUIDE，
+  // 但它只住在设置浮层的「快捷键」页里——屏幕上那张表没有任何一个键能直接跳到它。
+  // 真实键盘上 ? 是 Shift+/ 打出来的（event.key === "?"、shiftKey === true），
+  // 所以这里放行的是 bare（Ctrl/Alt/Meta 三枚一个都不许按），不是 noMods。
+  it("焦点空闲时 ?（Shift+/）⇒ open-help", () => {
+    expect(resolveHotkey(focus({ hasBook: true }), "?", mods({ shift: true })).action).toBe(
+      "open-help"
+    );
+  });
+  it("不需 Shift 的布局：纯 ? 同样开指南", () => {
+    expect(resolveHotkey(focus(), "?", mods()).action).toBe("open-help");
+  });
+  it("composer 有焦点时 ? 只是打字 ⇒ none", () => {
+    expect(
+      resolveHotkey(focus({ composerIsFocused: true }), "?", mods({ shift: true })).action
+    ).toBe("none");
+  });
+  it("护栏 2 反向：文本框（文稿编辑器 / 设置输入）里打 ? ⇒ none，不开指南", () => {
+    expect(
+      resolveHotkey(focus({ textInputIsFocused: true }), "?", mods({ shift: true })).action
+    ).toBe("none");
+  });
+  it("Ctrl / Alt / Meta + ? 不在键位表 ⇒ none（只认带 Shift 或不带）", () => {
+    expect(resolveHotkey(focus(), "?", mods({ ctrl: true, shift: true })).action).toBe("none");
+    expect(resolveHotkey(focus(), "?", mods({ alt: true, shift: true })).action).toBe("none");
+    expect(resolveHotkey(focus(), "?", mods({ meta: true, shift: true })).action).toBe("none");
+  });
+  it("护栏 1 反向：输入法合成期间打 ? ⇒ none（候选框里不许截键）", () => {
+    expect(resolveHotkey(focus({ isComposing: true }), "?", mods({ shift: true })).action).toBe(
+      "none"
+    );
+  });
+  it("/ 的通路没被 ? 吃掉：纯 / 仍是 open-palette", () => {
+    expect(resolveHotkey(focus(), "/", mods()).action).toBe("open-palette");
+  });
+});
+
 describe("resolveHotkey · 修饰键必须参与判定", () => {
   it("Shift+y 落在聚焦待审卡上 ⇒ none（审批四键要纯键）", () => {
     const f = focus({ proposalIsFocused: true, proposalIsPending: true });
@@ -275,7 +313,7 @@ describe("resolveHotkey · 修饰键必须参与判定", () => {
     });
     expect(resolveHotkey(focus(), "b", mods({ ctrl: true })).action).toBe("toggle-left");
   });
-  it("Shift+/ （问号）空闲态也不开面板 ⇒ none", () => {
+  it('键名是 "/" 而带 Shift ⇒ none：/ 那枚仍只认纯键（真问号是 "?"，见 ? 分组）', () => {
     expect(resolveHotkey(focus({ hasBook: true }), "/", mods({ shift: true })).action).toBe("none");
   });
   it("Ctrl+Shift 族七枚各自落到对应面板，且都报得出是哪一枚", () => {
