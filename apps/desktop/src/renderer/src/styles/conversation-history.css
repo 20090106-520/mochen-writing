@@ -107,10 +107,16 @@
 
 .conversation-history-item:hover {
   background: var(--surface-hover, #f2f2ef);
+  /* 状态档底：这一条的副文（`.conversation-history-copy small` 二级、`time` 三级）
+     压在 hover / selected 上只有 4.38 / 4.09。判据见 appearance-surface-ladder.test.ts。 */
+  --text-secondary: var(--text-on-state);
+  --text-tertiary: var(--text-on-state);
 }
 
 .conversation-history-item.is-current {
   background: var(--surface-selected, #ecece9);
+  --text-secondary: var(--text-on-state);
+  --text-tertiary: var(--text-on-state);
 }
 
 .conversation-history-item:disabled {

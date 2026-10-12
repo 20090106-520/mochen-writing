@@ -58,8 +58,14 @@
   border-radius: 8px;
 }
 
+/* 当前这一条落在会话历史里的那一行用最深一档底。
+   深档底（`--surface-selected`）上灰字必掉线：浅 0.71 只有 4.09:1、深 0.62 只有 3.38:1，
+   而这一行恰好**两处都是灰字**（`.context-meter-kind` 与 `.context-meter-chars` 都是 `--text-tertiary`）。
+   2026-10-12 清单第 4 项：在这里 shadow 一次 `--text-tertiary`，
+   自定义属性连着整棵子树一起改口 ⇒ 那两枚小字当场升到状态档安全灰（同一套皮肤：浅 5.06 / 深 5.11）。 */
 .context-meter-list li.is-active {
   background: var(--surface-selected);
+  --text-tertiary: var(--text-on-state);
 }
 
 .context-meter-kind {

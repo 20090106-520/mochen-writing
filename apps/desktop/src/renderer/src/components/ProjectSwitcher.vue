@@ -186,6 +186,9 @@ function close(): void {
 .project-item:hover,
 .project-item.is-active {
   background: var(--hover-bg, rgba(255, 255, 255, 0.06));
+  /* 状态档底：条目下面那行 `.project-item-meta`（路径与篇数）是 muted。
+     判据见 composables/appearance-surface-ladder.test.ts。 */
+  --text-muted: var(--text-on-state);
 }
 
 .project-item-info {

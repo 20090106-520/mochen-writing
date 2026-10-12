@@ -90,6 +90,9 @@
 
 .change-history-row:hover {
   background: var(--hover, rgb(0 0 0 / 4%));
+  /* 状态档底：本行右侧的时间戳是 `.change-history-when`（三级灰），压在 hover 档只有 4.38:1。
+     判据见 composables/appearance-surface-ladder.test.ts。 */
+  --text-dim: var(--text-on-state);
 }
 
 /* 折叠说明（2026-10-05 批次 3）：列表只列最近 60 条，多的在这儿交代一句。

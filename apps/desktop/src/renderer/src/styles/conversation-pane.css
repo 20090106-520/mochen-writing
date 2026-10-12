@@ -400,6 +400,9 @@ html[data-platform="darwin"] .conversation-header {
   background: var(--surface-hover);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
+  /* 状态档底：卡脚那句说明（`.workbench-card-hint`）是三级灰，压在 hover 档只有 4.38:1。
+     判据见 composables/appearance-surface-ladder.test.ts。 */
+  --text-tertiary: var(--text-on-state);
 }
 
 .workbench-card:active:not(:disabled) {

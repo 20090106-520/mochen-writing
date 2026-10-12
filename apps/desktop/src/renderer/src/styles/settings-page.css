@@ -82,6 +82,10 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   border-radius: 8px;
   background: var(--selected);
   color: var(--text-faint);
+  /* selected 档（浅 0.12）上，0.71 的三级灰只有 4.09:1。这一条 shadow 同时管到
+     `.settings-search input::placeholder`——那一行写的是 `color: var(--text-faint)`，
+     用 `color:` 只改得到搜索框自己。判据见 appearance-surface-ladder.test.ts。 */
+  --text-faint: var(--text-on-state);
 }
 
 .settings-search input {
@@ -317,6 +321,9 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 .agent-mode-card:hover {
   background: var(--hover);
   box-shadow: var(--shadow-md);
+  /* 状态档底：卡里那句说明 `.agent-mode-card small` 是 `--text-soft`（二级灰）。
+     判据见 composables/appearance-surface-ladder.test.ts。 */
+  --text-soft: var(--text-on-state);
 }
 
 /* 强调色预算：全应用只有「当前选中」吃 accent，一处就够，再多就不叫强调了。
@@ -425,7 +432,9 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   flex: 0 0 auto;
   border-radius: 9px;
   background: var(--hover);
-  color: var(--text-secondary);
+  /* 这枚图标坐在 hover 档上：二级灰在这里只有 4.38:1，图标本身还要过 1.4.11 的 3:1，
+     统一升到状态档灰。判据见 composables/appearance-surface-ladder.test.ts。 */
+  color: var(--text-on-state);
 }
 
 .provider-profile-text {
@@ -615,7 +624,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--hover);
-  color: var(--text-secondary);
+  color: var(--text-on-state);
   font-size: 0.714286rem;
   line-height: 1.6;
 }
@@ -663,7 +672,9 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   font-size: 0.785714rem;
   line-height: 1.55;
   background: var(--hover);
-  color: var(--text-secondary);
+  /* 体检那行默认档坐在 hover 上：二级灰 4.38:1。三态（is-ok / is-unreachable / is-unverified）
+     本来就自己写了 --text-primary，不受这一行影响。 */
+  color: var(--text-on-state);
 }
 
 .provider-verify.is-ok {
@@ -752,7 +763,8 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   padding: 0 6px;
   border-radius: 999px;
   background: var(--hover);
-  color: var(--text-tertiary);
+  /* 计数胶囊坐在 hover 档上：三级灰在这里只有 4.38:1（浅底）。判据见 appearance-surface-ladder.test.ts。 */
+  color: var(--text-on-state);
   font-size: 0.785714rem;
   line-height: 1.6;
 }
@@ -770,7 +782,8 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 
 .model-picker-refresh:hover:not(:disabled) {
   background: var(--hover);
-  color: var(--text-secondary);
+  /* hover 档上的升档：基规则那枚三级灰在这一档只有 4.38:1。 */
+  color: var(--text-on-state);
 }
 
 .model-picker-refresh:disabled {

@@ -105,6 +105,9 @@
 .composer-chip:hover:not(:disabled) {
   background: var(--hover);
   color: var(--text);
+  /* 状态档底：caret 那枚箭头是 `--text-faint`，压在 hover 档只有 4.09~4.38。
+     判据见 composables/appearance-surface-ladder.test.ts。 */
+  --text-faint: var(--text-on-state);
 }
 
 .composer-chip:focus-visible {
@@ -162,6 +165,7 @@
 .composer-chip[aria-pressed="true"] {
   background: var(--selected);
   color: var(--text);
+  --text-faint: var(--text-on-state);
 }
 
 /* 工具 ▾ 浮层（#101）：与 / 面板同一套毛玻璃与层级，只读清单，没有任何可点掉的行。 */
@@ -270,6 +274,8 @@
 
 .tool-roster-close:hover {
   background: var(--hover);
+  /* 基规则那枚 `--text-soft` 压在 hover 档只有 4.38:1，这一档上换成状态档灰。 */
+  color: var(--text-on-state);
 }
 
 .tool-roster-close:focus-visible {
@@ -394,6 +400,9 @@
 .model-select-settings:hover,
 .model-select-close:hover {
   background: var(--hover);
+  /* 这一组里三枚各写自己的字色（retry 与 close 是 `--text-soft`，settings 是实心主按钮），
+     所以升档只能 shadow 那一枚 token，不能在这里补一条 `color:` 把实心按钮一起改掉。 */
+  --text-soft: var(--text-on-state);
 }
 
 /* 「去模型设置」是失败态里**唯一能真正解决**的那个动作（重试治不了坏密钥/空地址），

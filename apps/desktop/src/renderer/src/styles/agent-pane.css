@@ -509,13 +509,15 @@ html[data-platform="darwin"] .conversation-pane {
   margin-top: 6px;
 }
 
-/* F-1：卡头的轮次锚点。文字由 utils/timeline 的 cardTurnLabel 生成，这里只管排布。 */
+/* F-1：卡头的轮次锚点。文字由 utils/timeline 的 cardTurnLabel 生成，这里只管排布。
+   字色用 `--text-on-state` 而不是 `--text-soft`：这一枚的底是 selected 档（浅 0.12），
+   0.71 的次要灰压上去只有 4.09:1。判据见 appearance-surface-ladder.test.ts。 */
 .card-turn {
   flex: 0 0 auto;
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--selected);
-  color: var(--text-soft);
+  color: var(--text-on-state);
   font-size: 0.857143rem;
 }
 
@@ -574,7 +576,7 @@ html[data-platform="darwin"] .conversation-pane {
   padding: 1px 7px;
   border-radius: 999px;
   background: var(--selected);
-  color: var(--text-soft);
+  color: var(--text-on-state);
   font-size: 0.857143rem;
 }
 
@@ -1162,7 +1164,7 @@ html[data-platform="darwin"] .conversation-pane {
   height: 32px;
   border-radius: 9px;
   background: var(--selected);
-  color: var(--text-soft);
+  color: var(--text-on-state);
 }
 
 .composer-reference-trigger {
@@ -1206,9 +1208,13 @@ html[data-platform="darwin"] .conversation-pane {
   cursor: pointer;
 }
 
+/* 状态档底（hover 0.085 / selected 0.12）上，本族的三级小字只有 4.09~4.38:1；
+   自定义属性连着整棵子树改口，所以升档写在状态那条规则里，而不是去改每条后代的 color。
+   判据与逐族核对：composables/appearance-surface-ladder.test.ts。 */
 .composer-reference-options button:hover,
 .composer-reference-options button.is-selected {
   background: var(--selected);
+  --text-faint: var(--text-on-state);
 }
 
 .composer-reference-options button.is-selected .composer-reference-icon {
@@ -1349,11 +1355,13 @@ html[data-platform="darwin"] .conversation-pane {
 .composer-context-item[aria-expanded="true"] {
   background: var(--surface-hover);
   border-color: var(--theme-line);
+  --text-tertiary: var(--text-on-state);
 }
 
 .composer-context-item:active:not(:disabled) {
   transform: translateY(1px);
   background: var(--surface-selected);
+  --text-tertiary: var(--text-on-state);
 }
 
 .composer-context-item:focus-visible {
@@ -1528,6 +1536,7 @@ html[data-platform="darwin"] .conversation-pane {
 
 .context-picker-close:hover {
   background: var(--surface-hover);
+  --text-tertiary: var(--text-on-state);
 }
 
 .context-picker-body {
@@ -1597,11 +1606,15 @@ html[data-platform="darwin"] .conversation-pane {
 
 .context-option:hover:not(:disabled) {
   background: var(--surface-hover);
+  --text-secondary: var(--text-on-state);
+  --text-tertiary: var(--text-on-state);
 }
 
 .context-option:active:not(:disabled),
 .context-option.is-current {
   background: var(--surface-selected);
+  --text-secondary: var(--text-on-state);
+  --text-tertiary: var(--text-on-state);
 }
 
 .context-option:focus-visible,

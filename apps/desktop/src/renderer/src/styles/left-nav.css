@@ -148,6 +148,11 @@ html[data-platform="darwin"] .sidebar-brand-row {
 .nav-row.is-active {
   background: var(--selected);
   color: var(--accent);
+  /* 选中行右侧那枚快捷键 `kbd` 是三级灰，压在 selected 档只有 4.09:1。
+     （svg 不用管：下一条规则已经把它收成 accent。）
+     字色本身是「accent 当字色」另一族病，本批只登记不动，见台账 §二十九。
+     判据见 composables/appearance-surface-ladder.test.ts。 */
+  --text-tertiary: var(--text-on-state);
 }
 
 .nav-row.is-active svg {
@@ -213,6 +218,8 @@ html[data-platform="darwin"] .sidebar-brand-row {
 .nav-subrow:hover:not(:disabled) {
   background: var(--hover);
   color: var(--text-primary);
+  /* 状态档底：箭头（`.nav-subrow-chevron`）是三级灰。判据见 appearance-surface-ladder.test.ts。 */
+  --text-tertiary: var(--text-on-state);
 }
 
 /* planned 子项仍带徽标（诚实标记没做完），但可点——点击打开占位说明（不再做死按钮）。 */
@@ -290,6 +297,10 @@ html[data-platform="darwin"] .sidebar-brand-row {
 .nav-row:hover {
   background: var(--hover);
   color: var(--text-primary);
+  /* 状态档底：这一行的两个后代都是灰字（`svg` 二级、`kbd` 三级），hover 只换底、
+     不把它们升档就还是 4.09~4.38。判据见 composables/appearance-surface-ladder.test.ts。 */
+  --text-secondary: var(--text-on-state);
+  --text-tertiary: var(--text-on-state);
 }
 
 .nav-row svg {
@@ -365,6 +376,8 @@ html[data-platform="darwin"] .sidebar-brand-row {
 
 .section-toggle:hover {
   background: var(--hover);
+  /* 状态档底：箭头 `.section-toggle-chevron` 是三级灰；字色本体从 `.section-toggle` 那条基规则继承。 */
+  --text-tertiary: var(--text-on-state);
 }
 
 .section-toggle-chevron {
@@ -494,6 +507,8 @@ html[data-platform="darwin"] .sidebar-brand-row {
   outline: none;
   background: var(--surface-hover);
   color: var(--text-primary);
+  /* 状态档底：菜单项左侧那枚 `> svg` 是二级灰。判据见 appearance-surface-ladder.test.ts。 */
+  --text-secondary: var(--text-on-state);
 }
 
 .tree-node-action-menu-item > svg {
@@ -533,11 +548,15 @@ html[data-platform="darwin"] .sidebar-brand-row {
 .tree-row:hover {
   background: var(--hover);
   color: var(--text-primary);
+  /* 状态档底：`.tree-row > svg` 与深一层的那几档行色都是二级灰。
+     判据见 composables/appearance-surface-ladder.test.ts。 */
+  --text-secondary: var(--text-on-state);
 }
 
 .tree-row.is-selected {
   background: var(--selected);
   color: var(--text-primary);
+  --text-secondary: var(--text-on-state);
 }
 
 .tree-row[draggable="true"] {

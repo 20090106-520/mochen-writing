@@ -569,6 +569,9 @@ onBeforeUnmount(() => panelScrollbar.dispose());
 
 .outline-section-head:hover {
   background: var(--hover, rgba(255, 255, 255, 0.04));
+  /* 状态档底：箭头 `.outline-chevron` 与右侧计数 `.outline-section-count` 都是三级灰。
+     判据见 composables/appearance-surface-ladder.test.ts。 */
+  --text-tertiary: var(--text-on-state);
 }
 
 .outline-chevron {
@@ -630,6 +633,11 @@ onBeforeUnmount(() => panelScrollbar.dispose());
 .outline-node-row:hover {
   background: var(--hover, rgba(255, 255, 255, 0.04));
   color: var(--text-primary, #e8e8e8);
+  /* 状态档底：行里两枚后代自己写着灰字——图标是二级、字数（`.outline-node-chars`）是 muted。
+     `color:` 那一行只管得到这一行自己，管不到它们，所以升档走 shadow。
+     判据见 composables/appearance-surface-ladder.test.ts。 */
+  --text-secondary: var(--text-on-state);
+  --text-muted: var(--text-on-state);
 }
 
 .outline-node-row.is-selected {

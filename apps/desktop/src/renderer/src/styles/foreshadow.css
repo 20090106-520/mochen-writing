@@ -121,6 +121,9 @@
 
 .foreshadow-row:hover {
   background: var(--hover, rgb(0 0 0 / 4%));
+  /* 状态档底：行里的状态与出处两枚小字（`.foreshadow-status` / `.foreshadow-where`）都是三级灰，
+     压在 hover 档只有 4.38:1。判据见 composables/appearance-surface-ladder.test.ts。 */
+  --text-dim: var(--text-on-state);
 }
 
 .foreshadow-row.is-pending {

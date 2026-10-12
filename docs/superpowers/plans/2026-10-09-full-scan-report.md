@@ -270,7 +270,7 @@ MW7 `preventDefault()` 提到栈检查之前 → 2 红跨两层（行为层「�
 | `README.md:6401` | 点输入框时整张卡内侧亮一圈青色边框（不是新元素，是 `.composer-input-surface` 聚焦态） | 未修，属样式判定；用户曾报为「弹出正方形」 |
 | `README.md:6389` | 5-㊻ 最后一腿「真端点成功回一句」未验完，卡在必须先开一本书 | 未闭合。P1-1/P1-2/P1-3 都需要真开书 + 真端点才能验，建议与下面第八节第 2 波一起做 |
 | `README.md:6242` | 皮肤挂件层运行时与新素材进表卡在 ImageGen 403 配额 | 外部配额，非代码问题 |
-| `README.md:6244` | 次要文字对比度仍差 0.1–0.4，要动的是表面阶梯 | 未动 |
+| `README.md:6244`（行号已失效：README 现在 95 行，照读找不到；留作**出处**不当入口） | 次要文字对比度仍差 0.1–0.4，要动的是表面阶梯 | **已闭，且病因那句作废**：数字（4.38 / 4.09）对，「要动阶梯」错——正文档对五档最低 7.60，阶梯没病；浅底要让灰字达标，深度上限 0.068（留量口径 0.048）挤不进 `hover` 0.085。改的是**用法**：新增 `--text-on-state`，77 处状态档底逐处写明字色或 shadow 本族灰字 token，判据 `appearance-surface-ladder.test.ts`。全文见第二十九节。**同族另登记一处未修**：accent 被当字色（浅底 `selected` 6/8 套 <4.5，最低 3.42），等用户拍板 |
 | `README.md:6247` | 窗口无 minWidth | 未动（P2-9） |
 | `README.md:12` | Plan 2 遗留：`startListening` 丢弃了退订函数（无消费方）、UNBOUND 线程上的批准未做 | 未做。**注意**：UNBOUND 那条与 P0-4 是同一族——线程键作用域问题至今只在 threads 表上修了 |
 | `README.md:787` | Responses API 未支持 | 未做 |
@@ -1673,5 +1673,166 @@ vitest **308 文件 / 4024 passed | 2 skipped（4026）**，`VERIFY_EXIT=0` 是�
 「[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到」（`:107`），与第二十三节口径一致；
 `2 skipped` 仍是 `changes.test.ts:247,302` 那两条 `skipIf(win32)`。
 **这一跑没有起 Electron 实例**，所以「真机」那一格仍然空着——见上面「还没闭合的」第 1 条。
+
+## 二十九、清单第 4 项「次要文字对比度」：这一刀动的是**用法**，不是系数（2026-10-12）
+
+§七 那一行（本报告 `:273`）原文抄的是 `README.md:6244`：「次要文字对比度仍差 0.1–0.4，要动的是表面阶梯」。
+这一格现在闭，但闭的方式是**先把它那句诊断推翻**：数字是对的，病因是错的。
+
+### 一、把 16 组（八套皮肤 × 明暗）逐档算完，病不在阶梯
+
+系数一律读应用自己那一份（`SURFACE_LADDER_MIX` / `SECONDARY_TEXT_MIX` / `TERTIARY_TEXT_MIX`），
+每格取 16 组里的**最低值**。探针是一次性临时件（跑完即删），日志留在本机 `%TEMP%/m11/`：
+`ladder-probe.log`（灰字两列 + 状态档灰列全量）、`body-probe.log`（正文列）、`ceiling-probe.log`（深度上限）、
+`accent-probe.log`（下面第四节那族）。
+
+| 档 | 深度（浅/深） | 次要 0.71/0.72 | 第三级 0.71/0.62 | 新token 0.78/0.80 | 正文 |
+| --- | --- | --- | --- | --- | --- |
+| raised | 0.018 / 0.055 | 4.94 / 6.66 | 4.94 / 5.21 | 6.11 / 7.92 | 11.09 / 11.83 |
+| card | 0.028 / 0.075 | 4.88 / 6.30 | 4.88 / 4.94 | 6.04 / 7.50 | 10.82 / 11.20 |
+| muted | 0.045 / 0.09 | 4.71 / 6.04 | 4.71 / 4.73 | 5.83 / 7.19 | 10.40 / 10.74 |
+| hover | 0.085 / 0.14 | **4.38** / 5.15 | **4.38** / **4.04** | 5.41 / 6.13 | 9.28 / 9.15 |
+| selected | 0.12 / 0.20 | **4.09** / **4.28** | **4.09** / **3.35** | 5.06 / 5.10 | 8.47 / **7.60** |
+
+三件事当场定死：
+
+1. **阶梯对正文档五档全过**，最低那一格 7.60（深底 `selected`，「汐 · 昼阁」）。阶梯没病，
+   所以「要动的是表面阶梯」这句**作废**——真去砍浅阶梯，会把 5 档压成 2 档，而达标的仍然是正文档那一列。
+2. **浅底也没有调系数的余地**：0.71 的灰要过 4.5，深度上限是 **0.068**；按上一轮立下的
+   「留 0.2 留量」口径回到 4.7，上限只剩 **0.048**——而 `muted` 自己就占着 0.045，
+   `hover` 0.085 与 `selected` 0.12 根本挤不进这个上限。
+   深底余量大一些（次要能忍到 0.182），但第三级 0.62 只能忍到 0.105，照样盖不住 `selected` 的 0.20。
+   ⇒ **「五档阶梯」与「灰字压在最深两档上达标」不可能同时成立**，这不是系数能解决的。
+3. 于是修的是**用法**：新增 `--text-on-state`（浅 0.78 / 深 0.80，`theme-runtime` 注册），
+   它对五档全部 ≥ 4.5（最低 5.06 / 5.10，都在 `selected`）。
+   凡把状态档（`--surface-hover` / `--surface-selected` 及别名 `--hover` / `--selected` / `--hover-bg`）
+   当背景画的规则，必须自己写明这一档上的字色，两种合法形状：
+   - 块里直接 `color: var(--text-on-state)`——只管元素自己；**或**
+   - 在这一条规则里 shadow 本族灰字 token（`--text-tertiary: var(--text-on-state)`）——
+     自定义属性连**整棵子树**一起改口，`small` / `kbd` / `.xxx-hint` / `::placeholder` 都跟着升档，
+     这是 `color:` 一行做不到的。
+
+### 二、普查是枚举出来的，不是名单
+
+守卫新文件 `composables/appearance-surface-ladder.test.ts`（9 条：数值律 5 + 结构律 4）。
+它自己从盘上枚举 `styles/*.css` 全部 + `components/*.vue` 的内联 `<style>`，
+当前树上数到 **77 处深档底规则 / 19 个文件**（`__census` 探针跑出的计数，跑完即删；
+判据本体是守卫，不留并行演化的第二份脚本——`superpowers` 那批 `.superpowers/sdd/*.mjs` 探针已经因为没人同步而腐掉过一次）。
+普查表 `STATE_RUNG_SITES` 按文件分组钉这 77 处，四种合法形状（`primary` / `shadow` / `inheritFrom` / `exempt`）之外一律红。
+
+改动的落点：**14 个样式/组件文件**（`agent-pane` `change-history` `context-meter` `conversation-history`
+`conversation-pane` `editor-pane` `foreshadow` `interaction` `left-nav` `settings-page` 十个 CSS，
+加 `ExportDialog` `FindReplacePanel` `OutlinePanel` `ProjectSwitcher` 四个 SFC），
+另外 `theme-runtime.css` 那层早就在做这件事（`:118-135` 的 `background: 深档 + color: 正文`），本刀没动它。
+
+`editor-pane.css` 这一份不是加声明，是**删**了一行并换了一行：
+
+- `.view-tabs { background: var(--surface-hover) }` 删掉——它**一条都不生效**。
+  `theme-runtime.css:160-170` 那条 `html[data-theme] :where(… .view-tabs …)` 特异性 (0,1,1) 压过本条 (0,1,0)，
+  槽底一直是 `--surface-muted`。留着它的害处不是"多一层红"，是下一个人读到这条会按 hover 档去算
+  里面那三枚钮的三级小字（压在 muted 上 4.71 达标、压在 hover 上 4.38 掉线，判据整个反了）。
+- `.editor-view-switch` 的槽底 `hover` → `muted`：同一个控件的另一副面孔本来就是 muted，
+  而且槽是**常显**容器，不是 hover 才出现的一瞬；三级小字因此在浅底 4.38→4.71、深底 4.07→4.73。
+
+### 三、顺手抓到一处真 bug（不是对比度，是看不见）
+
+`FindReplacePanel.vue:438` 的 `.find-undo-btn:hover` 原先写 `color: var(--neutral-solid-contrast, #fff)`。
+那枚变量是**实心主按钮**的字色，配的是 `--neutral-solid` 整块底；这枚按钮的底是 hover 档（浅色 ≈ `#e9e9e7`）——
+白字压浅灰底，等于「替换后那一行的退路入口」在浅色皮肤下 hover 就消失。已改 `var(--text-on-state)`（浅 5.41 / 深 6.13）。
+
+### 四、登记但**不修**的那一族：accent 被当字色
+
+普查里有五处块的字色是强调色本身（`--accent` / `--danger`），本刀只按附注把它们的**后代灰字**升档，
+字色本身原样保留，因为改它等于改品牌观感，要用户拍板。全量数字（`accent-probe.log`）：
+
+| 组 | accent | raised | card | muted | hover | selected |
+| --- | --- | --- | --- | --- | --- | --- |
+| 灯楼 · 晴昼 浅 | `#9A6A1E` | **4.15** | **4.08** | **3.97** | **3.65** | **3.42** |
+| 汐 · 昼阁 浅 | `#2A7699` | **4.42** | **4.37** | **4.22** | **3.92** | **3.66** |
+| 书舟 · 夜航 浅 | `#4C9DBA` | 5.13 | 5.01 | 4.82 | **4.32** | **3.91** |
+| 墨潭 · 映日 浅 | `#25736E` | 4.87 | 4.79 | 4.65 | **4.31** | **4.03** |
+| 书舟 · 昼渡 浅 | `#256C86` | 5.20 | 5.10 | 4.96 | 4.60 | **4.30** |
+| 墨潭 · 沉雾 浅 | `#54A7A2` | 5.87 | 5.74 | 5.54 | 4.95 | **4.48** |
+| 汐 · 夜阁 浅 | `#4FA8C4` | 6.24 | 6.10 | 5.84 | 5.26 | 4.77 |
+| 灯楼 · 燃夜 浅 | `#D9B072` | 7.16 | 6.98 | 6.71 | 5.98 | 5.46 |
+
+- `selected` 档（`.nav-row.is-active`、`.tree-row.is-selected`、`.view-tabs button.is-active` 都吃这一档）
+  浅色 **6/8 套不到线**，最低 3.42（灯楼 · 晴昼）。
+- 更难看的是「灯楼 · 晴昼」和「汐 · 昼阁」两套：accent 在**五档全部**不到 4.5，连页底那格都不算好——
+  浅底上这两套的 accent 本来就不是为"当字色"设计的。
+- 深色也有三格掉线（`selected`：汐 · 昼阁 3.87、书舟 · 昼渡 4.37、墨潭 · 映日 3.65；
+  另外深底 `hover` 墨潭 · 映日 4.40）。
+- 一条被顺带证实的**真身冲突**：`theme-runtime.css:132-135` 给 `.nav-row.is-active` 写的是
+  `color: var(--text-primary)`，但 `left-nav.css` 的 `.nav-row.is-active` 特异性 (0,2,0) 压过它 (0,1,1)，
+  所以界面上那行选中项一直是 accent 色。**这不是"主题层没生效"，是两层在抢同一枚字色**。
+  修法要么让主题层赢（把 accent 那行改成 `--text-on-state`，观感变化最大），
+  要么给 accent 单独定一档"够深的强调色"（每套皮肤多一个字段，是皮肤契约的事）。
+  **请拍板**，本刀不猜。
+- 同族另四处登记在同一张普查表里（`.format-button.is-active`、`.find-toggle.is-active`、
+  `.link-btn:hover`、`html[data-theme="dark"] .tree-node-action-menu-item.is-danger:hover`），
+  理由各写了一行，豁免附带判据由守卫机器核（见下面 M7 那一类变异）。
+
+### 五、变异自证（9 路，每路单独跑、跑完立即对称改回）
+
+日志 `%TEMP%/m11/mut-*.log`；判绿只认日志里的 `Tests N failed` 行，不看外壳通知。
+
+| 号 | 改哪一处 | 红了什么 |
+| --- | --- | --- |
+| M1 | `ON_STATE_TEXT_MIX.light 0.78 → 0.55` | 「状态档灰 × 五档」红：汐 · 昼阁 light 页底 3.28:1 |
+| M2 | `SURFACE_LADDER_MIX.selected.light 0.12 → 0.5` | 「正文 × 五档」红：4.23:1（这一路同时把浅底阶梯砍平，就是要让它红） |
+| M3 | 表里针串改成不存在的 `.context-meter-list li.is-selected` | 「每一处深档底都被唯一命中」红（`notCovered` 报出那一块）+「兑现判词」抛「找不到规则」 |
+| M4 | 删 `.card-turn` 的 `color: var(--text-on-state)` | 「兑现判词」红，报「块里的 color 是（没有）」——`primary` 支有咬合力 |
+| M5 | 删 `.context-meter-list li.is-active` 的 `--text-tertiary: var(--text-on-state)` | 同律红，报「少了 --text-tertiary: …」——`shadow` 支有咬合力 |
+| M6 | `.permission-option` 基规则的 `color: var(--text)` → `var(--text-dim)` | 同律红，报「基规则里没有正文级 color，继承过来的还是灰字」——`inheritFrom` 支有咬合力 |
+| M7 | 给无字部件豁免那枚 `.appearance-toggle` 加一行 `color: var(--text-secondary)` | **两条同时红**：豁免的附带判据（`expected ['var(--text-secondary)'] to equal []`）+「块内灰字必须同块 shadow」——豁免不能用来藏字 |
+| M8 | 往表里多塞一条不存在的针串 | 「唯一命中」以 `{ n: 0 }` 红。**这一路顺手证明了一件事**：原先那行 `orphans = BLOCKS.filter(b => blocksFor(b.file, b.selector).length === 0)` 是拿块自己的选择器当针串查自己，**恒等于 1，永远不红**，属于装饰——已删，找不回规则那一半由 `n !== 1` 咬 |
+| M9 | `SECONDARY_TEXT_MIX` 两半都 → `0.9`（把灰字调深） | 反向律红：「汐 · 昼阁 · dark：次要 × selected 已经到 6.30:1 —— 阶梯或字色动过，请重审普查表」。**只拧浅底一半不会红**（第一版就这么错了一次：`worst` 取的是 16 组最低，深底那一半还压在 4.28），所以这条律的红必须两半一起动才触发，这一点写进表头注释 |
+
+反向的那格「前提仍在」不是装饰，是本刀的**前提哨**：它一红就说明灰字系数或阶梯动过，
+那时结构普查表要重审，而不是让「画了状态档底就得升档」这条律悄悄变成空转。
+
+### 六、三处过期出处，这次一起收
+
+1. `appearanceThemeRuntime.ts:200-207` 那段「这次**没**顺手改的那一处 … 病因在**表面阶梯一层比一层深**」——
+   紧跟着的新章节已经把这句推翻，但原文照读会读成结论。做法是**不删、加作废标记**（那个 ⚠），
+   因为那两个数字（4.38 / 4.09）仍是量对了的，错的只是病因归属。
+2. `appearance-skins.test.ts:499-501` 同一条过期结论，改成指向本守卫。
+3. 台账行号本身：`README.md:6244` 这种引用已经**指不到东西**——README 现在 95 行
+   （`wc -l` 当场回读），那批行号是「README 还是整本开发日志」的年代抄下来的。
+   §七 那一行这次改成「见本报告第二十九节」，历史行号原样留着当出处，不再当入口。
+
+### 七、门禁（分段跑两轮，日志 `%TEMP%/m11/gate-*.log` 与 `g2-*.log`，退出码逐段落盘回读）
+
+`format=1` **第一跑就红**：`[warn] appearance-surface-ladder.test.ts`——我自己那份新文件没格式化。
+只对那一个文件跑 `prettier --write`（**不用 `--write .`**：共享树上一把全量写会把别人的文件一起重排），
+之后 `pnpm format:check` 全仓 `All matched files use Prettier code style!`，`FORMAT2=0`。
+`typecheck=0`（6× `tsc --noEmit` 全过）、`eslint=0`（`--max-warnings=0`）、`boundary=0`（「边界检查通过」）、
+`budget=0`（行数闸 **615 份**，比上一刀的 614 正好多我这一份新守卫）、`test=0`：
+**Test Files 309 passed / Tests 4033 passed | 2 skipped（4035）**（两轮都是这一格数，当场各自回读），
+`grep` 全量日志只有两处命中且都是自带标签的：一行「[环境噪音] 本机建不了符号链接（EPERM）」和
+一行 prettier 的失败行（属于上面那次 `format=1`）。`2 skipped` 仍是 `changes.test.ts` 那两条 `skipIf(win32)`。
+与上一刀的 308 / 4024 差 **+1 文件 / +9 条**，逐格对得上：多的那一份文件就是新守卫，9 条正好是它的 9 条。
+
+**口径写清（哪一跑覆盖什么）**：第一次分段跑（`gate-*.log`）里 `test=0` 那份数**不算最终态**——
+它起跑之后我又改了守卫的表头注释与普查律。第二次（`g2-*.log`）才是提交态：
+最后一处代码编辑（`appearance-surface-ladder.test.ts` 那条 M9 注释）mtime **17:04:22**，
+`g2-test.log` 里 vitest 自报 **Start at 17:05:40**，两串当场回读，所以六格数的都是提交前那一份树。
+台账正文（这一节自己）不计入门禁：`docs/superpowers` 在 `.prettierignore` 的声明式豁免名单里，
+判据是 `tools/prettier-scope.test.mjs`——第二十三节立过这条口径。
+
+### 八、还没闭合的（照直写）
+
+1. **真机没跑**。这一刀的证明到「代码 + 16 组数字 + 普查 + 9 路变异 + 门禁」，
+   没到屏。状态档 shadow 的**级联效果**尤其只证到静态：`color:` 管不到的那些后代
+   （`small` / `kbd` / `.xxx-hint` / `::placeholder`）是不是真的在 DOM 里坐在被 shadow 的元素下面，
+   是模板决定的，静态 CSS 判不出来——普查表里每条 `shadow` 名单都对着模板核过，但核的是读代码，不是量像素。
+   下一次真跑 dev 请重点看这几处：侧栏选中行的 `kbd`、会话历史条目的时间戳、workbench 卡的脚注、
+   查找替换那一行的退路钮。
+2. **accent 当字色那一族**（本节点四）等用户拍板，不在本刀。
+3. **广场卡那 2/16 格**（`2026-10-08-tertiary-contrast-report.md` §五 的 A/B/C 三个选项）仍等一句话。
+4. 浅底第三级与次要**同值**（都 0.71），层级只靠字号与位置。要买回一档层级，正确入口是
+   给每套皮肤自带一个第三级色值（皮肤契约加字段），不是回来拧这个系数——
+   `TERTIARY_TEXT_MIX` 那段注释里已经写着这句话，本刀只是又量了一遍确认它仍然成立。
+
 
 
