@@ -1560,4 +1560,118 @@ vitest **307 文件 / 3998 passed | 2 skipped（4000）**，`VERIFY_EXIT=0` 是�
 「[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到」，与第二十三节口径一致；
 `2 skipped` 仍是 `changes.test.ts:247,302` 那两条 `skipIf(win32)`。
 
+## 二十八、2026-10-12 七项清单第五刀：开发态与打包版的设置目录分开（清单第 6 项）
+
+### 这一条原来怎么写的（两处登记，当场从盘回读，不是转述）
+
+第十八节 `:716-718` 原文：
+
+> **留给他裁定的一条（我不动手）**：dev / 探针实例与打包应用**共用同一份 `activeDir` 配置**，
+> 所以任何一次真机验证都可能像这次一样写到用户正在用的设置上。要不要给开发态一个独立目录
+> （比如按环境变量派生 `mochen-ai-dev`）是改产品行为，不是一句注释能替拍的。
+
+第二十二节 `:1121-1124` 原文：
+
+> **顺带把一条隐患写实**：`--user-data-dir` 只搬 Chromium 那半边，
+> 应用设置固定在 `app.getPath("appData")/mochen-ai`（`main/index.ts:98-100` 定的目录，`provider-settings.ts:82` 在那里拼 `config.json`），所以**探针实例读写的就是他那一份 config.json**。
+> 本格因为不需要模型所以一个字没写；但任何要存档案/密钥的探针都在动他的真身设置——这正是待他拍板的
+> 「dev / 探针设置目录拆不拆（`mochen-ai-dev`）」的实证，第二十一节那次「当场还原」的必要性也由它而来。
+
+**它不是理论风险**：第十九到第二十二节每一格真机都读写过 `%APPDATA%/mochen-ai/`，第二十一节还为此走了
+「备份 → 还原 → 回读」。2026-10-12 那句「**按清单修复那七项遗留问题**」把这一格从「等他拍板」变成整批授权里的一刀。
+
+### 改了什么
+
+| 文件 | 行 | 这一处做什么 |
+| --- | --- | --- |
+| `apps/desktop/src/main/app-dirs.ts` | 新文件 201 行 | 目录名的唯一判据 `appDirNameFor(isPackaged)`（`:30/:32/:35`）、复制清单 `DEV_SEED_FILES = MIGRATED_FILES`（`:40`，不另立第二份清单）、`resolveAppDataDir`（`:105`）、`devSeedNotice`（`:164`） |
+| 同上 | `:129` | 只有确实要拷的时候才 `mkdir(devDir)`；不拷的时候一个字节都不写盘 |
+| `main/index.ts` | `:49` | 装配层只 import 这四个符号 |
+| 同上 | `:65` | 本地常量只剩 `LEGACY_APP_DIR_NAME`（迁移入参，`legacy-dir-name.test.ts` 的豁免①照旧成立）；`APP_DIR_NAME` 的真身搬进 `app-dirs.ts` |
+| 同上 | `:78-83` | `crashLogPath` 改走 `appDirNameFor(app.isPackaged)`：开发版的崩溃日志不再混进用户真身那份 |
+| 同上 | `:121` | 迁移算出的那份改名 `packagedDir`（打包版用的目录），语义从此明确 |
+| 同上 | `:126-135` | `resolveAppDataDir({ appDataBase, isPackaged: app.isPackaged, packagedActiveDir: packagedDir, copyFile, readdir, mkdir })` ⇒ 一个 `activeDir`；下面所有 store 一行没动 |
+| 同上 | `:136-146` | 迁移播报与复制播报合并成一个 for，两条都走同一个「墨宸 AI · 设置目录」dialog |
+| `AboutPanel.vue` | `:19` | 「配置」那一格补上开发目录那句话 |
+| `legacy-dir-name.test.ts` | `:71-80` | 新增一条：两个目录名都得在 UI 上说到，只报打包名等于骗人 |
+| `app-dirs.test.ts` | 新文件 441 行 / 25 条 | 桩 21 条 + **真 fs 4 条**（`mkdtemp` 在系统 tmp，不碰 `%APPDATA%`） |
+
+### 三条设计判定（都有用例钉着，不是注释）
+
+1. **迁移的目标仍然是打包目录**。开发态不许把 `mochen-writing` 迁进 `mochen-ai-dev`——那样「先跑一次 dev」
+   会把旧目录改名吃掉，打包版下次启动就再也迁不到。`app-dirs.test.ts` 的装配层那条直接钉
+   `const newSecretDir = path.join(appDataBase, APP_DIR_NAME)` 还在，并钉 index.ts 里**不出现**
+   `path.join(appDataBase, APP_DEV_DIR_NAME)`。
+2. **只复制，不搬家**。搬家（改名/删除）拿走的是另一个进程正在用的目录。全模块只有三种 fs 动作：
+   `readdir`、对开发目录的一次 `mkdir`、`copyFile`；每条用例都按调用序列断言这一点，
+   `copy-failed` 那条还专门断言序列里 `every(readdir|mkdir|copy)`。
+3. **幂等**：开发目录存在（哪怕是空的）就一个字不碰。否则用户在开发版里删掉的 `config.json`
+   下次启动被「复活」，那「删掉」等于没发生。全新机器上开发版从零开始时也不抢建目录——
+   各 store 的 `writeFileAtomic` 自己按目标路径建（`appearance-store.ts:69`、`provider-settings.ts:120`）。
+
+### 真 fs 那一组抓到一处真 bug
+
+第一版实现把 `copyFile` 当「目标目录不存在也会自己建」用——**`fs.copyFile` 不会**。
+第一次开发启动的现场恰好就是「开发目录不存在」，于是那一次复制会当场抛 ENOENT，
+变成一个永远修不好的 `copy-failed`。注入桩对 `copyFile` 太宽容，看不见这件事；
+补上「真 fs 四例」并让桩也照真规矩失败（目标目录不认识就抛 ENOENT）之后，
+`resolveAppDataDir` 里那句 `await deps.mkdir(devDir)` 才是被用例逼出来的。
+
+### 变异自证（11 路，逐条红，全部改回后按 sha256 核过）
+
+| 号 | 改哪一处 | 红了什么 |
+| --- | --- | --- |
+| M1 | `if (deps.isPackaged)` 判据写反 | 11 条（打包态与开发态两组全红） |
+| M2 | `appDirNameFor` 三元两边对调 | 3 条（判据与常量同真身） |
+| M3 | 幂等闸放宽成「非空目录才算存在」 | 1 条（删掉的配置被复活那一类） |
+| M4 | `copyFile` 源/目标写反 | 2 条（方向与序列各一条；真盘上这条会直接覆写用户真身） |
+| M5 | 无视已知清单、目录里有什么拷什么 | 3 条（来历不明的字节那条最硬） |
+| M6 | 把 `copy-failed` 咽成 `seeded` | 1 条 |
+| M7 | `devSeedNotice` 默认分支不再返回 null | 1 条（没动过盘也要弹） |
+| M8 | index.ts 的 `crashLogPath` 退回写死 `APP_DIR_NAME` | 1 条（装配层接线普查） |
+| M9 | `AboutPanel.vue` 那句删掉开发目录 | 1 条（`expected … to contain 'appData/mochen-ai-dev'`） |
+| M10 | 删掉 `await deps.mkdir(devDir)` 那一段 | **6 条**（其中 3 条来自真 fs 那一组） |
+| M11 | 装配层少递一个 `mkdir` 缝 | 1 条（fs 缝那根线） |
+
+回改后五个文件 `sha256sum -c` 全部 OK（基线快照 `%TEMP%/m10/baseline.sha`、`baseline2.sha`）。
+
+### 用户真身那份的现场读数（动刀之后当场回读）
+
+```
+%APPDATA%/mochen-ai/config.json   801 B  Oct 12 00:15
+sha256 98841130023a66914c8244be02ff4829779fcdc08c3e4e128adb10541f75f26d   ← 与台账记的基线同一串
+secrets/  只有 72c5e589-…-06ec20cc328d.enc 112 B Oct 6 12:46   ← 他那一枚，没多没少
+%APPDATA%/mochen-ai-dev           不存在
+```
+
+sha 与第十九节立下的基线逐字相同，说明本刀没碰过它。字节数这里 `ls` 报 801、台账当时写「800 B」，
+**以当场回读的 sha 串为准**（那一格是大小约数，内容串才是判据）。`mochen-ai-dev` 还不存在，因为本刀**没起过 Electron 实例**。
+
+### 还没闭合的（照直写）
+
+1. **真机没跑**。这一刀证明到「代码 + 门禁 + 变异 + 真 fs 临时目录」，没证明到屏。
+   下一次真跑 dev 会第一次生成 `%APPDATA%/mochen-ai-dev` 并弹一次 info dialog（那是产品行为，
+   不是报错）；我没有在他机器上触发它。
+2. **`secrets.enc` 拷到开发目录后解不解得开，未验**。DPAPI 是同用户同机 scope，理应当解；
+   但第二十二节刚记下过「dev 实例解不开他 10-06 那枚密文」，这条冲突没有实测收口。
+   若真解不开，表现是开发版设置页如实报错，不是静默——这是既有 credential-store 那条路径的行为，不在本刀改动面里。
+3. **旧目录只有打包版会迁**。开发态如果先跑、打包版从没跑过，`mochen-writing` 会留在原地不动，
+   直到打包版下一次启动才迁。这是判定 1 换来的代价，写在 `app-dirs.ts` 与用例注释里，不是遗漏。
+
+### 门禁（一整条 `pnpm verify`，日志 `%TEMP%/m10/verify.log`，392 行）
+
+**这一跑覆盖的是代码那一版**：`§28` 与 README 那处更正是**跑完之后**才写的，没有重跑全量 verify；
+两个文档路径单独 `prettier --check` 过，`DOC_FMT_EXIT=0`（`docs/superpowers` 在 `.prettierignore` 里是
+声明式豁免，判据见 `tools/prettier-scope.test.mjs`，第二十三节立过这条口径）。
+
+`All matched files use Prettier code style!`（`:3`）⇒ 6× `tsc --noEmit` ⇒ `eslint . --max-warnings=0` ⇒
+`check-package-boundary` ⇒ 行数预算通过（**614 份**，`:5`，比上一刀的 612 正好多我这两份新文件）⇒
+vitest **308 文件 / 4024 passed | 2 skipped（4026）**，`VERIFY_EXIT=0` 是日志 `:392` 那行 echo，
+不是外壳通知（后台通知那次同样报 0，但判绿只认日志里的这一行）。
+与上一刀的 307 / 3998 差 **+1 文件 / +26 条**，逐格对得上：`app-dirs.test.ts` 一份文件 25 条、
+`legacy-dir-name.test.ts` +1。日志里唯一的 `EPERM` 命中仍是自带标签的那行
+「[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到」（`:107`），与第二十三节口径一致；
+`2 skipped` 仍是 `changes.test.ts:247,302` 那两条 `skipIf(win32)`。
+**这一跑没有起 Electron 实例**，所以「真机」那一格仍然空着——见上面「还没闭合的」第 1 条。
+
 

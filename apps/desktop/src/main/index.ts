@@ -46,6 +46,7 @@ import {
 } from "./ipc-guard.js";
 import { createCredentialStore } from "./credential-store.js";
 import { electronCipher } from "./electron-cipher.js";
+import { APP_DIR_NAME, appDirNameFor, devSeedNotice, resolveAppDataDir } from "./app-dirs.js";
 import { registerPickDirectoryIpc } from "./pick-directory.js";
 import { createProviderSettings } from "./provider-settings.js";
 import { toProviderFetch } from "./provider-fetch.js";
@@ -60,9 +61,8 @@ import { createChangesService, registerChangesIpc } from "./changes-service.js";
 import { registerWebSourceIpc } from "./web-source-link.js";
 import { migrateLegacyAppData, migrationNotice } from "./app-data-migration.js";
 
-/** F-4：品牌目录名。旧名只出现在迁移的入参里，源码别处一律用这两个常量。 */
+/** F-4：旧品牌目录名只出现在迁移的入参里；新品牌那两个名字（打包 / 开发）住在 `app-dirs.ts`。 */
 const LEGACY_APP_DIR_NAME = "mochen-writing";
-const APP_DIR_NAME = "mochen-ai";
 
 /**
  * 进程级异常钩子（2026-10-09 全仓扫描 P0-6）：装在 `app.whenReady()` **之前**。
@@ -71,10 +71,16 @@ const APP_DIR_NAME = "mochen-ai";
  * 原本都会变成一个没人接的 rejection：**窗口永不出现、也永不提示**，用户唯一能看到的现象是
  * 「双击没反应」。钩子的三条规矩（留痕、只说第一次、自己绝不再抛）写在 `crash-guard.ts`，那边有用例。
  *
- * 日志落在**新品牌目录**的 `logs/crash.log`：这是诊断件，不参与 F-4 那条迁移（迁移只搬那三个已知文件），
- * 所以不需要跟着「kept-old 时仍读旧目录」那条判定走——写进新目录，下次报障时一眼找得到。
+ * 日志落在**本轮所用设置目录**的 `logs/crash.log`（打包版 `mochen-ai`、开发版 `mochen-ai-dev`，
+ * 判据是 `app-dirs.ts` 那一处）：这是诊断件，不参与 F-4 那条迁移（迁移只搬那三个已知文件），
+ * 所以不需要跟着「kept-old 时仍读旧目录」那条判定走——写进本轮目录，下次报障时一眼找得到。
  */
-const crashLogPath = path.join(app.getPath("appData"), APP_DIR_NAME, "logs", "crash.log");
+const crashLogPath = path.join(
+  app.getPath("appData"),
+  appDirNameFor(app.isPackaged),
+  "logs",
+  "crash.log"
+);
 /** 诊断件的唯一落点：崩溃钩子与退出握手都写这一份，报障时只看得到一个文件。 */
 const appendCrashLine = (line: string): void => {
   mkdirSync(path.dirname(crashLogPath), { recursive: true });
@@ -111,16 +117,31 @@ app.whenReady().then(async () => {
     },
     cipher: migrationCipher
   });
-  // kept-old ⇒ 这一轮仍然用旧目录：应用必须继续读得到用户已经配好的东西。
-  // 下面所有 store 都只认 activeDir，不认 newSecretDir——迁移失败时新目录是空的，
-  // 照着它建 store 等于把用户已经配好的模型与密钥「读成没配过」。
-  const activeDir = report.status === "kept-old" ? legacyDir : newSecretDir;
+  // kept-old ⇒ 打包版这一轮仍然用旧目录：应用必须继续读得到用户已经配好的东西。
+  const packagedDir = report.status === "kept-old" ? legacyDir : newSecretDir;
+  // 【清单第 6 项：开发态与打包版不再同住一份设置目录】
+  // 判据与那次复制都住在 `app-dirs.ts`：装配层只递 fs 缝，然后只认它算出来的这一个 dir。
+  // 下面所有 store 都只认 activeDir，不认 packagedDir、也不认 newSecretDir——迁移失败时新目录
+  // 是空的，照着它建 store 等于把用户已经配好的模型与密钥「读成没配过」。
+  const { dir: activeDir, seed: devSeed } = await resolveAppDataDir({
+    appDataBase,
+    isPackaged: app.isPackaged,
+    packagedActiveDir: packagedDir,
+    copyFile: (src, dest) => copyFile(src, dest),
+    readdir: async (p) => (await readdir(p)) as unknown as string[],
+    mkdir: async (p) => {
+      await mkdir(p, { recursive: true });
+    }
+  });
   const notice = migrationNotice(report, newSecretDir);
-  if (notice !== null) {
+  // 只有开发态第一次启动（或读不懂盘）才非 null；那时 activeDir 就是开发目录。
+  const seedNotice = devSeedNotice(devSeed, activeDir, packagedDir);
+  for (const one of [notice, seedNotice]) {
+    if (one === null) continue;
     void dialog.showMessageBox({
-      type: notice.type,
+      type: one.type,
       message: "墨宸 AI · 设置目录",
-      detail: notice.text
+      detail: one.text
     });
   }
 

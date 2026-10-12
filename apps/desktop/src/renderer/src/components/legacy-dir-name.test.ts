@@ -67,4 +67,15 @@ describe("F-4 · 旧品牌目录名的全仓普查", () => {
     const about = sourceOf(path.join(SRC_ROOT, "components", "AboutPanel.vue"));
     expect(about).toContain("appData/mochen-ai");
   });
+
+  /**
+   * 清单第 6 项之后，「新目录名」不再只有一个：开发态住 `mochen-ai-dev`。
+   * 那句话只报打包名就会在开发版里骗人——用户照着一行字去找，找到的是另一份的配置。
+   * 这条与上面那条成对：两个名字都得在 UI 上说到。
+   */
+  it("开发态那份目录也要在同一句话里说到，只报打包名等于骗人", () => {
+    const about = sourceOf(path.join(SRC_ROOT, "components", "AboutPanel.vue"));
+    expect(about).toContain("appData/mochen-ai-dev");
+    expect(about).toContain("互不覆盖");
+  });
 });
