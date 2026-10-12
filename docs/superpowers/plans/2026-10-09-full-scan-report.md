@@ -242,7 +242,7 @@ MW7 `preventDefault()` 提到栈检查之前 → 2 红跨两层（行为层「�
 | P2-8 | **已修（两半不同来源，如实分开写）** | ① `proposals` 表只增不删：现在按线程键回收（`useAgentStore.ts:621-622` 那一圈 `delete this.proposals[id]`，只删属于被切走那条线程的卡片；行号按 2026-10-12 的 HEAD 回读，原来这行写的 `:600` 已经漂到别处）。② 「主进程掉流无看门狗」这一半**不是新写一只渲染层定时器**，而是由 P1-1 那两只上游看门狗（首字节 30s / 流中空闲 60s）覆盖——超时抛 `UpstreamHangError`，而渲染层已把所有异常统一转成 `turn-end{failed}`（`useAgentStore.ts:87`/`:227` 的注释就是这条），所以 `turn-end` 永不到、`running` 卡真的那个形状没有了通路。**未量的是长会话真机内存曲线** ⇒ **已量（2026-10-12，见第二十一节）**：26 轮曲线是**线性**的（每轮约 +90KB 堆、+5.4KB 常驻正文），回收那一刀在真机上确实在跑（点两次「新建对话」把 23 枚卡清成 0，DOM 1906→477），并且用摘掉那一圈 `delete` 的变异包做过 A/B（同样两次点击卡数 23→23、清后三轮 26 vs 3）。**但现场数同时把这条的严重度改了口径**：一枚卡连 diff 只 1,165 B，23 枚 26.8KB，而每轮总成本约 90KB —— 长会话那笔钱的大头是**每轮 items 的常驻与它带来的响应式/DOM 开销**，不是这张表；而且回收**只发生在「新建对话 / 覆盖式切换」那一刀**，单纯切标签永远不回收（切回 A 时卡仍 23、堆反而到峰值 10.31MB）。 |
 | P2-9 | **已修** | `minWidth: 1000` / `minHeight: 700`（`main/index.ts:177-178`），两个数**不是抄来的**，是现读样式与布局 store 的真身算出来的地板（三栏窄档 262+395+320=977；纵向 `min(360px, …)` 那格要 680），并由 `window-min-size.test.ts`（5 条）钉住：令牌一旦从 CSS 里消失，用例当场抛「判据失效」而不是悄悄放行 |
 | P2-10 | **已修**（四条盲区逐条处理） | ① 行预算闸扩到 `.mjs/.cjs` + `tools/` + `apps/desktop/scripts/`（`ROOTS`），扩完当场真爆出一份 851 行的 `gen-scene-svgs.mjs`——**没有为了过闸改窄脚本**，而是把调色板那段（199 行）搬成 `scene-palettes.mjs`，验收口径是**六张 SVG 逐字节复现**（`sha256sum -c` 搬前搬后、prettier 后各核一次）；② 边界闸补上三条此前看不见的路（渲染层→主进程、渲染层→包源码、Node 侧伸进渲染层），默认根改成仓库根、两个根都不在时报「空扫不叫通过」并退 1；③ `.prettierignore` 整目录排除 `docs/superpowers` 这条**没有偷偷留着**，也没有为了好看去重排台账（实测要改 20 个文件、−34575/+38530 行）——改成**挂着牌子的声明式豁免**，由 `tools/prettier-scope.test.mjs`（5 条）钉「只许有这一条豁免、且旁边必须有中文理由注释、且 README 与真源码不许被排除」；④ `apps/desktop` 的 `test` 脚本实测比总单说的更糟：从该目录跑**一条用例都不收集**（"No test files found"，exit 1），修成 `vitest run --root ../.. …src/main …src/renderer`，`tools/ci-gate.test.mjs` 新增一条钉住「跑的是整包不是半套」 |
-| P2-11 | **未动 —— 需要用户点头** | `pnpm-workspace.yaml:16` 的 `naive-ui: "2.44.1"` 仍在 catalog 里，全仓零引用（复核过）。删掉它是**删除动作**，而本波的授权口径是「除删除之外全开」，所以停在这里等一句话。顺带把这条的真实含义写清楚：整个 UI 是手搓 CSS，**没有组件库** |
+| P2-11 | **已修**（2026-10-12 用户点头删除，并把这句话立成闸；详见第二十四节） | `pnpm-workspace.yaml` 的 `naive-ui: "2.44.1"` 已删。删除前的复核仍是三条：`pnpm-lock.yaml` 里 `naive` 出现 **0** 次（⇒ 从没人依赖过它，删它不动锁文件，CI 的 `--frozen-lockfile` 不受影响）、各 `package.json` 零命中、`apps/desktop` + `packages` 全部 `.ts/.vue` 零 import。**但只删一行不构成修复**：那一行真正的危险是 catalog 的语义——它是「谁写 `catalog:` 就能拿到这个版本」的一张随时能兑现的入场券，下一个人顺手 `import { NButton } from "naive-ui"` 时门禁全绿，等于在一次普通改动里替用户决定了「引入组件库」。所以补 `tools/no-component-library.test.mjs`（**5 条**）把「UI 没有组件库」钉成三处扫描（catalog 键 / 各 package.json 三种依赖字段 / 源码 import）+ 一条解析口径守卫（catalog 解析不出 `vue/pinia/vitest/typescript/zod` 就**抛错**而不是放行）+ 一条自证（喂一份明知带 `naive-ui` 的假 catalog 必须逮住，同时干净名单不误报）。规格书 `specs/2026-10-01-…design.md:56` 那句「Vue 3.5 + TypeScript + Pinia + naive-ui 2.44」是**从头到尾没成立过的技术栈假话**，已就地加更正段（原文一字未删）：界面是手搓 CSS，`renderer/src/styles/` 现有 **22 份** CSS、其中 7 份用 `backdrop-filter` 做毛玻璃，全仓 `NConfigProvider`/`n-config-provider` 命中 **0** |
 | P2-12 | **半修**（三子项里动了最实质那一项） | ① 插件挂载的 cache-buster 从 `?v=${Date.now()}` 改成**改写后内容的 sha256 前缀**，并且只在「本进程还没为同一份内容写过」或盘上文件被删时才重写产物。症状两半都消：内容没变时 URL 一字不变 ⇒ 命中 ESM 注册表同一份模块 ⇒ 插件顶层副作用不再每次 `plugins:list` 重跑、注册表不再每轮多一份永不回收的实例；内容真变了哈希变 ⇒ 改动照样当场看得见。用例按**行为**判（副作用计数器住在夹具插件源码里），三次变异各自杀掉并回读生产形态：cache-buster 换常量 ⇒ `改了插件却拿回旧的那份…: expected 1 to be 2`；重写闸只判存在性不判哈希 ⇒ `expected '甲' to be '乙'`；恢复无条件重写 ⇒ `内容未变仍重写了产物文件…to contain '记号'`。② **未动**：`tools/build-brand-icons.ps1` 仍是 Windows PowerShell 专用；跟踪文档里那两处 `C:\Users\17863\` 是「绝不拿这个目录之外的真人书稿做测试」的**约束原文**而不是配置项，改它属于换皮，留着。③ 未做真机重装插件目检 |
 | P2-13 | **已修** | mirror 高亮层加 `v-if="findVisible"`（`DocumentPane.vue:713`），面板关着时那层连 DOM 都不在 ⇒ `highlightMirrorHtml` computed 无人读、彻底不重算；另一半是 `watch(findVisible, …)`（`:284`）在打开那一瞬 `nextTick()` 后补一次 `syncMirrorScroll()`（新挂载的层 scrollTop=0 而 textarea 可能已滚到半篇）。`editor-pane.css` **未改**并说明理由（脱流层不参与 wrap 布局）；分栏 `previewHtml` 刻意不动（注释里写明那是「草稿到预览零延迟」的既有取舍）。证据：`find-mirror-mount-wiring.test.ts`（7 条，含「全模板只此一枚 v-if」「与让位类同判据」「组件里零 `<mark` 拼接」） |
 | P2-14 | **已修** | `openDocTab` 开头 `this.cancelAutoSave();`（`useBookStore.ts:319`）——`activateTab`/`cycleTab`/`closeTab`/`createDoc` 全走这一个入口，一处收口。字不丢：A 篇未保存的字由 `onEdit` 既有的 `stashActive()` 留在 `draftsByPath`。两条行为用例把危险窗钉死（用 `mockImplementationOnce` 吊住 B 的读盘，让 2000ms 窗正好落在「指针=B、正文=A」，断言 `writeDoc` 一次没发、再空转 60s 无迟到复活） |
@@ -1242,5 +1242,67 @@ Vitest summary 同样是 **304 文件 / 3965 用例**。
 ⇒ 门面那条「贴到 800 就拆」的账（`useBookStore.ts` 798/800）我此刻**动得了本体、动不了他们正在改的用例**：
 现在切一刀，等他们落地就是同一族用例三方改，冲突面比省下的那两百行大。这一条与 P1-4 渲染层那一半是**同一个阻塞源**，
 登记为「等他们落地之后一起做」，不是等新授权。
+
+## 二十四、2026-10-12 七项遗留问题的第一刀：删掉 naive-ui 死条目，并把「UI 没有组件库」立成闸
+
+用户 2026-10-12 那句话是「**按清单修复那七项遗留问题**」——第二十三节末尾排完序之后，清单上还欠的七项
+（占用条 chip 口径、`useBookStore` 800 行那一拆、naive-ui 死条目、次要文字对比度、`build-brand-icons.ps1`
+跨平台、dev 与打包版设置目录、`history-truncated` 死通路）第一次拿到整批授权。
+
+**动手的树**：`C:\Users\17863\Desktop\深渊写作-worktrees\ci-platform-neutral`，分支
+`fix/ci-path-platform-neutrality`，起点 `140acd4`（与 `origin/feat/plan3-interaction-and-assembly` 同一个提交）。
+不在主树里做，是因为主树此刻压着并行会话的未提交改动，而**这一刀的落点恰好是他们正在改的那个文件**：
+`git diff -- pnpm-workspace.yaml` 显示他们刚往 catalog 加了 `gsap: "3.15.0"`、往 `allowBuilds` 加了
+`electron-winstaller: true`（`pnpm-lock.yaml` 同期 +2060/−99）。我在主树删一行 `naive-ui`，
+`git add` 就会把他们的 `gsap` 一起卷进我的提交——而那行 `gsap` 要配他们那份锁文件与他们的 `package.json` 才成立。
+隔离树上 `pnpm-workspace.yaml:16` 就是 HEAD 原样，判据干净。**顺序选择**：七项里这是最便宜、
+也最不可能撞车的一条，先它。
+
+**为什么只删一行不算修好**（这一刀的实质）：那枚条目的危险不在冗余，在 catalog 的语义——
+「谁写 `catalog:` 就能拿到这个版本」。全仓零引用（三条复核：锁文件 `naive` 命中 **0**、
+各 `package.json` 零命中、`apps/desktop` + `packages` 全部 `.ts/.vue/.js` 零 import）意味着它
+从写下来那天起就没被兑过现；但只要它还挂着，下一个会话在某个 `.vue` 里顺手
+`import { NButton } from "naive-ui"` 再补一行 `"naive-ui": "catalog:"`，**装得上、跑得起、六道门禁全绿**——
+「引入一个组件库」这件本该由用户拍板的事，就在一次普通改动里被替用户决定了。
+本仓硬约束是「不新增任何 npm 依赖」。所以删除 + 立闸是一件事的两半，只做前半等于把同一个坑留给下一个人。
+
+**闸的形状**（`tools/no-component-library.test.mjs`，5 条）：
+① `catalog` 段在场且解析得出 `vue / pinia / vitest / typescript / zod` 这五条真身——解析不出来直接**抛**，
+不让「catalog 里没有组件库」在一份空扫上算成绿灯（这条是本仓反复踩过的形状：判据源变了，绿灯就是假的）；
+② catalog 的键里不许出现组件库（名单只列**真会被人顺手引进来**的 9 个：naive-ui、element-plus、element-ui、
+ant-design-vue、@arco-design/web-vue、vuetify、quasar、tdesign-vue-next、varlet——做全景数不来的名单只会逼人
+为了过闸去改名单，那就是没闸）；③ 根 + `apps/*` + `packages/*` 的 `package.json` 三种依赖字段里不许出现；
+④ `apps/` 与 `packages/` 下所有 `.ts/.tsx/.vue/.js/.mjs`（扫到 100 个以上才算扫到了）不许 import；
+⑤ 自证：喂一份明知带 `naive-ui` 的假 catalog，`hits()` 必须返回 `["naive-ui"]`，同一份干净名单不许误报。
+
+**四段实跑（先红后绿，逐条证明它能失败）**：
+- 落盘 `140acd4` 上先跑：`Tests 1 failed | 4 passed (5)`，红的那条正是
+  `catalog 里挂着组件库：naive-ui —— 本仓 UI 是手搓 CSS，引入组件库要用户拍板`，
+  `expected [ 'naive-ui' ] to deeply equal []`。**其余四条当时就是绿的**——②之外的三条不能拿这条绿说事。
+- 删 `pnpm-workspace.yaml:16` 后：`Tests 5 passed (5)`，exit 0。`git status` 只有
+  ` M pnpm-workspace.yaml` 与新文件两条，锁文件未被触碰（这印证了「删它不动锁」的判断）。
+- 变异 M1：往 `apps/desktop/package.json` 的 `dependencies` 塞 `"naive-ui": "catalog:"` ⇒
+  ③ 红，消息带得出文件名与字段：`apps\desktop\package.json 的 dependencies 里有 naive-ui`。
+- 变异 M2：新增 `apps/desktop/src/__mutation-probe.ts` 写 `import { NButton } from "naive-ui";` ⇒
+  ④ 红：`源码里 import 了组件库：apps\desktop\src\__mutation-probe.ts`。两次变异后都还原，
+  还原后 `git status` 回到那两条为止（临时探针文件已 `rm`，`package.json` 用 `git checkout --` 单文件回）。
+  M1/M2 都只用 Edit/临时文件做，没有为了让脚本好看而改窄它。
+
+**顺带纠的一处假话**（不在清单里，是删除时读到的）：规格书
+`docs/superpowers/specs/2026-10-01-mochen-writing-workbench-design.md:56` 写着
+「Vue 3.5 + TypeScript + Pinia + **naive-ui 2.44**，自定义毛玻璃主题」——这句**从项目第一天起就没成立过**：
+没有依赖、没有安装、没有一处 import，`NConfigProvider` / `n-config-provider` / `createDiscreteApi` 三个
+naive-ui 的用法入口全仓命中 **0**。真身是手搓 CSS：`renderer/src/styles/` 现有 **22 份** CSS 文件，
+其中 7 份（`agent-pane`、`context-meter`、`dialog`、`interaction`、`settings-page`、`skin-gallery`、
+`theme-runtime`）用 `backdrop-filter` 做毛玻璃。按本仓「原文一字未删 + 就地加更正段」的规矩处理，
+不重写那一段历史。
+
+**留着的两处 naive-ui 提及**（判定为不动，写清楚而不是抹平）：
+`plans/2026-10-01-plan1-shell-and-file-layer.md` 的 `:13 / :23 / :68 / :105` 是 Plan 1 当时的
+**计划原文**（含那份 catalog 片段的引用），改它属于把历史改成今天的样子；本节的更正段已经指向这里，
+读到那句的人能看到它为什么没成立。`plans/README.md:6780` 那条「P2-11 等一句话」同理不动——它写在
+「### 还没做完的（照直写，不抹平）」下面，那份名单的口径是**它所属那一波收口时**的现状，
+不是当前状态；当前状态只认本台账这一处（P2 现状总表 P2-11 那一行 + 本节）。
+两处都在本节里点名，是为了下一个人不必再猜「这行没划掉是不是还没做」。
 
 
