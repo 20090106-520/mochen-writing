@@ -1828,11 +1828,79 @@ vitest **308 文件 / 4024 passed | 2 skipped（4026）**，`VERIFY_EXIT=0` 是�
    是模板决定的，静态 CSS 判不出来——普查表里每条 `shadow` 名单都对着模板核过，但核的是读代码，不是量像素。
    下一次真跑 dev 请重点看这几处：侧栏选中行的 `kbd`、会话历史条目的时间戳、workbench 卡的脚注、
    查找替换那一行的退路钮。
+   **（2026-10-13 这一条已就地了结，见第三十节：三格量到屏上且全过，第四格「侧栏 `kbd`」在 DOM 里根本没有渲染方——
+   那一格从「欠目检」变成「待拍板的死规则」。）**
 2. **accent 当字色那一族**（本节点四）等用户拍板，不在本刀。
 3. **广场卡那 2/16 格**（`2026-10-08-tertiary-contrast-report.md` §五 的 A/B/C 三个选项）仍等一句话。
 4. 浅底第三级与次要**同值**（都 0.71），层级只靠字号与位置。要买回一档层级，正确入口是
    给每套皮肤自带一个第三级色值（皮肤契约加字段），不是回来拧这个系数——
    `TERTIARY_TEXT_MIX` 那段注释里已经写着这句话，本刀只是又量了一遍确认它仍然成立。
+
+## 三十、第二十九节第八目欠的那四格真机读数（2026-10-13）
+
+### 一、跑法（三条都是当场撞出来的，不是设计出来的）
+
+实例起在仓库外工作树 `5f568bd`：`electron out/main/index.js --remote-debugging-port=9236
+--user-data-dir=%TEMP%/contrast-probe/profile`。起手 `tasklist //FI "IMAGENAME eq electron.exe"` 实测**零条**，
+所以那 4 个 electron 进程（主 9824 + 三子）全是我这一台的；收尾 `taskkill //F //T //PID 9824` 之后
+回读进程数 0、`netstat` 里 9236 的 LISTENING 计数 0。
+后台任务通知那句 `failed / exit 1` 是**我自己 taskkill 的结果**，不是证据也不是失败（同第五、二十条口径）。
+
+- **换皮全程不落盘**：只走 `skinBrowse.setPreview(id)`，深浅档直接改内存里的 `appearance.settings.mode`，
+  一次都没调 `appearance.update()`。收尾核对：`mochen-ai-dev/appearance.json` 仍是 `bc3d1901…` / 787 B（与起手同一枚），
+  用户真身 `mochen-ai/config.json` 仍是 `98841130…`。开发态那份 `config.json` 与真身同哈希——
+  这是第二十八节「只复制不搬家」的应有结果，不是被写坏了。
+- **伪类不靠坐标点击**：`CSS.forcePseudoState(nodeId, ["hover"])` 之后读 `getComputedStyle`。
+  第一版把 nodeId 缓存下来跨皮肤复用，Vue 一重渲染就 `Could not find node with given id` 当场崩——
+  **每个选择器每次重新解析**（`DOM.getDocument` 的根也要在 `DOM.documentUpdated` 后作废）。
+- **谓词**：`color` 与「逐层往上找到的第一块实底」合成，算 WCAG 比值；`background-image` 另记 `imageBehind`，
+  不进这个数（见第五目）。
+
+### 二、四格读数（八套皮肤 × 明暗 = 16 组，每格取最低）
+
+| 第二十九节点名那一格 | 屏上真身 | 最低 | 出现在 | 16 组里 <4.5 |
+| --- | --- | --- | --- | --- |
+| 会话历史条目的时间戳 | `.conversation-history-item.is-current … time` | 5.06 | light/xi-day | 0 |
+| workbench 卡的脚注 | `.workbench-card .workbench-card-hint`（hover 档） | 6.11 | light/xi-day | 0 |
+| 查找替换那行的退路钮 | `.find-undo-btn`（hover 档） | 5.41 | light/xi-day | 0 |
+| 侧栏选中行的 `kbd` | —— | **DOM 里没有** | —— | 16 组全部未命中（见第三目） |
+
+同一次顺手补的两格也过了：`.nav-row svg` 在 hover 档最低 5.41、行文字最低 9.15；
+退路那一行的说明句 `.find-undo-notice` 最低 4.71。
+最坏那一套（灯楼·晴昼浅档）当场读回来的是 `rgb(89, 82, 67)` 压 `rgb(225, 219, 205)` = **5.61**——
+这一处正是第二十九节算出「灰字压在深档上不可能达标」的那一族，现在屏幕上读得清。
+
+**级联那句主张第一次量到屏上**：`--text-on-state` 走的是自定义属性继承，所以 `time` / `small` /
+`.workbench-card-hint` / `.find-undo-btn` 读回的 `color` **就等于该组的 `--text-on-state`**
+（汐·昼阁浅档 `rgb(65, 93, 107)`、灯楼·晴昼浅档 `rgb(89, 82, 67)`，逐组对得上）。
+第二十九节写的是「`color:` 做不到、自定义属性做得到」，那一句此前只有静态证据。
+
+### 三、四格里有一格在屏幕上不存在（新发现，本刀不修）
+
+`.nav-row kbd` 16 组全部未命中。查渲染方：全仓只有 `LeftSidebar.vue` 与 `ExtensionsNavRow.vue` 挂 `nav-row`，
+两处都不出 `kbd`——左栏那几行的快捷键是 `title` 提示（`LeftSidebar.vue:741`），不是键帽。
+⇒ 普查表里那条 `shadow: ["--text-tertiary"]` 钉的是一条**当前没有任何 DOM 命中**的 CSS 规则。
+它不是假控件（压根没有控件），但这一格**不可能被真机验到**。两条写法各有代价：
+删规则（连带普查表那一行一起删，否则守卫会以为还有东西要护）或给侧栏真补上键帽（那是产品观感改动）。
+**等一句话**，本刀只如实记账。
+
+### 四、accent 当字色那一族的 16 组实机数字（第二目第 2 条待拍板要看的表）
+
+`.nav-row.is-active` 行文字：浅档 3.66 / 4.77 / 4.30 / 3.91 / **3.42** / 5.46 / 4.03 / 4.48，
+深档 3.87 / 6.56 / 4.37 / 6.25 / 4.94 / 6.85 / 3.65 / 6.62 ⇒ **9/16 组不到 4.5**，
+最低 3.42 在灯楼·晴昼浅档，**与第二十九节静态算出的那一枚同处同值**（模型与屏幕互证）。
+读数出处：`color: rgb(154, 106, 30)` 压 `rgb(225, 219, 205)`。
+
+### 五、没做的与边界
+
+- **没做「改前白压白」的 A/B 截图**：旧值在 `08a1699^` 里，静态已经算过一遍；本刀只补「新值真的上屏」这一半。
+- 这几个数是**面板那一层实底**的对比度。皮肤整窗图坐在玻璃层后面（部分组 `imageBehind=true`），
+  「隔着画看字」的观感不在这个数里，属截图目检：四格在**最差那一套（灯楼·晴昼）明暗两档**共 8 张里逐张看过，
+  文字、图标、按钮都清晰可辨（`shot-{light,dark}-lamp-day-{history-current,nav-hover,workbench-card,undo-row}.png`）；
+  汐·昼阁那一组 8 张同批留档、**没有逐张看**（同一批读数全过，再花 8 次目检的边际是零）。
+- 探针脚本（`probe2/3/4/5.mjs`）与截图都留在 `%TEMP%/contrast-probe/`，**不入库**：
+  判据的真身在 `appearance-surface-ladder.test.ts`，再放一份 Node 版就是第二份真相。
+
 
 
 
