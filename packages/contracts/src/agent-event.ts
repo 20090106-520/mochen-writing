@@ -93,23 +93,22 @@ export const agentEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({ ...turn, type: z.literal("interrupted"), pendingProposals: z.number().int().min(0) }),
   /**
-   * 这一轮的发历史上做了切窗（2026-10-10 扫描总单 P1-3）。
-   *
-   * 为什么必须是一条**事件**而不是 turn-end 的一句 message：截断发生在发请求之前，
-   * 而 `turn-end.message` 只在 `status==="failed"` 时才被界面摆出来（见 useAgentStore 的 turn-end 分支），
-   * 挂在那儿等于「只有失败才看得见」——正常回答完的一轮，用户永远不知道模型其实没读过前十轮。
-   * `droppedChars` 存的是**字符数**而不是 token：token 是本机估算，用户读不懂；字数读得懂。
-   */
-  z.object({
-    ...turn,
-    type: z.literal("history-truncated"),
-    droppedCount: z.number().int().min(0),
-    droppedChars: z.number().int().min(0)
-  }),
-  /**
    * 错误事件。`proposalId` 只在「这条提案已经确定失效」的三处出现（指纹不符 / 锚点不唯一 /
    * 写盘撞指纹）：那三处 pending 已删，卡上的状态必须随回放存活（缺陷③）。
    * 权限挡下与读盘失败**刻意不带**——提案还在待审队列里，标了就是谎报失效。
+   *
+   * 这条同时是**所有「轮级事实」的唯一上屏通路**（2026-10-12 收口 P1-3 的另一半）：
+   * 历史被切掉多少条那句「更早的 N 条没有发给模型（约 M 字）。」就挂在这里，
+   * 而不是像原先设想的那样另发一条 `history-truncated` 事件。为什么：
+   * ① 截断发生在**发请求之前**，而 `turn-end.message` 只在 `status==="failed"` 时才被界面摆出来
+   *    （见 useAgentStore 的 turn-end 分支），挂在那儿等于「只有失败才看得见」——
+   *    正常回答完的一轮，用户永远不知道模型其实没读过前十轮；
+   * ② 句子与数字只有 `historyNotice` 那一份（铁律 6），主进程切窗与 runtime 兜底切窗说的是同一句话；
+   *    再开一个事件类型就是第二种说法。而它在本仓**没有任何消费方**：渲染层 utils/agent-thread.ts:160
+   *    拿 `AGENT_EVENT_TYPES` 这张白名单拦陌生类型，那张表 10 种里从来不含它——
+   *    真发出来只会得到一句「无法识别的智能体事件类型」，那句该给人看的截断话就此消失。
+   * 删除本枚枚举不存在回放风险：它在本仓**任何一版可发布的形态下都没被发出过**
+   * （runtime 切窗与主进程先切窗是同一个提交 `b1fc79a` 落地的，此后主进程只递切好的那一段）。
    */
   z.object({
     ...turn,

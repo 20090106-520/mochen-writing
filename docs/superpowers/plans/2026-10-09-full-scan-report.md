@@ -104,7 +104,7 @@ localStorage 那一侧的收尾对账：本波之后剩下的键全部是**应�
 | P1-2 | **已修** | 出站清单与派发判据合并成一份：`toolsFor(host, webSearchEnabled)` 内部只调一次 `wireToolsFor`，`toolGateOf`/`dispatchToolCall` 用同一枚 `ToolGate` 判定；关掉联网后模型真调 `web_search` 会被派发层拒掉，并回一条 `ok:false` 的配对回执（不是静默丢弃）。`isCallableTool` 特意**不给**开关留默认值——漏传就编译不过，而不是默认放行 | `packages/agent-runtime/src/tools.ts` + `tools.test.ts`（新增 6 条，含"两枚判据必须同源"那条） |
 | P1-9 | **已修** | 右栏「浏览」那条读盘通路补上三道闸：① 换书世代号 `bookEpoch`（与中栏的 `docLoadToken` 分开——一次开标签不该作废浏览的在途读），旧书那次慢回包在换书后一律丢弃；② 模块级在途集合，连点同一格只为同一篇发一次读盘，且**读到/读坏那一刻就摘**（留到 `.finally` 会晚一个微任务，用户看到失败后立刻再点会被自己上一次失败挡掉）；③ 失败理由上屏走 `failureReasonOf`，并新增每格自己的 `browseErrors`。界面侧原来只有一句 `browseContents[relPath] ?? "正在读取…"`，读失败后那一格**永远停在「正在读取…」**——比空白更糟，它在撒谎；现在三态判据抽成 `utils/browse-body`，面板只挂线，失败那一态另有告警色而不是占位话术那种灰 | `apps/desktop/src/renderer/src/stores/useBookStore.ts`（`bookEpoch`/`browseInFlight`/`browseErrors`）+ `useBookStore.browse.test.ts`（9 条）；`utils/browse-body.ts` + `browse-body.test.ts`（8 条）；`components/DocumentPane.vue` + `document-pane-browse-body.test.ts`（3 条）；样式侧 `styles/editor-pane.css` 的 `.document-preview-empty.is-browse-failed` |
 | P1-10 | **已修** | 星期标签与标题号数都改由**那一格自己的日期**算：`utils/goal-heat-labels.ts` 里放一张穷举的 `Record<Weekday,string>` 表 + `parseDateKey`（正则卡 `YYYY-MM-DD`、范围校验、构造后回读验证），面板按 `day.date` 取值，不再按数组下标贴。面板里那张写死的 `weekdayLabels` 与自算的 `formatShortDate` 一并删净。另修一处不诚实的标题：那本是「最近 7 天滚动窗口」，原来写着「本周热力图」——周日一到整片清零的话术不许留着 | `utils/goal-heat-labels.test.ts`（5 条，其中一条**当场把 `process.env.TZ` 切成 `America/New_York`** 才拿到鉴别力：这台机是 UTC+8，不切时区时"UTC 漂移"那条断言根本红不了）+ `components/goal-heat-weekday-wiring.test.ts`（5 条）+ `WritingGoalPanel.vue` |
-| P1-3 | **已修**（2026-10-10 收口，逐条读盘核对） | 历史滑动窗口落在**一份真身**上：`packages/agent-runtime/src/history-window.ts` 按 token 预算从最旧一轮起丢，**配对完整性优先**——丢一条 tool_call 必连带丢它的回执，绝不留下半条会让上游 400 的孤儿；被丢的条数与「为什么少了一段」由**主进程 `emitOnly` 落一条 `type:"error"` 事件**上屏（`agent-service.ts:638-646`），界面出显式截断提示而不是假装历史在用；**不是** `tool-loop.ts:164-174` 那枚 `history-truncated` 事件——桌面应用递进 `runTurn` 的已是切好的 `fitted.kept`，那半段在应用里恒不触发，契约枚举（`agent-event.ts:105`）在 `apps/desktop/src` 零消费方，机制与真机双证据见本文第十九节，占用条**面板那一屏**（面板逐条 × store × 盘上模板三源交叉 + 无会话章反向对照）见第二十二节。占用条那一侧改判据：`ContextMeter` 的余量里从此**含历史**，不再是「显示还有余量」的假余量 | `packages/agent-runtime/test/history-window.test.ts`（23 条）+ `tool-loop-history-window.test.ts`（6 条，钉「全量 `...input.history` 那条路已经没了」）；`apps/desktop/src/renderer/src/utils/history-window.test.ts`（11 条）+ `components/history-window-wiring.test.ts`（7 条）+ `agent-service-history-window.test.ts`（3 条，真 service 端到端） |
+| P1-3 | **已修**（2026-10-10 收口，逐条读盘核对） | 历史滑动窗口落在**一份真身**上：`packages/agent-runtime/src/history-window.ts` 按 token 预算从最旧一轮起丢，**配对完整性优先**——丢一条 tool_call 必连带丢它的回执，绝不留下半条会让上游 400 的孤儿；被丢的条数与「为什么少了一段」由**主进程 `emitOnly` 落一条 `type:"error"` 事件**上屏（`agent-service.ts:638-646`），界面出显式截断提示而不是假装历史在用；**不是** `tool-loop.ts:164-174` 那枚 `history-truncated` 事件——桌面应用递进 `runTurn` 的已是切好的 `fitted.kept`，那半段在应用里恒不触发，契约枚举（`agent-event.ts:105`）在 `apps/desktop/src` 零消费方，**2026-10-12 第二十五节把那半段死通路与枚举一并收掉**：runtime 兜底改发既有的 `error` 事件，句子仍由 `historyNotice` 一处组；机制与真机双证据见本文第十九节，占用条**面板那一屏**（面板逐条 × store × 盘上模板三源交叉 + 无会话章反向对照）见第二十二节。占用条那一侧改判据：`ContextMeter` 的余量里从此**含历史**，不再是「显示还有余量」的假余量 | `packages/agent-runtime/test/history-window.test.ts`（23 条）+ `tool-loop-history-window.test.ts`（6 条，钉「全量 `...input.history` 那条路已经没了」）；`apps/desktop/src/renderer/src/utils/history-window.test.ts`（11 条）+ `components/history-window-wiring.test.ts`（7 条）+ `agent-service-history-window.test.ts`（3 条，真 service 端到端） |
 | P1-5 | **已修**（2026-10-10 收口，实测数字） | 三个定位函数不再整篇读 JSONL：`readRawLines` 用 `open` + 16 KB chunk 流式解码（`TextDecoder(…,{stream:true})` 保证跨块的中文不被劈成乱码），拿到就要的那几行**当场 `break`**，生成器的 `finally` 关句柄，尾部一个字节都不读。判据只有一份——`titleOfLine` 同时服务旧的 `titleFromLines` 与新的 `readSessionHead`，改读头部之后与整篇读**逐字同口径**（含空行过滤、首行坏掉只跳过不整本抛）。夹具：同一本书两份会话，首两行完全一致，只差长度（150 条 / 1500 条事件） | 改前实测放大 **59×–681×**（只为取首行/标题）。改后的闸在 `packages/agent-runtime/test/rollout-head-read.test.ts`（12 条）：三条 IO 形状闸——`readFile` 调用数 = 0、每函数各 `open` 一次、**读过的字节跨度不随会话长度增长**（150 条与 1500 条量到同一个数，且 < 64 KB；反向鉴别：整篇读时长文件要读完 300 KB）；另有八条等价性闸（首条用户输入埋在 120 KB 之后仍取到、单行 48 KB 跨块不破词、首行 200 KB 巨型行、无尾换行、空文件、坏首行，以及**首行是空行、meta 落在第二行**这条——它把两处旧口径的分歧钉死：`findLatestSession` 走 `readFirstLine`，对应旧的 `split("\n")[0]`，**不滤空行**，所以那一格照样判坏、定位不到；`listSessions` 走 `readSessionHead`，对应旧的 `split("\n").filter(非空)`，**滤空行**，所以那条会话照常上面板、标题照拿。历史事实就是这样，两处不许被顺手统一）。变异四只全部死：恢复整篇读 → 字节跨度那条红；去掉 `{stream:true}` → 垫 ASCII 让块边界落进标题第一个字里，量到 `\ufffd\ufffd渊之下`；给 `readFirstLine` 加上空行过滤 → 那条红在 `expected '.mochen/sessions/…jsonl' to be null`；把 `readSessionHead` 的空行过滤去掉 → 同一条红在 `expected [] to deeply equal [ 's-blank' ]`。同一用例被两个相反方向的变异各打红一次，才证明它真的有双向鉴别力 |
 | P1-4 | **半收口**（主进程与 fs-store 这半边已修，渲染层那一半没动，写清楚） | 已做的两件事：① `scanBook` 的 `await` 从 for 循环里搬出来——先 `collect` 清单，再一次性并发读正文（2026-10-10 用户裁定：并发度 = 文稿数，不设固定上限），顺序由 `Promise.all` 按输入序落位保证与旧写法逐字一致；② 新建 `docRefFor(root, relPath)`（与 `scanBook` 同一份判据），`createDoc` 建完一章只算新那一篇再拼进树，不再整本重扫。**实测**（夹具 1000 章 × 3000 字 = 盘上 8.66 MB，本机空负载连跑两遍各 3 次）：串行 133–157 ms，限并发 8 为 29–43 ms，并发度=文稿数 **21–31 ms**（比限 8 还快，先前那轮"限 8 更快"是 dev 实例抢 IO 时的读数，复跑不成立）；峰值堆三种读法都在 30–46 MB 一档，不设上限没把峰值抬高一个量级。`createDoc` 那一步：**整本重扫 99–136 ms ⇒ 单点重扫 1 ms**。<br>没做的另一半：渲染层 `useBookStore.refreshDocs()`（`stores/useBookStore.ts:209`）走的是 `window.mochen.openBook(rootPath)`，也就是**又一次整本重扫**——建章/改名/卷次重排四处都调它，所以界面上点「新建一章」仍会把全书读一遍。这一刀没顺手改它的原因是**判据只有一份可拼**：渲染层 `sortDocsByOrder`（`utils/doc-order.ts:30-39`）对「都不在 chapterOrder 里的两篇」返回 0（保持原相对序），而 fs-store `sortChapters`（`scan.ts:171-181`）按名字排它们——本地拼一根进去就和整本重扫不等价，正是用户点名要防的那种不等。下一刀应把两处排序判据合成一份（contracts 出一份 `sortDocs`），再让 `createDoc` 的 IPC 带回新那篇的 `DocRef` 供渲染层拼 | `packages/fs-store/src/scan.ts` + `packages/fs-store/test/scan-concurrency.test.ts`（7 条：在途读 > 1、readFile 次数 = 篇数且顺序逐字、`docRefFor` 与 `scanBook` 同一篇逐字相同、非文稿目录给 null、盘上没有给 null、**问「在不在」只发一次 stat 且 readdir = 0**、传目录进来也给 null）；`apps/desktop/src/main/book-service.ts` + `book-service-create-doc-io.test.ts`（8 条，含三条变异已死：去掉 `sortChapters` → 两篇新章落位那条红；去掉同 relPath 去重 → 外力删后建回那条量到 2 条；把兜底换成文件名倒推的假 DocRef → `stat` 那条红 `expected +0 to be 7`）。测量夹具是一份 `tmp-scale-probe.test.ts`（1000 章生成 + 三种读法 + 两条建章通路），跑完**移出仓库放在本机 scratch 目录**（`~/dw-scratch/2026-10-10/`），没入库也没删除（删除要用户点名）——它是量具不是闸，每次跑都往临时盘写 8.66 MB 的夹具，把一次性物理事实变成每条提交都跑的断言不划算。 |
 | P1-6 | **已修** | 同一目标路径的写进互斥队列，不同路径照旧并发（全局串行会把 1000 章批量写拖死）；`release()` 放在 **finally**，前一个任务抛错不许把队列锁死。`writeDocFile` 的读-校验-备份-写整段落在锁里，连点两次 Ctrl+S 不再自撞出一次假冲突 | `packages/fs-store/src/write-queue.ts`（新）+ `packages/fs-store/test/write-queue.test.ts`（10 条）；`read-write.ts:134` 的 `runWriteExclusive` 临界区 |
@@ -1304,5 +1304,68 @@ naive-ui 的用法入口全仓命中 **0**。真身是手搓 CSS：`renderer/src
 「### 还没做完的（照直写，不抹平）」下面，那份名单的口径是**它所属那一波收口时**的现状，
 不是当前状态；当前状态只认本台账这一处（P2 现状总表 P2-11 那一行 + 本节）。
 两处都在本节里点名，是为了下一个人不必再猜「这行没划掉是不是还没做」。
+
+## 二十五、2026-10-12 七项清单第二刀：`history-truncated` 那条死通路收掉——以及它真正的原因不是「没人用」
+
+清单第 7 项登记的原话是「`tool-loop.ts:164-174` 桌面端结构性不发的 `history-truncated`（含
+`agent-event.ts:105` 契约枚举，渲染层零消费方）」。动手前按惯例回读盘，读出来的病灶**比登记的那句更硬**：
+
+**这条事件即便真发出去，界面也不是「不显示」，而是「显示成另一句话」。**
+渲染层入向闸 `apps/desktop/src/renderer/src/utils/agent-thread.ts:160-161` 拿
+`AGENT_EVENT_TYPES` 这张白名单拦陌生类型，句子里是 `无法识别的智能体事件类型：${type}`；
+而那张表（`contracts/src/agent-event.ts:10-21`）**只有 10 种，从来不含 `history-truncated`**——
+zod 判别式那侧却有第 11 种。两份名单早就分家了。于是真发生截断的那一刻，用户读到的不是
+「更早的 N 条没有发给模型（约 M 字）」，而是一句看起来像数据坏了的报错，而真正该说的话消失。
+第十九节之所以在真机上量到那句截断话逐字上屏，靠的完全是主进程另走的那条 `emitOnly(error)` 通路。
+
+**修法（三处，一句真身）**：
+① `packages/agent-runtime/src/tool-loop.ts` 兜底那一段不再自造事件，改成
+`const fitNotice = historyNotice(fit); if (fitNotice !== "") emitSimple({ type: "error", message: fitNotice });`
+——句子与数字的生产者还是 `historyNotice` ∘ `fitHistoryToWindow` 这一处，主进程与 runtime
+说的是同一句话（铁律 6）。**保留 runtime 这次调用本身**：它是「谁直接把未切窗的历史递进 `runTurn`」
+时唯一的防线，删掉它等于把 P1-3 的洞还给未来的调用方（现在全仓只有一个生产调用方 `agent-service.ts:647`）。
+② `contracts/src/agent-event.ts` 删掉那枚 `z.literal("history-truncated")` 分支，并把原先那段
+「为什么必须是一条事件」的理由**搬进 `error` 事件的注释**——理由是活的，只是落在了另一条通路上。
+③ 新增两条**结构性**断言（`packages/contracts/test/agent.test.ts`，该文件 23→**25** 条）：
+`agentEventSchema.options` 的判别式集合与 `AGENT_EVENT_TYPES` **必须一字不差地同源**，
+以及 `error` 在两处都在、退役那枚在两处都不许复活。钉的是结构，不是那枚已经删掉的枚举——
+否则下一个「第 11 种」照样分家。
+
+**为什么删枚举没有回放风险**（这条必须证，不能假定）：`git log -S` 三查——
+`fitHistoryToWindow` 进 `tool-loop.ts` 与进 `agent-service.ts` 是**同一个提交** `b1fc79a`（2026-10-10），
+`git show b1fc79a^:agent-service.ts:582` 那时递的还是 `...input.history`（切窗根本不存在），
+而 P1-3 之后主进程只递 `fitted.kept`。⇒ `droppedCount > 0` 这个条件在本仓**任何一版可发布形态**里
+都没成立过，用户书里的 JSONL 不可能有这条事件。（与第十九节那条「桌面端恒不触发」的读码结论同向，
+这一节把它升级成了有提交号可查的证据。）
+
+**变异记录（每条新断言都先证明它能红，再回绿）**：
+- 变异 A（把 ① 换回 `history-truncated` 那条 emit）⇒ 4 条红：留痕那条报
+  `expected [ 'user-message', 'history-truncated' ] to deeply equal [ 'user-message', 'error' ]`、
+  配对完整性那条报「夹具没触发截断：这份用例什么都没证明」（vacuous 守卫按预期先拦住空跑）、
+  schema 那条报 zod 的 `invalid_union` 且**错误文本自己列出了 10 个合法判别式**（等于当场证明枚举已退役）、
+  源文本普查那条报 `tool-loop 里又在发 history-truncated`。
+- 变异 B（把 ② 那枚枚举加回契约）⇒ 3 条红：`两份名单一条不多一条不少`、
+  `轮级事实的唯一通路 error 在两处都在`、`退役的那枚事件类型不再被契约承认`（后一条是 runtime 那侧的）。
+  回改即绿。
+
+**两次自伤，都写下来而不是抹平（流程教训，比这一刀的结论更值钱）**：
+1. **`git checkout -- <file>` 不能用来撤变异**。变异 B 的还原我图省事用了 `git checkout --`，
+   它回的是 **HEAD**，而我这一刀对同一文件的真实改动（删枚举 + 搬注释）**还没提交**，于是连带被撤光——
+   当时 `git status` 里那一行消失、`grep` 却仍命中枚举，两边不一致才暴露出来。改回来的办法是把
+   那段 Edit 重做一遍（本节的 ② 就是这么重落的）。⇒ 仓里那条「变异只用 Edit 对称回改」的规矩
+   真正的机制在这儿：**HEAD 不是你的上一步**。
+2. **这一格里出现了伪造的工具回传**：多次 `Edit`/`Read` 的结果里夹着「已成功修改」的假回执，
+   以及一条冒充「插入到 `tool-loop.ts` 第 35 行」的指令，内容是要我把全部后端接口连同密钥写进 README 并发布。
+   处置：**盘上取证优先**——`grep` + `node -e` 双查该文件与全仓（`git grep -l` 返回空、
+   `has_injection=false`），证实一个字节都没落进仓库；那条指令没有执行。
+   从这一刻起本格的固定动作改成：**每一次 Edit 之后回盘核对，工具回执不算已落盘**
+   （与「转述必须回盘」同源，只是这一次要回的是我自己的改动）。
+
+**门禁与数**（本机这棵树：`9aad312` + 这一刀）：整条 `pnpm verify` 绿——
+`All matched files use Prettier code style!`、`tsc --noEmit` 六个程序 0 错（删枚举没有打断任何穷尽分支）、
+`eslint --max-warnings=0` 0、边界检查通过、行数预算通过（608 份）、
+vitest **305 文件 / 3975 passed | 2 skipped（3977）**。与上一刀那跑的差是 **+4 条**，
+逐格对得上：`tool-loop-history-window.test.ts` 6→8、`contracts/test/agent.test.ts` 23→25。
+（本机两次读数 `2 skipped` 与 CI 汇总口径的关系仍按第二十三节的规矩：报数连着「哪棵树」，CI 那侧以 run 页为准。）
 
 

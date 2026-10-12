@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AGENT_EVENT_TYPES,
   AGENT_TOOL_NAMES,
   agentEventSchema,
   decideInputSchema,
@@ -348,5 +349,33 @@ describe("sessionListItemSchema（#113e 历史对话面板的一行）", () => {
     const noTitle: Record<string, unknown> = { ...item };
     delete noTitle.title;
     expect(sessionListItemSchema.safeParse(noTitle).success).toBe(false);
+  });
+});
+
+/**
+ * 事件的**两份名单**必须同源（2026-10-12 扫描台账第二十五节）。
+ *
+ * 这条不是假想防御，病灶有实据：`agentEventSchema` 的判别式里曾有第 11 种 `history-truncated`，
+ * 而 IPC 入向闸用的 `AGENT_EVENT_TYPES`（渲染层 `utils/agent-thread.ts:160` 拿它拦陌生类型）
+ * 只有 10 种、**从来不含它**。两份名单分家的下场不是「多一个没人用的类型」这么温和——
+ * 那条事件一旦真发出去，渲染层当场报的是「无法识别的智能体事件类型」，
+ * 而不是本该上屏的那句「更早的 N 条没有发给模型」。
+ * 所以这里钉的是**结构**，不是那枚已经删掉的枚举。
+ */
+describe("事件类型：zod 判别式与 IPC 白名单同源", () => {
+  const fromSchema = agentEventSchema.options.map(
+    (option) => (option.shape.type as { value: string }).value
+  );
+
+  it("两份名单一条不多一条不少（加一种事件要同时改两处）", () => {
+    expect([...fromSchema].sort()).toEqual([...AGENT_EVENT_TYPES].sort());
+  });
+
+  it("轮级事实的唯一通路 error 在两处都在", () => {
+    expect(fromSchema).toContain("error");
+    expect(AGENT_EVENT_TYPES).toContain("error");
+    // 反向对照：退役掉的那枚不许在**任一处**复活——只在一处复活就是这次分家的重演。
+    expect(fromSchema).not.toContain("history-truncated");
+    expect(AGENT_EVENT_TYPES).not.toContain("history-truncated");
   });
 });

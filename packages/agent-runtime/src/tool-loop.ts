@@ -21,7 +21,7 @@ import {
 } from "./chat-message.js";
 import { dispatchToolCall, toolGateOf, toolsFor, type ToolHost } from "./tools.js";
 import { estimateTokens } from "./context.js";
-import { fitHistoryToWindow } from "./history-window.js";
+import { fitHistoryToWindow, historyNotice } from "./history-window.js";
 
 export interface TurnInput {
   turnId: string;
@@ -131,7 +131,6 @@ type EmitBody =
       backupRelPath: string | null;
     }
   | { type: "interrupted"; pendingProposals: number }
-  | { type: "history-truncated"; droppedCount: number; droppedChars: number }
   | { type: "error"; message: string };
 
 export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOutcome> {
@@ -160,18 +159,20 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
    * 也没有任何办法继续（除了新开会话，而那意味着丢掉全部上下文）。
    * 切窗的口径只在 `history-window.ts` 一处（系统提示必留、tool 调用与回执同进同出、从后往前贪心）；
    * 这里只负责**在真正的派发点上调用它**，并把「裁了多少」如实说出去。
+   *
+   * 那句人话走既有的 `error` 事件，句子由 `historyNotice` 组（2026-10-12 收掉 P1-3 的另一半）：
+   * 主进程在 `agent-service.ts` 里已经先把历史切过一遍再递进来，所以这一处**在桌面应用里是兜底**
+   * ——真正常开的通路是主进程那一条 `emitOnly(historyNotice(fitted))`。两处说的是同一句、同一个数字，
+   * 就不许再造第二种「说法」：原来这里发一条 `history-truncated` 事件，而渲染层与回放对它的消费方**是零**，
+   * 于是同一件事实有两条通路，一条上屏、一条静默丢（详见扫描台账第二十五节）。
    */
   const fit = fitHistoryToWindow({
     history: input.history,
     systemTokens: estimateTokens(input.systemPrompt),
     userTokens: estimateTokens(input.userText)
   });
-  if (fit.droppedCount > 0)
-    emitSimple({
-      type: "history-truncated",
-      droppedCount: fit.droppedCount,
-      droppedChars: fit.droppedChars
-    });
+  const fitNotice = historyNotice(fit);
+  if (fitNotice !== "") emitSimple({ type: "error", message: fitNotice });
 
   const messages: ChatMessage[] = [
     chatMessage("system", input.systemPrompt),
@@ -260,7 +261,7 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
     /**
      * P2-5：被截断的一轮不再是「答完了」。位置在打断分支之后——用户自己按的 Esc 不是模型被截断，
      * 那条路已有 INTERRUPTED_MESSAGE，这里再补一句就成两句话说同一件事。
-     * 轮级事实走既有的 `error` 事件（进时间线、写 lastError，与 history-truncated 同一条先例），
+     * 轮级事实走既有的 `error` 事件（进时间线、写 lastError；与上面那句切窗提示同一条先例），
      * 不新造事件类型：契约没动，渲染层与回放自动认得。
      */
     const truncation = truncationNotice(collected.finishReason);

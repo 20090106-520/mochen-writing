@@ -553,7 +553,7 @@ describe("runTurn · 工具派发要受打断约束（P1-1 的③）", () => {
  * 用户读到半截回答、还以为模型答完了；那一轮里没传完的 tool_call 更是连一张卡都没留下。
  *
  * 修法用既有通路，不新造事件类型：
- *   - 轮级事实 → 既有的 `error` 事件（进时间线、写 lastError，`history-truncated` 同一条先例）；
+ *   - 轮级事实 → 既有的 `error` 事件（进时间线、写 lastError；历史切窗那句走的是同一条先例）；
  *   - 半截调用 → 既有的 `tool-call` 事件配一句 `ok:false` 回执，与 SKIPPED_BY_INTERRUPT 同款口径。
  */
 describe("runTurn · 被截断的一轮要上屏（P2-5）", () => {
