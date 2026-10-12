@@ -1468,7 +1468,9 @@ code style`（两个文件要重排，先 `--write` 到临时副本 `diff` 过�
 `'png' is assigned a value but never used`；改成 `delete meta.png` 并写明为什么不能把载荷塞进报错消息——
 一条 256 档上百 KB，一屏十六进制会把这句话毁掉）、边界检查通过、行数预算通过（**611 份**，比上一刀的
 608 正好多我这三份 `.mjs`）、vitest **306 文件 / 3987 passed | 2 skipped（3989）**——与上一刀那跑的差是
-**+12 条**，逐格对得上：新增的 `tools/ico-container.test.mjs` 一份文件 12 条。
+**+12 条**，逐格对得上：新增的 `tools/ico-container.test.mjs` 一份文件 12 条。这一整条在落账前后各跑过一遍
+（前一遍覆盖代码，后一遍连三份文档一起），两跑读数**一字不差**（306 / 3987 | 2 skipped），
+`VERIFY_EXIT=0` 两次都是日志里那行 echo，不是包装脚本的码。
 （报数连着「哪棵树」，CI 那侧仍以 run 页为准；本机这两次读数的 `2 skipped` 是
 `packages/fs-store/test/changes.test.ts:247,302` 那两条 `skipIf(win32)`，与第二十三节的口径一致。）
 
