@@ -243,7 +243,7 @@ MW7 `preventDefault()` 提到栈检查之前 → 2 红跨两层（行为层「�
 | P2-9 | **已修** | `minWidth: 1000` / `minHeight: 700`（`main/index.ts:177-178`），两个数**不是抄来的**，是现读样式与布局 store 的真身算出来的地板（三栏窄档 262+395+320=977；纵向 `min(360px, …)` 那格要 680），并由 `window-min-size.test.ts`（5 条）钉住：令牌一旦从 CSS 里消失，用例当场抛「判据失效」而不是悄悄放行 |
 | P2-10 | **已修**（四条盲区逐条处理） | ① 行预算闸扩到 `.mjs/.cjs` + `tools/` + `apps/desktop/scripts/`（`ROOTS`），扩完当场真爆出一份 851 行的 `gen-scene-svgs.mjs`——**没有为了过闸改窄脚本**，而是把调色板那段（199 行）搬成 `scene-palettes.mjs`，验收口径是**六张 SVG 逐字节复现**（`sha256sum -c` 搬前搬后、prettier 后各核一次）；② 边界闸补上三条此前看不见的路（渲染层→主进程、渲染层→包源码、Node 侧伸进渲染层），默认根改成仓库根、两个根都不在时报「空扫不叫通过」并退 1；③ `.prettierignore` 整目录排除 `docs/superpowers` 这条**没有偷偷留着**，也没有为了好看去重排台账（实测要改 20 个文件、−34575/+38530 行）——改成**挂着牌子的声明式豁免**，由 `tools/prettier-scope.test.mjs`（5 条）钉「只许有这一条豁免、且旁边必须有中文理由注释、且 README 与真源码不许被排除」；④ `apps/desktop` 的 `test` 脚本实测比总单说的更糟：从该目录跑**一条用例都不收集**（"No test files found"，exit 1），修成 `vitest run --root ../.. …src/main …src/renderer`，`tools/ci-gate.test.mjs` 新增一条钉住「跑的是整包不是半套」 |
 | P2-11 | **已修**（2026-10-12 用户点头删除，并把这句话立成闸；详见第二十四节） | `pnpm-workspace.yaml` 的 `naive-ui: "2.44.1"` 已删。删除前的复核仍是三条：`pnpm-lock.yaml` 里 `naive` 出现 **0** 次（⇒ 从没人依赖过它，删它不动锁文件，CI 的 `--frozen-lockfile` 不受影响）、各 `package.json` 零命中、`apps/desktop` + `packages` 全部 `.ts/.vue` 零 import。**但只删一行不构成修复**：那一行真正的危险是 catalog 的语义——它是「谁写 `catalog:` 就能拿到这个版本」的一张随时能兑现的入场券，下一个人顺手 `import { NButton } from "naive-ui"` 时门禁全绿，等于在一次普通改动里替用户决定了「引入组件库」。所以补 `tools/no-component-library.test.mjs`（**5 条**）把「UI 没有组件库」钉成三处扫描（catalog 键 / 各 package.json 三种依赖字段 / 源码 import）+ 一条解析口径守卫（catalog 解析不出 `vue/pinia/vitest/typescript/zod` 就**抛错**而不是放行）+ 一条自证（喂一份明知带 `naive-ui` 的假 catalog 必须逮住，同时干净名单不误报）。规格书 `specs/2026-10-01-…design.md:56` 那句「Vue 3.5 + TypeScript + Pinia + naive-ui 2.44」是**从头到尾没成立过的技术栈假话**，已就地加更正段（原文一字未删）：界面是手搓 CSS，`renderer/src/styles/` 现有 **22 份** CSS、其中 7 份用 `backdrop-filter` 做毛玻璃，全仓 `NConfigProvider`/`n-config-provider` 命中 **0** |
-| P2-12 | **半修**（三子项里动了最实质那一项） | ① 插件挂载的 cache-buster 从 `?v=${Date.now()}` 改成**改写后内容的 sha256 前缀**，并且只在「本进程还没为同一份内容写过」或盘上文件被删时才重写产物。症状两半都消：内容没变时 URL 一字不变 ⇒ 命中 ESM 注册表同一份模块 ⇒ 插件顶层副作用不再每次 `plugins:list` 重跑、注册表不再每轮多一份永不回收的实例；内容真变了哈希变 ⇒ 改动照样当场看得见。用例按**行为**判（副作用计数器住在夹具插件源码里），三次变异各自杀掉并回读生产形态：cache-buster 换常量 ⇒ `改了插件却拿回旧的那份…: expected 1 to be 2`；重写闸只判存在性不判哈希 ⇒ `expected '甲' to be '乙'`；恢复无条件重写 ⇒ `内容未变仍重写了产物文件…to contain '记号'`。② **未动**：`tools/build-brand-icons.ps1` 仍是 Windows PowerShell 专用；跟踪文档里那两处 `C:\Users\17863\` 是「绝不拿这个目录之外的真人书稿做测试」的**约束原文**而不是配置项，改它属于换皮，留着。③ 未做真机重装插件目检 |
+| P2-12 | **三子项里两子项已动**（① 与 ② 都动了，③ 仍未做真机重装插件目检） | ① 插件挂载的 cache-buster 从 `?v=${Date.now()}` 改成**改写后内容的 sha256 前缀**，并且只在「本进程还没为同一份内容写过」或盘上文件被删时才重写产物。症状两半都消：内容没变时 URL 一字不变 ⇒ 命中 ESM 注册表同一份模块 ⇒ 插件顶层副作用不再每次 `plugins:list` 重跑、注册表不再每轮多一份永不回收的实例；内容真变了哈希变 ⇒ 改动照样当场看得见。用例按**行为**判（副作用计数器住在夹具插件源码里），三次变异各自杀掉并回读生产形态：cache-buster 换常量 ⇒ `改了插件却拿回旧的那份…: expected 1 to be 2`；重写闸只判存在性不判哈希 ⇒ `expected '甲' to be '乙'`；恢复无条件重写 ⇒ `内容未变仍重写了产物文件…to contain '记号'`。② **已修**（2026-10-12，见第二十六节）：`tools/build-brand-icons.ps1` 已删，出图这台机器拆成两半——容器 `tools/ico-container.mjs`（纯 Node、可单测、任何平台一样跑）+ 驱动 `tools/build-brand-icons.mjs`（重采样交给本仓已经装着的 Electron `nativeImage`，零新依赖）；跟踪文档里那两处 `C:\Users\17863\` 仍是「绝不拿这个目录之外的真人书稿做测试」的**约束原文**而不是配置项，改它属于换皮，留着。③ 未做真机重装插件目检 |
 | P2-13 | **已修** | mirror 高亮层加 `v-if="findVisible"`（`DocumentPane.vue:713`），面板关着时那层连 DOM 都不在 ⇒ `highlightMirrorHtml` computed 无人读、彻底不重算；另一半是 `watch(findVisible, …)`（`:284`）在打开那一瞬 `nextTick()` 后补一次 `syncMirrorScroll()`（新挂载的层 scrollTop=0 而 textarea 可能已滚到半篇）。`editor-pane.css` **未改**并说明理由（脱流层不参与 wrap 布局）；分栏 `previewHtml` 刻意不动（注释里写明那是「草稿到预览零延迟」的既有取舍）。证据：`find-mirror-mount-wiring.test.ts`（7 条，含「全模板只此一枚 v-if」「与让位类同判据」「组件里零 `<mark` 拼接」） |
 | P2-14 | **已修** | `openDocTab` 开头 `this.cancelAutoSave();`（`useBookStore.ts:319`）——`activateTab`/`cycleTab`/`closeTab`/`createDoc` 全走这一个入口，一处收口。字不丢：A 篇未保存的字由 `onEdit` 既有的 `stashActive()` 留在 `draftsByPath`。两条行为用例把危险窗钉死（用 `mockImplementationOnce` 吊住 B 的读盘，让 2000ms 窗正好落在「指针=B、正文=A」，断言 `writeDoc` 一次没发、再空转 60s 无迟到复活） |
 
@@ -1367,5 +1367,109 @@ zod 判别式那侧却有第 11 种。两份名单早就分家了。于是真发
 vitest **305 文件 / 3975 passed | 2 skipped（3977）**。与上一刀那跑的差是 **+4 条**，
 逐格对得上：`tool-loop-history-window.test.ts` 6→8、`contracts/test/agent.test.ts` 23→25。
 （本机两次读数 `2 skipped` 与 CI 汇总口径的关系仍按第二十三节的规矩：报数连着「哪棵树」，CI 那侧以 run 页为准。）
+
+## 二十六、2026-10-12 七项遗留问题的第三刀：`build-brand-icons.ps1` 移植成跨平台两份 Node 文件
+
+清单第 5 项（P2-12 的第 ② 子项）落在这一节。**病灶不是「那份脚本写得不好」，是「在 Windows 之外
+重新出这枚 `.ico` 这件事整个做不到」**：`tools/build-brand-icons.ps1` 一共 61 行，靠
+`Add-Type -AssemblyName System.Drawing` 与 `BinaryWriter` 活着，只能在 Windows PowerShell 5.1 里跑；
+而它把两件事缠在一起——**像素重采样**（真要图像栈的那半）与**容器打包**（一串定长小端字段）。
+缠在一起的后果是：想换平台就得整份重写，想验容器对不对就只能靠肉眼看文件大小。
+
+**刀法是切一层，不是换写法**。拆成两份：
+
+- `tools/ico-container.mjs`——ICO 容器的读写，纯 Node、零依赖、任何平台一样跑。`buildIco` 写表
+  （PNG 压缩条目、`planes=1`、`bits=32`、256 的宽高字节写 0）、`parseIco` 读回来并核对每条的偏移与长度
+  真的落在文件里，`pngDimensions` 从 PNG 自己的 IHDR 取宽高。**口径逐字对齐旧脚本**，字段一处没改。
+- `tools/build-brand-icons.mjs`——驱动：重采样交给**本仓已经装着**的 Electron `nativeImage`
+  （`apps/desktop/node_modules/electron`，版本由 catalog 钉死），**零新依赖**这条硬约束没被绕过。
+  普通 Node 入口只做一件事：找到自己的 Electron 二进制再把自己当应用入口跑一遍（`spawnSync`，
+  `stdio:"inherit"`）。
+
+**先记下两处我自己写坏的地方**（都不是变异，是实测当场暴露的）：
+
+1. **`Uint8Array` 上没有 `readUInt32BE`**。`pngDimensions` 原先用 `new Uint8Array(bytes)` 归一入参，
+   而 `readUInt32BE` 与 `toString("hex")` 是 **Buffer** 的方法。第一次拿纯 Node 读盘上那枚已入库的
+   `.ico` 就 `TypeError: u.readUInt32BE is not a function`——**这条不是用例挑出来的，是我真的跑了一遍**
+   （与「长实跑前先过廉价门禁」同源，但这次是反向教训：纯函数写完要拿真资产跑一次）。改成 `asBuffer`
+   （`Buffer.isBuffer` 直通、`Uint8Array` 走 `Buffer.from(buf.buffer, byteOffset, length)` 视图，不复制字节，
+   256 档几十 KB 的载荷不必多备份一份）。顺带把 `parseIco` 的返回加上 `png` 视图，往返用例才能逐字节比。
+2. **文件头写着「默认不覆盖已入库的那枚 `resources/icon.ico`」，而 `parseArgs` 的默认落点恰恰是那个文件**。
+   一句假话贴在代码上，比没这句话更糟。现在改成**没有默认输出路径**：`out: null`，`runCli` 在 spawn 之前
+   当场失败并说清为什么（换像素口径等于换品牌资产，点头的是用户），要用就点名
+   `--out apps/desktop/resources/icon.ico`。用法行同步改成 `--out <路径>` 必填。
+
+**已入库那枚 `.ico` 的真身**（`7880bab` 那一批品牌接入进来的，当场 `node` 回读，不是转述）：
+218,266 字节、7 档 `16,24,32,48,64,128,256`、每条 `planes=1 bits=32`、表里声明的尺寸与 PNG 自己的
+IHDR **七条全等**、首条偏移 118（= 6 + 16×7）、末条 `66693 + 151573 = 218266` 正好把文件写完、
+sha256 `8b90358f0e7dab37c338210d9cdf3cd7a29c4d69cd56f1435723ee805891075e`。**新解析器把旧生成器的产物
+原样读通**——这就是「容器字段没漂」的证据；读不通的话，漂的是我这边的口径，不是他那边。
+
+**闸的形状**：`tools/ico-container.test.mjs`（**12 条**）。它自动进本地门禁与 CI——
+`vitest.config.ts` 的 `include` 里本来就有 `tools/*.test.mjs`（第二十四节那枚 `naive-ui` 闸走的是同一条通路），
+所以这一刀不需要动任何 CI 文件。12 条里除容器读写往返、256 的老约定、越界/假头/非 PNG 三条拒绝、
+已入库资产的七档结构钉、`DEFAULT_SIZES` 与那枚 `.ico` 同口径、`parseArgs` 十种写法、
+「只许有一台生成器」之外，还有一条**确定性**用例（同输入两次 `buildIco` 逐字节相同）——
+它的用处是：将来谁往容器里塞时间戳或随机填充（那会让「重新出图」每次都产生一次看似有意义的 diff），
+当场红。
+
+**断言能不能失败：十次变异，逐条写清杀了谁**（只用 Edit 对称回改，改完立刻回绿；这正是上一节那条
+「HEAD 不是你的上一步」规矩的用法）：
+
+| 变异 | 改动 | 杀它的用例 |
+| --- | --- | --- |
+| A | `byteForDim` 阈值 256 → 128 | 「256 档的宽高字节写 0」——**这条最初杀不掉**：夹具只有 16 与 256，`>=128` 的写法两头都对得上。补了「128 与 256 并排放时只有 256 走 0」那三行对照，A 才当场红（`128 档被当成 256 写了 0`）。**这一条是本轮唯一由变异反过来暴露出的用例缺口** |
+| B1 | 自洽校验整条关掉（`if (false && …)`） | 「表与 PNG 各说一套就不写」 |
+| B2 | 校验只判宽不判高 | 同一条，但**精确红在第 111 行**那条「只有高不对」的夹具上——证明高这半真在把关，不是宽搭的顺风车 |
+| C | `parseIco` 的越界闸关掉 | 「目录说了一条不存在的载荷就抛」——关掉之后 `buf.subarray` **静默截短**、返回半条数据且不报错，正是本仓最忌讳的「静默」那一类 |
+| D | 表条数 sanity 关掉 | 同一条，但报错换成「第 2 条越界：偏移 1380206665 + 长度 218103808 > 文件 102」——说明这条闸的职责是**在读表之前**就拒绝，让报错停留在「表在吹牛」这个层级 |
+| E | `planes` 写成 0 | 「往返：条目数、声明尺寸、偏移链与载荷逐字节都能读回来」 |
+| G | `dimFromByte` 去掉 0→256（读侧约定） | 四条同时红：往返、「256 档…读回来仍是 256」、已入库那枚、默认档位对照——一条约定被四处共用，这正是要它单测的理由 |
+| H | `DEFAULT_SIZES` 少一档 64 | 只有「默认档位与已入库那枚 `.ico` 同一口径」红——换档位等于换任务栏图标，这一条把它钉在资产上而不是钉在常量上 |
+| I | 驱动回读核对的期望值 `+1` | 端到端当场 `回读核对不过：第 0 条想要 17，读回 {…}` 并且**没有落盘**：跑之前先把旧产物删掉，跑完确认文件不存在 ⇒ 那道闸是活的，且它挡在 `writeFileSync` 之前 |
+| J | `parseArgs` 的默认落点改回已入库那枚 | 「参数解析只会接受说得出口的写法」（`out` 必须是 `null`）——但这一条有代价，见下 |
+
+**这一刀真正伤到自己的一次**（记在这儿，不抹平）：跑变异 J 时我用的是**不带 `--out` 的裸命令**，
+而那份代码此刻的默认落点正是 `apps/desktop/resources/icon.ico`——于是**盘上那枚品牌资产被 Chromium
+的产物覆盖掉了**（218,266 → 171,962 字节）。当场 `git checkout -- apps/desktop/resources/icon.ico` 还原，
+回读 `bytes=218266 sha256=8b90358f…075e`、`git status` 该路径干净。**这条事故本身就是上面第 2 点那道闸
+的存在理由**：一次顺手少打一个参数就能换掉品牌资产，而这仓的规矩是「品牌图禁止裁切/重绘/另生成，
+只做格式转换，换口径要用户点头」。以后凡是对「会写盘」的脚本做变异，**先给它一个指向临时目录的显式路径**，
+不许用默认值跑。
+
+**端到端四次真跑**（全部落盘再回读日志，不用管道取码）：
+
+- `--nope` ⇒ `RUN1_EXIT=1`，一句 `出图失败：不认识参数：--nope`，Electron 根本没被起来（闸在 `parseArgs`）。
+- 不带 `--out` ⇒ 退出 1，那句拒绝逐字在上面第 2 点里。
+- `--out <一个目录>` ⇒ 子进程里 `EISDIR: illegal operation on a directory`，`app.exit(1)`，父侧再报一层
+  `Electron 里失败（退出码 1）——上面那几行就是它自己说的话`，`RUN2_EXIT=1`。**两句话都在**：一层是 Electron
+  自己说的，一层是 Node 侧对「子进程失败」的解释。这条同时证明了我先前那次实测的教训——
+  **未捕获的 rejection 会让 Electron 挂着不走**，所以顶层必须自己接住再 `app.exit(1)`。
+- 干净出图 ⇒ `--out %TEMP%\mochen-icon-e2e.ico`，`RUN3_EXIT=0`，报告行
+  `ico → …（7 档：16, 24, 32, 48, 64, 128, 256；源图 1254×1254 整幅不裁；171962 字节）`；
+  再用同一份 `parseIco` 读回：七条 `声明/实际 p1 b32` 全等、首条偏移 118、末条正好落在 171,962 末尾。
+  临时产物用完删掉。**已入库那枚自始至终没有被本轮的干净跑写过**（只有那次变异事故碰过它，已还原）。
+
+**刻意没做与仍然欠的**（照直写）：
+
+1. `.ps1` 删了（`git rm`，非物理销毁，`7880bab` 里随时挖得回），代价说清楚：**盘上那枚 218,266 字节的
+   `.ico` 现在没有任何工具能逐字节复现**——新工具的像素口径是 Chromium 的缩放核，与
+   `HighQualityBicubic` 不是同一个核。这不叫回归，叫换了生成器就要承认换了的口径；要把资产真的换成新口径，
+   是一次品牌资产决定，得用户点头。
+2. 真机没有重新出过打包用的图标。这一条与「打包这条线本身还缺」（第二十五节记过）是同一个阻塞面，
+   `electron-builder` 那侧的配置不在这一刀的落点里。
+3. 「跨平台」目前证明到的是**代码形状**（纯 Node 容器 + 仓内已装的 Electron，没有一句 PowerShell、
+   没有一处 `\` 硬编码路径），不是我在 macOS/Linux 机器上真跑过一遍——这台是 Windows，跑不了另两平台。
+
+**门禁与数**（本机这棵树：`70ae233` + 这一刀）：整条 `pnpm verify` 绿——`All matched files use Prettier
+code style`（两个文件要重排，先 `--write` 到临时副本 `diff` 过一遍，确认只有换行、没有动语义）、
+`tsc --noEmit` 六个程序 0 错、`eslint --max-warnings=0` 0（这里逮住我那句 `const { png, ...meta } = entry`：
+本仓的 `@typescript-eslint/no-unused-vars` **不认** `ignoreRestSiblings` 那条默认，报
+`'png' is assigned a value but never used`；改成 `delete meta.png` 并写明为什么不能把载荷塞进报错消息——
+一条 256 档上百 KB，一屏十六进制会把这句话毁掉）、边界检查通过、行数预算通过（**611 份**，比上一刀的
+608 正好多我这三份 `.mjs`）、vitest **306 文件 / 3987 passed | 2 skipped（3989）**——与上一刀那跑的差是
+**+12 条**，逐格对得上：新增的 `tools/ico-container.test.mjs` 一份文件 12 条。
+（报数连着「哪棵树」，CI 那侧仍以 run 页为准；本机这两次读数的 `2 skipped` 是
+`packages/fs-store/test/changes.test.ts:247,302` 那两条 `skipIf(win32)`，与第二十三节的口径一致。）
 
 
