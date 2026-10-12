@@ -8,16 +8,24 @@
      ② **先看改前的那份**（peek），回滚与否由人定——不摆预览就直接给一颗「回滚」按钮太危险；
      ③ 回滚传的是盘上此刻的指纹，主进程那道闸靠它判断「这之后还有人改过没有」。
 
+     2026-10-13 补上「到底改了哪几行」：逐行对比由主进程算（`changes:diff` → agent-runtime 的
+     `unifiedDiff`，与提案卡同一份真身），渲染层只染颜色与数行数（同一份分类在 utils/diff-lines.ts）。
+     整篇改前正文没有消失，一键展开——它是对比算不出来时唯一还能看的东西。
+     「跳到那一篇」那颗走 `book.openDocTab`：回滚本来就要求先把那一篇打开（`restoreBackupToDoc` 里
+     那句「先打开那一篇正文」），以前用户只能自己回左栏翻，现在点一下就到位。
+
      判定与文案在 utils/change-history.ts，样式在 styles/change-history.css。 -->
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { changeRetentionNote } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
+import DiffHighlighter from "./DiffHighlighter.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
 import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
 import {
   changeCountLabel,
+  changeDiffCaption,
   changeTimeLabel,
   changeHeadline,
   changeListView
@@ -47,6 +55,34 @@ const total = computed(() => view.value.total);
 const hiddenNotice = computed(() => view.value.notice);
 const selected = computed(() => book.changeHistory);
 const preview = computed(() => book.changePreview);
+
+/** 改前整篇默认收起（逐行对比才是答案），对比算不出来时直接摊开——那时它是唯一还能看的东西。 */
+const showFullText = ref(false);
+// 换了另一条就回到「只看对比」：上一条展开过整篇不等于这一条也要展开。
+watch(
+  () => selected.value?.backupRelPath,
+  () => {
+    showFullText.value = false;
+  }
+);
+
+/** diff 上方那句话：null（没算出来）时不摆——失败那句由 store 的 notice 说，这里再说是第二份。 */
+const diffCaption = computed(() =>
+  preview.value === null ? null : changeDiffCaption(preview.value.diff)
+);
+
+/**
+ * 跳到那一篇：走 `book.openDocTab`，不在组件里自己摸 IPC。
+ * 这颗不只是「看一眼」——回滚那条本来就要求先把那一篇打开（`restoreBackupToDoc` 开头那句
+ * 「先打开那一篇正文」的拒绝），以前用户得自己回左栏翻标签，现在点一下就把标签、正文与指纹闸就位。
+ */
+function jumpToDoc(): void {
+  const entry = selected.value;
+  if (entry === null) return;
+  void book.openDocTab(entry.docRelPath);
+  // 跳过去之后浮层要收：它锚在右栏头部那颗按钮上，正文都换了还飘着，挡的就是用户要看的那一段。
+  close();
+}
 
 function keydown(event: KeyboardEvent): void {
   const mods = {
@@ -142,7 +178,29 @@ onMounted(() => {
           <p v-if="!preview" class="change-history-empty">
             {{ book.changesBusy ? "正在读改前的内容…" : "点上面那一条看改前的内容。" }}
           </p>
-          <pre v-else class="change-history-preview">{{ preview.content }}</pre>
+          <template v-else>
+            <p v-if="diffCaption" class="change-history-caption">{{ diffCaption }}</p>
+            <!-- 对比没算出来：为什么没算，提示那句话说的是真原因，这里不重复判一次，
+                 只承认「这一条现在只能看整篇」。 -->
+            <pre v-if="preview.diff === null" class="change-history-preview">{{
+              preview.content
+            }}</pre>
+            <template v-else>
+              <DiffHighlighter v-if="preview.diff" :diff="preview.diff" />
+              <button
+                class="change-history-toggle"
+                type="button"
+                :aria-expanded="showFullText"
+                @click="showFullText = !showFullText"
+              >
+                {{ showFullText ? "收起整篇，只看逐行对比" : "展开改前的整篇" }}
+              </button>
+              <pre v-if="showFullText" class="change-history-preview">{{ preview.content }}</pre>
+            </template>
+            <button class="change-history-jump" type="button" @click="jumpToDoc">
+              跳到那一篇，看它现在的样子
+            </button>
+          </template>
           <p class="change-history-caveat">
             回滚只换这一篇的正文；这之后谁又改过它，指纹对不上就会拒绝，不会盖掉。
           </p>

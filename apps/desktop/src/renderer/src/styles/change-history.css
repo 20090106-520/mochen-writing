@@ -179,3 +179,64 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* ── 逐行对比那一档（2026-10-13）────────────────────────────────────────
+   三枚新东西：对比上方那句话、展开整篇的开关、跳到那一篇的按钮。
+   颜色一律不吃主题 token 之外的东西：`.diff-highlight` 自己带着增删语义色（DiffHighlighter.vue
+   的 scoped 样式，提案卡用的就是它），这里只排版与外距，不第二种配色。 */
+
+.change-history-caption {
+  /* 报的是「新增几行、删除几行」——这是决策依据，不是次要说明，所以用继承的正文字色，
+     不等 --text-dim 那三级灰（灰字压在 hover/档底上达不到标的判据见 appearance-surface-ladder）。 */
+  flex: none;
+  margin: 0 0 6px;
+  font-size: 0.857143rem;
+  line-height: 1.5;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+
+/* 两颗次级操作：整篇开关与「跳到那一篇」。与 .change-history-restore 同宽同圆角，
+   但主操作那一颗的颜色不许沾——回滚是唯一那颗会动盘上正文的按钮。
+   写成两条而不是一条选择器组：`ruleBlock`（接线守卫读样式的那个）按「选择器后面紧跟 {」找规则，
+   组写法 `.a, .b {` 会让它看不见 `.a`——将来 ② 那颗要分叉（跳转加图标、开关加 aria 态）也是这两条各自改。
+   `color: var(--text)` 而不是 `inherit`：`:hover` 只换底、不写 color，字色全靠这条基规则带着，
+   而状态档普查（appearance-surface-ladder）认的是**声明**过的正文级字色——`inherit` 它查不到，
+   这一档就被判成「画了深档底却没写明字色」。与 `.permission-option` 同一形。 */
+.change-history-toggle {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.857143rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.change-history-toggle:hover {
+  background: var(--hover, rgb(0 0 0 / 4%));
+}
+
+.change-history-jump {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.857143rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.change-history-jump:hover {
+  background: var(--hover, rgb(0 0 0 / 4%));
+}

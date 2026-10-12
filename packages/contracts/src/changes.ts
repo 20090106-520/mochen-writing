@@ -19,6 +19,19 @@ export interface ChangeEntry {
 }
 
 /**
+ * 「这一份改前备份 ↔ 盘上此刻的正文」逐行对比的结果（2026-10-13）。
+ *
+ * **为什么算在主进程**：逐行 diff 的真身只有一份，住在 `packages/agent-runtime/src/diff.ts` 的
+ * `unifiedDiff`（提案卡那套 `agent:diff` 用的也是它）。渲染层禁 import agent-runtime，
+ * 判据写在 `ipc.ts` 的 `proposalDiff` 注释里——所以改稿历史要 diff 也只能走主进程算好、
+ * 渲染层只管渲染这条路。在渲染层再抄一份 LCS 就是第二份判据（铁律 6）。
+ *
+ * `ok:true` 且 `diff === ""` 是**成功**，含义是「两边逐行相同」——回滚这一条不会有任何变化。
+ * 这句话必须说得出来，所以失败单独一档 `ok:false`，而不是用空串同时表示「没变」和「没算出来」。
+ */
+export type ChangeDiffResult = { ok: true; diff: string } | { ok: false; message: string };
+
+/**
  * 一次「立即清理」的结果（2026-10-06 批次 5-⑧）。
  *
  * **为什么回这些数而不是一句「已清理」**：清掉 0 条和清掉 300 条对用户是两件事。

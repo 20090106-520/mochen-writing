@@ -45,6 +45,12 @@ import {
 import { installQuitFlushListener } from "../utils/quit-flush-client";
 import { bumpDocLoadToken, readDocIntoTab } from "../utils/doc-read";
 import { browseFailureNotice, readBrowseBody, resetBrowseReadGates } from "../utils/browse-read";
+import {
+  readChangePeek,
+  restoreBackupToDoc,
+  type ChangePeekIo,
+  type ChangeRestoreIo
+} from "../utils/change-history";
 import { bookDataFlushNotice, withBookDataFlush } from "../composables/bookDataRegistry";
 
 /**
@@ -59,6 +65,19 @@ export type EditorViewMode = "edit" | "split" | "preview";
 /** 写盘 IPC 的薄封装：模块级、不捕 `this`，`flushIOFor` 与 `saveActive` 都走这一个口子。 */
 const writeDocIpc: FlushIO["write"] = (relPath, content, expectedFingerprint) =>
   window.mochen.writeDoc(relPath, content, expectedFingerprint);
+
+/** peek 一条改稿历史要用的两扇 IPC，同样是模块级、不捕 `this`（编排的规矩全在 utils/change-history）。 */
+const changePeekIpc: ChangePeekIo = {
+  readChange: (backupRelPath) => window.mochen.readChange(backupRelPath),
+  diffChange: (backupRelPath, docRelPath) => window.mochen.diffChange(backupRelPath, docRelPath)
+};
+
+/** 回滚一条件要用的两扇 IPC，同样模块级、不捕 `this`（编排规矩在 `restoreBackupToDoc`）。 */
+const changeRestoreIpc: ChangeRestoreIo = {
+  readDoc: (relPath) => window.mochen.readDoc(relPath),
+  restoreChange: (backupRelPath, expectedFingerprint) =>
+    window.mochen.restoreChange(backupRelPath, expectedFingerprint)
+};
 
 /** 最后一次键入到自动保存之间的静默窗的**默认档**：设置页那排档位的兜底值（没有偏好时用它）。
  *  排程真身走 loadAutosaveDelay（偏好档：关/1/2/5 秒），这个常量只保证「没设置时行为与原版一字不变」。 */
@@ -111,7 +130,7 @@ export const useBookStore = defineStore("book", {
     /** 拉列表 / 读备份 / 回滚的各自在途标记；按钮据此禁用，重复点不会发两次 IPC。 */
     changesBusy: false,
     /** 读回来的那条备份正文，回滚前给用户看的就是它。 */
-    changePreview: null as { backupRelPath: string; content: string } | null,
+    changePreview: null as { backupRelPath: string; content: string; diff: string | null } | null,
     /**
      * 伏笔台账（2026-10-05）的三格。
      * 状态机与解析在 contracts/foreshadow，行组装在 utils/foreshadow——这里只存结果与在途标记。
@@ -464,55 +483,37 @@ export const useBookStore = defineStore("book", {
       }
     },
 
-    /** 点开一条：先读回那份「改前」正文给用户看，回滚与否由他定。 */
+    /** 点开一条：改前那份正文读回来，同时让主进程算出它与盘上此刻的逐行差别；回滚与否由人定。 */
     async peekChange(entry: ChangeEntry): Promise<void> {
       this.changesBusy = true;
       this.changeHistory = entry;
       this.changePreview = null;
-      try {
-        const read = await window.mochen.readChange(entry.backupRelPath);
-        // 读到的是别的一条（面板期间盘上变了）就丢掉，别把错的内容摆给人看。
-        if (this.changeHistory?.backupRelPath !== entry.backupRelPath) return;
-        this.changePreview = { backupRelPath: entry.backupRelPath, content: read.content };
-      } catch (err) {
-        this.notice = `这条备份读不出来：${failureReasonOf(err)}`;
-      } finally {
-        this.changesBusy = false;
-      }
+      const peek = await readChangePeek(changePeekIpc, entry);
+      // 在途标记先落地再挑结果：中途换了选中那条时下面直接 return，标记留在 true 面板就点点不动了。
+      this.changesBusy = false;
+      // 失败那句**先**落地：备份整个读不到时 preview 是 null，靠下面那行 return 拦不住话——
+      // 那时 notice 是用户唯一看得见的东西（2026-10-13 就把这一句写在 return 之后，红灯当场逮到）。
+      if (peek.notice) this.notice = peek.notice;
+      // 读到的是别的一条（面板期间盘上变了）就丢掉，别把错的内容摆给人看。
+      if (!peek.preview || this.changeHistory?.backupRelPath !== entry.backupRelPath) return;
+      this.changePreview = { backupRelPath: entry.backupRelPath, ...peek.preview };
     },
 
-    /**
-     * 回滚：把 `docRelPath` 换回这条备份的内容。
-     * 指纹传的是**盘上此刻**的值（现读现传）——主进程那道闸靠它判断「这之后还有人改过没有」，
-     * 这里要是传个旧的，闸就白设了。
-     */
+    /** 回滚一条备份：守卫、现读现传的指纹、三档文案全在 `restoreBackupToDoc`，这里只摆状态。 */
     async restoreChange(entry: ChangeEntry): Promise<void> {
-      if (this.activeDocTab === null) {
-        this.notice = "先打开那一篇正文，才能把它回滚回去。";
-        return;
-      }
       this.changesBusy = true;
-      try {
-        const current = await window.mochen.readDoc(entry.docRelPath);
-        const result = await window.mochen.restoreChange(entry.backupRelPath, current.fingerprint);
-        if (!result.ok) {
-          this.notice =
-            result.reason === "stale"
-              ? "这一篇在这之后又被改过了，已经不是当时那份了——先看看现在的内容再决定。"
-              : (result.message ?? "没能回滚。");
-          return;
-        }
+      const outcome = await restoreBackupToDoc(changeRestoreIpc, entry, this.activeDocTab);
+      // 在途标记先落地再刷列表：refresh 那两步各自还会写 notice，标记挂着不许拦用户点第二下。
+      this.changesBusy = false;
+      if (outcome.refresh) {
         // 当前正文可能正是被回滚的那一篇：现读回来刷新右栏，别让屏幕停在旧内容上。
-        // 提示写在最后——reloadActive 自己也会写 notice（「已重载盘上内容」），
-        // 顺序颠倒的话用户从头到尾看不见「已回滚」这三个字（2026-10-05 真机逮到）。
+        // 比的是**此刻**的标签（进来以后用户可能已经切走了），不是编排里那份快照。
         if (this.activeDocTab === entry.docRelPath) await this.reloadActive();
         await this.loadChanges();
-        this.notice = `已回滚 ${entry.docRelPath} 到改前的样子。`;
-      } catch (err) {
-        this.notice = `没能回滚：${failureReasonOf(err)}`;
-      } finally {
-        this.changesBusy = false;
       }
+      // 提示写在最后——reloadActive 自己也会写 notice（「已重载盘上内容」），
+      // 顺序颠倒的话用户从头到尾看不见「已回滚」这三个字（2026-10-05 真机逮到）。
+      this.notice = outcome.notice;
     },
 
     /** 循环切换编辑视图三态：edit → split → preview → edit。 */

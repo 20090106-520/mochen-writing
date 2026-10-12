@@ -173,7 +173,13 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
   },
   {
     file: "styles/change-history.css",
-    sites: [{ needle: ".change-history-row:hover", shadow: ["--text-dim"] }]
+    sites: [
+      { needle: ".change-history-row:hover", shadow: ["--text-dim"] },
+      // 逐行对比那两颗次级按钮（2026-10-13）：`:hover` 只换底，字色由各自基规则声明的
+      // `color: var(--text)` 带着 —— 与 `.permission-option:hover` 同一形，不是 primary（块里没有 color）。
+      { needle: ".change-history-toggle:hover", inheritFrom: ".change-history-toggle" },
+      { needle: ".change-history-jump:hover", inheritFrom: ".change-history-jump" }
+    ]
   },
   {
     file: "styles/context-meter.css",

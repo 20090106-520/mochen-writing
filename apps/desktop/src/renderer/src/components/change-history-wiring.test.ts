@@ -65,8 +65,26 @@ describe("先看改前，才给回滚", () => {
 
   it("回滚按钮要选中了某条、且改前正文已经读回来才在", () => {
     expect(panelTpl).toContain('v-if="selected"');
-    expect(panelTpl).toContain('v-else class="change-history-preview"');
+    expect(panelTpl).toContain("preview.content");
     expect(panelTpl).toContain('@click="book.restoreChange(selected)"');
+  });
+
+  // 2026-10-13：这一档把「改前的整篇」升级成「改前 ↔ 盘上此刻的逐行差别」，
+  // 但 ② 那句老规矩一个字没松：**回滚按钮出现之前，用户看得见东西**。
+  // 于是这里钉的是「diff 有真绑定」而不是「有个 pre 标签」——
+  // 组件里写一颗摆不出内容的对比块（假控件）当场就该红。
+  it("逐行对比摆的是主进程算好的那份 diff，用的是提案卡同一个渲染器", () => {
+    expect(panelScript).toContain('import DiffHighlighter from "./DiffHighlighter.vue"');
+    expect(panelTpl).toContain('<DiffHighlighter v-if="preview.diff" :diff="preview.diff" />');
+    // 那句话由 utils 生成（行数是数出来的），不在组件里手写「+ 3 行」那种死文案。
+    expect(panelScript).toContain("changeDiffCaption");
+    expect(panelTpl).toContain("{{ diffCaption }}");
+  });
+
+  it("整篇改前正文仍然可达：一键展开，对比算不出来时直接摊开", () => {
+    expect(panelTpl).toContain('@click="showFullText = !showFullText"');
+    expect(panelTpl).toContain('v-if="showFullText" class="change-history-preview"');
+    expect(panelTpl).toContain('v-if="preview.diff === null" class="change-history-preview"');
   });
 
   it("在途时按钮禁用：重复点不会发两次 IPC", () => {
@@ -74,20 +92,44 @@ describe("先看改前，才给回滚", () => {
   });
 });
 
-describe("指纹闸不许被绕过", () => {
-  it("回滚的指纹现读现传，不许从别的格子抄一个旧的", () => {
-    expect(storeSource).toContain("const current = await window.mochen.readDoc(entry.docRelPath);");
+/**
+ * 「跳到那一篇」（2026-10-13）。
+ *
+ * 它补的是这条链上真正的断点：`restoreChange` 要求先把那一篇打开（「先打开那一篇正文」那句拒绝），
+ * 可面板里从来没有任何一颗键能把用户送到那一篇去——用户只能自己回左栏翻标签。
+ * 这颗必须走 `book.openDocTab`：标签、正文、指纹闸都在那个动作里一起就位，
+ * 组件自己摸 IPC 就是绕过 store 那一格的三处状态（列表 / 选中 / 草稿）。
+ */
+describe("跳到那一篇", () => {
+  it("按钮调 jumpToDoc，jumpToDoc 走 store 的 openDocTab 并收起浮层", () => {
+    expect(panelTpl).toContain('@click="jumpToDoc"');
+    expect(panelScript).toContain("book.openDocTab(entry.docRelPath)");
+    expect(panelScript).toContain("close();");
+  });
+
+  it("没选中任何一条时不发 IPC（return 在那颗动作前面）", () => {
+    expect(panelScript).toContain("if (entry === null) return;");
+  });
+});
+
+describe("回滚那三件事：这里只钉接线，行为用例住在运行时", () => {
+  // 这三条原先钉的是 store 源码字符串（`const current = await window.mochen.readDoc(...)`、
+  // 「这一篇在这之后又被改过了」、「先打开那一篇正文」）——那套写法的前提是逻辑住在
+  // `.ts` 之外的 store 动作里、点不到运行时。2026-10-13 编排搬进 `utils/change-history.ts`
+  // 的 `restoreBackupToDoc`，同一条链在 `change-history.test.ts`（守卫不发 IPC、指纹现读现传、
+  // stale 与被拒的文案、抛错不冒出去）和 `useBookStore.changes.test.ts`（真跑 store 动作）里
+  // 各有能失败用例 ⇒ 源码字符串就是第二份判据：搬一次家红三行，而它承诺的行为一条没变。
+  // 所以只留「store 确实把那颗按钮接到了那份编排上」——这条不运行时验，因为它验的是接线。
+  it("restoreChange 用的就是那份编排，传的是此刻的当前正文标签", () => {
+    expect(storeSource).toContain("restoreBackupToDoc(changeRestoreIpc, entry, this.activeDocTab)");
+    expect(storeSource).toContain("this.notice = outcome.notice");
+  });
+
+  it("编排那两扇 IO 指的是 readDoc 与 restoreChange，不是别的通道", () => {
+    expect(storeSource).toContain("readDoc: (relPath) => window.mochen.readDoc(relPath)");
     expect(storeSource).toContain(
-      "window.mochen.restoreChange(entry.backupRelPath, current.fingerprint)"
+      "window.mochen.restoreChange(backupRelPath, expectedFingerprint)"
     );
-  });
-
-  it("stale 说人话：告诉用户是被谁抢先改了，而不是只丢一个 reason", () => {
-    expect(storeSource).toContain("这一篇在这之后又被改过了");
-  });
-
-  it("没打开那一篇正文就不许回滚（否则刷新的是别的文稿）", () => {
-    expect(storeSource).toContain("先打开那一篇正文");
   });
 });
 
@@ -117,6 +159,19 @@ describe("样式", () => {
   it("组件里不写 <style>：本仓样式全在 styles/ 下", () => {
     expect(countNeedle("<style", vueSource("components/ChangeHistoryPanel.vue"))).toBe(0);
     expect(css).toContain(".change-history");
+  });
+
+  // 逐行对比这一档的三枚新东西都得有样式（空壳规则=渲染出来没排版，真机上一眼能看出没干活）。
+  it("对比上方那句话、整篇开关、跳到那一篇：三枚样式正文都非空壳", () => {
+    expect(ruleBlock(css, ".change-history-caption")).not.toBe("");
+    expect(ruleBlock(css, ".change-history-toggle")).not.toBe("");
+    expect(ruleBlock(css, ".change-history-jump")).not.toBe("");
+  });
+
+  // 反向守卫：这个浮层的每一次读盘都归 store（列表 / 选中 / 预览三格状态在那边），
+  // 组件自己摸 window.mochen 就等于把同一件事的在途标记散成两份。
+  it("面板不自己摸 window.mochen", () => {
+    expect(panelScript).not.toContain("window.mochen");
   });
 });
 

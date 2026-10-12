@@ -1,30 +1,15 @@
-<!-- Diff 高亮渲染器：对提案卡 diff 文本做行级着色 -->
+<!-- Diff 高亮渲染器：对 diff 文本做行级着色（提案卡与改稿历史的逐行对比共用它） -->
 <script setup lang="ts">
 import { computed } from "vue";
+// 行级分类的真身在 utils/diff-lines.ts：改稿历史头部那句「新增几行、删除几行」数的是同一份，
+// 这里再抄一遍判断就是第二份判据（铁律 6）——两处一旦分家，染绿的行数与报出的行数会打起来。
+import { parseDiffLines } from "../utils/diff-lines";
 
 const props = defineProps<{
   diff: string;
 }>();
 
-interface DiffLine {
-  type: "add" | "remove" | "context" | "header";
-  text: string;
-}
-
-const lines = computed<DiffLine[]>(() => {
-  return props.diff.split("\n").map((line) => {
-    if (line.startsWith("+++") || line.startsWith("---") || line.startsWith("@@")) {
-      return { type: "header", text: line };
-    }
-    if (line.startsWith("+")) {
-      return { type: "add", text: line.slice(1) };
-    }
-    if (line.startsWith("-")) {
-      return { type: "remove", text: line.slice(1) };
-    }
-    return { type: "context", text: line };
-  });
-});
+const lines = computed(() => parseDiffLines(props.diff));
 </script>
 
 <template>

@@ -195,6 +195,12 @@ describe("createRendererApi", () => {
     await api.readSkill("book", "伏笔/SKILL.md");
     await api.listChanges();
     await api.readChange(".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak");
+    // 逐行对比（2026-10-13）：两枚实参一枚都不能少——备份在前、文稿在后，
+    // preload 少递一枚或调倒顺序，主进程比的就是「两个都不该配的对象」。
+    await api.diffChange(
+      ".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak",
+      "chapters/01-开局.md"
+    );
     await api.restoreChange(
       ".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak",
       "fp-now"
@@ -225,7 +231,7 @@ describe("createRendererApi", () => {
     api.onAgentEvent(() => {});
     api.onQuitFlushRequest(() => {});
 
-    expect(calls.length).toBe(49);
+    expect(calls.length).toBe(50);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -268,6 +274,8 @@ describe("createRendererApi", () => {
       "skills:read",
       "changes:list",
       "changes:read",
+      // 逐行对比（2026-10-13）：与上面两条一样不许从 IPC_CHANNELS 派生。
+      "changes:diff",
       "changes:restore",
       // 保留上限三枚的字面通道（2026-10-06 批次 5-⑧）——不许从 IPC_CHANNELS 派生：
       // 拿被测常量当期望值等于用常量证明常量本身，改错通道照样绿。
@@ -329,6 +337,7 @@ describe("createRendererApi", () => {
       ["book", "伏笔/SKILL.md"],
       [],
       [".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak"],
+      [".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak", "chapters/01-开局.md"],
       [".mochen/changes/2026-10-05T12-00-00-000Z/chapters/01-开局.md.bak", "fp-now"],
       // 保留上限三枚：读与立即清理不带实参，存只递**整个对象**（preload 一个字都不许拆）。
       [],
@@ -364,6 +373,8 @@ describe("createRendererApi", () => {
       "createBook",
       "createDoc",
       "decideProposal",
+      // 逐行对比（2026-10-13）：改稿历史那一扇进这份点名册，与另外几枚改稿通道同一规矩。
+      "diffChange",
       // 技能市场三枚（2026-10-07 批次 5-㉖）。装/卸是**往用户磁盘写**的两枚通道，
       // 和其它改稿通道一样进这份点名册：少一枚面板调不到，多一枚就是多开的口子。
       "installMarketSkill",

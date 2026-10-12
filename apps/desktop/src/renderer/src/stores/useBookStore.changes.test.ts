@@ -55,6 +55,17 @@ const readChange = vi.fn<RendererApi["readChange"]>(async () => ({
   fingerprint: "fp-bak"
 }));
 
+/** 逐行对比（2026-10-13）：主进程算好的那份 unified diff，桩成一条真形状（文件头 + hunk 头 + 一行增一行删）。 */
+const DIFF = [
+  `--- a/${DOC}`,
+  `+++ b/${DOC}`,
+  "@@ -1,2 +1,2 @@",
+  "-雾从海面涌上来。",
+  "+海雾涌上来，铁锈味很冲。",
+  " 他没有回头。"
+].join("\n");
+const diffChange = vi.fn<RendererApi["diffChange"]>(async () => ({ ok: true, diff: DIFF }));
+
 /** 桩的默认回滚：动盘上那两份变量，好让「右栏现读回来」断言有东西可读。 */
 async function 回滚到改前(): Promise<Awaited<ReturnType<RendererApi["restoreChange"]>>> {
   盘上正文 = "改前的样子\n";
@@ -151,6 +162,7 @@ const api = {
   })),
   listChanges,
   readChange,
+  diffChange,
   restoreChange,
 
   // 2026-10-06 批次 5-⑧：`satisfies RendererApi` 要求这三个通道在场，但**这个 store 一个都不用**。
@@ -206,6 +218,7 @@ beforeEach(() => {
   readDoc.mockClear();
   listChanges.mockClear();
   readChange.mockClear();
+  diffChange.mockClear();
   restoreChange.mockClear();
   restoreChange.mockImplementation(回滚到改前);
 });
@@ -271,6 +284,56 @@ describe("看改前", () => {
     await store.peekChange(entry);
     expect(store.changeHistory?.backupRelPath).toBe(entry.backupRelPath);
     expect(store.changePreview?.content).toBe("改前的样子\n");
+  });
+
+  // ── 逐行对比（2026-10-13）──
+  it("主进程算好的那份 diff 与改前正文一起挂回来", async () => {
+    const store = await openedBook();
+    await store.peekChange(entry);
+    expect(store.changePreview?.diff).toBe(DIFF);
+    expect(store.notice).toBe("");
+  });
+
+  it("对比递下去的是「这条备份 + 这一篇文稿」两枚，顺序调倒就比错了对象", async () => {
+    const store = await openedBook();
+    await store.peekChange(entry);
+    expect(diffChange).toHaveBeenCalledWith(entry.backupRelPath, entry.docRelPath);
+  });
+
+  it("对比没算出来：改前正文仍然在，diff 是 null（不是空串），且当场说一句为什么", async () => {
+    const store = await openedBook();
+    diffChange.mockImplementationOnce(async () => ({
+      ok: false,
+      message: `盘上已经没有这一篇：${DOC}`
+    }));
+    await store.peekChange(entry);
+    expect(store.changePreview?.content).toBe("改前的样子\n");
+    // null 与 "" 是两档："" 是「算出来了、一个字都没差」，null 才是「没算出来」。压成一个就没人分得清。
+    expect(store.changePreview?.diff).toBeNull();
+    expect(store.notice).toContain("逐行对比没算出来");
+    expect(store.notice).toContain(DOC);
+  });
+
+  it("对比那一扇整个抛了也只当「没算出来」：正文不许被一起带走，在途标记要落地", async () => {
+    const store = await openedBook();
+    diffChange.mockImplementationOnce(async () => {
+      throw new Error("EIO");
+    });
+    await store.peekChange(entry);
+    expect(store.changePreview?.content).toBe("改前的样子\n");
+    expect(store.changePreview?.diff).toBeNull();
+    expect(store.notice).toContain("逐行对比没算出来");
+    expect(store.changesBusy).toBe(false);
+  });
+
+  it("备份根本没读回来时，第二扇 IPC 一次都不许多发（拿什么比？）", async () => {
+    const store = await openedBook();
+    readChange.mockImplementationOnce(async () => {
+      throw new Error("ENOENT");
+    });
+    await store.peekChange(entry);
+    expect(store.changePreview).toBeNull();
+    expect(diffChange).not.toHaveBeenCalled();
   });
 
   it("期间用户改选了别的条目，读回来的旧预览要丢掉（不许摆错内容）", async () => {

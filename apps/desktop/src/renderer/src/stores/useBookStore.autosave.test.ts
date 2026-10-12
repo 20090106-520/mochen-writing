@@ -132,6 +132,9 @@ const api = {
   readChange: vi.fn(async () => {
     throw new Error("不该读改稿备份");
   }),
+  diffChange: vi.fn(async () => {
+    throw new Error("不该算改稿对比");
+  }),
   restoreChange: vi.fn(async () => {
     throw new Error("不该回滚");
   }),
