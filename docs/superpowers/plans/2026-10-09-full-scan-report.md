@@ -76,6 +76,8 @@ Windows 机器上人工成立过，且产不出任何可安装的交付物。还
 
 localStorage 那一侧的收尾对账：本波之后剩下的键全部是**应用级 UI 偏好**（`hotkey-config`、`notifications`、`onboarding`、`project-manager`、`prompt-templates`、`version-meta` 与各 `*-preference.ts`），不带作品内容的东西不再住全局键。`.mochen/` 也进了目录扫描的跳过表（`packages/fs-store/src/scan.ts` 的 `SKIPPED_DIRS`），设定文件不会被当成章节数进章数。
 
+> **2026-10-13 就地更正**（见第三十一节）：上面那一串里的 `hotkey-config` 已经不成立了——写它的 `useHotkeyConfigStore.ts` 全仓零引用，那一刀里删掉了，所以这个键不再有写入方。其余五枚当场回读，写入方都还在：`useNotificationStore.ts:25`、`useOnboardingStore.ts:24`、`useProjectManagerStore.ts:36`、`usePromptTemplateStore.ts:35`、`useVersionStore.ts:26`。这一条本身就是本节的收获之一：一份**没有守卫的清单**会这样过期。
+
 **这一波没做的**：真机复验。改动跨主进程 / preload / 渲染层，必须重新构建并重启实例才看得见「换一本书设定跟着换」，而机上那只实例属并行会话现场，我没有动它。所以 P0-7 目前证明到的是**用例与门禁全绿**（264 文件 / 3513 用例），不是屏幕上量到的行为。
 
 ## 四、P1 —— 正常使用路径上会真出错（按「用户报过 / 未报但更常见」排）
@@ -1905,6 +1907,92 @@ vitest **308 文件 / 4024 passed | 2 skipped（4026）**，`VERIFY_EXIT=0` 是�
   汐·昼阁那一组 8 张同批留档、**没有逐张看**（同一批读数全过，再花 8 次目检的边际是零）。
 - 探针脚本（`probe2/3/4/5.mjs`）与截图都留在 `%TEMP%/contrast-probe/`，**不入库**：
   判据的真身在 `appearance-surface-ladder.test.ts`，再放一份 Node 版就是第二份真相。
+
+## 三十一、2026-10-13：删掉那枚全仓零引用的 `useHotkeyConfigStore.ts`，并给 stores/ 这层补上守卫
+
+### 一、为什么这一刀值得动（四条，全部当场回读，不是凭印象）
+
+1. **零引用**。删除前 `grep -rln "useHotkeyConfigStore"` 全仓只命中两处：它自己，和第一节第 77 行那份 localStorage 对账。
+   没有 `import`、没有 `storeToRefs`、没有 `import.meta.glob`（全仓 `import.meta.glob` 命中 0 处），
+   也没有任何 tooling 按目录枚举 store。⇒ 这 232 行在运行时一行都不执行。
+2. **它是第二份判据，而且已经漂移**。它自带一张键位表（`DEFAULT_BINDINGS`），可它注释里写着「与 hotkey-guide.ts 保持一致」——
+   真身 `utils/hotkey-guide.ts:4-6` 明说「键位判定的唯一真身在 `utils/hotkeys.ts` 的 `resolveHotkey` + `utils/escape-policy.ts`，
+   每一行的 needle 必须能在源码里找到，抄错键名测试即红」。那张表**没有任何一条这样的守卫**，于是漂移无人报警：
+   - 它写 `accept-proposal = Ctrl+Shift+A`（原文件 50-51 行）、`deny-proposal = Ctrl+Shift+D`（57 行）；
+     真身是待审卡聚焦时的 **Y / A / P / D** 四枚（`hotkey-guide.ts:94-97`）。
+   - 9 个动作 ID 里 8 个在真身三处源码（`utils/hotkeys.ts` 195 行、`utils/hotkey-guide.ts` 180 行、
+     `composables/useHotkeys.ts` 335 行、`utils/escape-policy.ts`）里**一次都搜不到**：
+     `cycle-thinking`、`toggle-web-search`、`open-search`、`new-conversation`、`toggle-left-pane`、
+     `toggle-right-pane`、`accept-proposal`、`deny-proposal` 全 0 命中，只有 `open-settings` 有 3 处。
+     `Ctrl+Shift+A` 这个组合在真身里根本不存在。
+3. **它写的还是 localStorage**（`STORAGE_KEY = "mochen.hotkey-config.v1"`，原 37 行），而第一节第 77 行把它当成
+   「应用级 UI 偏好」的**在册键**列着——一条没人读的键位表，外加一行会误导下一个读者的台账。
+4. **它自己带一处静默失败**：`saveBindings` 的 `catch { /* 静默 */ }`（原 146 行）。按「失败必须可见」这条，
+   这处将来是要动刀的，但它没有任何调用方，动它等于给死代码做修辞。删。
+
+裁定依据是仓里已经在跑的两条规矩，不是我新立的：**判据单真身** 与 「未验证的功能优先删」。
+
+### 二、删了什么、更正了什么
+
+- `git rm apps/desktop/src/renderer/src/stores/useHotkeyConfigStore.ts`（232 行）。
+- 第一节第 77 行那份 localStorage 对账**就地更正**（紧跟原句加了一段引述）：那一串里 `hotkey-config` 已无写入方；
+  其余五枚逐条回读确认写入方都还在——`useNotificationStore.ts:25`、`useOnboardingStore.ts:24`、
+  `useProjectManagerStore.ts:36`、`usePromptTemplateStore.ts:35`、`useVersionStore.ts:26`。
+  这次更正本身说明问题：**一份没有守卫的清单就是这样过期的**，所以第三节补守卫，而不是只删了算完。
+
+### 三、补的守卫：`stores/dead-store-guard.test.ts`
+
+`dead-css-guard.test.ts` 开头那句话在这里同样成立——「这层没人报警：删不掉、看不见、改不动，一轮轮攒下来」。
+CSS 那层 2026-10-05 有守卫了，store 这层没有。口径：
+
+- 扫描对象**按内容判**（源码含 `defineStore(`），不写文件名名单。理由：`layoutStore.ts` 不以 `use` 开头但是真 store；
+  而 `agent-store-fixture.ts` / `book-draft-fixture.ts` / `book-data-test-harness.ts` 是测试夹具，只该被测试用到。
+  写死豁免名单的话，下次加一枚夹具还得回来改这里——那又是一份会过期的清单。
+- 判据：每枚 store 必须被 **`stores/` 之外、且不是 `*.test.ts`** 的源码引用到（23 枚 store 逐枚一条 `it`）。
+- 另有一条自我声明：`stores/` 里至少扫得到 10 枚 store、`stores/` 之外至少看得到 10 份源码。
+  少了它，扫描路径写错会让整条守卫变成**空跑即绿**。
+
+两次变异（都用 Edit，跑完还原）：
+
+| 变异 | 结果 |
+| --- | --- |
+| 用 `git show HEAD:` 把刚删的 `useHotkeyConfigStore.ts` 放回 `stores/` | `× useHotkeyConfigStore.ts 必须被 stores/ 之外的非测试源码引用得到`，1 failed / 24 passed（`MUTANT_EXIT=1`）——**只有那一枚红**，说明其余 23 枚引用方都在 |
+| 把判据 `defineStore\(` 改成 `defineStoreZZZ\(` | `× stores/ 里确实扫得到 store（否则本守卫会静默空跑）`，`expected 0 to be greater than 10`（`MUTANT2_EXIT=1`）——空跑不会装绿 |
+
+**这条守卫承认自己的局限**：它不看「引用方自己挂不挂载」。`useVersionStore.ts` 的唯一引用方是
+`VersionHistoryPanel.vue`，而那只面板当前不挂载（= 台账里等他一句话的那一格）。挂载图是另一层判据，
+本刀不混进来，免得把还没拍板的东西当成已决。
+
+### 四、门禁与边界
+
+- 六段各取退出码（不经管道），日志落盘回读：`format / typecheck / eslint / boundary / budget / test` 全 0，
+  日志里 `error TS / ELIFECYCLE / Command failed / FAIL` 逐条 grep 为空。终态 **311 文件 / 4098 passed | 2 skipped**。
+- 删除**本身**不动用例数：只删那 232 行时是 **310 文件 / 4074 passed | 2 skipped**，与删除前一字不差——
+  一枚用例都没掉，这就是「它真的没人用」的第二个证据（第一个是 grep）。上面那 24 条增量全部来自新守卫。
+- 日志里唯一命中 `EPERM` 的是 `packages/fs-store/test/atomic-write.test.ts` 自己打的那行
+  「[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到」，与第十九节的 Windows 口径同一条，不是回归。
+- **没跑真机**：这一刀删的是运行时不执行的代码、加的是一条 Node 侧守卫，屏幕上没有任何可看的变化；
+  要验的是「守卫在不在」而不是「界面变没变」，后者已由两次变异证明。
+- **没清 localStorage 里的历史遗留**：如果哪台机器以前写入过 `mochen.hotkey-config.v1`，那枚键现在成了孤儿。
+  没有代码读它，所以不会误导行为；要不要在启动时清一次是另一件事，本刀不顺手加清理路径（加了就没人能验证它跑没跑）。
+
+### 五、顺手把同一把尺子量过全仓（回答「还有别的吗」，不留悬念）
+
+删完这一枚，下一个问题就该是「是不是还有」。用同一条判据（模块名被**非测试**源码引用到没有？）扫了六个目录，
+脚本临时放在 `%TEMP%/dead-module-scan.mjs`、**不入库**（判据真身在守卫里，再放一份 Node 版就是第二份真相，同第三十节第五目）。
+
+| 扫描目录 | 源文件 | 零引用 | 逐条判读 |
+| --- | --- | --- | --- |
+| `renderer/src` | 189 | 6 | `VersionHistoryPanel.vue`（493 行，**等他一句话**，见第四节）；3 枚 store 夹具只被测试用；`utils/vue-source-reader.ts`(247) 与 `utils/sfc-compile.ts`(73) 是 wiring 测试读源码用的工具，引用方全是 `*.test.ts` ⇒ 都活着 |
+| `main` | 42 | 2 | `atomic-write-fs-fixture.ts`、`ipc-trust-fixture.ts` 都是测试夹具 |
+| `preload` | 2 | 1 | `index.ts` 是入口，本来就没人 import |
+| `contracts/fs-store/agent-runtime/plugin-kernel` 的 `src` | 25/18/14/4 | 0/0/0/1 | 只有 `plugin-kernel/index.ts`，那是包入口（按包名 `@mochen/plugin-kernel` 引） |
+
+⇒ 除 `VersionHistoryPanel.vue` 那一枚已在拍板清单上的，**没有第二枚 `useHotkeyConfigStore`**。
+这条负面结论本身就是收益：下一轮不必再重扫一遍。
+
+（口径的边界要说清：本扫描把「只被测试引用」也算零引用，所以夹具与测试工具必然进表，是**待判读**不是**待删**；
+守卫那边则按内容判 `defineStore(`，两者不是一条判据，别混用。）
 
 
 
