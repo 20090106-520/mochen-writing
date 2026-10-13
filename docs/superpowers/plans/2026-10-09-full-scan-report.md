@@ -4568,3 +4568,160 @@ files=315 registered=4125 passed=4125 skipped=0 failures=0
 （`git diff --name-only a953b12 HEAD` 读出三份，其中 README 与门面守卫的那份差异早在 `36d11bb` 就被 k57 定稿遍覆盖过——
 那一跑读的 README 字节即 `36d11bb` 的字节），所以六道闸上一遍的绿对本树仍成立；台账那份 `.md` 不在任何一道闸的读取路径上
 （依据同上一节：`.prettierignore:13`、`check-source-line-budget.mjs:22` 的 `SOURCE_FILE`、`git grep` 全仓只有一处注释提到它）。
+
+## 五十八、2026-10-14 02:32—02:52：顶格两格换绑到 `1cb4a29` —— 两侧第一次都落在**净树**上，字节反推从门面退出
+
+上一节写下的门槛是「两侧都在同一棵**已提交**的树上读到，本机那格还得当场落盘 porcelain 名单」。
+本刀就是照着这句话做的，而且它证明了一件当初没料到的事：**一个数都不用换**。
+
+### 为什么数不用换（当场数过，不是推理）
+
+`git show <rev>:tools/<file> | grep -c '^test('` 三枚各数两遍：`readme-claims.test.mjs` 在 `a953b12`、`36d11bb`、
+当时的 HEAD 都是 **13** 条，`readme-gate-composition.test.mjs` **2** 条，`ci-test-summary.test.mjs` **8** 条——
+`36d11bb` 把 `readme-claims.test.mjs` 从 778 行写到 791 行，但那是等式表与注释，`^test(` 一条没加。
+用例集没变，CI 在 `36d11bb`、`12b9fff`、`1cb4a29` 上读回的 annotation 就都是同一串。
+所以本刀改的只有「这两个数是在哪棵树上读的」这一句，以及为这句话服务的全部出处。
+
+### Linux 侧：CI 在 `1cb4a29` 上的两枚 run（逐字回读）
+
+脚本 `/c/temp/m12-f/k58-readci.sh`，落盘 `/c/temp/m12-f/k57/`（`k58-cr.json` sha256
+`ff0f63b251227070a359a8c38ae3c99b19beb8ad1ad8e7ba9fdc8155e89d0d23`，02:37:37）。
+这一版把 `head_sha` 也加进了表格那一跳，于是「这两枚 run 跑的是哪棵树」不再是人眼配对：
+
+```
+115471267238	1cb4a292537100d9ed4f49bd3c9ef0263938e37d	格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试	completed	success	38447979538/job/115471267238
+115471096736	1cb4a292537100d9ed4f49bd3c9ef0263938e37d	格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试	completed	success	38447928648/job/115471096736
+```
+
+两行的 `head_sha` 都是当场 `JSON.parse` 后从同一份 JSON 里打印的完整 40 位，与本地 `git rev-parse HEAD` 逐字相同
+（这是本节的读数，不是断言）。两枚各自取 annotation，`curl_exit=0` 两行都在 out 里，字段 `path=.github`、`start_line=7`、`end_line=7`、
+`annotation_level=notice`、`title=CI 用例总数`，消息两份逐字相同，两份 JSON 的 sha256 也相同
+（`c0c0da283bb072b50aeba08d0d01a111dbf02453d1e4058ce160ae6bfb386710`）：
+
+```
+files=315 registered=4125 passed=4125 skipped=0 failures=0
+```
+
+### Windows 侧：同一枚已提交的树，porcelain 跑前跑后都是 0 条
+
+脚本 `/c/temp/m12-f/k58-chain1.sh`，日志与码在 `/tmp/k57/k58-clean1-*`。`codes.txt` 整份逐字：
+
+```
+HEAD_FULL=1cb4a292537100d9ed4f49bd3c9ef0263938e37d
+PRE_CHAIN_PORCELAIN=0
+PRE_CHAIN_PORCELAIN_LIST_START
+PRE_CHAIN_PORCELAIN_LIST_END
+format_EXIT=0
+2026-10-14 02:37:02
+typecheck_EXIT=0
+2026-10-14 02:37:18
+eslint_EXIT=0
+2026-10-14 02:37:31
+boundary_EXIT=0
+2026-10-14 02:37:32
+budget_EXIT=0
+2026-10-14 02:37:33
+test_EXIT=0
+2026-10-14 02:38:13
+POST_CHAIN_PORCELAIN=0
+POST_CHAIN_PORCELAIN_LIST_START
+POST_CHAIN_PORCELAIN_LIST_END
+```
+
+两个名单区之间一行都没有——这是门面那段字节对照想替代的东西，如今它自己不需要替代品了。
+测试段（剥 ANSI 后）末四行逐字：
+
+```
+ Test Files  315 passed (315)
+      Tests  4126 passed | 2 skipped (4128)
+   Start at  02:37:34
+   Duration  37.43s (transform 8.58s, setup 0ms, import 40.73s, tests 30.19s, environment 40ms)
+```
+
+全目录 grep `error TS|ELIFECYCLE|Command failed|✖ N problem|^ FAIL|Tests N failed|EPERM|EBUSY` 只命中那一行老噪音：
+`[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到`。
+
+于是两侧第一次同时满足：同一枚哈希、都已提交、本机那格前后零脏项。**顶格两格换绑到 `1cb4a29`，数一个不动**。
+
+### 门面改了三处（都是出处，不是数）
+
+1. 顶格那一块：`a953b12` → `1cb4a29`，run 页 `38441185951`/`38441194363` → `38447979538`/`38447928648`，
+   并把「porcelain 前后各 2 条 + blob 逐字节相同」那六行换成「跑前跑后各读回一次，两边都是 0 条、名单当场落盘为空」，
+   末尾留一句说明 `a953b12` 那套字节对照**今天仍然作数，只是不再被这两格引用**；
+2. 「顶格那两格如今是 `…` 上**两侧同树**读回的数」那一处跟着换绑（第十五道钉的就是它那句「两侧都是 315」）；
+3. 免责段那句改成：Linux 那格的 `head_sha` 当场从 JSON 里读回就是已提交的 `1cb4a29`，Windows 那格跑的是同一棵树且
+   porcelain 前后 0 条——原来那句「porcelain 前后各 2 条是那两份门面文件此刻还未提交」整段撤下。
+   quoted 的 annotation 原文一个字没改（它本来就该与顶格同数，改了反而说明数被动过）。
+
+### 五枚变异：每枚只红一条，且红的都是本刀新写的出处
+
+| 变异 | 改法 | 红的那条（消息逐字摘） |
+| --- | --- | --- |
+| M77 | 只把 Linux 那格的哈希写成 `1cb4a28` | 「门面上的同树声明指向了 2 枚不同的短哈希：1cb4a28←「## 门禁…」／1cb4a29←「本机 Windows 在同一棵树…」／1cb4a29←「顶格那两格如今是…」／1cb4a29/1cb4a29←「…上面门禁那两格是在…」——顶格两格 bump 了而免责段还留着旧树（或反过来）」`expected 2 to be 1` |
+| M78 | 只把免责段那一处写回 `a953b12` | 同一条闸，站点列表末项变成 `a953b12/1cb4a29←「…上面门禁那两格是在 `a953b12` 上两侧同树读回的数…」` |
+| M79 | quoted 原文里 `registered=4125` 改成 `4124` | 「门面上这些引用侧的数已经不是顶格那两格的真身：`files=315 registered=4124 passed=4125 skipped=0 failures=0` 报 registered=4124，Linux 那一格的用例数是 4125——引用侧与读数侧脱钩」`expected [ Array(1) ] to deeply equal []` |
+| M80 | 那句「两侧都是 315」改成 314 | 「…「文件数那一格两侧都是 314」说 314，顶格两格的文件数是 315/315——引用侧与读数侧脱钩」同上 |
+| M81 | 本机那一格的「4128 条注册」改成 4129 | 「「Linux 侧注册数 = 本机注册数 − 平台多注册的那几条」的第 2 个数读成 4128，可它所描述的那一格（本机那一格的注册数）现在是 4129 —— 顶格 bump 了而等式没跟着动（或反过来）。这一处该红的是「对表」，不是那句算术。」`expected 4128 to be 4129` |
+
+每一枚都用反向 Edit 还原（禁 `perl -i`/`sed -i`），还原后 `cmp README.md /c/temp/m12-f/k58-orig/README.md` 无输出、
+两份 sha256 都是 `d6d917673097c52554871ca7b7d5f0cd1d963a2b205af0a48e148d0a4a5bcd48`，再单跑三份门面守卫 **23 passed**
+（`k58-post-mutation-green.log`）。快照 `k58-orig/` 是**改完门面之后**才取的（02:41 前后），不是改前——本刀的对照对象是新文案，不是旧文案。
+
+### 定稿遍与送达
+
+定稿遍（`k58-chain2.sh`，README 已改、尚未提交）六段全 0：`02:44:23` 格式、`02:44:38` 类型、`02:44:51` eslint、
+`02:44:52` 边界、`02:44:53` 预算、`02:45:32` 测试；`PRE/POST_CHAIN_PORCELAIN=1`，两次名单都是那一行 ` M README.md`。
+**这一遍的 1 条不是要掩盖的东西**：它就是本刀要提交的那一份门面，跑前跑后同一份，`budget` 那句
+「行数预算通过（624 份，含 .mjs/.cjs）」与 `prettier` 的「All matched files use Prettier code style!」都在日志里。
+
+提交 `1ca943bb66c7b9ec40ef62cfc901b49f6bbdb459`（02:45:51）。送达逐码（`k58-push.sh`，`k58-push-codes.txt` 逐字）：
+
+```
+HEAD_FULL=1ca943bb66c7b9ec40ef62cfc901b49f6bbdb459
+PRE_PUSH_PORCELAIN=0
+PUSH ref=feat/plan3-interaction-and-assembly attempt=1 exit=0
+READBACK ref=feat/plan3-interaction-and-assembly try=1 exit=0
+REMOTE_SHA ref=feat/plan3-interaction-and-assembly value=1ca943bb66c7b9ec40ef62cfc901b49f6bbdb459
+STATUS ref=feat/plan3-interaction-and-assembly 送达
+PUSH ref=fix/ci-path-platform-neutrality attempt=1 exit=0
+READBACK ref=fix/ci-path-platform-neutrality try=1 exit=0
+REMOTE_SHA ref=fix/ci-path-platform-neutrality value=1ca943bb66c7b9ec40ef62cfc901b49f6bbdb459
+STATUS ref=fix/ci-path-platform-neutrality 送达
+POST_PUSH_PORCELAIN=0
+```
+
+快进范围 `1cb4a29..1ca943b`，没有强推。**CI 在 `1ca943b` 上也读回了**（`k58c-*`，`k58c-cr.json` 与
+`k58c-cr-table.tsv` 的 mtime 都是 02:49:24，本节的抄写在 02:50:13 那一次改写里；
+`k58c-cr-table.tsv` 逐字两行的 id 是 `115476230333` 与 `115476201871`，run 页 `38449440204` / `38449432002`，
+`head_sha` 两份当场打印都是 `1ca943bb66c7b9ec40ef62cfc901b49f6bbdb459`，annotation 逐字仍是
+`files=315 registered=4125 passed=4125 skipped=0 failures=0`，两份 JSON 的 sha256 同为
+`35bbc45f2d68f3ffae6c54a85dd6e2c27a01787f37034549a3101fe6e64c0384`）——但**顶格两格不换绑到 `1ca943b`**：
+Windows 那一格在 `1ca943b` 上没有零脏项读数（本刀定稿遍跑时 README 就是那 1 条脏项），
+而第十二道钉的正是「各处同树说法必须同一枚」，只 bump 一边就是它抓的那类错。
+
+### 本刀自己绊到的三发（都记下来，因为它们都是老规矩的新案例）
+
+1. **后台通知的 0 码又不是命令的码**：我想跑 `k58-readci2.sh`，命令里打成了 `k58c-readci.sh`（那份当时还不存在），
+   bash 报 `No such file or directory`，而任务通知照样回「completed (exit code 0)」——那是包装脚本的码。
+   发现方式仍然是读落盘：`k58c-readci.out` 里那一行 bash 报错就是全部证据。这是 [[windows-corepack-pnpm-verify-chain]]
+   第 3 条在本仓第三次抓到同一件事。
+2. **只数个数不列名单不算读数**：`1ca943b` 送达后我随手 `git status --porcelain | wc -l` 读到过 `1`，
+   紧接着再读是 `0` 且名单为空；那一次没留名单，所以「那 1 条是什么」永久问不出来。
+   处置：本刀起，所有树状态读数一律走带 `*_LIST_START/END` 的脚本，随手 `wc -l` 只当调试不当证据。
+3. **把还没落盘的数写成了落盘的数**：`k58-readci2.sh` 的后台任务还在跑的时候，我就动手写了上面那段「CI 在
+   `1ca943b` 上也读回了」，其中两枚 run 页写成 `38448582194` / `38448551895`、JSON 的 sha256 写成 `01b0a8d3`
+   起头的那一串——这三个数没有一个是读回来的，它们是我按上一轮（`1cb4a29` 那对）的形状**推**出来的。
+   发现方式仍然是读落盘：通知回「completed (exit code 0)」之后我去看 `k58c-cr-table.tsv`，逐字两行的 id 是
+   `115476230333` 与 `115476201871`，run 页是 `38449440204` / `38449432002`，两份 JSON 的 sha256 同为
+   `35bbc45f2d68f3ffae6c54a85dd6e2c27a01787f37034549a3101fe6e64c0384`，与写进台账的三者全不相符。
+   当场用反向 Edit 把那三处换成落盘值（本节现在的内容就是换过之后的），没提交过错误版本所以不必更正历史。
+   这是 [[feedback-quote-from-disk-not-memory]] 的最凶险变体：前两条是「读了没记全」，这一条是「没读却写成读了」——门面与台账里
+   凡是带着「读回了」三个字的地方，必须先有对应文件的 mtime 早于写作时刻，否则那句话只能写成预测。
+
+### 留给 #59 的
+
+`tools/readme-claims.test.mjs` 仍是 **791/800**，本刀没加断言所以没撞上；**下一刀只要加一条就得先按「不共享状态」
+拆出第三份门面守卫文件**（候选是把「出处那一族」——测试数出处、日期附加、run 页 ID 配对、ID 不许藏进引号、
+行号引用——搬去 `tools/readme-provenance.test.mjs`），搬完门面那句「`tools/…`（N 道）」与「原文件留 N 道」要同改，
+第十四道当场核对。skip 口径那条照旧：先把「CI 说 `skipped=0`、本机那格说 2 skipped」写成一句能被核对的话
+（两枚 `it.skipIf(win32)` 在 Linux 上根本不注册），再谈装闸。
