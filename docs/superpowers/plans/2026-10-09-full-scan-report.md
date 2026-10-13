@@ -316,7 +316,7 @@ P0-4（自动批准的键并入书根，或随 `clearBookScoped` 一起清——
 | 六个墨宸档案、一档绑一连接一模型、切失败理由上界面 | **真**（且 5-㊺ 刚把「不能切换」修掉） | `contracts/src/agent-profile.ts`、`README.md:6265` 那条链 |
 | 一轮六枚工具、只有两枚产生待写入动作 | **真**，但「写盘必经审批」是**半真** | `tools.ts` 花名册五个 + 插件；`web_search` 执行侧无开关闸（P1-2）；跨书自动批准（P0-4） |
 | 联网开关 = 控制那枚工具有没有出站 | **真**（字面成立），**半真**（读起来像「关掉就不出网」） | `provider-client.ts:166` vs `tools.ts:82` |
-| 皮肤广场 8 套带整窗场景画 + 三道像素闸 | **真** | `appearanceSkins.ts:175` 起表、`tools/`、`apps/desktop/scripts/check-scene-art.mjs` |
+| 皮肤广场 8 套带整窗场景画 + 三道像素闸 | **真** | `appearanceSkins.ts:175` 起表、`apps/desktop/scripts/check-scene-art.mjs`（三道闸 G1/G2/G3 都在这份文件里，`tools/` 里没有皮肤相关的闸——这处假指向在第三十二节纠正） |
 | **挂件层**（用户 5-㊵ 明确要求「能有画的和挂件」） | **不存在** | 全仓 `挂件` 只出现在 `appearanceSkins.ts:10` 的一句注释里，无任何 widget/pendant 实现；台账 `README.md:6242` 记的是卡在 ImageGen 403 配额 |
 | IME 组合态 / 思考窗 / 视图过渡 | **真**（b0fd99e 刚入库） | 提交记录与 `thinking-*` 测试 |
 
@@ -1993,6 +1993,85 @@ CSS 那层 2026-10-05 有守卫了，store 这层没有。口径：
 
 （口径的边界要说清：本扫描把「只被测试引用」也算零引用，所以夹具与测试工具必然进表，是**待判读**不是**待删**；
 守卫那边则按内容判 `defineStore(`，两者不是一条判据，别混用。）
+
+## 三十二、2026-10-13：门面上那两处「按图找不到东西」的指向，以及一条只看指向的新守卫
+
+### 一、病灶是自己撞出来的，不是审出来的
+
+上一节写完后我去改 `README.md` 的数字，顺手想核一句「三道像素闸」，于是照门面去 `tools/` 找——
+`ls tools/` 一共 15 份文件（`check-package-boundary` / `check-source-line-budget` / `ci-gate` /
+`ico-container` / `mock-provider` / `no-component-library` / `no-raw-control-chars` /
+`prettier-scope` / `typecheck-coverage` / `build-brand-icons` 及各自的用例），
+**里面一份跟皮肤像素有关的东西都没有**。真身在 `apps/desktop/scripts/`：
+
+| 门面原话（第 21 行） | 盘上真身 |
+| --- | --- |
+| 「画由仓内生成器产出，质量由三道像素闸盯（`tools/`）」 | 生成器 `apps/desktop/scripts/gen-scene-svgs.mjs` + 配色表 `scene-palettes.mjs`；三道闸 G1/G2/G3 在 `apps/desktop/scripts/check-scene-art.mjs`；入口脚本 `apps/desktop/package.json:12` 的 `check:scene-art` |
+
+同一句假指向在本报告第十一节那张表里也抄了一份（第 319 行「… + `tools/` + `apps/desktop/scripts/check-scene-art.mjs`」——
+后半截是对的，前半截纯属多余），已就地删掉 `tools/`。
+这不是措辞问题：**读者按门面找不到实现，就会把「已做的」读成「没做的」**，与本仓反复登记的那族假话
+（「数据删了、文案还在说它可用」）是同一族，只是方向相反。
+
+### 二、其余门面主张这轮逐条对过盘（都成立，列出来是为了别再有人重扫）
+
+| README 那句 | 当场回读到的 |
+| --- | --- |
+| Electron 42 + Vue 3 + Pinia | `pnpm-workspace.yaml` catalog：`electron: 42.5.0`(:10)、`vue: 3.5.39`(:22)、`pinia: 3.0.4`(:16) |
+| 一轮最多六枚工具，名字逐个列出 | `packages/contracts/src/tools.ts:1-8` `AGENT_TOOL_NAMES` 六枚一字不差 |
+| 皮肤广场 8 套（四族 × 昼夜） | `appearanceSkins.ts` 的 label 八条：:204 :222 :272 :287 :304 :319 :334 :349 |
+| `tools/ci-gate.test.mjs`（6 条） | 文件里 6 处 `test(`，与门面一致（第二十三节纠正过的那枚「5 条」已经修好） |
+| Apache-2.0 全文 + 逐文件对照表 + 上游 v1.5.6 | `LICENSE-DEEPWRITE.txt`、`docs/ATTRIBUTION.md` 存在，后者第 7 行写着 v1.5.6 |
+| 语音输入「只到接进了输入卡」 | `composables/useVoiceInput.ts` + `voice-input.ts` + `ComposerBox.vue` 在场 |
+
+### 三、改了门面哪四处
+
+1. 第 21 行那句拆成三处真名（生成器、配色表、闸文件 + 入口脚本），并把「三道」写成 G1/G2/G3，
+   这样门面与 `check-scene-art.mjs` 里的闸号**同名**。
+2. 目录表新增一行 `apps/desktop/scripts/`，并把 `tools/` 那行的描述改成实际装的东西
+   （假模型服务、边界/行数/门面主张/图标容器）——原描述里的「皮肤像素」就是本次的病根。
+3. 第 42 行的测试数补上 2026-10-13 这一格：**311 文件 / 4098 passed | 2 skipped**，
+   跑在仓库外那棵 `git status --porcelain` 当场读回 0 条的已提交工作树 `c9708b9` 上。
+4. 于是第 50 行那句绝对话跟着改口：原文「干净提交树上的数**只有 CI 给得出**」并不准确——
+   本机在零脏项的已提交工作树上也给得出，缺的是「当场自证这棵树干净」那一步。
+   改成「以 CI 为准；本机要报这个数得先读回 porcelain 为 0」。
+
+### 四、新守卫 `tools/readme-claims.test.mjs`（3 条）：把「指向」而不是「措辞」钉成断言
+
+- **路径存在性**：README 里以反引号写出、且以 `apps/`、`packages/`、`tools/`、`docs/`、`.github/` 开头的路径必须真的存在。
+- **脚本名在场**：以**命令形态**写出的 `pnpm <脚本>`（反引号整句或 ``` 代码块里）必须在根或 `apps/desktop` 的 `scripts` 里；
+  `install` / `exec` 这类 pnpm 自带命令除外。散文里那句「pnpm workspace」第一版被咬成「不存在的脚本」——
+  **红得没错但红得没道理**，守卫要咬的是指向不是措辞，于是加了"命令形态"这一层现场区分。
+- **自我声明**：提取到 0 条路径或 0 个脚本名即红。正则写坏时守卫会**空跑装绿**，这条就是防它。
+
+三次变异（Edit 改、`cp` 还原、`cmp` 核对，全绿后才敢引用）：
+
+| 变异 | 结果 |
+| --- | --- |
+| README 里把闸文件写成 `apps/desktop/scriptz/check-scene-art.mjs`、目录表写成 `apps/desktop/scriptq/` | `门面上这些路径在仓库里找不到，读者会按图找不到东西：…scriptz…, apps/desktop/scriptq/` |
+| 同批把入口脚本写成 `check:scene-artz` | `门面上写了不存在的 pnpm 脚本…：check:scene-artz`（两条一起红，`MUT12_EXIT=1`） |
+| 把 `TOP_DIRS` 改成 `["zzz"]` 让提取面塌掉 | `README 里没提取到任何以顶层目录开头的路径主张…expected 0 to be greater than 5`（`MUT3_EXIT=1`） |
+
+门禁六段各自落码（日志 `/c/temp/m12-f/*.log`，退出码落 `exit.txt` 后回读，不经管道）：
+`FORMAT_EXIT=0` `TYPECHECK_EXIT=0` `ESLINT_EXIT=0` `BOUNDARY_EXIT=0` `BUDGET_EXIT=0` `TEST_EXIT=0`，
+`pnpm test` 报 **312 文件 / 4101 passed | 2 skipped**（比上一格的 311/4098 正好多这一份 `tools/readme-claims.test.mjs` 的 3 条）。
+这一格跑在工作树 `c9708b9` + 本刀未提交改动之上，所以数字与门面第 42 行那句「311/4098 跑在 `c9708b9` 零脏项」**并不冲突**：
+门面那句话自证的是它自己那一棵树，本段自证的是将要提交的那一棵。
+
+### 五、边界与没做的
+
+- **不测散文**：门面里的形容词、比喻、裁定语没法机器核对，本守卫只管「可核对的指向」这一类。
+  `.mochen/`（住在你作品目录里）与 `.git/hooks`（**工作树里 `.git` 是个文件**，`hooks` 目录压根不存在）
+  是刻意排除在匹配面之外的——扩大范围只会让人学会关掉守卫。
+- **`tools/` 那句描述**改掉了，但机器核不了「描述与内容相符」这一类语义；这一格靠的是当场 `ls` + 台账留名。
+- **CI 那一格本轮读到了**（推上去时是 `currently running`，之后浏览器侧一度被网络策略挡，这一轮恢复后逐枚回读）：
+  `#48` run `38324586323`（fix 分支 @`c9708b9`）**completed successfully** 2m10s、
+  `#49` run `38324589981`（feat 分支 @`c9708b9`）**completed successfully** 2m1s。
+  台账上一版把 `#48` 的 run 号写成 `38224586323`，那是**我抄错一位数字**（当场从 run 链接文本回读为 `38324586323`），
+  已就地更正——run 号是引用，同样适用「转述必须回盘」。
+- 上一节 §三十 里那句「真机四格」的 `#47`（run `38323616898`，feat @`d1409b9`，2m23s）与 `#46`
+  （run `38323605236`，fix @`d1409b9`，2m16s）同批读回 `completed successfully`，那是 `d1409b9` 的两枚 run，与 `c9708b9` 无关。
+  四枚读数都按口径只取 run 链接的 `svg[aria-label]` + 编号 + 分支 + 时长，标题不参与判断。
 
 
 
