@@ -4871,7 +4871,7 @@ mtime `03:05`）与终稿 README（`7d6b044…`）现在 `diff` 出来**只有�
 （「两份共用」→「当时共用」、一处换行重排），没有任何一处是变异残留。
 快照是**改内容之后重取的**，所以它的对照对象是变异期的门面，不是终稿——这一点与上一刀同一套做法。
 
-### 定稿遍：作废的第一遍与全 0 的第二遍
+### 定稿遍：四遍才收口（前两遍跑的是旧内容，第三遍我自己停，第四遍才是终稿）
 
 **第一遍作废**（`k59-chain1.sh`，`k59-final1-codes.txt` mtime `03:10:15`）：前五段码 0（`03:09:14` 格式、
 `03:09:30` 类型、`03:09:43` eslint、`03:09:44` 边界、`03:09:45` 预算），第六段 `test_EXIT=127`（`03:10:14`）。
@@ -4879,24 +4879,59 @@ mtime `03:05`）与终稿 README（`7d6b044…`）现在 `diff` 出来**只有�
 终稿内容与那一遍跑的内容不是同一份——快照 `README.mut-snapshot.md`（`6cec2e70…`）与
 `README.final-prechain.md`（`7d6b044…`，与提交时 `cmp` 无输出）之间 `diff` 就出这两个 hunk；
 ② 它的 test 段根本没跑完：`k59-final1-test.log` 只有 2593 字节，停在 `tools/mock-provider.test.mjs` 那三条 ✓ 之后，
-**没有 `Test Files` 汇总行**，日志里 grep `not found|ELIFECYCLE|Command failed|No such` 全部无命中。
-那一遍是我自己停的（任务 `bc5um861d`）并杀掉了属于本刀的两枚进程（16916 vitest、1492 corepack pnpm，
-杀前用 `Get-CimInstance Win32_Process` 核过命令行；24076 那枚是 Qoder 自己的 computer-use 启动器，没碰）。
-**127 由谁产生：未收口**——日志里没有 command-not-found 也没有 ELIFECYCLE，只能确定它不是「测试跑红了」，
-不能像上一刀那样把它写成「pnpm 找不到」。
+**没有 `Test Files` 汇总行**。那一遍是我自己停的（任务 `bc5um861d`）并杀掉了属于本刀的两枚进程
+（16916 vitest、1492 corepack pnpm，杀前用 `Get-CimInstance Win32_Process` 核过命令行；
+24076 那枚是 Qoder 自己的 computer-use 启动器，没碰）。
 
-**第二遍（定稿遍）**`k59-chain2.sh` → `/tmp/k57/k59-final2-codes.txt` 逐字：`HEAD_FULL=1a3d5292bbab47a4fb692ed701818832834222f7`，
-`PRE_CHAIN_PORCELAIN=4`，名单四行 ` M README.md` / ` M tools/readme-claims.test.mjs` / ` M tools/readme-gate-facts.mjs` /
+**第二遍（当时以为就是定稿遍）**`k59-chain2.sh` → `/tmp/k57/k59-final2-codes.txt` 逐字：
+`HEAD_FULL=1a3d5292bbab47a4fb692ed701818832834222f7`，`PRE_CHAIN_PORCELAIN=4`，名单四行
+` M README.md` / ` M tools/readme-claims.test.mjs` / ` M tools/readme-gate-facts.mjs` /
 `?? tools/readme-provenance.test.mjs`；六段码与时刻：`format_EXIT=0` `03:11:33`、`typecheck_EXIT=0` `03:11:49`、
 `eslint_EXIT=0` `03:12:02`、`boundary_EXIT=0` `03:12:03`、`budget_EXIT=0` `03:12:04`、`test_EXIT=0` `03:12:43`；
-`POST_CHAIN_PORCELAIN=4` 名单与跑前逐字相同。**这 4 条不是要掩盖的东西**：它们正是本刀要提交的四份文件，
-跑前跑后同一份。各段日志内容也复核过（退出码之外的第二证据）：
-`k59-final2-format.log`「All matched files use Prettier code style!」、`k59-final2-budget.log`「行数预算通过（625 份，含 .mjs/.cjs）」、
-`k59-final2-boundary.log`「边界检查通过」、`k59-final2-eslint.log` 只有命令行没有 problem 行、
-`k59-final2-typecheck.log` 六枚 `tsc --noEmit -p` 全列出、`k59-final2-test.log:391-392`
-`Test Files 316 passed (316)` / `Tests 4126 passed | 2 skipped (4128)`。
+`POST_CHAIN_PORCELAIN=4` 名单与跑前逐字相同。**这 4 条不是要掩盖的东西**：它们正是当时要提交的四份文件。
+各段日志内容也复核过（退出码之外的第二证据）：`k59-final2-format.log`「All matched files use Prettier code style!」、
+`k59-final2-budget.log`「行数预算通过（625 份，含 .mjs/.cjs）」、`k59-final2-boundary.log`「边界检查通过」、
+`k59-final2-eslint.log` 只有命令行没有 problem 行、`k59-final2-typecheck.log` 六枚 `tsc --noEmit -p` 全列出、
+`k59-final2-test.log:391-392` `Test Files 316 passed (316)` / `Tests 4126 passed | 2 skipped (4128)`。
+**这一遍随后也被作废**——作废原因见下面那节：它跑的是尚未改掉三条假指向的门面。
 
-### 本刀自己绊到的两发
+### 搬家留下的三条假指向：一条闸都没红，全靠人眼抓到
+
+`01ee7b9` 提交并推送出去之前，我把整条门禁链跑绿之后又回头读门面，抓出**搬家自己造成的**三处指路错：
+
+1. `README.md:57`（改前）：「那两个行号本身由 `tools/readme-claims.test.mjs` 核对」——行号引用闸此刻住在
+   `tools/readme-provenance.test.mjs`，claims 里只剩一句表头交代它搬走了。
+2. `tools/platform-anchors.mjs:9`（改前）：「`platform-test-count.test.mjs` 数条数，`readme-claims.test.mjs` 核对行号」——同一条错，
+   写在锚点那份唯一实现里。
+3. `tools/readme-provenance.test.mjs:22`（改前）：「第十四道闸…拿**两份**文件此刻行首 `test(` 的行数当场核对它们」——
+   第十四道今天核的是**三份**（claims 485、provenance 336、composition 262）。
+
+三处都不在任何闸的判据里：第十四道只认 `` `tools/x.test.mjs`（N 道）`` 那种带数的点名，
+路径存在闸只认「文件在不在」，等式闸只认写成等式的算式——**「某道闸住在哪份文件」这句话本身没有闸**。
+这就是 #60 该装的那一枚（见本节末）。处置：三处一起改，改完重跑整条链（第四遍），单独提交 `136cd76`。
+
+**第三遍**（`k59-chain3.sh`，`k59-final3-codes.txt`）：`PRE_CHAIN_PORCELAIN=1`（只有 ` M README.md`，因为那枚指向修复
+先于另两处），`format_EXIT=0` `03:26:24`，然后 `typecheck_EXIT=127` `03:26:30`、`eslint_EXIT=0` `03:26:43`、
+`boundary_EXIT=0` `03:26:44`、`budget_EXIT=0` `03:26:45`，test 段被我停。作废原因：跑到一半我发现 anchors 与
+provenance 那两处同类残留还没改。**而那一枚 127 顺手把上一刀的「未收口」收掉了**：
+`k59-final3-typecheck.log` 逐字是
+`[ELIFECYCLE] Command failed with exit code 3221225794.`（`0xC0000142`，Windows 进程起不来），
+包装层给出的码就是 127。于是第一遍那枚 `test_EXIT=127` 的归因从「未收口」改成**同一类**：
+子进程被杀或起不来时，包装层报的就是 127，它既不是「pnpm 找不到」也不是「测试跑红」。
+差别只在第三遍那例有 ELIFECYCLE 落盘、第一遍那例连这行都没写出来（杀得更狠），
+所以第一遍只能说「与第三遍同形状的包装层码」，不能说同一份日志。
+
+**第四遍（定稿遍）**`k59-chain4.sh` → `/tmp/k57/k59-final4-codes.txt` 逐字：`HEAD_FULL=01ee7b93a58d38ae89548a6d2d2f002bd4dc4a2e`，
+`PRE_CHAIN_PORCELAIN=3` 名单 ` M README.md` / ` M tools/platform-anchors.mjs` / ` M tools/readme-provenance.test.mjs`，
+六段码全 0：`03:29:35` 格式、`03:29:49` 类型、`03:30:01` eslint、`03:30:01` 边界、`03:30:02` 预算、`03:30:35` 测试；
+`POST_CHAIN_PORCELAIN=3` 名单逐字相同；五份文件跑前/跑后 sha256 一一对得上
+（README `2dd1e92c…`、claims `3505cafa…`、provenance `c82d3237…`、facts `aed7f5df…`、anchors `02aed889…`）。
+内容复核：`Test Files 316 passed (316)` / `Tests 4126 passed | 2 skipped (4128)`（`Duration 30.74s`）、
+「行数预算通过（625 份）」、「边界检查通过」、「All matched files use Prettier code style!」；
+六份日志合起来 grep 失败词表只命中一条——`ipc-guard` 自己那句「[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到」，
+而那枚文件仍是 `✓ apps/desktop/src/main/ipc-guard.test.ts (45 tests)`，属 [[env-vitest-contention]] 之外的已知 Windows 限制。
+
+### 本刀自己绊到的三发
 
 1. **通知的 0 码又催出一枚重复推送**：`k58b-push.sh` 还在重试循环里（第七次 128 之后、第八次之前），
    一条后台通知回「completed (exit code 0)」，我当成送达就去派生了 `k58c-push.sh`——那份后来什么都没推成，
@@ -4907,15 +4942,36 @@ mtime `03:05`）与终稿 README（`7d6b044…`）现在 `diff` 出来**只有�
 2. **门面还没定稿就开跑六段**：链一在 `03:09:14` 起跑，而「两份共用」那句话是 `03:10` 之后才改的。
    这是 [[feedback-cheap-gates-before-long-runs]] 的反面，代价是一整遍（约 60 秒）+ 一次进程清理。
    处置：本刀起，派生长链之前先 `git diff --stat` 读一遍并将门面文案定稿，长链只允许在**内容不再变**之后启动。
-   （另外记一笔与本刀无关但同源的：`转述必须回盘` 在本刀的回收是那一枚 127 的归因——我一度把它当成
-   「corepack 找不到 pnpm」写进草稿，读日志才知道三个关键词全无命中，于是改写成**未收口**。）
+   本刀实际交了**四遍**学费：链一与链二都是「跑在旧内容上」（链一是我自己改文案，链二是我发现三条假指向），
+   链三是我为了改那三处而主动停掉的。
+   另外那枚 127 的归因在这里改成**已收口**：写作本刀前半段时我一度把它当成「corepack 找不到 pnpm」写进草稿，
+   读日志才知道关键词全无命中，于是先写成「未收口」；第三遍的 `typecheck` 落盘给出
+   `[ELIFECYCLE] Command failed with exit code 3221225794.` 之后，同一类才有名字（见上面第三遍那段）。
+3. **`TaskStop` 停不掉脚本，只停掉它的外壳**：我停 `b9h4xwau4`（`k59-push.sh`）之后读进程表才发现
+   `bash.exe k59-push.sh`（PID 8112/4780）仍在跑，并且又往日志里写了两发——`attempt=2 exit=127`、
+   `attempt=3 exit=128`、`attempt=4 exit=128`，其中那枚 127 就是我随后 `Stop-Process` 落在一次 push 的子进程上造成的。
+   那份日志因此**不能当送达证据**，已改名留档为 `k59-push-codes-contaminated.txt`，正式送达另起一枚脚本与日志。
+   处置：以后停后台任务后必须回读进程表确认脚本本体没了（`Get-CimInstance … -match 'k59'`），
+   再看日志尾行有没有新增——这两步本刀都是事后才做，等于把「通知 ≠ 日志」这条规矩反过来踩了一次
+   （日志 ≠ 现场：日志停在第 1 发时，进程已经跑到第 4 发）。
+   同一发里还有一处手艺问题：我给 `k59-chain4.sh` 补 `platform-anchors.mjs` 的快照时用了 `sed -i`。
+   那枚文件在仓库之外的 `/c/temp`、不被任何闸读，但规矩写的是「变异只用 Edit」——本刀的对照对象是仓库源码，
+   临时脚本改当临时脚本处理；为免日后争议，记在这里。
 
 ### 留给 #60 的
 
+- **第十六道闸的形状已经量好了：判据归属闸**。本刀那三条假指向（`README.md:57`、`platform-anchors.mjs:9`、
+  `readme-provenance.test.mjs:22`）说明门面/注释里「某道闸住在 `tools/X.test.mjs`」这类句子**目前一条闸都没有**：
+  第十四道只认 `` `tools/x.test.mjs`（N 道）`` 那种带数的点名，路径闸只认文件在不在。
+  可写的判据（先按这一条装，别扩）：门面上凡是「`tools/<facade>.test.mjs` + 句子里带某道闸的关键词」的说法，
+  被点名的那份文件此刻**必须真有一条 `test()` 的标题含着同一个关键词**——本刀那一句的关键词是「行号」，
+  `readme-provenance.test.mjs` 里有「门面上每一处『某文件的第 N 行』…」这条，claims 里没有。
+  装之前先证它能红：把 README 那句的文件名从 provenance 改成 claims，应当只红这一条新闸。
 - 顶格两格仍绑 `1cb4a29`。下一次回填必须**两侧都在净树上重读**，而 Linux 那一格的文件数会读成 **316**
-  （CI 还没在任何含 `readme-provenance.test.mjs` 的提交上跑过；本机 316 只在脏树上读到，见上面那句限定）；
-  届时把门面那段「这一句是推的、不是读来的」一起改掉。
+  （CI 还没在任何含 `readme-provenance.test.mjs` 的提交上跑过；本机 316 已在第四遍读到，但那是**含 3 条脏项的树**，
+  不是净树，见上面那句限定）；届时把门面那段「这一句是推的、不是读来的」一起改掉。
 - skip 口径那条照旧：先把「CI 说 `skipped=0`、本机那格说 2 skipped」写成一句能被核对的话
   （两枚 `it.skipIf(win32)` 在 Linux 上根本不注册），再谈装闸。
 - `tools/readme-claims.test.mjs` 现在 485/800，余量 315 行——下一刀加断言不必再拆；provenance 336/800 同理。
-- 推送脚本派生时把 `POST_PUSH_PORCELAIN` 那段补成带 `*_LIST_START/END` 的形状（见 §五十八·补）。
+- 推送脚本派生时把 `POST_PUSH_PORCELAIN` 那段补成带 `*_LIST_START/END` 的形状（见 §五十八·补，
+  本刀的 `k59-push.sh` 已经带上）；另外**停后台任务后必须回读进程表**确认脚本本体真没了（本刀第 3 发）。
