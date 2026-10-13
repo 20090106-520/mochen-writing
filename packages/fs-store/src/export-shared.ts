@@ -97,7 +97,19 @@ export function markdownToSimpleHtml(markdown: string): string {
   });
 
   // 有序列表
-  html = html.replace(/^[\s]*\d+\.\s+(.+)$/gm, (_m, text) => `<li>${text}</li>`);
+  //
+  // **2026-10-10 补上 `<ol>`**：原来只产 `<li>` 不包列表容器，浏览器对「不在列表容器里的 li」
+  // 不画项目符号/编号，于是 **1. 2. 3. 整个消失**——列表行还在，序号没了。
+  // 对话区最先撞上它（模型爱写编号清单），导出也会跟着受益。
+  //
+  // **为什么先落记号再包**：无序与有序两支用的是同一条「包住连续的 `<li>`」正则。
+  // 若有序项也光秃秃地产 `<li>`，第二遍会把上一支**已经包进 `<ul>` 的那些行再包一次 `<ol>`**，
+  // 实测出来是 `<ul><ol><li>甲</li><li>乙</li></ol></ul>`——无序列表被改了结构。
+  // 记号只在包装那一瞬间存在，包完立刻摘掉，不留在输出里。
+  html = html.replace(/^[\s]*\d+\.\s+(.+)$/gm, (_m, text) => `<li class="ol-item">${text}</li>`);
+  html = html.replace(/(<li class="ol-item">.*<\/li>\n?)+/g, (_m) => {
+    return `<ol>${_m.replace(/ class="ol-item"/g, "")}</ol>`;
+  });
 
   // 段落：连续非空文本行合并为 <p>。跳过行首是 `<` 的（前面规则自己生成的标签）与空行。
   html = html.replace(/^(?!<[a-z/]|$)(.+)$/gm, (_m, text) => `<p>${text}</p>`);

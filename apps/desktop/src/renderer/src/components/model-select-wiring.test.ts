@@ -216,8 +216,8 @@ describe("CenterColumn · chip → 事件 → store → 弹层一条线", () => 
     expect(script).toContain("if (await provider.switchModel(name)) modelsOpen.value = false;");
   });
 
-  it("视图挂载即读一次配置：chip 一亮出来就要能报出当前模型名", () => {
-    expect(scriptSource(CENTER)).toContain("void provider.refresh()");
+  it("视图挂载即读配置并预拉模型清单（2026-10-11）：chip 报得出名字，点开下拉读缓存秒开", () => {
+    expect(scriptSource(CENTER)).toContain("void provider.warmModelCache()");
   });
 });
 

@@ -6,29 +6,10 @@ import { useSearchStore, type SearchHit } from "../stores/useSearchStore";
 import { useBookStore } from "../stores/useBookStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { BOOK_KIND_LABELS } from "../utils/book-kinds";
-import type { BookDoc } from "../types/book-doc";
 import { useModalFocus } from "../composables/useModalFocus";
-import type { DocRef } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import { imeOwnsKey } from "../utils/slash-commands";
-
-/** 批量读取文档全文内容 —— 搜索/导出/统计需要，不走 bookStore.draft 那一条预览通路 */
-async function loadAllDocContents(docs: DocRef[]): Promise<BookDoc[]> {
-  const results = await Promise.allSettled(
-    docs.map(async (doc) => {
-      const loaded = await window.mochen.readDoc(doc.relPath);
-      return {
-        relPath: doc.relPath,
-        kind: doc.kind,
-        title: doc.title,
-        content: loaded.content
-      } satisfies BookDoc;
-    })
-  );
-  return results
-    .filter((r): r is PromiseFulfilledResult<BookDoc> => r.status === "fulfilled")
-    .map((r) => r.value);
-}
+import { loadAllDocContents } from "../utils/doc-checkup";
 
 const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -192,11 +173,21 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
       <div v-if="lastResult" class="search-body">
         <div class="search-stats">
           <span v-if="isSearching">搜索中…</span>
-          <span v-else> 共 {{ lastResult.totalHits }} 处匹配 · {{ lastResult.durationMs }}ms </span>
+          <span v-else>
+            共 {{ lastResult.totalHits }} 处匹配 · {{ lastResult.durationMs }}ms
+            <span v-if="lastResult.mode === 'fuzzy'" class="search-mode-tag">一字之差容错</span>
+          </span>
         </div>
 
         <div v-if="groupedHits.length === 0 && !isSearching" class="search-empty">
-          没有找到「{{ lastResult.query }}」的相关结果。
+          <p>没有找到「{{ lastResult.query }}」的相关结果。</p>
+          <p class="search-empty-hint">
+            {{
+              lastResult.mode === "fuzzy"
+                ? "连一字之差的近似匹配也试过了，确实没有。"
+                : "可尝试减少关键字或换个说法。"
+            }}
+          </p>
         </div>
 
         <div v-else class="search-groups">
@@ -344,6 +335,24 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   text-align: center;
   color: var(--text-secondary, #999);
   font-size: 0.928571rem;
+}
+
+.search-empty p {
+  margin: 0 0 6px;
+}
+
+.search-empty-hint {
+  font-size: 0.785714rem;
+  color: var(--text-muted, #777);
+}
+
+.search-mode-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.714286rem;
+  color: var(--text-secondary, #999);
+  background: rgba(255, 200, 80, 0.14);
 }
 
 .search-groups {

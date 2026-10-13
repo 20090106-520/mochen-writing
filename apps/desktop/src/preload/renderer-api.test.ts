@@ -80,7 +80,7 @@ describe("createRendererApi", () => {
     expect(listeners.size).toBe(0);
   });
 
-  it("49 条通道各调一次：通道与参数逐条钉死（期望值全是字面量，不从 IPC_CHANNELS 派生）", async () => {
+  it("50 条通道各调一次：通道与参数逐条钉死（期望值全是字面量，不从 IPC_CHANNELS 派生）", async () => {
     const { api, calls } = harness();
     const meta: BookMeta = {
       id: "b1",
@@ -165,6 +165,9 @@ describe("createRendererApi", () => {
     await api.readDoc("chapters/01-开局.md");
     await api.writeDoc("chapters/01-开局.md", "正文", "fp-1");
     await api.createDoc("chapters/02-新章.md", "新章");
+    // 只重算一篇（2026-10-10 P1-4 后半）：这一枚递的必须**只是**那一条相对路径，
+    // 多递一个「整本清单」的参数、或把它接到 book:open 上，下面的通道名点名当场红。
+    await api.refreshDoc("chapters/01-开局.md");
     // 设定数据两枚（2026-10-09 P0-7）：**只递键**，路径由主进程按白名单拼。
     // 这里多递一个参数、或者把键换成路径，下面的实参点名当场红。
     await api.readBookData("notes");
@@ -224,8 +227,16 @@ describe("createRendererApi", () => {
     });
     api.onAgentEvent(() => {});
     api.onQuitFlushRequest(() => {});
+    // 整书备份三条（2026-10-10）：create 只递档位；restore 只递备份目录名——
+    // 多递一个路径参数下面的实参点名当场红（渲染层永远不决定写哪儿）。
+    await api.createBookBackup("daily");
+    await api.listBookBackups();
+    await api.restoreBookBackup("book-2026-10-10-19-52-30");
+    // TXT 导入两条（2026-10-11）：预览无参；提交递一章目清单（路径由主进程拼）。
+    await api.importTxtPreview();
+    await api.importTxtCommit({ chapters: [{ title: "第一章", content: "正文" }] });
 
-    expect(calls.length).toBe(49);
+    expect(calls.length).toBe(55);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -236,6 +247,7 @@ describe("createRendererApi", () => {
       "doc:read",
       "doc:write",
       "doc:create",
+      "doc:refresh",
       "book-data:read",
       "book-data:write",
       "agent:start-turn",
@@ -287,7 +299,14 @@ describe("createRendererApi", () => {
       "app:flush-quit-done",
       "agent:event",
       // 握手去的这条是主进程→渲染层的推送：preload 里它只能被 on，不占 invoke 的位置。
-      "app:flush-quit-request"
+      "app:flush-quit-request",
+      // 整书备份三条（2026-10-10）。同样不许从 IPC_CHANNELS 派生，理由同上。
+      "book-backup:create",
+      "book-backup:list",
+      "book-backup:restore",
+      // TXT 导入两条（2026-10-11）。同样不许从 IPC_CHANNELS 派生，理由同上。
+      "import:pick-preview",
+      "import:commit"
     ]);
     expect(calls.map((call) => call.args)).toEqual([
       [],
@@ -297,6 +316,7 @@ describe("createRendererApi", () => {
       ["chapters/01-开局.md"],
       ["chapters/01-开局.md", "正文", "fp-1"],
       ["chapters/02-新章.md", "新章"],
+      ["chapters/01-开局.md"],
       ["notes"],
       ["story-bible", "[]"],
       [startInput],
@@ -348,7 +368,16 @@ describe("createRendererApi", () => {
       // 回程那一枚的实参：整个 { ok, blocked } 对象原样出网，preload 一个字都不许拆。
       [{ ok: false, blocked: [{ relPath: "chapters/01-开局.md", message: "盘满" }] }],
       ["subscribe"],
-      ["subscribe"]
+      ["subscribe"],
+      // 备份三枚的实参：create 只递档位、list 不收东西、restore 只递备份目录名。
+      // **一个盘上路径都不许出现**——恢复往哪儿写由主进程按书根拼。
+      ["daily"],
+      [],
+      ["book-2026-10-10-19-52-30"],
+      // 导入两枚的实参：预览不收东西（选文件框、读字节都在主进程）；
+      // 提交只收标题+正文清单——**一个路径都不许出现**，chapters/<标题>.md 由主进程拼。
+      [],
+      [{ chapters: [{ title: "第一章", content: "正文" }] }]
     ]);
     // 渲染层只拿到这些方法：invoke/on/ipcRenderer 一个字都不许泄漏成键。
     expect(Object.keys(api).sort()).toEqual([
@@ -362,18 +391,27 @@ describe("createRendererApi", () => {
       "changesRetentionSave",
       "contextPreview",
       "createBook",
+      // 整书备份三枚（2026-10-10）：「备不备/备到哪」的档位与目录名是渲染层仅有的发言权，
+      // 和其它改稿通道一样进这份点名册：少一枚面板调不到，多一枚就是多开的口子。
+      "createBookBackup",
       "createDoc",
       "decideProposal",
       // 技能市场三枚（2026-10-07 批次 5-㉖）。装/卸是**往用户磁盘写**的两枚通道，
       // 和其它改稿通道一样进这份点名册：少一枚面板调不到，多一枚就是多开的口子。
+      "importTxtCommit",
+      "importTxtPreview",
       "installMarketSkill",
       "interruptTurn",
+      "listBookBackups",
       "listChanges",
       "listMarket",
       "listModels",
       "listPlugins",
       "listSessions",
       "listSkills",
+      // 回收站三条（2026-10-10）：删=移动进 .mochen/trash，还原=按小抄搬回。
+      // 进点名册的理由与别的改稿通道一致：少一枚面板调不到，多一枚就是多开的口子。
+      "listTrash",
       "loadSession",
       "notify",
       "onAgentEvent",
@@ -399,13 +437,21 @@ describe("createRendererApi", () => {
       "readDoc",
       "readPluginSource",
       "readSkill",
+      // 只重算一篇（2026-10-10 P1-4 后半）：它进这份点名册的理由与别的改稿通道一样——
+      // 少一枚渲染层就调不到（退回整本重扫），多一枚就是多开的口子。
+      "refreshDoc",
+      "restoreBookBackup",
       "restoreChange",
+      "restoreTrash",
       "saveFile",
       "saveMeta",
       "startTurn",
       "togglePlugin",
+      // 删除那一枚与「检查更新」一枚（2026-10-10）：检查只报告不下载，更新源在主进程 env 里。
+      "trashDoc",
       "uninstallMarketSkill",
       "uninstallPlugin",
+      "updateCheck",
       "writeBookData",
       "writeDoc"
     ]);

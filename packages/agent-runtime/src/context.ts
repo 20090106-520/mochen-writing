@@ -47,10 +47,19 @@ export interface AssembledContext {
   chars: number;
   /** token 估算，见 estimateTokens。 */
   approxTokens: number;
+  /**
+   * 各章开头句（首个非空行，截到 CHAPTER_OPENING_CHARS）——按 docs 的章节顺序。
+   * 提示词装配用它点名「别每章同一套起手式」；这轮模型看不见的头，才最容易被它写重。
+   * 可选字段：老的装配结果（测试夹具）没有它，装配层按空清单处理。
+   */
+  openings?: string[];
 }
 
 /** 前情提要每章取多少字（spec §5：默认前 2 章的尾部摘要，各约 400 字）。 */
 export const PRIOR_CHAPTER_TAIL_CHARS = 400;
+
+/** 各章开头句进「起手式」清单时截多少字——一句 enough，多了就成正文倾倒。 */
+export const CHAPTER_OPENING_CHARS = 24;
 
 /**
  * token 估算：中文/日文按「一字约一 token」，其余按「四字符一 token」折算。
@@ -160,11 +169,19 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
     }
   }
 
-  // ③ 出场人物卡
+  // ③ 出场人物卡：spec §5 叫「**出场**人物卡」，判据就是字面义——人名（卡题）出现在
+  //    当前章正文里才装。此前的实现是无差别全装：大书 20 张卡 × 800 字把上下文摊薄成
+  //    每张卡都只剩个名字，模型写对话反而抓不住本章真要用的那几个人的性子。
+  //    判定用**未截断**的当前章全文（contents 里的），excerpt 档截掉的出场也算出场。
+  //    没开章（active === null）时退回全装：让模型补人物设定、做全书审读时仍要看全家福。
   if (scope.castCharacters) {
+    const stage = active === null ? "" : textOf(active);
     for (const doc of docs) {
       if (doc.kind !== "character") continue;
-      push(makeItem("character", doc, clip(textOf(doc.relPath), 800), false));
+      const text = textOf(doc.relPath);
+      if (text === "") continue;
+      if (stage !== "" && !stage.includes(doc.title)) continue;
+      push(makeItem("character", doc, clip(text, 800), false));
     }
   }
 
@@ -236,7 +253,26 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
   }
 
   const chars = items.reduce((sum, item) => sum + item.chars, 0);
-  return { items, chars, approxTokens: estimateTokens(items.map((i) => i.text).join("\n")) };
+  // 各章开头句（2026-10-10 四段）：从**全文**取首个非空行——前情提要是尾部切片，
+  // 开头只有全文里有。注意取的是原文头一行正文，与 items 的截断口径无关。
+  const openings = docs
+    .filter((doc) => doc.kind === "chapter")
+    .map((doc) => textOf(doc.relPath))
+    .map(
+      (text) =>
+        text
+          .split("\n")
+          .find((line) => line.trim() !== "")
+          ?.trim() ?? ""
+    )
+    .filter((line) => line !== "")
+    .map((line) => clip(line, CHAPTER_OPENING_CHARS));
+  return {
+    items,
+    chars,
+    approxTokens: estimateTokens(items.map((i) => i.text).join("\n")),
+    openings
+  };
 }
 
 /**

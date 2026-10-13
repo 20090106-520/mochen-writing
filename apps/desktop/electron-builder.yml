@@ -1,0 +1,48 @@
+# 墨宸 AI · NSIS 安装包配置（2026-10-10）。
+#
+# 产物形态对齐「QQ/微信级」安装体验：
+#   - 非 oneClick：有向导页（欢迎 → 目录 → 安装 → 完成），用户能自己选装哪儿；
+#   - 按用户装（perMachine: false，默认 %LOCALAPPDATA%\Programs，不需要管理员权限）；
+#   - 桌面 + 开始菜单快捷方式都建，卸载显示名用中文名。
+#
+# 【为什么 files 里没有 node_modules 也能跑】主进程产物把 @mochen/* 四包与全部渲染层依赖
+# 都打进 out/（electron.vite.config 的 externalizeDeps.exclude 是白名单，其余全部内联），
+# 运行期真正 require 的只有 electron 与 electron-updater——后者随 prod dependencies
+# 被 electron-builder 自动带上。因此渲染层用的 vue/pinia/three 等都已挪进 devDependencies，
+# 不再整包拷进安装目录（three 一家就省几十 MB）。
+#
+# 版本号单一真源是 apps/desktop/package.json 的 version，这里不写第二份。
+appId: cn.mochen.desktop
+productName: 墨宸 AI
+copyright: Copyright © 2026 墨宸 AI
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - out/**
+  - resources/**
+# BrowserWindow 的 icon 走 file:// 读盘；asar 里的路径 Electron 认得出，
+# 但解包一份图标成本几乎为零，读起来最稳。
+asarUnpack:
+  - resources/**
+
+win:
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 墨宸 AI
+  uninstallDisplayName: 墨宸 AI ${version}
+  installerLanguages: [zh_CN]
+  language: "2052"
+  artifactName: MoChenAI-Setup-${version}.${ext}

@@ -176,12 +176,15 @@ describe("本轮工具面（P1-2：清单与执行同一份判据）", () => {
     expect(out.ok).toBe(true);
   });
 
-  it("关闭那一轮只摘 web_search：其余五枚照常叫得动", () => {
+  it("关闭那一轮摘掉两枚出网工具：其余五枚照常叫得动", () => {
     const host = fakeHost([], searched);
     for (const name of ["read_doc", "list_docs", "search_docs", "propose_patch", "write_doc"])
       expect(isCallableTool(host, name, false)).toBe(true);
     expect(isCallableTool(host, "web_search", false)).toBe(false);
     expect(isCallableTool(host, "web_search", true)).toBe(true);
+    // web_read 与 web_search 同一类（NETWORK_TOOL_NAMES）：关联网两枚一起叫不动。
+    expect(isCallableTool(host, "web_read", false)).toBe(false);
+    expect(isCallableTool(host, "web_read", true)).toBe(true);
   });
 
   it("插件工具不归联网开关管：它不在花名册上，关掉联网照样叫得动", async () => {

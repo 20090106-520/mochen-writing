@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AGENT_TOOL_NAMES,
+  NETWORK_TOOL_NAMES,
+  isNetworkTool,
   agentEventSchema,
   decideInputSchema,
   editProposalSchema,
@@ -190,28 +192,38 @@ describe("provider 与掩码", () => {
     expect(maskApiKey("ab")).toBe("••••");
   });
 
-  it("六个工具名固定，多一个少一个都算违约", () => {
+  it("七个工具名固定，多一个少一个都算违约", () => {
     expect([...AGENT_TOOL_NAMES].sort()).toEqual([
       "list_docs",
       "propose_patch",
       "read_doc",
       "search_docs",
+      "web_read",
       "web_search",
       "write_doc"
     ]);
   });
 
-  it("六个工具名的排列顺序同样是契约（上一条先排序再比对，钉不住原序）", () => {
+  it("七个工具名的排列顺序同样是契约（上一条先排序再比对，钉不住原序）", () => {
     // 注册表顺序决定提示词与工具卡的展示顺序；被重排必须转红。
-    // 2026-10-04 追加 web_search（免费联网搜索，主进程出网）排在末尾。
+    // 2026-10-04 追加 web_search（免费联网搜索，主进程出网）排在末尾；
+    // 2026-10-11 追加 web_read（网页正文抓取）紧随其后——先搜后读，读的序跟着搜的序走。
     expect([...AGENT_TOOL_NAMES]).toEqual([
       "read_doc",
       "list_docs",
       "search_docs",
       "propose_patch",
       "write_doc",
-      "web_search"
+      "web_search",
+      "web_read"
     ]);
+  });
+
+  it("NETWORK_TOOL_NAMES 恰好是会出网的两枚（联网开关闸的是这一类）", () => {
+    expect([...NETWORK_TOOL_NAMES]).toEqual(["web_search", "web_read"]);
+    expect(isNetworkTool("web_search")).toBe(true);
+    expect(isNetworkTool("web_read")).toBe(true);
+    expect(isNetworkTool("read_doc")).toBe(false);
   });
 
   it("WRITE_TOOLS 只有两个成员，WriteToolName 被真正收窄", () => {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   countNeedle,
+  MODAL_DIALOGS as DIALOGS,
+  modalDialogTableDrift,
   scriptSource,
   tagAttributes,
   templateSource,
@@ -20,32 +22,23 @@ import {
  *
  * 【为什么逐个点名而不是查「全仓有几个 dialog-backdrop」】点名才有鉴别力：
  * 新加一个弹层时，前一种写法照样全绿（它没被点到），这一份会逼着把它写进表里。
+ *
+ * 【2026-10-11】那份名单搬到了 `utils/vue-source-reader.ts` 的 `MODAL_DIALOGS`：
+ * 入场动效那份守卫（`dialog-spring-wiring.test.ts`）也要用同一份，
+ * 留在本文件里就等于逼着那边抄一个——而抄出来的名单有一个安静的死法：
+ * 加了第五个对话框，两边都不红。对账由下面的「表与目录对得上吗」那条判据负责。
  */
-const DIALOGS = [
-  {
-    file: "components/SideNavNoticeDialog.vue",
-    name: "侧栏导航响应对话框（数据统计 / 规划中 / 未打开作品）",
-    // 本组件常驻，开合是 backdrop 自己那一格的 v-if ⇒ 必须显式传 isOpen。
-    mustPassIsOpen: true
-  },
-  {
-    file: "components/SaveConflictDialog.vue",
-    name: "保存冲突提示",
-    mustPassIsOpen: true
-  },
-  {
-    file: "components/NewBookDialog.vue",
-    name: "新建作品对话框",
-    mustPassIsOpen: false
-  },
-  {
-    file: "components/ModelProfileDialog.vue",
-    name: "添加 / 编辑模型对话框",
-    mustPassIsOpen: false
-  }
-] as const;
-
 describe("弹层 · 焦点与 Esc 的真身只有一处", () => {
+  it("登记表与目录对得上：模板里有 .workspace-dialog 的组件都必须登记在册", () => {
+    const drift = modalDialogTableDrift();
+    expect(
+      drift.missingFromTable,
+      "新加了对话框却忘了登记——焦点/Esc 与入场动效两份守卫都会开始漏掉它"
+    ).toEqual([]);
+    expect(drift.missingFromTemplate, "表里有、模板里已经不是那种对话框了，该从表里删掉").toEqual(
+      []
+    );
+  });
   for (const dlg of DIALOGS) {
     it(`${dlg.name}：Esc 与焦点进出由 useModalFocus 独家提供`, () => {
       const script = scriptSource(dlg.file);

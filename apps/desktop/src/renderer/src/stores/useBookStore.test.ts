@@ -112,7 +112,23 @@ const api = {
   // 设定落盘两枚（2026-10-09 扫描总单 P0-7）：书本身不碰 `.mochen/data/` 那三份设定，
   // 越权调用照样当场抛，而不是静默给一份空数据。
   readBookData: offLimits("readBookData"),
-  writeBookData: offLimits("writeBookData")
+  writeBookData: offLimits("writeBookData"),
+  // 只重算一篇（2026-10-10 P1-4 后半）与回收站三条、更新检查（同日）：satisfies RendererApi
+  // 要求它们在场，但这些用例一条都不消费——空实现回合法形状，真被调到也不至于污染用例。
+  refreshDoc: async () => ({ ok: true, doc: null }),
+  trashDoc: async () => ({ ok: true, trashName: "fixture" }),
+  listTrash: async () => ({ ok: true, entries: [] }),
+  restoreTrash: async () => ({ ok: true, relPath: "chapters/fixture.md" }),
+  createBookBackup: async () => ({ ok: true, name: null, fileCount: 0 }),
+  listBookBackups: async () => ({ ok: true, entries: [] }),
+  restoreBookBackup: async () => ({ ok: true, destName: "恢复目录" }),
+  updateCheck: async () => ({ status: "disabled", version: "", latestVersion: null, note: "" }),
+  importTxtPreview: async () => {
+    throw new Error("不该做 TXT 导入预览");
+  },
+  importTxtCommit: async () => {
+    throw new Error("不该提交 TXT 导入");
+  }
 } satisfies RendererApi;
 
 function docReads() {

@@ -25,6 +25,11 @@ import type {
 } from "./provider.js";
 import type { ExportableDoc, ExportOptions, ExportResult } from "./export.js";
 import type { BookDataKey, BookDataReadResult, BookDataWriteResult } from "./book-data.js";
+import type {
+  TxtImportCommitInput,
+  TxtImportCommitResult,
+  TxtImportPreviewResult
+} from "./import.js";
 
 export const IPC_CHANNELS = {
   bookOpen: "book:open",
@@ -34,6 +39,14 @@ export const IPC_CHANNELS = {
   bookPick: "book:pick",
   bookCreate: "book:create",
   docCreate: "doc:create",
+  /**
+   * 只重算**一篇**文稿的 DocRef（P1-4 后半，2026-10-10）。
+   *
+   * 存在的理由就是省掉那一次整本重扫：改标题、吸收智能体写入这两条链路过去都靠 `openBook`
+   * 把全本书每篇正文再读一遍，只为换树上那一根。主进程用与 `scanBook` 同一份判据算那一篇
+   * （`fs-store` 的 `docRefFor`），顺手把它自己的快照也换成新值——两处同步，一次读盘。
+   */
+  docRefresh: "doc:refresh",
   agentStartTurn: "agent:start-turn",
   agentInterrupt: "agent:interrupt",
   agentDecide: "agent:decide",
@@ -109,7 +122,36 @@ export const IPC_CHANNELS = {
    * `save*()` 把失败 `catch {}` 吞掉，屏上永远显示「已保存」，这是第二条 P0-2 的病。
    */
   bookDataRead: "book-data:read",
-  bookDataWrite: "book-data:write"
+  bookDataWrite: "book-data:write",
+  /**
+   * 检查应用更新（2026-10-10）。渲染层只有「关于」页那一颗按钮会调它；
+   * 更新源没配置（MOCHEN_UPDATE_URL 为空）时返回 disabled，不报错——没配是常态不是故障。
+   */
+  updateCheck: "app:update-check",
+  /**
+   * 书稿回收站三条（2026-10-10）。与 `doc:trash` 同一条铁律：渲染层只递 relPath / trashName，
+   * 路径由主进程按当前书根拼——「删了还能找回」靠的是移进 `<书>/.mochen/trash/`，
+   * 不是 unlink。三条都与 docs 快照联动：删/还原后渲染层自己走 `doc:refresh` 重算那一篇。
+   */
+  docTrash: "doc:trash",
+  trashList: "trash:list",
+  trashRestore: "trash:restore",
+  /**
+   * 整书备份三条（2026-10-10）。备份 = 把整本书（`.mochen/` 除外）复制一份到
+   * `<书>/.mochen/backups/book-<时间戳>/`——普通目录，Explorer 直开直拷，不赌 zip 的
+   * 中文文件名编码。渲染层只递备份目录名（restore）与档位（create），路径全由主进程拼。
+   */
+  bookBackupCreate: "book-backup:create",
+  bookBackupList: "book-backup:list",
+  bookBackupRestore: "book-backup:restore",
+  /**
+   * TXT 导入两条（2026-10-11）。选文件与读字节只能在主进程（渲染层没有任意读盘的能力，
+   * 这正是沙箱的意义），所以「预览」由主进程一次做完：弹选文件框 → 读字节 → 探编码 → 切章。
+   * 「提交」只收标题与正文——`chapters/<标题>.md` 的路径由主进程用 planDocRelPath 拼，
+   * 与 market:install、plugins:toggle 同一条铁律：渲染层递不了路径。
+   */
+  importPreview: "import:pick-preview",
+  importCommit: "import:commit"
 } as const;
 
 /** 退出握手里有稿子没能落盘的那一篇：点名到文件与原因，好让人自己拍板走不走。 */
@@ -135,6 +177,76 @@ export interface BookOpenResult {
   docs: DocRef[];
 }
 
+/**
+ * app:update-check 的返回（2026-10-10）。四档如实分报，不压成布尔：
+ * - `dev`：开发版不检查；
+ * - `disabled`：没配更新源（常态，不是故障）；
+ * - `up-to-date` / `available`：远端 latest 与当前版本比对的结果；
+ * - `error`：网络/解析失败，`note` 带一句能照着做的中文。
+ * 自动下载刻意关掉：检查只「说」，下载与安装要用户自己动身。
+ */
+export interface UpdateCheckResult {
+  status: "dev" | "disabled" | "up-to-date" | "available" | "error";
+  version: string;
+  latestVersion: string | null;
+  note: string;
+}
+
+/** doc:trash 的返回：ok 侧带回收站里的条目名（渲染层不需要知道盘上完整路径）。 */
+export type DocTrashResult =
+  | { ok: true; trashName: string }
+  | {
+      ok: false;
+      reason: "no-book" | "not-a-doc" | "invalid-path" | "outside-book" | "io-error";
+      message: string;
+    };
+
+/** 回收站里的一条：title 用于显示，relPath 用于说明「还原会回到哪儿」。 */
+export interface TrashEntry {
+  trashName: string;
+  relPath: string;
+  title: string;
+  trashedAt: string;
+}
+
+export type TrashListResult =
+  { ok: true; entries: TrashEntry[] } | { ok: false; reason: "no-book"; message: string };
+
+/** trash:restore 的返回：ok 侧带还原后的 relPath，渲染层拿它走 doc:refresh。 */
+export type TrashRestoreResult =
+  | { ok: true; relPath: string }
+  | {
+      ok: false;
+      reason: "no-book" | "not-found" | "target-exists" | "io-error";
+      message: string;
+    };
+
+/** 整书备份里的一条：name 是备份目录名（还原时原样递回），createdAt 是从名字里解出的人话时间。 */
+export interface BookBackupEntry {
+  name: string;
+  createdAt: string;
+}
+
+/**
+ * book-backup:create 的返回。`name: null` = daily 档发现今天已经备过，刻意没再备一份
+ * （这是正常结果不是失败）；manual 档永远真的备一份。
+ */
+export type BookBackupCreateResult =
+  | { ok: true; name: string | null; fileCount: number }
+  | { ok: false; reason: "no-book" | "io-error"; message: string };
+
+export type BookBackupListResult =
+  | { ok: true; entries: BookBackupEntry[] }
+  | { ok: false; reason: "no-book" | "io-error"; message: string };
+
+/**
+ * book-backup:restore 的返回：把选中的备份复制到**书旁的新目录**
+ * （`<书名>-恢复自备份-<时间戳>`），绝不碰当前打开的这本书——恢复期间原书保持可写。
+ */
+export type BookBackupRestoreResult =
+  | { ok: true; destName: string }
+  | { ok: false; reason: "no-book" | "not-found" | "io-error"; message: string };
+
 export interface DocContent {
   relPath: string;
   content: string;
@@ -146,13 +258,37 @@ export type DocWriteResult =
   | { ok: false; reason: "stale"; currentFingerprint: string }
   | { ok: false; reason: "invalid-path" | "outside-book" | "io-error"; message: string };
 
-/** doc:create 的返回：ok 侧带上新文件的指纹，渲染层拿它直接 openDocTab，不用再读一次盘。 */
+/**
+ * doc:create 的返回：ok 侧带上新文件的指纹，渲染层拿它直接 openDocTab，不用再读一次盘。
+ *
+ * `doc` 是 P1-4 后半（2026-10-10）加的那一根：主进程建完这一篇**本来就算过**它的 DocRef
+ * （`docRefFor`，与 `scanBook` 同一份判据），过去只更新自己的快照、不捎给渲染层，于是渲染层
+ * 只能用 `refreshDocs()`＝再走一次 `openBook` 把整本书每篇正文读一遍来换这一根。
+ *
+ * - 它是**跨进程字段**，渲染层不默认相信：`docRefSchema`（contracts/book.ts）验形状，验不过就退回整本重扫；
+ * - `null`＝主进程这次给不出这一篇的引用（写完却读不回、重扫也没有它）。这不是「没有这一章」：
+ *   文件确实建成了，ok=true 说的是真话；缺的只是引用，渲染层必须自己重扫一次（失败要说话，不许挂假稿件）。
+ */
 export type DocCreateResult =
-  | { ok: true; relPath: string; fingerprint: string }
+  | { ok: true; relPath: string; fingerprint: string; doc: DocRef | null }
   | {
       ok: false;
       reason:
         "no-book" | "invalid-path" | "outside-book" | "not-doc-dir" | "already-exists" | "io-error";
+      message: string;
+    };
+
+/**
+ * doc:refresh 的返回：只重算一篇，绝不带整本清单回来（那正是这一刀要省掉的读放大）。
+ *
+ * `doc: null`＝盘上这一篇读不回（外力删除、改名、占用）。这不是失败：请求本身做到了，
+ * 如实说「算不出」，由渲染层退回整本温和重扫；在这儿倒推一根 DocRef 就是造假稿件（P0 那批病）。
+ */
+export type DocRefreshResult =
+  | { ok: true; doc: DocRef | null }
+  | {
+      ok: false;
+      reason: "no-book" | "invalid-path" | "outside-book" | "io-error";
       message: string;
     };
 
@@ -233,6 +369,12 @@ export interface RendererApi {
   writeDoc(relPath: string, content: string, expectedFingerprint: string): Promise<DocWriteResult>;
   /** 按已规划好的书内路径建一篇空文档（frontmatter title 用用户起的名字）；文件已存在会被拒绝，绝不盖写。 */
   createDoc(relPath: string, title: string): Promise<DocCreateResult>;
+  /**
+   * 只重算**一篇**文稿的 DocRef（P1-4 后半）。
+   * 改完标题、吸收智能体写入之后要用它取代 `openBook` 那次整本温和重扫：主进程用与扫描同一份判据
+   * 算这一篇，一次读盘；算不出（盘上没这一篇）回 `doc:null`，调用方自己退回重扫，不许在渲染层倒推。
+   */
+  refreshDoc(relPath: string): Promise<DocRefreshResult>;
   /**
    * 读这本书里的设定数据（笔记 / 圣经 / 目标），键必须在白名单里。
    *
@@ -414,4 +556,36 @@ export interface RendererApi {
   ): Promise<ExportResult>;
   /** 主进程系统通知 */
   notify(title: string, body: string): void;
+  /**
+   * 检查应用更新（2026-10-10）。更新源由主进程从 MOCHEN_UPDATE_URL 读，
+   * 渲染层递不了 URL——与密钥页「只收 id 不收地址」同一条口径。
+   * 结果四档如实分报（见 UpdateCheckResult），没有配置时回 disabled 而不是报错。
+   */
+  updateCheck(): Promise<UpdateCheckResult>;
+  /**
+   * 把一篇文稿移进这本书的回收站（`<书>/.mochen/trash/`，2026-10-10）。
+   * 只认**扫描快照里真实存在**的文稿——递 book.json 或任意书内路径进来都会被拒。
+   * 删除因此不需要「确认」弹窗：东西在回收站里，还原就有。
+   */
+  trashDoc(relPath: string): Promise<DocTrashResult>;
+  /** 列回收站（这本书的）；没开书回 no-book，不抛。 */
+  listTrash(): Promise<TrashListResult>;
+  /** 还原一条到原路径；原路径已有人占位时回 target-exists，绝不盖写。 */
+  restoreTrash(trashName: string): Promise<TrashRestoreResult>;
+  /**
+   * 整书备份（2026-10-10）。`mode: "manual"` 永远真备一份；`"daily"` 发现今天已备过
+   * 就回 `{ ok: true, name: null }`（开书时的自动档用这个，一天至多一份）。
+   */
+  createBookBackup(mode: "manual" | "daily"): Promise<BookBackupCreateResult>;
+  /** 列这本书的备份（新的在前）；没开书回 no-book，不抛。 */
+  listBookBackups(): Promise<BookBackupListResult>;
+  /** 把一份备份复制到书旁的新目录；目标目录已存在时自动加序号，绝不盖写任何已有内容。 */
+  restoreBookBackup(name: string): Promise<BookBackupRestoreResult>;
+  /**
+   * TXT 导入预览（2026-10-11）：主进程弹选文件框、读字节、探编码、切章，一次带整份预览回来。
+   * `canceled` 是用户点了取消——这是正常操作不是故障，渲染层照旧停在当前步。
+   */
+  importTxtPreview(): Promise<TxtImportPreviewResult>;
+  /** 把预览确认后的章目落成 `chapters/` 下的文稿；重名在写盘前整批拦下（all-or-nothing）。 */
+  importTxtCommit(input: TxtImportCommitInput): Promise<TxtImportCommitResult>;
 }

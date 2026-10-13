@@ -291,7 +291,10 @@ describe("agent-service · 同一线程不许同时跑两轮（P2-7）", () => {
   });
 
   it("失败轮同样释放：上一轮被上游打回来之后，同一句能重来", async () => {
-    const s = stall(503);
+    // 用 400（不可重试）造失败：连接期自动重试（2026-10-11）上线后，503 那类瞬时故障
+    // 会被默哀一秒半救回来、这轮就不再「失败」了——本条要钉的是「失败释放槽位」，
+    // 不是「503 必失败」，所以夹具换成重试救不回的状态码。
+    const s = stall(400);
     const built = await build(s.fetchImpl);
     await built.service.startTurn(turn(CHAPTER, "第一句"));
     expect(turnEnds()[0]?.status).toBe("failed");

@@ -291,8 +291,9 @@ function startNewConversation(): void {
 let timer: number | undefined;
 onMounted(() => {
   agent.startListening();
-  // 模型 chip 一挂出来就要报得出当前模型名：配置读一次，失败由 store 收成一句中文理由。
-  void provider.refresh();
+  // 挂载即读配置并**预拉模型清单**（2026-10-11）：过去名单只在点开「模型 ▾」那一刻才拉，
+  // 首开必等一次网络往返；预拉进缓存后点开就是秒开。失败不落缓存，真打开时再试。
+  void provider.warmModelCache();
   timer = window.setInterval(() => agent.tick(), 1000);
 });
 onBeforeUnmount(() => {

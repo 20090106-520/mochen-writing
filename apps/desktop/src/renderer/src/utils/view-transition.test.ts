@@ -12,7 +12,6 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  reducedMotionActive,
   runViewTransition,
   VIEW_TRANSITION_TYPES,
   viewTransitionInFlight,
@@ -249,7 +248,7 @@ describe("runViewTransition", () => {
   });
 });
 
-describe("两个判据", () => {
+describe("判据", () => {
   it("viewTransitionSupported 只认「是个函数」：undefined 与非函数都不算", () => {
     expect(viewTransitionSupported(null)).toBe(false);
     expect(viewTransitionSupported({})).toBe(false);
@@ -260,20 +259,8 @@ describe("两个判据", () => {
     ).toBe(false);
   });
 
-  it("reducedMotionActive 认两档，且缺 defaultView / 缺 dataset 时不抛", () => {
-    expect(reducedMotionActive(null)).toBe(false);
-    expect(reducedMotionActive({})).toBe(false);
-    expect(reducedMotionActive({ documentElement: {} })).toBe(false);
-    expect(reducedMotionActive({ documentElement: { dataset: { reducedMotion: "true" } } })).toBe(
-      true
-    );
-    // 属性在但值是 "false"（显式关）时不算开
-    expect(reducedMotionActive({ documentElement: { dataset: { reducedMotion: "false" } } })).toBe(
-      false
-    );
-    expect(reducedMotionActive({ defaultView: { matchMedia: () => ({ matches: true }) } })).toBe(
-      true
-    );
-    expect(reducedMotionActive({ defaultView: {} })).toBe(false);
-  });
+  // 「两档减少动效」那条判定的用例在 2026-10-11 搬去了 `motion-preference.test.ts`——
+  // 判定搬到了 `motion-preference.ts`（与 applyReducedMotion 同居），用例跟着搬。
+  // 本文件上面那两条 `runViewTransition` 用例仍然从假宿主读那两档，它们钉的是
+  // **接线**（这一层确实认了那个判定），判据本身的形状归新家管。
 });

@@ -39,7 +39,7 @@ let outbound: AgentOutbound[] = [];
 
 afterAll(async () => {
   for (const dir of tempDirs) await rm(dir, { recursive: true, force: true });
-});
+}, 30000);
 
 function turn(docRelPath: string | null, userText: string): StartTurnInput {
   return {

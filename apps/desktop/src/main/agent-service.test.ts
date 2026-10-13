@@ -6,7 +6,7 @@ import {
   DEFAULT_CHANGE_RETENTION,
   AGENT_TOOL_NAMES,
   DEFAULT_PERMISSION_MODE,
-  WEB_SEARCH_TOOL_NAME,
+  NETWORK_TOOL_NAMES,
   type AgentEvent,
   type AgentOutbound,
   type BookMeta,
@@ -41,7 +41,7 @@ let outbound: AgentOutbound[] = [];
 
 afterAll(async () => {
   for (const dir of tempDirs) await rm(dir, { recursive: true, force: true });
-});
+}, 30000);
 
 function turn(
   docRelPath: string | null,
@@ -677,15 +677,15 @@ describe("agentService 全链", () => {
   it("递给模型的工单恰好是花名册在这一轮真带出去的那几枚，一个不多一个不少", async () => {
     const { fetchImpl, requests } = recordingFetch(proposeChunks);
     const { service } = await build(fetchImpl);
-    // 夹具的联网开关是关的（turn 默认值）：2026-10-08 起开关决定 web_search 有没有出站，
-    // 所以这里的花名册要按开关裁掉那一枚。「开 ⇒ 六枚全在」由 agent-service-boundary.test.ts
-    // 的 #101 用例从同一条链路上钉，两处合起来才是全集。
+    // 夹具的联网开关是关的（turn 默认值）：2026-10-08 起开关决定联网工具有没有出站，
+    // 所以这里的花名册要按开关裁掉两枚出网的（web_search + web_read）。「开 ⇒ 七枚全在」
+    // 由 agent-service-boundary.test.ts 的 #101 用例从同一条链路上钉，两处合起来才是全集。
     await service.startTurn(turn(CHAPTER, "改紧"));
     const request = requests[0];
     if (request === undefined) throw new Error("请求必须发出");
     const body = JSON.parse(request.body) as { tools?: { function?: { name?: string } }[] };
     expect(body.tools?.map((tool) => tool.function?.name)).toEqual([
-      ...AGENT_TOOL_NAMES.filter((name) => name !== WEB_SEARCH_TOOL_NAME)
+      ...AGENT_TOOL_NAMES.filter((name) => !NETWORK_TOOL_NAMES.includes(name as never))
     ]);
     service.dispose();
   });

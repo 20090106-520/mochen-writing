@@ -168,7 +168,19 @@ export function createBookApi(): BookApiFixture {
     listPlugins: async () => ({ entries: [], listed: true }),
     togglePlugin: offLimits("togglePlugin"),
     uninstallPlugin: offLimits("uninstallPlugin"),
-    readPluginSource: offLimits("readPluginSource")
+    readPluginSource: offLimits("readPluginSource"),
+    // 只重算一篇（2026-10-10 P1-4 后半）与回收站三条、更新检查（同日）：satisfies 在场即可，
+    // 这份夹具的路上一个都不该被调到——offLimits 让越界当场喊出来。
+    refreshDoc: offLimits("refreshDoc"),
+    trashDoc: offLimits("trashDoc"),
+    listTrash: offLimits("listTrash"),
+    restoreTrash: offLimits("restoreTrash"),
+    createBookBackup: offLimits("createBookBackup"),
+    listBookBackups: offLimits("listBookBackups"),
+    restoreBookBackup: offLimits("restoreBookBackup"),
+    updateCheck: offLimits("updateCheck"),
+    importTxtPreview: offLimits("importTxtPreview"),
+    importTxtCommit: offLimits("importTxtCommit")
   } satisfies RendererApi;
 
   return {

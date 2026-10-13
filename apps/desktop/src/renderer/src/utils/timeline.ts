@@ -99,7 +99,8 @@ export const TOOL_LABELS: Record<AgentToolName, string> = {
   search_docs: "全书检索",
   propose_patch: "提出改稿提案",
   write_doc: "写入文档",
-  web_search: "联网搜索"
+  web_search: "联网搜索",
+  web_read: "读取网页"
 };
 
 /**

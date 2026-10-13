@@ -7,6 +7,7 @@ import { sourceKey, type DocRef, type EditProposal, type PermissionMode } from "
 import { createDocToolHost } from "./doc-tools-host.js";
 import type { WebSearchResult } from "./web-search.js";
 import { WebSearchError } from "./web-search.js";
+import { WebReadError, type WebReadOutcome } from "./web-read.js";
 
 let root = "";
 let docs: DocRef[] = [];
@@ -28,6 +29,10 @@ let webSearchError: string | null = null;
 let webSearchErrorKind: "unavailable" | "empty" = "unavailable";
 /** 非 WebSearchError 的异常（模拟将来有人在源链里 new Error("fetch failed")）。 */
 let webSearchRawError: Error | null = null;
+// web_read 的假实现同理（2026-10-11）。
+let webReadOutcome: WebReadOutcome | null = null;
+let webReadError: WebReadError | null = null;
+let webReadRawError: Error | null = null;
 
 beforeAll(async () => {
   root = await mkdtemp(path.join(tmpdir(), "mochen-host-"));
@@ -50,6 +55,9 @@ beforeEach(async () => {
   webSearchError = null;
   webSearchErrorKind = "unavailable";
   webSearchRawError = null;
+  webReadOutcome = null;
+  webReadError = null;
+  webReadRawError = null;
 });
 
 function host() {
@@ -77,6 +85,11 @@ function host() {
         skipped: [],
         deduped: 0
       };
+    },
+    webRead: async () => {
+      if (webReadRawError !== null) throw webReadRawError;
+      if (webReadError !== null) throw webReadError;
+      return webReadOutcome as WebReadOutcome;
     }
   });
 }
@@ -130,6 +143,23 @@ describe("read_doc / list_docs / search_docs", () => {
     expect(out.ok).toBe(false);
     expect(out.text).toContain("非空");
     expect(out.proposals).toEqual([]);
+  });
+
+  it("search_docs 精确零命中后按一字之差容错，并如实写明这是容错命中", async () => {
+    // 盘上是「守闸人」，query 差一个字：精确匹配零命中，第二轮容错兜底。
+    const out = await host().call("search_docs", { query: "守闸入" });
+    expect(out.ok).toBe(true);
+    expect(out.text).toContain("容错命中");
+    expect(out.text).toContain("characters/李深.md:1:");
+  });
+
+  it("search_docs 精确命中时不跑容错轮；确实不存在时回「没有命中」且不提容错", async () => {
+    const exact = await host().call("search_docs", { query: "守闸人" });
+    expect(exact.text).not.toContain("容错");
+    const miss = await host().call("search_docs", { query: "绝不会出现的词" });
+    expect(miss.ok).toBe(true);
+    expect(miss.text).toContain("没有命中");
+    expect(miss.text).not.toContain("容错");
   });
 });
 
@@ -222,6 +252,76 @@ describe("web_search", () => {
     expect(out.text).toContain("联网搜索失败");
     expect(out.text).not.toContain("fetch failed");
     expect(out.text).not.toContain("TypeError");
+  });
+});
+
+describe("web_read", () => {
+  it("成功回执：报出页面标题、正文、来源键，零提案，这一页本身进 sources", async () => {
+    webReadOutcome = {
+      title: "漕运制度考",
+      url: "https://example.com/caoyun",
+      text: "漕运始于秦汉，盛于明清……",
+      truncated: false
+    };
+    const out = await host().call("web_read", { url: "https://example.com/caoyun" });
+    expect(out.ok).toBe(true);
+    expect(out.text).toContain("已读取「漕运制度考」");
+    expect(out.text).toContain("漕运始于秦汉");
+    expect(out.text).toContain(sourceKey("https://example.com/caoyun"));
+    expect(out.proposals).toEqual([]);
+    expect(out.sources).toEqual([
+      { title: "漕运制度考", url: "https://example.com/caoyun", snippet: "" }
+    ]);
+  });
+
+  it("正文过长：截断要在回执里说出来，不许半截话假装全文", async () => {
+    webReadOutcome = {
+      title: "长页",
+      url: "https://example.com/long",
+      text: "长".repeat(9000),
+      truncated: true
+    };
+    const out = await host().call("web_read", { url: "https://example.com/long" });
+    expect(out.ok).toBe(true);
+    expect(out.text).toContain("只取前 6000 字");
+  });
+
+  it("空 url 拒绝", async () => {
+    const out = await host().call("web_read", {});
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("非空");
+  });
+
+  it("非 http/https 的链接拒绝（bad-url）：重试无意义，换链接才有意义", async () => {
+    webReadError = new WebReadError(
+      "这不是一条可读的网页链接（只收 http/https）——换 web_search 结果里的原文链接。",
+      "bad-url"
+    );
+    const out = await host().call("web_read", { url: "file:///C:/x" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("只收 http/https");
+  });
+
+  it("剥不出正文是「跑通了但空手」（empty），不是失败——模型的下一步是换来源", async () => {
+    webReadError = new WebReadError("这一页剥不出正文（可能是纯脚本渲染的页面）……", "empty");
+    const out = await host().call("web_read", { url: "https://example.com/spa" });
+    expect(out.ok).toBe(true);
+    expect(out.text).toContain("剥不出正文");
+  });
+
+  it("连不上/超时/非 HTML 回中文失败理由，模型可换来源继续", async () => {
+    webReadError = new WebReadError("这一页连接超时，稍后再试或换一条来源。", "fetch-failed");
+    const out = await host().call("web_read", { url: "https://example.com/slow" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("连接超时");
+  });
+
+  it("非 WebReadError 的异常换中文兜底，英文技术串不漏到界面", async () => {
+    webReadRawError = new TypeError("fetch failed");
+    const out = await host().call("web_read", { url: "https://example.com/x" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("网页读取失败");
+    expect(out.text).not.toContain("fetch failed");
   });
 });
 
@@ -480,3 +580,169 @@ describe("怪参数兜底（派发层把截断成 {} 的调用原样送来，绝
 async function chapterFile(): Promise<string> {
   return readFile(path.join(root, ...CHAPTER.split("/")), "utf8");
 }
+
+describe("AI 味自动退稿闸（2026-10-10 二段）", () => {
+  // 超标稿：240 字里 30 处重罪命中（套话 + 认知转述），密度远超闸阈值。
+  const HEAVY = "他嘴角勾起，眼底闪过一丝复杂的情绪。他知道，这不是巧合。".repeat(10);
+
+  it("write_doc 写正文且 AI 味超标 → 自动退稿，不生成提案", async () => {
+    mode = "full-access";
+    const out = await host().call("write_doc", { doc: CHAPTER, content: HEAVY, why: "重写开局" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("自动退稿");
+    expect(out.text).toContain("每千字");
+    expect(out.text).toContain("嘴角勾起");
+    expect(out.text).toContain("重写要求");
+    expect(collected).toEqual([]);
+  });
+
+  it("同一稿原样重交 → 放行生成提案，回执带提醒（防死循环）", async () => {
+    mode = "full-access";
+    const h = host();
+    const first = await h.call("write_doc", { doc: CHAPTER, content: HEAVY, why: "重写开局" });
+    expect(first.ok).toBe(false);
+    const second = await h.call("write_doc", { doc: CHAPTER, content: HEAVY, why: "重写开局" });
+    expect(second.ok).toBe(true);
+    expect(second.proposals).toHaveLength(1);
+    expect(second.text).toContain("同一稿第二次提交");
+  });
+
+  it("改稿重交（内容变了）仍超标 → 再次退稿", async () => {
+    mode = "full-access";
+    const h = host();
+    await h.call("write_doc", { doc: CHAPTER, content: HEAVY, why: "重写开局" });
+    const rewritten = HEAVY + "他推开院门，把锄头靠在墙边。".repeat(20);
+    const again = await h.call("write_doc", { doc: CHAPTER, content: rewritten, why: "改了一版" });
+    expect(again.ok).toBe(false);
+    expect(again.text).toContain("自动退稿");
+  });
+
+  it("设定文档（outline/）不闸：AI 腔的设定资料照样出提案", async () => {
+    mode = "full-access";
+    const out = await host().call("write_doc", {
+      doc: "outline/第一卷大纲.md",
+      content: HEAVY,
+      why: "补设定"
+    });
+    expect(out.ok, out.text).toBe(true);
+    expect(out.proposals).toHaveLength(1);
+  });
+
+  it("propose_patch 的正文替换片段超标 → 同样退稿", async () => {
+    mode = "read-only";
+    const out = await host().call("propose_patch", {
+      doc: CHAPTER,
+      mode: "anchor-replace",
+      anchor: "雾从海面涌上来。",
+      replace: HEAVY,
+      why: "换一段"
+    });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("自动退稿");
+    expect(collected).toEqual([]);
+  });
+
+  it("轻度正文照常出提案：闸是质量下限，不是文风警察", async () => {
+    mode = "full-access";
+    // 长短句错落的正常叙述（六段起「句长过匀」是独立拦稿理由，
+    // 旧样本两句循环复读，句长波动 0.21 会被节奏条正确拦下——那不是本用例要测的事）。
+    const mild =
+      "他推开院门，把锄头靠在墙边。灶间的火苗窜起来，锅里的粥咕嘟作响。天黑了。" +
+      "风从篱笆的缺口灌进来，吹得那串干辣椒轻轻打转，像谁在数一串旧年的念珠。" +
+      "他把碗摆上桌。粥还烫。隔壁的狗叫了两声，又安静下去。" +
+      "他忽然想起白天在集市上听见的那句闲话——城南的渡口要封了，官船三日不发。" +
+      "夜里的更声远远传来。他睡了。\n";
+    const out = await host().call("write_doc", { doc: CHAPTER, content: mild, why: "重写开局" });
+    expect(out.ok).toBe(true);
+    expect(out.proposals).toHaveLength(1);
+    expect(out.text).not.toContain("第二次提交");
+  });
+});
+
+describe("退稿闸 · 换汤不换药点破（2026-10-10 四段）", () => {
+  it("改了内容但仍超标的重交：退稿信点破「这一版和上一版几乎一样」", async () => {
+    mode = "full-access";
+    const h = host();
+    const base = "他嘴角勾起，眼底闪过一丝复杂的情绪。他知道，这不是巧合。".repeat(10);
+    await h.call("write_doc", { doc: CHAPTER, content: base, why: "初稿" });
+    // 只换两个词的「重写」：内容变了（不是原样重交），但与上一版几乎一样。
+    const cosmetic = base.replace(/嘴角勾起/g, "嘴角扬起");
+    const again = await h.call("write_doc", { doc: CHAPTER, content: cosmetic, why: "改了一版" });
+    expect(again.ok).toBe(false);
+    expect(again.text).toContain("这一版和上一版几乎一样");
+  });
+
+  it("真换了写法的重交：退稿信不冤枉人，不提「几乎一样」", async () => {
+    mode = "full-access";
+    const h = host();
+    const base = "他嘴角勾起，眼底闪过一丝复杂的情绪。他知道，这不是巧合。".repeat(10);
+    await h.call("write_doc", { doc: CHAPTER, content: base, why: "初稿" });
+    // 仍超标（好用语重灾区），但句式与初稿完全不同 ⇒ bigram 相似度低，不该被冤枉成换汤。
+    const rewritten = "他深吸一口气，空气仿佛凝固。她深吸一口气，目光深邃。".repeat(10);
+    const again = await h.call("write_doc", { doc: CHAPTER, content: rewritten, why: "真重写" });
+    expect(again.ok, again.text).toBe(false);
+    expect(again.text).not.toContain("几乎一样");
+  });
+});
+
+describe("退稿闸 · 句式节奏条 + 连续退稿升级（2026-10-10 五段）", () => {
+  it("词干净但节奏烂（每句都「他」开头）→ 也拦，退稿信点破节奏病灶", async () => {
+    mode = "full-access";
+    // 零词命中、每句「他」开头 × 10 句（约 240 字过 minChars）：词库放行、节奏条拦。
+    const robotic = [
+      "他推开吱呀作响的院门，把蓑衣挂上门后的木钩。",
+      "他把锄头靠在墙边，拍了拍裤腿上的泥。",
+      "他蹲在灶间生火，火苗舔着潮柴直冒白烟。",
+      "他掀开米缸看了眼，还剩下小半缸。",
+      "他添了半瓢水，把粥搅了两圈。",
+      "他坐在灶口的小板凳上等开锅。",
+      "他听见檐口的雨还在滴滴答答。",
+      "他想起了白天在渡口看见的那条空船。",
+      "他起身又添了一把柴。",
+      "他把火拨小了些，等粥自己咕嘟。",
+      "他把碗筷摆上桌，又数了数有几双。",
+      "他吹了吹粥上的热气，先给自己盛了一碗。",
+      "他隔着窗纱看了眼天色，估摸雨要到后半夜才停。"
+    ].join("");
+    const out = await host().call("write_doc", { doc: CHAPTER, content: robotic, why: "新章" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("句式节奏");
+    expect(out.text).toContain("「他」开头");
+    expect(collected).toEqual([]);
+  });
+
+  it("连续第三次退稿 → 退稿信升级为「回到场景重构」的重话", async () => {
+    mode = "full-access";
+    const h = host();
+    const base = "他嘴角勾起，眼底闪过一丝复杂的情绪。他知道，这不是巧合。".repeat(10);
+    await h.call("write_doc", { doc: CHAPTER, content: base, why: "初稿" });
+    const v2 = base.replace(/嘴角勾起/g, "嘴角扬起");
+    await h.call("write_doc", { doc: CHAPTER, content: v2, why: "改一版" }); // 第二次（换汤提醒）
+    const v3 = base.replace(/嘴角勾起/g, "嘴角翘起");
+    const third = await h.call("write_doc", { doc: CHAPTER, content: v3, why: "再改一版" });
+    expect(third.ok).toBe(false);
+    expect(third.text).toContain("连续第 3 次退稿");
+    expect(third.text).toContain("从头重写");
+  });
+
+  it("过闸即清零：第 4 次提交前先交一篇干净稿，升级话术不再出现", async () => {
+    mode = "full-access";
+    const h = host();
+    const base = "他嘴角勾起，眼底闪过一丝复杂的情绪。他知道，这不是巧合。".repeat(10);
+    await h.call("write_doc", { doc: CHAPTER, content: base, why: "初稿" });
+    await h.call("write_doc", { doc: CHAPTER, content: base + "！", why: "第二版" });
+    // 干净稿过闸（开头字轮换不踩节奏条，长短句错落不踩句长条）→ 连退计数归零。
+    const clean =
+      "他推开院门，把锄头靠在墙边。灶间的火苗窜起来，锅里的粥咕嘟作响。天黑了。" +
+      "风从篱笆的缺口灌进来，吹得那串干辣椒轻轻打转，像谁在数一串旧年的念珠。" +
+      "他把碗摆上桌。粥还烫。隔壁的狗叫了两声，又安静下去。" +
+      "她忽然想起白天在集市上听见的那句闲话——城南的渡口要封了，官船三日不发。" +
+      "夜里的更声远远传来。他睡了。\n";
+    const passed = await h.call("write_doc", { doc: CHAPTER, content: clean, why: "真重写" });
+    expect(passed.ok).toBe(true);
+    // 再超标：从「第一次」重新数，没有升级话术。
+    const again = await h.call("write_doc", { doc: CHAPTER, content: base, why: "又超了" });
+    expect(again.ok).toBe(false);
+    expect(again.text).not.toContain("连续第");
+  });
+});

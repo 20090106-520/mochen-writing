@@ -6,6 +6,7 @@ import {
   IPC_NO_ARG_CHANNELS,
   MAX_ABS_PATH_CHARS,
   MAX_BODY_CHARS,
+  MAX_REL_PATH_CHARS,
   argRulesFor,
   handleTrusted,
   installRendererTrust,
@@ -221,6 +222,35 @@ describe("handleTrusted：不可信调用挡回去，且按各通道现有契约
     });
   });
 
+  it("doc:refresh 被挡时回它自己那套 DocRefreshResult：渲染层 await 到的是回话，不是抛错", () => {
+    // 这条为什么必须存在：`syncDocRef` 里是 `await window.mochen.refreshDoc(...)` 后按 `result.ok` 分支，
+    // 抛错会让整条改名/吸收写入的链路红屏中断，而这条通路本来就是「算不出就退回重扫」的可降级路径。
+    installRendererTrust({ allowedUrl: DEV_URL });
+    const reg = registry();
+    handleTrusted(reg.register, IPC_CHANNELS.docRefresh, () => ({ ok: true, doc: null }));
+    const reply = reg.fns.get(IPC_CHANNELS.docRefresh)!(event(frame(DEV_URL)), 42) as Record<
+      string,
+      unknown
+    >;
+    expect(reply).toEqual({
+      ok: false,
+      reason: "invalid-path",
+      message: expect.stringContaining("重算文稿")
+    });
+    // 越界（check 那一路）才是 outside-book：两种理由不许混成一枚，渲染层据此说不同的话。
+    const reg2 = registry();
+    handleTrusted(reg2.register, IPC_CHANNELS.docRefresh, () => ({ ok: true, doc: null }), {
+      check: () => "这条路径落在这本书外面"
+    });
+    expect(reg2.fns.get(IPC_CHANNELS.docRefresh)!(event(frame(DEV_URL)), "chapters/01.md")).toEqual(
+      {
+        ok: false,
+        reason: "outside-book",
+        message: "这条路径落在这本书外面"
+      }
+    );
+  });
+
   it("book:create 的形状被拒时回 {ok:false,message}（这条现有契约里没有 reason 字段）", () => {
     installRendererTrust({ allowedUrl: DEV_URL });
     const reg = registry();
@@ -307,6 +337,23 @@ describe("参数形状闸：不再靠 as string 断言", () => {
   it("doc:write 的第三个实参（期望指纹）也得是字符串：非串等于绕过指纹闸", () => {
     expect(fire(IPC_CHANNELS.docWrite, "chapters/01.md", "正文", {})).toBe("refused");
     expect(fire(IPC_CHANNELS.docWrite, "chapters/01.md", "正文", "fp-1")).toBe("passthrough");
+  });
+
+  it("doc:refresh 只收一条合法的书内相对路径（新通道不落形状表＝P1-7 的原病复发）", () => {
+    expect(fire(IPC_CHANNELS.docRefresh, "chapters/01.md")).toBe("passthrough");
+    for (const bad of [
+      42,
+      undefined,
+      null,
+      {},
+      ["chapters/01.md"],
+      "",
+      "   ",
+      "chapters/01.md\0.md",
+      "x".repeat(MAX_REL_PATH_CHARS + 1)
+    ]) {
+      expect(fire(IPC_CHANNELS.docRefresh, bad), `坏值 ${String(bad)} 该被挡`).toBe("refused");
+    }
   });
 
   it("在册通道都在形状表里点名；带参数的每条至少有一则规则（新增通道不落表就红）", () => {
@@ -464,6 +511,17 @@ describe("relPathStaysInsideRoot：词法之上再加 realpath 级", () => {
     expect(ok).toBe(true);
   });
 
+  it("两级目录都不存在（新分类的第一篇）⇒ 最近祖先就是书根本身，放行", async () => {
+    // 2026-10-10 实测逮住的回归：骨架只建 4 个分类目录，worldview 这类还没落过第一篇的
+    // 分类连目录都没有，回退链走到书根时旧捷径直接判外 ⇒ 新书永远建不出第一篇世界观。
+    const ok = await relPathStaysInsideRoot(
+      ROOT,
+      "worldview/大陆与王朝.md",
+      fakeRealpath({ [ROOT]: ROOT })
+    );
+    expect(ok).toBe(true);
+  });
+
   it("连书根自己都解不出来 ⇒ 当作不可用，拒", async () => {
     expect(await relPathStaysInsideRoot(ROOT, "chapters/01.md", fakeRealpath({}))).toBe(false);
   });
@@ -498,7 +556,16 @@ describe("relPathStaysInsideRoot：词法之上再加 realpath 级", () => {
           path.join(root, "chapters", "link.md"),
           "file"
         );
-        expect(await relPathStaysInsideRoot(root, "chapters/link.md", { realpath })).toBe(false);
+        // 沙箱里有软链 shim：symlink() 不报错但也**没真建出符号链接**（lstat 认不出 S_IFLNK）。
+        // 那种环境下 link.md 是书里的普通文件，「判成放行」反而是对的——这条断言在这儿
+        // 跑只会假红。真链在不在，lstat 一眼可辨：不在就说明这一条在本机没验到。
+        const { lstat } = await import("node:fs/promises");
+        const st = await lstat(path.join(root, "chapters", "link.md"));
+        if (!st.isSymbolicLink()) {
+          console.warn("[环境噪音] symlink() 静默没建出真软链（shim），软链逃逸那一条没验到");
+        } else {
+          expect(await relPathStaysInsideRoot(root, "chapters/link.md", { realpath })).toBe(false);
+        }
         await rm(outside, { recursive: true, force: true });
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code;

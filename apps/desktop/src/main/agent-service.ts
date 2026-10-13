@@ -55,6 +55,7 @@ import { createDocToolHost } from "./doc-tools-host.js";
 // 会话的只读回程（回放与全书总览）住在 agent-session-read.ts：它不跑 turn、不碰提案，与服务编排不共享状态。
 import { listBookSessions, loadSavedSession } from "./agent-session-read.js";
 import { webSearch } from "./web-search.js";
+import { webRead } from "./web-read.js";
 // 打断与出网时限的接线住在 provider-fetch.ts：这一层只负责把「这一轮那只 signal」递进去。
 import { abortableFetch } from "./provider-fetch.js";
 import { withPlugins, type PluginTools } from "./plugin-host.js";
@@ -384,12 +385,11 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
       onProposal: (proposal, baseline) => registerProposal(turnId, threadKey, proposal, baseline),
       newId: deps.newId,
       now: deps.isoNow,
-      // P1-1 的②：联网搜索必须接上**这一轮**那只 AbortController。
-      // 为什么接在这里而不是改 web-search.ts：它每个源都在 timedFetch 里把 init.signal
-      // 覆写成 `AbortSignal.timeout(6000)`（5-⑨ 量出来的防挂死闸门，不许拿掉），
-      // 所以 `abortableFetch` 在最外面这一层把两只并成一只——单源有界照旧，Esc 当场停下。
-      // 也不用全局状态去读「有没有打断」：换一轮就是另一只 signal，与每轮开关同一口径。
-      webSearch: (query) => webSearch(query, { fetchImpl: abortableFetch(fetch, signal) })
+      // P1-1 的②：联网工具必须接上**这一轮**那只 AbortController。web-search/web-read 各自把
+      // signal 覆写成 AbortSignal.timeout（防挂死闸门，不许拿掉），所以 abortableFetch 在最外层
+      // 把两只并成一只——单源有界照旧，Esc 当场停下；换一轮就是另一只 signal，与每轮开关同口径。
+      webSearch: (query) => webSearch(query, { fetchImpl: abortableFetch(fetch, signal) }),
+      webRead: (url) => webRead(url, { fetchImpl: abortableFetch(fetch, signal) })
     });
     // 插件工具**叠加**（2026-10-07 批次 5-㉘）；那层住 plugin-host.ts。
     return withPlugins(base, deps.plugins);

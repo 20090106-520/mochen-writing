@@ -1,6 +1,6 @@
 import {
+  NETWORK_TOOL_NAMES,
   THINKING_WIRE_FIELD,
-  WEB_SEARCH_TOOL_NAME,
   thinkingWireValueOf,
   type ThinkingLevel,
   type ThinkingWire
@@ -44,9 +44,11 @@ export function thinkingBodyField(
 /**
  * 联网开关 → 出站 `tools` 数组的唯一映射。
  *
- * 开 ⇒ 这一轮的工具原样交出去（里面含 `web_search` 那枚 function 工具：本地免费源、不要 key，
- * 真身在 `apps/desktop/src/main/doc-tools-host.ts`）；关 ⇒ 把 `web_search` 从名单里摘掉，
- * 模型这一轮就没有「上网查」这条路。
+ * 开 ⇒ 这一轮的工具原样交出去（里面含 `web_search` / `web_read` 两枚 function 工具：
+ * 本地免费源、不要 key，真身在 `apps/desktop/src/main/doc-tools-host.ts`）；
+ * 关 ⇒ 把**全部会出网的工具**（contracts 的 `NETWORK_TOOL_NAMES`）从名单里摘掉，
+ * 模型这一轮就没有「上网查」这条路。2026-10-11 起 出网的有两枚（搜索 + 正文抓取），
+ * 开关闸的是这一类——只摘 web_search 的话，模型还能用 web_read 出网，开关就成了摆设。
  *
  * **这里曾经发过一枚裸的 `{ type: "web_search" }`**（照 deepwrite 的 hosted tool 形状抄的），
  * 2026-10-08 被真机打掉：Agnes AI Hub 这类严格 OpenAI 兼容端点把它反序列化成
@@ -57,5 +59,7 @@ export function thinkingBodyField(
  * 何况本仓的联网本来就有能跑的 function 版，hosted 那条既多余，又是唯一会让整批工具报废的东西。
  */
 export function wireToolsFor<T extends { name: string }>(tools: T[], enabled: boolean): T[] {
-  return enabled ? tools : tools.filter((tool) => tool.name !== WEB_SEARCH_TOOL_NAME);
+  return enabled
+    ? tools
+    : tools.filter((tool) => !(NETWORK_TOOL_NAMES as readonly string[]).includes(tool.name));
 }

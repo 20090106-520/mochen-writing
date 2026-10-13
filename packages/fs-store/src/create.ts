@@ -18,17 +18,23 @@ export function docTemplate(title: string): string {
 }
 
 /**
- * 在书内建一篇空文档。三条硬边界：
+ * 在书内建一篇文档。三条硬边界：
  * ① 路径必须安全（assertSafeRelPath 挡越界与空路径）；
- * ② 必须落在五个分组目录之一（扫描器不认的路径建了也白建，宁可当场拒绝）；
+ * ② 必须落在分组目录之一（扫描器不认的路径建了也白建，宁可当场拒绝）；
  * ③ 文件已存在一律拒绝——这条通道只管「新建」，改写走 writeDoc 的指纹链。
+ *
+ * `body`（2026-10-11，TXT 导入）：非空时作为正文拼在 frontmatter 之后。
+ * 默认 "" 与旧行为逐字一致——「新建」仍是空文档；导入的章只是**带了正文的同一种新建**，
+ * 守卫一份不抄、一份不漏。
  */
 export async function createDocFile(
   root: string,
   relPath: string,
   title: string,
   /** 原子写的 fs 缝，与 `writeDocFile` 同源（P0-1）。 */
-  fs: AtomicWriteFs = defaultAtomicFs
+  fs: AtomicWriteFs = defaultAtomicFs,
+  /** 正文（不含 frontmatter）。TXT 导入用；行内新建与既有调用不传它，行为不变。 */
+  body = ""
 ): Promise<CreateDocFileResult> {
   let safe: string;
   try {
@@ -57,7 +63,7 @@ export async function createDocFile(
   if (existing !== null && existing.includes(path.basename(target)))
     return { ok: false, reason: "already-exists", message: `${safe} 已经存在，没有覆盖它` };
 
-  const content = docTemplate(title);
+  const content = docTemplate(title) + body;
   // 新建也走原子写：半途而废的「新文档」同样是一篇读不回来的正文（P0-1）。
   await writeFileAtomic(target, content, fs);
   return { ok: true, fingerprint: makeFingerprint(content) };

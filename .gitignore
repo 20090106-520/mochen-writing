@@ -1,6 +1,8 @@
 node_modules/
 dist/
 out/
+# electron-builder 的安装包产物（2026-10-10）：安装器是构建产物，不进仓库
+apps/desktop/release/
 .mochen-tmp/
 *.log
 .DS_Store
@@ -27,3 +29,4 @@ _tmp_*
 nul
 shot-*.png
 mochen-*.png
+release-e2e/

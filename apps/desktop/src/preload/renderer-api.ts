@@ -43,6 +43,9 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     writeDoc: (relPath, content, expectedFingerprint) =>
       invoke(IPC_CHANNELS.docWrite, relPath, content, expectedFingerprint),
     createDoc: (relPath, title) => invoke(IPC_CHANNELS.docCreate, relPath, title),
+    // 只重算一篇（P1-4 后半）：这一层照旧不加判定——递出去的就是那一条相对路径，
+    // 「算不出就退回整本重扫」的分支住在渲染层，preload 里写第二份判据迟早与它分家。
+    refreshDoc: (relPath) => invoke(IPC_CHANNELS.docRefresh, relPath),
     // 设定数据（P0-7）：只递键，路径由主进程按白名单拼。preload 这一层不做判定，也不加判定——
     // 在这里顺手 `if (!keys.includes(key))` 就是第二份白名单，将来两处迟早不一样。
     readBookData: (key) => invoke(IPC_CHANNELS.bookDataRead, key),
@@ -121,6 +124,22 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
      * 渲染层能说明「哪一篇落不下去、为什么」，但递不出路径，也就决定不了主进程往哪儿写。
      */
     onQuitFlushRequest: (listener) => on(IPC_CHANNELS.appFlushQuitRequest, () => listener()),
-    quitFlushDone: (reply) => invoke(IPC_CHANNELS.appFlushQuitDone, reply)
+    quitFlushDone: (reply) => invoke(IPC_CHANNELS.appFlushQuitDone, reply),
+    // 更新检查（2026-10-10）：更新源由主进程读 env，渲染层递不了 URL——这里只转发。
+    updateCheck: () => invoke(IPC_CHANNELS.updateCheck),
+    // 回收站三条（2026-10-10）：只递 relPath / trashName，盘上路径由主进程按当前书拼。
+    // 「删了能不能找回」的判定全在主进程 doc-trash.ts，preload 不加第二份。
+    trashDoc: (relPath) => invoke(IPC_CHANNELS.docTrash, relPath),
+    listTrash: () => invoke(IPC_CHANNELS.trashList),
+    restoreTrash: (trashName) => invoke(IPC_CHANNELS.trashRestore, trashName),
+    // 整书备份三条（2026-10-10）：只递档位 / 备份目录名，盘上路径由主进程按当前书拼。
+    // 「备不备、备到哪、恢复到哪」的判定全在主进程 book-backup.ts，preload 不加第二份。
+    createBookBackup: (mode) => invoke(IPC_CHANNELS.bookBackupCreate, mode),
+    listBookBackups: () => invoke(IPC_CHANNELS.bookBackupList),
+    restoreBookBackup: (name) => invoke(IPC_CHANNELS.bookBackupRestore, name),
+    // TXT 导入两条（2026-10-11）：预览无参（选文件框、读字节、切章全在主进程）；
+    // 提交只递标题+正文清单，`chapters/<标题>.md` 由主进程拼。preload 不加判定。
+    importTxtPreview: () => invoke(IPC_CHANNELS.importPreview),
+    importTxtCommit: (input) => invoke(IPC_CHANNELS.importCommit, input)
   };
 }

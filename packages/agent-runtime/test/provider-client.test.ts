@@ -54,7 +54,9 @@ async function run(
     signal,
     // 本文件管的是流式解析与打断，每轮两枚恒为默认态；它们到字节的那一段住在 per-run-fields.test.ts。
     thinkingLevel: "off",
-    webSearchEnabled: false
+    webSearchEnabled: false,
+    // 连接期重试的间隔压到 1ms：错误类用例（429/5xx）会走一次重试，不注入就是 1.5 秒 ×N 条。
+    retryDelayMs: 1
   }))
     out.push(event);
   return out;
@@ -646,5 +648,80 @@ describe("streamChat · 被截断的收尾不再等于答完（P2-5）", () => {
       { kind: "tool-call-truncated", call: { id: "c2", name: "read_doc", args: '{"doc": "chap' } },
       { kind: "finish", reason: "length" }
     ]);
+  });
+});
+
+describe("streamChat · 连接期一次性自动重试（2026-10-11）", () => {
+  /** 状态序列桩：第 i 次调用回 statuses[i]，用尽后一直回最后一个。 */
+  function sequentialFetch(statuses: number[], errorText = "") {
+    let calls = 0;
+    const fetchImpl = async (): Promise<ProviderFetchResult> => {
+      const status = statuses[Math.min(calls, statuses.length - 1)]!;
+      calls += 1;
+      if (status >= 200 && status < 300)
+        return {
+          status,
+          stream: chunkStream(
+            sse(
+              { choices: [{ delta: { content: "好" } }] },
+              { choices: [{ delta: {}, finish_reason: "stop" }] }
+            )
+          ),
+          errorText: ""
+        };
+      return { status, stream: null, errorText };
+    };
+    return { fetchImpl, calls: () => calls };
+  }
+
+  it("429 闪断 → 默哀后重试一次，第二次 200 正常出流", async () => {
+    const { fetchImpl, calls } = sequentialFetch([429, 200]);
+    const events = await run(fetchImpl);
+    expect(calls()).toBe(2);
+    expect(events.at(-1)).toEqual({ kind: "finish", reason: "stop" });
+  });
+
+  it("500 后仍 500 → 照旧抛 ProviderError，不无限重试", async () => {
+    const { fetchImpl, calls } = sequentialFetch([500, 500], "busy");
+    await expect(run(fetchImpl)).rejects.toThrow(/500/);
+    expect(calls()).toBe(2);
+  });
+
+  it("401 不重试：请求本身不对，再试只是原样再错一次", async () => {
+    const { fetchImpl, calls } = sequentialFetch([401, 200]);
+    await expect(run(fetchImpl)).rejects.toThrow(/401/);
+    expect(calls()).toBe(1);
+  });
+
+  it("重试等待期间被打断 → 安静收尾 aborted，不再发第二次", async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const fetchImpl = async (): Promise<ProviderFetchResult> => {
+      calls += 1;
+      return { status: 429, stream: null, errorText: "rate limited" };
+    };
+    // 这里不能走 run()（它把重试间隔钉在 1ms，会抢在 20ms 的打断前发完第二发）：
+    // 间隔 200ms、打断 20ms——打断必然落在默哀期内。
+    const pending = (async () => {
+      const out: StreamEvent[] = [];
+      for await (const event of streamChat({
+        fetchImpl,
+        baseURL: "http://127.0.0.1:8787/v1",
+        apiKey: "sk-secret-token",
+        model: "test-model",
+        messages: [chatMessage("user", "改一下")],
+        tools: [],
+        signal: controller.signal,
+        thinkingLevel: "off",
+        webSearchEnabled: false,
+        retryDelayMs: 200
+      }))
+        out.push(event);
+      return out;
+    })();
+    setTimeout(() => controller.abort(), 20);
+    const events = await pending;
+    expect(events.at(-1)).toEqual({ kind: "finish", reason: "aborted" });
+    expect(calls).toBe(1);
   });
 });

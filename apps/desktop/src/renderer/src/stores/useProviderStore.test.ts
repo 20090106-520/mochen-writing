@@ -181,6 +181,22 @@ const api = {
   },
   writeBookData: async () => {
     throw new Error("不该写书里的设定文件");
+  },
+  // 只重算一篇（2026-10-10 P1-4 后半）与回收站三条、更新检查（同日）：satisfies RendererApi
+  // 要求它们在场，但这些用例一条都不消费——空实现回合法形状，真被调到也不至于污染用例。
+  refreshDoc: async () => ({ ok: true, doc: null }),
+  trashDoc: async () => ({ ok: true, trashName: "fixture" }),
+  listTrash: async () => ({ ok: true, entries: [] }),
+  restoreTrash: async () => ({ ok: true, relPath: "chapters/fixture.md" }),
+  createBookBackup: async () => ({ ok: true, name: null, fileCount: 0 }),
+  listBookBackups: async () => ({ ok: true, entries: [] }),
+  restoreBookBackup: async () => ({ ok: true, destName: "恢复目录" }),
+  updateCheck: async () => ({ status: "disabled", version: "", latestVersion: null, note: "" }),
+  importTxtPreview: async () => {
+    throw new Error("不该做 TXT 导入预览");
+  },
+  importTxtCommit: async () => {
+    throw new Error("不该提交 TXT 导入");
   }
 } satisfies RendererApi;
 
@@ -705,5 +721,37 @@ describe("useProviderStore · 保存连接", () => {
     expect(s.models).toBeNull();
     await s.loadModels();
     expect(listModels).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("warmModelCache · 启动预拉模型清单（2026-10-11）", () => {
+  it("有启用模型且缓存为空 ⇒ 预拉一次；点开下拉（loadModels）不再发请求", async () => {
+    const s = store();
+    await s.warmModelCache();
+    expect(listModels).toHaveBeenCalledTimes(1);
+    // 点开下拉走的就是缓存：不再打网络。
+    await s.loadModels();
+    expect(listModels).toHaveBeenCalledTimes(1);
+    expect(s.models?.ok).toBe(true);
+  });
+
+  it("预拉失败不落缓存：点开下拉时仍是干净的首次尝试", async () => {
+    const s = store();
+    listModels.mockRejectedValueOnce(new Error("网络抖动"));
+    await s.warmModelCache();
+    expect(s.models).toBeNull(); // 失败没被钉进缓存
+    await s.loadModels();
+    expect(listModels).toHaveBeenCalledTimes(2);
+    expect(s.models?.ok).toBe(true);
+  });
+
+  it("没有启用中的模型 ⇒ 不预拉（主进程只会回「没启用」，白打一轮）", async () => {
+    providerView.mockResolvedValueOnce({
+      ...VIEW,
+      profiles: VIEW.profiles.map((p) => ({ ...p, enabled: false }))
+    });
+    const s = store();
+    await s.warmModelCache();
+    expect(listModels).not.toHaveBeenCalled();
   });
 });

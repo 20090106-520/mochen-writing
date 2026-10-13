@@ -28,6 +28,7 @@ const STYLES_CSS = styleSource("../styles.css");
 // 拿原文去断言就是让注释自己把断言喂饱（utils/vue-source-reader.ts 写的就是这件事）。
 const VIEW_CSS = strippedStyleSource("view-transition.css");
 const VIEW_TS = typeScriptSource("utils/view-transition.ts");
+const MOTION_PREF_TS = typeScriptSource("utils/motion-preference.ts");
 
 /** 某个函数的函数体（含它自己的那一圈花括号），注释已在上游剥掉。 */
 function functionBody(source: string, name: string): string {
@@ -118,25 +119,31 @@ describe("样式：名字挂在谁身上", () => {
     expect(view, "view-transition.css 必须排在 motion.css 之后").toBeGreaterThan(motion);
   });
 
-  it("弹簧缓动有 @supports 兜底：引擎不认 linear() 时退到原来的曲线，而不是变成默认 ease", () => {
-    expect(VIEW_CSS).toContain("@supports (animation-timing-function: linear(0, 1))");
-    const fallbackAt = VIEW_CSS.indexOf("--ease-view: cubic-bezier");
-    const springAt = VIEW_CSS.indexOf("--ease-view: linear(");
-    expect(fallbackAt, "兜底值必须写在前面").toBeGreaterThan(-1);
-    expect(springAt, "弹簧曲线必须真的写出来").toBeGreaterThan(fallbackAt);
+  it("这一层用全仓那一条 --ease-out-soft，不另立一份手感", () => {
+    // 2026-10-11：原先这里挂的是那条 34 停靠点的弹簧曲线，已撤。
+    // ::view-transition-* 是伪元素、不在 DOM 里，GSAP 的选择器根本选不中它们（理由见那个文件头），
+    // 所以曲线留在 CSS，并统一到浮层那条——而不是就地再抄一条 cubic-bezier。
+    expect(VIEW_CSS).toContain("var(--ease-out-soft)");
+    expect(VIEW_CSS, "这一层不许自己抄一条缓动曲线").not.toContain("cubic-bezier(");
   });
 
-  it("弹簧曲线过冲有界且收得住（线性插值点首 0 末 1，中间不得跳出 [0, 1.15]）", () => {
-    const block = /--ease-view:\s*linear\(([^)]*)\)/.exec(VIEW_CSS)?.[1] ?? "";
-    const points = block
-      .split(",")
-      .map((p) => Number(p.trim().split(/\s+/).at(-1)))
-      .filter((n) => Number.isFinite(n));
-    expect(points.length, "至少要有十几个采样点").toBeGreaterThan(10);
-    expect(points[0]).toBe(0);
-    expect(points.at(-1)).toBe(1);
-    expect(Math.max(...points), "过冲不许超过 15%，否则是晃不是弹").toBeLessThanOrEqual(1.15);
-    expect(Math.min(...points), "不许掉到 0 以下").toBeGreaterThanOrEqual(0);
+  /**
+   * **反向钉：这一层不许再有 linear() 曲线。**
+   *
+   * 原值是 linear(0, 0.0655, …) 这样的 34 段字符串，而它是本仓最贵的一次静默失效的现场
+   * （2026-10-10 真机撞出）：引擎只认「逗号分隔的单个数字」，写错形状整条声明在计算值阶段被丢弃——
+   * animation-name 算出来是 none、getAnimations() 为空、控制台零报错，
+   * 而当时那条 @supports 闸探的恰好是引擎唯一收的那种形式，**闸是过的，曲线从没生效过**。
+   *
+   * 曲线搬到 utils/motion-spring.ts（JS 侧算）之后，样式表里一份都不该剩。
+   * 这三条断言一起把「加回来」这条路堵死：曲线字面量、@supports 闸、以及那个变量本身。
+   */
+  it("CSS 里一份弹簧都不许剩（曲线字面量 / @supports 闸 / 那个变量，全都退役）", () => {
+    expect(VIEW_CSS, "这一层又出现了 linear() 曲线").not.toContain("linear(");
+    expect(VIEW_CSS, "那条 @supports 闸也一并退役了").not.toContain(
+      "@supports (animation-timing-function"
+    );
+    expect(VIEW_CSS, "弹簧变量也一并退役了").not.toContain("--ease-view");
   });
 
   it("自洽：凡挂过 view-transition-name 的名字，三种伪元素都得出现在关闭动效的那两段里", () => {
@@ -173,7 +180,11 @@ describe("反向钉：几处最容易走偏的地方", () => {
     const app = vueSource("App.vue");
     expect(app).not.toContain("document.startViewTransition");
     expect(LAYOUT).not.toContain("document.startViewTransition");
-    expect(VIEW_TS).toMatch(/document as unknown as ViewTransitionHost/);
+    // 宿主从 document 取时必须走结构类型的断言：`document` 上没有 startViewTransition 这个成员。
+    // 2026-10-11 起这个断言搬到了 motion-preference.ts（认档的家），
+    // view-transition.ts 那一处改为把同一个对象看成更宽的结构类型——两处都要在，缺一就红。
+    expect(MOTION_PREF_TS).toMatch(/document as unknown as ReducedMotionHost/);
+    expect(VIEW_TS).toMatch(/currentReducedMotionHost\(\) as ViewTransitionHost \| null/);
   });
 
   it("刷主题那条不许被拆成第二条刷 DOM 的通路（--skin-* 的作者必须只有一个）", () => {

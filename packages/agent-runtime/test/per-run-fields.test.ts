@@ -137,11 +137,13 @@ describe("thinkingBodyField · 连接级线格式（批次 5-㊻）", () => {
 describe("wireToolsFor", () => {
   const tools = [
     { name: "read_doc", description: "读文稿", parameters: {} },
-    { name: "web_search", description: "联网搜索", parameters: {} }
+    { name: "web_search", description: "联网搜索", parameters: {} },
+    { name: "web_read", description: "读网页", parameters: {} }
   ];
 
-  it("开 ⇒ 原样交出这一轮的工具；关 ⇒ 只摘掉 web_search，其余一枚不动", () => {
+  it("开 ⇒ 原样交出这一轮的工具；关 ⇒ 摘掉全部出网工具（web_search + web_read），书稿那枚不动", () => {
     expect(wireToolsFor(tools, true)).toEqual(tools);
+    // 2026-10-11 起 出网两枚：只摘 web_search 的话，模型还能用 web_read 出网，开关成摆设。
     expect(wireToolsFor(tools, false).map((tool) => tool.name)).toEqual(["read_doc"]);
   });
 });

@@ -202,9 +202,17 @@ html[data-platform="darwin"] .conversation-header {
   justify-content: center;
   flex-direction: column;
   width: min(520px, calc(100% - 48px));
-  margin: auto;
-  /* 用户裁定：不留大空白——上下收窄，内容自然居中即可。 */
-  padding: 12px 0 24px;
+  /* 用户裁定：不留大空白——上下收窄，内容自然居中即可。
+     【2026-10-11 修的就是这一条自己】原来是 `margin: auto`，而 `auto` 在 flex 列容器里
+     是**上下都撑满**的等分：空状态被放在「滚动区减去输入卡」那 800px 的正中，
+     于是上方空出约 200px、下方又被输入卡切掉一截，主体挤在中间偏上——
+     正是「不留大空白」要避免的那一格。真机截图（1440×900）量到的是
+     hero 顶边 y≈180、CTA 底边 y≈520，下面 170px 全被输入卡占着。
+     改成 `margin: 0 auto` + 一个有上限的上边距：内容贴着上方一小段留白开始，
+     由自身的 padding 收尾，垂直重心不再被等分推到中间。
+     **为什么不用 justify-content: center**：那同样会把整块压到正中，与 auto 等价。 */
+  margin: 0 auto;
+  padding: clamp(24px, 7vh, 72px) 0 24px;
   text-align: center;
 }
 

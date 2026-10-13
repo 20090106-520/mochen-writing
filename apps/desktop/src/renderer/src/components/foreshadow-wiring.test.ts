@@ -47,10 +47,13 @@ describe("文稿体系认了这一类", () => {
     expect(sideScript).toContain("revealAgentPanel();");
   });
 
-  it("两处 KIND_ICON 都有伏笔这一行（.vue 不进 tsc，编译器抓不到这两张表）", () => {
-    for (const file of ["components/LeftSidebar.vue", "components/OutlinePanel.vue"]) {
-      expect(scriptSource(file), `${file} 缺 foreshadow 图标`).toContain("foreshadow:");
-    }
+  it("KIND_ICON 有伏笔这一行（.vue 不进 tsc，编译器抓不到这张表）", () => {
+    // 2026-10-10 改钉：LeftSidebar 那份 KIND_ICON 表已抽进 utils/kind-icons（单一真身，
+    // LeftSidebar 只 import），图标拼写的双向对齐由 utils/icons-coverage.test 钉；
+    // 这里钉的是「伏笔这一行存在」与「另一处（OutlinePanel 自持的那份）也没丢」。
+    expect(typeScriptSource("utils/kind-icons.ts")).toContain("foreshadow:");
+    expect(scriptSource("components/OutlinePanel.vue")).toContain("foreshadow:");
+    expect(scriptSource("components/LeftSidebar.vue")).toContain('from "../utils/kind-icons"');
   });
 });
 

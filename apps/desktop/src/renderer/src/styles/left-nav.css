@@ -169,7 +169,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   flex: 0 0 auto;
   color: var(--text-tertiary);
   transform: rotate(90deg);
-  transition: transform 140ms ease;
+  transition: transform var(--dur-control) ease;
 }
 
 .nav-group.is-collapsed .nav-group-chevron {
@@ -258,6 +258,27 @@ html[data-platform="darwin"] .sidebar-brand-row {
   margin: 10px 0 0;
   color: var(--text-tertiary);
   font-size: 0.857143rem;
+}
+
+/* 书稿体检的四段小节头（2026-10-10）：术语疑似 / 标点硬伤 / 重复句 / 角色出场。 */
+.stats-section-head {
+  margin: 14px 0 6px;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  font-weight: 600;
+}
+
+.stats-section-head + .stats-table {
+  margin-top: 0;
+}
+
+/* 体检条目可点直达原文（2026-10-10）：hover 给一点反馈，别让「能点」靠猜。 */
+.stats-table tr.is-openable {
+  cursor: pointer;
+}
+
+.stats-table tr.is-openable:hover td {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.04));
 }
 
 .nav-soon {
@@ -371,7 +392,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   flex: 0 0 auto;
   color: var(--text-tertiary);
   transform: rotate(90deg);
-  transition: transform 140ms ease;
+  transition: transform var(--dur-control) ease;
 }
 
 .resource-section.is-collapsed .section-toggle-chevron {
@@ -566,7 +587,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   cursor: grab;
   opacity: 0;
   -webkit-app-region: no-drag;
-  transition: opacity 140ms ease;
+  transition: opacity var(--dur-control) ease;
 }
 
 .tree-node:hover .tree-drag-handle,

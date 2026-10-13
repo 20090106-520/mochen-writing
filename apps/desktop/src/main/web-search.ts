@@ -291,9 +291,14 @@ export const duckduckgoSource: WebSearchSource = {
   label: "DuckDuckGo",
   async run(query, fetchImpl) {
     // POST 表单而不是 GET：DDG 对 GET 查询串的风控更紧；UA 要像浏览器，否则直接 403。
-    let response: Response;
+    //
+    // **读 body 必须在 try 里面**（2026-10-10 修）：`timedFetch` 的 `AbortSignal.timeout`
+    // 确实管得到 `response.text()`（本地服务实测：发完 header 就把 body 卡住，它在 6s 处以
+    // AbortError 收场）。原先 `await response.text()` 写在 catch 之外，于是那次超时**以抛异常的形式
+    // 逃出源**——源不再返回失败回执，下游拿到的就是一个裸 AbortError。
+    let html: string;
     try {
-      response = await timedFetch(
+      const response = await timedFetch(
         fetchImpl,
         "https://html.duckduckgo.com/html/",
         {
@@ -303,11 +308,12 @@ export const duckduckgoSource: WebSearchSource = {
         },
         WEB_SEARCH_SOURCE_TIMEOUT_MS
       );
+      if (!response.ok) return httpFailure(response.status);
+      html = await response.text();
     } catch (error) {
       return { ok: false, reason: "network", message: networkMessage(error) };
     }
-    if (!response.ok) return httpFailure(response.status);
-    const results = parseDuckDuckGoHtml(await response.text());
+    const results = parseDuckDuckGoHtml(html);
     if (results.length === 0) return { ok: false, reason: "empty", message: "页面上没解析出结果" };
     return { ok: true, results };
   }
@@ -404,19 +410,21 @@ export const so360Source: WebSearchSource = {
   id: "so-360",
   label: "360 搜索",
   async run(query, fetchImpl) {
-    let response: Response;
+    // 读 body 同样在 try 里（理由见 DuckDuckGo 那一段的注释：超时会以 AbortError 抛出，
+    // 写在 catch 之外的话源会抛异常而不是返回失败回执）。
+    let html: string;
     try {
-      response = await timedFetch(
+      const response = await timedFetch(
         fetchImpl,
         `https://www.so.com/s?q=${encodeURIComponent(query)}`,
         { method: "GET", headers: { ...BROWSER_HEADERS, referer: "https://www.so.com/" } },
         WEB_SEARCH_SOURCE_TIMEOUT_MS
       );
+      if (!response.ok) return httpFailure(response.status);
+      html = await response.text();
     } catch (error) {
       return { ok: false, reason: "network", message: networkMessage(error) };
     }
-    if (!response.ok) return httpFailure(response.status);
-    const html = await response.text();
     if (isThrottled360Page(html))
       return { ok: false, reason: "unavailable", message: "触发了访问频控" };
     const results = parseSo360Html(html).filter((r) => !isSo360NoiseCard(r, query));
@@ -507,19 +515,21 @@ export const bingSource: WebSearchSource = {
   id: "bing-cn",
   label: "必应",
   async run(query, fetchImpl) {
-    let response: Response;
+    // 读 body 同样在 try 里（理由见 DuckDuckGo 那一段的注释）。
+    let html: string;
     try {
-      response = await timedFetch(
+      const response = await timedFetch(
         fetchImpl,
         `https://cn.bing.com/search?q=${encodeURIComponent(query)}`,
         { method: "GET", headers: { ...BROWSER_HEADERS, referer: "https://cn.bing.com/" } },
         WEB_SEARCH_SOURCE_TIMEOUT_MS
       );
+      if (!response.ok) return httpFailure(response.status);
+      html = await response.text();
     } catch (error) {
       return { ok: false, reason: "network", message: networkMessage(error) };
     }
-    if (!response.ok) return httpFailure(response.status);
-    const results = parseBingHtml(await response.text());
+    const results = parseBingHtml(html);
     if (results.length === 0) return { ok: false, reason: "empty", message: "页面上没解析出结果" };
     const coverage = bingCoverage(
       query,
@@ -706,7 +716,17 @@ async function runSourceChain(
       continue;
     }
     tried.push(source.label);
-    const attempt = await source.run(query, options.fetchImpl);
+    // **源抛异常不许掐断整条链**（2026-10-10 修）。源的契约是「返回一条 SourceAttempt」，
+    // 真源已把读 body 也包进自己的 try；这里是第二道——第三方源或将来的改动一旦抛了，
+    // 它仍只是一个「坏掉的源」：记一条失败、进冷却、继续试下一个。
+    // 不这么做的话，一个源的异常会把后面的源整段跳过，冷却簿记也整段不记，
+    // 于是「三个源都试一遍」实际只试了一个，而且下一轮还会再撞一次。
+    let attempt: SourceAttempt;
+    try {
+      attempt = await source.run(query, options.fetchImpl);
+    } catch (error) {
+      attempt = { ok: false, reason: "network", message: networkMessage(error) };
+    }
     if (attempt.ok && attempt.results.length > 0) {
       // 答上一次就把连续失败清零：一次偶发的连不上不该让后面的冷却一直翻倍。
       // 不清零的话「断网三秒 + 之后一直正常」会一路涨到六十分钟，那是在惩罚早就恢复的源。

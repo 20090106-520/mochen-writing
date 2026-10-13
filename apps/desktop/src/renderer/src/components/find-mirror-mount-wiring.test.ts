@@ -72,8 +72,18 @@ describe("mirror 只在面板开着时挂（P2-13）", () => {
   });
 
   it("切分判定仍只住 utils/find-mirror：组件里没有第二份 <mark 拼接", () => {
-    expect(paneScript).toContain("findMirrorHtml(book.draft");
+    // 2026-10-10 巡检：mirror 整篇转义 + 整段 v-html 重挂，十万字开着查找每键实测 500ms。
+    // 改为整份快照（草稿 + 位置 + 当前条，三件必须同拍）经 useTrailingValue 落后一拍上屏，
+    // 所以组件里吃的是 mirrorSource 而不再是 live 的 book.draft——钉住这层，防止改回去。
+    expect(paneScript).toContain("findMirrorHtml(snap.draft");
+    expect(paneScript).toContain("useTrailingValue");
     expect(countNeedle("<mark", paneScript)).toBe(0);
+  });
+
+  it("mirror 快照三件同拍：草稿、位置、当前条在一个对象里（位置照草稿算，不许各走各的）", () => {
+    const sourceCall =
+      /useTrailingValue\(\s*\(\)\s*=>[\s\S]*?positions:[^,]+,[\s\S]*?index:[^,}]+/.exec(paneScript);
+    expect(sourceCall).not.toBeNull();
   });
 
   it("mirror 保持脱离文档流的定位（条件挂载才不会推动 textarea）", () => {

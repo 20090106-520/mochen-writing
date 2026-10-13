@@ -59,6 +59,15 @@ describe("工具卡那一行：人话，不是 JSON", () => {
     expect(toolArgsText("web_search", JSON.stringify({ query: "潮汛 灯塔" })).text).toBe(
       "搜「潮汛 灯塔」。"
     );
+    expect(
+      toolArgsText("web_read", JSON.stringify({ url: "https://example.com/a/very/long/page.html" }))
+        .text
+    ).toBe("读网页「example.com/a/very/long/page.html」。");
+    // 超长 URL（360 的跳转链能到 450 字符）才收省略号；短的照实摆。
+    const longUrl = `https://www.so.com/link?m=${"x".repeat(120)}`;
+    const out = toolArgsText("web_read", JSON.stringify({ url: longUrl }));
+    expect(out.text).toContain("…");
+    expect(out.text).not.toContain(longUrl);
   });
 
   /**

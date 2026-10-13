@@ -70,7 +70,7 @@ beforeAll(async () => {
 afterAll(async () => {
   child?.kill();
   for (const dir of tempDirs) await rm(dir, { recursive: true, force: true });
-});
+}, 30000);
 
 interface Built {
   dir: string;

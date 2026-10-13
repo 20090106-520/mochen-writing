@@ -189,6 +189,19 @@ describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F
     expect(paneTemplate).toContain(':label="BAND_LABELS[mode]"');
   });
 
+  // 2026-10-10 巡检：markdownToSimpleHtml 全篇重算 + v-html 全量重挂，十万字开分栏
+  // 每键实测 437ms。预览改为「落后一拍」的 previewDraft，排程真身在
+  // composables/usePreviewDraft（判定在 utils/preview-debounce）。
+  // 这里钉三件事：接线只从 composable 进口、预览真身吃 previewDraft 而不是 book.draft、
+  // .vue 里不许再自己抄 setTimeout 排程（第二份排程就是第二份口径）。
+  it("分栏预览走静默窗：previewHtml 吃 previewDraft，排程只住在 usePreviewDraft", () => {
+    expect(paneScript).toContain('from "../composables/usePreviewDraft"');
+    expect(paneScript).toContain("usePreviewDraft(() => book.draft, viewMode)");
+    expect(paneScript).toContain("markdownToSimpleHtml(previewDraft.value)");
+    expect(paneScript).not.toContain("markdownToSimpleHtml(book.draft)");
+    expect(paneScript).not.toContain("setTimeout");
+  });
+
   // #103b：保存态那句话此前是 `<script setup>` 里的四个中文字面量——改坏它全仓不红。
   // 批次 5-⑳ 起，「头与脚读同一个值」的做法改成**只留一处**（底栏），理由是真机量出来的账：
   // 1440 视口下右栏 490，栏头右侧为系统窗控留 146 ⇒ 内容盒 328px；栏头那一行要

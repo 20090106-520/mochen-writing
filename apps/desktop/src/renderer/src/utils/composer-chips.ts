@@ -4,6 +4,7 @@ import {
   THINKING_WIRE_FIELD,
   USER_TEXT_MAX_LEN,
   WEB_SEARCH_TOOL_NAME,
+  WEB_READ_TOOL_NAME,
   WORK_MODE_LABELS,
   codePointLength,
   thinkingWireValueOf,
@@ -145,13 +146,14 @@ function thinkingChip(level: ThinkingLevel, wire: ThinkingWire): ComposerChipVie
 }
 
 function webSearchChip(enabled: boolean): ComposerChipView {
+  // 出站工具数与 NETWORK_TOOL_NAMES 同源：出网的两枚（web_search + web_read）一起进出。
   return {
     id: "web-search",
     text: "联网搜索",
     disabled: false,
     title: enabled
-      ? `本轮已带 ${WEB_SEARCH_TOOL_NAME} 工具（与五枚书稿工具一起出站：本地免费源，不额外要 key）。点击关闭。`
-      : `本轮不带 ${WEB_SEARCH_TOOL_NAME} 工具——它真的从出站 tools 里摘掉了（工具清单也跟着少这一行），模型只能读你书稿里的字。点击开启。`,
+      ? `本轮已带联网工具（${WEB_SEARCH_TOOL_NAME} 与 ${WEB_READ_TOOL_NAME}，与五枚书稿工具一起出站：本地免费源，不额外要 key）。点击关闭。`
+      : `本轮不带联网工具——${WEB_SEARCH_TOOL_NAME} 与 ${WEB_READ_TOOL_NAME} 真的从出站 tools 里摘掉了（工具清单也跟着少这两行），模型只能读你书稿里的字。点击开启。`,
     active: enabled,
     slot: "left",
     icon: "globe",

@@ -6,6 +6,7 @@ import { ref } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useBookStore } from "../stores/useBookStore";
 import { useModalFocus } from "../composables/useModalFocus";
+import { useDialogMotion } from "../composables/useDialogMotion";
 
 const emit = defineEmits<{ close: [] }>();
 const book = useBookStore();
@@ -20,10 +21,21 @@ const book = useBookStore();
  */
 const dialogRoot = ref<HTMLElement>();
 useModalFocus({ root: dialogRoot, close: () => emit("close") });
+// 入场动效：面板 + 背板同一条弹簧时间轴。由 App.vue 的 `v-if="newBookOpen"` 挂载，不传 isOpen。
+useDialogMotion({ root: dialogRoot });
 
 const title = ref("");
 const directory = ref("");
 const creating = ref(false);
+/**
+ * 这一次创建失败的理由（本地持有，2026-10-10 巡检）。
+ *
+ * 为什么不直接读 `book.notice`：那是**全局**一格——新建文档、改名、外部改动同步都会写它。
+ * 挂在弹窗上就出现两种假话：① 打开弹窗时上一件事的旧理由还杵在红字里；
+ * ② 创建成功后 store 写的是「已新建 chapters/…」，这句好消息也跟着染成 provider-error 的红色。
+ * 现在只在「自己的 createBook 返回 false」那一刻把 store 的理由抄进来，其余时候这格是空的。
+ */
+const createError = ref("");
 /** 选完目录之前禁用创建；书名与目录两格都实了才许点（比点了再报错少一跳）。 */
 const canCreate = ref(false);
 
@@ -39,9 +51,14 @@ async function pick(): Promise<void> {
 
 async function create(): Promise<void> {
   creating.value = true;
+  createError.value = "";
   const ok = await book.createBook(directory.value, title.value.trim());
   creating.value = false;
-  if (ok) emit("close");
+  if (ok) {
+    emit("close");
+    return;
+  }
+  createError.value = book.notice;
 }
 </script>
 
@@ -96,7 +113,7 @@ async function create(): Promise<void> {
             会在所选目录里建出 book.json 和 章节 / 大纲 / 人物 / 剧情 / 素材库 五个文件夹；
             目录不是空的会被拒绝，不会盖掉任何已有内容。
           </p>
-          <p v-if="book.notice && !creating" class="provider-error">{{ book.notice }}</p>
+          <p v-if="createError !== '' && !creating" class="provider-error">{{ createError }}</p>
         </div>
 
         <div class="dialog-actions">

@@ -1,6 +1,6 @@
 import {
   AGENT_TOOL_NAMES,
-  WEB_SEARCH_TOOL_NAME,
+  isNetworkTool,
   isWriteTool,
   type AgentToolName
 } from "@mochen/contracts";
@@ -48,13 +48,20 @@ const TOOL_LABELS: Record<AgentToolName, { label: string; effect: string }> = {
       "免费联网搜索（无需 API key）：先试 DuckDuckGo，再退到必应，最后 360 搜索，回执写明是谁答的。" +
       "query 请用 2–4 个关键词，别把整句问题塞进去——源只认开头的词，整句会被拆成词义查询。" +
       "标题/链接/摘要带编号返回，工具卡里能逐条点开核对；要保存需再整理写进文稿。"
+  },
+  web_read: {
+    label: "读网页",
+    effect:
+      "抓一条网页链接的正文（配合联网搜索用：先搜到清单，再读其中一条的全文）。" +
+      "已去掉脚本与导航杂讯，过长会截断并注明；只收 http/https 链接。"
   }
 };
 
 export function toolRoster(webSearchEnabled: boolean): ToolRosterRow[] {
-  // 联网开关关掉的那一轮，`web_search` 根本不在出站 tools 里（映射在 wireToolsFor），
-  // 清单再列它就是一行指向不存在工具的假账——所以这一行跟着开关一起消失。
-  return AGENT_TOOL_NAMES.filter((name) => name !== WEB_SEARCH_TOOL_NAME || webSearchEnabled).map(
+  // 联网开关关掉的那一轮，两枚出网工具（web_search / web_read，判据 NETWORK_TOOL_NAMES）
+  // 都不在出站 tools 里（映射在 wireToolsFor）——清单再列它们就是一行指向不存在工具的假账，
+  // 所以这两行跟着开关一起消失。
+  return AGENT_TOOL_NAMES.filter((name) => !isNetworkTool(name) || webSearchEnabled).map(
     (name) => ({
       name,
       label: TOOL_LABELS[name].label,

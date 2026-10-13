@@ -9,6 +9,7 @@ import CenterColumn from "./components/CenterColumn.vue";
 import DocumentPane from "./components/DocumentPane.vue";
 import SaveConflictDialog from "./components/SaveConflictDialog.vue";
 import NewBookDialog from "./components/NewBookDialog.vue";
+import ImportTxtDialog from "./components/ImportTxtDialog.vue";
 import SettingsPage from "./components/SettingsPage.vue";
 import ExtensionsPage from "./components/ExtensionsPage.vue";
 import SkinGalleryPage from "./components/SkinGalleryPage.vue";
@@ -27,6 +28,7 @@ import {
   motionPreferenceStorage
 } from "./utils/motion-preference";
 import { LEFT_PANE_MAX, LEFT_PANE_MIN, RIGHT_PANE_MIN, useLayoutStore } from "./stores/layoutStore";
+import { shouldAutoCollapseRightPaneWithoutBook } from "./stores/layoutStore";
 import { runViewTransition } from "./utils/view-transition";
 import SearchPanel from "./components/SearchPanel.vue";
 import NotesPanel from "./components/NotesPanel.vue";
@@ -200,6 +202,24 @@ let unwatchSettings: (() => void) | null = null;
 // 整窗预览那一条 watch 的句柄（5-㊷）：预览态住在皮肤浏览 store，不在 settings 里，
 // 所以它是**第二条** watch——但刷写仍然只有 applyTheme 这一个作者。
 let unwatchPreview: (() => void) | null = null;
+// 「有没有打开作品 → 右栏收放」这条 watch 的句柄（2026-10-11）。
+let unwatchHasBook: (() => void) | null = null;
+
+/**
+ * 没打开作品时把右栏收起来（2026-10-11）。判据的真身是
+ * `shouldAutoCollapseRightPaneWithoutBook`（layoutStore 里的纯函数，能单测），
+ * 这里只做**装配**：它是唯一同时看得见 `book.hasBook` 与 `layout` 的地方。
+ *
+ * 【为什么不写在 layoutStore 里】那会要求布局 store 反向依赖书 store，
+ * 而书 store 在打开作品时还要 flush 草稿——一条纯几何的布局策略不该拖上这条依赖。
+ * 这与本文件既有裁定同一形状：落点判定归装配层（见下方 findReplaceHasLanding 的注释）。
+ *
+ * 【为什么不碰手动闸门】用户自己折过右栏就交权，自动策略不再干预——
+ * 与窄窗折叠那两条边界（只收不展、手动优先）完全一致，不在这里另立一套。
+ */
+function applyEmptyBookRightPane(): void {
+  layout.setRightCollapsedByEmptyBook(shouldAutoCollapseRightPaneWithoutBook(0, book.hasBook));
+}
 
 // Ctrl+Shift+F/N/T/O/G/B/P 与 Ctrl+Alt+F 面板快捷键的**落点**。
 // 判定（哪个键对应哪一枚面板）已搬进 utils/hotkeys.ts 的 resolveHotkey——
@@ -240,6 +260,8 @@ onMounted(() => {
   // 退出握手（P0-6）：主进程拦下这趟关闭时，由书这格 store 把每篇没落盘的字先写回盘上。
   // 接在根组件而不是中栏——中栏会随页面卸载，握手却该在应用的整个生命期里都在。
   book.listenQuitFlush();
+  // 没打开作品时收右栏（2026-10-11）：挂载这一拍就先收掉，不等用户看���那块空的。
+  applyEmptyBookRightPane();
   // 减少动效（外观页那档偏好）：挂载即把档位落到 <html>，motion.css 据此决定动效层是否退场。
   applyReducedMotion(document.documentElement, loadReducedMotion(motionPreferenceStorage()));
   schemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -252,6 +274,8 @@ onMounted(() => {
   // 只盯 `previewId` 这一个字符串，不 deep 整份浏览态：筛选与对比勾选都改不到界面上的皮肤，
   // deep 会让每一次点筛选都重刷一遍 <html> 上的二十多枚 token。
   unwatchPreview = watch(() => skinBrowse.previewId, applyTheme);
+  // 打开 / 关闭作品 → 右栏跟着收放（装配层接线，判定真身见 layoutStore 那个纯函数）。
+  unwatchHasBook = watch(() => book.hasBook, applyEmptyBookRightPane);
 });
 
 onBeforeUnmount(() => {
@@ -259,6 +283,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("resize", layout.reconcilePaneWidths);
   unwatchSettings?.();
   unwatchPreview?.();
+  unwatchHasBook?.();
 });
 
 const agent = useAgentStore();
@@ -406,6 +431,7 @@ function onTemplateApply(text: string): void {
 
     <SaveConflictDialog />
     <NewBookDialog v-if="newBookOpen" @close="layout.closeNewBook()" />
+    <ImportTxtDialog v-if="layout.importTxtOpen" @close="layout.closeImportTxt()" />
     <SearchPanel :visible="searchOpen" @close="searchOpen = false" />
     <NotesPanel :visible="notesOpen" @close="notesOpen = false" />
     <WordCountPanel

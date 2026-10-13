@@ -63,6 +63,24 @@ export interface DocRef {
   chars?: number;
 }
 
+/**
+ * `DocRef` 的形状闸（2026-10-10 P1-4 后半）。存在的唯一理由：跨进程来的字段一律当不可信——
+ * 渲染层过去从来没见过 `doc:create` 带回来的那一份，仓里同一条规矩的先例是 `main/quit-flush.ts`
+ * （先认形状，认不出来就按没发生过处理）。
+ *
+ * 只认形状不认语义：`relPath` 指不指向这本书里面、这一篇盘上到底有没有，那些判定住在
+ * 主进程的 realpath 闸与 fs-store 的扫描里，这里再判一遍就是第二份判据（铁律 6）。
+ * `title` 允许空串、`excerpt`/`chars` 允许缺省——`DocRef` 的注释本来就写着消费处一律 `?? ""` / `?? 0`，
+ * 这里如果把它们提成必填，反而会把「盘上真有这一篇」的正常回话拒成 null，界面退回整本重扫，白慢一次。
+ */
+export const docRefSchema = z.object({
+  relPath: z.string().min(1),
+  kind: z.enum(BOOK_KINDS),
+  title: z.string(),
+  excerpt: z.string().optional(),
+  chars: z.number().int().min(0).optional()
+});
+
 const stageSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -192,3 +210,41 @@ const DOC_DIRS_OF: Record<Exclude<BookKind, "material">, string> = {
   foreshadow: "foreshadow",
   skill: "skills"
 };
+
+/**
+ * 按 `chapterOrder` 给文稿排序：全仓**唯一的一份**章节次序判据（P1-4 后半，2026-10-10）。
+ *
+ * 【为什么这里必须只有一份】判据过去有两份，而且它们不等价：主进程 `fs-store` 的 `sortChapters`
+ * 对「都不在 chapterOrder 里的两篇」按 `relPath` 名字排，渲染层 `utils/doc-order` 的
+ * `sortDocsByOrder` 对同样两篇返回 0（保持传进来的相对次序）。只要这两份并存，
+ * 「渲染层本地拼一根新 DocRef」与「整本重扫」就永远对不出同一个侧栏——而增量拼接正是省掉
+ * 每次建章重读整本书（1000 章实测 99–136 ms）的唯一通路。
+ *
+ * 【为什么两边都能引这一份】渲染层不许 import fs-store（包边界守卫，那条理由是成立的），
+ * 而 fs-store 不许被浏览器包拖进去；contracts 是两边唯一都进得来、又不带 Node 依赖的格子。
+ * 所以 fs-store 与渲染层各自那份现在只是**转调**，本体住在这儿。
+ *
+ * 【取哪一份语义：主进程那份（名字序），不是"它先存在"】名字序**与输入顺序无关**，
+ * 这是增量拼接能被证明等价的前提；「保持原相对次序」则让同一批文稿按来路不同给出两种顺序。
+ * 未登记的一律排在已登记的后面（`ra !== undefined` / `rb !== undefined` 那两条），
+ * 否则目录里刚出现的新稿会插到正文头上。
+ *
+ * 【zh-CN 不是随手写的】中文稿名按拼音排，不按码点排：`characters/阿雾.md`(U+963F) 与
+ * `characters/李深.md`(U+674E) 用 `<` 比会得到「李深」在前，而作者在文件管理器里看到的是拼音序。
+ * 换掉这句（比如图省事写成 `a.relPath < b.relPath`）会当场红，用例钉在
+ * `test/sort-docs.test.ts`。
+ *
+ * 不改传入数组（返回新数组）：渲染层传进来的 `docs` 被 Vue 响应式包着，就地 `sort` 会绕过变更追踪。
+ * `chapterOrder` 里登记了盘上没有的条目时不凭空造稿——次序表只是偏好，不是文稿清单。
+ */
+export function sortDocs(docs: DocRef[], chapterOrder: string[]): DocRef[] {
+  const rank = new Map(chapterOrder.map((rel, index) => [rel, index]));
+  return [...docs].sort((a, b) => {
+    const ra = rank.get(a.relPath);
+    const rb = rank.get(b.relPath);
+    if (ra !== undefined && rb !== undefined) return ra - rb;
+    if (ra !== undefined) return -1;
+    if (rb !== undefined) return 1;
+    return a.relPath.localeCompare(b.relPath, "zh-CN");
+  });
+}

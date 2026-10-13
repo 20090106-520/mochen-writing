@@ -11,6 +11,12 @@
 :root {
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --dur-fast: 120ms;
+  /* 小控件状态过渡（2026-10-11 建）：展开箭头旋转、拖拽柄淡入这一类。
+     **值就是原先裸写的 140ms，一毫秒没改**——它既不是 --dur-fast(120)
+     也不是 --dur-pop(170) 的别名，是这批控件自己的手感，搬进任一枚都会让手感变。
+     这一枚的用处只是：它原先散在 4 个文件里裸写，改「控件过渡多快」要逐处找，
+     而外观页与 reduced-motion 总闸都按 token 读，两条通路对不上号。 */
+  --dur-control: 140ms;
   --dur-pop: 170ms;
 }
 
@@ -37,7 +43,6 @@
 .composer-reference-menu,
 .conversation-history-panel,
 .tree-node-action-menu,
-.workspace-dialog,
 .context-meter-panel,
 .change-history,
 .ai-slop,
@@ -47,6 +52,28 @@
 .foreshadow-ledger {
   animation: mochen-pop-in var(--dur-pop) var(--ease-out-soft);
 }
+
+/* 对话框的出场**不在本文件**了（2026-10-11 批次 6-①）。
+ *
+ * 原来这里有两条：面板走弹层关键帧 + 弹簧曲线、背板走同一条曲线的纯淡入。
+ * 现在两条都删了，改由 `composables/useDialogMotion.ts` 用 GSAP 放。
+ *
+ * 【为什么不留一条 CSS 兜底】两条动画与 GSAP 的补间会**同时**抢 opacity 与 transform，
+ * 屏幕上是一次抖动而不是一次入场。真要兜底，元素的**自然态**就是最好的兜底：
+ * 默认可见，GSAP 的 fromTo 在第一帧之前压回透明，动画照放；
+ * 万一 GSAP 没初始化，弹窗就是没有动画地正常出现，而不是永远卡在透明。
+ * 为此在这里写一条 opacity: 0 等着 GSAP 来解除，等于把「界面能不能用」押在动画库上。
+ *
+ * 【弹簧为什么搬到 TS】它原来是一条 34 停靠点的 linear() 字符串，
+ * 而本机引擎只认「逗号分隔的单个数字」，写错形状整条声明被丢弃、且控制台零报错
+ * （2026-10-10 真机撞出，那条曲线从来没生效过）。JS 里算就没有「值非法」这回事。
+ * 物理参数没变，见 `utils/motion-spring.ts`。
+ *
+ * 【为什么对话框从来不并进上面那张浮层表】那张表钉的是「每个浮层都必须有入场动画」
+ * （`components/overlay-chrome.test.ts` 从用了 popover composable 的组件反推校验）。
+ * 对话框的**存在性**归那张表管，它的**手感**归 GSAP 管——两件事，两处。
+ * 上面那张表一张都没动：十四个浮层仍然走软曲线，仍然是硬出场。
+ */
 
 /* 档位卡（权限档/发送键/自动保存/行距/字号共用的那张可选卡）：hover 有回应、按下去有下沉。 */
 .agent-mode-card {

@@ -89,6 +89,33 @@ export function shouldAutoCollapseRightPane(viewportWidth: number): boolean {
   return viewportWidth < NARROW_AUTO_COLLAPSE_WIDTH;
 }
 
+/**
+ * 没打开作品时，右栏该收起来（2026-10-11）。
+ *
+ * 依据不是审美偏好，是**那��格在那个状态下根本没有内容**：
+ * 未打开作品时右栏摆出来的是一排图标 + 一组页签 + 一排格式钮 + 一句
+ * 「在左栏点一篇文稿就能在这儿写」——约 460px、占窗口 1/3，全部是死的，
+ * 而它每一条都在对用户说「我这儿有事」。用户第一眼看到的是一块用不了的板子，
+ * 而不是主功能。收起后中栏拿到全部宽度。
+ *
+ * 【为什么不是「永久隐藏」】写作时右栏要回来。所以它挂在与窄窗折叠**同一条**通路里，
+ * 复用同一对边界：只收不展（打开作品时不擅自推回来——那会改掉用户眼前的视图，
+ * 由用户自己点开）、手动优先（用户手动折过就交权）。
+ *
+ * 【判据的真身在 book.hasBook】那是渲染层「有没有打开作品」的单一 getter
+ * （useBookStore 的 getters，已被 5 个读点统一使用）。这里不另写一份 meta 判据。
+ *
+ * 纯函数是为了能单测——和上面那条窄窗判据同一个理由。
+ */
+export function shouldAutoCollapseRightPaneWithoutBook(
+  viewportWidth: number,
+  hasBook: boolean
+): boolean {
+  // 没有作品一律收。视口宽度这一维对这条判据没有影响：
+  // 无作品时无论多宽，右栏摆出来都是那句「点一篇文稿就能在这儿写」，没有一个像素是有用的。
+  return !hasBook || shouldAutoCollapseRightPane(viewportWidth);
+}
+
 function initialRightPanePreferences(): RightPanePreferences {
   const currentWindow = runtimeWindow();
   if (!currentWindow) return { widths: {} };
@@ -114,6 +141,8 @@ export const useLayoutStore = defineStore("layout", () => {
   const settingsTab = ref<SettingsTab>("model");
   /** 「新建作品」对话框的唯一开合真身：左栏与工作台降级区都开它，不再各持一份布尔。 */
   const newBookOpen = ref(false);
+  /** 「导入 TXT」对话框的唯一开合真身（2026-10-11）：入口在左栏书务行，与 newBookOpen 同一套开合法。 */
+  const importTxtOpen = ref(false);
   /**
    * 一次性信号：中栏工作台的「空卡」被点时请求左栏展开该类分组并进入行内新建。
    * 真身仍是左栏的 guideToDoc——这里只传「请引导到这一类」，不复制它的开合逻辑；
@@ -256,6 +285,14 @@ export const useLayoutStore = defineStore("layout", () => {
     newBookOpen.value = false;
   }
 
+  function openImportTxt(): void {
+    importTxtOpen.value = true;
+  }
+
+  function closeImportTxt(): void {
+    importTxtOpen.value = false;
+  }
+
   function requestDocGroup(kind: BookKind): void {
     docGroupRequest.value = kind;
   }
@@ -277,6 +314,22 @@ export const useLayoutStore = defineStore("layout", () => {
 
   function togglePane(side: PaneSide): void {
     setPaneCollapsed(side, side === "left" ? !leftCollapsed.value : !rightCollapsed.value);
+  }
+
+  /**
+   * 「没有打开作品 → 收右栏」这条自动策略的**唯一写入口**（2026-10-11）。
+   * 由 App.vue 在装配层调用（它是唯一同时看得见 book.hasBook 与 layout 的地方）。
+   *
+   * 与 reconcilePaneWidths 里的窄窗自动折叠同一条边界，理由逐条相同：
+   *   - 用户手动折过右栏就交权，此后自动策略不再干预（不跟用户打架）；
+   *   - **只收不展**：判据为真才置 true，判据转假时**不碰** rightCollapsed
+   *     （打开作品后不擅自把右栏推回来——那会改掉用户眼前的视图，由他自己点）。
+   *
+   * 刻意**不走** setPaneCollapsed：那条会把手动闸门置上，自动策略一走它就把自己锁死。
+   */
+  function setRightCollapsedByEmptyBook(shouldCollapse: boolean): void {
+    if (rightPaneManuallyToggled.value) return;
+    if (shouldCollapse) rightCollapsed.value = true;
   }
 
   function centerPaneMinWidth(): number {
@@ -522,6 +575,7 @@ export const useLayoutStore = defineStore("layout", () => {
     centerView,
     settingsTab,
     newBookOpen,
+    importTxtOpen,
     docGroupRequest,
     leftCollapsed,
     rightCollapsed,
@@ -545,10 +599,13 @@ export const useLayoutStore = defineStore("layout", () => {
     showCenter,
     openNewBook,
     closeNewBook,
+    openImportTxt,
+    closeImportTxt,
     requestDocGroup,
     clearDocGroupRequest,
     setPaneCollapsed,
     togglePane,
+    setRightCollapsedByEmptyBook,
     clampPaneWidth,
     setPaneWidth,
     preferredRightPaneWidth,

@@ -21,8 +21,10 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   countNeedle,
+  popInSelectors as popInSelectorsOf,
   ruleBlock,
   scriptSource,
+  strippedStyleSource,
   templateSource,
   vueSource,
   styleSource
@@ -75,15 +77,7 @@ const popoverPanels = ((): { file: string; rootClass: string }[] =>
 
 /** motion.css 里所有 `animation: mochen-pop-in` 的规则的第一层选择器。 */
 function popInSelectors(): string[] {
-  const out: string[] = [];
-  for (const m of motionCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    if (!/animation:\s*mochen-pop-in/.test(m[2] ?? "")) continue;
-    for (const sel of (m[1] ?? "").split(",")) {
-      const c = sel.trim();
-      if (c.startsWith(".")) out.push(c);
-    }
-  }
-  return out;
+  return popInSelectorsOf(strippedStyleSource("motion.css"));
 }
 
 describe("推导本身先得成立（不然下面两条全是空断言）", () => {

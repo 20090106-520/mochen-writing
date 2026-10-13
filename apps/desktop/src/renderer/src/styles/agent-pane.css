@@ -461,7 +461,7 @@ html[data-platform="darwin"] .conversation-pane {
   display: inline-block;
   font-size: 0.928571rem;
   line-height: 1;
-  transition: transform 140ms ease;
+  transition: transform var(--dur-control) ease;
 }
 
 .source-more[open] > summary::before {
@@ -475,10 +475,90 @@ html[data-platform="darwin"] .conversation-pane {
 .message-text {
   color: var(--text);
   line-height: 1.85;
-  white-space: pre-wrap;
+  /* 2026-10-10：正文改走 markdown 渲染后**去掉 `white-space: pre-wrap`**。
+     渲染器的输出是块级标签之间夹换行（`<p>a</p>\n<p>b</p>`），pre-wrap 会把那些夹缝
+     也变成真换行，于是每两段之间凭空多出一行空白。
+     换行交给块级元素本身，视觉上仍是连续的行。 */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
-.message-line.is-streaming .message-text::after {
+/* markdown 渲染出来的块级元素：外边距一律归零，靠容器 line-height 与下面这几条自己的 padding 定距。
+   不归零的话 `<p>` 默认 1em 上下边距会把每一行都撑成一段，段落感密得看不清。 */
+.message-markdown p,
+.message-markdown h1,
+.message-markdown h2,
+.message-markdown h3,
+.message-markdown h4,
+.message-markdown ul,
+.message-markdown ol,
+.message-markdown pre,
+.message-markdown blockquote {
+  margin: 0;
+}
+
+/* 段落之间要留气口，否则整篇糊成一块——但只给「相邻两个块」留，不要给首尾。 */
+.message-markdown > * + * {
+  margin-top: 0.6em;
+}
+
+/* 列表：编号与圆点靠浏览器画，缩进交给 padding（归零外边距后没有缩进可继承）。
+   **必须显式写回 list-style-type**：`styles.css` 有一条全局 `ul, ol { list-style: none }`
+   （给导航那套自绘列表用的），它照样作用在正文渲染出来的列表上。
+   真机上撞过：DOM 里 `<ol>` 三个 `<li>` 齐活、padding 也在，屏上一个号都没有——
+   就是这条全局 reset 把 ::marker 关了。CSS 永不报错，症状只是「那层没生效」。
+   写法照 `editor-pane.css` 的 `.markdown-body`（文稿预览那边早就踩过同一条）。 */
+.message-markdown ul,
+.message-markdown ol {
+  padding-left: 1.5em;
+}
+
+.message-markdown ul {
+  list-style-type: disc;
+}
+
+.message-markdown ol {
+  list-style-type: decimal;
+}
+
+.message-markdown li + li {
+  margin-top: 0.2em;
+}
+
+.message-markdown code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+.message-markdown pre {
+  padding: 0.7em 0.9em;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.message-markdown pre code {
+  padding: 0;
+  border-radius: 0;
+}
+
+.message-markdown h1,
+.message-markdown h2,
+.message-markdown h3,
+.message-markdown h4 {
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.message-markdown hr {
+  margin: 0.9em 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+/* 流式光标挂在**最后一个渲染块**上，不是挂在容器上（2026-10-10）。
+   正文现在是 markdown，渲染出来的是 `<p>` / `<ul>` / `<pre>` 这些块级元素；
+   `::after` 挂在容器上会落到**另起一行**，看着像光标断在正文下面。 */
+.message-line.is-streaming .message-text > :last-child::after {
   content: "▍";
   color: var(--focus);
 }
@@ -848,7 +928,13 @@ html[data-platform="darwin"] .conversation-pane {
 }
 
 /* 让位有先后：flex 的收缩量按 `flex-shrink × basis` 分配，100×122 对 1×276 ⇒ 小缺额的 99.8%
-   落在模型这一枚（唯一随数据变长的标签），其余四枚保持自然宽；它压到地板之后，剩下的缺额才轮到别人。 */
+   落在模型这一枚（唯一随数据变长的标签），其余四枚保持自然宽；它压到地板之后，剩下的缺额才轮到别人。
+   **地板不给它写死**：它真正需要的那道地板在 label 上（4.5em），由 @container 722 那档先撤掉——
+   真机读数写在那条里。
+
+   （试过给 chip 自己写 `min-width: min-content` 让它按内容算地板：**更糟**。
+   那把左端的最小宽度整个撑大，1440/1280/1200/1120 四档当场开始抖动，
+   容器宽度在 758 / 626 / 466 / 386 之间来回跳。**地板不是 chip 的事，是 label 的事。**） */
 .composer-toolbar-left .composer-chip--model {
   flex-shrink: 100;
 }
@@ -969,6 +1055,19 @@ html[data-platform="darwin"] .conversation-pane {
    行宽降到 341.7 ≤ 354 ⇒ **一枚省略号都不出，思考档与模型名都整条显示**。
    对照旧值 628 只触发 680 一级，省下 26px，剩下 34.7px 全砸在模型名上。 */
 @container composer (max-width: 722px) {
+  /* 模型名的 4.5em 地板比 chip 自己的地板（44px）**还大** ⇒ 框画得比内容窄，
+     而 chip 是 `overflow: visible` ⇒ 内容整个画到框外，压在下一枚上。
+     真机读数（2026-10-10，窗口 1024 / 容器 700.7）：框 75.8px、内容地板 96.3px、
+     溢出 13px，下拉三角落在下一枚（thinking）左沿**右侧 9.4px**，两枚图标叠印；
+     窗口 1000 / 容器 676.7 那档溢出 4px。这一档是**真机会走到**的，所以撤地板放这儿。
+
+     为什么原来那条 ≤620 救不了：它写的是同一件事（把 label 的 min-width 归零），
+     但本机窗口地板是 1000px ⇒ 容器最窄只量到 **676.7**，620 那一档及以下
+     （620 / 615 / 589 / 560 / 380）**永远够不着**，是死代码。详见上面那段重算依据。 */
+  .composer-toolbar-left .composer-chip--model .composer-chip-label {
+    min-width: 0;
+  }
+
   .composer-toolbar-left .composer-chip[data-chip="tools"] .composer-chip-label {
     display: none;
   }

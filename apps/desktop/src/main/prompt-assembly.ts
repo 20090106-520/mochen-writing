@@ -1,6 +1,12 @@
 import {
+  DIALOGUE_BALANCE,
   WEB_SEARCH_TOOL_NAME,
+  WEB_READ_TOOL_NAME,
   WORK_MODE_LABELS,
+  aiFlavorPromptList,
+  analyzeAiFlavor,
+  dialogueBalance,
+  dialogueVerdict,
   type AgentProfile,
   type DocRef
 } from "@mochen/contracts";
@@ -52,15 +58,128 @@ export const PLAN_MODE_INSTRUCTION =
   "用编号列出，等用户批准后才会真正落盘。";
 
 /**
- * 联网那一段措辞（只在开关打开时进提示词）。
+ * 联网那段措辞（只在开关打开时进提示词）。
  *
- * 工具名从 contracts 的 `WEB_SEARCH_TOOL_NAME` 拼，不手抄字符串：提示词里教的名字和
- * 出站 tools 里那枚 function 的名字必须是同一个真身，否则模型照着提示词调一枚不存在的工具。
+ * 工具名从 contracts 拼，不手抄字符串：提示词里教的名字和出站 tools 里那枚 function
+ * 的名字必须是同一个真身，否则模型照着提示词调一枚不存在的工具。
+ * 2026-10-11 起 出网两枚：web_search 拿清单，web_read 读其中一条的正文——
+ * 两枚一起教，教清分工（先搜后读），模型才不会拿搜索摘要冒充全文。
  */
 export const WEB_SEARCH_INSTRUCTION =
   `联网搜索用 ${WEB_SEARCH_TOOL_NAME}（免费源）：query 用 2–4 个关键词（例：「漕运制度」「科幻 黑暗森林 设定」），` +
   "别把整句问题原样塞进去——源只认开头的词，整句会被拆成词义查询，回来的资料跟问题对不上。" +
-  "搜到的资料要保存时，整理成文稿写进 materials/ 或 skills/。";
+  `需要某一条来源的正文时用 ${WEB_READ_TOOL_NAME} 读它（url 传搜索结果里的链接，只收 http/https；` +
+  "同一页读完不必重复读）。搜到的资料要保存时，整理成文稿写进 materials/ 或 skills/。";
+
+/**
+ * 文风硬约束（2026-10-10）：去 AI 味的生成端控制。
+ *
+ * 为什么常驻而不是跟着档案走：AI 腔不是某个档案的毛病，是所有模型的通病——
+ * 「嘴角勾起」「眼底闪过」「他知道，……」这类写法一进正文，用户第一眼就看出是机器写的。
+ * 点名的词表从 contracts 的 AI_FLAVOR_TERMS 拼出来（aiFlavorPromptList），与
+ * 书稿体检第五类「AI 味扫描」是同一份词库：写的时候拦一道，写完扫的是同一批词，
+ * 两头永远对得上，不许各抄一份词表。（点名的词禁的是「描写套话 + 议论腔」两类；
+ * 副词滥用和认知转述是句式层面的毛病，在这里另口叮嘱——词表里它们不是固定词。）
+ */
+export const AI_FLAVOR_INSTRUCTION =
+  "文风硬约束（写小说正文时必须遵守）：禁用下面这套 AI 腔——" +
+  aiFlavorPromptList() +
+  "；也不要写「他知道，……」「她明白，这不是……」这类认知转述开头" +
+  "（心理活动用动作、对话和细节演出来，别直接汇报）；" +
+  "「缓缓/轻轻/微微/不禁」这类副词能删就删，用具体动作代替；" +
+  "句长要有长有短，别让连续几句一样长。像人在讲故事，不像机器在汇报。" +
+  "这条对你在对话里的回复同样生效：回答用户时像两个人聊天——直接、有取舍、可以说「这里我不确定」，" +
+  "不写排比总结，不用「总的来说」，不摆报告腔。另注意：写进 chapters/ 或 volumes/ 的正文" +
+  "会被系统的 AI 味闸自动检查，超标的稿子会被退回重写——第一次就写好，省一轮。";
+
+/**
+ * 细腻度指令（2026-10-10 三段）：AI 味词库管的是「不许写什么」，
+ * 这段管「该怎么写才好」——去味只是及格，细腻才是好稿。
+ *
+ * 四条都是写作手法的硬叮嘱，不是空喊「写得细腻一点」：
+ * 每条都给出可执行的判据（写什么、用什么替代什么），模型照做就有差别。
+ */
+export const QUALITY_INSTRUCTION =
+  "细腻度要求（写小说正文时遵守）：\n" +
+  "1. 感官落点：每场戏至少落到两种**非视觉**感官上——声音、气味、触感、温度、重量。" +
+  "只写「看到什么」的戏是浮的，人物要能听见雨点打在瓦上、闻到灶间的油烟。\n" +
+  "2. 具体名词：写「搪瓷缸」不写「杯子」，写「蓝布工装」不写「衣服」——" +
+  "细节要能对上这本书的年代、地点与人物身份；拿不准设定就先查上下文，不编。\n" +
+  "3. 对话节拍：少用「他说道」「她回答」这类对话标签，用动作和微表情切对话" +
+  "（「她把茶杯推过去。『喝吧。』」）；对话要有答非所问和潜台词，别每句都直给。\n" +
+  "4. 角色声音：对话要贴人物卡——每个人的用词、句式、说话习惯都不一样，" +
+  "把名字盖住也能分清哪句是谁说的；不让人人都说作者腔的漂亮话。\n" +
+  "5. 续写衔接：从当前文末**无缝**接着写——不重复已有结尾，不另起炉灶，" +
+  "人称与时间线呼应前文；读者读完上一段直接读你的下一段，中间不该有接缝。";
+
+/**
+ * 本书套话回流（2026-10-10 三段）：把体检真身跑在**已装配的上下文**上，
+ * 拿这本书自己的高频命中点名叮嘱——词库管的是「天下通病」，这段管的是「这本书的病」。
+ *
+ * 为什么跑在 assembled.items 上：上下文包里装的就是当前章正文、前情尾部、人物卡等
+ * 也就是这一轮模型真正看得见的文字——它刚看过的写法就是它最容易模仿的写法，
+ * 点名避开这些，比抽象说「别重复」有用得多。没有命中就返回空串（不注入空段）。
+ */
+export function bookFlavorSentence(assembled: AssembledContext): string {
+  const report = analyzeAiFlavor(assembled.items.map((item) => item.text));
+  const top = report.entries.slice(0, 5);
+  if (top.length === 0) return "";
+  return (
+    "本书写法提醒（扫描自上下文，括号内是出现次数）：下面这些写法在书里已经用多了——" +
+    top.map((entry) => `${entry.term}（${entry.count} 次）`).join("、") +
+    "；你写新内容时避开它们，或换成别的写法。复读用滥的词句是最显眼的机器味。"
+  );
+}
+
+/**
+ * 各章开头防套路回流（2026-10-10 四段）：把已写各章的开头句点名摆出来，
+ * 叮嘱新内容换进法。AI 连写多章最显眼的流水线味就是「每章都从同一种起手式进入」
+ * （夜色深沉/雨下个不停/××睁开眼），不点名它自己意识不到。少于 2 章不注入——
+ * 一章谈不上「套路」，两章起步才叫模式。
+ */
+export function openingsSentence(openings: readonly string[]): string {
+  if (openings.length < 2) return "";
+  const shown = openings
+    .slice(-5)
+    .map((line) => `「${line}」`)
+    .join("、");
+  return (
+    `前面各章的开头分别是：${shown}。写新内容时开头**换一种进法**` +
+    "（从对话进入、从动作进入、从声音进入、从一个具体物件进入），" +
+    "别每一章都用同一套起手式——连续几章一个套路开头，读者一眼就看穿是流水线。"
+  );
+}
+
+/**
+ * 对话占比反馈（2026-10-10 五段）：正文过话痨或过闷都给一句提醒。
+ *
+ * 为什么值得喂给模型：全是对话的章没有呼吸（动作、环境、内心全缺席），
+ * 全是叙述的章没有戏——这是编辑看稿的第一指标，但模型自己没有「本章说了多少话」
+ * 的感觉，量出来了它才知道要往哪边找补。只统计 chapter 类条目（人物卡里的对话不算）；
+ * 上下文不足 500 字不判定（样本太少）；占比在 0.03~0.65 之间是常态，不吭声。
+ *
+ * 2026-10-11 起：占比的量与判线真身下沉 contracts/dialogue（dialogueBalance + dialogueVerdict），
+ * 与体检第六类「对话占比」同一份口径——这里只负责把判读说成人话。
+ */
+export function dialogueBalanceSentence(assembled: AssembledContext): string {
+  const text = assembled.items
+    .filter((item) => item.kind === "chapter")
+    .map((item) => item.text)
+    .join("\n");
+  const balance = dialogueBalance(text);
+  if (dialogueVerdict(balance) !== "dense" && dialogueVerdict(balance) !== "silent") return "";
+  const percent = Math.round(balance.ratio * 100);
+  if (balance.ratio > DIALOGUE_BALANCE.denseRatio)
+    return (
+      `对话占比提醒：当前上下文里对话占了约 ${percent}%——话太密了。` +
+      "往对话之间垫进动作、环境与内心节拍（谁在做什么、屋子什么样、空气什么味道），" +
+      "别让一整章只剩你一句我一句。"
+    );
+  return (
+    `对话占比提醒：当前上下文里几乎没有对话（约 ${percent}%）——全是叙述，戏出不来。` +
+    "想想这一场有没有能让人物开口的交锋，用对话推进关系与冲突。"
+  );
+}
 
 /**
  * 档案的写入范围说成一句人话（spec §5.1 约束 3：写入范围是**上限**，不是授权）。
@@ -86,6 +205,10 @@ export function writeScopeSentence(profile: AgentProfile): string {
  * agent-runtime 的 assembleContext 装，本函数只负责把它排成一段人读的话。
  */
 export function defaultPromptFor(context: PromptContext): string {
+  // 本书套话回流与开头防套路先各算一次（判定与取值同源，不跑两遍）。
+  const bookFlavor = bookFlavorSentence(context.context);
+  const openingHint = openingsSentence(context.context.openings ?? []);
+  const dialogueHint = dialogueBalanceSentence(context.context);
   return [
     "你是墨宸 AI 的写作智能体，在用户本地的一本书上工作，能直接操控这本书的资料库。",
     // 档案先说：人设与写入范围上限都出自它（spec §5.1）。
@@ -101,6 +224,16 @@ export function defaultPromptFor(context: PromptContext): string {
       "materials/素材库、glossary/专有名词、skills/技能库。",
     "用户让你生成或补全世界观、人物、设定等内容时，直接用 write_doc 写进对应目录" +
       "（如 worldview/北境.md），文件名用简短中文标题；用户批准后左侧文稿树会自动出现。",
+    // 文风硬约束（2026-10-10）：去 AI 味，词表与体检同源。
+    AI_FLAVOR_INSTRUCTION,
+    // 细腻度段（三段）：去味之外教它怎么写好——五感、具体名词、对话节拍、续写衔接。
+    QUALITY_INSTRUCTION,
+    // 本书套话回流（三段）：这一轮上下文里已用滥的写法点名避开。没命中就不加这段。
+    ...(bookFlavor === "" ? [] : [bookFlavor]),
+    // 各章开头防套路（四段）：已有起手式点名摆出，新内容换进法。少于两章不加。
+    ...(openingHint === "" ? [] : [openingHint]),
+    // 对话占比反馈（五段）：过话痨或过闷都点一句，让模型自己找补节拍。常态不加。
+    ...(dialogueHint === "" ? [] : [dialogueHint]),
     // 联网段跟着开关走：关掉时这枚工具根本不出站，留着这段就是教模型调一枚不存在的工具。
     ...(context.webSearchEnabled ? [WEB_SEARCH_INSTRUCTION] : []),
     "改动已有文稿用 propose_patch（给 doc/anchor/replace/why），整篇新建或重写用 write_doc。",

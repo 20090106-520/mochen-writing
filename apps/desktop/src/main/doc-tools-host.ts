@@ -8,6 +8,7 @@ import type {
   PatchMode,
   ProposalSource
 } from "@mochen/contracts";
+import { fuzzyEligible, fuzzyFindInLine, aiFlavorGate, textSimilarity } from "@mochen/contracts";
 import {
   applyPatch,
   checkWritePermission,
@@ -17,6 +18,7 @@ import {
   type ToolOutcome
 } from "@mochen/agent-runtime";
 import { WebSearchError, webSearchReceipt, type WebSearchOutcome } from "./web-search.js";
+import { WebReadError, webReadReceipt, type WebReadOutcome } from "./web-read.js";
 
 /** read_doc 的回执上限：超过就截断，防整本长文灌进模型上下文。边界是 >，恰好 6000 不截。 */
 export const READ_TRUNCATE_AT = 6000;
@@ -33,6 +35,8 @@ export interface DocToolHostDeps {
    * 回执里要写清「这一条是谁答的、前面几个源为什么没用上」，光有结果拼不出来这两句。
    */
   webSearch(query: string): Promise<WebSearchOutcome>;
+  /** 网页正文抓取（2026-10-11，web_read 的真身）：主进程出网；测试注入假实现。 */
+  webRead(url: string): Promise<WebReadOutcome>;
 }
 
 function str(args: Record<string, unknown>, key: string): string {
@@ -68,7 +72,105 @@ function sentence(text: string): string {
   return /[。．.!?！？…]$/.test(text.trimEnd()) ? text.trimEnd() : `${text}。`;
 }
 
+/* ── AI 味自动退稿闸（2026-10-10 二段）──
+ * 「底层自动运行」的那套：模型交稿的瞬间，执行层自动扫新增正文，AI 味超标就自动
+ * 退稿——模型拿着退稿信自己重写，用户全程无感，不需要点任何检查。
+ * 词表与体检/提示词同源（contracts/ai-flavor 的 aiFlavorGate），不抄第二份。
+ * 闸只管正文（chapters/ volumes/）：设定资料文档是给人查的资料，AI 腔无所谓。
+ * 防死循环：同一稿原样重交放行（附提醒拼进成功回执，用户在审批卡上仍看得到原稿）。 */
+
+/** 正文类目录前缀——只有写进这两类目录的新文本才过闸。
+ *  （volumes/ 眼下还不在 WRITABLE_TOP_DIRS 里，先写上是给将来扩目录时留的闸位，
+ *  到时候目录放开、闸不会漏。） */
+const FLAVOR_GATE_PREFIXES = ["chapters/", "volumes/"];
+
+function gatedDoc(relPath: string): boolean {
+  return FLAVOR_GATE_PREFIXES.some((prefix) => relPath.startsWith(prefix));
+}
+
+type GateResult = { action: "pass"; note: string } | { action: "block"; outcome: ToolOutcome };
+
 export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
+  let lastBlockedFingerprint: string | null = null;
+  let lastBlockedContent: string | null = null;
+  /** 连续退稿计数（五段）：同一条闸通道连着被拦的次数——过闸/放行即清零。 */
+  let blockedStreak = 0;
+
+  /** 「换汤不换药」判线：与上一版被拦稿相似度超过它，就在退稿信里点破。实测换两词 ≈ 0.80。 */
+  const COSMETIC_REWRITE_RATIO = 0.75;
+
+  /**
+   * 对新增正文做退稿判定。返回 pass（note 非空 = 二次重交的附加提醒）或 block。
+   * 判定、退稿信措辞的单一真身都在这里；write_doc 与 propose_patch 共吃。
+   */
+  function flavorGate(text: string): GateResult {
+    if (text === "") return { action: "pass", note: "" };
+    const verdict = aiFlavorGate(text);
+    if (verdict.pass) {
+      // 过闸就清掉上一版被拦稿的记忆：下次超标是新的病，退稿信不再提旧账。
+      lastBlockedFingerprint = null;
+      lastBlockedContent = null;
+      blockedStreak = 0;
+      return { action: "pass", note: "" };
+    }
+    const fingerprint = makeFingerprint(text);
+    if (fingerprint === lastBlockedFingerprint) {
+      lastBlockedFingerprint = null;
+      lastBlockedContent = null;
+      blockedStreak = 0;
+      return {
+        action: "pass",
+        note: "（同一稿第二次提交，系统放行交用户审批——AI 味仍超标，用户可能整段退回。）"
+      };
+    }
+    // 「换汤不换药」点破：这版跟上一版被拦的稿几乎一样（只换了几个词），退稿信直说——
+    // 不点破的话模型会接着交「第三版换汤」，连吃同款退稿还不知道病根是没真改写法。
+    const cosmetic =
+      lastBlockedContent !== null &&
+      textSimilarity(text, lastBlockedContent) > COSMETIC_REWRITE_RATIO;
+    lastBlockedFingerprint = fingerprint;
+    lastBlockedContent = text;
+    blockedStreak += 1;
+    const top = verdict.topTerms.length > 0 ? `重灾区：${verdict.topTerms.join("、")}。` : "";
+    // 句式节奏条（五段）：词干净但「十句九句他开头」同样要拦，退稿信把节奏病灶点名。
+    const rhythm =
+      verdict.startRepeat === null
+        ? ""
+        : ` 句式节奏：有 ${verdict.startRepeat.count}/${verdict.startRepeat.total} 句都用「${verdict.startRepeat.char}」开头——开头的主语和句式轮换着来，别每句一个模子。`;
+    // 句长条（六段）：起手轮换了但句句等长是另一种机器节奏——开头复读管「起手」，
+    // 这条管「长短」，两条理由各拦各的病。退稿信给模型一句可执行的改法。
+    const flatLine =
+      verdict.flatRhythm === null
+        ? ""
+        : ` 句长节奏：平均句长 ${verdict.flatRhythm.mean} 字，几乎句句一样长——长短句要错开：该停顿的地方用短句，该铺开的地方用长句，让长短替你打节拍。`;
+    const again = cosmetic ? " 注意：这一版和上一版几乎一样——要**换写法**，不是换几个词。" : "";
+    // 连续退稿升级（五段）：连吃两轮退稿说明「照着改」的路子没走通，第三封信说重话——
+    // 要求回到场景本身重构，而不是继续在原稿上修修补补。
+    const escalation =
+      blockedStreak >= 3
+        ? ` 这已经是连续第 ${blockedStreak} 次退稿。别再在原稿上小修小改——回到这一章的场景和人物本身，想清楚「这一段到底要发生什么」，然后从头重写。`
+        : blockedStreak === 2
+          ? " 提醒：这是连续第二次退稿——上一版的改法没有触到病根，这次要整段换写法。"
+          : "";
+    return {
+      action: "block",
+      outcome: {
+        ok: false,
+        text: sentence(
+          `这份稿子被自动退稿：AI 味超标（每千字 ${verdict.perThousand} 处，共 ${verdict.hits} 处）。` +
+            top +
+            rhythm +
+            flatLine +
+            again +
+            escalation +
+            " 重写要求：套话换成具体的动作、对话和细节；心理活动别用「他知道，……」汇报，" +
+            "要演出来；句长错开，别连续几句一样长。改完重新提交——同一稿再交一次，系统会放行给用户审"
+        ),
+        proposals: []
+      }
+    };
+  }
+
   async function text(relPath: string): Promise<string | null> {
     const root = deps.root();
     if (root === null) return null;
@@ -152,6 +254,32 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
             if (hits.length < 20) hits.push(`${ref.relPath}:${index + 1}: ${line.trim()}`);
           }
         }
+        // 一字之差兜底（2026-10-10）：与渲染层全文搜索同一份真身（contracts/search-match），
+        // 精确零命中才跑第二轮，并在回执里如实写明这是容错命中——模型据此知道窗口里
+        // 的字与 query 并不相同（比如「林潮生」命中了「林潮升」），不能照抄。
+        if (total === 0 && fuzzyEligible(query)) {
+          for (const ref of deps.docs()) {
+            const body = await readFile(path.join(root, ...ref.relPath.split("/")), "utf8").catch(
+              () => null
+            );
+            if (body === null) continue;
+            const lines = body.split("\n");
+            for (const [index, line] of lines.entries()) {
+              const found = fuzzyFindInLine(line, query);
+              if (found === null) continue;
+              total += 1;
+              if (hits.length < 20) hits.push(`${ref.relPath}:${index + 1}: ${line.trim()}`);
+            }
+          }
+          if (total === 0) return { ok: true, text: `没有命中「${query}」。`, proposals: [] };
+          return {
+            ok: true,
+            text: `精确搜索没有命中「${query}」，按一字之差容错命中 ${total} 处${
+              hits.length < total ? `，只列前 ${hits.length} 条` : ""
+            }（命中的字可能与查询不完全相同，引用前先核对）：\n${hits.join("\n")}`,
+            proposals: []
+          };
+        }
         if (total === 0) return { ok: true, text: `没有命中「${query}」。`, proposals: [] };
         return {
           ok: true,
@@ -195,6 +323,35 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
         };
       }
 
+      if (name === "web_read") {
+        const rawUrl = str(args, "url");
+        if (rawUrl === "") return deny("web_read 需要非空的 url。");
+        let outcome: WebReadOutcome;
+        try {
+          outcome = await deps.webRead(rawUrl);
+        } catch (error) {
+          // WebReadError 之外的任何错误都不许把 message 透给用户（与 web_search 同一条纪律）：
+          // 源链里可能哪天有人 new Error("fetch failed")，那种英文技术串一个字都不该出现在界面上。
+          if (!(error instanceof WebReadError))
+            return deny(sentence("网页读取失败：读这一页的那边出了点问题，稍后再试。"));
+          // bad-url 是「这条链接本身不对」：重试无意义，换链接才有意义——不是空手，是拒绝。
+          if (error.kind === "bad-url") return deny(sentence(error.message));
+          // 剥不出正文与搜不到同理：跑通了但没东西可给，模型据此换一条来源（画「完成」不是「失败」）。
+          if (error.kind === "empty")
+            return { ok: true, text: error.message, proposals: [], empty: true };
+          return deny(sentence(error.message));
+        }
+        return {
+          ok: true,
+          text: webReadReceipt(outcome),
+          proposals: [],
+          // 这一页本身就是来源：工具卡上按来源键可点开核对（与 web_search 同一条通路）。
+          // WebSource 的 snippet 字段对这一枚没有意义（正文已在 text 里），留空串——
+          // 形状必须齐全（schema 钉着），语义上不塞假摘要。
+          sources: [{ title: outcome.title, url: outcome.url, snippet: "" }]
+        };
+      }
+
       if (name === "propose_patch" || name === "write_doc") {
         const rawDoc = str(args, "doc");
         const why = str(args, "why");
@@ -235,6 +392,11 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
           if (applied.status !== "unique") return deny(applied.message);
           if (body !== null && applied.content === body)
             return deny("提案没有生成：新内容与盘上文字未发生变化，这一改等于没改；文件未改动。");
+          // 自动退稿闸：正文超标先退给模型重写，不生成提案——用户批不到一稿重度 AI 味。
+          const gate = gatedDoc(doc)
+            ? flavorGate(content)
+            : ({ action: "pass", note: "" } as const);
+          if (gate.action === "block") return gate.outcome;
           const item = proposal({
             doc,
             mode: "doc-overwrite",
@@ -248,7 +410,7 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
           deps.onProposal(item, body ?? "");
           return {
             ok: true,
-            text: `提案 ${item.id}（整篇写入 ${doc}）已生成，等待用户逐条审批；未批准前文件未改动。`,
+            text: `提案 ${item.id}（整篇写入 ${doc}）已生成，等待用户逐条审批；未批准前文件未改动。${gate.note}`,
             proposals: [item]
           };
         }
@@ -263,6 +425,9 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
         // 空 diff 提案（anchor === replace 之类）没有审批价值，Task 5 交接 §3.3 点名由本层拒收。
         if (body !== null && applied.content === body)
           return deny("提案没有生成：替换后文字未发生变化，这一改等于没改；文件未改动。");
+        // 自动退稿闸：与 write_doc 同一口径——正文替换片段超标先退给模型重写。
+        const gate = gatedDoc(doc) ? flavorGate(replace) : ({ action: "pass", note: "" } as const);
+        if (gate.action === "block") return gate.outcome;
         const item = proposal({
           doc,
           mode,
@@ -276,7 +441,7 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
         deps.onProposal(item, body ?? "");
         return {
           ok: true,
-          text: `提案 ${item.id} 已生成，等待用户审批；未批准前文件未改动。`,
+          text: `提案 ${item.id} 已生成，等待用户审批；未批准前文件未改动。${gate.note}`,
           proposals: [item]
         };
       }

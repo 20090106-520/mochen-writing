@@ -322,6 +322,32 @@ export const api = {
   },
   writeBookData: async () => {
     throw new Error("不该写书里的设定文件");
+  },
+  // 只重算一篇（2026-10-10 P1-4 后半）与回收站三条、更新检查（同日）：satisfies RendererApi
+  // 要求它们在场，但 agent 这条路一个都不用——真被调到就是越界。
+  refreshDoc: async () => {
+    throw new Error("不该单篇重算 DocRef");
+  },
+  trashDoc: async () => {
+    throw new Error("不该移入回收站");
+  },
+  listTrash: async () => {
+    throw new Error("不该列回收站");
+  },
+  restoreTrash: async () => {
+    throw new Error("不该还原回收站");
+  },
+  createBookBackup: async () => ({ ok: true, name: null, fileCount: 0 }),
+  listBookBackups: async () => ({ ok: true, entries: [] }),
+  restoreBookBackup: async () => ({ ok: true, destName: "恢复目录" }),
+  updateCheck: async () => {
+    throw new Error("不该检查更新");
+  },
+  importTxtPreview: async () => {
+    throw new Error("不该做 TXT 导入预览");
+  },
+  importTxtCommit: async () => {
+    throw new Error("不该提交 TXT 导入");
   }
 } satisfies RendererApi;
 

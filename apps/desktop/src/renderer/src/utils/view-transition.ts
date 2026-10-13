@@ -32,6 +32,11 @@
  * 光靠那份总闸关不掉视图过渡。
  */
 import { nextTick } from "vue";
+import {
+  reducedMotionActive,
+  currentReducedMotionHost,
+  type ReducedMotionHost
+} from "./motion-preference";
 
 /** 过渡方向：进（去别处）为 forward，回（回工作台）为 back。只这两个，别的一律当进。 */
 export type ViewTransitionDirection = "forward" | "back";
@@ -52,14 +57,15 @@ export interface ViewTransitionHandle {
  * 本仓只依赖上面这几个成员。写成结构类型而不是 `Document`，
  * 是为了让守卫能传一只假 document —— 真机那条（文档不可见 ⇒ InvalidStateError）
  * 在 node 里用 `ready: Promise.reject(...)` 就能复现，不必起 Electron。
+ *
+ * 认「减少动效」那两块（documentElement / defaultView）从 `ReducedMotionHost` 继承过来，
+ * 那边才是这个判定的家（与 applyReducedMotion 同居）；这里不再自己写一份形状。
  */
-export interface ViewTransitionHost {
+export interface ViewTransitionHost extends ReducedMotionHost {
   startViewTransition?: (options: {
     update: () => unknown;
     types?: string[];
   }) => ViewTransitionHandle;
-  documentElement?: { dataset?: Record<string, string | undefined> } | null;
-  defaultView?: { matchMedia?: (query: string) => { matches: boolean } | null } | null;
 }
 
 export interface RunViewTransitionOptions {
@@ -72,21 +78,14 @@ export interface RunViewTransitionOptions {
 }
 
 function currentHost(): ViewTransitionHost | null {
-  return typeof document === "undefined" ? null : (document as unknown as ViewTransitionHost);
+  // 「有没有 document」这个守卫住在 motion-preference.ts（认档的地方都在那儿），
+  // 这里只把同一个对象看成更宽的结构类型——视图过渡要多一个 startViewTransition 成员。
+  return currentReducedMotionHost() as ViewTransitionHost | null;
 }
 
 /** 引擎认不认这个 API。 */
 export function viewTransitionSupported(host: ViewTransitionHost | null): boolean {
   return host !== null && typeof host.startViewTransition === "function";
-}
-
-/** 两档「减少动效」任一为真，这一轮就不该有动画。 */
-export function reducedMotionActive(host: ViewTransitionHost | null): boolean {
-  if (host === null) return false;
-  const byPreference = host.documentElement?.dataset?.reducedMotion === "true";
-  const bySystem =
-    host.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
-  return byPreference || bySystem;
 }
 
 /**

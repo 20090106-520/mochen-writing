@@ -12,6 +12,7 @@ import {
   defaultLeftPaneWidth,
   defaultRightPaneWidth,
   shouldAutoCollapseRightPane,
+  shouldAutoCollapseRightPaneWithoutBook,
   useLayoutStore
 } from "./layoutStore";
 
@@ -160,6 +161,63 @@ describe("layout store", () => {
     await nextTick();
     expect(refs.rightCollapsed.value, "手动意图优先，自动策略不得推翻").toBe(false);
     store.$dispose();
+  });
+
+  /**
+   * 2026-10-11 没打开作品时收右栏。同样分三段钉，每段管一条边界：
+   * 判据本身 / 空作品确实收 / 手动优先与只收不展。
+   * 只测判据的话，把 App.vue 里那条 watch 删掉照样全绿——所以第二段量的是 store 的真实行为。
+   */
+  it("判据是个纯函数：没有作品一律收，与视口宽窄无关；有作品则退回窄窗那条", () => {
+    // 无作品时无论多宽都收：那一格摆出来的是「点一篇文稿就能在这儿写」，没有一个像素有用。
+    expect(shouldAutoCollapseRightPaneWithoutBook(1920, false)).toBe(true);
+    expect(shouldAutoCollapseRightPaneWithoutBook(1000, false)).toBe(true);
+    // 有作品时不得比窄窗那条更激进（否则就把既有行为改了）。
+    expect(shouldAutoCollapseRightPaneWithoutBook(1000, true)).toBe(
+      shouldAutoCollapseRightPane(1000)
+    );
+    expect(shouldAutoCollapseRightPaneWithoutBook(1920, true)).toBe(false);
+  });
+
+  it("无作品时确实把右栏收起来：宽窗进来也是收的（此前宽窗是展开的）", () => {
+    installRuntime(1920);
+    const store = useLayoutStore();
+    const refs = storeToRefs(store);
+    // 宽窗 + 无作品：既有窄窗判据为假，右栏本该是展开的。
+    expect(refs.rightCollapsed.value, "宽窗起步不该被窄窗判据收起").toBe(false);
+    // 装配层在挂载与每次 hasBook 变化时打这一下。
+    store.setRightCollapsedByEmptyBook(shouldAutoCollapseRightPaneWithoutBook(1920, false));
+    expect(refs.rightCollapsed.value, "无作品时右栏必须收").toBe(true);
+    store.$dispose();
+  });
+
+  it("手动优先 + 只收不展：用户折过就交权；有作品时也不擅自把右栏推回来", () => {
+    installRuntime(1920);
+    const store = useLayoutStore();
+    const refs = storeToRefs(store);
+
+    // ① 手动交权：宽窗起步右栏是展开的，用户手动折过一次后闸门上锁。
+    expect(refs.rightCollapsed.value).toBe(false);
+    store.togglePane("right");
+    expect(refs.rightCollapsed.value, "手动折起应生效").toBe(true);
+    expect(refs.rightPaneManuallyToggled.value).toBe(true);
+    // 用户又自己展开——此后自动策略不得再把它按下去，哪怕此刻没有作品。
+    store.togglePane("right");
+    expect(refs.rightCollapsed.value).toBe(false);
+    store.setRightCollapsedByEmptyBook(true);
+    expect(refs.rightCollapsed.value, "手动意图优先，自动策略不得推翻").toBe(false);
+
+    // ② 只收不展：判据转假（打开作品）时，store 这一层什么都不做。
+    //    展开是用户的动作，不该由「书打开了」替他决定。
+    setActivePinia(createPinia());
+    installRuntime(1920);
+    const store2 = useLayoutStore();
+    const refs2 = storeToRefs(store2);
+    store2.setRightCollapsedByEmptyBook(true);
+    expect(refs2.rightCollapsed.value).toBe(true);
+    store2.setRightCollapsedByEmptyBook(false); // 书打开了
+    expect(refs2.rightCollapsed.value, "打开作品后不擅自推回来").toBe(true);
+    store2.$dispose();
   });
 
   it("按**真实布局宽度**判，不按 window.innerWidth：Electron 缩放下两者能差一倍以上（真机 1280 vs 877）", async () => {

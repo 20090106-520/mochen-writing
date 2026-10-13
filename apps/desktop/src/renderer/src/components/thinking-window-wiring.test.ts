@@ -127,15 +127,22 @@ describe("减少动效：两档都得给出静止档", () => {
 });
 
 describe("样式表的落位", () => {
-  it("引进 styles.css，且排在 view-transition.css 之后（它要用那条弹簧曲线做收尾）", () => {
-    const view = STYLES_CSS.indexOf("view-transition.css");
+  it("引进 styles.css，且排在 motion.css 之后（缓动曲线是那边定义的）", () => {
+    // 2026-10-11：原先排的是 view-transition.css，因为曲线在那个文件里；
+    // 曲线随对话框一起搬到 GSAP 之后，这里改读 motion.css 的 --ease-out-soft，落位跟着改。
+    const motion = STYLES_CSS.indexOf("motion.css");
     const window = STYLES_CSS.indexOf("thinking-window.css");
     expect(window, "styles.css 没引 thinking-window.css").toBeGreaterThan(-1);
-    expect(window).toBeGreaterThan(view);
+    expect(window).toBeGreaterThan(motion);
   });
 
-  it("呼吸点与入场共用 --ease-view，不另写一条曲线", () => {
-    expect(CSS).toContain("--ease-view");
+  it("呼吸点与入场共用 motion.css 那一条 --ease-out-soft，不另写一条曲线", () => {
+    // 这一格留在 CSS 是有意的：呼吸点是 infinite 循环，一条永远播不完的弹簧曲线
+    // 本身就是错的形状（弹簧是用来落位的），而常驻 rAF 驱动三颗 4px 的点也比合成器上的 opacity 更费。
+    expect(CSS).toContain("--ease-out-soft");
     expect(CSS, "这一族不许自己抄一条缓动曲线").not.toContain("cubic-bezier(");
+    // 也不许把弹簧请回来：真正的弹簧在 utils/motion-spring.ts，只有对话框入场在用。
+    expect(CSS, "这条 CSS 曲线已经退役").not.toContain("--ease-view");
+    expect(CSS, "这一层不许再出现 linear() 曲线").not.toContain("linear(");
   });
 });

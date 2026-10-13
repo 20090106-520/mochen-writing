@@ -12,9 +12,30 @@ import {
 import AppIcon from "./AppIcon.vue";
 import ThinkingWindow from "./ThinkingWindow.vue";
 import { THINKING_LIVE_LABEL, thinkingWindowState } from "../utils/thinking-window";
+import { markdownToSimpleHtml } from "@mochen/fs-store/export-shared";
 
 const props = defineProps<{ items: AgentEvent[]; tail: StreamingTail; running: boolean }>();
 const blocks = computed<TimelineBlock[]>(() => buildTimeline(props.items, props.tail));
+
+/**
+ * 助手正文走 markdown 渲染（2026-10-10）。
+ *
+ * **这里此前压根没有渲染**：`.message-content` 的类名写着 `message-markdown`、
+ * `theme-runtime.css` 里 `.message-markdown pre/code/a` 的样式也早就写好了，
+ * 可模板是 `<p class="message-text">{{ block.text }}</p>`——纯文本插值。
+ * 于是模型吐什么符号就显示什么符号：`**粗体**`、`## 标题`、`- 列表`、代码围栏，
+ * 全部原样躺在屏上。用户报的就是这个。
+ *
+ * **用的是仓库里那一份**（`@mochen/fs-store/export-shared`，`DocumentPane.vue` 引的是同一个
+ * 子路径），不是新写的第二份实现——那里面还住着 XSS 回归线（先整体 escapeHtml 再套规则，
+ * 顺序不能反，见 `export-service-markdown.test.ts`）。渲染层不许引 fs-store 的 barrel
+ * （会把 Node 模块拖进 bundle），子路径是边界检查明文声明的那条。
+ *
+ * 模板只调用它、自己不判定。
+ */
+function messageHtml(text: string): string {
+  return markdownToSimpleHtml(text);
+}
 /**
  * 空窗期那一格（批次 5-㊹）。判据在 utils 里，模板只读 `open`——
  * 「当前这一轮还没产出」这件事只有那一处说了算。
@@ -156,7 +177,19 @@ function openSource(url: string): void {
       <div v-else class="message-line" :class="{ 'is-streaming': block.streaming }">
         <div class="message-body">
           <div class="message-content message-markdown">
-            <p class="message-text">{{ block.text }}</p>
+            <!--
+              **这一格从纯文本改成 markdown 渲染**（2026-10-10）：原先是 `{{ block.text }}`，
+              模型吐什么符号就显示什么符号。`<p>` 换成 `<div>` 是必须的——
+              渲染器的输出自带 `<p>`，再套一层 `<p>` 就是非法嵌套（浏览器会自动拆开，间距全乱）。
+              `tail-flag` 仍在 `.message-content` 里、与正文平级，不受 v-html 影响（v-html 只接管它自己那一格）。
+            -->
+            <!-- eslint-disable vue/no-v-html -- 放行理由：与 DocumentPane 预览区同一条路径。
+                 messageHtml 调的是 markdownToSimpleHtml（真身在 @mochen/fs-store/export-shared，
+                 与 DocumentPane 的 previewHtml 是同一个函数），它先整体 escapeHtml 源文再套 markdown 规则，
+                 裸标签进不来；回归线见 packages/fs-store/test/export-service-markdown.test.ts
+                 与 packages/fs-store/test/markdown-ordered-list.test.ts。 -->
+            <div class="message-text" v-html="messageHtml(block.text)" />
+            <!-- eslint-enable vue/no-v-html -->
             <em v-if="block.interrupted" class="tail-flag">已打断</em>
           </div>
         </div>

@@ -27,13 +27,14 @@ export interface ToolOutcome {
   text: string;
   proposals: EditProposal[];
   /**
-   * 这一轮联网搜到的来源（2026-10-06 批次 5-⑨）。**只有 web_search 会带**。
-   * `text` 是给模型读的人话排版，`sources` 是给界面点的数据——两者同源不同用，
-   * 渲染层不从 text 里反解 URL（那是把排版当成数据源）。
+   * 这一轮联网工具带回的来源（2026-10-06 批次 5-⑨；2026-10-11 起 web_read 也带——
+   * 它读的那一页本身就是来源）。`text` 是给模型读的人话排版，`sources` 是给界面点的数据——
+   * 两者同源不同用，渲染层不从 text 里反解 URL（那是把排版当成数据源）。
    */
   sources?: WebSource[];
   /**
-   * 工具**跑通了，但没东西可给**（2026-10-06 批次 5-⑮）。目前只有 web_search 会带。
+   * 工具**跑通了，但没东西可给**（2026-10-06 批次 5-⑮）。web_search 搜不到、web_read
+   * 读完剥不出正文都会带。
    *
    * 为什么单开一个字段而不是把 `ok` 改成三态：`ok` 答的是「这次调用有没有出错」，
    * 而「源都能用，只是这个说法没搜着东西」**不是错**——对模型来说那是一条正常的回执，
@@ -50,7 +51,7 @@ export interface ToolOutcome {
 export interface ToolHost {
   context(): ToolContext;
   /**
-   * 名字放宽到 string（2026-10-07 批次 5-㉘）：花名册仍是那五个（§6），
+   * 名字放宽到 string（2026-10-07 批次 5-㉘）：花名册仍是那七枚（§6），
    * 但**插件注册进来的工具**也要能叫得动，而插件的工具名运行时才知道。
    * 用方法签名（非箭头属性）⇒ 参数双变，已有实现不写 `extraSpecs` 也照样成立。
    */
@@ -75,7 +76,7 @@ export function extraSpecsOf(host: ToolHost): ChatToolSpec[] {
   return specs.filter((spec) => toolNameOf(spec.name) === null);
 }
 
-/** 花名册那五个 + 插件注册进来的那些：本轮还没按开关过滤之前的全量。 */
+/** 花名册那七枚 + 插件注册进来的那些：本轮还没按开关过滤之前的全量。 */
 function rosterSpecs(host: ToolHost): ChatToolSpec[] {
   return [...TOOL_SPECS, ...extraSpecsOf(host)];
 }
@@ -141,7 +142,7 @@ const object = (
   ...(required.length > 0 ? { required } : {})
 });
 
-/** 花名册的唯一工具清单（§6：五个，不多不少）；顺序与 AGENT_TOOL_NAMES 一致。 */
+/** 花名册的唯一工具清单（§6：七枚，不多不少）；顺序与 AGENT_TOOL_NAMES 一致。 */
 export const TOOL_SPECS: ChatToolSpec[] = [
   {
     name: "read_doc",
@@ -190,6 +191,18 @@ export const TOOL_SPECS: ChatToolSpec[] = [
       "结果本身不落盘——要保存就整理后用 write_doc 写进对应文稿（如素材库/技能库）。" +
       "在回复里引用其中任何一条时，必须带上它的编号和链接，让人能点进去核对。",
     parameters: object({ query: { type: "string", description: "搜索词，中英文皆可" } }, ["query"])
+  },
+  {
+    // 2026-10-11 追加：web_search 只回标题+摘要；这一枚把其中一条来源的**网页正文**
+    // 剥出来（去脚本/样式/导航，按码点截断）。顺序照 AGENT_TOOL_NAMES：排在 web_search 之后。
+    name: "web_read",
+    description:
+      "读取一条网页链接的正文（优先用 web_search 结果里给出的链接）。" +
+      "返回页面标题与正文纯文本（已去掉脚本、样式与导航杂讯；过长会截断并注明）。" +
+      "只收 http/https 链接；同一页读完不必重复读。内容要保存就整理后用 write_doc 写进文稿。",
+    parameters: object({ url: { type: "string", description: "要读的网页链接（http/https）" } }, [
+      "url"
+    ])
   }
 ];
 

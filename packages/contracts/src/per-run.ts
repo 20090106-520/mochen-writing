@@ -46,9 +46,10 @@ export const THINKING_LEVEL_LABELS: Record<ThinkingLevel, string> = {
  * 它曾经既当 hosted tool 的 `type` 值、又当 function 工具名（两个真身共用一个常量，
  * 于是发出去的是裸 `{type:"web_search"}`，严格端点整批拒收，见 per-run-fields 的注释）。
  * 现在它只剩一个含义——**出站 tools 里那枚 function 工具的名字**，名字跟着含义改。
+ * （2026-10-11 起这个常量搬去 tools.ts 与花名册同住——它是工具名不是每轮开关字段；
+ * web_read 同表。这里不再导出第二份，两处各留一份就是两份真身。）
  */
 export const THINKING_WIRE_FIELD = "reasoning_effort";
-export const WEB_SEARCH_TOOL_NAME = "web_search";
 
 /**
  * 这一档**实际上线发的那个字**（2026-10-09 批次 5-㊻）。

@@ -4,7 +4,10 @@ export const AGENT_TOOL_NAMES = [
   "search_docs",
   "propose_patch",
   "write_doc",
-  "web_search"
+  "web_search",
+  // 2026-10-11 追加 web_read（网页正文抓取）：web_search 只回标题+摘要，扫榜/资料任务
+  // 拿不到正文；这一枚把一条来源的网页正文剥出来给模型读。同样主进程出网、不要 key。
+  "web_read"
 ] as const;
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
 
@@ -17,4 +20,14 @@ export type WriteToolName = (typeof WRITE_TOOLS)[number];
 
 export function isWriteTool(name: AgentToolName): name is WriteToolName {
   return (WRITE_TOOLS as readonly AgentToolName[]).includes(name);
+}
+
+/** 会出网的两枚工具。联网开关（输入区那枚 chip）闸的是**这一类**，不是 web_search 一枚。 */
+export const WEB_SEARCH_TOOL_NAME = "web_search";
+export const WEB_READ_TOOL_NAME = "web_read";
+export const NETWORK_TOOL_NAMES = [WEB_SEARCH_TOOL_NAME, WEB_READ_TOOL_NAME] as const;
+export type NetworkToolName = (typeof NETWORK_TOOL_NAMES)[number];
+
+export function isNetworkTool(name: AgentToolName): boolean {
+  return (NETWORK_TOOL_NAMES as readonly string[]).includes(name);
 }

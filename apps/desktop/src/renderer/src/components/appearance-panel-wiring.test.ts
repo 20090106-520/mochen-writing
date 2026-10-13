@@ -253,13 +253,10 @@ describe("AppearancePanel · 减少动效（2026-10-05 新增）", () => {
     );
     const css = styleSource("motion.css");
     expect(css).toContain("@keyframes mochen-pop-in");
-    // 弹层出场挂的是同一张表（抽查四枚根类，含对话框）。
-    for (const root of [
-      ".tool-roster",
-      ".model-select",
-      ".conversation-history-panel",
-      ".workspace-dialog"
-    ]) {
+    // 弹层出场挂的是同一张表（抽查三枚根类）。
+    // 2026-10-11 起对话框不再在这张表里——它的入场搬到 GSAP（composables/useDialogMotion.ts），
+    // 少这一枚是有意的，接它的守卫换到了 components/dialog-spring-wiring.test.ts。
+    for (const root of [".tool-roster", ".model-select", ".conversation-history-panel"]) {
       expect(css).toContain(root);
     }
     expect(css).toMatch(/html\[data-reduced-motion="true"\] \*,/);

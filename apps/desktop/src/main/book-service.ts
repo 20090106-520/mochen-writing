@@ -15,6 +15,7 @@ import {
   type BookOpenResult,
   type DocContent,
   type DocCreateResult,
+  type DocRefreshResult,
   type DocRef,
   type DocWriteResult
 } from "@mochen/contracts";
@@ -50,6 +51,13 @@ export interface BookService {
   writeDoc(relPath: string, content: string, expectedFingerprint: string): Promise<DocWriteResult>;
   /** 按规划好的书内路径建一篇空文档；relPath 由渲染层用 contracts 的 planDocRelPath 生成，这里兜底再验一遍。 */
   createDoc(relPath: string, title: string): Promise<DocCreateResult>;
+  /**
+   * 只重算**一篇**文稿的 DocRef（`doc:refresh`，P1-4 后半）。
+   *
+   * 与 `createDoc` 用同一份判据（fs-store 的 `docRefFor`，也就是 `scanBook` 那一份），
+   * 算出来同时换掉自己快照里那一根——渲染层的树与主进程 agent 工具看到的清单因此是同一时刻的真值。
+   */
+  refreshDoc(relPath: string): Promise<DocRefreshResult>;
   /**
    * 读这本书里的设定数据（2026-10-09 扫描总单 P0-7）。
    *
@@ -98,6 +106,14 @@ export function registerBookIpc(
     (_event, relPath, title) => service.createDoc(relPath as string, title as string),
     { check: insideCurrentBook("新建文稿", service) }
   );
+  // 只重算一篇（P1-4 后半）：新开的通道一律按最严的现有判据挂闸——形状 + 书内 realpath，
+  // 不继承 `doc:read` 当年的历史遗漏（那条要不要补记在扫描总单 P1-7 的后续里）。
+  handleTrusted(
+    register,
+    IPC_CHANNELS.docRefresh,
+    (_event, relPath) => service.refreshDoc(relPath as string),
+    { check: insideCurrentBook("重算文稿", service) }
+  );
   // 设定数据这两条**不把参数 cast 成 string 再交给 service**：键与文本都要由 service 按 unknown
   // 判一遍（白名单、有没有开书）。在这里 `as BookDataKey` 等于把判定推到调用方，白名单就白了。
   handleTrusted(register, IPC_CHANNELS.bookDataRead, (_event, key) => service.readData(key));
@@ -126,6 +142,26 @@ function insideCurrentBook(
     const rel = typeof args[0] === "string" ? args[0] : "";
     if (await relPathStaysInsideRoot(snapshot.root, rel)) return null;
     return `这条${label}的路径落在这本书外面（书根 ${snapshot.root}，递来的 ${rel === "" ? "空路径" : rel}）：软链与越界都按写不到书外处理。`;
+  };
+}
+
+/**
+ * 把「刚重算出来的那一篇」换进快照，返回新快照（P1-4 后半，`createDoc` 与 `refreshDoc` 共用）。
+ *
+ * 为什么要有这一个函数而不是两处各写一遍：`doc:create` 与 `doc:refresh` 都在做同一件事——
+ * 用 `docRefFor` 的成品替换树里同 `relPath` 的那一根，再让整棵树照 `chapterOrder` 落位。
+ * 两处各写一遍就会出现「建章会去重、重算不去重」这种分叉（铁律 6）。
+ * 落位本身用的是 contracts 的 `sortDocs`（fs-store 的 `sortChapters` 只是它的别名），
+ * 与渲染层拼树走的是同一个函数，所以「主进程的树」与「渲染层的树」不会判出两种顺序。
+ */
+function withFreshDocRef(current: BookSnapshot, fresh: DocRef): BookSnapshot {
+  // 同 relPath 以新值为准：重名建章已被 createDocFile 的 already-exists 挡住，这里是防外力的第二层。
+  return {
+    ...current,
+    docs: sortChapters(
+      [...current.docs.filter((doc) => doc.relPath !== fresh.relPath), fresh],
+      current.meta.chapterOrder
+    )
   };
 }
 
@@ -237,18 +273,37 @@ export function createBookService(deps: BookServiceDeps): BookService {
       // 现在只算新那一篇：判据仍是 fs-store 的 `docRefFor`，与 `scanBook` 同一份（铁律 6，不另立第二套
       // title/excerpt/chars 口径），落位仍由同一条 `sortChapters` 决定（主进程不自己排）。
       const fresh = await docRefFor(snapshot.root, relPath);
-      let docs: DocRef[];
-      if (fresh === null) {
-        // 刚写完却读不回这一篇（盘被外部改动、权限、杀软占用……）：退回整本重扫。
-        // 这条兜底不装作免费——它确实要读全本书，但它只在异常路径上烧，烧完 docs 仍是真数据；
-        // 另一条路（拿文件名倒推一个 DocRef 挂上去）会让界面显示「有这一章」而盘上读不到，两处从此分家。
-        docs = await scanBook(snapshot.root);
-      } else {
-        // 同 relPath 以新值为准：重名建章已被 createDocFile 的 already-exists 挡住，这里是防外力的第二层。
-        docs = [...snapshot.docs.filter((doc) => doc.relPath !== fresh.relPath), fresh];
+      if (fresh !== null) {
+        snapshot = withFreshDocRef(snapshot, fresh);
+        return { ok: true, relPath, fingerprint: result.fingerprint, doc: fresh };
       }
-      snapshot = { ...snapshot, docs: sortChapters(docs, snapshot.meta.chapterOrder) };
-      return { ok: true, relPath, fingerprint: result.fingerprint };
+      // 刚写完却读不回这一篇（盘被外部改动、权限、杀软占用……）：退回整本重扫。
+      // 这条兜底不装作免费——它确实要读全本书，但它只在异常路径上烧，烧完 docs 仍是真数据；
+      // 另一条路（拿文件名倒推一个 DocRef 挂上去）会让界面显示「有这一章」而盘上读不到，两处从此分家。
+      const rescan = sortChapters(await scanBook(snapshot.root), snapshot.meta.chapterOrder);
+      snapshot = { ...snapshot, docs: rescan };
+      // 带回给渲染层的那一根取自**排好序的快照**，不是另算一次：两处必须同值（P1-4 后半的用例钉着）。
+      // 找不到（重扫也没它）就如实递 null，让渲染层自己重扫——不许在这儿倒推一根盘上没有的稿件。
+      return {
+        ok: true,
+        relPath,
+        fingerprint: result.fingerprint,
+        doc: rescan.find((doc) => doc.relPath === relPath) ?? null
+      };
+    },
+
+    async refreshDoc(relPath) {
+      if (snapshot === null)
+        return { ok: false, reason: "no-book", message: "还没打开作品目录，重算不了这一篇。" };
+      // 一份判据：与 scanBook / createDoc 同一条 `docRefFor`（title / excerpt / chars 都不在这儿重算口径）。
+      const fresh = await docRefFor(snapshot.root, relPath);
+      if (fresh === null) {
+        // 盘上没有这一篇（外力删了、目录不是文稿目录）：如实递 null。文件读不到却说「有这么一篇、
+        // 标题就是文件名」＝造假稿件，正是 P0 那批反复钉的病。
+        return { ok: true, doc: null };
+      }
+      snapshot = withFreshDocRef(snapshot, fresh);
+      return { ok: true, doc: fresh };
     },
 
     current() {

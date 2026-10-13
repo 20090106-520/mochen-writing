@@ -59,6 +59,14 @@ import { seedBuiltinPlugins } from "./builtin-plugins.js";
 import { createChangesService, registerChangesIpc } from "./changes-service.js";
 import { registerWebSourceIpc } from "./web-source-link.js";
 import { migrateLegacyAppData, migrationNotice } from "./app-data-migration.js";
+// 自动更新（2026-10-10）：electron-updater 的真身只在这装配层碰，
+// 判定与文案全在 auto-update.ts（不 import electron，可单测）。
+import { createAutoUpdateService, checkOnBoot, type UpdaterLike } from "./auto-update.js";
+import electronUpdaterPkg from "electron-updater";
+const { autoUpdater } = electronUpdaterPkg;
+import { createTrashService, registerTrashIpc, type TrashSnapshot } from "./doc-trash.js";
+import { createBookBackupService, registerBookBackupIpc } from "./book-backup.js";
+import { createImportService, registerImportIpc } from "./import-service.js";
 
 /** F-4：品牌目录名。旧名只出现在迁移的入参里，源码别处一律用这两个常量。 */
 const LEGACY_APP_DIR_NAME = "mochen-writing";
@@ -331,6 +339,67 @@ app.whenReady().then(async () => {
     retention: retentionStore
   });
   registerChangesIpc((channel, fn) => ipcMain.handle(channel, fn), changesService);
+  // 书稿回收站（2026-10-10）：删=移进 .mochen/trash，还原=按小抄搬回。跟当前书走。
+  const trashService = createTrashService({
+    book: (): TrashSnapshot | null => {
+      const current = service.current();
+      return current === null
+        ? null
+        : {
+            root: current.root,
+            docs: current.docs.map((d) => ({ relPath: d.relPath, title: d.title }))
+          };
+    }
+  });
+  registerTrashIpc((channel, fn) => ipcMain.handle(channel, fn), trashService);
+  // 整书备份（2026-10-10）：复制不打包——`.mochen/` 之外的整本书抄进 .mochen/backups/。
+  // 与回收站同一口径跟着当前书走；daily 档由渲染层开书时调，一天至多一份。
+  const backupService = createBookBackupService({
+    bookRoot: () => service.current()?.root ?? null
+  });
+  registerBookBackupIpc((channel, fn) => ipcMain.handle(channel, fn), backupService);
+  // TXT 导入（2026-10-11）：选文件、读字节、切章、落盘全在主进程；对话框挂当前窗口（模态感）。
+  const importService = createImportService({
+    book: () => {
+      const current = service.current();
+      return current === null
+        ? null
+        : { root: current.root, docRelPaths: current.docs.map((d) => d.relPath) };
+    },
+    dialog: {
+      showOpenDialog: (options) =>
+        dialog.showOpenDialog(win, {
+          title: options.title,
+          filters: options.filters,
+          properties: options.properties as ("openFile" | "openDirectory")[]
+        })
+    }
+  });
+  registerImportIpc((channel, fn) => ipcMain.handle(channel, fn), importService);
+  // 检查更新（2026-10-10）：更新源 = 环境变量 MOCHEN_UPDATE_URL（放 latest.yml 的目录）。
+  // electron-updater 真身在这里适配成 UpdaterLike；检查只「说」不下载（autoDownload 关）。
+  const updateFeedUrl = process.env.MOCHEN_UPDATE_URL ?? null;
+  const updaterLike: UpdaterLike = {
+    setFeedURL: (options) => autoUpdater.setFeedURL(options),
+    checkForUpdates: async () => {
+      const result = await autoUpdater.checkForUpdates();
+      return result === null ? null : { updateInfo: { version: result.updateInfo?.version } };
+    },
+    get currentVersion() {
+      return { version: autoUpdater.currentVersion.version };
+    }
+  };
+  const updateService = createAutoUpdateService({
+    updater: updaterLike,
+    isPackaged: app.isPackaged,
+    feedUrl: updateFeedUrl,
+    autoDownload: false,
+    log: appendCrashLine
+  });
+  ipcMain.handle(
+    IPC_CHANNELS.updateCheck,
+    trustedHandler(IPC_CHANNELS.updateCheck, () => updateService.check())
+  );
   // 搜索来源的点开（批次 5-⑨）：本仓唯一递 URL 的一条，靠 http/https 白名单放行。
   registerWebSourceIpc((channel, fn) => ipcMain.handle(channel, fn), shell);
   // 外观读写仍走 appearance-store 同一份真身；保存成功后顺手刷新窗控叠加区配色。
@@ -458,4 +527,19 @@ app.whenReady().then(async () => {
   // env 只在开发态生效；判据与 trust 用的是同一份，所以「加载的是哪」与「谁算自己人」不会对不上。
   if (rendererLoad.kind === "url") void win.loadURL(rendererLoad.target);
   else void win.loadFile(rendererLoad.target);
+
+  // 启动自动检查（2026-10-10）：配了更新源才查；查到新版本弹系统通知，其余只落日志。
+  // 放在窗口加载之后：检查失败不该让首屏多等一毫秒。
+  if (updateFeedUrl !== null) {
+    void checkOnBoot(updateService, {
+      notify: (title, body) => {
+        if (Notification.isSupported()) new Notification({ title, body }).show();
+      },
+      log: appendCrashLine
+    }).catch((error: unknown) => {
+      appendCrashLine(
+        `[更新] 启动检查异常：${error instanceof Error ? error.message : String(error)}`
+      );
+    });
+  }
 });

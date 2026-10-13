@@ -186,6 +186,76 @@ export function listComponentFiles(): string[] {
     .map((name) => `components/${name}`);
 }
 
+/** 一枚模态对话框的登记项。 */
+export interface ModalDialogSpec {
+  /** 相对 renderer/src 的片段，与 `vueSource` 的入参同一形状。 */
+  file: string;
+  /** 人话名字，用作守卫的用例标题。 */
+  name: string;
+  /**
+   * 这一层是不是自己 `v-if` 的。
+   * true  → 组件常驻、开合由模板里那格的 `v-if` 管 ⇒ composable 必须显式传 `isOpen`（watcher 才有得听）。
+   * false → 由父组件 `v-if` 挂载，挂载即开、卸载即关 ⇒ **不传** `isOpen`。
+   */
+  mustPassIsOpen: boolean;
+}
+
+/**
+ * 模态对话框的登记表。
+ *
+ * 【为什么收在这里，而不是留在某一份守卫里】2026-10-11 起有两份守卫都要用它：
+ * `modal-focus-wiring.test.ts`（Esc 与焦点）与 `dialog-spring-wiring.test.ts`（入场动效）。
+ * 名单留在其中一份里，另一份就得抄一份——而**抄出来的名单有一个安静的死法**：
+ * 加了一个新对话框，两边都不红，等于新对话框谁也不管。
+ * 第五枚 `ImportTxtDialog.vue` 就是这么被逮到的：接线本来就是全的，
+ * 只是没进这张表，两份守卫对它都不置一词。
+ *
+ * 【所以对账放在 `modalDialogTableDrift`，由守卫去跑】本表只提供名单与形状标注，
+ * 「表与目录对不对得上」是判据的一部分，归守卫所有——读取器不该替守卫下结论。
+ */
+export const MODAL_DIALOGS: readonly ModalDialogSpec[] = [
+  {
+    file: "components/SideNavNoticeDialog.vue",
+    name: "侧栏导航响应对话框（数据统计 / 规划中 / 未打开作品）",
+    // 本组件常驻，开合是 backdrop 自己那一格的 v-if ⇒ 必须显式传 isOpen。
+    mustPassIsOpen: true
+  },
+  { file: "components/SaveConflictDialog.vue", name: "保存冲突提示", mustPassIsOpen: true },
+  { file: "components/NewBookDialog.vue", name: "新建作品对话框", mustPassIsOpen: false },
+  {
+    file: "components/ModelProfileDialog.vue",
+    name: "添加 / 编辑模型对话框",
+    mustPassIsOpen: false
+  },
+  { file: "components/ImportTxtDialog.vue", name: "导入 TXT 对话框", mustPassIsOpen: false }
+] as const;
+
+/** 模板里挂了 `.workspace-dialog` 的组件（HTML 注释已剥——组件头注释里常点名这个类名）。 */
+function hasModalDialogClass(file: string): boolean {
+  if (!vueSource(file).includes("<template>")) return false;
+  return /class="[^"]*\bworkspace-dialog\b/.test(templateSource(file));
+}
+
+/**
+ * 登记表与目录的实际差集，两个方向都给。
+ *
+ * 两个方向都要查，只查一个方向是不够的：
+ *  - `missingFromTable`：目录里有那种对话框、表里没有 ⇒ **新加了组件忘了登记**（最常见的漏法）；
+ *  - `missingFromTemplate`：表里有、模板里已经不是那种对话框了 ⇒ 名单腐烂，该从表里删掉。
+ * 只查前一个的话，把一个已重写的组件从表里删掉时没人拦，于是守卫开始对着一个不存在的组件做断言。
+ */
+export function modalDialogTableDrift(): {
+  missingFromTable: string[];
+  missingFromTemplate: string[];
+} {
+  const inTemplate = listComponentFiles().filter(hasModalDialogClass);
+  const inTable = MODAL_DIALOGS.map((d) => d.file);
+  return {
+    missingFromTable: inTemplate.filter((f) => !inTable.includes(f)),
+    missingFromTemplate: inTable.filter((f) => !inTemplate.includes(f))
+  };
+}
+
 /**
  * CSS 里每一条规则的**前导串与正文**（嵌套在 `@media` 里的内层规则也一并给出）。
  *
@@ -225,6 +295,34 @@ export function cssRules(css: string): { selector: string; body: string }[] {
         selector: css.slice(frame.from, frame.start - 1).trim(),
         body: css.slice(frame.start, i)
       });
+    }
+  }
+  return out;
+}
+
+/**
+ * 浮层出场表：`motion.css` 里挂了 `animation: mochen-pop-in` 的那些规则的**类名**。
+ *
+ * 「弹层出场」是一张手维护的类名表，于是历史上漏过好几轮（`components/overlay-chrome.test.ts`
+ * 的文件头记着哪五个浮层曾弹出来是硬的）。现在那条测试从「谁用了 popover composable」**反推要求**，
+ * 靠的就是本函数——所以它得是真的，别的地方再写一份正则就会两边口径不一（铁律 6）。
+ *
+ * **必须先剥注释**（调用方传 `strippedStyleSource(...)` 的结果）。
+ * 第一版是手搓的 `/([^{}]+)\{([^{}]*)\}/g`，它把每组选择器的**第一条**粘在了前导注释上：
+ * 一段注释紧挨着 `.tool-roster,` 时量出来第一段是「注释 + .tool-roster」，
+ * 不以 `.` 开头 ⇒ **.tool-roster 被静默丢掉**，而当时没有一条断言会去看它。
+ * 这条扫描的失效方向是绿的：新加一个单选择器浮层、上面写段注释，它就从表里消失了。
+ * 现在改用 `cssRules` 逐条取，选择器前没有别的字符可粘。
+ *
+ * 返回值只收以 `.` 开头的那几段：`cssRules` 还会给出 at-rule 与 `@keyframes` 内的帧规则。
+ */
+export function popInSelectors(css: string): string[] {
+  const out: string[] = [];
+  for (const rule of cssRules(css)) {
+    if (!/animation:\s*mochen-pop-in/.test(rule.body)) continue;
+    for (const sel of rule.selector.split(",")) {
+      const c = sel.trim();
+      if (c.startsWith(".")) out.push(c);
     }
   }
   return out;

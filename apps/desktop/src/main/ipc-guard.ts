@@ -101,6 +101,9 @@ function samePathText(a: string, b: string): boolean {
 
 /** `child` 的真实路径是否落在 `root` 之内（按分隔符对齐的前缀，不是字符串 startsWith 的近似）。 */
 function isUnderReal(child: string, root: string): boolean {
+  // 等值也是「在内」：回退链走到书根本身时（新分类目录还没建的第一篇），最近的已存在
+  // 祖先就是书根。旧实现只认「严格长于书根」的前缀，child === root 会被判成书外。
+  if (samePathText(child, root)) return true;
   const prefix = root.endsWith(path.sep) ? root : root + path.sep;
   return samePathText(child.slice(0, prefix.length), prefix);
 }
@@ -376,6 +379,18 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
     relPath("新建文稿"),
     textRule({ maxLength: MAX_REL_PATH_CHARS, label: "文稿标题" })
   ],
+  // 只重算一篇（P1-4 后半，2026-10-10）：入参与 `doc:read` 同形，但它是这一批新开的通道，
+  // 所以按最严的那条走——realpath 的「书内」判定也一并挂上（注册点那条 `check`），
+  // 不继承 `doc:read` 当时的历史遗漏。`doc:read` 要不要补同一道，记在扫描总单 P1-7 的后续里。
+  [IPC_CHANNELS.docRefresh]: [relPath("重算文稿")],
+  // 回收站（2026-10-10）：删只递一篇的 relPath（realpath 闸在注册点那条 check，与 doc:* 同款）；
+  // 还原只递条目名，盘上路径由主进程按当前书拼（与 market:install 同一条铁律）。
+  [IPC_CHANNELS.docTrash]: [relPath("要移入回收站的文稿")],
+  [IPC_CHANNELS.trashRestore]: [id("回收站条目名")],
+  // 整书备份（2026-10-10）：create 递触发方式（非 "daily" 一律按 manual 处理，回退在 service）；
+  // restore 只递备份目录名，盘上路径由主进程按当前书拼（与 trash:restore 同一条铁律）。
+  [IPC_CHANNELS.bookBackupCreate]: [id("备份触发方式")],
+  [IPC_CHANNELS.bookBackupRestore]: [id("备份条目名")],
   [IPC_CHANNELS.agentStartTurn]: [objectRule("这一轮对话")],
   [IPC_CHANNELS.agentInterrupt]: [id("打断的轮次")],
   [IPC_CHANNELS.agentDecide]: [objectRule("这条审批")],
@@ -422,7 +437,10 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
     textRule({ maxLength: MAX_ID_CHARS, label: "通知标题" }),
     textRule({ maxLength: MAX_REL_PATH_CHARS, allowEmpty: true, label: "通知正文" })
   ],
-  [IPC_CHANNELS.appFlushQuitDone]: [objectRule("落盘的回话")]
+  [IPC_CHANNELS.appFlushQuitDone]: [objectRule("落盘的回话")],
+  // TXT 导入（2026-10-11）：预览无参；提交递一章目清单（对象），清单内部每章的标题/正文
+  // 形状与总量判定住在 import-service 的 commit——这里再逐章判就是第二份判据。
+  [IPC_CHANNELS.importCommit]: [objectRule("这一批导入的章节")]
 };
 
 export function argRulesFor(channel: string): ArgRule[] {
@@ -445,7 +463,11 @@ export const IPC_NO_ARG_CHANNELS: readonly string[] = [
   IPC_CHANNELS.changesList,
   IPC_CHANNELS.changesRetentionGet,
   IPC_CHANNELS.changesPruneNow,
-  IPC_CHANNELS.appearanceGet
+  IPC_CHANNELS.appearanceGet,
+  IPC_CHANNELS.trashList,
+  IPC_CHANNELS.bookBackupList,
+  IPC_CHANNELS.importPreview,
+  IPC_CHANNELS.updateCheck
 ];
 
 /**
@@ -467,6 +489,13 @@ const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
     reason: info.kind === "check" ? "outside-book" : "invalid-path",
     message: info.message
   }),
+  // doc:refresh 被挡时回 DocRefreshResult 而不是抛错：调用点在 `syncDocRef` 里按 `result.ok` 分支，
+  // 抛错会让「改名 / 吸收智能体写入」那条链红屏中断，而这条路本来就有整本温和重扫兜底。
+  [IPC_CHANNELS.docRefresh]: (info) => ({
+    ok: false,
+    reason: info.kind === "check" ? "outside-book" : "invalid-path",
+    message: info.message
+  }),
   [IPC_CHANNELS.bookDataRead]: (info) => ({
     ok: false,
     reason: "invalid-key",
@@ -475,6 +504,42 @@ const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
   [IPC_CHANNELS.bookDataWrite]: (info) => ({
     ok: false,
     reason: info.kind === "arg" ? "not-json" : "write-failed",
+    message: info.message
+  }),
+  // 回收站三条（2026-10-10）被挡时照各自契约的失败档回话：调用点都按 result.ok 分支。
+  [IPC_CHANNELS.docTrash]: (info) => ({
+    ok: false,
+    reason: info.kind === "check" ? "outside-book" : "invalid-path",
+    message: info.message
+  }),
+  [IPC_CHANNELS.trashList]: (info) => ({
+    ok: false,
+    reason: "no-book",
+    message: info.message
+  }),
+  [IPC_CHANNELS.trashRestore]: (info) => ({
+    ok: false,
+    reason: "not-found",
+    message: info.message
+  }),
+  // 检查更新被挡（只有形状闸一种：它没有参数）——按 UpdateCheckResult 的 error 档回，
+  // 别让「关于」页那颗按钮在闸拦下时悬死在 await 上。
+  [IPC_CHANNELS.updateCheck]: (info) => ({
+    status: "error",
+    version: "",
+    latestVersion: null,
+    note: info.message
+  }),
+  // TXT 导入两条（2026-10-11）被挡时照各自契约的失败档回话：对话框两条链都按 result.ok 分支，
+  // 抛错会让「选文件」那颗按钮悬死在 await 上。
+  [IPC_CHANNELS.importPreview]: (info) => ({
+    ok: false,
+    reason: "read-error",
+    message: info.message
+  }),
+  [IPC_CHANNELS.importCommit]: (info) => ({
+    ok: false,
+    reason: "no-book",
     message: info.message
   })
 };
@@ -606,7 +671,11 @@ export async function relPathStaysInsideRoot(
       return isUnderReal(await fsLike.realpath(current), realRoot);
     } catch {
       const parent = path.dirname(current);
-      if (parent === current || samePathText(parent, realRoot)) return false;
+      // 只在真的走到盘根时才放弃。早先这里还有一条「parent 等于书根 ⇒ 判外」的捷径，
+      // 那是错的：书根自己就是最近的已存在祖先（骨架只建 4 个分类目录，其余 8 类的
+      // 第一篇文稿连分类目录都还没有），直接判外等于「新书永远建不出第一篇世界观」。
+      // 书根在上面已经 realpath 成功，走到它必然返回 isUnderReal(root, root) = true。
+      if (parent === current) return false;
       current = parent;
     }
   }

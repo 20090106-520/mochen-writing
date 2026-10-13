@@ -65,6 +65,27 @@ describe("defaultPromptFor · 拼装", () => {
       })
     ).toContain("还没打开文稿");
   });
+
+  it("文风硬约束常驻（2026-10-10 去AI味）：点名词表来自 contracts，与体检同源不各抄一份", () => {
+    const text = defaultPromptFor({
+      title: "深渊之下",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context: NO_CONTEXT,
+      webSearchEnabled: false
+    });
+    // 联网关掉也不影响文风段：它不是 web_search 的邻居，是常驻的正文纪律。
+    expect(text).toContain("文风硬约束");
+    expect(text).toContain("嘴角勾起");
+    expect(text).toContain("众所周知");
+    expect(text).toContain("他知道，……");
+    // 副词与句长是另口叮嘱的两条（词表不点名它们，提示词里得有）。
+    expect(text).toContain("副词能删就删");
+    expect(text).toContain("别让连续几句一样长");
+  });
 });
 
 describe("defaultPromptFor · 先计划后动手（2026-10-05 批次 4）", () => {
@@ -264,5 +285,138 @@ describe("writeScopeSentence · 档案能写哪里", () => {
     const byId = findProfile("reviewer");
     if (byId === null) throw new Error("findProfile 认不出内置档案 id");
     expect(writeScopeSentence(byId)).toBe(writeScopeSentence(of("reviewer")));
+  });
+});
+
+describe("细腻度段 + 本书套话回流（2026-10-10 三段：给 AI 的写作质量）", () => {
+  // 上下文参数直接取 defaultPromptFor 的形参类型——测试夹具与真身同形，不另造一份。
+  const build = (context: Parameters<typeof defaultPromptFor>[0]["context"]) =>
+    defaultPromptFor({
+      title: "深渊之下",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context,
+      webSearchEnabled: false
+    });
+
+  it("细腻度五条常驻：五感 / 具体名词 / 对话节拍 / 角色声音 / 续写衔接，各给可执行判据", () => {
+    const text = build(NO_CONTEXT);
+    expect(text).toContain("细腻度要求");
+    expect(text).toContain("非视觉");
+    expect(text).toContain("具体名词");
+    expect(text).toContain("对话节拍");
+    expect(text).toContain("角色声音");
+    expect(text).toContain("无缝");
+  });
+
+  it("已有两章以上 ⇒ 开头句点名回流，叮嘱换进法；不足两章不注入", () => {
+    const mk = (kind: "chapter" | "character", relPath: string, text: string) => ({
+      kind,
+      relPath,
+      title: relPath,
+      text,
+      chars: text.length,
+      active: false
+    });
+    const withOpenings = {
+      items: [
+        mk("chapter", "chapters/01.md", "夜色像墨一样漫开。"),
+        mk("chapter", "chapters/02.md", "雨下个不停。")
+      ],
+      chars: 20,
+      approxTokens: 20,
+      openings: ["夜色像墨一样漫开。", "雨下个不停。"]
+    };
+    const text = build(withOpenings);
+    expect(text).toContain("换一种进法");
+    expect(text).toContain("夜色像墨一样漫开");
+    // 只有一章：谈不上套路，不注入。
+    const one = { ...withOpenings, openings: ["夜色像墨一样漫开。"] };
+    expect(build(one)).not.toContain("换一种进法");
+    // 没有 openings 字段（老装配结果）也不炸。
+    expect(build(NO_CONTEXT)).not.toContain("换一种进法");
+  });
+
+  it("上下文里已有高频套话 ⇒ 点名回流（这本书自己的病，不是天下通病）", () => {
+    const flavored = {
+      items: [
+        {
+          kind: "chapter" as const,
+          relPath: "chapters/01-开局.md",
+          title: "开局",
+          text: "他嘴角勾起，眼底闪过一丝复杂的情绪。".repeat(6),
+          chars: 200,
+          active: true
+        }
+      ],
+      chars: 200,
+      approxTokens: 200
+    };
+    const text = build(flavored);
+    expect(text).toContain("本书写法提醒");
+    expect(text).toContain("嘴角勾起（");
+    expect(text).toContain("次）");
+  });
+
+  it("上下文没有命中 ⇒ 不注入空段（没病不喂药）", () => {
+    expect(build(NO_CONTEXT)).not.toContain("本书写法提醒");
+  });
+});
+
+describe("对话占比反馈（2026-10-10 五段：让模型知道本章是话痨还是闷罐）", () => {
+  const build = (context: Parameters<typeof defaultPromptFor>[0]["context"]) =>
+    defaultPromptFor({
+      title: "深渊之下",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context,
+      webSearchEnabled: false
+    });
+  const mk = (text: string) => ({
+    kind: "chapter" as const,
+    relPath: "chapters/01.md",
+    title: "开局",
+    text,
+    chars: text.length,
+    active: true
+  });
+
+  it("对话过密（>65%）⇒ 话太密提醒；几乎零对话 ⇒ 全叙述提醒", () => {
+    // 每单元：引号内 29 字、引号外 14 字 → 占比约 67%（手算过线，0.65 是真阈值不是摆设）。
+    const chatty = mk(
+      "「你到底想说什么，直说就行，别兜圈子。」她把杯子推过去。「我说过了，没什么可说的。」他没碰杯子。".repeat(
+        20
+      )
+    );
+    expect(build({ items: [chatty], chars: 700, approxTokens: 700 })).toContain("话太密了");
+    // 60 字零对话 × 12 = 720 字 → 占比 0 → 全叙述提醒。
+    const silent = mk(
+      "他推开院门，把锄头靠在墙边，转身去灶间生火，火苗窜起来，锅里的粥咕嘟作响，窗外的雨没有要停的意思。".repeat(
+        12
+      )
+    );
+    expect(build({ items: [silent], chars: 720, approxTokens: 720 })).toContain("几乎没有对话");
+  });
+
+  it("占比常态（3%~65%）⇒ 不吭声；不足 500 字 ⇒ 不判定", () => {
+    // 每单元：引号内 25 字、引号外 45 字 → 占比约 36%，属常态。
+    const balanced = mk(
+      (
+        "「你到底想说什么，直说就行。」她把杯子推过去，杯底磕在桌上，茶水晃出来一圈。" +
+        "他没有接话，转身把窗关上，风声小了些，屋里的煤油灯稳住了火苗。"
+      ).repeat(12)
+    );
+    expect(build({ items: [balanced], chars: 800, approxTokens: 800 })).not.toContain(
+      "对话占比提醒"
+    );
+    // 太短不判定：哪怕全是引号。
+    const tiny = mk("「行。」「不走？」「走。」");
+    expect(build({ items: [tiny], chars: 12, approxTokens: 12 })).not.toContain("对话占比提醒");
   });
 });

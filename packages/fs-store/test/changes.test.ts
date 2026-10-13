@@ -422,7 +422,9 @@ describe("pruneChanges · 真的把盘上多出来的删掉", () => {
     } finally {
       await rm(scratch, { recursive: true, force: true });
     }
-  });
+    // 55 次真盘写 + 逐次淘汰，慢盘/低配机（本仓沙箱实测）会顶穿默认 5s——
+    // 这是环境速度问题，不是产品缺陷，给这条**单独**放宽，别把全局超时也放松。
+  }, 20000);
 
   it("淘汰过的盘上，最新的那份仍读得出内容（不能把回滚的最后一条也删了）", async () => {
     const scratch = await mkdtemp(path.join(tmpdir(), "mochen-prune-keep-"));

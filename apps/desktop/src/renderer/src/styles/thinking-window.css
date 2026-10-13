@@ -1,8 +1,13 @@
 /**
  * 思考态空窗期的样式（2026-10-08 批次 5-㊹）。
  *
- * 定位：**只管这一行的长相**。三枚呼吸点的节奏用 `--ease-view` 那条弹簧曲线收尾，
- * 于是它与弹层出场、视图过渡是同一套手感（三处共用一份曲线，不各调各的）。
+ * 定位：**只管这一行的长相**。入场与三枚呼吸点都用全仓那一条 `--ease-out-soft`
+ * （与浮层、视图过渡同一条手感，不各调各的）。
+ *
+ * 【为什么这一格留在 CSS，不跟着对话框一起搬去 GSAP】三枚呼吸点是 **infinite 循环**。
+ * 一条永远播不完的弹簧曲线本身就是错的形状——弹簧是用来「落位」的，不是用来振荡的，
+ * 而一个常驻的 rAF 循环去驱动三颗 4px 的点，比 CSS 合成器上的 opacity 动画更费。
+ * 真正的弹簧现在住在 utils/motion-spring.ts，只有对话框入场在用它。
  *
  * 「减少动效」这一格写得比别处长一句：motion.css 的总闸把 animation-duration 压到 0.01ms，
  * 那会让三枚点**停在第一帧**（opacity 0.4），也就是「关掉动效」变成了「看起来没在动」。
@@ -16,7 +21,7 @@
   color: var(--text-secondary);
   font-size: 0.928571rem;
   /* 与流式光标同一族的入场：短、只动 4px，不与第一段正文抢注意力。 */
-  animation: thinking-window-in 180ms var(--ease-view);
+  animation: thinking-window-in 180ms var(--ease-out-soft);
 }
 
 .thinking-window-dots {
@@ -32,7 +37,7 @@
   border-radius: 50%;
   background: currentColor;
   opacity: 0.35;
-  animation: thinking-window-breathe 1.15s var(--ease-view) infinite;
+  animation: thinking-window-breathe 1.15s var(--ease-out-soft) infinite;
 }
 
 .thinking-window-dots i:nth-child(2) {

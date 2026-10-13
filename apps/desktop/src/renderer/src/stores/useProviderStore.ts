@@ -156,7 +156,11 @@ export const useProviderStore = defineStore("provider", () => {
    */
   let modelsTicket = 0;
 
-  async function loadModels(force = false, query?: ModelListQuery): Promise<void> {
+  async function loadModels(
+    force = false,
+    query?: ModelListQuery,
+    background = false
+  ): Promise<void> {
     if (query === undefined && models.value !== null && !force) return;
     const ticket = ++modelsTicket;
     modelsLoading.value = true;
@@ -165,15 +169,35 @@ export const useProviderStore = defineStore("provider", () => {
       if (ticket !== modelsTicket) return; // 已经有更新的请求了，这包不要了
       // 失败理由在进门时剥壳（经 toReason → presentableProviderError 唯一真身）：主进程收进
       // reason 的 credential/配置错误带英文括注，对话框与输入卡浮层两个消费方不该各自再剥。
-      models.value = result.ok ? result : { ok: false, reason: toReason(result.reason) };
+      // 后台预拉失败**不落缓存**：启动时的网络抖动不该把「拉不到名单」钉死在缓存里，
+      // 用户真正点开下拉时（loadModels 不带 force）还要再试一次。
+      models.value = result.ok
+        ? result
+        : background
+          ? null
+          : { ok: false, reason: toReason(result.reason) };
     } catch (caught) {
       if (ticket !== modelsTicket) return;
       // 主进程已经把出网失败收成理由了；走到这里的只剩 IPC 层本身被拒，同样摆成一句人话。
-      models.value = { ok: false, reason: toReason(caught) };
+      if (!background) models.value = { ok: false, reason: toReason(caught) };
     } finally {
       // 只有最新那一次能收 loading，否则慢的会把还在飞的标记收掉。
       if (ticket === modelsTicket) modelsLoading.value = false;
     }
+  }
+
+  /**
+   * 启动预拉（2026-10-11）：应用一挂载就把模型清单拉进缓存。
+   *
+   * 过去名单只在「点开模型 ▾」那一刻才拉——用户按下浮层的瞬间才开始等网络往返
+   * （模型清单超时 10 秒），首开必转圈。预拉之后，点开那一下读的是缓存，秒开。
+   * 前提是已有启用中的模型（没有启用模型时主进程只会回一句「没启用」，预拉它没意义）；
+   * 失败不落缓存（loadModels 的 background 档），真正的打开仍是干净的首次尝试。
+   */
+  async function warmModelCache(): Promise<void> {
+    await refresh();
+    if (enabledProfile.value === null || models.value !== null) return;
+    await loadModels(false, undefined, true);
   }
 
   /**
@@ -274,6 +298,7 @@ export const useProviderStore = defineStore("provider", () => {
     configured,
     connectionOf,
     refresh,
+    warmModelCache,
     saveConnection,
     removeConnection,
     loadModels,

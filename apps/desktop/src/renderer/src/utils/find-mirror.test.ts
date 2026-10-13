@@ -11,7 +11,7 @@
  * 把文本往带引号的属性里塞，那就是一条真 XSS。普查与回归线：`utils/html-escape-single.test.ts`。
  */
 import { describe, expect, it } from "vitest";
-import { findMirrorHtml, type MirrorPosition } from "./find-mirror";
+import { FIND_MIRROR_MAX_MARKS, findMirrorHtml, type MirrorPosition } from "./find-mirror";
 
 const pos = (start: number, end: number): MirrorPosition => ({ start, end });
 
@@ -53,5 +53,29 @@ describe("findMirrorHtml", () => {
     const text = "ab";
     // end 越过文本长度：slice 自己收口，产出仍是原文的可见字符
     expect(findMirrorHtml(text, [pos(0, 99)], -1)).toBe(`<mark class="find-highlight">ab</mark>`);
+  });
+
+  it("匹配超过封顶：封顶内照常涂黄，封顶外按普通正文渲染但一个字都不丢（2026-10-10 巡检）", () => {
+    // 每个匹配 2 字，造出 FIND_MIRROR_MAX_MARKS + 5 处
+    const text = "abcd".repeat(FIND_MIRROR_MAX_MARKS + 5);
+    const positions: MirrorPosition[] = [];
+    for (let i = 0; i < FIND_MIRROR_MAX_MARKS + 5; i += 1) positions.push(pos(i * 4, i * 4 + 2));
+    const html = findMirrorHtml(text, positions, -1);
+    const marks = html.match(/<mark /g) ?? [];
+    expect(marks).toHaveLength(FIND_MIRROR_MAX_MARKS);
+    // 丢字检查：剥掉全部标签后必须还是原文（封顶只是不涂黄，不是不渲染）
+    const bare = html.replace(/<\/?mark[^>]*>/g, "");
+    expect(bare).toBe(text);
+  });
+
+  it("「当前那一条」永远标注，哪怕它在封顶之外（跳到第 N 处必须看得见）", () => {
+    const text = "abcd".repeat(FIND_MIRROR_MAX_MARKS + 3);
+    const positions: MirrorPosition[] = [];
+    for (let i = 0; i < FIND_MIRROR_MAX_MARKS + 3; i += 1) positions.push(pos(i * 4, i * 4 + 2));
+    const last = positions.length - 1;
+    const html = findMirrorHtml(text, positions, last);
+    expect(html).toContain(`find-highlight-current">ab</mark>`);
+    const marks = html.match(/<mark /g) ?? [];
+    expect(marks).toHaveLength(FIND_MIRROR_MAX_MARKS + 1);
   });
 });

@@ -1,13 +1,21 @@
-import type { DocRef } from "@mochen/contracts";
+import { sortDocs } from "@mochen/contracts";
 
 /**
  * 章节次序（`book.json` 的 `chapterOrder`）在渲染层这一侧的两个纯动作
  * （2026-10-09 从 `useBookStore` 搬出来：那份 store 已顶在 800 行的行数预算上，
  * 而「挪一位 + 按次序重排」本来就是纯计算，不该占着状态容器的格子）。
  *
- * 主进程那边有一份同名的 `sortChapters`（fs-store），这里这份**不合并**：
- * 渲染层不许 import fs-store（包边界守卫），合并等于把浏览器 bundle 拖上 Node。
+ * 【2026-10-10 P1-4 后半改了这一条】原先这里写的是「主进程那边有一份同名的 `sortChapters`（fs-store），
+ * 这里这份**不合并**：渲染层不许 import fs-store，合并等于把浏览器 bundle 拖上 Node」。
+ * 那条边界理由到今天仍然成立，被换掉的是它隐含的前提——「判据必须各留一份」并不成立：
+ * 排序判据搬进 `contracts`（`book.ts` 的 `sortDocs`，无 Node 依赖）之后，两边引的是同一个函数，
+ * 边界照样守得住。于是这个名字也只是**别名**（`doc-order-single-source.test.ts` 用引用相等钉住）。
+ *
+ * 行为只变了一档，而且是必须变的：未登记进 `chapterOrder` 的稿件现在按 `relPath` 名字序落位，
+ * 不再「保持传进来的相对次序」。因为传进来的次序随来路不同（整本重扫 / 建章后本地拼一根），
+ * 旧判据下这两条通路会给出两种侧栏——那正是省不掉整本重扫的原因。语义细节写在真身头上，这里不重述。
  */
+export const sortDocsByOrder = sortDocs;
 
 /** 把 `fromRelPath` 挪到 `toIndex`，返回**新数组**；名单里没这一篇（拖到不该拖的地方）返回 null。 */
 export function moveOrderItem(
@@ -21,22 +29,6 @@ export function moveOrderItem(
   next.splice(currentIndex, 1);
   next.splice(toIndex, 0, fromRelPath);
   return next;
-}
-
-/**
- * 按 `chapterOrder` 重排 docs：名单里没有的那些（刚扫出来、还没进次序的其它文稿）
- * 保持它们本来的相对次序排在后面——把它们提到前面会把「目录里新出现的东西」插到正文头上。
- */
-export function sortDocsByOrder(docs: DocRef[], order: string[]): DocRef[] {
-  const rank = new Map(order.map((rel, index) => [rel, index]));
-  return [...docs].sort((a, b) => {
-    const ra = rank.get(a.relPath);
-    const rb = rank.get(b.relPath);
-    if (ra !== undefined && rb !== undefined) return ra - rb;
-    if (ra !== undefined) return -1;
-    if (rb !== undefined) return 1;
-    return 0;
-  });
 }
 
 /**

@@ -24,6 +24,7 @@ import {
 } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import { useModalFocus } from "../composables/useModalFocus";
+import { useDialogMotion } from "../composables/useDialogMotion";
 import { useProviderStore } from "../stores/useProviderStore";
 import { MODEL_PICKER_LIST_LIMIT, filterModels, groupModels } from "../utils/model-picker";
 
@@ -272,6 +273,8 @@ onUnmounted(() => {
  */
 const dialogRoot = ref<HTMLElement>();
 useModalFocus({ root: dialogRoot, close: () => emit("close") });
+// 入场动效：面板 + 背板同一条弹簧时间轴。本组件由父组件 v-if 挂载，不传 isOpen（挂载即开）。
+useDialogMotion({ root: dialogRoot });
 </script>
 
 <template>

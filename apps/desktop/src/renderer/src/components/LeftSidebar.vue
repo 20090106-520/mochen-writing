@@ -1,4 +1,4 @@
-<!-- 左栏：结构、类名与 transient 滚动条用法取自 deepwrite的 LeftSidebar.vue / TreeSection.vue / TreeNodeItem.vue
+﻿<!-- 左栏：结构、类名与 transient 滚动条用法取自 deepwrite的 LeftSidebar.vue / TreeSection.vue / TreeNodeItem.vue
      2026-10-04 演示图裁定：功能导航分组化（完整按图 + 诚实占位）——
      导航表与占位判定的唯一真身在 utils/side-nav.ts；文稿树（五类分组）整体住在「我的作品」组内。 -->
 <script setup lang="ts">
@@ -6,21 +6,21 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import type { BookKind, DocRef } from "@mochen/contracts";
 import { Ellipsis, X } from "lucide";
 import { MorphIcon } from "morphicons/vue";
-import type { IconName } from "../types/icons";
 import AppIcon from "./AppIcon.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
 import { loadReducedMotion, motionPreferenceStorage } from "../utils/motion-preference";
 import { BOOK_KIND_LABELS, BOOK_KIND_ORDER } from "../utils/book-kinds";
+import { KIND_ICON } from "../utils/kind-icons";
 import { newDocButtonTitle, newDocPlan } from "../utils/new-doc";
-import { imeOwnsKey } from "../utils/slash-commands";
+import { statsRowsOf } from "../utils/stats-rows";
+import { textRowKeydown } from "../utils/text-row-keydown";
 import {
   AI_CHECK_PROMPTS,
   BRAND_TAGLINE,
   FOOTER_TAGLINE,
   NEED_BOOK_HINT,
   SIDE_NAV_GROUPS,
-  STATS_HINT,
   aiCheckOf,
   sideNavChildState,
   type SideNavChild,
@@ -29,8 +29,11 @@ import {
 import { CLEAR_VIEW_SENTENCE, threadKeyFor, useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
 import { useTimelineStore } from "../stores/useTimelineStore";
+import { useTrashStore } from "../stores/useTrashStore";
+import { useBackupStore } from "../stores/useBackupStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import SideNavNoticeDialog, { type SideNavNotice } from "./SideNavNoticeDialog.vue";
+import LibraryNavRows from "./LibraryNavRows.vue";
 import ExtensionsNavRow from "./ExtensionsNavRow.vue";
 
 const emit = defineEmits<{ collapse: [] }>();
@@ -38,25 +41,19 @@ const book = useBookStore();
 const layout = useLayoutStore();
 const timeline = useTimelineStore();
 const agent = useAgentStore();
+const trash = useTrashStore();
+const backup = useBackupStore();
+// 每日自动备份（2026-10-10）：换书/开书那刻调一次 daily 档——今天已备过就静默跳过
+// （主进程去重），没备过才真的备。失败也静默：自动的事不打扰写作，手动按钮里再看理由。
+watch(
+  () => book.rootPath,
+  (root) => {
+    if (root !== null) void backup.ensureDaily();
+  },
+  { immediate: true }
+);
 // 减少动效档（外观页）：本组件随设置视图互斥挂载，回来重挂即读到新档。
 const reducedMotion = loadReducedMotion(motionPreferenceStorage());
-
-// 图标是渲染资产不是业务枚举（设计决定 6）：标签/顺序来自 utils/book-kinds 唯一表，这里只留 icon。
-const KIND_ICON: Record<BookKind, IconName> = {
-  chapter: "book",
-  outline: "list",
-  character: "user",
-  plot: "ledger",
-  material: "library",
-  worldview: "globe",
-  faction: "directory",
-  location: "map",
-  timeline: "history",
-  glossary: "library",
-  volume: "archive",
-  foreshadow: "pin",
-  skill: "wand"
-};
 
 // 行内新建的状态先声明（sections 的放行判定要用——正在新建的空分组也要显示出来，
 // 否则「这本书还没有这类文档」时树里根本没有入口去建第一篇）。
@@ -101,19 +98,17 @@ onBeforeUnmount(() => {
 });
 
 /**
- * 「我在改哪本书、它落在哪个盘」——示意稿 B 顶栏的两条事实，落到「我的作品」组内（deepwrite 也把
- * 工作目录放侧栏，且这里没有切书的 IPC，所以是字不是下拉）。两个字段齐了才出现：
- * 只有 rootPath 没 meta 是开书瞬间的过渡态，那时宁可什么都不说。
+ * 「我在改哪本书、它落在哪个盘」落到「我的作品」组内（deepwrite 也把工作目录放侧栏；
+ * 这里没有切书的 IPC，所以是字不是下拉）。两个字段齐了才出现：只有 rootPath 没 meta
+ * 是开书瞬间的过渡态，那时宁可什么都不说。
  */
 const workspace = computed(() =>
   book.meta && book.rootPath ? { title: book.meta.title, rootPath: book.rootPath } : null
 );
 
-// 底部齿轮这个入口：唯一真身（showSettings 是唯一路径）。2026-10-05 裁定导航区不再有「设置」行——
-// 与底部齿轮重复。【5-㊱ 补】那句「设置中心是整页视图（App.vue v-if 切走时本组件已卸载）」
-// 已经不成立了：设置中心改成占中栏 + 右栏两格（`grid-column: 2 / -1`），左栏在设置视图下**照常在**。
-// 于是「导航区不摆设置行」这个裁定改由别的理由成立：与底部齿轮重复，且设置视图的指示器
-// 是那颗齿轮自己（它此时不在 nav-row 里，没有 is-active 参与互斥）。
+// 底部齿轮这个入口：唯一真身（showSettings 是唯一路径）。2026-10-05 裁定导航区不再有「设置」行
+// （理由后来修正过：设置中心改占中栏+右栏两格后左栏照常在，「整页卸载」那句已不成立；现行理由=
+// 与底部齿轮重复，且设置视图的指示器是齿轮自己——它此时不在 nav-row 里，没有 is-active 互斥参与）。
 function openSettingsOverlay(): void {
   layout.showSettings();
 }
@@ -164,16 +159,9 @@ type SideNavChildUiState = SideNavChildState & { label: string };
 
 /**
  * 「去开一章 / 先建一章」这三种引导指向的是**文稿树里那一行的行内新建**。
- *
- * 【2026-10-07 批次 5-㊳ 真机量到的】一篇文档都没有时（也就是没打开作品），
- * 文稿树根本不在界面上，于是 guideToDoc → startAdding 落不到任何地方——
- * 用户点「一致性检查（去开一章）」看到的是**什么都没有**。P536I 把 28 枚钮逐个点了一遍，
- * 五枚全是这样：`new-thread` / `chapter-editor` / `ai-check-*` 三项，标题都在承诺一个引导。
- * 最坏的一类缺陷：不报错、不消失，只是「像坏了」。
- *
- * ⇒ 没打开作品时改走 `need-book`：那是对话框，两个按钮都是现成真身
- * （打开目录 = Ctrl+O 那条路，新建作品 = 组头「+」那条路），与 utils/side-nav 里
- * `sideNavChildState` 对 docs 子项的同一句规则对齐（「一篇文档都没有 = 大概率没打开作品」）。
+ * 真机量过（2026-10-07 P536I）：一篇文档都没有时文稿树不在界面上，引导落空——
+ * 不报错、不消失，只是「像坏了」。⇒ 没打开作品时改走 `need-book` 对话框（两个按钮
+ * 都是现成真身），与 side-nav 对 docs 子项的同一句规则对齐（「一篇文档都没有=大概率没打开作品」）。
  */
 function needChapterState(label: string, hint: string): SideNavChildUiState {
   return book.docs.length === 0
@@ -192,7 +180,7 @@ function childState(child: SideNavChild): SideNavChildUiState {
       ? { mode: "ready", hint: "在中间的编辑器里打开一章", label: child.label }
       : needChapterState(`${child.label}（先建一章）`, "先有章节才能用章节编辑器——点这里去建一章");
   }
-  // AI 检查三项：检查对象是「当前打开的章节」——没开章就引导去开，同 AI 写作的口径。
+  // AI 检查四项（含文风检查）：检查对象是「当前打开的章节」——没开章就引导去开，同 AI 写作的口径。
   if (child.reality.kind === "action" && aiCheckOf(child.reality.action) !== null) {
     return book.activeDocTab === null
       ? needChapterState(`${child.label}（去开一章）`, "先打开一章再做检查——点这里去开一章")
@@ -209,23 +197,39 @@ function openWorkdir(): void {
   void book.pickAndOpen();
 }
 
-/**
- * 数据统计：数字全部来自 book.docs 的扫描元数据（篇数现成、字数 DocRef.chars），
- * 这里只聚合，表格展示在响应对话框的 stats 形态。
- */
-const statsRows = computed(() =>
-  BOOK_KIND_ORDER.map((kind) => {
-    const of = book.docs.filter((doc) => doc.kind === kind);
-    return {
-      label: BOOK_KIND_LABELS[kind],
-      count: of.length,
-      chars: of.reduce((sum, doc) => sum + (doc.chars ?? 0), 0)
-    };
-  })
-);
+/** 「要有书才谈得上」的那一族入口的唯一闸。判据与理由（含实机证据）见 components/need-book-guard-wiring.test.ts。 */
+function requireBook(label: string): boolean {
+  if (book.hasBook) return false;
+  notice.value = { kind: "need-book", label };
+  return true;
+}
 
+/** 数据统计：数字全来自 book.docs 的扫描元数据，聚合真身在 utils/stats-rows。 */
 function openStats(): void {
-  notice.value = { kind: "stats", label: "数据统计", rows: statsRows.value };
+  if (requireBook("数据统计")) return;
+  notice.value = { kind: "stats", label: "数据统计", rows: statsRowsOf(book.docs) };
+}
+
+/** 回收站 / 整书备份 / 书稿体检 / 导入 TXT 共用的入口分派：四个都要先过那道闸。 */
+function openLibraryDialog(kind: "trash" | "backup" | "terms" | "import"): void {
+  const label = { trash: "回收站", backup: "整书备份", terms: "书稿体检", import: "导入 TXT" }[
+    kind
+  ];
+  if (requireBook(label)) return;
+  if (kind === "import") {
+    layout.openImportTxt();
+    return;
+  }
+  notice.value = { kind, label };
+}
+
+/**
+ * 树行「移入回收站」（2026-10-10）：删 = 移动不是销毁，所以**没有**确认弹窗——
+ * 东西在回收站里，还原就有。失败理由住在 trash.error（响应对话框/通知那层展示）。
+ */
+async function trashDocRow(relPath: string): Promise<void> {
+  closeActionMenu();
+  await trash.trashDoc(relPath);
 }
 
 /**
@@ -258,12 +262,9 @@ watch(
 /** 子项点击的唯一分派：四种模式各给一个真响应，planned/need-book 交给响应对话框。 */
 function onChildAction(child: SideNavChild): void {
   const state = childState(child);
-  if (state.mode === "planned") {
-    notice.value = { kind: "planned", label: child.label };
-    return;
-  }
-  if (state.mode === "need-book") {
-    notice.value = { kind: "need-book", label: child.label };
+  // planned / need-book 的响应是同形的：一张响应对话框，报出点的那一项。
+  if (state.mode === "planned" || state.mode === "need-book") {
+    notice.value = { kind: state.mode, label: child.label };
     return;
   }
   if (state.mode === "need-doc") {
@@ -383,22 +384,8 @@ async function startRenaming(relPath: string, title: string): Promise<void> {
   renameInput.value?.select();
 }
 
-/**
- * 两个行内输入框（改标题 / 新建）共用的键盘裁决（批次 5-㊶）。
- * 合成一个工厂：两者只有 confirm/cancel 不同，闸门与 preventDefault 的顺序完全一样，写两份就是第二份实现。
- * 模板上原来挂的 `.enter.prevent` 必须搬进来——修饰符无条件执行，组合态那一下回车拦不住，
- * 拼音会被当标题落盘（`book.renameDocTitle(relPath, "yu")` 把这一章真名成「yu」）。
- */
-function textRowKeydown(confirm: () => void, cancel: () => void) {
-  return (event: KeyboardEvent): void => {
-    if (imeOwnsKey(event)) return;
-    if (event.key !== "Enter" && event.key !== "Escape") return;
-    event.preventDefault();
-    if (event.key === "Enter") confirm();
-    else cancel();
-  };
-}
-
+// 两个行内输入框（改标题 / 新建）共用的键盘裁决：真身住在 utils/text-row-keydown
+//（2026-10-10 下沉，理由与 IME 那几条规矩都记在那边），这里只各接一份 confirm/cancel。
 const onRenameKeydown = textRowKeydown(() => void confirmRenaming(), cancelRenaming);
 const onAddKeydown = textRowKeydown(() => void confirmAdding(), cancelAdding);
 
@@ -654,6 +641,15 @@ function onChapterDragEnd(): void {
                           <AppIcon name="edit" :size="14" />
                           <span>改标题</span>
                         </button>
+                        <button
+                          class="tree-node-action-menu-item"
+                          type="button"
+                          role="menuitem"
+                          @click="trashDocRow(node.relPath)"
+                        >
+                          <AppIcon name="trash" :size="14" />
+                          <span>移入回收站</span>
+                        </button>
                       </div>
                     </div>
                     <div v-if="renamingPath === node.relPath" class="tree-add-row">
@@ -757,16 +753,10 @@ function onChapterDragEnd(): void {
              打开它只列与只读渲染，不挂入任何技能——挂入只有技能卡上那颗按钮。 -->
         <ExtensionsNavRow />
 
-        <button
-          class="nav-row"
-          type="button"
-          data-nav-id="stats"
-          :title="STATS_HINT"
-          @click="openStats"
-        >
-          <AppIcon name="chart" :size="17" />
-          <span>数据统计</span>
-        </button>
+        <!-- 低频书务入口（数据统计 / 回收站 / 整书备份 / 书稿体检 / 导入 TXT）：
+             连同折叠壳一起住在 LibraryNavRows 里（2026-10-11）——那一组本来就归那个文件；
+             响应仍在本文件：openStats 与 openLibraryDialog。 -->
+        <LibraryNavRows @open="openLibraryDialog" @stats="openStats" />
       </nav>
     </div>
 

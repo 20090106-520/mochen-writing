@@ -210,6 +210,22 @@ const api = {
   },
   writeBookData: async () => {
     throw new Error("不该写书里的设定文件");
+  },
+  // 只重算一篇（2026-10-10 P1-4 后半）与回收站三条、更新检查（同日）：satisfies RendererApi
+  // 要求它们在场，但这些用例一条都不消费——空实现回合法形状，真被调到也不至于污染用例。
+  refreshDoc: async () => ({ ok: true, doc: null }),
+  trashDoc: async () => ({ ok: true, trashName: "fixture" }),
+  listTrash: async () => ({ ok: true, entries: [] }),
+  restoreTrash: async () => ({ ok: true, relPath: "chapters/fixture.md" }),
+  createBookBackup: async () => ({ ok: true, name: null, fileCount: 0 }),
+  listBookBackups: async () => ({ ok: true, entries: [] }),
+  restoreBookBackup: async () => ({ ok: true, destName: "恢复目录" }),
+  updateCheck: async () => ({ status: "disabled", version: "", latestVersion: null, note: "" }),
+  importTxtPreview: async () => {
+    throw new Error("不该做 TXT 导入预览");
+  },
+  importTxtCommit: async () => {
+    throw new Error("不该提交 TXT 导入");
   }
 } satisfies RendererApi;
 

@@ -107,8 +107,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  /* 18 → 22（2026-10-11）：18px 低于常用最小热区，且本仓另有两级现成刻度——
+     .icon-button 32 / .icon-btn-sm 22。这里并到 .icon-btn-sm 那一档，
+     不自造第三个尺寸；字形仍是 10px（AppIcon :size="10"），只是可点范围变大，
+     toast 的行高与左上的落位一字未动。 */
+  width: 22px;
+  height: 22px;
   background: transparent;
   border: none;
   border-radius: 3px;
@@ -119,6 +123,13 @@
 
 .toast-close:hover {
   color: var(--text-secondary, #999);
+}
+
+/* 这一枚原先只有 :hover，键盘用户看不见焦点在哪。环的形状照全仓既有写法
+   （styles.css 的 focus-visible 与 interaction.css 的浮层控件同款）。 */
+.toast-close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 
 /* Transition：锚点在左，进出场都从左滑（原来锚右时是 +20px）。 */

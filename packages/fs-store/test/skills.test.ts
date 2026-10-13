@@ -140,6 +140,15 @@ describe("readSkillFile · 读取守卫三条", () => {
       // 这里跳过的只是「造得出软链」这个前提，跳过要说清楚而不是静默通过。
       return;
     }
+    // 沙箱里有软链 shim：symlink() 不报错但也**没真建出符号链接**（lstat 认不出 S_IFLNK）。
+    // 那种环境下这条守卫读到的是书里的普通文件，「读得到」反而是对的——断言在这儿只会假红。
+    // 真链在不在，lstat 一眼可辨：不在就说明这一条在本机没验到（与 ipc-guard 同款口径）。
+    const { lstat } = await import("node:fs/promises");
+    const st = await lstat(path.join(dir, SKILL_FILE_NAME));
+    if (!st.isSymbolicLink()) {
+      console.warn("[环境噪音] symlink() 静默没建出真软链（shim），软链越界那条没验到");
+      return;
+    }
     await expect(readSkillFile(root, `越界/${SKILL_FILE_NAME}`)).rejects.toThrow(/技能路径越界/);
   });
 

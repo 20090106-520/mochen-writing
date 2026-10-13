@@ -9,8 +9,10 @@ import {
   SIDE_NAV_GROUPS,
   aiCheckOf,
   sideNavChildState,
+  styleCheckPrompt,
   type SideNavChild
 } from "./side-nav";
+import type { AiFlavorReport } from "@mochen/contracts";
 
 describe("side-nav · 导航表（演示图的唯一真源）", () => {
   it("四个折叠组按图排序：小说大脑/故事规划/写作/审核检查，开合默认值照图（大脑开、其余收）", () => {
@@ -57,7 +59,9 @@ describe("side-nav · 导航表（演示图的唯一真源）", () => {
     expect(SIDE_NAV_GROUPS[3]?.children.map((child) => child.label)).toEqual([
       "一致性检查",
       "剧情审核",
-      "逻辑检查"
+      "逻辑检查",
+      // 2026-10-10 去AI味：第四项检查，审 AI 腔套话与句式。
+      "文风检查"
     ]);
   });
 
@@ -82,7 +86,7 @@ describe("side-nav · 导航表（演示图的唯一真源）", () => {
     });
   });
 
-  it("审核三项已落地（2026-10-04 深夜裁定）：全是 ai-check 动作，口径提示词一一对应", () => {
+  it("审核四项已落地（2026-10-04 深夜裁定 + 2026-10-10 文风检查）：全是 ai-check 动作，口径提示词一一对应", () => {
     const byLabel = new Map(
       SIDE_NAV_GROUPS.flatMap((group) => group.children).map((child) => [child.label, child])
     );
@@ -92,13 +96,15 @@ describe("side-nav · 导航表（演示图的唯一真源）", () => {
     });
     expect(byLabel.get("剧情审核")?.reality).toEqual({ kind: "action", action: "ai-check-plot" });
     expect(byLabel.get("逻辑检查")?.reality).toEqual({ kind: "action", action: "ai-check-logic" });
-    // 三句提问都真实可用：说清检查对象与「没有就明说」，不装自动完成。
+    expect(byLabel.get("文风检查")?.reality).toEqual({ kind: "action", action: "ai-check-style" });
+    // 四句提问都真实可用：说清检查对象与「没有就明说」，不装自动完成。
     for (const prompt of Object.values(AI_CHECK_PROMPTS)) {
       expect(prompt).toContain("当前章节");
       expect(prompt.length).toBeGreaterThan(20);
     }
     // id → 口径的反查（组件分派用）：ai-check 前缀识别 + 非法 id 拒绝。
     expect(aiCheckOf("ai-check-plot")).toBe("plot");
+    expect(aiCheckOf("ai-check-style")).toBe("style");
     expect(aiCheckOf("new-thread")).toBeNull();
     expect(aiCheckOf("ai-check-nope")).toBeNull();
   });
@@ -144,5 +150,44 @@ describe("sideNavChildState · 子项响应判定（纯函数：全部可点，�
       mode: "ready",
       hint: ""
     });
+  });
+});
+
+describe("styleCheckPrompt · 文风检查的动态预填（2026-10-10 去AI味二段）", () => {
+  const report: AiFlavorReport = {
+    entries: [
+      {
+        term: "嘴角勾起",
+        category: "cliche",
+        count: 3,
+        first: { docIndex: 0, line: 1, text: "他嘴角勾起。" }
+      },
+      {
+        term: "不禁",
+        category: "adverb",
+        count: 5,
+        first: { docIndex: 0, line: 2, text: "他不禁一愣。" }
+      }
+    ],
+    totalHits: 8,
+    charCount: 1000,
+    perThousand: 8,
+    meanSentenceLength: 15.2,
+    sentenceSpread: 0.6
+  };
+
+  it("有命中：静态口径之上追加命中清单（带类型中文名与次数）+ propose_patch 指令", () => {
+    const text = styleCheckPrompt(report);
+    expect(text).toContain(AI_CHECK_PROMPTS.style);
+    expect(text).toContain("嘴角勾起（描写套话）× 3 次");
+    expect(text).toContain("不禁（副词滥用）× 5 次");
+    expect(text).toContain("read_doc");
+    expect(text).toContain("propose_patch");
+    expect(text).toContain("我批准后才落盘");
+  });
+
+  it("没命中 / null 报告：回落静态口径，不编清单", () => {
+    expect(styleCheckPrompt(null)).toBe(AI_CHECK_PROMPTS.style);
+    expect(styleCheckPrompt({ ...report, entries: [] })).toBe(AI_CHECK_PROMPTS.style);
   });
 });

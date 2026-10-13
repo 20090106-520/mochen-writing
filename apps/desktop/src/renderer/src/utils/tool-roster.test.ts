@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_TOOL_NAMES, WEB_SEARCH_TOOL_NAME, WRITE_TOOLS } from "@mochen/contracts";
+import { AGENT_TOOL_NAMES, NETWORK_TOOL_NAMES, WRITE_TOOLS } from "@mochen/contracts";
 import { toolRoster } from "./tool-roster";
 
 describe("tool-roster · 工具 ▾ 的唯一名单来自 contracts", () => {
@@ -60,15 +60,18 @@ describe("tool-roster · 联网搜索那条要说清怎么发 query（2026-10-06
   });
 });
 
-describe("tool-roster · 联网开关决定 web_search 那一行在不在（2026-10-08）", () => {
+describe("tool-roster · 联网开关决定两枚出网工具的行在不在（2026-10-08 / 2026-10-11）", () => {
   /**
    * 这一格报的是「这一轮真带出去的工具」，不是花名册全集。
    * 反向用例（关掉却还列着）先要能红：删掉 toolRoster 里那个 filter，第一条当场红。
+   * 2026-10-11 起 出网的有两枚（web_search + web_read），开关闸的是 NETWORK_TOOL_NAMES 这一整类。
    */
-  it("关 ⇒ 清单里没有 web_search，其余各枚一枚不少、顺序不变", () => {
+  it("关 ⇒ 清单里没有两枚出网工具，其余各枚一枚不少、顺序不变", () => {
     const rows = toolRoster(false).map((row) => row.name);
-    expect(rows).not.toContain(WEB_SEARCH_TOOL_NAME);
-    expect(rows).toEqual(AGENT_TOOL_NAMES.filter((name) => name !== WEB_SEARCH_TOOL_NAME));
+    for (const name of NETWORK_TOOL_NAMES) expect(rows).not.toContain(name);
+    expect(rows).toEqual(
+      AGENT_TOOL_NAMES.filter((name) => !(NETWORK_TOOL_NAMES as readonly string[]).includes(name))
+    );
   });
 
   it("开 ⇒ 就是 contracts 那份全集", () => {

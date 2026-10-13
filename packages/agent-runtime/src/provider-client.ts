@@ -79,7 +79,21 @@ export interface StreamRequest {
   /** 每轮开关：档位与联网，映射集中在 per-run-fields.ts，这里只负责拼进出站 body。 */
   thinkingLevel: ThinkingLevel;
   webSearchEnabled: boolean;
+  /**
+   * 连接期自动重试的间隔（毫秒）。只给测试注入小值用——生产走默认 1.5 秒，别从外面覆写。
+   */
+  retryDelayMs?: number;
 }
+
+/**
+ * 连接期一次性自动重试（2026-10-11）：免费源与共享网关最常见的病就是 429/5xx 闪断——
+ * 请求根本没进模型，重试零风险（**任何字节都还没吐**，重试不可能造成半截回答）。
+ * 429（限流）与 500/502/503/504（网关/上游瞬时故障）各默哀一秒半再试一次：
+ * 用户看到的是「多等了一小会儿」，而不是一张要手动重发的错误卡。
+ * 400/401/403 这类「请求本身不对」的错误不重试——重试只会原样再错一次。
+ */
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+export const STREAM_RETRY_DELAY_MS = 1_500;
 
 export class ProviderError extends Error {}
 
@@ -228,31 +242,74 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
   }
   payload.stream = true;
 
-  const result = await req
-    .fetchImpl({
-      url: completionsUrl(req.baseURL),
-      headers,
-      body: JSON.stringify(payload),
-      signal: req.signal
-    })
-    .catch((error: unknown) => {
-      if (req.signal.aborted) return null;
-      // 已经是人话的 ProviderError（上游看门狗那句「30 秒没响应」）原样抛出，不再套前缀。
-      // 为什么不套：本层的「无法连接模型服务端」只描述连不上，而看门狗触发时连接往往是通的、
-      // 只是对面不再吐字节——套上前缀会让用户改去看网络/密钥，方向就错了。
-      // 而且这句话在 provider-fetch.ts 里只写了一遍（铁律 6），这里再包一层等于两处说同一件事。
-      // 非 ProviderError（真·发不出请求，如 DNS 失败）仍走原有包装，语义一字不改。
-      if (error instanceof ProviderError) throw error;
-      throw new ProviderError(
-        `无法连接模型服务端：${snippet(error instanceof Error ? error.message : String(error))}`,
-        {
-          cause: error
-        }
+  // 连接期（发请求 → 拿到响应头）带一次性重试：见 RETRYABLE_STATUS 处的说明。
+  // 字节一旦开始吐就不再有重试——那之后的失败由既有的看门狗与 abort 语义接管。
+  const retryDelayMs = req.retryDelayMs ?? STREAM_RETRY_DELAY_MS;
+  let result: ProviderFetchResult | null = null;
+  let connectError: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    connectError = null;
+    result = await req
+      .fetchImpl({
+        url: completionsUrl(req.baseURL),
+        headers,
+        body: JSON.stringify(payload),
+        signal: req.signal
+      })
+      .catch((error: unknown) => {
+        connectError = error;
+        return null;
+      });
+    // 打断优先于一切：用户按了 Esc（或上一轮已 abort），无论是 fetch 抛的还是没抛。
+    if (req.signal.aborted) {
+      yield { kind: "finish", reason: "aborted" };
+      return;
+    }
+    const retryable =
+      result === null || // 连接期异常（DNS 失败、连接被拒那类——不是用户打断）
+      (result !== null && RETRYABLE_STATUS.has(result.status));
+    // 不可重试的失败（4xx 之类）或已是第二次尝试：跳出循环，走下面既有的错误通路。
+    if (!retryable || attempt === 1) break;
+    // 默哀一秒半再试。abort-aware：等待期间被打断就直接收成 aborted——
+    // 人都叫停了，第二发不该再出网。
+    const aborted = await new Promise<boolean>((resolve) => {
+      if (req.signal.aborted) {
+        resolve(true);
+        return;
+      }
+      const timer = setTimeout(() => resolve(false), retryDelayMs);
+      req.signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          resolve(true);
+        },
+        { once: true }
       );
     });
+    if (aborted) {
+      yield { kind: "finish", reason: "aborted" };
+      return;
+    }
+  }
   if (result === null) {
-    yield { kind: "finish", reason: "aborted" };
-    return;
+    if (req.signal.aborted) {
+      yield { kind: "finish", reason: "aborted" };
+      return;
+    }
+    // 已经是人话的 ProviderError（上游看门狗那句「30 秒没响应」）原样抛出，不再套前缀。
+    // 为什么不套：本层的「无法连接模型服务端」只描述连不上，而看门狗触发时连接往往是通的、
+    // 只是对面不再吐字节——套上前缀会让用户改去看网络/密钥，方向就错了。
+    // 而且这句话在 provider-fetch.ts 里只写了一遍（铁律 6），这里再包一层等于两处说同一件事。
+    // 非 ProviderError（真·发不出请求，如 DNS 失败）仍走原有包装，语义一字不改。
+    const error = connectError;
+    if (error instanceof ProviderError) throw error;
+    throw new ProviderError(
+      `无法连接模型服务端：${snippet(error instanceof Error ? error.message : String(error))}`,
+      {
+        cause: error
+      }
+    );
   }
   if (result.status < 200 || result.status >= 300)
     throw new ProviderError(

@@ -14,6 +14,7 @@ import ForeshadowPanel from "./ForeshadowPanel.vue";
 import TimelineCheckPanel from "./TimelineCheckPanel.vue";
 import VolumeOutlinePanel from "./VolumeOutlinePanel.vue";
 import SnippetToolbar from "./SnippetToolbar.vue";
+import SelectionRewriteBar from "./SelectionRewriteBar.vue";
 import FindReplacePanel from "./FindReplacePanel.vue";
 import { useSnippetToolbar } from "../composables/useSnippetToolbar";
 import { imeOwnsKey } from "../utils/slash-commands";
@@ -41,7 +42,9 @@ import {
 import { readingTimeLabel as formatReadingTime } from "../utils/reading-time";
 import { EDITOR_EMPTY_HINT, editorBodyState, editorLoadingLabel } from "../utils/editor-readout";
 import { browseBodyViewOf } from "../utils/browse-body";
-import { findMirrorHtml } from "../utils/find-mirror";
+import { findMirrorHtml, FIND_MIRROR_DEBOUNCE_MS } from "../utils/find-mirror";
+import { usePreviewDraft } from "../composables/usePreviewDraft";
+import { useTrailingValue } from "../composables/useTrailingValue";
 import { BAND_LABELS, VIEW_TABS } from "../utils/right-pane-labels";
 import { saveStateLabel } from "../utils/save-state";
 
@@ -69,8 +72,7 @@ function toggleChangeHistory(): void {
 
 /**
  * 去 AI 味浮层（2026-10-05）。与改稿历史一样锚在按钮自己身上。
- * 开合状态住在组件本地：它是**纯本地查表**（判定在 utils/ai-slop），没有异步也没有跨组件共享，
- * 放进 store 只是给一个布尔搬家。草稿一变列表就跟着重算，所以不要缓存 hits。
+ * 开合住组件本地：纯本地查表（判定在 utils/ai-slop），进 store 只是给布尔搬家。
  */
 const slopOpen = ref(false);
 const slopButton = ref<HTMLElement>();
@@ -86,14 +88,13 @@ const reviewAnchor = computed(() => reviewButton.value ?? null);
 
 /**
  * 伏笔台账浮层（2026-10-05）。同款锚在自己身上。
- * 开合住在 store：左栏「故事规划 → 伏笔台账」也要能打开它，跨组件所以不能只活在 DocumentPane。
+ * 开合住在 store：左栏「故事规划 → 伏笔台账」也要能打开它，跨组件不能只活在这里。
  */
 const foreshadowButton = ref<HTMLElement>();
 const foreshadowAnchor = computed(() => foreshadowButton.value ?? null);
 
 /**
- * 时间线核对浮层（2026-10-05，批次 5-①）。锚点同款。
- * 开合住在 `useTimelineStore`：左栏「故事规划 → 时间线核对」也要能打开它，跨组件。
+ * 时间线核对浮层（2026-10-05，批次 5-①）。锚点同款；开合住 `useTimelineStore`（跨组件），
  * 判定在 contracts/timeline-check，这里只挂载。
  */
 const timeline = useTimelineStore();
@@ -104,9 +105,8 @@ const timelineAnchor = computed(() => timelineButton.value ?? null);
 const layout = useLayoutStore();
 
 /**
- * 卷纲 → 章纲浮层（2026-10-05，批次 5-②）。锚点同款。
- * 只在打开的是分卷/大纲时亮（`isStructuredKind`）——拆章纲拆的是这两类，
- * 章节正文拆不成章纲，按钮亮着却什么都拆不出来就是骗人。
+ * 卷纲 → 章纲浮层（2026-10-05，批次 5-②）。锚点同款。只在打开的是分卷/大纲时亮
+ * （`isStructuredKind`）——章节正文拆不成章纲，按钮亮着却什么都拆不出来就是骗人。
  */
 const volumeOutline = useVolumeOutlineStore();
 const volumeOutlineButton = ref<HTMLElement>();
@@ -256,17 +256,22 @@ const tabs = computed(() =>
     : book.browseTabs.map((doc) => ({ id: doc.relPath, title: doc.title }))
 );
 
-/**
- * Markdown 预览的 HTML：响应式地由 book.draft 经 markdownToSimpleHtml 算出。
- * 分栏模式下 textarea 即时编辑、computed 即时重算——草稿到预览零延迟。
- */
-const previewHtml = computed(() => markdownToSimpleHtml(book.draft));
+/** Markdown 预览的 HTML：吃 `previewDraft`（落后一拍的草稿）。理由见 utils/preview-debounce 与 composables/usePreviewDraft。 */
+const previewDraft = usePreviewDraft(() => book.draft, viewMode);
+const previewHtml = computed(() => markdownToSimpleHtml(previewDraft.value));
 
-/** 高亮层 HTML：摆不摆是接线（模板 `v-if="findVisible"`，find-mirror-mount-wiring 钉着），
- *  这里只剩内容闸（没开 / 非文稿 / 空查询 → 空串）；怎么切与逐段转义住 utils/find-mirror（铁律 6）。 */
+/** 高亮层 HTML：内容闸在这里；怎么切、为什么吃 mirrorSource 快照——见 utils/find-mirror 注释。 */
+const mirrorSource = useTrailingValue(
+  () =>
+    findVisible.value && mode.value === "manuscript"
+      ? { draft: book.draft, positions: find.positions, index: currentIndex.value }
+      : { draft: book.draft, positions: [], index: -1 },
+  () => (findVisible.value ? FIND_MIRROR_DEBOUNCE_MS : 0)
+);
 const highlightMirrorHtml = computed(() => {
   if (!findVisible.value || mode.value !== "manuscript" || findQuery.value === "") return "";
-  return findMirrorHtml(book.draft, find.positions, currentIndex.value);
+  const snap = mirrorSource.value;
+  return findMirrorHtml(snap.draft, snap.positions, snap.index);
 });
 
 /** textarea 滚，mirror 跟着滚——视觉上高亮要贴在文字背后。 */
@@ -279,8 +284,7 @@ function syncMirrorScroll(): void {
   if (mirror.scrollLeft !== ta.scrollLeft) mirror.scrollLeft = ta.scrollLeft;
 }
 
-/** P2-13 的另一半：面板打开那一瞬刚挂上的层 scrollTop=0，textarea 可能已滚到半篇——
- *  同拍跟一次，「打开面板 → 打字」才不错位（挂常驻时没这问题：那层从没被拆过）。 */
+/** P2-13 的另一半：面板打开那一瞬刚挂上的层 scrollTop=0，同拍跟一次才不错位。 */
 watch(findVisible, async (visible) => {
   if (!visible) return;
   await nextTick();
@@ -729,6 +733,7 @@ function switchMode(next: RightPaneMode): void {
             @keydown="onEditorKeydown"
             @scroll="onEditorScroll"
           />
+          <SelectionRewriteBar :editor="editorEl" />
         </div>
       </div>
 

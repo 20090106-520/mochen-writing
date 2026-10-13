@@ -1,4 +1,4 @@
-import type { BookKind } from "@mochen/contracts";
+import { AI_FLAVOR_CATEGORY_LABELS, type AiFlavorReport, type BookKind } from "@mochen/contracts";
 import type { IconName } from "../types/icons";
 import { BOOK_KIND_LABELS } from "./book-kinds";
 
@@ -22,6 +22,8 @@ export type SideNavChildReality =
         | "ai-check-consistency"
         | "ai-check-plot"
         | "ai-check-logic"
+        // 文风检查（2026-10-10 去AI味）：审的是 AI 腔套话与句式，口径在 AI_CHECK_PROMPTS.style。
+        | "ai-check-style"
         // 伏笔台账（2026-10-05）：聚合视图，开关住在 store 的 foreshadowsOpen 那一格。
         | "foreshadow-ledger"
         // 时间线核对（2026-10-05 批次 5-①）：聚合视图，开关住在 useTimelineStore.open。
@@ -97,7 +99,8 @@ export const SIDE_NAV_GROUPS: SideNavGroup[] = [
     children: [
       { label: "一致性检查", reality: { kind: "action", action: "ai-check-consistency" } },
       { label: "剧情审核", reality: { kind: "action", action: "ai-check-plot" } },
-      { label: "逻辑检查", reality: { kind: "action", action: "ai-check-logic" } }
+      { label: "逻辑检查", reality: { kind: "action", action: "ai-check-logic" } },
+      { label: "文风检查", reality: { kind: "action", action: "ai-check-style" } }
     ]
   }
 ];
@@ -139,10 +142,36 @@ export const AI_CHECK_PROMPTS = {
   consistency:
     "请对当前章节做一致性检查：对照已有的人物、设定与剧情，指出与它们矛盾或前后不一致的地方；没有就明确说没有。",
   plot: "请对当前章节做剧情审核：评估情节推进是否合理、节奏与冲突是否成立、伏笔与回收是否妥当，并给出具体修改建议。",
-  logic: "请对当前章节做逻辑检查：找出因果链断裂、动机不足、时间线对不上的地方；没有就明确说没有。"
+  logic: "请对当前章节做逻辑检查：找出因果链断裂、动机不足、时间线对不上的地方；没有就明确说没有。",
+  style:
+    "请对当前章节做文风检查（去 AI 味）：找出 AI 腔的套话与句式——如「嘴角勾起」「眼底闪过」「勾起一抹」「深吸一口气」「空气仿佛凝固」「他知道，……」式开头、连续长短雷同的句子、「缓缓/微微/不禁」堆叠——逐处指出原文并给出更像人写的改法；全文没有就明确说没有。"
 } as const;
 
 export type AiCheckKind = keyof typeof AI_CHECK_PROMPTS;
+
+/**
+ * 文风检查的动态预填（2026-10-10 去AI味二段）：静态口径之上，把**这一篇真扫出来的**
+ * 命中清单塞进提问——模型拿到的是具体目标，不是一句泛泛的「找出 AI 腔」。
+ * 词表与书稿体检同源（contracts 的 analyzeAiFlavor）；命中的每一处都要求直接给
+ * propose_patch 替换提案，批准才落盘——「指出」不算数，「改掉」才算。
+ * 没扫到（null 或空清单）就回落静态口径，不编清单。
+ */
+export function styleCheckPrompt(report: AiFlavorReport | null): string {
+  const hits = report?.entries ?? [];
+  if (hits.length === 0) return AI_CHECK_PROMPTS.style;
+  return (
+    AI_CHECK_PROMPTS.style +
+    "\n\n本章扫到的 AI 味命中（词库与书稿体检同源）：\n" +
+    hits
+      .map(
+        ({ term, category, count }) =>
+          `- ${term}（${AI_FLAVOR_CATEGORY_LABELS[category]}）× ${count} 次`
+      )
+      .join("\n") +
+    "\n请先用 read_doc 读本章拿上下文，再对每一处给出替换写法，并直接用 propose_patch " +
+    "提交替换提案（我批准后才落盘）；确要保留的写法在提案 why 里说明理由，不要擅自整段重写。"
+  );
+}
 
 /** 由 action id 取回检查口径（组件分派用；平铺 id 与表键一一对应）。 */
 export function aiCheckOf(action: string): AiCheckKind | null {

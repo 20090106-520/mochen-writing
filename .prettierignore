@@ -3,6 +3,8 @@ pnpm-lock.yaml
 node_modules
 out
 dist
+# electron-builder 的出包目录（release/release-e2e 等）：全部是解包的 electron 自带文件，同理不进闸。
+release*
 .superpowers
 
 # 【P2-10 的声明式豁免】历史台账与方案/规格文档不参与 format 检查——理由与代价都记在这儿：

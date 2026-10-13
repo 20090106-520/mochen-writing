@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type { BookKind, DocRef } from "@mochen/contracts";
-import { proseCharCount } from "@mochen/contracts";
+import { proseCharCount, sortDocs } from "@mochen/contracts";
 import { parseFrontmatter } from "./frontmatter.js";
 import { toPosixRelPath } from "./paths.js";
 
@@ -168,14 +168,16 @@ function clipCodePoints(text: string, max: number): string {
   return chars.length > max ? `${chars.slice(0, max).join("")}…` : text;
 }
 
-export function sortChapters(docs: DocRef[], chapterOrder: string[]): DocRef[] {
-  const rank = new Map(chapterOrder.map((rel, index) => [rel, index]));
-  return [...docs].sort((a, b) => {
-    const ra = rank.get(a.relPath);
-    const rb = rank.get(b.relPath);
-    if (ra !== undefined && rb !== undefined) return ra - rb;
-    if (ra !== undefined) return -1;
-    if (rb !== undefined) return 1;
-    return a.relPath.localeCompare(b.relPath, "zh-CN");
-  });
-}
+/**
+ * 章节次序的**别名**，不是第二份实现（P1-4 后半，2026-10-10）。
+ *
+ * 判据只有一份，住在 `contracts/src/book.ts` 的 `sortDocs`——主进程与渲染层过去各有一份、
+ * 且对「都不在 chapterOrder 里的两篇」判法不同（这边按名字序，那边保持来路顺序），
+ * 于是「渲染层本地拼一根新 DocRef」永远证不出与整本重扫等价，那一次整本重扫就省不掉。
+ * 语义、为什么取名字序、为什么 zh-CN，全部写在那一份真身头上，这里不重述一遍（重述就是第二份判据）。
+ *
+ * 为什么留这个名字而不删：`sortChapters` 已被 `book-service` 与既有测试引用，删导出属于删代码，
+ * 要用户点名才动。留一个 `toBe` 级别的引用别名（`test/sort-judgement-single-source.test.ts` 钉住），
+ * 比留一段抄本安全：抄本改得出行为，别名改不出。
+ */
+export const sortChapters = sortDocs;

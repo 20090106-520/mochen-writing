@@ -47,14 +47,16 @@ const TEXT_FIELDS = [
   { file: "components/FindReplacePanel.vue", entry: ["onQueryKeydown", "onReplaceKeydown"] },
   { file: "components/SearchPanel.vue", entry: ["onKeydown"] },
   { file: "components/DocumentPane.vue", entry: ["onTitleKeydown"] },
-  // 左栏那两个输入框的裁决在**同一个工厂**里（textRowKeydown）：只有 confirm/cancel 不同，
-  // 闸门与 preventDefault 的顺序完全一样 —— 写两份就是同一判定的第二份实现。
+  // 左栏那两个输入框的裁决在**同一个工厂**里（textRowKeydown，2026-10-10 起住
+  // utils/text-row-keydown：LeftSidebar 只 import，工厂数 800 行预算搬出来的）——
+  // 只有 confirm/cancel 不同，闸门与 preventDefault 的顺序完全一样 ——
+  // 写两份就是同一判定的第二份实现。
   {
     file: "components/LeftSidebar.vue",
     entry: ["onRenameKeydown", "onAddKeydown"],
     shared:
-      /function textRowKeydown[\s\S]*?\n {2}\};\n\}/.exec(
-        scriptSource("components/LeftSidebar.vue")
+      /export function textRowKeydown[\s\S]*?\n\}/.exec(
+        typeScriptSource("utils/text-row-keydown.ts")
       )?.[0] ?? ""
   }
 ];

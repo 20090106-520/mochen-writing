@@ -9,6 +9,7 @@
  */
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { fuzzyEligible, fuzzyFindInLine } from "@mochen/contracts";
 import type { BookDoc } from "../types/book-doc";
 
 export interface SearchHit {
@@ -29,6 +30,12 @@ export interface SearchResult {
   totalHits: number;
   durationMs: number;
   searchedAt: number;
+  /**
+   * 命中口径（2026-10-10）：`exact` = 精确子串；`fuzzy` = 整书精确零命中后
+   * 按「一字之差」兜底命中（判定真身在 @mochen/contracts/search-match）。
+   * 面板要把这一轮如实标出来——容错结果是「相似」不是「相同」，不标就是骗人。
+   */
+  mode: "exact" | "fuzzy";
 }
 
 const MAX_HITS = 200;
@@ -93,7 +100,14 @@ export const useSearchStore = defineStore("search", () => {
 
     if (!trimmed) {
       lastResult.value = null;
-      return { query: "", hits: [], totalHits: 0, durationMs: 0, searchedAt: Date.now() };
+      return {
+        query: "",
+        hits: [],
+        totalHits: 0,
+        durationMs: 0,
+        searchedAt: Date.now(),
+        mode: "exact"
+      };
     }
 
     isSearching.value = true;
@@ -107,12 +121,44 @@ export const useSearchStore = defineStore("search", () => {
       if (allHits.length >= MAX_HITS) break;
     }
 
+    // 一字之差兜底（2026-10-10）：整书精确零命中才跑（正常搜索零开销），
+    // 判定真身在 contracts/search-match（与主进程 search_docs 吃同一份，不许抄第二份）。
+    let mode: "exact" | "fuzzy" = "exact";
+    if (allHits.length === 0 && fuzzyEligible(queryLower)) {
+      mode = "fuzzy";
+      for (const doc of docs) {
+        const lines = doc.content.split("\n");
+        for (let lineIdx = 0; lineIdx < lines.length; lineIdx += 1) {
+          const currentLine = lines[lineIdx]!;
+          const found = fuzzyFindInLine(currentLine, queryLower);
+          if (found === null || allHits.length >= MAX_HITS) continue;
+          allHits.push({
+            docRelPath: doc.relPath,
+            docTitle: doc.title,
+            docKind: doc.kind,
+            lineNumber: lineIdx + 1,
+            matchStart: found.start,
+            matchEnd: found.end,
+            beforeContext:
+              found.start > 0
+                ? "…" + currentLine.slice(Math.max(0, found.start - CONTEXT_RADIUS), found.start)
+                : "",
+            matchText: currentLine.slice(found.start, found.end),
+            afterContext:
+              currentLine.slice(found.end, found.end + CONTEXT_RADIUS) +
+              (found.end + CONTEXT_RADIUS < currentLine.length ? "…" : "")
+          });
+        }
+      }
+    }
+
     const result: SearchResult = {
       query: trimmed,
       hits: allHits,
       totalHits: allHits.length,
       durationMs: Math.round(performance.now() - start),
-      searchedAt: Date.now()
+      searchedAt: Date.now(),
+      mode
     };
 
     lastResult.value = result;

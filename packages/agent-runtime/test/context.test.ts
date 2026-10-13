@@ -33,7 +33,9 @@ const CONTENTS: Record<string, string> = {
 };
 
 const base = {
-  activeDocRelPath: "chapters/03-深渊之下.md",
+  // 「没开章」是合法输入（AssembleContextInput 收 string | null）——
+  // 夹具类型放宽成联合，出场过滤那条用例才能传 null 进来。
+  activeDocRelPath: "chapters/03-深渊之下.md" as string | null,
   docs: DOCS,
   contents: CONTENTS,
   pinned: [] as string[],
@@ -292,5 +294,52 @@ describe("renderContextBlock · 空包不许产出空标题块", () => {
   it("当前章在块里被标成「本章」，让人和模型都知道正在写哪一章", () => {
     const block = renderContextBlock(assemble("lead-writer"));
     expect(block).toContain("正文（本章）·深渊之下");
+  });
+});
+
+describe("出场人物卡按真出场过滤（2026-10-10 三段：给 AI 的上下文要聚焦）", () => {
+  it("当前章只提到李深 ⇒ 只装李深的卡；没提到的周砚不占上下文", () => {
+    const result = assemble("lead-writer", {
+      contents: { ...CONTENTS, "chapters/03-深渊之下.md": "李深把刀放下了。第三章正文。" }
+    });
+    const cast = paths(result.items).filter((p) => p.startsWith("characters/"));
+    expect(cast).toEqual(["characters/李深.md"]);
+  });
+
+  it("没开章时退回全装：补人物设定、全书审读仍要看全家福", () => {
+    const result = assemble("lead-writer", { activeDocRelPath: null });
+    const cast = paths(result.items).filter((p) => p.startsWith("characters/"));
+    expect(cast).toEqual(["characters/李深.md", "characters/周砚.md"]);
+  });
+
+  it("挂入的人物卡不受出场过滤影响（用户显式点名的东西照装）", () => {
+    const result = assemble("world", { pinned: ["characters/周砚.md"] });
+    expect(paths(result.items)).toContain("characters/周砚.md");
+  });
+});
+
+describe("各章开头句 openings（2026-10-10 四段：开头防套路的原料）", () => {
+  it("按章节顺序取每个 chapter 的首个非空行，截到 24 字；非 chapter 不进清单", () => {
+    const result = assemble("lead-writer", {
+      contents: {
+        ...CONTENTS,
+        "chapters/01-开篇.md": "\n\n夜色像墨一样漫开，压住了整座港城的第一盏灯。\n",
+        "chapters/02-暗流.md": "雨下个不停。",
+        "characters/李深.md": "李深：主角。" // 非 chapter：不进 openings
+      }
+    });
+    expect(result.openings).toEqual([
+      "夜色像墨一样漫开，压住了整座港城的第一盏灯。", // 22 字没到 24 截断线，句号在
+      "雨下个不停。",
+      "第三章正文。", // active 章也有开头
+      "第四章正文。"
+    ]);
+  });
+
+  it("开头的判定用全文，不受 items 截断口径影响；空文不进清单", () => {
+    const result = assemble("lead-writer", {
+      contents: { ...CONTENTS, "chapters/04-回声.md": "" }
+    });
+    expect(result.openings).toHaveLength(3);
   });
 });

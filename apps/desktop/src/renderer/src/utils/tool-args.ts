@@ -71,6 +71,13 @@ const PHRASE: Record<string, (a: Record<string, unknown>) => string | null> = {
   web_search: (a) => {
     const query = str(a["query"]);
     return query === "" ? null : `搜「${clip(query, 40, 20)}」。`;
+  },
+  web_read: (a) => {
+    const url = str(a["url"]);
+    // URL 太长（360 的跳转链能到 450 字符），卡上只留主机名+一段路径——够人认出是哪一页。
+    if (url === "") return null;
+    const short = url.replace(/^https?:\/\//, "");
+    return `读网页「${clip(short, 40, 16)}」。`;
   }
 };
 

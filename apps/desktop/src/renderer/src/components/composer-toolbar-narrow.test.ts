@@ -62,6 +62,52 @@ describe("工具栏窄档：两级门槛与修法", () => {
     );
   });
 
+  /**
+   * **上面那条守卫正是这一轮那个 bug 的盲区本身（2026-10-10 真机撞出）。**
+   *
+   * 它钉的是「分配级（620）里模型名的 min-width 被撤掉」——事实成立，**可那一档真机永远走不到**：
+   * 本机窗口地板是 `minWidth: 1000`，于是容器最窄只量到 **676.7**，
+   * 620 及以下那五档（620 / 615 / 589 / 560 / 380）全是死代码。
+   *
+   * 真实缺陷：窗口 1024（容器 700.7）时模型 chip 框 75.8px、内容地板 96.3px，
+   * **下拉三角画到框外 13px、压在下一枚（thinking）上 9px**；窗口 1000（容器 676.7）溢出 4px。
+   * 修法本身是对的，只是**放错了档**。
+   *
+   * 所以这里钉的不是「某档里有这句话」，是**这句话必须落在真机会走到的档里**：
+   * 收全部 `@container composer (max-width: Npx)` 阶梯，取写了这条规则的那些 N，
+   * 最大的那个必须 ≥ 可达下限。
+   */
+  it("撤掉 4.5em 地板那格，必须落在**真机会走到**的阶梯里（窗口地板 1000 ⇒ 容器最窄 676.7）", () => {
+    const REACHABLE_FLOOR = 676.7;
+    const modelLabelFloorOff =
+      /\.composer-toolbar-left \.composer-chip--model \.composer-chip-label\s*\{[^}]*min-width:\s*0/;
+    const tiers: number[] = [];
+    for (const m of CSS.matchAll(/@container composer \(max-width: (\d+(?:\.\d+)?)px\)\s*\{/g)) {
+      const n = Number(m[1]);
+      const open = m.index + m[0].length - 1;
+      const close = CSS.indexOf("\n}", open);
+      if (close === -1) continue;
+      if (modelLabelFloorOff.test(CSS.slice(open, close))) tiers.push(n);
+    }
+    expect(tiers.length, "一条都没找到撤地板的阶梯").toBeGreaterThan(0);
+    expect(
+      Math.max(...tiers),
+      `撤地板只写在 ${tiers.join("/")} 档，而真机最窄只到 ${REACHABLE_FLOOR} ⇒ 那一档走不到，修法等于没写`
+    ).toBeGreaterThanOrEqual(REACHABLE_FLOOR);
+  });
+
+  it("反向钉：4.5em 那道地板本身仍在（正常宽档下模型名要还能认出是模型名）", () => {
+    expect(CSS).toMatch(
+      /\.composer-toolbar-left \.composer-chip--model \.composer-chip-label\s*\{[^}]*min-width:\s*4\.5em/
+    );
+    // 并且它写在阶梯之外——基础规则，不受任何容器查询控制。
+    const base = ruleBlock(
+      CSS,
+      ".composer-toolbar-left .composer-chip--model .composer-chip-label"
+    );
+    expect(base).toContain("min-width: 4.5em");
+  });
+
   it("分配级：chip 守自己的地板 28/44，不许再往下压", () => {
     const block = atRuleBlock(CSS, ALLOC_TIER);
     expect(block).toMatch(/\.composer-chip\s*\{[^}]*min-width:\s*28px/);

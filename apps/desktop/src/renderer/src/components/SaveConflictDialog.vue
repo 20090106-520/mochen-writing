@@ -3,6 +3,7 @@
 import { ref, toRef } from "vue";
 import { useBookStore } from "../stores/useBookStore";
 import { useModalFocus } from "../composables/useModalFocus";
+import { useDialogMotion } from "../composables/useDialogMotion";
 
 const book = useBookStore();
 
@@ -15,16 +16,20 @@ const book = useBookStore();
  */
 const dialogRoot = ref<HTMLElement>();
 
+/**
+ * 开合判据只有这一份，Esc/焦点与入场动画读同一个 ref。
+ * 为第二个消费者把 `book.conflict !== null` 再写一遍，就是同一判定两份实现——
+ * 哪天只改了其中一处，就会出现「弹窗开得起来、Esc 却不管」或者「动效在、焦点不在」这种半开状态。
+ */
+const dialogOpen = toRef(() => book.conflict !== null);
+
 function dismiss(): void {
   book.conflict = null;
   book.notice = "仍保留本机草稿，未覆盖盘上文件";
 }
 
-useModalFocus({
-  root: dialogRoot,
-  close: dismiss,
-  isOpen: toRef(() => book.conflict !== null)
-});
+useModalFocus({ root: dialogRoot, close: dismiss, isOpen: dialogOpen });
+useDialogMotion({ root: dialogRoot, isOpen: dialogOpen });
 
 function reloadFromDisk(): void {
   void book.reloadActive();

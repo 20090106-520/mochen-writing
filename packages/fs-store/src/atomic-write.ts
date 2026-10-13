@@ -44,9 +44,28 @@ export const defaultAtomicFs: AtomicWriteFs = {
   mkdir: (dir) => mkdir(dir, { recursive: true }).then(() => undefined)
 };
 
+/**
+ * 临时件名的中段。生产方（tmpPathOf）与认出它的人（isWriteScratchName）共用这一份形状——
+ * 谁都不许在旁边再写一遍字面量（铁律 6）。
+ */
+const SCRATCH_INFIX = ".mochen-tmp-";
+
 /** 临时文件名：跟着目标走（同目录才能原子改名），后缀刻意**不**以 .md 结尾，免得被书目扫描认成正文。 */
 function tmpPathOf(target: string): string {
-  return `${target}.mochen-tmp-${randomBytes(4).toString("hex")}`;
+  return `${target}${SCRATCH_INFIX}${randomBytes(4).toString("hex")}`;
+}
+
+/**
+ * 这个文件名是不是某次原子写留下的半成品。
+ *
+ * 【为什么需要它】半成品只在「写完、改名之前」那几十毫秒里存在，扫书看不见它（名字不以 .md 结尾），
+ * 但**整书备份的 copyTree 是全仓唯一走遍书里所有文件的地方**——它会把那一刻的半成品原样抄进备份，
+ * 还计入 fileCount，于是对话框上写着「已备份 2 个文件」而其中 1 件是垃圾。
+ * 2026-10-11 真机量到的现场：`.mochen-tmp/p545/backup-count.mjs` 造的书，
+ * 备份目录 book-2026-10-11-11-27-52/ 里躺着 `chapters/01.md.mochen-tmp-9e4a8d8c`。
+ */
+export function isWriteScratchName(name: string): boolean {
+  return name.includes(SCRATCH_INFIX);
 }
 
 /**

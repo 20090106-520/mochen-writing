@@ -274,11 +274,20 @@ function jumpToDoc(note: Note): void {
             </div>
 
             <footer class="note-footer">
-              <div v-if="note.kind === 'annotation'" class="note-doc-ref" @click="jumpToDoc(note)">
+              <!-- 「跳到原文」是**动作**不是标签：同一个 footer 里紧挨着的编辑 / 归档
+                   两枚都是 <button>，原先这枚是 <div @click> ⇒ Tab 走不到、回车点不动，
+                   鼠标能点而键盘完全够不着。真身（jumpToDoc）没变，只把宿主换成按钮，
+                   键盘 Enter/Space 由浏览器原生给出，不需要自己再接一遍 keydown。 -->
+              <button
+                v-if="note.kind === 'annotation'"
+                type="button"
+                class="note-doc-ref"
+                @click="jumpToDoc(note)"
+              >
                 <AppIcon name="attach" :size="11" />
                 <span>{{ getDocTitle(note) }}</span>
                 <span v-if="note.lineNumber">第 {{ note.lineNumber }} 行</span>
-              </div>
+              </button>
               <span class="note-time">{{ formatTime(note.updatedAt) }}</span>
               <div class="note-actions">
                 <button class="icon-btn-sm" type="button" title="编辑" @click="startEdit(note)">
@@ -621,11 +630,28 @@ function jumpToDoc(note: Note): void {
   display: flex;
   align-items: center;
   gap: 4px;
+  /* 换成 <button> 之后浏览器默认样式会跟着进来（背景、边框、内边距、字体），
+     那几样会把这一格拉成一个灰块并撑开 footer。逐项归零，字号与颜色继承 footer，
+     保持与改动前逐像素一致。 */
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
 .note-doc-ref:hover {
   color: var(--accent, #6c9eff);
+}
+
+/* 焦点环跟同文件 .icon-btn-sm 一律：outline:none 的控件必须自己把焦点画回来。 */
+.note-doc-ref:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 .note-time {

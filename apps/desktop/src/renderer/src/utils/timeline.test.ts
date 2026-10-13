@@ -63,11 +63,12 @@ describe("工具卡的第三态：没搜到（2026-10-06 批次 5-⑮）", () =>
     expect(ruleBlock(styleSource("agent-pane.css"), ".tool-card.is-failed")).toContain("danger");
   });
 
-  it("主进程那两处「跑了但没搜着」都带上了 empty", () => {
+  it("主进程那三处「跑了但没东西可给」都带上了 empty", () => {
     // 漏掉任何一处，那条路径上的卡就还是写「完成」。
+    // 三处 = web_search 两条（结果空 / 判重后全空）+ web_read 一条（剥不出正文，2026-10-11）。
     const host = typeScriptSource("../../main/doc-tools-host.ts");
     const marks = host.match(/empty: true/g) ?? [];
-    expect(marks.length).toBe(2);
+    expect(marks.length).toBe(3);
   });
 });
 

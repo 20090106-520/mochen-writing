@@ -154,20 +154,26 @@ describe("LeftSidebar · 功能导航（2026-10-04 演示图裁定：完整按�
 
   it("数据统计已落地（深夜裁定）：真功能 openStats，表格数字来自 book.docs 聚合", () => {
     // stats 是 action 真身：点击写 notice（stats 形态），数据在组件里从 docs 聚合。
-    expect(template).toMatch(/data-nav-id="stats"[\s\S]*?@click="openStats"/);
-    expect(template).toContain(':title="STATS_HINT"');
+    // 【2026-10-11】按钮本体随整组低频入口搬进了 LibraryNavRows（折叠壳也一起搬），
+    // 所以这枚断言现在跨两个文件成立：**按钮在 LibraryNavRows、响应在 LeftSidebar**，
+    // 两者由 `@stats="openStats"` 那一处接上——钉的是这条接线，不是按钮待在哪。
+    const library = vueSource("components/LibraryNavRows.vue");
+    expect(library).toMatch(/data-nav-id="stats"[\s\S]*?@click="emit\('stats'\)"/);
+    expect(template).toContain('<LibraryNavRows @open="openLibraryDialog" @stats="openStats" />');
+    // 提示文案读 side-nav 那一份真身（按钮搬到了 LibraryNavRows，真身没搬走）。
+    expect(library).toContain(':title="STATS_HINT"');
     expect(script).toContain("function openStats(): void");
-    expect(script).toMatch(/statsRows[\s\S]*?BOOK_KIND_ORDER\.map/);
-    expect(script).toContain(
-      'notice.value = { kind: "stats", label: "数据统计", rows: statsRows.value };'
-    );
+    // 2026-10-10 下沉：聚合真身住 utils/stats-rows.ts（statsRowsOf），组件只调它。
+    expect(script).toContain("rows: statsRowsOf(book.docs)");
+    const statsUtils = vueSource("utils/stats-rows.ts");
+    expect(statsUtils).toMatch(/BOOK_KIND_ORDER\.map/);
     // 数据口径诚实：字数来自扫描元数据 chars（缺省 0），不是拍脑袋数字。
-    expect(script).toContain("(doc.chars ?? 0)");
+    expect(statsUtils).toContain("(doc.chars ?? 0)");
     // planned 判定仍在纯函数里消费（机制保留，表里暂时没有占位实例）。
     expect(script).toContain("sideNavChildState(child, book.docs)");
   });
 
-  it("审核三项已落地：ai-check 动作分派=展开对话面板 + 预填提问（不自动发送）", () => {
+  it("审核四项已落地：ai-check 动作分派=展开对话面板 + 预填提问（不自动发送）", () => {
     // id 语义化：ai-check-* 平铺为 data-nav-id（navIdOf 对 action 沿用现成 id）。
     expect(script).toContain(
       "function navIdOf(group: { id: string }, child: SideNavChild): string"
@@ -358,9 +364,12 @@ describe("LeftSidebar · 新建通路（行内新建 + 新建作品对话框）"
     expect(template).not.toContain("sanitizeDocFileName");
   });
 
-  // 5-㊶：两个输入框的裁决共用一个工厂 textRowKeydown（只有 confirm/cancel 不同），
-  // 形状因此钉在工厂本体上，而不是钉某个入口函数。
-  const addHandler = /function textRowKeydown[\s\S]*?\n {2}\};\n\}/.exec(script)?.[0] ?? "";
+  // 5-㊶：两个输入框的裁决共用一个工厂 textRowKeydown（只有 confirm/cancel 不同）。
+  // 2026-10-10 下沉：工厂本体住 utils/text-row-keydown.ts，形状钉在那边；组件钉两条接线。
+  const addHandler =
+    /export function textRowKeydown[\s\S]*?\n {2}\};\n\}/.exec(
+      vueSource("utils/text-row-keydown.ts")
+    )?.[0] ?? "";
 
   it("行内新建行：Enter 确认 / Esc 取消，确认钮在判定不过关时 disabled", () => {
     expect(template).toContain('class="tree-add-input"');
@@ -421,8 +430,12 @@ describe("LeftSidebar · 新建通路（行内新建 + 新建作品对话框）"
  * 组件只做开合与聚焦，不另捏一份改标题逻辑（§2.7）。
  */
 describe("LeftSidebar · 树行操作菜单与行内改名（deepwrite 对齐收尾）", () => {
-  // 5-㊶：改名输入框的键盘裁决改走单一入口 onRenameKeydown（形状钉在 handler 本体上）。
-  const renameHandler = /function textRowKeydown[\s\S]*?\n {2}\};\n\}/.exec(script)?.[0] ?? "";
+  // 5-㊶：改名输入框的键盘裁决改走单一入口 onRenameKeydown。工厂本体 2026-10-10
+  // 下沉进 utils/text-row-keydown.ts，形状钉在那边。
+  const renameHandler =
+    /export function textRowKeydown[\s\S]*?\n {2}\};\n\}/.exec(
+      vueSource("utils/text-row-keydown.ts")
+    )?.[0] ?? "";
 
   it("行尾「…」区真的挂在树上：tree-row 带 has-node-action 类，动作区按钮有展开态与 Esc 关闭", () => {
     expect(template).toContain('class="tree-row has-node-action"');
@@ -500,5 +513,36 @@ describe("LeftSidebar · 树行操作菜单与行内改名（deepwrite 对齐收
     expect(template).toContain(':icon="actionMenuFor === node.relPath ? X : Ellipsis"');
     // 旧静态字形已清账：AppIcon 不再消费 more（化石不留）。
     expect(template).not.toContain('name="more"');
+  });
+});
+
+describe("书稿体检 · AI 味一键改写（2026-10-10 二段）", () => {
+  it("对话框按钮：拿当前章真扫的命中清单预填对话，不自动发送；面板展开与审核检查同一句真身", () => {
+    // 2026-10-11 体量拆分：体检那一支搬进了 SideNavTermsReport.vue（八类报告 272 行模板 +
+    // 整套计算，而另外五支合计不到 60 行）。**搬的是内容不是外壳**——backdrop / 焦点 / Esc /
+    // 入场动画与 close / onAction 两个出口仍归 SideNavNoticeDialog，所以断言跟着内容走。
+    const dialog = vueSource("components/SideNavTermsReport.vue");
+    expect(dialog).toContain("async function rewriteWithAgent");
+    // 展开右栏与审核检查同一路（layout.setPaneCollapsed），不许第二份「展开某栏」。
+    expect(dialog).toMatch(/rewriteWithAgent[\s\S]*?setPaneCollapsed\("right", false\)/);
+    expect(dialog).toContain("styleCheckPrompt(");
+    expect(dialog).toContain("agent.prefillComposer(threadKeyFor(relPath)");
+    // 不自动发送：只有预填，没有 send/submit——发送权留在用户手里。
+    expect(dialog).not.toMatch(/agent\.\s*(send|submit)/);
+    // 没开章不摆死按钮：引导去开章。
+    expect(dialog).toContain('v-if="book.activeDocTab !== null"');
+
+    // 钉住「外壳仍在父组件」：拆的是体量，不是职责。这三样若哪天也搬走了，
+    // 六支形态就各自有了焦点与 Esc 的第二份实现。
+    const shell = vueSource("components/SideNavNoticeDialog.vue");
+    expect(shell).toContain("useModalFocus({");
+    expect(shell).toContain("useDialogMotion({ root: dialogRoot");
+    expect(shell).toContain("<SideNavTermsReport");
+    expect(shell).toContain(':open="true"');
+    // 判定不许在两边各留一份：doc-checkup 的九个检查函数只在体检那一支里 import。
+    expect(shell, "父组件还留着体检的判定 import ⇒ 搬漏了或抄了第二份").not.toMatch(
+      /from "\.\.\/utils\/doc-checkup"/
+    );
+    expect(shell, "外壳不再 import 体检的展示名与类型").not.toContain("AI_FLAVOR_CATEGORY_LABELS");
   });
 });

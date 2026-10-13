@@ -40,7 +40,7 @@ const tempDirs: string[] = [];
 
 afterAll(async () => {
   for (const dir of tempDirs) await rm(dir, { recursive: true, force: true });
-});
+}, 30000);
 
 /**
  * 脚本化 SSE：第 n 次请求回 `rounds[n]`，脚本用完回一条 stop——
@@ -421,13 +421,14 @@ describe("agentService 边界拒绝与线程归一", () => {
     expect(body.reasoning_effort).toBe("high");
     const tools = body.tools as Record<string, unknown>[];
     const names = tools.map((tool) => (tool.function as { name?: string } | undefined)?.name);
-    // 开 ⇒ web_search 以 **function** 形态在场（真能跑的那枚：本地免费源，见 doc-tools-host.ts）。
+    // 开 ⇒ web_search 与 web_read 以 **function** 形态在场（真能跑的那两枚：本地免费源，见 doc-tools-host.ts）。
     expect(names).toContain(WEB_SEARCH_TOOL_NAME);
+    expect(names).toContain("web_read");
     // 出站每一条都必须是完整 function 条目。2026-10-08 的裸 `{type:"web_search"}` 会让
     // 严格校验的端点回 400/422（tools[9].function: missing field `parameters`），整笔请求报废。
     expect(tools.every((tool) => tool.type === "function")).toBe(true);
-    // 六枚本仓工具一枚不许被联网条目挤掉（TOOL_SPECS 是唯一真身；web_search 是第七个类型槽里的第六枚 function）。
-    expect(tools.filter((tool) => tool.type === "function").length).toBe(6);
+    // 七枚本仓工具一枚不许被联网条目挤掉（TOOL_SPECS 是唯一真身；出网的是第七/八个类型槽里的第六、七枚 function）。
+    expect(tools.filter((tool) => tool.type === "function").length).toBe(7);
     service.dispose();
   });
 
@@ -447,8 +448,10 @@ describe("agentService 边界拒绝与线程归一", () => {
     expect(body).not.toHaveProperty("reasoning_effort");
     const tools = body.tools as Record<string, unknown>[];
     const names = tools.map((tool) => (tool.function as { name?: string } | undefined)?.name);
-    // 关 ⇒ web_search 真的从出站名单里消失（映射在 wireToolsFor），不是「发个 false 字段」。
+    // 关 ⇒ web_search 与 web_read 都真的从出站名单里消失（映射在 wireToolsFor，闸的是
+    // NETWORK_TOOL_NAMES 这一整类），不是「发个 false 字段」。
     expect(names).not.toContain(WEB_SEARCH_TOOL_NAME);
+    expect(names).not.toContain("web_read");
     // 摘掉联网不牵连别的：五枚书稿工具一枚不少。
     expect(names.length).toBe(5);
     service.dispose();

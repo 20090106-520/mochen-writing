@@ -176,8 +176,21 @@ html[data-theme="dark"] .tree-node-action-menu-item.is-danger:hover {
   background: color-mix(in srgb, var(--danger) 16%, var(--surface-hover));
 }
 
-html[data-theme]
-  :where(.composer:focus-within .composer-input-surface, .dialog-content textarea:focus) {
+/* 输入卡聚焦：**只把边框提亮一点，不加光环**（2026-10-10 改判）。
+   原先是和对话框的输入框共用一条规则，给了 `border-color: var(--accent)` + `box-shadow: 0 0 0 3px` 的光环，
+   而输入卡是**你每一句话都要点一下**的地方 ⇒ 点一下整张卡内侧就弹出一圈亮框，
+   用户报「点一下就弹出来，非常不好」。
+   光环本身还有两个副作用：① 3px 光环画在卡外沿上，与卡自己的圆角打架；
+   ② 它把 `agent-pane.css` 里那层景深阴影整个盖掉（box-shadow 是单值属性，后写者胜），
+   于是聚焦时卡片反而变**扁**了——那一瞬间的形变比多一圈光更扎眼。
+   现在只留一条很轻的边框提亮，景深阴影原样保留，光标本身就是最强的焦点提示。 */
+html[data-theme] .composer:focus-within .composer-input-surface {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+}
+
+/* 对话框里的输入框：焦点环**留着**。那是表单字段，Tab 得到它，
+   焦点不一定带光标（空字段），环是唯一的可见提示——这与上面那格不是同一种场合。 */
+html[data-theme] .dialog-content textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
@@ -371,8 +384,9 @@ html[data-theme][data-skin-surface="dialogue"] .proposal-card {
   box-shadow: var(--skin-dialogue-underline, none);
 }
 
-/* 焦点环：强调态。它不依赖玻璃档，任何皮肤都有。 */
-html[data-theme]
-  :where(.composer:focus-within .composer-input-surface, .dialog-content textarea:focus) {
+/* 焦点环：强调态。它不依赖玻璃档，任何皮肤都有。
+   2026-10-10：输入卡那一格被摘出去了（见上面带注释那条）——输入卡是常驻且点得最频繁的，
+   光环在那里是「一点就弹出一框」。对话框的输入框仍然是表单字段，环留着。 */
+html[data-theme] .dialog-content textarea:focus {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
