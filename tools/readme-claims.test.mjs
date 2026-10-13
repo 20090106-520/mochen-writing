@@ -374,27 +374,58 @@ test("run 页 ID 不许藏进引号里：剥 `「…」` 前后数出来的枚�
  * 所以这里只算门面上**已经写成等式**的三处，不新增任何主张：
  * 每一处都配一条实例声明（正则抓不到就是红），免得某一处的写法被改掉之后这条闸静默失效。
  * 数字一律先过 `flatten`（剥 `**`、折空白）再匹配，且这些正则**不带 `g`**——见上面那条注释。
+ *
+ * 第四十八节回填时补上第二层：等式里的数还必须**等于它所描述的那一格**。第一版只算等式自己，
+ * 于是「顶格改成 4111、下面那句还留着 4110 = 4113 − 3」这种状态它算得过（4110+3 确实等于 4113），
+ * 门面却在说假话——回填时我正好就处在这一段里（先改完两格，隔了几分钟才回头改那句等式）。
+ * 所以 `CELLS` 把两格读数各钉成一份实现，等式用 `ties` 指回它引用的那一格；对表用的正则与
+ * 读格用的是同一枚，不另写第二份（锁定前提第 6 条）。Linux 那一侧两枚 `skipIf(win32)` 根本不注册，
+ * 注册数＝用例数，所以第一处等式的第 1 个数对的就是 CI 那一格报的数。
  */
+const CELLS = {
+  linux: { re: /报的数：313 文件 \/ (\d+) 用例/, group: 1, name: "CI 那一格的用例数" },
+  win: {
+    re: /(\d+) passed \| (\d+) skipped（(\d+) 条注册）/,
+    group: 3,
+    name: "本机那一格的注册数"
+  }
+};
+
 const EQUATIONS = [
   {
     name: "Linux 侧注册数 = 本机注册数 − 平台多注册的那几条",
     re: /Linux 侧 (\d+) 条注册 = 本机 (\d+) − (\d+)/,
-    check: ([linux, win, delta]) => linux + delta === win
+    check: ([linux, win, delta]) => linux + delta === win,
+    ties: [
+      { at: 1, cell: "linux" },
+      { at: 2, cell: "win" }
+    ]
   },
   {
     name: "本机 passed + skipped = 本机注册数",
-    re: /(\d+) passed \| (\d+) skipped（(\d+) 条注册）/,
+    re: CELLS.win.re,
     check: ([passed, skipped, reg]) => passed + skipped === reg
   },
   {
     name: "两轮测试数之差 = 门面守卫的条数之差",
     re: /从 (\d+) 到 (\d+) 差的 (\d+) 条[^。；;]*?用例数从 (\d+) 条加到 (\d+) 条/,
-    check: ([from, to, diff, tFrom, tTo]) => to - from === diff && tTo - tFrom === diff
+    check: ([from, to, diff, tFrom, tTo]) => to - from === diff && tTo - tFrom === diff,
+    ties: [{ at: 2, cell: "linux" }]
   }
 ];
 
 test("门禁那一节写出来的每一处等式都得自己算得过，而且每一处都得还在门面上有实例", () => {
   const flat = flatten(gateSection().replace(/「[^」]*」/g, ""));
+  const cells = {};
+  for (const [key, cell] of Object.entries(CELLS)) {
+    const m = cell.re.exec(flat);
+    expect(
+      m,
+      `门面上找不到${cell.name}的写法了——等式闸失去对表的参照，` +
+        "「ties」那一层此刻一条也没测（第三十八节：判据的一支没有实例＝那一支没测）"
+    ).not.toBeNull();
+    cells[key] = Number(m[cell.group]);
+  }
   for (const eq of EQUATIONS) {
     const m = eq.re.exec(flat);
     expect(
@@ -408,5 +439,12 @@ test("门禁那一节写出来的每一处等式都得自己算得过，而且�
       `门面上这处等式算不过：读到的数是 ${nums.join(", ")}（原文「${m[0]}」）——` +
         "跨格的数只 bump 一边，门面就自己跟自己不一致了（免责段明说过的那件事）"
     ).toBe(true);
+    for (const tie of eq.ties ?? []) {
+      expect(
+        nums[tie.at - 1],
+        `「${eq.name}」的第 ${tie.at} 个数读成 ${nums[tie.at - 1]}，可它所描述的那一格（${CELLS[tie.cell].name}）现在是 ${cells[tie.cell]} —— ` +
+          "顶格 bump 了而等式没跟着动（或反过来）。这一处该红的是「对表」，不是那句算术。"
+      ).toBe(cells[tie.cell]);
+    }
   }
 });
