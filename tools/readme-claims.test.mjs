@@ -129,6 +129,12 @@ test("README 点到的 pnpm 脚本必须在 package.json 里", () => {
  * 「零脏项」里的「脏」满足了脏树词表，一句宣称干净的数反倒不需要出处了。所以两支必须分开判，
  * 而且 `未跟踪|未入库|未提交` 这三个词是刻意窄选的——它们只出现在「这棵树不干净」的句子里，
  * 「零脏项」「读回 0 条」这类**反义**写法一律落进干净支。
+ *
+ * 第二版只要求「同句内存在日期」，于是变异 R3（删掉紧邻那串数的 `2026-10-11`，留着同一句开头的
+ * `2026-10-12 又补一条更细的教训：`）**活到了第三十九节之后**：那个 10-12 说的是「教训哪天补的」，
+ * 不是「数哪天测的」，可判据只看同句有没有日期，分不出这两件事。所以现在日期还必须**挨着**它要说明的东西
+ * （数或哈希，窗口见 `DATE_WINDOW`），并且下面那条实例声明要求两条路在门面上各得有真写法——
+ * 一条路没有实例，就等于那条路没测。
  */
 function gateSection() {
   const start = readme.indexOf("## 门禁");
@@ -145,6 +151,45 @@ const SHA = /`[0-9a-f]{7,}`/;
 const DIRTY_TREE = /未跟踪|未入库|未提交/;
 /** 宣称树干净的写法：出现即要求哈希，哪怕同一句里还带着脏树词。 */
 const CLEAN_TREE = /干净|零脏项|已提交|读回\s*0\s*条/;
+// 下面两枚是同一模式的 `g` 版本，只给 `dateAttached` 数位置用。
+// 不能复用上面那两枚：带 `g` 的 `.test()` 会把 `lastIndex` 留在句子之间，把第二条主张误判成没有。
+const DATE_G = /\d{4}-\d{2}-\d{2}/g;
+const SHA_G = /`[0-9a-f]{7,}`/g;
+
+/**
+ * 日期必须**挨着**它要说明的那个东西：要么挨着那串数，要么挨着那棵树的哈希（门面写法是 `` `sha`（date ``）。
+ * 窗口取 12 个字符，是在当场量出来的两个数之间选的：门面上四条数走这两条路的实测距离是
+ * 数←日期 **4 / 5** 与 哈希←日期 **1**，而把 `2026-10-11` 删掉的变异 R3 留下的孤儿日期是 **19**
+ * ——12 离两边都有余量。`flatten` 先去掉 `**` 再把空白折叠，所以量的不是磁盘上的原始下标，
+ * 而是读者眼里那段话的实际距离。
+ */
+const DATE_WINDOW = 12;
+const flatten = (t) => t.replace(/\*\*/g, "").replace(/\s+/g, " ");
+
+/** 这句里的日期是不是挨着数或挨着哈希；返回实测距离，错误信息要把它打出来。 */
+function dateAttached(sentence) {
+  const t = flatten(sentence);
+  const claim = t.match(COUNT_CLAIM);
+  if (!claim) return { ok: false, gapToNumber: null, gapToHash: null };
+  const before = t.slice(0, claim.index);
+  const dates = [...before.matchAll(DATE_G)];
+  // 日期本身 10 个字符（`\d{4}-\d{2}-\d{2}`），所以从匹配末尾起量。
+  const gapToNumber = dates.length
+    ? flatten(before.slice(dates[dates.length - 1].index + 10)).length
+    : null;
+  let gapToHash = null;
+  for (const h of before.matchAll(SHA_G)) {
+    const seg = t.slice(h.index + h[0].length);
+    const d = seg.match(DATE);
+    if (!d) continue;
+    const gap = flatten(seg.slice(0, d.index)).length;
+    if (gapToHash === null || gap < gapToHash) gapToHash = gap;
+  }
+  const ok =
+    (gapToNumber !== null && gapToNumber <= DATE_WINDOW) ||
+    (gapToHash !== null && gapToHash <= DATE_WINDOW);
+  return { ok, gapToNumber, gapToHash };
+}
 
 function testCountClaims() {
   // 「…」 里的是反例或历史说法，不当成当前主张。
@@ -164,17 +209,30 @@ test("门禁那一节的每条测试数都说清了跑在哪棵树：宣称干�
     "「## 门禁」一节里一条测试数主张都没提取到——多半是 `N 文件 / M 用例` 的写法变了或整节被改名，" +
       "那比门面没数更糟：这条闸会静默失效"
   ).toBeGreaterThan(1);
-  const naked = claims.filter((s) => !(DATE.test(s) && (SHA.test(s) || dirtyWorded(s))));
+  const naked = claims.filter((s) => {
+    const treeStated = SHA.test(s) || dirtyWorded(s);
+    return !(treeStated && dateAttached(s).ok);
+  });
   expect(
     naked,
-    "这些测试数没连着出处：要么缺日期，要么既没给反引号提交哈希、也没明写「未跟踪/未入库/未提交」" +
+    "这些测试数没连着出处：要么没有日期，要么日期没挨着那串数（窗口 " +
+      DATE_WINDOW +
+      " 字符）也没挨着哈希，要么既没给反引号提交哈希、也没明写「未跟踪/未入库/未提交」" +
       "（宣称跑在干净或已提交的树上时，只有哈希算出处）——" +
-      naked.map((s) => s.trim().slice(0, 70)).join(" ／ ")
+      naked
+        .map((s) => {
+          const a = dateAttached(s);
+          return (
+            s.trim().slice(0, 60) +
+            `[日期→数 ${a.gapToNumber ?? "无"}｜日期→哈希 ${a.gapToHash ?? "无"}]`
+          );
+        })
+        .join(" ／ ")
   ).toEqual([]);
 });
 
 /**
- * 干净支的**实例声明**（本文件唯一一条不判对错、只数「门面里有没有这种写法」的断言）：
+ * 干净支的**实例声明**（与下面那条「日期附加两条路」同为只数实例、不判对错的断言）：
  * 上面那条规则的两支各有触发条件，而规则只对干净支加严；一旦门面上不再有任何带哈希的数，
  * 干净支就成了空转——「删哈希、留着『零脏项』」这类写法（变异 R1）会一路绿灯。
  * 所以这里要求：至少一条测试数带反引号哈希，且其中至少一条明写「干净/已提交/零脏项」。
@@ -193,5 +251,33 @@ test("出处闸的干净支在门面上得有实例：至少一条数带哈希�
     cleanWorded.length,
     "带哈希的那几条数里没有一条明写「干净/已提交/零脏项」——干净支此刻在门面上没有实例，" +
       "它对 R1 那种变异不再有效，得连这条一起改"
+  ).toBeGreaterThan(0);
+});
+
+/**
+ * 「日期挨着谁」也有两条路（挨着数 / 挨着哈希），所以它同样需要**两条路各有实例**：
+ * 一旦门面上只剩哈希写法的数，`gapToNumber` 那一支就此空转，R3 那种「同句另一头留个日期」的写法
+ * 就又没人管了——这正是第三十八节那条教训（判据的一支没有实例 = 那一支没测）在这里复发。
+ * 这条断言不判门面写得对不对，只数有没有实例，与上面那条同族。
+ */
+test("日期附加的两条路在门面上都得有实例：至少一条数挨着日期、至少一条数挨着哈希", () => {
+  const claims = testCountClaims();
+  const byNumber = claims.filter(
+    (s) => dateAttached(s).gapToNumber !== null && dateAttached(s).gapToNumber <= DATE_WINDOW
+  );
+  const byHash = claims.filter(
+    (s) => dateAttached(s).gapToHash !== null && dateAttached(s).gapToHash <= DATE_WINDOW
+  );
+  expect(
+    byNumber.length,
+    "门面上没有一条测试数是「日期直接写在数前面」的写法——挨着数那一支此刻没有实例，" +
+      "R3 那种同句孤儿日期不再有人拦（实测距离见上一条断言的错误信息，窗口 " +
+      DATE_WINDOW +
+      " 字符）"
+  ).toBeGreaterThan(0);
+  expect(
+    byHash.length,
+    "门面上没有一条测试数的日期挨着它所属那棵树的哈希——挨着哈希那一支没有实例，" +
+      "「`sha`（date」这种门面写法如果被改掉，此处应同步改判据而不是让它空转"
   ).toBeGreaterThan(0);
 });
