@@ -5345,3 +5345,109 @@ ALL_OK=1
 所以规矩补一条：**送达归属 = 「那一枚 ref 的 `git push` 自己返回 0」的那一遍**，
 回读为 `MATCH=YES` 只证明远端此刻在那枚哈希上，不证明是谁推上去的；
 换前缀重试之前，先确认上一遍的循环真结束了（或者干脆把它的日志读完再下结论）。
+
+## 第六十一节（2026-10-14 05:10—07:0x）：顶格两格换绑到 `2f0808e` —— 两侧第一次在同一枚净树上凑齐，skip 那一格也写成可核对的话
+
+第六十节末尾留给本刀的三件事：① 把 `2f0808e` 那两枚孪生 run 的 annotation **逐字读回来**；② 把「CI 报
+`skipped=0` 而本机报 `2 skipped`」这格口径写成一句**可以核对**的话，而不是留在散文里；③ 顶格两格（含
+quoted 的 CI 原文与新起的差值等式）同树回填。三件都做了，另外撞出一发**上一节的假话**。
+
+### 一、`§六十` 那句「Linux 侧还没在任何含 `readme-provenance` 的提交上跑过」是错的
+
+一次性取证脚本 `ci-history.mjs`（**在临时目录 `/c/temp/m12-f/k61/`，不入库**）一次取 11 枚 rev 的
+`check-runs`（无需认证，通路仍是第五十三节那套），日志与 JSON 全落 `/c/temp/m12-f/k61/ci/`。回读结果：
+
+- **有 run 且至少一枚 success** 的：`e4db111`、`dbca602`、`092f648`、`1cb4a29`、`1ca943b`、`cbc2802`、
+  `2f0808e`（逐枚读 `conclusion`：`e4db111`/`092f648`/`1cb4a29`/`1ca943b`/`2f0808e` 是 `success,success`，
+  `dbca602` 是 `cancelled,success`、`cbc2802` 是 `success,cancelled`——那两枚 cancelled 是被后一发取代，
+  不影响「CI 确实跑过含第三份守卫的提交」这条结论）；
+- **`total_count:0`** 的三枚：`01ee7b9`、`136cd76`、`eb04835`，JSON 原文就是
+  `{"total_count":0,"check_runs":[]}`——这三枚是**推送之前**或**推送后立刻查**的，CI 还没排队；
+- annotation 的报数在这条线上走过三步：`files=315 registered=4125` → `files=316 registered=4125`
+  → `files=316 registered=4130`（十二份 `ann-*.json` 逐份读回，不是记忆）。
+
+所以 §六十 那句「还没跑过」当场被自己的证据推翻。**它错在把「我没查过」写成了「没有发生过」**——
+本刀把门面那句换成不依赖它的说法：换绑的理由是**两侧读数得在同一枚提交上凑齐才作数**，
+而不是「这是第一枚含第三份守卫的提交」。README 里现在那句
+（「理由是顶格要跟着**含第三份门面守卫的那一枚**，而两侧读数得在同一枚提交上凑齐才作数」）
+两边都成立，且 `git cat-file -e 1cb4a29:tools/readme-provenance.test.mjs` 退出码 128（文件确实不在那棵树上）、
+`git cat-file -e 01ee7b9:…` 退出 0、`git merge-base --is-ancestor 1cb4a29 2f0808e` 退出 0。
+
+### 二、顶格两格新绑定的两侧读数（全部当场读，不含推算）
+
+- **Linux**：job `115523512372`（run 页 `38463148915`）与孪生 `115523239589`（run 页 `38463155401`），
+  两枚的 `head_sha` 从 `cr-2f0808e.json` 逐字读回都是 `2f0808ee8e6bd59976db449e0481ff47936df27f`；
+  两份 annotation 各写 `files=316 registered=4130 passed=4130 skipped=0 failures=0`。
+- **Windows**：chain8（`/c/temp/m12-f/k60/chain8/`，§六十·补·补 记录）跑在同一棵**零脏项**提交树
+  `2f0808e` 上，六段退出码全 0、porcelain 跑前跑后各 0 条，`Test Files 316 passed (316)` /
+  `Tests 4131 passed | 2 skipped (4133)` / `Duration 48.91s`。
+
+### 三、skip 那一格：把「两侧不一样」写成一句能被断言核对的话
+
+新增段落（README「## 门禁」第 62 行起）说的是三件彼此独立的事，每件都指到具体的东西：
+
+1. 那两枚的**条件**是 `it.skipIf(process.platform === "win32")`——它在 Linux 上为**假**，所以那两条真跑并计进用例数；
+2. 因此 CI 的 `skipped=0` 的意思是「那一刻没有一条被标成跳」，而本机的 `2 skipped` 是同一枚条件在 win32 上为真；
+3. 这三句话的**核对通路**不是本文：`tools/platform-test-count.test.mjs` 的三条差值断言当场算过
+   （平台分支多注册 3 条、POSIX 才真跑 2 条、本机 passed 比 Linux 多 1），
+   而「Linux 那两条真跑了」的证据就是 Linux 那一格里 `registered=4130` 与 `passed=4130` **相等**。
+
+### 四、增量账：`4125 → 4130` 差的 5 条 = 第十六道那 5 道归属闸
+
+出处不是记忆：`git show 092f648:tools/readme-provenance.test.mjs` 行首 `test(` 数得 **6**，
+`git show 2f0808e:tools/readme-provenance.test.mjs` 数得 **11**，差 **5**；顶格两格恰好从 4125 走到 4130。
+`tools/readme-claims.test.mjs` 里为此新起一处等式（`从 (\d+) 到 (\d+) 差的 (\d+) 条…第十六道 (\d+) 条`，
+`check` 同时算 `to − from === diff` 与 `g16 === diff`，并 `ties` 到 Linux 那一格），
+而第五十七节那处「第十四道 + 第十五道」就此**退成历史**：摘掉 `ties`，`check` 与门面那句原样留着。
+本刀**没有**给 claims 加 `test(`（仍是 7 道、497/800 行），所以第十四道那句「原文件留 7 道」继续作数。
+
+### 五、五发变异：每一发只让一条断言红，反向 Edit 之后 `cmp` 回字节一致
+
+跑法与上一刀相同（`mut-run.sh` 只跑 claims + provenance 两份，`--maxWorkers=2`，日志落
+`/c/temp/m12-f/k61/mut/`）。改内容一律只用 Edit，还树用反向 Edit，`cmp` 对
+`snap/README.md.final` 与 `snap/claims.final` 核对，快照在内容落定之后重取。
+
+| 变异 | 改哪一格 | 结果（恰好 1 条红） |
+| --- | --- | --- |
+| M93 | 把新等式里的「第十六道 5 条」写成 6 条 | `AssertionError: 门面上这处等式算不过：读到的数是 4125, 4130, 5, 6（原文「从 4125 到 4130 差的 5 条…第十六道 6 条」）` — `Tests 1 failed \| 17 passed (18)`，`check` 那一臂独立可红 |
+| M94 | 只 bump 顶格两格与 quoted（4130→4131、4133→4134），留着「第十六道 5 条」不动 | `「顶格那一轮测试数之差 = 第十六道」的第 2 个数读成 4130，可它所描述的那一格（CI 那一格的用例数）现在是 4131 —— 这一处该红的是「对表」，不是那句算术` — 恰好 1 条红，第十五道（quoted）因同步 bump 而**保持绿**，证明红的是 `ties` 那一层 |
+| M96 | 只把 quoted annotation 改成 `registered=4131 passed=4131`，顶格两格不动 | `门面上这些引用侧的数已经不是顶格那两格的真身：… 报 registered=4131，Linux 那一格的用例数是 4130 ／ … 报 passed=4131…` — 1 条红（第十五道），`diff` 显示只有第 54 行变 |
+| M97 | 把本机那一格的树哈希写成 `2f0808f`（一枚字符） | `门面上的同树声明指向了 2 枚不同的短哈希：2f0808e／2f0808f… ——两侧不同树，那 1 条平台差就没人解释了` — 1 条红（第十二道），且红文把四处声明逐条列出 |
+| M98 | `tools/ci-gate.test.mjs`（6 条）写成 7 条 | `门面上这些条数已经不是那份文件的真身：tools/ci-gate.test.mjs 门面写 7 条，此刻数 6 条` — 1 条红（第十四道） |
+
+每发的 `*_EXIT=1` 与红文一起落盘，还树后 `cmp` 全部返回一致（`M94 README_REVERT_IDENTICAL`、
+`M97_REVERT_IDENTICAL`、`M98_README_REVERT_IDENTICAL`、`CLAIMS_UNCHANGED_IDENTICAL`）。
+
+**一发没做的**：M99（证明退成历史的那处等式**不再**对表）没有实跑。理由是它是**结构性的**——
+`EQUATIONS` 里那一处的 `ties` 键已整枚删除，`for (const tie of eq.ties ?? [])` 对它是零次迭代，
+这条不依赖门面文字，也就不需要反向变异来证明；第五十四节与第五十七节摘 `ties` 时同样是这么处理的。
+**这一条归因为「未做实测，只有代码结构作依据」**，下一刀若要补，就把顶格 bump 而「第十四道 + 第十五道」
+那句不动，预期一条都不红。
+
+### 六、定稿遍与送达
+
+- **chain10**（`/c/temp/m12-f/k61/chain10/`，2026-10-14 06:47—06:5x）：
+  `FORMAT_EXIT=0 TYPECHECK_EXIT=0 ESLINT_EXIT=0 BOUNDARY_EXIT=0 BUDGET_EXIT=0 TEST_EXIT=0`，
+  跑在 HEAD=`29220d1` 的工作树上，`PRE_DIRTY_COUNT=2`、`POST_DIRTY_COUNT=2`——
+  那 2 条正是本刀尚未提交的 `README.md` 与 `tools/readme-claims.test.mjs` 自己，
+  两份都在跑前跑后各与快照 `cmp` 过一次（`snap/README.md.final`、`snap/claims.final` 全一致），
+  所以「绿」说的是终稿的内容，只是终稿还没进提交树（与第五十七节 `a953b12` 那一跑同一形状，
+  区别是本刀不再拿字节反推，而是当场 `cmp` 快照）。
+  第二证据：六份日志一起 grep 失败串只命中 1 行，且那行是测试自己打印的环境噪音
+  `[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到`（`test.log:116`）；
+  `Test Files 316 passed (316)`、`Tests 4131 passed | 2 skipped (4133)`、`Duration 36.09s`。
+  **这一跑的数与顶格两格所绑的 chain8 完全一致**（316 文件、4133 条、2 skip），
+  这正是本刀「不加 `test(`」的现场自证——顶格两格因此不需要再动。
+- 本刀只改两份文件：`README.md`（168 → 181 行）与 `tools/readme-claims.test.mjs`（485 → 497 行，条数不变）。
+- 台账这一节是**第三个**动作（docs-only）：`.prettierignore` 第 13 行一直忽略本文件，门面守卫读的
+  是 `README.md` 而不是台账，所以它进不了六道闸的判据；chain10 之后不再重跑整链，
+  本刀对外引用的绿就是 chain10。
+
+### 七、留给 #62 的三条
+
+1. **门面那三枚平台数字还没有对表闸**：README 现在写着「多注册 3 条」「POSIX 才真跑的是 2 条」「本机 passed 多 1 条」，
+   这三枚与 `tools/platform-test-count.test.mjs` 里三枚 `toBe(3)`/`toBe(2)`/`toBe(1)` 是**两份文字**。
+   改代码会让守卫红，但门面会静默过期——与 M57 那族「引用侧与读数侧脱钩」同一形状。
+2. `useBookStore.ts` 800/800 那一拆仍被并行会话占着（任务 #12）。
+3. 下一次顶格换绑前，先查 CI 在新树上的 annotation 与本机净树重跑**是否同枚**；本刀之后 CI 会看到
+   含本节的两枚提交，但它们**不加 `test(`**，所以文件数/用例数与顶格无关——别把「CI 跑过了」当成「顶格该 bump」。
