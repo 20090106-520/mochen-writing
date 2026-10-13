@@ -3445,6 +3445,167 @@ M27 是这一刀里最值得的一笔：它证明实例声明**单独**可红，
 
 本刀动三份文件：`README.md`（顶格两格换绑 + 平台账 + 历史行 + 免责段那句 + 新增那两行）、`tools/readme-claims.test.mjs`（+1 道闸，11 → 12 条）、台账这一节。`package.json` 与 `.github/workflows/verify.yml` **一字未改**——所以门禁**组成**没变，门面那句「六道闸」依旧与 `verify` 真身对得上（新臂与它互不相干，M25–M27 三枚变异期间它一次也没红）。M25/M26/M27 只是变异现场，均已 `cmp` 还原。内容全部落定后才起六路定稿遍（`format:check` → `typecheck` → `lint:eslint` → `lint:boundary` → `lint:budget` → `test`，逐段退出码落 `s51-final-exit.txt`、日志剥 ANSI 后 grep 复核）**本节不预告那一遍的结果**；本机注册数应比 `3a8dcc7` 那一轮多 1 条，但那是待读到的数。提交后照旧用 `HEAD:refs/heads/<名>` 快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD。
 
+## 五十二、2026-10-13：门禁的**第三处口径**（CI 作业名）钉成第十三道闸——顺带被自己的 800 行预算抓住一次
+
+### 一、病灶：三处口径只有两处有闸，而没闸的那一处最常被读到
+
+拆出来之前，门禁的「几道闸」在仓库里有**三处**说法：`package.json` 里 `verify` 的真身、门面「## 门禁」
+那一节、`.github/workflows/verify.yml` 的作业名。前两处 §五十 各给了闸，第三处一个字都没人看着。
+盘上回读（`git show HEAD:.github/workflows/verify.yml` 第 27 行，逐字）：
+
+```
+    name: 六路 typecheck + lint + boundary + budget + 全量测试
+```
+
+而它恰恰是**读者最容易看到的一句**：GitHub 的 run 列表每跑一次就把这句话打在页面上，看它比翻 README 勤。
+后果不是难看，是**加段时的静默低估**——往 `verify` 里再串一段普查脚本，脚本与门面两头都会红（第十一道逼你
+登记并同改门面），作业名却继续报少一件事，CI 页面上的那句话从此没人负责。
+
+**当场收回上一刀的一句口径**：§五十 我写过「作业名自己列的只有五件事却写着『六路』」。回盘的结果是那句
+**数错了主语**：`六路` 修饰的是 `typecheck`，而 `verify` 里确实有 6 段 `tsc --noEmit`（新闸的错误信息里逐段
+打出来过：contracts / fs-store / agent-runtime / plugin-kernel / tsconfig.node / tsconfig.web），那五个 `+`
+项也各自对应一段真脚本。真实缺陷是**prettier/格式那一段根本不在作业名里**，不是数字写错。所以本刀的判据
+按「每一项必须落进一类、每一类必须被写到一次」来钉，不再依赖「几路」这种没有宾语的数词——上一刀那种说法
+本身就是一处会被误读的措辞。
+
+### 二、这一刀先被自己的闸抓住：门面守卫写到 832 行
+
+第十三道闸加进 `tools/readme-claims.test.mjs` 之后，`node tools/check-source-line-budget.mjs` 当场报（原文）：
+
+```
+行数超限：
+C:\Users\17863\Desktop\深渊写作-worktrees\ci-platform-neutral\tools\readme-claims.test.mjs  832 行 > 800
+```
+
+`DIRECT=1`、`pnpm lint:budget` 同码。**这是这条 800 行预算第一次红在守卫自己身上**——此前它红的全是业务代码。
+
+先记一条尺的口径，免得下一个人以为读数坏了：`findOverruns` 量的是 `split("\n").length`，比 `wc -l` **多 1**
+（同一份文件工具报 832、`wc -l` 报 831）。不改工具——改了历史读数的口径就跟着变；只把这一格差记在这里。
+
+处置选**拆**，不选删注释、也不选抬高上限：README 那条硬规矩写的是「贴到 800 行就拆，拆的依据是
+『不共享状态』」。这一族里天然不共享的正是「门禁由哪几段组成」——它们读 `package.json` 的 `verify` 真身与
+CI 作业名，而其余十一道读的全是门面文字。于是搬出两份：
+
+| 新文件 | 装什么 | 行数 |
+| --- | --- | --- |
+| `tools/readme-gate-composition.test.mjs` | 门禁组成闸（原第十一道）+ CI 作业名闸（第十三道），2 条 | 262 |
+| `tools/readme-gate-facts.mjs` | 共用的取文本层：`ROOT` / `readme` / `rootPkg` / `gateSection` / `flatten` | 40 |
+
+搬完三份各自 `wc -l`：`readme-claims.test.mjs` **587**（11 条）、composition **262**（2 条）、facts **40**。
+`node --check` 三份全过。
+
+为什么搬的是**这两道**而不是随便挑两道：`VERIFY_KINDS` 是这两道共用的唯一判据。把它留在原文件，就等于让
+新闸去 `import` 一份测试文件——vitest 会把那份文件的 13 条用例二次注册。所以「登记表 + 它的两个消费者」
+必须同处，这本身就是「不共享状态」给出的切法，不是我挑出来的。取文本层单独成模块也是同一条理由：
+`gateSection()` 与 `flatten()` 决定了「门面上的一句话算不算这一节里的说法」，抄第二份就会漂移
+（先例：锚点只在 `tools/platform-anchors.mjs` 存一份）。
+
+### 三、判据三层
+
+1. **实例声明**：`verify.yml` 里缩进 4 格的 `name:` 必须**恰好一行**。0 行 = 作业被改名或整体重写（闸空跑）；
+   ≥2 行 = 出现了第二个作业（「那句作业名」没有唯一所指）。workflow 级那句顶格
+   `name: 门禁 pnpm verify` 由 `^ {4}` 筛掉，不归本闸。
+2. **一项一类、一类一项**：作业名按 `+` 切开，每段必须**恰好**落进 `VERIFY_KINDS` 一类（落不进 = 新说法没登记；
+   落进两类 = 判据互相覆盖）；反过来每一类必须**恰好**被一段写到（0 段 = 第三处口径漏了它，就是本刀撞出的
+   prettier 那一格；≥2 段 = 同一类两种写法，「一段一类」失守）。
+3. **`N 枚 tsc` 对表**：N 必须等于 `verify` 真身里的 tsc 段数。它与门面上「`tsc --noEmit`（M 个类型程序）」
+   是同一条事实的两个说法，**两边各自对表**——只 bump 一边当场红。
+
+登记表仍然只有那一份：新臂只加了第三列 `yml`，正则不另起第二处定义（锁定前提第 6 条）。
+
+### 四、先证明它能红：M28–M37，十枚变异各杀一条
+
+| 变异 | 改法（只动那一处） | 命中的臂 | `AssertionError` 摘句（逐字取自当次日志） |
+| --- | --- | --- | --- |
+| M28 | 作业名删掉「格式 + 」 | 一类一项 → 0 项那臂 | `作业名里一项都没提到：prettier 全仓格式——GitHub run 列表会少报一段` |
+| M29 | 「6 枚 tsc」→「5 枚 tsc」 | tsc 对表 | `作业名说 5 枚 tsc，可 verify 真身里 tsc 段有 6 段` |
+| M30 | 追加「+ 深度普查」 | 一项一类 → 落不进 | `这些 \`+\` 项没登记在「VERIFY_KINDS」的 \`yml\` 列：深度普查` |
+| M31 | 追加「+ 格式化」 | 一类一项 → ≥2 项 | `这几类闸被写了两遍：prettier 全仓格式←格式/格式化` |
+| M32 | 那一行的键名 `name:` → `label:` | 实例声明 → 0 行 | `缩进 4 格的 \`name:\` 行有 0 行……: expected [] to have a length of 1` |
+| M33 | 那一行复制成两行 | 实例声明 → ≥2 行 | `有 2 行——……出现了第二个作业（没有唯一所指）` |
+| M36 | 「格式」「边界」合成一项「格式边界」 | 一项 → 落进两类 | `同时落进两类：格式边界 → prettier 全仓格式 / 包边界检查` |
+| M37 | 作业名整句改成散文「门禁全量校验」 | 实例声明 → 切不出段 | `按 \`+\` 切不出段来……: expected 1 to be greater than 1` |
+| M34 | README「串起六道闸」→「五道闸」（**拆分后回归**） | 门面的数 | `门面说「串起 五 道闸」，可 verify 真身里出现的类别是 6 类` |
+| M35 | README 免责段 `3a8dcc7`→`e5d4046`（**拆分后回归**） | 同树对表 | `同树声明指向了 2 枚不同的短哈希……e5d4046←「……两侧同树读回的数」` |
+
+M34 与 M35 是**拆分完整性**的证明，不是新臂的证明：前者跑在搬出去的那份文件里，说明 `gateSection()`/`flatten()`
+走共用模块之后门面臂没脱靶；后者跑在留下的 11 条里（当场 1 红 10 绿），说明 import 改写没把原文件的判据改成空读。
+
+**一条当下不可达为独立红的臂，如实登记**：「作业名里找不到『N 枚 tsc』的写法了」那条 `not.toBeNull()` 判据
+拿不到自己的红——`yml` 列里只有 tsc 那一项带数字，任何把「6 枚 tsc」写成不带数字的写法（`typecheck`、
+`6 个类型程序`）都会先在 unclassified 或 missing 那两臂红掉（M28/M30 就是那两条通路）。这一臂留着是为了
+「将来 tsc 那一项的 `yml` 写法放宽到不带数字时仍然有数可对」，此刻它是**双保险**，不是已测到的独立判据。
+
+### 五、还原与复绿
+
+M28–M37 每一枚都 `cp` 还原 + `cmp` 逐字节核对（十行 `*d_RESTORED_IDENTICAL`）。还原后合跑四份相关守卫
+（`readme-claims` 11 条、`readme-gate-composition` 2 条、`ci-gate` 6 条、`check-source-line-budget` 4 条）
+**23 passed / 0 failed**；再跑 `pnpm vitest run tools/` 全目录：**13 files / 93 tests 全绿**，`TOOLS_EXIT=0`。
+最终作业名回读（盘上第 27 行）：`    name: 格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试`。
+
+### 六、门面上改了哪几处
+
+1. `README.md`「## 门禁」新增三段：拆分之后那本账怎么数（**「要两份文件各自数 `^test(` 再相加」**）、
+   三处口径这件事本身、以及 run 页「文件数」那一句**明标是推的不是读来的**。原文见 `s52-readme.diff.txt`。
+2. 门面那句「从 3 条加到 11 条」**没动**：它描述的是 `6c1fb91 → 3a8dcc7` 那段跨度。本刀又把八枚哈希逐枚
+   `git show <rev>:tools/readme-claims.test.mjs | grep -c '^test('` 重跑了一遍，落盘 `s52-count.txt`：
+   `6c1fb91=3、1e0c215=5、154e2c1=6、d60b32d=8、e5d4046=9、93d2ce4=9、05b1d53=10、3a8dcc7=11、b432fe8=12`。
+   等式 `11 − 3 = 8` 与 `4113 − 4105 = 8` 仍由第九道闸看着，所以这一句改不得——改了要连判据一起改（§四十二）。
+3. `tools/ci-gate.test.mjs` 开头那句转述跟着改了指向：门禁组成臂现在在 `readme-gate-composition.test.mjs`。
+4. `verify.yml` 作业名换成六项写法，另加八行注释，写清「三处一起改，只改一处当场红」与不钉的代价。
+
+`package.json` 一字未改——本刀修的是**第三处说法没人负责**，不是脚本少跑了一段；`verify` 真身没动，
+门面那句「六道闸」依旧与它逐段对得上（M28–M37 全程那十道一条也没意外红）。
+
+### 七、还剩的欠账（不冒充已完成）
+
+- 门面新增那句「`readme-gate-composition.test.mjs`（2 道），原文件留 11 道」里的**两个条数没有闸**：
+  要钉它就得让守卫去数自己（§五十 留的同一格，仍是这句实话）。条数一漂，门面上那两句就成假话。
+- CI 侧逐文件条数仍是推出来的；「拆分后 run 页的文件数会比 313 多一份」门面上已明标**是推的**，
+  读回来之前别当数用。
+- 「run 页 ID 只能来自本次会话当场抓取」仍只有台账这一句话管着，没有断言。
+- **一条取证纪律（本轮撞出的工具现象）**：Edit 钩子在这一段里报的行数是 835 / 754 / 614 / 176，
+  与盘上任何一份文件都对不上——主工作树里 `tools/readme-claims.test.mjs` **根本不存在**
+  （那棵树 `HEAD = 2487695`，`wc` 直接失败），它的 `verify.yml` 是 57 行。所以钩子的计数只当噪音，
+  判定一律回到 `wc -l` + `lint:budget` + vitest 三样当场读数。
+- 并行会话（主树仍 `2487695`，落后十几刀）合并后必须重跑 `tools/`（现在 13 份、93 条）。他们那棵树的作业名
+  若还是「六路 typecheck + …」，新闸会**当场红**——那是正确行为不是回归，改法是同步第 27 行。
+- `main` 仍停在 `c475caf`；`useBookStore.ts` 800/800 那一拆、`VersionHistoryPanel` 一族、侧栏 `.nav-row kbd`
+  死规则、皮肤广场 §五 A/B/C 仍等一句话拍板，拆 store 还被并行会话的未提交改动挡着。
+
+### 八、门禁与推送
+
+本刀动六份文件：`.github/workflows/verify.yml`（作业名 + 八行注释）、`README.md`（门禁那一节三段）、
+`tools/readme-claims.test.mjs`（搬出两道 + 改用共用层 + 头注释交代拆分红线）、`tools/ci-gate.test.mjs`
+（转述指向）、新文件 `tools/readme-gate-composition.test.mjs` 与 `tools/readme-gate-facts.mjs`，再加台账这一节。
+M28–M37 只是变异现场，均已 `cmp` 还原。内容全部落定后才起六路定稿遍（`format:check` → `typecheck` →
+`lint:eslint` → `lint:boundary` → `lint:budget` → `test`，逐段退出码落 `s52-final-exit.txt`、日志剥 ANSI 后
+grep 复核）**本节不预告那一遍的结果**；本机注册数相对 `b432fe8` 那一轮应多 1 条（第十三道），CI 那侧同理，
+两者都是待读到的数。提交后照旧用 `HEAD:refs/heads/<名>` 快进推两个 ref，**各自拿码、各自** `git ls-remote --heads`
+回读等于本地 HEAD（§五十一 那条教训：第一枚成功不等于两枚送达）。
+
+### 九、定稿遍第一次红在哪（新闸自己也挨了一刀）
+
+第一遍六段跑下来 `eslint_EXIT=1`，其余五段 0。红的正是本刀新写的那份文件，逐字（当场从日志读出）：
+
+```
+C:\Users\17863\Desktop\深渊写作-worktrees\ci-platform-neutral\tools\readme-gate-composition.test.mjs
+  255:14  error  Unnecessary escape character: \`  no-useless-escape
+  255:19  error  Unnecessary escape character: \`  no-useless-escape
+✖ 2 problems (2 errors, 0 warnings)
+```
+
+病因是措辞从模板字符串搬进普通双引号字符串时，反引号前的 `\\` 忘了删——`no-useless-escape` 认得这种「在不需要
+转义的地方转义」。同批把新写两份文件里所有双引号字符串扫了一遍（`grep -n '^\s*"[^"]*\\`'`），只有那一处。
+修完 scoped `eslint` 0、`vitest run tools/readme-gate-composition.test.mjs` 2 绿。
+
+**一条流程上的自纠（不是代码问题，是证据问题）**：两遍定稿遍把日志写进了**同一批文件名**
+（`s52-final-<stage>.log`），第二遍直接覆盖了第一遍——上面那段 eslint 输出是当场读进对话的，
+磁盘上已经没有那份日志了。所以这里如实标注它的出处是「当场读数」而不是「可回读的归档」，并且这一格记下改法：
+**下一刀起日志文件名带轮次**（`sNN-final-run<K>-<stage>.log`），否则「第一遍为什么红」这种恰恰最值钱的读数
+会被自己的复跑抹掉。第二遍六段全 0（`s52-final-exit.txt`），台账这一节改完之后按规矩要再起第三遍，
+第三遍的结果不属于本节。
+
 
 
 

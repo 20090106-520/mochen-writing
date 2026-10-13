@@ -24,7 +24,14 @@ concurrency:
 
 jobs:
   verify:
-    name: 六路 typecheck + lint + boundary + budget + 全量测试
+    name: 格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试
+    # 这句作业名从 2026-10-13 起有闸看着（扫描总单第五十二节，第十三道）：按 `+` 切开的每一段必须
+    # 落进 `tools/readme-gate-composition.test.mjs` 的 `VERIFY_KINDS` 一类，每一类也必须被这段文案写到，
+    # 「6 枚 tsc」还得等于 `verify` 真身里的 tsc 段数。原来它写的是「六路 typecheck + lint +
+    # boundary + budget + 全量测试」——prettier/格式那一段根本不在里面，而前面十一道一条都不红。
+    # 之所以值得钉：GitHub 的 run 列表每跑一次就把这句话打在页面上，它是门面上「六道闸」的第三个口径
+    # （前两个是 README 与 `package.json`，各自都有闸）；往 `verify` 里再串一段时，脚本与门面会红，
+    # 作业名却会继续报少一件事。改这一段时三处一起改，只改一处当场红。
     # 钉死镜像版本，不用 `ubuntu-latest`：GitHub 定在 2026-10-19 把 `ubuntu-latest` 自动切到
     # Ubuntu 26。那一天没有任何一行我们的代码改过，门禁却可能凭空变红——而"红"必须能归因到
     # 某一次具体提交，否则整条流水线的价值就没了（这条风险的原文登记在扫描总单第十五节）。

@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { LINE_ANCHORS, linesWith } from "./platform-anchors.mjs";
+import { ROOT, readme, rootPkg, gateSection, flatten } from "./readme-gate-facts.mjs";
 
 /**
  * 门面主张守卫（2026-10-13）。
@@ -30,10 +30,13 @@ import { LINE_ANCHORS, linesWith } from "./platform-anchors.mjs";
  * 第五类**行号引用**（2026-10-13，第四十九节）：门面按行号点名某个文件时，那一行必须真含着登记过的
  * 锚点，且锚点出现的全部行号不得漏数——锚点定义只在 `tools/platform-anchors.mjs` 存一份。
  * 每一类都带一条"提取到东西没有"的自我声明：正则写坏了会让守卫**空跑即绿**，那比没有守卫更糟。
+ *
+ * 2026-10-13 第五十二节：本文件一度写到 **832 行**，越过门面自己那条「单文件 800 行预算」
+ * （`lint:budget` 当场红，所以这一刀必须在提交前拆）。按「不共享状态」切：**门禁由哪几段组成**的
+ * 两道闸（`VERIFY_KINDS` 登记表、`verify` 真身、CI 作业名）搬到了 `tools/readme-gate-composition.test.mjs`，
+ * 两边共用的取文本层搬到了 `tools/readme-gate-facts.mjs`；这里留下的十一道读的都是**门面文字**。
+ * 于是门面守卫的条数从此要**数两份文件**，README 里那句「用例数从 3 条加到 11 条」只覆盖拆分之前那段。
  */
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
 
 const TOP_DIRS = ["apps", "packages", "tools", "docs", ".github"];
 
@@ -88,7 +91,6 @@ function pkgAt(pkgJsonPath) {
   return JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
 }
 
-const rootPkg = pkgAt(path.join(ROOT, "package.json"));
 const rootScripts = new Set(Object.keys(rootPkg.scripts || {}));
 const desktopScripts = new Set(
   Object.keys(pkgAt(path.join(ROOT, "apps/desktop/package.json")).scripts || {})
@@ -144,13 +146,11 @@ test("README 点到的 pnpm 脚本必须在 package.json 里", () => {
  * 不是「数哪天测的」，可判据只看同句有没有日期，分不出这两件事。所以现在日期还必须**挨着**它要说明的东西
  * （数或哈希，窗口见 `DATE_WINDOW`），并且下面那条实例声明要求两条路在门面上各得有真写法——
  * 一条路没有实例，就等于那条路没测。
+ *
+ * 取文本的四样东西（`ROOT`、`readme`、`gateSection`、`flatten`）连同根 `package.json` 现在住在
+ * `tools/readme-gate-facts.mjs`，与本文件搬出去的那道**门禁组成**闸共用一份定义——「门面上的一句话
+ * 算不算这一节里的说法」本身是判据，抄第二份就会漂移（先例：锚点只在 `tools/platform-anchors.mjs` 存一份）。
  */
-function gateSection() {
-  const start = readme.indexOf("## 门禁");
-  if (start < 0) throw new Error("README 里找不到「## 门禁」这一节——门面改名的那一刻这条闸就该红");
-  const next = readme.indexOf("\n## ", start + 1);
-  return readme.slice(start, next < 0 ? readme.length : next);
-}
 
 // 不带 `g`：这里只用 `.test()` 判断句子，带 `g` 会让 `lastIndex` 跨句残留，把第二条主张误判成没有。
 const COUNT_CLAIM = /\d+\s*文件\s*\/\s*[\d,]+\s*(?:用例|passed)/;
@@ -173,7 +173,6 @@ const SHA_G = /`[0-9a-f]{7,}`/g;
  * 而是读者眼里那段话的实际距离。
  */
 const DATE_WINDOW = 12;
-const flatten = (t) => t.replace(/\*\*/g, "").replace(/\s+/g, " ");
 
 /** 这句里的日期是不是挨着数或挨着哈希；返回实测距离，错误信息要把它打出来。 */
 function dateAttached(sentence) {
@@ -527,135 +526,6 @@ test("门面上每一处「某文件的第 N 行」都得真指到登记过的�
         "这里只管漏数——读者按门面只找到一处守卫"
     ).toEqual(real);
   }
-});
-
-/**
- * 门面**门禁组成**闸（2026-10-13，第五十节，第十一道）。
- *
- * 病灶是门面上那句「一条命令串起五道闸」：`package.json` 的 `verify` 真身是**六类**
- * （prettier / 6 枚 tsc / eslint / 包边界 / 行数预算 / vitest），连 CI 那个作业名自己写的都是
- * 「六路 typecheck + lint + boundary + budget + 全量测试」（`.github/workflows/verify.yml:27`）。
- * 数错本身不致命，致命的是它没有牙齿：往 `verify` 里再串一段普查脚本，前面十道闸一条都不会红
- * （M17 实测同跑的另 10 条 + `ci-gate` 6 条全绿），因为它们只认得门面上写过的东西——
- * 「六类 vs 五道闸」就是这种漂移已经发生过一次的证据。
- *
- * 判据四条，两头配平：
- * 1. **每段都要有归属**：`verify` 按 `&&` 切开（末尾那句 `echo` 是取码用的，不算一段），每一段必须
- *    **恰好**落进 `VERIFY_KINDS` 一类。落不进 = 新段没登记；落进两类 = 判据互相覆盖，两种都当场红。
- * 2. **每一类都要在门面上有写法**：登记表里的每一类，门面那一节必须写得出那句话——漏写即红。
- * 3. **每一类都要在 `verify` 里真有一段**：门面还写着、脚本里却被摘掉，同样红（第 2 条只管反方向）。
- * 4. **两个数要数得出来**：「串起 N 道闸」的 N = 实际出现的类别数；「`tsc --noEmit`（M 个类型程序）」的
- *    M = tsc 段数。两处都带实例声明（抓不到写法即红），中文数字与阿拉伯数字都认。
- *
- * 类别表只在这里存一份：`ci-gate.test.mjs` 钉的是「verify 仍然是 `&&` 串起来的、且含 vitest/eslint/prettier
- * 这些片段」，属**形状**；这里钉的是**门面说的与脚本做的一段一段对应**，两不重复（锁定前提第 6 条管的是
- * 同一份判据不许抄两处，不是不许两条闸看同一个文件）。
- */
-const VERIFY_KINDS = [
-  {
-    kind: "prettier 全仓格式",
-    seg: /^prettier\s+\.\s+--check\b/,
-    facade: /prettier 全仓格式/
-  },
-  {
-    kind: "tsc --noEmit 类型程序",
-    seg: /^tsc\s+--noEmit\s+-p\s+\S+/,
-    facade: /`tsc --noEmit`（(\d+) 个类型程序）/
-  },
-  {
-    kind: "eslint",
-    seg: /^eslint\s+\.\s+--max-warnings=0\b/,
-    facade: /eslint（`--max-warnings=0`）/
-  },
-  {
-    kind: "包边界检查",
-    seg: /^node\s+tools\/check-package-boundary\.mjs\b/,
-    facade: /包边界检查/
-  },
-  {
-    kind: "单文件行数预算",
-    seg: /^node\s+tools\/check-source-line-budget\.mjs\b/,
-    facade: /单文件 800 行预算/
-  },
-  { kind: "全量测试 vitest run", seg: /^vitest\s+run\b/, facade: /`vitest run`/ }
-];
-
-const CN_NUM = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
-
-/** `verify` 真身切成的段（末尾那句 `echo` 只是把退出码打在日志上，不是一道闸）。 */
-function verifyStages() {
-  return String(rootPkg.scripts.verify)
-    .split("&&")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !/^echo\b/.test(s));
-}
-
-test("门面写的那几道闸与 `verify` 真身一段一段对得上，那两个数也数得出来", () => {
-  const stages = verifyStages();
-  expect(
-    stages.length,
-    "根 `package.json` 的 `verify` 切不出段来——要么它被改成 `;`／包进了 shell 包装（那是 ci-gate 的病灶），" +
-      "要么这里的切分写坏了：两种都让这条闸静默失效"
-  ).toBeGreaterThan(1);
-  const text = flatten(gateSection().replace(/「[^」]*」/g, ""));
-
-  const perKind = new Map(VERIFY_KINDS.map((k) => [k.kind, []]));
-  const unclassified = [];
-  const ambiguous = [];
-  for (const s of stages) {
-    const hits = VERIFY_KINDS.filter((k) => k.seg.test(s));
-    if (hits.length === 0) unclassified.push(s);
-    if (hits.length > 1) ambiguous.push(`${s} → ${hits.map((h) => h.kind).join(" / ")}`);
-    for (const k of hits) perKind.get(k.kind).push(s);
-  }
-  expect(
-    unclassified,
-    `verify 里这些段没登记在「VERIFY_KINDS」：${unclassified.join(" ｜ ")}——门面对它们一无所知，` +
-      "读者以为门禁只跑门面列的那几段；要么给这段加一句门面说法并在这里登记，要么把这段摘掉"
-  ).toEqual([]);
-  expect(
-    ambiguous,
-    `verify 里这些段同时落进两类：${ambiguous.join(" ｜ ")}——登记表里的判据互相覆盖了，` +
-      "「一道闸」从此数不出来"
-  ).toEqual([]);
-  const absent = VERIFY_KINDS.filter((k) => perKind.get(k.kind).length === 0).map((k) => k.kind);
-  expect(
-    absent,
-    `门面上还写着这几类闸，可 verify 真身里一段都没有（被摘掉或改名了）：${absent.join(" ｜ ")}——` +
-      "门面在说一件不再发生的事"
-  ).toEqual([]);
-  const unwritten = VERIFY_KINDS.filter((k) => !k.facade.test(text)).map((k) => k.kind);
-  expect(
-    unwritten,
-    `「## 门禁」那一节里找不到这几类闸的写法：${unwritten.join(" ｜ ")}——脚本里那段还在跑，` +
-      "门面漏写了一整段（改门面措辞时要连这里一起改）"
-  ).toEqual([]);
-
-  const presentKinds = new Set();
-  for (const s of stages) for (const k of VERIFY_KINDS) if (k.seg.test(s)) presentKinds.add(k.kind);
-  const gateClaim = /串起\s*(\d+|[一二三四五六七八九十])\s*道闸/.exec(text);
-  expect(
-    gateClaim,
-    "门面上找不到「一条命令串起 N 道闸」的写法了——这一臂此刻没有实例，等式之外的那个总数没人核（第四十二节那条教训）"
-  ).not.toBeNull();
-  const stated = /^[0-9]+$/.test(gateClaim[1]) ? Number(gateClaim[1]) : CN_NUM[gateClaim[1]];
-  expect(
-    stated,
-    `门面说「串起 ${gateClaim[1]} 道闸」，可 verify 真身里出现的类别是 ${presentKinds.size} 类` +
-      `（${[...presentKinds].join(" / ")}）——数目对不上，读者会按门面去数脚本、以为少跑或多跑了一段`
-  ).toBe(presentKinds.size);
-
-  const tscClaim = /`tsc --noEmit`（(\d+) 个类型程序）/.exec(text);
-  expect(
-    tscClaim,
-    "门面上找不到「`tsc --noEmit`（N 个类型程序）」的写法了——这一臂同样没有实例，类型程序的数量没人核"
-  ).not.toBeNull();
-  const tscSegs = perKind.get("tsc --noEmit 类型程序");
-  expect(
-    Number(tscClaim[1]),
-    `门面说 ${tscClaim[1]} 个类型程序，可 verify 里 tsc 段实际有 ${tscSegs.length} 段：${tscSegs.join(" ｜ ")}——` +
-      "新增或删掉一个包的 tsconfig 时门面这一格要同改（`typecheck-coverage` 钉的是「每个包都在脚本里」，钉不到门面写的是几）"
-  ).toBe(tscSegs.length);
 });
 
 /**
