@@ -2,7 +2,18 @@ import { expect, test } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { LINE_ANCHORS, linesWith } from "./platform-anchors.mjs";
-import { ROOT, readme, gateSection, flatten, SHA, SHA_G } from "./readme-gate-facts.mjs";
+import {
+  ROOT,
+  readme,
+  gateSection,
+  flatten,
+  SHA,
+  SHA_G,
+  ATTRIBUTION_WINDOW,
+  GATE_ATTRIBUTIONS,
+  GUARD_PATH_G,
+  testTitles
+} from "./readme-gate-facts.mjs";
 
 /**
  * 门面**出处**守卫（2026-10-14，第五十九节从 `tools/readme-claims.test.mjs` 拆出来）。
@@ -18,8 +29,11 @@ import { ROOT, readme, gateSection, flatten, SHA, SHA_G } from "./readme-gate-fa
  * `tools/readme-gate-facts.mjs`，两份守卫各自 import——同一份正则抄第二份就会漂移
  * （锁定前提第 6 条：枚举与映射只许一份实现，先例是锚点只在 `tools/platform-anchors.mjs` 存一份）。
  *
- * 门面那句「`tools/readme-provenance.test.mjs`（6 道）」与「原文件留 7 道」不是手写的荣誉，
+ * 门面那句「`tools/readme-provenance.test.mjs`（11 道）」与「原文件留 7 道」不是手写的荣誉，
  * 第十四道闸（`tools/readme-claims.test.mjs`）拿三份文件此刻行首 `test(` 的行数当场核对它们。
+ * 2026-10-14 第六十节在这一族里补了**归属**那五道（6→11）：出处讲「数有没有来路」，
+ * 归属讲「门面说这道闸住在哪份文件，那份文件此刻是不是真有这道闸」——两族读的都是同一层门面文字，
+ * 共用 `tools/readme-gate-facts.mjs` 的取文本层，所以不必再切第四份。
  */
 
 /**
@@ -332,5 +346,173 @@ test("门面上每一处「某文件的第 N 行」都得真指到登记过的�
         `门面漏点了第 ${missed.join("、")} 行。多写的那一头由上面逐行那条判住（点名的行不含锚点就先红），` +
         "这里只管漏数——读者按门面只找到一处守卫"
     ).toEqual(real);
+  }
+});
+
+/**
+ * 第十六道闸：门面上「某道闸住在哪份文件」的**归属**闸（2026-10-14，第六十节）。
+ *
+ * 病根是本刀上游那一发，不是假想的：第五十九节把「出处」那一族六道整族搬进这份文件之后，
+ * 门面、`tools/platform-anchors.mjs` 的头、这份文件的头**三处**「谁核对行号」的句子还全指着
+ * `readme-claims`，而当时十五道断言一条都不红（逐条见台账第五十九节「搬家留下的三条假指向」）。
+ * 现有闸各自管自己那一层——第十四道只认 `` `tools/x.test.mjs`（N 道）`` 那种**带数的**点名，
+ * 第一类路径闸只认「文件在不在」，等式闸只认写成等式的算式——
+ * 于是「某道闸住在哪份文件」这句**不带数、不等式、文件也真的在场**的话，正好落在三道闸的缝里。
+ *
+ * 判据分四层，少任何一层都能被绕过去：
+ *
+ * 1. **覆盖**：门面点名过的每一份 `.test.mjs` 都必须在登记表里，登记表里的每一份也必须真被门面点名。
+ *    没有这一层，「新装一道闸但不登记」就是本闸的天然绕行路——登记表只写自己的话就退化成自我声明。
+ * 2. **归属**：每一道闸至少有一句门面把它指到登记的那份文件，并且那句与被点名的路径之间**不夹别的守卫路径**。
+ *    这里刻意用「至少一处」而不是「每一处」：门面有合法的历史句
+ *    （「第十三道闸（CI 作业名）落地那一刻 `tools/readme-claims.test.mjs` 写到 832 行」），
+ *    当场 `flatten` 之后量到它离「作业名」只有 **7** 个字符，比合格那句的 **14** 还近——
+ *    所以**窗口不是判别器**，「指的文件对不对 + 中间夹不夹别的路径」才是；
+ *    `ATTRIBUTION_WINDOW` 只用来拒绝把整节门面（实测 5202 字符）当成一句话。
+ *    合格归属句的实测距离是 **2 / 4 / 11 / 11 / 14 / 26 / 56**，窗口 100 对最大那枚留 44 个字符余量。
+ * 3. **标题层排他**：词表里的每个词只能在被登记那份文件的 `^test(` **标题**里读到，其余被点名的守卫一份都没有。
+ *    判据落在标题而不是全文，是因为 `tools/readme-claims.test.mjs:29` 那份搬家说明的**正文**里就写着
+ *    「按行号点名时那一行必须真含着锚点」——按全文找，指错的那句照样绿。
+ * 4. **在场**：登记表点名的文件必须真实存在。这一层与第一类路径闸同源但对象不同——
+ *    路径闸管门面写了哪些路径，这里管**登记表**写了哪些路径（登记表是这份守卫自己的说法，没人替它核对过）。
+ *
+ * 词表为什么写成数组而不是一个词：同一道闸在标题里的可读到形状不止一处。
+ * 「行号引用闸」这一条是本刀当场量错过的那枚——我原本以为标题里写着「行号」，
+ * `grep -nE '^test\('` 回读才知道 `:296` 那条写的是「某文件的**第 N 行**」与「**锚点**」，
+ * 标题里根本没有「行号」两个字（台账第五十九·补「留给 #60」记的就是这一发）。
+ */
+
+/** 门面「## 门禁」那一节 `flatten` 之后的原文 + 从中提取到的守卫路径（带位置，用来量归属距离）。 */
+function attributionFacts() {
+  // 与出处闸不同，这里**不剥**「…」：门面的归属说法本来就写在引号里（「门禁由哪几段组成」这一族）。
+  const sec = flatten(gateSection());
+  const paths = [...sec.matchAll(GUARD_PATH_G)].map((m) => ({
+    raw: m[0],
+    file: m[0].slice(1, -1),
+    start: m.index,
+    end: m.index + m[0].length
+  }));
+  return { sec, paths };
+}
+
+/**
+ * 门面上把这道闸指到登记文件的那些句子，返回实测距离。
+ * 判定用「路径与 key 之间不夹别的守卫路径」，所以同一句里先写别家文件再写本家的（门面第五十九节那处写法）
+ * 依然合格；反过来把别家挤在中间就不合格。
+ */
+function attributedGaps(entry, sec, paths) {
+  const out = [];
+  let k = sec.indexOf(entry.key);
+  while (k >= 0) {
+    const keyEnd = k + entry.key.length;
+    for (const p of paths) {
+      if (p.file !== entry.file) continue;
+      const gap = p.start >= keyEnd ? p.start - keyEnd : k - p.end;
+      if (gap < 0 || gap > ATTRIBUTION_WINDOW) continue;
+      const lo = Math.min(k, p.start);
+      const hi = Math.max(keyEnd, p.end);
+      const intervening = paths.filter((q) => q.raw !== p.raw && q.start > lo && q.end < hi);
+      if (intervening.length === 0) out.push(gap);
+    }
+    k = sec.indexOf(entry.key, keyEnd);
+  }
+  return out.sort((a, b) => a - b);
+}
+
+test("归属闸提取到的确实是门面上那些点名与登记表本身（否则本守卫只剩自我声明）", () => {
+  const { paths } = attributionFacts();
+  expect(
+    paths.length,
+    "门面的「## 门禁」一节里一处 `tools/*.test.mjs` 都没提取到——提取正则写坏或门面改了写法，" +
+      "这两种情况都会让下面三条断言各数到 0 条而集体静默通过"
+  ).toBeGreaterThan(0);
+  expect(
+    GATE_ATTRIBUTIONS.length,
+    "归属登记表空了——登记表为空时「每一条都合格」自动成立，这条闸就不复存在"
+  ).toBeGreaterThanOrEqual(5);
+});
+
+test("门面点名过的每一份门面守卫都在归属登记表里，登记表里的每一份也都真被门面点名过", () => {
+  const { paths } = attributionFacts();
+  const named = new Set(paths.map((p) => p.file));
+  const registered = new Set(GATE_ATTRIBUTIONS.map((e) => e.file));
+  const unregistered = [...named].filter((f) => !registered.has(f));
+  expect(
+    unregistered,
+    `门面上点名了 ${unregistered.join("、")}，可归属登记表里没有它——新装一道闸却不登记，` +
+      "等于让本闸对这一道永久失明；要么登记它（连同它在标题里的可读到词表），要么把门面那句改成不带路径的写法"
+  ).toEqual([]);
+  const unnamed = [...registered].filter((f) => !named.has(f));
+  expect(
+    unnamed,
+    `归属登记表登记了 ${unnamed.join("、")}，但门面的「## 门禁」一节里没有那句「它核对什么」的归属说法——` +
+      "登记表不该写门面没有的话；要么把那道闸的归属补进门面，要么把这条登记删掉"
+  ).toEqual([]);
+});
+
+test("归属登记表点名的每份文件都在仓库里，且此刻确实数得出行首 test( 的标题", () => {
+  for (const e of GATE_ATTRIBUTIONS) {
+    const titles = testTitles(e.file);
+    expect(
+      titles,
+      `登记表说「${e.key}」这道闸住在 ${e.file}，可这份文件不在仓库里——` +
+        "文件被删至少门面的路径闸会红，但登记表自己没有闸，这里补上"
+    ).not.toBeNull();
+    expect(
+      titles.length,
+      `登记表说「${e.key}」住在 ${e.file}，可那份文件行首一条 test( 都数不出来——` +
+        "整族搬空却不改登记表，正是第五十九节那一刀的形状"
+    ).toBeGreaterThan(0);
+  }
+});
+
+test("登记表里每一道闸都至少有一句门面把它指到登记的那份文件，而且那句与路径之间不夹别的路径", () => {
+  const { sec, paths } = attributionFacts();
+  for (const e of GATE_ATTRIBUTIONS) {
+    const gaps = attributedGaps(e, sec, paths);
+    if (gaps.length) continue;
+    // 红的时候要把现场打全：key 在不在门面上、离它最近的是哪份文件、多远——三者缺一就无从下手。
+    const keySeen = sec.includes(e.key);
+    const keyIdxs = [];
+    for (let i = sec.indexOf(e.key); i >= 0; i = sec.indexOf(e.key, i + e.key.length))
+      keyIdxs.push(i);
+    const near = paths
+      .map((p) => {
+        let best = null;
+        for (const k of keyIdxs) {
+          const gap = p.start >= k + e.key.length ? p.start - (k + e.key.length) : k - p.end;
+          if (gap >= 0 && (best === null || gap < best)) best = gap;
+        }
+        return { file: p.file, gap: best };
+      })
+      .filter((x) => x.gap !== null)
+      .sort((a, b) => a.gap - b.gap)
+      .slice(0, 3);
+    expect.fail(
+      `门面上找不到「${e.key}」→ ${e.file} 这条归属句：` +
+        (keySeen
+          ? `这句话在门面上出现，但离它 ${ATTRIBUTION_WINDOW} 字符内没有登记的那份路径；最近的点名是 ` +
+            (near.length ? near.map((x) => `${x.file}@${x.gap}`).join("、") : "（一个都没有）") +
+            "——要么把归属说法改回登记的那份文件，要么在登记表里改成它现在真正住的那份"
+          : `登记表里的原话「${e.key}」在门面上一个字都找不到——登记表写了门面没有的话`)
+    );
+  }
+});
+
+test("词表里的每一个词只能在那道闸登记文件的 test( 标题里读到，其余被门面点名的守卫一份都没有", () => {
+  const { paths } = attributionFacts();
+  const named = [...new Set(paths.map((p) => p.file))];
+  for (const e of GATE_ATTRIBUTIONS) {
+    for (const word of e.titleWords) {
+      const hits = named.filter((f) => (testTitles(f) || []).some((t) => t.title.includes(word)));
+      expect(
+        hits,
+        `词「${word}」（登记表给「${e.key}」→ ${e.file}）此刻` +
+          (hits.length
+            ? `在 ${hits.join("、")} 的标题里读到，与登记的那份不一致——`
+            : "在任何一份被门面点名的守卫标题里都读不到——") +
+          "把某道闸整族搬到别的文件却不改门面与登记表，量的就是这一发（第五十九节那三条假指向）"
+      ).toEqual([e.file]);
+    }
   }
 });

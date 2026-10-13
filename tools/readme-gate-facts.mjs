@@ -52,3 +52,95 @@ export const flatten = (t) => t.replace(/\*\*/g, "").replace(/\s+/g, " ");
  */
 export const SHA = /`[0-9a-f]{7,}`/;
 export const SHA_G = /`[0-9a-f]{7,}`/g;
+
+/**
+ * 门面上反引号写出来的**门面守卫路径**的取枚正则。形状与 `SHA` / `SHA_G` 同源：不带 `g` 的只判
+ * 「这句里有没有」，带 `g` 的给需要逐个取位置、量距离的判据用。
+ * 只认 `.test.mjs` 结尾（`tools/readme-gate-facts.mjs`、`tools/platform-anchors.mjs` 这类**非测试**模块
+ * 故意不在里面）：归属闸要判的是「某道闸住在哪份**测试**」，把共用模块也拉进来会把「锚点定义只在
+ * `tools/platform-anchors.mjs` 存一份」这种句子误当成一次点名。
+ */
+export const GUARD_PATH = /`tools\/[\w.-]+\.test\.mjs`/;
+export const GUARD_PATH_G = /`tools\/[\w.-]+\.test\.mjs`/g;
+
+/**
+ * 一份测试文件里**行首 `test(` 的标题文本**（第一对双引号之间的内容），返回 `[{ line, title }]`。
+ *
+ * 为什么在 `facts` 而不是各份守卫自己写：归属闸的判据落在**标题**上，而第十四道闸数的是同一批行——
+ * 「什么算一条 `test(`」这句话有两份写法正是锁定前提第 6 条拦住的东西。
+ * 判据也只能落在标题上：门面上「行号引用闸」那句话的词表是「第 N 行」「锚点」，而
+ * `tools/readme-claims.test.mjs:29` 那份搬家说明的**正文**里同样写着「按行号点名时那一行必须真含着锚点」——
+ * 按全文找，指错的那句照样绿。
+ */
+export function testTitles(rel) {
+  const abs = path.isAbsolute(rel) ? rel : path.join(ROOT, rel);
+  if (!fs.existsSync(abs)) return null;
+  return fs
+    .readFileSync(abs, "utf8")
+    .split(/\r?\n/)
+    .map((line, i) => {
+      const m = line.match(/^test\(\s*"([^"]*)"/);
+      return m ? { line: i + 1, title: m[1] } : null;
+    })
+    .filter(Boolean);
+}
+
+/**
+ * 门面上「某道闸住在哪份文件」的**归属**登记表（唯一一份实现，2026-10-14 第六十节）。
+ *
+ * 起因不是假想的：第五十九刀把「出处」那一族六道整族搬进 `tools/readme-provenance.test.mjs` 之后，
+ * 门面、锚点模块头、provenance 头里**三处**「谁核对行号」的句子全还指着 `readme-claims`，
+ * 六道闸与当时十五道断言一条都不红（见 `docs/superpowers/plans/2026-10-09-full-scan-report.md` 第五十九节
+ * 「搬家留下的三条假指向」）。登记之外没有第二处口径：`key` 是门面上的**原话**（照抄，不许改写），
+ * `titleWords` 是被点名那份文件**此刻标题里真能读到的词**（也是照抄，`grep -nE '^test\(' ` 回读）。
+ *
+ * `titleWords` 为什么要写成词表而不是一个词：同一道闸在标题里的可读到形状不止一处，
+ * 例如「行号引用闸」的标题写的是「某文件的第 N 行」与「锚点」，**标题里没有「行号」两个字**。
+ */
+export const GATE_ATTRIBUTIONS = [
+  {
+    key: "行号引用闸",
+    file: "tools/readme-provenance.test.mjs",
+    titleWords: ["第 N 行", "锚点"]
+  },
+  {
+    key: "数有没有出处",
+    file: "tools/readme-provenance.test.mjs",
+    titleWords: ["脏树", "run 页 ID"]
+  },
+  {
+    key: "门禁由哪几段组成",
+    file: "tools/readme-gate-composition.test.mjs",
+    titleWords: ["那几道闸", "真身"]
+  },
+  {
+    key: "作业名",
+    file: "tools/readme-gate-composition.test.mjs",
+    titleWords: ["作业名"]
+  },
+  {
+    key: "守卫条数",
+    file: "tools/readme-claims.test.mjs",
+    titleWords: ["守卫条数"]
+  },
+  {
+    key: "那笔账",
+    file: "tools/platform-test-count.test.mjs",
+    titleWords: ["平台分支"]
+  },
+  {
+    key: "不吞码",
+    file: "tools/ci-gate.test.mjs",
+    titleWords: ["退出码"]
+  }
+];
+
+/**
+ * 归属句允许的最远距离（字符，`flatten` 之后）。**它不是判别器**：门面上有一句合法的历史说法
+ * （第五十二节那段，转述为「第十三道闸（CI 作业名）落地那一刻，claims 那份写到 832 行」），
+ * 它被反引号点名的路径离「作业名」只有 **7** 个字符，比合格那句的 **14** 更近，
+ * 比合格那句的 **14** 更近，所以判据靠的是「指的文件对不对 + 中间夹不夹别的路径」（见
+ * `tools/readme-provenance.test.mjs` 第十六道那段）。窗口只用来拒绝把整节门面（实测 5202 字符）当成一句话：
+ * 合格归属句的实测距离是 2 / 4 / 11 / 11 / 14 / 26 / 56，取 100 给最大那枚留 44 个字符余量。
+ */
+export const ATTRIBUTION_WINDOW = 100;
