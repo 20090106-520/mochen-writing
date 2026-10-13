@@ -54,7 +54,8 @@ eslint（`--max-warnings=0`）、包边界检查、**单文件 800 行预算**�
 两枚 `it.skipIf(win32)`（`packages/fs-store/test/changes.test.ts` 的第 247 与 302 行，都是书外软链的守卫）
 在 Windows 上不真跑，`+3 − 2 = +1`；Linux 侧 4125 条注册 = 本机 4128 − 3。那笔账由
 `tools/platform-test-count.test.mjs` 钉着，改那两个平台分支时它会先红；那两个行号本身由
-`tools/readme-claims.test.mjs` 核对（锚点定义只在 `tools/platform-anchors.mjs` 存一份，行号一漂移门面就红）。
+`tools/readme-provenance.test.mjs` 核对（行号引用闸从 2026-10-14 第五十九节起不住在 claims 了；
+锚点定义只在 `tools/platform-anchors.mjs` 存一份，行号一漂移门面就红）。
 再往前几轮也在同一条线上：CI 在 `05b1d53`（2026-10-13，run 页 `38377216920` 与孪生的 `38377221170`）报 313 文件 / 4112 用例；
 CI 在 `93d2ce4`（2026-10-13，run 页 `38374760339` 与孪生的 `38374765450`）与它前一刀的 `e5d4046`（同日，run 页 `38373040533`
 与孪生的 `38373044488`）都报 313 文件 / 4111 用例；CI 在 `d60b32d`（2026-10-13，run 页 `38368137670` 与孪生的 `38368142676`）报 313 文件 / 4110 用例；

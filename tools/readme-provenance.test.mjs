@@ -19,7 +19,7 @@ import { ROOT, readme, gateSection, flatten, SHA, SHA_G } from "./readme-gate-fa
  * （锁定前提第 6 条：枚举与映射只许一份实现，先例是锚点只在 `tools/platform-anchors.mjs` 存一份）。
  *
  * 门面那句「`tools/readme-provenance.test.mjs`（6 道）」与「原文件留 7 道」不是手写的荣誉，
- * 第十四道闸（`tools/readme-claims.test.mjs`）拿两份文件此刻行首 `test(` 的行数当场核对它们。
+ * 第十四道闸（`tools/readme-claims.test.mjs`）拿三份文件此刻行首 `test(` 的行数当场核对它们。
  */
 
 /**

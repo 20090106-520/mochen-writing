@@ -6,7 +6,8 @@
  * 跟着动，读者按行号打开看到的是别的东西。要钉这件事，`readme-claims.test.mjs` 必然得再写一遍
  * 「什么算一枚 `skipIf(win32)`」；同一份判据有两处写法正是本仓那条锁定前提（枚举与映射只许一份实现）
  * 反复拦住的东西。所以锚点、被点名文件的相对路径、逐行扫描全都只写在这里，两边各 import 一份：
- * `platform-test-count.test.mjs` 数条数，`readme-claims.test.mjs` 核对行号。
+ * `platform-test-count.test.mjs` 数条数，核对行号的那道闸从 2026-10-14 第五十九节起住在
+ * `readme-provenance.test.mjs`（它原先在 `readme-claims.test.mjs`，那一刀把出处那一族整族搬走了）。
  *
  * 另一个刻意的设计是 `LINE_ANCHORS`：门面能按行号点名的文件必须同时在这里登记锚点。没登记的文件被
  * 门面点名时守卫**直接红**，而不是「找不到判据就跳过」——后者等于给门面开了一条「写行号不需要负责」的通路。
