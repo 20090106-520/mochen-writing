@@ -5282,3 +5282,39 @@ ALL_OK=1
 顺带一发同类坑：`git ls-remote … | head -8` 之后取 `$?` 拿到的是 `head` 的码（那次打印出 `LSREMOTE_EXIT=0`
 而上一行明明是 `fatal: unable to access`）。这正是第五十九节记录的管道吞码，本刀在它上面又踩了一次，
 所以 `k60b-push.sh` 里回读走的是「先赋值再取码」，不接管道。
+## 六十·补·补、2026-10-14 04:26—04:31：`2f0808e` 的送达 —— 上一节自己也要过一遍链，否则「绿」说的不是终稿
+
+§六十·补 那次提交（`2f0808e`）只动了台账，但**门面守卫读的正是这份台账所在的仓库里那份 `README.md`，
+而 `prettier --check` 读 `.md`**——所以 chain7 那一遍绿的不是含本节的树。按老规矩，改过内容那一遍作废，
+重跑定稿遍：
+
+- **chain8**，2026-10-14 04:26:56—04:28:36（`/c/temp/m12-f/k60/chain8/`），跑在 HEAD=`2f0808e` 的**干净树**上：
+  `format_EXIT=0 typecheck_EXIT=0 eslint_EXIT=0 boundary_EXIT=0 budget_EXIT=0 test_EXIT=0`，
+  前后 porcelain 各 0 条；`test` 段第二证据 `Test Files 316 passed (316)`、
+  `Tests 4131 passed | 2 skipped (4133)`、`Duration 48.91s`（Windows 侧、`--maxWorkers=4`、skip 另计），
+  六份日志一起 grep 失败串仍然零命中（`grep -l` 退出码 1）。
+  这一遍才是本刀对外可引用的「绿」：**本机净树 316 文件 / 4133 条（含 2 skip）**。
+- 送达仍然两枚 ref 各自拿码、各自回读（`k60c-push.sh`，日志 `/tmp/k60c/`）：
+
+```
+LOCAL_HEAD=2f0808ee8e6bd59976db449e0481ff47936df27f
+PRE_DIRTY_COUNT=0
+PUSH_EXIT ref=feat/plan3-interaction-and-assembly code=0 attempts=1
+PUSH_EXIT ref=fix/ci-path-platform-neutrality code=0 attempts=1
+READBACK ref=feat/plan3-interaction-and-assembly remote=2f0808ee8e6bd59976db449e0481ff47936df27f MATCH=YES
+READBACK ref=fix/ci-path-platform-neutrality remote=2f0808ee8e6bd59976db449e0481ff47936df27f MATCH=YES
+POST_DIRTY_COUNT=0
+ALL_OK=1
+```
+
+  两份 push 日志的区间都是 `cbc2802..2f0808e`（`git merge-base --is-ancestor cbc2802 HEAD` 退出 0），
+  没有 `+`，没有 force；两份 read 日志各自 `ATTEMPT_1_LSREMOTE_EXIT=0 SHA=2f0808e…`，与上面的照抄逐字一致。
+  远端两枚 ref 此刻同为 `2f0808e`。
+
+- 本刀共 4 枚提交入库并送达：`eb04835`（闸本体，README + facts + provenance）、`b87705e`（注释重复子句）、
+  `cbc2802`（§六十）、`2f0808e`（§六十·补）。下一刀若要回填门面顶格两格，**Linux 侧的 316 得从 CI 读**：
+  含 `readme-provenance.test.mjs` 的第一枚跑起来的提交就是这条线的起点（本刀推上去之后 Actions 才会看到它）。
+
+补一句收尾口径：**本节入库之后还会再跑一遍整链**（证据目录 `/c/temp/m12-f/k60/chain9/`），
+但那一遍的数**不写进本节**——写进来就得改本节，改完那一遍又作废，这是第五十九节记过的死循环。
+本节对外引用的绿是 chain8：本机净树 316 文件 / 4133 条（含 2 skip），六段退出码全 0。
