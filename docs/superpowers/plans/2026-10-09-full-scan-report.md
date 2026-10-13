@@ -3773,6 +3773,39 @@ M43/M46/M49/M50 复跑才逐字报出是哪一种坏数据被放过。**形状�
 **还登记一条本刀没做的**：`tools/ci-test-summary.test.mjs` 钉住了「yml 里恰好一步跑这个工具」，
 但没有钉「CI 真跑出过 annotation」——后者只能由读回来那一刻证明，属 #54 的判据，不提前写成断言（假承诺铁律）。
 
+## 五十三·补、2026-10-14 00:26：annotation 真的读回来了——Linux 那个数第一次是**读数**，且与推出来的那笔账一字不差
+
+上面那句「本刀仍然不是读数」写完不到半小时就被现场推翻了，所以这一段照实登记，不改前面那句
+（它写的时候是真的：那时 CI 还没跑过这一步）。推送与送达先记账：`6679fab` 由同一条脚本分两枚 ref 推，
+每枚各自拿码、各自 `ls-remote` 回读（逐字见 `s53-push-feat_plan3-interaction-and-assembly-1.log` 与
+`s53-push-fix_ci-path-platform-neutrality-1.log`）：两枚都是 `PUSH_*_ATTEMPT1_EXIT=0`、
+`e37ec0a..6679fab`、`DELIVERED_*=yes`；推之前 `git status --porcelain` 读回 0 条。
+
+两枚 run 都由**本次会话当场抓取**（不是记忆）：`GET /commits/6679fab…/check-runs` 未认证 200，
+`total_count=2`，两枚 check-run 分别 `115408182513`（run `38429656351`）与 `115408156715`（run `38429648024`），
+作业名都是 `格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试`，`status=completed` / `conclusion=success`。
+然后 `GET /check-runs/<id>/annotations` 各读回一枚 notice，两枚逐字相同：
+
+```
+level=notice | title="CI 用例总数" | msg="files=315 registered=4123 passed=4123 skipped=0 failures=0" | file=.github | line=7
+```
+
+（GitHub 把 workflow 命令级的 notice 挂在 `.github` 第 7 行，也就是 `on:` 那一格——
+落点不重要，重要的是它**在 API 里**，未认证可读，不需要点开面板。）
+
+**这笔账第一次两侧都是读数，而且对得上第三十六节那笔平台账**：本机 Windows 在 `6679fab` 上跑的是
+`315 文件 / 4124 passed | 2 skipped（4126 注册）`，CI Linux 读回 `4123 注册 / 0 skip`。
+`4126 − 3 = 4123`——win32 分支那 3 条在 Linux 上不注册；而 `it.skipIf(win32)` 那两枚在 Linux 上**真跑**，
+所以那边 `skipped=0`、这边 `skipped=2`；于是 Windows passed = Linux passed + 1（`4124 = 4123 + 1`）也自动成立。
+文件数两侧同为 315，说明那 3 条与 2 枚 skip 都长在**同一批文件**里，没有一份文件是平台专属的。
+以前这三个关系是「拿它当预测」，现在它们是**两次独立读数的差**——这正是本刀要换的东西。
+
+**因此 #54 的门槛变了**：门面同树回填不再需要「先想个办法读 Linux」，动作缩成三步——
+① Linux 侧用刚读回的 `4123`（配 run 页 `38429656351` / `38429648024` 与树哈希 `6679fab`），
+② Windows 侧在干净提交树（`git status --porcelain`=0）上重跑一遍 `pnpm test` 取当场读数，
+③ 门面那句「**这句是推的，不是读来的**」在那一刻才允许被删掉。
+①②少任何一边就还是单边 bump，第九道闸会红。
+
 
 
 
