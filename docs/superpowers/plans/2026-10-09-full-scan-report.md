@@ -2241,6 +2241,11 @@ CI 那一侧 total 就等于 passes（没有 skip 进 total）。
 但它在日志里显示的是「没验到」而不是「passed」，所以还不能定罪）。记成下一格：
 **报测试数必须连着「跑在哪棵树、哪个平台、skip 计不计入 total」，跨平台的 ±1 不是四舍五入。**
 
+【2026-10-13 当轮闭合，见第三十六节】这一格没留到下一轮：差的那 1 条是 `path-boundary.test.ts:76` 按平台注册 4 条 / 1 条
+与 `changes.test.ts:247`、`:302` 两条 `skipIf(win32)` 相抵的结果，`4103 − 3 = 4100` 与 CI 那个 4100 一分不差。
+上面那句「最可疑的一枚是 EPERM 那条」是**猜测且方向错了**——它确实相关，但机制不是「Windows 反倒算 passed」，
+而是它在 POSIX 上不再被跳过（+2），同时 win32 分支多出的 3 条注册在 Linux 上不存在（−3）。
+
 ### 四、这一节没做的事
 
 - 没点开逐作业日志（只读 run 摘要页文本），所以第三节的 ±1 没定位；
@@ -2257,5 +2262,57 @@ CI 那一侧 total 就等于 passes（没有 skip 进 total）。
 `formatcheck / typecheck / linteslint / lintboundary / lintbudget / test` 六段全 0，日志 `s35-*.log`，
 唯一 grep 命中是已知环境噪音那行 EPERM）；本机 `pnpm test` 报 **312 文件 / 4101 passed | 2 skipped（4103）**，
 也就是第三节那格 ±1 的来源侧。
+提交后快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD 才算送达。
+
+## 三十六、2026-10-13：第三十五节第三节那格 ±1 就地闭合——差的不是用例，是「同一份文件在两个平台注册了几条」
+
+### 一、结论先摆
+
+CI 报 4100、本机报 4101，**两边都没错，也没有一条用例在本机被多算了**。
+全仓只有两处会按平台改变**注册条数**（当场 `grep -rn 'win32|process.platform|os.platform|darwin'` 扫过
+`packages apps tools` 的 `*.test.ts` 与 `*.test.mjs`，命中的其余几处要么是用例体内的分支、要么是注释）：
+
+| 位置 | Windows | Linux | 对 total 的净影响 |
+| --- | --- | --- | --- |
+| `packages/fs-store/test/path-boundary.test.ts:76` 的 `if (win32) { 4 条 it } else { 1 条 it }` | 注册 **4** 条（大小写差异不算越界、两边异构压平、真 fs 根小写、samePath 压平） | 注册 **1** 条（`samePath`：POSIX 上大小写是两个不同名字，不许压平） | **−3** |
+| `packages/fs-store/test/changes.test.ts:247`、`:302` 两条 `it.skipIf(win32)`（文件软链与备份句柄软链） | 算 **skipped**，不进 passed | 真跑且过，进 passed | **+2**（对 passed 而言） |
+
+本机 4103 条注册 − 3 = **4100**，而 Linux 那侧没有任何 skip（两处平台判断里只有 `skipIf(win32)` 这一族，它在 POSIX 上不触发），
+所以 Linux 是 **4100 passes · 4100 total**——与六个 run 摘要那两个数字**一分不差**；
+本机则是 4103 − 2 skip = **4101 passed**。第三十五节说的「差 1 条 passed」到这里就不是悬案：
+**−3 与 +2 相加正好是 −1。**
+
+### 二、这两处到底各有多少条，是量出来的不是数的
+
+单独跑这两个文件（日志 `/c/temp/m12-f/s36-platform-files.log`，`VITEST_EXIT=0`）：
+
+```
+✓ packages/fs-store/test/changes.test.ts (35 tests | 2 skipped)
+  Test Files  2 passed (2)
+       Tests  54 passed | 2 skipped (56)
+```
+
+`56 − 35 = 21` 就是 `path-boundary.test.ts` 在 Windows 上的注册条数；按上表换到 Linux 应为 `21 − 4 + 1 = 18`，
+而 `changes.test.ts` 的 35 条一条不少——**两个文件在 Linux 上合计 53 条、Windows 上 54 条，差的这一条正是全仓那 ±1**，
+不需要动用任何别的解释。
+
+### 三、这一格的成色：哪部分是看到的，哪部分是推出来的
+
+如实拆开写：
+
+- **看到的**：本机两文件的 54 / 56 / 2 skipped 是这次当场跑的；六个 run 的 `312 / 4100 passes · 4100 total` 是第三十五节从 run 页整页读的；`if/else` 与 `skipIf` 的条数是逐行数过 `:76` 那块（4 条在 win32 分支、1 条在 else）并 `grep` 确认全仓再无第二处。
+- **推出来的**：Linux 上的 18 / 35 与合计 4100——**没有打开过逐作业日志**，所以这一格靠的是「代码里的平台分支 + 两侧各自的总数」对账，不是 Linux 侧的直接读数。
+- **对账为什么仍然算闭合**：等式两端都没有剩余。若 Linux 还有一条本机不知道的用例被跳过或多跑，`4103 − 3 = 4100` 就会对不上 CI 那个 4100；两个独立来源（本机跑数 + CI 摘要）落在同一个数字上，才是这条推导的依据。
+
+### 四、这一格留下的规矩，与下一刀
+
+规矩写进报数口径：**报测试数必须连着「哪棵树、哪个平台、skip 算不算进 total」三件**，缺一件就会出现这次这种「两个都对但看着差一条」。
+真正的下一刀不是重跑 Linux，而是让这台机器自己说得清——把这两处平台分支的**条数**钉成一条守卫用例
+（例如断言 `path-boundary.test.ts` 在 win32 下注册 4 条、POSIX 下 1 条，形状同 `tools/readme-claims.test.mjs` 那种「提取到东西没有」的自我声明），
+否则下一次再有人动了这块 `if/else`，±1 会换个数字回来，而那时没人知道它是几。
+
+### 五、门禁与推送
+
+本刀同样只动这一份 markdown；六段门禁逐段落盘取码（`/c/temp/m12-f/s36-exit.txt`），
 提交后快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD 才算送达。
 
