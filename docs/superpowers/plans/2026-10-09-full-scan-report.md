@@ -2197,3 +2197,65 @@ M1 只拆成功分支那一半就有两条红，说明这一族不是「多写�
 `pnpm test` 报 **312 文件 / 4101 passed | 2 skipped**（与第三十二/三十三节同一格数，本刀不新增用例）。
 提交后快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD 才算送达。
 
+## 三十五、2026-10-13：这三刀的 CI 读数集中记一格——run 号、分支、时长，逐个从 run 页文本回读
+
+### 一、为什么单独开这一节
+
+上一节末尾那句「`git ls-remote --heads` 回读等于本地 HEAD 才算送达」证明的是**送达**，不是**门禁在干净 runner 上也过**——
+这两件事在本仓已经被打混过至少一次：第三十二节里我自己把 run 号 `38324586323` 抄成 `38224586323`，
+当时是照着记忆写而不是照着页面写。所以这三刀推完之后，把六个 run 的读数集中记成一格：
+**下一轮要复核「f4753b8 到底绿没绿」不必重新翻 Actions，也不必再抄一遍容易抄错的数字。**
+
+读法照旧：结论只从 run 页的 `Status` 文本或列表页 `svg[aria-label]` 取，**绝不从提交标题里抓状态**；
+时长取 run 页的 `Total duration` 与作业名下方那一行。
+
+### 二、六次读数
+
+| 提交 | 分支 | run 号 | 结论 | 总时长 / `六路 typecheck + lint + boundary + budget + 全量测试` 作业 | Vitest 作业摘要 |
+| --- | --- | --- | --- | --- | --- |
+| `f4753b8`（门面指向纠正 + `tools/readme-claims.test.mjs`） | `fix/ci-path-platform-neutrality` | `38334268848`（#50） | **Success** | 1m31s / 1m27s | Test Files 312 passes · 312 total |
+| `f4753b8` | `feat/plan3-interaction-and-assembly` | `38334268894`（#51） | **Success** | 2m8s / 2m3s | Test Results 4100 passes · 4100 total |
+| `c5a0e65`（第七节九行逐条对回盘面） | `feat/plan3-interaction-and-assembly` | `38335271363`（#52） | **Success** | 2m27s / 2m22s | 同上一行，六个 run 一字不差 |
+| `c5a0e65` | `fix/ci-path-platform-neutrality` | `38335271384`（#53） | **Success** | 2m1s / 1m57s | 同上 |
+| `15718f4`（`:116` 两格 + 两次变异） | `feat/plan3-interaction-and-assembly` | `38335896954`（#54） | **Success** | 2m35s / 2m30s | 同上 |
+| `15718f4` | `fix/ci-path-platform-neutrality` | `38335897449`（#55） | **Success** | 2m23s / 2m19s | 同上 |
+
+六格都是**本轮从各自的 run 摘要页整页读回**的（`Status`、`Total duration`、作业行、`Vitest Test Report` 四段文本），
+不是从列表页的图标推断，更不是从提交标题里抓状态。
+`15718f4` 这两格是**同一棵提交树上两个分支各跑一次**——同一份 markdown 改动在两条 ref 上都过闸，不是只有一条 ref 侥幸。
+
+### 三、CI 的 4100 与本机的 4101 差一条，这一格没闭合
+
+本机这一轮 `pnpm test`（同一棵工作树，`15718f4` + 本刀 markdown）报 **312 文件 / 4101 passed | 2 skipped（4103 条）**，
+日志 `/c/temp/m12-f/s35-test.log:387-388`；而六个 run 的 Vitest 作业摘要**一字不差**是
+**Test Files 312 passes · 312 total / Test Results 4100 passes · 4100 total**。
+
+把算式摆开：本机那 2 条 skip 是单列的、不含在 4101 里，所以「passed 对 passed」是 **4101 对 4100，差 1 条**；
+CI 那一侧 total 就等于 passes（没有 skip 进 total）。
+而且这六个 run 从 `f4753b8` 到 `15718f4` 都是同一个 4100——后四格跑的树只多了 markdown，
+所以**这一条差不是这三刀引进来的，是本轮之前就在的平台差异**。
+
+**没当场定位差在哪一条**，这里只登记不结论。要查的方向（写明是猜测）：CI 摘要只统计 passes，
+把 skip 从 total 里排掉，而本机有一条在 Linux 上被跳过、在 Windows 上反倒算 passed 的用例
+（`packages/fs-store/test/atomic-write.test.ts` 那条打印「[环境噪音] 本机建不了符号链接（EPERM）」的是最可疑的一枚，
+但它在日志里显示的是「没验到」而不是「passed」，所以还不能定罪）。记成下一格：
+**报测试数必须连着「跑在哪棵树、哪个平台、skip 计不计入 total」，跨平台的 ±1 不是四舍五入。**
+
+### 四、这一节没做的事
+
+- 没点开逐作业日志（只读 run 摘要页文本），所以第三节的 ±1 没定位；
+- 写这一节的过程中 GitHub 有**七次连接失败**：`38335897449`（#55）一次 `ERR_CONNECTION_RESET`，
+  `38334268848`（#50）连续四次 `ERR_CONNECTION_TIMED_OUT`（中间等 40 秒再试仍旧超时），
+  feat 分支列表页与 `38334268894`（#51）各一次超时。连接恢复后**六格全部从各自 run 页重读成功**，
+  所以表里没有一格是「靠早些时候的读数」或「靠记忆」留下的——但这次抖动本身要记：
+  本机外网不稳，**CI 回读必须在这一刀内做完**，排在提交之后再补只会留下一个没人核过的空格。
+
+### 五、门禁与推送
+
+本刀仍然只动 markdown，改前 `git status --porcelain` 读回 0 条（只有这一份文件）。
+六段门禁在**定稿后**整条重跑一遍，逐段落盘取码写进 `/c/temp/m12-f/s35b-exit.txt`（第一次整条跑在定稿前，
+`formatcheck / typecheck / linteslint / lintboundary / lintbudget / test` 六段全 0，日志 `s35-*.log`，
+唯一 grep 命中是已知环境噪音那行 EPERM）；本机 `pnpm test` 报 **312 文件 / 4101 passed | 2 skipped（4103）**，
+也就是第三节那格 ±1 的来源侧。
+提交后快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD 才算送达。
+
