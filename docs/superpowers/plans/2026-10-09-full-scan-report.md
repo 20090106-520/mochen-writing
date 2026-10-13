@@ -2316,3 +2316,57 @@ CI 报 4100、本机报 4101，**两边都没错，也没有一条用例在本�
 本刀同样只动这一份 markdown；六段门禁逐段落盘取码（`/c/temp/m12-f/s36-exit.txt`），
 提交后快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD 才算送达。
 
+## 三十七、2026-10-13：把「平台分支注册几条」钉成守卫——`tools/platform-test-count.test.mjs`
+
+### 一、这一刀补的是第三节末自己点名的那一格
+
+第三十六节把 ±1 算清了，但它靠的是**散文 + 人数的条数**：`path-boundary.test.ts:76` 那块 4 条 / 1 条、
+`changes.test.ts` 两枚 `it.skipIf(win32)`。下一个人在那两个分支里加一条用例、或摘掉一枚 `skipIf`，
+本机与 CI 的报数就各自漂移，而没有人知道漂移是多少——这正是本仓反复出现的那类病灶（**账还在，指针对不着**）。
+所以新建 `tools/platform-test-count.test.mjs`，把差值本身钉住。
+
+它**不测代码行为**，只测两个文件里的注册形状，与 `tools/readme-claims.test.mjs` 同一族（门面/账目守卫）。
+
+### 二、五枚断言与各自的牙齿
+
+| 断言 | 判据 | 从哪儿提取 |
+| --- | --- | --- |
+| 提取自我声明 | win32 分支 ≥ 1 条、POSIX 分支 ≥ 1 条、`skipIf` ≥ 1 枚 | 行走花括号取两段原文，再数**行首**的 `it(` |
+| win32 − POSIX = **3** | 4 − 1 | `if (process.platform === "win32") { … } else { … }` 两段 |
+| `it.skipIf(win32)` = **2** | changes.test.ts 里「POSIX 才真跑」的软链用例 | 全文正则计数 |
+| 本机 passed − Linux passed = **1** | `3 − 2`，即第三十六节那格 ±1 的算式本体 | 上面三个数相减 |
+| 全仓注册期平台分支只有两处 | `path-boundary` + `write-queue`（后者是用例体内分支，不计数） | 扫 `packages/fs-store/test/*.test.ts` 里含同一锚点的文件 |
+
+锚点找不到时**直接抛错**而不是返回空：`if (process.platform === "win32") {` 这一串被改名或换写法，
+守卫当场炸（`Test Files 1 failed / Tests no tests`），不给它「提取不到就当没问题」的机会。
+
+写这份守卫的过程中它先红过一次，红得有价值：第一版行走括号时把 `} else {` 的那枚 `}` 当成整个语句的收尾，
+POSIX 分支提取到 0 条 ⇒ 差值算成 4 − 0 = 4 ⇒ 三条断言同时红（日志 `/c/temp/m12-f/guard-green2.log`）。
+那是它第一次证明自己能发现「提取塌了」，修完才绿（`guard-green3.log`，5 枚全过）。
+
+### 三、三次变异：每条判据都当场拆一遍
+
+照旧只用 Edit 改、`cp` 备份、`cmp` 字节核对还原（备份 `path-boundary.orig.ts`、`changes.orig.ts`）。
+
+| 变异 | 改法 | 结果 |
+| --- | --- | --- |
+| G1 win32 分支塞一条恒绿用例 | `path-boundary.test.ts:76` 块首加 `it("Windows：变异占位…")` | `M1_EXIT=1`：**2 红 / 3 绿**，红的两条报「差成 5 − 1 = 4」「passed 相对 Linux 差 2 条」（`mut-g1.log`） |
+| G2 摘掉一枚 `skipIf` | `changes.test.ts:247` 的 `it.skipIf(process.platform === "win32")(` 换成 `it(` | `M2_EXIT=1`：**2 红 / 3 绿**，报「`it.skipIf(win32)` 现在是 1 条」「差 2 条」（`mut-g2.log`） |
+| G3 改名锚点 | `if (process.platform === "win32") {` → `if (IS_WIN) {` | `M3_EXIT=1`：**1 文件红 / 0 条用例**，错误信息就是那句「找不到锚点」——证明它不会静默装绿（`mut-g3.log`） |
+| 还原 | 两份文件 `cp` 回来 + `cmp` 双双重读一致，`git status --porcelain` 读回只剩 `?? tools/platform-test-count.test.mjs` | 三份合跑 `RESTORE_RUN_EXIT=0`：**3 文件 / 59 passed \| 2 skipped（61）**，与第三十六节那两个文件的 Windows 读数（21 + 35 = 56）加本刀 5 条正好对上 |
+
+### 四、边界：它管不到的部分要写明
+
+- **census 只扫 `packages/fs-store/test/`**。别的目录将来若新增注册期平台分支，这一格不会响——
+  所以文件名清单和判据都写在断言的错误信息里，命中的人知道去哪儿补；把它扩成全仓扫描是另一刀（要先能区分「注册期分叉」与「用例体内分支」）。
+- **数的是行首 `it(`**，`it.each` / 缩进异常的写法会被漏掉；漏掉的形状由「提取自我声明」那一枚兜住一半（0 条就红）。
+- 它钉的是**差值**，不是绝对总数：加别的用例不会误伤，这是刻意的，否则每一刀都要来改这里。
+
+### 五、门禁与推送
+
+本刀新增 1 个 `tools/*.test.mjs`（5 条用例），其余只动这一份 markdown；两次变异已全部还原并 `cmp` 核对。
+六段门禁逐段落盘取码写进 `/c/temp/m12-f/s37-exit.txt`，本机 `pnpm test` 的报数从这一刀起是
+**313 文件 / 4106 passed | 2 skipped（4108）**——比第三十六节多 1 个文件、5 条 passed，
+而 Linux 侧应当是 4105（差值仍是 1，由新守卫自己盯着）。
+提交后快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD 才算送达。
+
