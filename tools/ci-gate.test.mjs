@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
  * CI 这道闸本身要有守卫（2026-10-09 全仓扫描第八节「第 0 步」）。
  *
  * 病灶有两层：
- * ① README 的门面写着「一条命令串起五道闸，任何一道红就不能提交」，而扫描实跑确认
+ * ① README 的门面当时写着「一条命令串起五道闸，任何一道红就不能提交」（那句现已改成六道闸——
+ *    数错的那一头由 `tools/readme-claims.test.mjs` 的门禁组成臂看着），而扫描实跑确认
  *    既没有 CI（`.github` 不存在）也没有 git 钩子（`core.hooksPath` 为空、`.git/hooks` 里只有 sample）——
  *    那句话全靠人记得在本机跑；
  * ② 本机已经被「退出码被管道吞掉」咬过一次：typecheck 日志里同时存在 `error TS2300` 与

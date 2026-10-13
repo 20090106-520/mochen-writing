@@ -3290,6 +3290,82 @@ M16 是本刀最值一枚：它证明这条闸不是只盯 README 措辞，代�
 
 本刀动四份文件：新增 `tools/platform-anchors.mjs`，`tools/platform-test-count.test.mjs`（改 import，断言条数不变），`tools/readme-claims.test.mjs`（+1 道闸，10 条），`README.md`（那两行）再加台账这一节。内容全部落定后才起六路定稿遍（`format:check` → `typecheck` → `lint:eslint` → `lint:boundary` → `lint:budget` → `test`，逐段落盘、退出码落 `s49-final-exit.txt`、日志 grep 复核）**本节不预告那一遍的结果**；本机这一遍注册数应比 `e5d4046` 那轮多 1 条，但那是待读到的数，不是这里的数。提交后照旧用 `HEAD:refs/heads/<名>` 快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD。
 
+## 五十、2026-10-13：门面那句「五道闸」立成第十一道闸——脚本里每加一段，门面就得同改
+
+### 一、病灶：门面上的闸数与 `verify` 真身从来没被任何断言对过
+
+`README.md:43`（`05b1d53` 那棵树）逐字回盘：
+
+```
+一条命令串起五道闸，任何一道红就不能提交：prettier 全仓格式、`tsc --noEmit`（6 个类型程序）、
+```
+
+而 `package.json` 的 `verify` 真身按 `&&` 切开是 12 段、滤掉末尾那句取码用的 `echo VERIFY_EXIT=0` 剩 11 段（当场用 `node -e` 数：`ALL= 12`、`NO_ECHO= 11`），归成**六类**（prettier / 6 枚 `tsc --noEmit -p` / eslint / `node tools/check-package-boundary.mjs` / `node tools/check-source-line-budget.mjs` / `vitest run`）。连 CI 自己的作业名都写的不是五：`.github/workflows/verify.yml:27` 逐字 `name: 六路 typecheck + lint + boundary + budget + 全量测试`。
+
+数错不是洁癖，这条闸真正要拦的是**反方向的漂移**：往 `verify` 里再串一段普查脚本，前面十道闸一条都不会红——它们只认得门面上写过的东西。M17 演的就是这一头：加一段 `node tools/check-an-unregistered-gate.mjs`，同一次跑里 readme-claims 另 10 条 + ci-gate 6 条全部通过，只有新臂红。换句话说，「加段不改门面」在本仓此刻**已经发生过一次**（六类 vs 五道闸就是它的结果），本刀把它反过来钉住。
+
+### 二、判据：两头配平 + 两个数 + 三条实例声明
+
+新臂（`tools/readme-claims.test.mjs` 第十一道，`grep -c '^test('` 当场数：11）四条判据：
+
+1. **每段都要有归属**——`verify` 切出的每一段必须**恰好**落进 `VERIFY_KINDS` 一类：落不进（新段没登记）红，落进两类（登记表互相覆盖）也红。
+2. **每一类都要在门面上有写法**——`VERIFY_KINDS` 里每一类的 `facade` 正则必须在「## 门禁」那一节找得到，漏写一整段即红。
+3. **每一类都要在 `verify` 里真有一段**——门面还写着、脚本却被摘掉/改名，同样红（第 2 条只管反方向，两条合起来才是双向）。
+4. **两个数要数得出来**——「串起 N 道闸」的 N = 实际出现的类别数；「`tsc --noEmit`（M 个类型程序）」的 M = tsc 段数。中文数字与阿拉伯数字都认。
+
+三条**实例声明**分别盯 `stages.length > 1`、`gateClaim`、`tscClaim`（M23/M24 各打中头一条）——延续 §四十二 那条口径：提取面塌了比门面写错更糟，所以「抓不到写法」本身是红。
+
+与 `tools/ci-gate.test.mjs` 的分工写明在这里，免得下一个人判成重复：那份钉的是**形状**（`&&` 串起来、不含 `;`、含 vitest/eslint/prettier 片段），这份钉的是**门面说的与脚本做的一段一段对应**。类别表只存一份（就在本文件顶上的 `VERIFY_KINDS`），`facade` 与 `seg` 同表同条目——改脚本字面而不改这张表会红在第 1 条，改门面措辞而不改这张表会红在第 2 条。
+
+### 三、先证明它能红：M17–M24，八枚变异覆盖四条判据与三条实例声明
+
+| 变异 | 只改什么 | 结果（错误文案逐字抄自日志） | 落盘 |
+| --- | --- | --- | --- |
+| **M17** | `verify` 里插一段 `node tools/check-an-unregistered-gate.mjs` | 红在**归属**：`verify 里这些段没登记在「VERIFY_KINDS」：node tools/check-an-unregistered-gate.mjs——门面对它们一无所知，读者以为门禁只跑门面列的那几段；要么给这段加一句门面说法并在这里登记，要么把这段摘掉`；`Tests 1 failed \| 16 passed (17)`（同跑的另 10 条闸 + ci-gate 6 条全绿＝旧闸对新增段完全无感） | `s50-mut-m17.log` |
+| **M18** | README `六道闸` → `五道闸`（本刀修掉的病灶反过来） | 红在**总数**：`门面说「串起 五 道闸」，可 verify 真身里出现的类别是 6 类（prettier 全仓格式 / tsc --noEmit 类型程序 / eslint / 包边界检查 / 单文件行数预算 / 全量测试 vitest run）——数目对不上，读者会按门面去数脚本、以为少跑或多跑了一段`；`1 failed \| 26 passed (27)`，**A/B 同跑**：`git show HEAD:tools/readme-claims.test.mjs` 那份十条闸 `✓ tools/zz-oldguard-ab.test.mjs (10 tests)`、ci-gate 6 条，两者全绿 | `s50-mut-m18.log` |
+| **M19** | README「6 个类型程序」→ 5 | 红在**tsc 数**：`门面说 5 个类型程序，可 verify 里 tsc 段实际有 6 段：tsc --noEmit -p packages/contracts/tsconfig.json ｜ … ｜ tsc --noEmit -p apps/desktop/tsconfig.web.json——新增或删掉一个包的 tsconfig 时门面这一格要同改`；**A/B 另跑**旧守卫 + ci-gate：`Tests 16 passed (16)`、`Test Files 2 passed (2)` 全绿 | `s50-mut-m19.log`、`s50-mut-m19-oldguard.log` |
+| **M20** | `verify` 摘掉 `node tools/check-source-line-budget.mjs` 那一段 | 红在**每一类得真有一段**：`门面上还写着这几类闸，可 verify 真身里一段都没有（被摘掉或改名了）：单文件行数预算——门面在说一件不再发生的事`；`1 failed \| 16 passed (17)`，ci-gate 6 条照旧绿（它只 spot-check vitest/eslint/prettier 三段在场） | `s50-mut-m20.log` |
+| **M21** | README 删掉「包边界检查」那一格 | 红在**门面上得有写法**：`「## 门禁」那一节里找不到这几类闸的写法：包边界检查——脚本里那段还在跑，门面漏写了一整段（改门面措辞时要连这里一起改）`；`1 failed \| 16 passed (17)` | `s50-mut-m21.log` |
+| **M22** | **守卫自己**加一条与 prettier 重叠的登记 `{ kind: "M22 重复登记", seg: /^prettier/, facade: /prettier/ }` | 红在**不许两类互相覆盖**：`verify 里这些段同时落进两类：prettier . --check → M22 重复登记 / prettier 全仓格式——登记表里的判据互相覆盖了，「一道闸」从此数不出来`；`1 failed \| 10 passed (11)` | `s50-mut-m22.log` |
+| **M23** | README「串起六道闸」→「串起六道关卡」 | 红在**实例声明**：`门面上找不到「一条命令串起 N 道闸」的写法了——这一臂此刻没有实例，等式之外的那个总数没人核（第四十二节那条教训）: expected null not to be null`；`1 failed \| 16 passed (17)` | `s50-mut-m23.log` |
+| **M24** | `verify` 整条换成 `sh tools/verify-wrapper.sh` | **两份守卫同时红**：本闸 `根 package.json 的 verify 切不出段来——要么它被改成 ;／包进了 shell 包装（那是 ci-gate 的病灶），要么这里的切分写坏了：两种都让这条闸静默失效`（expected 1 to be greater than 1）+ ci-gate `expected 'sh tools/verify-wrapper.sh' to match /vitest run/`；`Tests 2 failed \| 15 passed (17)` | `s50-mut-m24.log` |
+
+M24 是八枚里唯一一枚与 `ci-gate` 重叠的——重叠的是「shell 包装」这一种形状，不是同一条判据；记在这里是为了不让「两条闸同时红」被误读成判据抄了两份。
+
+顺带记一条我自己的错：`unclassified` 那条文案第一版把 `VERIFY_KINDS` 用反引号包进了模板字符串（`` `…没登记在 `VERIFY_KINDS`：${…}` ``），那是 JS 语法错误。**最廉价的那道闸先抓住它**：`node --check tools/readme-claims.test.mjs` → `SYNTAX_OK` 之前先红，没惊动 vitest。修法是改用「」，改完再跑语法关卡。
+
+### 四、还原与复绿
+
+八枚变异逐枚 `cp` 还原（`s50-package.orig.json` / `s50-README.orig.md` / `s50-readme-claims.orig.mjs` 三份原样备份），每次 `cmp` 返回 0，终端记 `M17_RESTORE_CMP_OK` … `M24_RESTORE_CMP_OK`；M18/M19 那两枚用完的 A/B 探针 `tools/zz-oldguard-ab.test.mjs` 每次当场 `rm`（跑完 `git status --porcelain` 只剩本刀要提交的三行 ` M README.md`、` M tools/ci-gate.test.mjs`、` M tools/readme-claims.test.mjs`，没有第四行）。全部还原后三份守卫合跑：`RESTORE_EXIT=0`、逐字 `Test Files  3 passed (3)` / `Tests  22 passed (22)`（11 + 6 + 5），`✓ tools/ci-gate.test.mjs (6 tests)`、`✓ tools/platform-test-count.test.mjs (5 tests)`、`✓ tools/readme-claims.test.mjs (11 tests)`（`s50-after-restore.log`）。`pnpm exec prettier --write` 三份文件：`tools/readme-claims.test.mjs` 有格式化、`tools/ci-gate.test.mjs (unchanged)`、`README.md (unchanged)`，`PW_EXIT=0`（`s50-prettier-write.log`）。
+
+**当场收回一句我自己写下去的假话**：新臂 docstring 第一版写着「`tools/ci-gate.test.mjs` 的 docstring 里就记着当年有人拿「五道闸」去数、于是把 vitest 解释成『不算闸』」——回盘那份文件原文（`:10-12`）只记着「门面写着五道闸，而扫描实跑确认既没有 CI 也没有 git 钩子」，**没有任何人把 vitest 解释成不算闸**。那是我给病灶编的出处，已改成有盘的写法（引 `.github/workflows/verify.yml:27` 那句作业名 + M17 实测的「旧闸无感」），改完 `node --check` → `SYNTAX_OK`、`prettier --write` → `(unchanged)`、三份守卫复跑 `FINAL_SCOPED_EXIT=0` / `Tests 22 passed (22)`（`s50-after-docstring-fix.log`），条数仍 11（`grep -c '^test('`）。台账这一节本身不参与格式闸——`.prettierignore` 里明写 `docs/superpowers`，那块牌子由 `tools/prettier-scope.test.mjs` 钉着。
+
+### 五、门面与 docstring 各改了一处（原文照抄自 `git diff -U0`，落盘 `s50-readme-ci.diff.txt`）
+
+```
+-一条命令串起五道闸，任何一道红就不能提交：prettier 全仓格式、`tsc --noEmit`（6 个类型程序）、
++一条命令串起六道闸，任何一道红就不能提交：prettier 全仓格式、`tsc --noEmit`（6 个类型程序）、
+```
+
+```
+- * ① README 的门面写着「一条命令串起五道闸，任何一道红就不能提交」，而扫描实跑确认
++ * ① README 的门面当时写着「一条命令串起五道闸，任何一道红就不能提交」（那句现已改成六道闸——
++ *    数错的那一头由 `tools/readme-claims.test.mjs` 的门禁组成臂看着），而扫描实跑确认
+```
+
+`ci-gate` 那一处不是修饰：它把当年病灶的**引文**留在原位置，而引文所指的那句门面已经被本刀改掉——不写「当时」，下一个人按图去 README 找「五道闸」会找不到，那正是 §三十二 立的「东西在、说明指向别处」这一族假话的反向形态。顶格那两格测试数、平台账、历史行、免责段照 §四十九 的口径**一律没动**。
+
+### 六、还剩的欠账（不冒充已完成）
+
+- `.github/workflows/verify.yml:27` 那句作业名「六路 typecheck + lint + boundary + budget + 全量测试」**没有任何断言看着**，而且它自己列出的只有五件事（typecheck/lint/boundary/budget/全量测试）却写着「六路」——本刀把闸数钉在 README↔`package.json` 之间，yml 那一头仍是第三处口径。要不要把作业名也并进同一张登记表是**下一刀候选**，前提是先回答「一处纯文案值不值得有闸」；在此之前不许声称 CI 侧的数目也被钉住了。
+- `seg` 正则按**当前脚本字面**匹配：把 `prettier . --check` 写成 `prettier --check .` 这类等价改法会落进 `unclassified`（红，不是静默通过）。这是刻意的严，代价是改脚本写法必须同改登记表。
+- `CN_NUM` 只覆盖一…十。当场探针（`node -e` 跑那枚正则）：`串起六道闸`→6、`串起11道闸`→11、`串起 六 道闸`→6、`串起十一道闸`→**null**、`串起六道关卡`→null。所以中文两位数写法会红在**实例声明**那一臂（不是 `undefined` 混过去），届时要连正则一起扩。
+- 前几轮留下的照旧：CI 上逐文件条数仍是推出来的；「run 页 ID 只能来自当场抓取」仍只有台账那句话管着；`main` 仍停在 `c475caf`；`useBookStore.ts` 800/800 那一拆、`VersionHistoryPanel` 一族、侧栏 `.nav-row kbd` 死规则、皮肤广场 §五 A/B/C 仍等一句话拍板，拆 store 还被并行会话的未提交改动挡着。
+
+### 七、门禁与推送
+
+本刀动四份文件：`tools/readme-claims.test.mjs`（+1 道闸，11 条）、`README.md`（那一句）、`tools/ci-gate.test.mjs`（那句引文的时态）、台账这一节。`package.json` **一字未改**——本刀修的是门面说错了数，不是脚本少跑了一段；M17/M20/M24 那三枚只是变异现场，均已 `cmp` 还原。内容全部落定后才起六路定稿遍（`format:check` → `typecheck` → `lint:eslint` → `lint:boundary` → `lint:budget` → `test`，逐段退出码落 `s50-final-exit.txt`、日志剥 ANSI 后 grep 复核）**本节不预告那一遍的结果**；本机注册数相对 `05b1d53` 那一轮应多 1 条，但那是待读到的数，不是这里的数。上一刀 `05b1d53` 的两枚 run 仍没读回来（浏览器通路连续三次 `ERR_CONNECTION_RESET`/`TIMEOUT`，见任务 #34），本轮不拿它当已完成。提交后照旧用 `HEAD:refs/heads/<名>` 快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD。
+
 
 
 
