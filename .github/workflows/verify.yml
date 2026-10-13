@@ -73,3 +73,14 @@ jobs:
       # 唯一的一道闸：整条 verify。它内部是 `&&` 串起来的，任何一段红都会把整个 job 变红。
       - name: pnpm verify
         run: pnpm verify
+
+      # 把用例总数报成一条 annotation，顺带落进 job summary（扫描总单第五十三节）。
+      # 为什么要它：Linux 侧那个数过去只能靠「本机注册数 − 平台那 3 条」推，而想把日志读回来有两条路都不可靠
+      # （`actions/jobs/<id>/logs` 未认证 403；浏览器面板一隐藏，GitHub 连懒加载日志都不抓）。
+      # `check-runs/<id>/annotations` 是当场探通的另一条（未认证 200），所以这里把数写进去，让它是**读来的**。
+      # 为什么 `if: success()` 而不是 `always()`：verify 红的时候 junit 多半根本没产出，
+      # 让这一步跟着红会在同一个 job 里多出第二枚红步骤，把归因从「哪段闸红」换成「哪步红」——
+      # 归因不该由报数这一步抢。数字与文案的真身在 `tools/ci-test-summary.mjs`，这里只负责跑它。
+      - name: 报数（用例总数写成 annotation）
+        if: success()
+        run: node tools/ci-test-summary.mjs

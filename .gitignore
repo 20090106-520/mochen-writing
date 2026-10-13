@@ -9,6 +9,9 @@ out/
 .mochen/
 # 冒烟与实验用的临时书目录（Plan 3 Task 10 Step 5）
 scratch/
+# vitest junit 报告：每次 `pnpm test` 都会重产的可再生产物（CI 拿它报用例总数，见 tools/ci-test-summary.mjs）。
+# 收了它，本机的 `git status --porcelain` 才继续只反映真改动——门禁那一串定稿遍都靠这条读数判脏。
+test-results/
 
 # ---- 2026-10-08 首次推到 GitHub 私有仓时补上的忽略 ----
 # 背景：待推条目 477 项里有 62 项是本地产物。逐项看过内容确认，全部可再生产或不属于项目。

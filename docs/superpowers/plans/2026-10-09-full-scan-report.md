@@ -3679,6 +3679,100 @@ mtime 逐条列在 `s52-final6-exit.txt`）。第六遍当场读数逐字：`for
 那一遍的退出码只作**提交依据**、不再回填本节文字，否则这一格会一直改写下去——这是「跑绿后又改内容」这条规矩
 唯一能收口的写法。
 
+## 五十三、2026-10-14：CI 那一侧的用例数第一次能**读**——给 vitest 配 junit 报告，让 CI 自己把数写成 annotation
+
+**病灶不是「CI 没跑」，是「CI 跑完没人读得到数」。** 门面上 Linux 那一格从第一天起就是
+`本机注册数 − 平台那 3 条`推出来的（第三十六节那笔平台账），而要把它读成一个数只有两条路，两条都在
+第五十二节被当场证伪：`actions/jobs/<id>/logs` 未认证 403；浏览器里点 Actions 步骤面板一隐藏 GitHub
+就连日志都不抓（`#check-step-7` 的 `innerText` 停在 17 字符）。后果是每刀的门面同树回填都卡在半边——
+只 bump 一边正是第九道闸盯着的那种漂移，所以 #52 那刀README 一个字没改。
+
+**这一刀换的是通路，不是数字。** 2026-10-13 当场探过 `check-runs/<id>/annotations` 是**未认证 200**
+（`/c/temp/m12-f/s53-ann-probe.json` 只有 5 字节，正文就是空数组 `[]`；2026-10-14 写这一节时又复测一次，
+`HTTP=200` + `[\n\n]`）：GitHub 早就给了条能读的通路，
+缺的只是**把数写进去**。于是做四件事：
+
+1. `vitest.config.ts` 加 `reporters: [["default"], ["junit", { outputFile: "test-results/junit.xml" }]]`
+   ——vitest 4.1.9 自带的 reporter，**零新依赖**；`default` 那一份必须留着，逐文件条数只有它看得见。
+2. 新工具 `tools/ci-test-summary.mjs`（116 行）：只读那份 XML，把同一句 `formatNoticeBody`
+   同时写给两个读者——机器读的 `::notice title=CI 用例总数::` 与人看的 `$GITHUB_STEP_SUMMARY`。
+   路径 `JUNIT_OUTPUT_FILE` 与标题 `NOTICE_TITLE` 各只在这一处定义（锁定前提第 6 条），config、yml、门面都对表它。
+   一条硬规矩：**报不出数就当场非零退出**，不许退成 0 附上一句「没有报告」。
+3. `verify.yml` 在 `pnpm verify` 之后加一步 `if: success()`（不是 `always()`：verify 红时 junit 多半根本没产出，
+   这一步再红一次会抢走归因）。它自己不吞上面任何退出码。
+4. `.gitignore` 收 `test-results/`——每次 `pnpm test` 都重产的可再生产物；不收的话本机的
+   `git status --porcelain` 从此不再等于「真改动」，而门禁那一串定稿遍全靠这条读数判脏。
+
+**先红后绿。** 反向用例先行，实现前那一跑逐字（`s53-red-before.log`）：
+`Error: Cannot find module './ci-test-summary.mjs' imported from …/tools/ci-test-summary.test.mjs`、
+`Failed Suites 1`、`Tests  no tests`。实现后（`s53-green1.log`）`Test Files 1 passed (1)` / `Tests 8 passed (8)`。
+
+**变异批 M38–M50：十三只，每只各杀一条臂**（日志在 `/c/temp/m12-f/s53-mut-m38.log` 与 `/c/temp/m12-f/s53/m4*.log`、`m50.log`，
+下面每行左边是改动、右边是 vitest 当场报的逐字消息）：
+
+| 只 | 改什么 | 红在哪一条（逐字截取） |
+| --- | --- | --- |
+| M38 | config 的 `outputFile` → `tmp-results/junit.xml` | `配置写「tmp-results/junit.xml」而工具认「test-results/junit.xml」——两边各说各话` |
+| M39 | 删 `verify.yml` 那一步的 `if: success()` | `报数步骤没有 if: success()——verify 红时它也跑，多一枚红步骤会抢走归因` |
+| M40 | yml 里把工具改名 `ci-summary-report.mjs` | `跑报数工具的步骤有 0 条——0 条=没接线（本闸空跑），≥2 条=没有唯一所指` |
+| M41 | 删 `.gitignore` 的 `test-results/` | `.gitignore 里没有 test-results/——跑一次 pnpm test 就脏一条` |
+| M42 | 报告缺失时 `throw` 改 `return null` | `找不到 junit 报告却退出 0——那等于让 CI 空跑装绿` |
+| M43 | 删「逐文件之和 ≠ 总数」那一抛 | `逐文件之和不等于总数（截断的半份报告）：parseJUnit 没有抛——恒报数就是恒可能报错数` |
+| M44 | 工具里再写一遍同一路径字面量 | `工具里 junit 路径被定义了 2 次，应恰好 1 次` |
+| M45 | 把标题写进 yml 的步骤名 | `标题在 yml 里又写了一遍——那是第二处口径` |
+| M46 | `skipped` 从 `required` 改成 `?? 0` | `某枚文件缺 skipped 属性：parseJUnit 没有抛——恒报数就是恒可能报错数` |
+| M47 | 删 reporters 里的 `["default"]` | `reporters 里没有 ["default"]——逐文件条数只有 default reporter 看得见，CI 日志会只剩一个总数` |
+| M48 | 删「没有 `<testsuites>` 头」那一抛 | `整份没有 testsuites 头：抛了，但理由不是那句（当前：Cannot read properties of null (reading '0')）` |
+| M49 | 删「注册数为 0」那一抛 | `一条用例都没注册（空跑）：parseJUnit 没有抛——恒报数就是恒可能报错数` |
+| M50 | 删「skip 比注册大」那一抛 | `skip 比注册数还大（减法会算出负 passed）：parseJUnit 没有抛——恒报数就是恒可能报错数` |
+
+**这一批里三处「闸自己失明」是量出来的，不是想到才补的：**
+
+① **M43 第一版红是红的，但红的不是人话。** 四条坏数据合成一句 `.toMatch(reason)`，没抛时 `threw` 是 `null`，
+vitest 自己抛 `TypeError: .toMatch() expects to receive a string, but got object`——`label` 那句中文理由被整个吞掉
+（`s53/m43.log` 逐字）。改成两句：先 `toBeTypeOf("string")` 钉「抛没抛」，再 `.toMatch` 钉「理由对不对」，
+M43/M46/M49/M50 复跑才逐字报出是哪一种坏数据被放过。**形状可复用**：把「有没有抛」和「抛得对不对」
+挤进一条断言，等于在最坏的那一支上放弃了可读性。
+
+② **M47 那一臂原本永远绿。** 旧写法是 `\["default"\]|\bdefault\b` 数命中次数 > 0，而 `vitest.config.ts` 里
+`default` 一词本来就在第 3 行 `export default` 和上面那句注释里出现。当场量：把 `["default"]` 删掉后拿**旧正则**
+去量被变异的 config，命中仍是 `["default","default"]`（两个都来自注释与 `export default`）——旧断言对这份改动
+毫无鉴别力。改成「只在 `reporters` 之后的文里找 `["default"]` 这个数组项形状」后 M47 才真红。
+顺带记下一件只有界面才看得出的事：M47 那一跑的终端日志**只剩一行** `JUNIT report written to …`，
+失败详情全在 XML 里（`failures="1"`）——那正是这条臂要守的东西，一次变异把「为什么要留 default reporter」演了一遍。
+
+③ **`skipped > registered` 那一抛原先没有任何用例驱动**（工具里有、测试里没有=死代码形状）。补第五条坏数据
+（把某枚文件的 `skipped` 抬到 7，注册 6）并用 M50 证明它能红；工具头注释那句「四种坏数据」同步改成「五种」，
+否则注释会在数据之后过期——本仓反复出现的假话形态之一。
+
+**定稿遍：第一遍被取数脚本自己写坏作废，第二遍才是数。** `s53-final1.sh` 里写的是
+`echo "$s_EXIT=$?"`——bash 把 `$s_EXIT` 当一枚未绑定变量，`set -u` 当场退出，逐字：
+`/c/temp/m12-f/s53-final1.sh: line 5: s_EXIT: unbound variable`。那一遍只落下 `format` 一段日志
+（内容 `All matched files use Prettier code style!`）且**没有退出码文件**，后面五段根本没跑——
+按规矩不作数。这与 #52 那刀的推送循环是同一族病灶：**取数脚本自己写坏时，红的是脚本，但看起来像"没跑"**。
+改 `${s}_EXIT` 后另起 `s53-final2-*`：六段 `format/typecheck/eslint/boundary/budget/test` 全 `_EXIT=0`，
+`done.txt` 在场；六份日志剥 ANSI 后 grep `error TS|ELIFECYCLE|Command failed|✖ problem|^ FAIL|EPERM|EBUSY`
+只命中一条，就是签过名那条 `[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到`；
+测试段末三行逐字 `Test Files  315 passed (315)` / `Tests  4124 passed | 2 skipped (4126)` / `Duration  36.13s`。
+
+**报数工具第一次吃真数据，与终端读数一字不差对上。** `node tools/ci-test-summary.mjs`（跑在 `s53-final2`
+刚产出的那份 junit 上）逐字输出 `::notice title=CI 用例总数::files=315 registered=4126 passed=4124 skipped=2 failures=0`，
+退出码 0；与终端那两行 `315 passed (315)` / `4124 passed | 2 skipped (4126)` 三个量（文件数、注册、skip）逐项一致，
+`passed` 由减法派生也对上。这条对表是**本刀唯一能证明"junit 这条路走得通"的现场证据**——CI 上还没有跑过这一步。
+
+**注册账**：#52 末在 `cc39240` 读到 314 文件 / 4116 passed | 2 skipped（4118 注册）。本刀新增一份测试文件
+`tools/ci-test-summary.test.mjs`（8 个 `test(`），`+8` 注册 ⇒ 4126，`+8` passed ⇒ 4124，文件 `314 → 315`。
+对得上，没有一条是凭记忆写的。
+
+**这一刀的边界要说死：门面上 Linux 那个数**本刀仍然不是读数**。annotation 要等这一刀自己上 CI 才产得出数，
+所以 README 里那句「**这句是推的，不是读来的**」在本刀之后照旧成立、一个字不改。下一刀（#54）的动作是现成的：
+推送 → `ls-remote` 回读两枚 ref → 取本轮 check-run id → `curl …/check-runs/<id>/annotations` 把
+`files/registered/passed/skipped` 读回来 → 那时才谈门面同树回填（Linux 侧读 annotation，Windows 侧须先在
+干净提交树上重读一遍 `git status --porcelain`=0）。**这条线断在这里不算失败**：本刀交付的是通路，不是那个数。
+
+**还登记一条本刀没做的**：`tools/ci-test-summary.test.mjs` 钉住了「yml 里恰好一步跑这个工具」，
+但没有钉「CI 真跑出过 annotation」——后者只能由读回来那一刻证明，属 #54 的判据，不提前写成断言（假承诺铁律）。
+
 
 
 
