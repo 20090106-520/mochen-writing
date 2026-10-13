@@ -3953,8 +3953,167 @@ Linux 侧此刻有**三枚树上的读数**，全部逐字相同（`files=315 re
 两侧同树才允许动那一句——否则就是第十二道闸那一族被反复抓到的「只 bump 一边」。
 **下一刀候选仍是 #55（第十四道闸：把门面上「某份守卫文件有几条」那几个数对当场 `^test(` 数钉住），本刀不动它。**
 
+## 五十五、2026-10-14 01:17：第十四道闸——门面按文件点名的守卫条数，从此要等于那份文件此刻行首 `test(` 的行数
+
+**先把 §五十四·补 那一条的送达账收掉**（它写的时候推送还没成功）。本机 `github.com:443` 从 01:03 起连不上
+（`Failed to connect to github.com:443 after 21084 ms`，另一次 `Recv failure: Connection was reset`），
+而**同一时刻 `api.github.com` 返回 200**——「读得到 CI」不等于「推得上去」，这两条通路得分别判。
+处置 = 有界重试（8 次 × 45 秒，每枚 ref 各自拿码、成功后各自回读）。逐字日志：
+
+```
+attempt=1..6  ref=feat PUSH_EXIT=128 / ref=fix PUSH_EXIT=128
+attempt=7     ref=feat PUSH_EXIT=0   fc1e17c..0ab4aa2  HEAD -> feat/plan3-interaction-and-assembly
+attempt=7     ref=fix  PUSH_EXIT=0   fc1e17c..0ab4aa2  HEAD -> fix/ci-path-platform-neutrality
+attempt=8     两枚都是 Everything up-to-date（PUSH_EXIT=0）
+```
+
+**但那一版脚本的回读臂整臂失败，而且不是网络**：`s54g-push-loop.log` 里第 7、8 次报
+`LSREMOTE_EXIT=1 (命令没跑成)`，而推送码是 0。查下来是脚本自己的 bug——回读日志名写成了
+`$d/s54g-lsremote-$ref-$attempt.txt`，而 `$ref` 是带斜杠的全名（`feat/plan3-interaction-and-assembly`），
+重定向落进一个不存在的目录，`git ls-remote` 根本没跑成，exit 1 是**写文件失败**不是远端拒绝。
+补做一次干净回读（`s54h-lsremote-final.txt`，`LSREMOTE_EXIT=0`）：
+
+```
+0ab4aa27414681d351af386fbf0986b5bc3095c3	refs/heads/feat/plan3-interaction-and-assembly
+0ab4aa27414681d351af386fbf0986b5bc3095c3	refs/heads/fix/ci-path-platform-neutrality
+c475cafbe8edaeee81d3e3acf6711463efcb8971	refs/heads/main
+```
+
+两枚 ref 都等于本地 HEAD（`0ab4aa2`），`main` 未动 ⇒ **#54·补 已送达**。
+**形状复用**：回读通路里凡是带 ref 名的路径都要先 `tr '/' '_'`（推送日志那份本来就转义过，回读那份忘了）；
+而「判据的一支自己坏了」会伪装成「事情没做成」——这次如果我只看 `LSREMOTE_EXIT=1` 就会得出「推上去但远端没认」的错误结论，
+多花一刀去重推。区别两者的证据是**退出码的值本身**（网络失败是 128，不是 1）和那句没落盘的 `No such file or directory`。
+
+**本刀做的事**：把 §五十四 末段登记的失明②变成常驻闸。门面上写着三处「现在时」的条数点名——
+「`tools/readme-gate-composition.test.mjs`（2 道）」「原文件留 11 道」「由 `tools/ci-gate.test.mjs`（6 条）」——
+**全仓没有一条断言核对过它们**，而这类句子正是下一个人判断「还要不要拆文件」的依据。它的失效形态与 2026-10-09
+那枚冻死的「当前 215 文件 / 3014 用例」同一族：文件加了断言，门面还在说旧数。
+
+**改的两处**：
+1. `tools/readme-claims.test.mjs` 新增第十四道（`GUARD_COUNT_CLAIM` + `SELF_COUNT_CLAIM` + `liveTestCount()` +
+   `guardCountSites()` + 一条 `test`）。数法与门面那句说的是同一件东西：**行首 `test(` 的行数**，只定义一处
+   （锁定前提第 6 条）；`it(`/`describe(` 不计。只管现在时：路径反引号紧跟全角括号里的数，或「原文件留 N 道」。
+2. README：`原文件留 11 道` → **12 道**（这一处不是我要改口径，是新闸当场逼出来的——见下面那一红），
+   并在拆分那一段补一句「这一句从 2026-10-14 第五十五节起有自己的闸（第十四道）……带 `git show <rev>:` 的那种历史说法除外——
+   但现役那句不许靠改写成历史说法躲开，现在时的点名剩不到两站当场红」。
+
+**顺序照第三十八节：先加闸，让它红一次**（`k55-gates-first-red.log`，`RED_EXIT=1`，1 failed | 11 passed）：
+
+```
+AssertionError: 门面上这些条数已经不是那份文件的真身：tools/readme-claims.test.mjs 门面写 11 条，此刻数 12 条（「原文件留 11 道」）——加断言的人没回头改门面，这就是 2026-10-09 那枚冻死的「当前 215 文件 / 3014 用例」的下一代: expected [ { …(4) } ] to deeply equal []
+```
+
+这一红是本刀最有说服力的一格：**守卫第一条抓到的漂移就是它自己**——它一加进文件，门面上那句「原文件留 11 道」立刻过期。
+改完门面转绿（`k55-after-refill.log` / `k55-baseline-green.log`，`GREEN_EXIT=0`，3 文件 **22 条**＝ 12 + 2 + 8）。
+
+**变异（M58–M63，全部门面单边改，每次还原用 `cp` + `cmp` 核对 identical）**：
+
+| 号 | 改哪一处 | 结果 | 当场报的那句 |
+| --- | --- | --- | --- |
+| M58 | `tools/ci-gate.test.mjs`（6 条）→（7 条） | 红 | tools/ci-gate.test.mjs 门面写 7 条，此刻数 6 条 |
+| M59 | composition（2 道）→（3 道） | 红 | tools/readme-gate-composition.test.mjs 门面写 3 条，此刻数 2 条 |
+| M60 | 原文件留 12 道 → 13 道 | 红 | tools/readme-claims.test.mjs 门面写 13 条，此刻数 12 条 |
+| M62 | 只给 ci-gate 那一站前缀 `git show 12b2bf0:` | **绿（这是已知边界，如实登记）** | — |
+| M63 | ci-gate 与 composition 两站都前缀 | 红（红在**实例声明**） | 「## 门禁」那一节里只提取到 1 处…点名——少于 2 处时这条闸会空转 |
+
+M62 是本刀**没有关掉的一条通路**：一站可以靠改写成历史说法躲开本闸，代价是躲两站就会撞实例声明。
+这一条不当已完成，写在这里就是为了下一个人不必重新发现它。
+
+**prettier 与"同一份代码"那一格**：新代码第一次 `--check` 红（`k55-prettier-check.log`，`PRETTIER_EXIT=1`，warn 在
+`tools/readme-claims.test.mjs`），`--write` 后 688 → **690 行**（预算 800，余 110 行），复跑门面三份 22 条全绿
+（`k55-post-prettier-green.log`）；M58 在格式化后**复跑一次**（`k55-m58r.log`，消息逐字相同），免得「格式化前后测的不是同一份代码」。
+
+**本刀撞出自己的一个错（记下来，因为它差点让变异台账说谎）**：`cp` 基线快照取在**两次 README 措辞编辑之前**
+（「剩不到两站」那句改法与「顶格那两格如今是」那行的合并都在快照之后），于是 M58 第一次跑完执行还原时，
+把这两处改进一起退回了旧写法。发现方式不是记忆，是**还原之后 `sed` 回读门面原文**看到了旧那句。
+处置：重取快照（`k55-baseline-sha.txt` 记下两份的 sha256）→ 基线复跑绿 → M58 复跑。
+**形状**：`cmp identical` 只证明「回到了快照」，不证明「快照就是定稿」——快照必须在变异序列**开始前**重取，
+且每次还原后要把那份文件回读几行。这条与 §五十四 那条「格式化后要复跑变异」是同一族，只是这次坏在基线而不是坏在格式。
+
+**读数与不回填**：本刀给 `tools/readme-claims.test.mjs` 加了一条 `test(`，所以注册数会各 +1
+（预测：本机 4127 注册 / 4125 passed | 2 skipped，CI Linux 4124）。门面顶格那两格**仍写 `12b2bf0`**，不回填——
+按 README 自己那句「回填不是每刀必做，做的时候两侧都要从同一棵树重读」，只 bump 一边会被第十二道闸与等式闸抓住，
+而这一刀的动机不是数，是那条没有闸的失明。CI 的 annotation 会读回来记进 §五十五·补。
+**下一刀候选**：#56 = 门面散文里那两处仍无闸的数（「文件数那一格两侧都是 315」那句、quoted 的 `files=315` 原文），
+M57 量的就是这一条；形状候选是把 annotation 原文那句 `files=…` 与顶格两格的文件数对表。
 
 
 
 
 
+
+## 五十五·补、2026-10-14 01:23：定稿遍六段全 0、上面那笔「本机 +1」的预测被读成数，以及 `0ab4aa2` 那两枚 run
+
+**定稿遍（`k55-chain2.sh`，日志 `k55-final2-*`）逐段码，原文照贴**（`k55-final2-codes.txt` 全文）：
+
+```
+PRE_CHAIN_PORCELAIN=3
+format_EXIT=0
+typecheck_EXIT=0
+eslint_EXIT=0
+boundary_EXIT=0
+budget_EXIT=0
+test_EXIT=0
+POST_CHAIN_PORCELAIN=3
+```
+
+跑前跑后都是 3 个未提交项（README、`tools/readme-claims.test.mjs`、本台账），**同数**说明这一遍中途没有别的会话
+往我这棵工作树里写东西；那 3 项正是本刀的产物。各段正文（退出码之外的第二证据）：`k55-final2-format.log`＝
+`All matched files use Prettier code style!`；`k55-final2-typecheck.log` 只有那六个 `tsc --noEmit -p` 的命令行本身、
+零 `error TS`；`k55-final2-eslint.log`＝`$ eslint . --max-warnings=0` 之后空；`k55-final2-boundary.log`＝`边界检查通过`；
+`k55-final2-budget.log`＝`行数预算通过（624 份，含 .mjs/.cjs）`。
+
+**test 段的读数**（ANSI 去色后回读，`k55-final2-test.clean.log`）：
+
+```
+ Test Files  315 passed (315)
+      Tests  4125 passed | 2 skipped (4127)
+   Start at  01:19:28
+   Duration  43.31s (transform 9.21s, setup 0ms, import 47.03s, tests 32.82s, environment 46ms)
+```
+
+§五十五 那一格写的预测——「本机 4127 注册 / 4125 passed | 2 skipped」——到这里被**当场读数对上**：与 §五十四 定稿
+那遍的 315 / 4124 passed | 2 skipped（4126 注册）正好各 +1，就是本刀那一条 `test(`。Linux 侧那一格（预测 4124）
+**仍是预测**，本刀提交推送后 CI 才跑得到它，读数进送达段，不预支。失败标记 grep
+（`error TS[0-9]+|ELIFECYCLE|Command failed|✖ [0-9]+ problem| FAIL |Tests  [0-9]+ failed|EBUSY`）在这份 clean 日志里
+**零命中**；`EPERM` 命中 1 次，是本仓那条自陈的环境噪音，逐字：
+
+```
+108:[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到
+```
+
+**第一遍作废的账（`k55-final1-invalidated-*`）与它连带查出的一件事**：那一遍 01:17 起跑，而
+`tools/readme-claims.test.mjs` 里文档注释块的一次措辞编辑落在 **01:17:54**——正好在那一遍已经跑起来之后。
+按「跑绿后又改内容 = 那一遍作废」，那遍日志改名留档、不作定稿依据，重跑成 `k55-final2-*`。
+两个细节必须写清，不然这一格像虚张：
+
+1. 那一处改动是**纯注释**：`diff` 只有一处 hunk（行 623–625），整段在文档注释块里；`test(` 数改动前后都是 12，
+   行数都是 690。按旧口径它大概率不会红，我仍重跑，因为那条规矩看的是「这一遍跑的是不是最终内容」这个事实，
+   而不是「改动有没有实质」这个判断——后者每次都判得比前者松。
+2. **同一处编辑暴露了基线快照落后**：`cmp` 现在把 `k55-orig/readme-claims.test.mjs` 与本刀产物比出
+   `differ: byte 36172, line 623`，即 §五十五 末尾那条「快照必须重取」的教训**又犯了一次**——
+   这次是取在 01:14:33（prettier 之后）却落后于 01:17:54 的注释编辑。处置与上次同形：先确认差异只在注释、
+   两侧 `test(` 都是 12，再重取快照（README 那份本来就已 identical），`cmp` 回读 identical 才继续。
+   **升级后的形状**：`cmp identical` 不只要在变异序列开始前重取，还要在**每一次把快照当"最终内容"引用之前**
+   重比一次——本刀差点把「跑绿的那份」当成「快照那份」来写台账，是 `cmp` 的报错把这两者分开的。
+
+**台账自己不在门禁面上**（这一格顺带把口径写死，免得下一个人以为改台账会让定稿遍作废）：`.prettierignore`
+第 13 行是 `docs/superpowers`；`tools/check-source-line-budget.mjs:22` 的 `SOURCE_FILE` 只匹配
+`\.(ts|vue|mjs|cjs)$`；**没有任何断言读这份 `.md` 的字节**——三处都当场回读过：前两条是 `sed` 数出来的行号，
+第三条是 `grep -rn "full-scan-report\.md" tools/*.mjs` 零命中，而全仓唯一提到这条路径的测试文件
+（`apps/desktop/src/renderer/src/composables/appearance-surface-ladder.test.ts:63`）是在注释里引 §二十九
+那次普查快照，不读文件本身。所以本节的写入发生在定稿遍之后而**不算**「跑绿后又改内容」，
+被那条规矩管的是 README 与 `tools/*.mjs` 这类在六段里的东西。
+
+**`0ab4aa2` 那两枚 run（未认证 API 读回，`s55-cr-0ab4aa2.json` + 两份 annotation）**：
+两枚都 `completed` / `success`，作业名逐字 `格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试`；
+
+| run 页 | job id | annotation（逐字） |
+| --- | --- | --- |
+| `38437032838` | `115433605317` | `files=315 registered=4123 passed=4123 skipped=0 failures=0` |
+| `38437025873` | `115433580497` | `files=315 registered=4123 passed=4123 skipped=0 failures=0` |
+
+这是 Linux 侧**第四枚**同数读数（`6679fab`、`12b2bf0`、`fc1e17c`、`0ab4aa2` 都报 315 / 4123），数没动的原因很干净：
+`0ab4aa2` 只改本台账这份 `.md`——按上面那条口径它不进任何一段，所以 CI 看到的测试面与 `12b2bf0` 完全相同。
+门面顶格那两格**仍绑 `12b2bf0`**，不回填：`0ab4aa2` 上 Windows 侧我没重跑干净树，只 bump Linux 一边正是
+第十二道闸盯的那笔单边漂移。

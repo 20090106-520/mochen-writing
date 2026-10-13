@@ -616,3 +616,75 @@ test("门面上每一处同树声明点名的必须是同一枚短哈希，而�
       "——顶格两格 bump 了而免责段还留着旧树（或反过来）：两侧不同树，那 1 条平台差就没人解释了"
   ).toBe(1);
 });
+
+/**
+ * 门面**守卫条数**闸（2026-10-14，第五十五节，第十四道）。
+ *
+ * 病灶登记在 §五十四 末段，本刀把它从"台账里的一次性回读"变成常驻闸：门面上按文件点名的条数
+ * ——`tools/ci-gate.test.mjs`（6 条）、`tools/readme-gate-composition.test.mjs`（2 道）、以及拆分那一句里的
+ * 「原文件留 N 道」——**全仓没有一条断言核对过它们**。M57 那一跑顺带证明了另一半：
+ * 门面散文里的数与 quoted 的报数原文都不在判据眼里，只有写成等式的跨格算式才被第九道闸对表——
+ * 而「某份守卫文件有几条」恰好既不是等式、也没有别的闸管。它的失效形态与 2026-10-09 那枚
+ * 「当前 215 文件 / 3014 用例」一模一样：文件加了一条断言，门面上那句还在说旧数，
+ * 而这句话正是下一个人决定「要不要再拆一份文件」的依据。
+ *
+ * 只管**现在时**的点名，两种写法分开：
+ * 1. `` `tools/<file>.test.mjs`（N 条|道） `` —— 反引号紧跟全角括号里的数，读的是这份文件**此刻**几条。
+ * 2. 「原文件留 N 道」—— 第五十二节拆分那一句留下的说法，指本文件自己。
+ *
+ * 历史那一族（「用例数从 3 条加到 11 条」「门禁组成那一族 2 条 + CI 报数守卫 8 条」）**故意不管**：
+ * 它们各自写了 `git show <rev>:<file>`，对的是那枚树上的行数，不是此刻。这条分界有自己的脱身通路——
+ * 给现役那句前缀一个 `git show …:` 就能躲开本闸——所以第 1 臂带实例声明（>1 站）：两站都前缀掉就红，
+ * 与第十二道闸同一形状（判据的一支没有实例＝那一支没测，第三十八节）。
+ *
+ * 数法与门面那句说的是同一件东西：**行首 `test(` 的行数**。不在别处再写第二份定义（锁定前提第 6 条）；
+ * `it(` 与 `describe(` 不计，因为门面上那些数说的就是一个文件里有几条 `test(`。
+ */
+const GUARD_COUNT_CLAIM = /`tools\/([\w.-]+\.test\.mjs)`（(\d+) [条道]）/g;
+const SELF_COUNT_CLAIM = /原文件留 (\d+) 道/;
+
+/** 一份守卫文件此刻有几条 `test(`——门面点名的那些数就对着它算。 */
+function liveTestCount(relPath) {
+  const abs = path.join(ROOT, relPath);
+  expect(fs.existsSync(abs), `门面上点名了 ${relPath}，可仓库里没有这份文件`).toBe(true);
+  return fs
+    .readFileSync(abs, "utf8")
+    .split("\n")
+    .filter((line) => line.startsWith("test(")).length;
+}
+
+/** 门面里「现在时」的条数点名：路径型站点 + 「原文件留 N 道」这一站。 */
+function guardCountSites() {
+  const flat = flatten(gateSection().replace(/「[^」]*」/g, ""));
+  const sites = [];
+  for (const m of flat.matchAll(GUARD_COUNT_CLAIM)) {
+    const prefix = flat.slice(Math.max(0, m.index - 30), m.index);
+    if (/git\s+show/.test(prefix)) continue;
+    sites.push({ at: `tools/${m[1]}`, claimed: Number(m[2]), raw: m[0] });
+  }
+  const self = SELF_COUNT_CLAIM.exec(flat);
+  if (self)
+    sites.push({ at: "tools/readme-claims.test.mjs", claimed: Number(self[1]), raw: self[0] });
+  return sites;
+}
+
+test("门面上按文件点名的守卫条数必须等于那份文件此刻的 test( 行数", () => {
+  const sites = guardCountSites();
+  expect(
+    sites.length,
+    "「## 门禁」那一节里只提取到 " +
+      sites.length +
+      " 处「`tools/*.test.mjs`（N 条/道）」或「原文件留 N 道」的点名——少于 2 处时这条闸会空转：" +
+      "给现役那句前缀一个 `git show …:` 就能躲开本闸，所以门面至少要留两站现在时的点名"
+  ).toBeGreaterThan(1);
+  const checked = sites.map((s) => ({ ...s, live: liveTestCount(s.at) }));
+  const drifted = checked.filter((s) => s.live !== s.claimed);
+  expect(
+    drifted,
+    "门面上这些条数已经不是那份文件的真身：" +
+      drifted
+        .map((s) => `${s.at} 门面写 ${s.claimed} 条，此刻数 ${s.live} 条（「${s.raw}」）`)
+        .join(" ／ ") +
+      "——加断言的人没回头改门面，这就是 2026-10-09 那枚冻死的「当前 215 文件 / 3014 用例」的下一代"
+  ).toEqual([]);
+});
