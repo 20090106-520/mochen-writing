@@ -3890,6 +3890,69 @@ M51 与 M56 两条在 prettier 定稿后又各复跑一次（`k54-m51r.log`、`k
 （grep 到的四处命中全是注释里的指针）。为把这条理由钉住而不是只说出来，写完这段又复跑一遍
 `format:check` 与 `lint:budget` 取码（见下一段的 `s54-final2-*`）。
 
+## 五十四·补、2026-10-14 00:59：`fc1e17c` 的送达、CI 那两枚 run 的读数，和上面那句「见下一段」的账
+
+**先关闭上面那个悬空指针**（它当时指向还没写的下一段）。`s54-final2-*` 三份日志逐字回读：
+
+- `s54-final2-format.log`：`Checking formatting...` / `All matched files use Prettier code style!`
+- `s54-final2-budget.log`：`行数预算通过（624 份，含 .mjs/.cjs）`
+- `s54-final2-facade.log`：`Test Files  3 passed (3)` / `Tests  18 passed (18)`
+
+这三份是在 §五十四 那一段台账正文写完**之后**跑的，跑的是**已经定稿的那两把闸**（格式与行数预算），加上门面守卫自己。
+所以「本刀动的东西不进任何一段闸的眼里」这句话此刻不再只是推理：它在写完之后被当场量过一次。
+
+**送达账（逐字回读，不转述没落盘的数）**：两枚 ref 的推送日志各一份，整份内容如下——
+
+```
+== s54b-push-feat_plan3-interaction-and-assembly-1.log
+To https://github.com/20090106-520/mochen-writing.git
+   12b2bf0..fc1e17c  HEAD -> feat/plan3-interaction-and-assembly
+== s54b-push-fix_ci-path-platform-neutrality-1.log
+To https://github.com/20090106-520/mochen-writing.git
+   12b2bf0..fc1e17c  HEAD -> fix/ci-path-platform-neutrality
+```
+
+两枚都是快进（`12b2bf0..`，无强推符号）。**一处如实登记**：推送前那一次 `git status --porcelain` 的码当时只打在
+命令输出里、没落盘，所以下面不引用它，避免用记忆当读数。能落盘回读的是刚才这一次：
+
+```
+LSREMOTE_EXIT=0
+fc1e17c5518310c323c468e67552aa7ec4a940a3	refs/heads/feat/plan3-interaction-and-assembly
+fc1e17c5518310c323c468e67552aa7ec4a940a3	refs/heads/fix/ci-path-platform-neutrality
+c475cafbe8edaeee81d3e3acf6711463efcb8971	refs/heads/main
+```
+
+两枚 ref 都等于本地 HEAD（`git rev-parse HEAD` = `fc1e17c55183…`），`main` 仍停在 `c475caf` 没动，
+回读时 `git status --porcelain | wc -l` = 0。这就是「送达」的定义被第 N 次照办：push 的 0 码不算证据，
+`ls-remote` 的哈希对上才算。
+
+**CI 在 `fc1e17c` 上的两枚 run（本次会话当场抓取，`s54c-*.json`）**：
+`GET /commits/fc1e17c…/check-runs` 未认证 200，`total_count=2`，两枚都 `status=completed` / `conclusion=success`：
+
+```
+115423488825 | 格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试 | completed | success | runs/38434096621
+115423463078 | 格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试 | completed | success | runs/38434089210
+```
+
+再各读一枚 annotation（`s54c-ann-<job>.json`），两枚逐字相同：
+
+```
+level=notice | title="CI 用例总数" | msg="files=315 registered=4123 passed=4123 skipped=0 failures=0" | path=.github | start_line=7
+```
+
+**这笔读数买到什么**：上一段只量到「Windows 侧脏树定稿遍 = 干净树那一跑」，那是同一平台的两次。
+Linux 侧此刻有**三枚树上的读数**，全部逐字相同（`files=315 registered=4123 passed=4123 skipped=0 failures=0`）：
+`6679fab`（§五十三·补，run `38429656351` / `38429648024`）、`12b2bf0`（§五十四 读数表那一格，run `38430633919` / `38430624695`）、
+`fc1e17c`（本段，run `38434096621` / `38434089210`）。于是「本刀一条用例也没新增」这句话不再只是推理：
+它是「改门面文案 + 改台账 + 改门面守卫的那一刀，在 Linux 上报数不变」的三次读数，Windows 侧另有两个平台的两次对照。
+
+**门面上那两格仍写 `12b2bf0`，本段不改**，理由是判据而不是省事：Windows 那一格的干净树读数
+（`315 文件 / 4124 passed | 2 skipped（4126 注册）`，`git status --porcelain` 跑前跑后各读回 0 条，见 `s54-porcelain-{before,after}.txt`）
+是在 `12b2bf0` 上取的（`s54-localtest.log`，`LOCALTEST_EXIT=0`，即上面读数表本机那一格），不是在 `fc1e17c` 上取的。顶格那两格必须由**同一枚**短哈希点名，
+第十二道闸就钉这一条（M55 量的正是它）；要把顶格换绑到 `fc1e17c`，就得先在 `fc1e17c` 的干净树上重跑一遍 Windows，
+两侧同树才允许动那一句——否则就是第十二道闸那一族被反复抓到的「只 bump 一边」。
+**下一刀候选仍是 #55（第十四道闸：把门面上「某份守卫文件有几条」那几个数对当场 `^test(` 数钉住），本刀不动它。**
+
 
 
 
