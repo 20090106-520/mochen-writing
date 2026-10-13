@@ -5207,3 +5207,78 @@ M87–M92 每枚都是 `Test Files 1 failed | 4 passed`、`Tests 1 failed | 30 p
 - 归属闸的词表是**照抄标题**的，所以标题一改就得同步登记表。下一刀若给某道闸改标题，
   先跑 `measure.mjs` 那类提取看词还落在哪份文件——M89 量的就是这个形状。
 - `useBookStore.ts` 800/800 那一拆仍被并行会话阻塞（清单第 2 项），本刀没碰。
+## 六十·补、2026-10-14 04:20—04:28：`cbc2802` 的送达 —— 第一遍推送脚本把 ref 名当文件名用，两枚 ref 谁都没动
+
+### 定稿遍第三遍（chain7）：这才是本刀唯一能写进「绿」的一遍
+
+前面两遍（chain5 含 3 条脏项、chain6 含 1 条脏项）跑的都不是终稿：`eb04835` 入库后还改了
+`tools/readme-gate-facts.mjs` 的重复子句，之后又写进本节所在的台账。**chain7 跑在完全干净的树上**
+（`git status --porcelain` 前后各 0 条），时间 2026-10-14 04:17:24—04:19:01，
+目录 `/c/temp/m12-f/k60/chain7/`，六段退出码逐段落盘：
+
+```
+PRE_PORCELAIN_LINES=0
+POST_PORCELAIN_LINES=0
+format_EXIT=0
+typecheck_EXIT=0
+eslint_EXIT=0
+boundary_EXIT=0
+budget_EXIT=0
+test_EXIT=0
+CHAIN_DONE
+```
+
+`test` 段第二证据（日志内容，ANSI 剥掉后 grep）：`Test Files 316 passed (316)`、
+`Tests 4131 passed | 2 skipped (4133)`、`Duration 45.83s`，
+跑在 `--maxWorkers=4` 与 Windows 侧；把六份日志一起 grep `error TS[0-9]+|ELIFECYCLE|Command failed|✖ [0-9]+ problem|Tests  [0-9]+ failed|failed \(`
+的结果是**一个文件都不命中**（`grep -l` 退出 1）。这两件事（码 + 文）合起来才算绿，
+单看包装层的退出码不够——第五十九节那两发 127 就是这么来的。
+
+**这两个数仍然不回填门面顶格两格**：顶格要求「两侧都在净树上读到」，chain7 只把**本机侧**变成了净树读数，
+Linux 侧还没在任何含 `readme-provenance.test.mjs` 的提交上跑过。所以门面继续绑 `1cb4a29`，
+`README.md` 末尾那句「这一句是推的、不是读来的」原样留着——它要等 CI 那一格一起读回来才改得掉。
+
+### 送达：两枚 ref 各自拿码、各自回读（`k60b-push.sh`，日志 `/tmp/k60a/`）
+
+```
+LOCAL_HEAD=cbc2802de028b0f64dc40c9ddf012b38b6be75f7
+PRE_DIRTY_COUNT=0
+PUSH_EXIT ref=feat/plan3-interaction-and-assembly code=0 attempts=1
+PUSH_EXIT ref=fix/ci-path-platform-neutrality code=0 attempts=1
+READBACK ref=feat/plan3-interaction-and-assembly remote=cbc2802de028b0f64dc40c9ddf012b38b6be75f7 MATCH=YES
+READBACK ref=fix/ci-path-platform-neutrality remote=cbc2802de028b0f64dc40c9ddf012b38b6be75f7 MATCH=YES
+POST_DIRTY_COUNT=0
+ALL_OK=1
+```
+
+上面这段是从 `k60b-push.sh` 的终端输出照抄的，两枚 ref 的哈希各自又与日志文件核对过一次：
+`read-feat__plan3-interaction-and-assembly.log` 与 `read-fix__ci-path-platform-neutrality.log` 里都是
+`ATTEMPT_1_LSREMOTE_EXIT=0 SHA=cbc2802de028b0f64dc40c9ddf012b38b6be75f7`——照抄与回读两处一致才敢写「送达」。
+（本节初稿在这里就把 feat 那行哈希抄错过一次：写成了 `cbc2802de028b0f63168044973f72f839`，
+那是把 `092f648…` 的尾巴接到 `cbc2802…` 的头上。对日志一眼才发现，规矩还是那条：**转述必须回盘**。）
+
+两份 push 日志各自带着 fast-forward 的证据，`+` 号（force）一枚都没有：
+
+```
+   092f648..cbc2802  HEAD -> feat/plan3-interaction-and-assembly
+   092f648..cbc2802  HEAD -> fix/ci-path-platform-neutrality
+```
+
+`git merge-base --is-ancestor 092f648 cbc2802` 退出 0，且 `092f648..cbc2802` 区间正是本刀三枚
+（`eb04835` 闸本体、`b87705e` 注释重复子句、`cbc2802` 台账第六十节）。本机 `feat/plan3-interaction-and-assembly`
+那枚**分支**仍停在 `2487695`（并行会话的工作树持有它，且它是 HEAD 的祖先）——本刀只推 `HEAD:refs/heads/…`，
+不去动别人手里那枚本地分支。
+
+### 第一遍推送脚本那一发：文件名里带 `/`，push 与回读**谁都没真跑**
+
+`k60a-push.sh` 把日志名写成 `$L/push-$ref.log`，而 `$ref` 是 `feat/plan3-interaction-and-assembly`——
+斜杠让重定向目标落到一个不存在的目录里。后果不是「日志没写上」，而是**整条 `git push` 因为重定向失败根本没执行**
+（bash 打不开重定向目标就不启动命令），于是脚本一路把两枚 ref 的 push 与回读都判成失败，`ALL_OK=0`。
+能确认「远端没动」的不是脚本的汇报，是当场另跑一次 `git ls-remote --heads origin`：
+两枚 ref 都还停在 `092f648`。**这一发给了条规矩**：日志名里不许出现可能含 `/` 的变量，
+要么 `tr '/' '_'`（本刀用的 `${ref//\//__}`），要么干脆按序号命名；
+而且脚本自己报 `FAILED` 时不能只信它——它同样可能报出一枚「假的失败」，远端读数才是判据。
+
+顺带一发同类坑：`git ls-remote … | head -8` 之后取 `$?` 拿到的是 `head` 的码（那次打印出 `LSREMOTE_EXIT=0`
+而上一行明明是 `fatal: unable to access`）。这正是第五十九节记录的管道吞码，本刀在它上面又踩了一次，
+所以 `k60b-push.sh` 里回读走的是「先赋值再取码」，不接管道。
