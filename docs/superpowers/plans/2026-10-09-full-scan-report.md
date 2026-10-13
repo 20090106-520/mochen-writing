@@ -4395,7 +4395,8 @@ sha256 `92722b3c…`／`6dfa29cf…`，与变异前工作树逐字节相同）�
 
 ### 定稿遍（六段，逐段落码）
 
-`/tmp/k57/k57-final1-codes.txt`（02:06:30 起、02:07:47 收尾，逐字）：
+`/tmp/k57/k57-final1-codes.txt`（逐字；各段落盘时刻由 mtime 读回：format 02:06:32、typecheck 02:06:33、
+eslint 02:06:48、boundary 02:07:01、budget 02:07:02、test 02:07:46，codes 文件本身 02:07:47）：
 
 ```
 PRE_CHAIN_PORCELAIN=3
@@ -4439,7 +4440,74 @@ test 段摘要逐字：`Test Files  315 passed (315)`、`Tests  4126 passed | 2 
 `apps/desktop/src/renderer/src/composables/appearance-surface-ladder.test.ts:63` 的一条**注释**提到它）。
 README 与门面守卫这两份**在定稿遍之后再没动过一个字**，那才是门禁真正要看的东西。
 
-### 送达（跑完当场补）
+### 送达（逐字回读自盘）
+
+`/c/temp/m12-f/k57/k57-push1-codes.txt`（原写于 `/tmp/k57/`，本刀起两份都留）：
+
+```
+HEAD_FULL=36d11bb1d0c4200c96deeb0734de4b624f245d4c
+PRE_PUSH_PORCELAIN=0
+PRE_PUSH_PORCELAIN_LIST_START
+PRE_PUSH_PORCELAIN_LIST_END
+PUSH ref=feat/plan3-interaction-and-assembly attempt=1 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=2 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=3 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=4 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=5 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=6 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=7 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=8 exit=0
+READBACK ref=feat/plan3-interaction-and-assembly try=1 exit=0
+REMOTE_SHA ref=feat/plan3-interaction-and-assembly value=36d11bb1d0c4200c96deeb0734de4b624f245d4c
+STATUS ref=feat/plan3-interaction-and-assembly 送达
+PUSH ref=fix/ci-path-platform-neutrality attempt=1 exit=0
+READBACK ref=fix/ci-path-platform-neutrality try=1 exit=0
+REMOTE_SHA ref=fix/ci-path-platform-neutrality value=36d11bb1d0c4200c96deeb0734de4b624f245d4c
+STATUS ref=fix/ci-path-platform-neutrality 送达
+POST_PUSH_PORCELAIN=0
+```
+
+两枚 ref 各自拿码、各自回读，**都是 0 码**才写「送达」；`feat` 前七发 128 是网络（`github.com:443` 老毛病，
+同一时刻 `api.github.com` 仍可通），第八发通。落盘的第八发日志尾逐字：
+
+```
+To https://github.com/20090106-520/mochen-writing.git
+   c107ebd..36d11bb  HEAD -> feat/plan3-interaction-and-assembly
+```
+
+`c107ebd..36d11bb` 是快进，没有强推。`ls-remote` 两份落盘逐字（制表符原样）：
+
+```
+36d11bb1d0c4200c96deeb0734de4b624f245d4c	refs/heads/feat/plan3-interaction-and-assembly
+36d11bb1d0c4200c96deeb0734de4b624f245d4c	refs/heads/fix/ci-path-platform-neutrality
+```
+
+**这一跑的 `PRE_PUSH_PORCELAIN=0`**（名单为空）与 #56 那一次不同：那一次推的时候台账还没写完，
+所以门面里「本机那一格」只能靠字节对照来证；这一次提交即净树，本节是提交之后另起一刀写的。
+push 脚本从这一刀起把 porcelain 的**名单**也落盘，不再只数个数——#56 只留下「2 条」这个数，
+害得本刀要靠 blob 哈希反推是哪两份，那种反推不该成为门面的出处。
+
+CI 在 `36d11bb` 上的两枚 run（`k57-cr-table.tsv` 逐字，id 由 `k57-cr.json` 里读、没有手抄）：
+
+```
+115462152072	格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试	completed	success	38445350145/job/115462152072
+115462115999	格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试	completed	success	38445339421/job/115462115999
+```
+
+两枚各自取 annotation，`path=.github`、`start_line=7`、`end_line=7`、`annotation_level=notice`、
+`title=CI 用例总数`，消息逐字两份相同，
+且两份 JSON 文件的 sha256 也相同（`18689a499b136f68d62faec003c888ec1688266b089392627b2d3b6c776708b7`）——
+孪生那一格不是抄的：
+
+```
+files=315 registered=4125 passed=4125 skipped=0 failures=0
+```
+
+于是 Linux 侧「4125」现在有两枚已提交的树被读回过（`a953b12`、`36d11bb`），而门面上 quoted 的那份原文写的正是这一串，
+第十五道此刻对得上。**顶格两格不换绑到 `36d11bb`**：Windows 那一格在这棵树上没有读数
+（本刀定稿遍跑时 porcelain=3，README、门面守卫与台账都还未提交，见上面那段字节对照），
+而第十二道钉的就是「各处同树说法必须同一枚」——只 bump 一边正是这一族被反复抓到的那个错。
+下一次成对换绑的门槛：两侧都在**同一棵已提交的树**上读到，本机那格还得当场落盘 porcelain 名单。
 
 ### 留给 #58 的
 
