@@ -5451,3 +5451,137 @@ quoted 的 CI 原文与新起的差值等式）同树回填。三件都做了，
 2. `useBookStore.ts` 800/800 那一拆仍被并行会话占着（任务 #12）。
 3. 下一次顶格换绑前，先查 CI 在新树上的 annotation 与本机净树重跑**是否同枚**；本刀之后 CI 会看到
    含本节的两枚提交，但它们**不加 `test(`**，所以文件数/用例数与顶格无关——别把「CI 跑过了」当成「顶格该 bump」。
+
+## 第六十二节：第三方审计逐条核对（2026-10-14 07:00—07:35）＋ 带内错误帧那一刀
+
+来源是用户贴进来的一份**没有跑过代码**的审查报告（他自己在结尾写了「改之前请先核对」）。
+按既定口径先当待验清单处理：四路只读勘探（净树 `4318538`）＋我自己把承重结论逐条回盘，下面每条都标
+**真 / 半真 / 不存在**，并给出 `file:line`。子代理的结论有一处被我改判（见第一节第 9 行），
+判据是它没读到具体实现里那句 catch。
+
+### 一、审计说「缺失」的：过半早就实现，逐条如下
+
+| # | 审计原话（摘要） | 判定 | 盘上证据 |
+| --- | --- | --- | --- |
+| 1 | 写盘不原子，要 temp+fsync+rename | 不存在 | `packages/fs-store/src/atomic-write.ts:109-113`（同目录临时件 + `handle.sync()` 再 rename，`:63-101` 带瞬时错误码重试）；备份走同一个 `writeFileAtomic`（`read-write.ts:185`）；**目录 fsync 确实没有**，且是写明理由的取舍（`atomic-write.ts:28-29`），不是遗漏 |
+| 2 | 没有逐文件保存锁 | 不存在 | `read-write.ts:115-117` `runWriteExclusive(normalizeWriteKey(target), …)`，队列在 `write-queue.ts:35-52`，key 规范化含 Windows 大小写压平 `:24-27`；`packages/fs-store/test/write-queue.test.ts:56,71,84,104,119,148,178,196,215` 钉同 key 串行／异 key 并发／失败不锁死 |
+| 3 | 结果对象与抛混用 | 不存在 | 统一 `DocWriteResult`（`packages/contracts/src/ipc.ts:149-152`），越界／保留名／读写失败一律 `{ok:false}`（`read-write.ts:103-107,135-139,146-153,186-193,205-211`） |
+| 4 | `assertSafeRelPath` 只看字符串，不认 Windows 保留名与尾点 | 半真 | 保留名与尾点**管了**：`paths.ts:21-22` 调 `windowsReservedNameProblem`，真身在 `contracts/src/book.ts:128-155`（CON/PRN/AUX/NUL/COM1-9/LPT1-9、大小写无关、逐段判、先剥尾部点与空格），另有 `path-boundary.test.ts:285,295,303` 钉「只许一份真身」。**字符串这一半确实如此**：realpath 那道闸是另一个函数 `isPathUnderRoot`（`paths.ts:56-85`），读侧 `read-write.ts:65`、写侧 `:134` 都调 |
+| 5 | `C:foo` 这种盘符相对写法不拦 | 真（但落不了盘） | `paths.ts:14` 的正则是 `^[a-zA-Z]:\/`，**要求斜杠**，所以 `C:foo` 过得去；后果不是逃逸而是写不出去（Windows 上冒号是非法文件名字符，文档名那条路还先经 `sanitizeDocFileName` 把 `:` 换成 `-`，`contracts/src/book.ts:111,158`） |
+| 6 | `saveFileExport` 文件名没净化 | 半真 | 分隔符逃逸已处理：`export-shared.ts:113-115` `sanitizeFilename` 换掉 `/ \ < > : " \| * ?` 并截 80，且它只当**保存对话框的默认名**（`apps/desktop/src/main/index.ts:395-417`，真写的是用户确认的 `result.filePath`）。没做的另一半：不删控制字符、不剥尾点、不挡保留名、纯 `..` 没特殊处理——**比 `sanitizeDocFileName` 弱一档**，且全仓零用例钉它 |
+| 7 | 用户取消被报成失败 | 不存在 | `tool-loop.ts:189` 每轮开头 + `:318` 每条调用前查 `signal.aborted`，返回 `status:"interrupted"`；渲染层有独立中性块（`AgentTimeline.vue:173-175`），终态行只对 `endedAs!=="done"` 报错（`agent-thread.ts:185`）；用例 `tool-loop.test.ts:230-251,515-544,686-687` |
+| 8 | 工具执行期不查取消 | 不存在 | 同上一条的两个检查点，加上未轮到的调用逐条补配对回执（`tool-loop.ts:319-329`），signal 经 `abortableFetch`（`provider-fetch.ts:233`）并进真出网那次 fetch |
+| 9 | `dispatchToolCall` 抛出会让历史里留悬空 tool_call | 不存在 | 内建工具永不抛（`tools.ts:213-224` 参数非合法 JSON 返 `ok:false`）；host 把 IO 全 catch→deny（`doc-tools-host.ts:116,144,199`）；**唯一能抛的叶子是插件工具，而它被包住了**：`apps/desktop/src/main/plugin-service.ts:193-200` 一个 `catch` 折成 `ok:false` 加一句中文「插件工具 X 自己抛了错」。JSONL 由事件重建（`rollout.ts:311-316`），`tool-call` 事件在 await **之后**才发，抛出去时盘上根本没有那条调用，所以造不出悬空。**这一条子代理判成半真，我回读实现后改判** |
+| 10 | 没有请求／流空闲超时 | 不存在 | 连接与首字节 30s（`provider-fetch.ts:23,187-191`），流式空闲 60s 看门狗（`:24,139-166`） |
+| 11 | 429/5xx 无重试 | 真 | 全仓 `backoff`、`retry`、`retries` 在 `packages/agent-runtime/src` 与 `apps/desktop/src/main` 零命中（grep 只剩 `sse.ts` 那句注释与测试里的 `attempt` 循环）；非 2xx 立即抛 `provider-client.ts:257-260`，要用户手动重发 |
+| 12 | 带内 `error` 帧被吞 | 真 ← 本刀修的就是它 | 见第三节 |
+| 13 | `baseURL` 不校验，等于明文走 http | 半真 | 「不校验」不成立：`/^https?:\/\//` 在 `contracts/src/provider.ts:3,395,577-580`。真的是**只验协议形状不验协议**：http 明确合法，内置 Ollama 本身就是 `http://127.0.0.1:11434`（`provider.ts:612`），用户自填远端 http 地址不拦不提示。密钥落盘是 safeStorage 加密（`credential-store.ts:113-125`：不可用即拒存、密文含明文即拒） |
+| 14 | `sandbox: false`、没有导航闸 | 半真 | `sandbox: false` 属实且在 `ipc-guard.ts:28` 自认并给了理由；`contextIsolation: true`／`nodeIntegration: false` 是显式收紧（`index.ts:211-216`）。导航闸**有**：`installWindowGuards`（`index.ts:232-242` → `ipc-guard.ts:647-684`）`will-navigate` 非同源一律 `preventDefault`、`setWindowOpenHandler` 一律 `deny`，`window-guards.test.ts` 全覆盖 |
+| 15 | IPC 不验来源 | 不存在 | `trustedHandler`（`ipc-guard.ts:514-548`）+ `senderTrustVerdict`（`:139-177`）验 `event.senderFrame`：null 拒、子帧拒、`isSameRendererOrigin` 比对启动时装上的那份允许 URL，打包态忽略 `ELECTRON_RENDERER_URL` fail-closed。**它自认不管的那一半是真的**：`:115-116` 明写「不做『哪个页面能用哪条通道』，那是通道级授权（本轮没做）」，于是同源页内注入脚本可发任意通道，靠 CSP 兜 |
+| 16 | preload 暴露泛化 `invoke` | 不存在 | `preload/index.ts:4-10` 只 `exposeInMainWorld("mochen", createRendererApi(...))`，`renderer-api.ts:36-129` 每通道一个具名方法，channel 全部取自 `IPC_CHANNELS`（`contracts/src/ipc.ts:29-117`）；泛化 `invoke` 只是模块内闭包参数，没暴露 |
+| 17 | 审批提示硬编码 read-only、教模型「切档再批准」 | 半真 ×2 | 字面确实写死 `PERMISSION_LABELS["read-only"]`（`permission.ts:60`），但 `mode-too-tight` 只在 `input.mode === "read-only"` 时才产出（`contracts/src/permission.ts:89-94`），所以档位名与实际永远一致。后半句：那句「把权限档切到 X 后再批准」是写给**人**的，模型没有切档工具——花名册六枚（`contracts/src/tools.ts:1-8`）里没有档位，切档唯一入口在渲染层 `PermissionMenu.vue:25-28`，主进程从不自行改档 |
+| 18 | 「没读到 CI 配置」 | 不存在 | `.github/workflows/verify.yml` 在，单 job，`runs-on: ubuntu-24.04`（钉死，见第十六节那一刀），steps 到 `pnpm verify` 与 `tools/ci-test-summary.mjs` 报数 |
+| 19 | desktop 没有打包配置，`build` 只编译 | 真 | 全仓 `electron-builder` 零命中；`apps/desktop/package.json:9` 是 `"build": "electron-vite build"`，无 `build` 字段、无 dist 脚本。**注意**：并行会话那批未提交改动正在加 electron-builder（见 [[project-parallel-wip-same-worktree]]），这一条我不能同批动 |
+| 20 | 没有 LICENSE / `license` 字段 | 真（属对外承诺，等一句话） | 只有 `LICENSE-DEEPWRITE.txt`（deepwrite 同源文件的 Apache-2.0 副本，`docs/ATTRIBUTION.md:3-5`）；各 package.json 均无 `license` 字段（根与 apps/desktop 都 `private: true`） |
+| 21 | `lint` 与 `lint:eslint` 重复 | 半真 | 根 `package.json:18` 的 `lint:eslint` 与 `:21` 的 `lint`（= eslint + boundary + budget）并存，`verify`（`:24`）又内联第三份——是**超集不是重复**，但同一句 eslint 命令确实在三处 |
+| 22 | 皮肤 SVG 生成脚本被 gitignore，成品是唯一真身 | 不存在（文档陈旧） | `apps/desktop/scripts/gen-scene-svgs.mjs`、`scene-palettes.mjs`、`check-scene-art.mjs` 都在 `git ls-files` 里，六张 `public/skins/*.svg` 也入库，`.gitignore` 无相关条目。审计那句逐字抄自 `docs/ATTRIBUTION.md:51`「生成脚本住在 git-ignored 的 `.superpowers/sdd/`…成品文件本身是唯一真身」，所以**该句已与现树不符**：属门面之外那句假话，数据变了、解释还在 |
+| 23 | README 项目名与仓库名不一致 | 存在但非缺陷 | `README.md:6` 明文写着「目录名还叫 `深渊写作`，这是故意的」（另见 [[project-mochen-brand]]） |
+| 24 | `.gitignore` 里有 `nul`，等于有人把输出重定向进了 `nul` | 真（条目在）／推论不成立 | `.gitignore:30` 一行裸 `nul`，`:22` 解释它是 Windows 保留设备名、NTFS 上 git 建不出同名文件所以永不入库；全仓源码、`package.json` 脚本与 `tools/*.mjs` 里 `> nul`／`2> nul` 零命中 |
+
+### 二、审计「可以加的功能」那七条：五条已经有真通路
+
+1. 上下文预算：已有(半)——`history-window.ts:159` `fitHistoryToWindow` 贪心切片 + `doc-tools-host.ts:22` 单条 6000 字上限 +
+   `history-window.ts:240-243` 那句「更早的 N 条没有发给模型」经既有 `error` 事件上屏（第十九、二十一节量过真机）。
+   没有的是「自动摘要」，只有截断；真超长仍靠上游 4xx 报错，没有本地预检文案。
+2. 设定一致性／伏笔回收：已有(半)——契约与面板都在（`contracts/src/foreshadow.ts:27` 三态、
+   `useBookStore.ts:466 loadForeshadows`、`ForeshadowPanel.vue` 挂在 `DocumentPane.vue:580`），
+   「待回收」就是它把未付的排前面；缺的是跨实体校验（`planted:` / `paid:` 存的是自由字符串，从不与 `book.docs` 比对）。
+3. 可视化 diff 加一键回滚：审计说「缺界面」**不成立**——`changes:diff` 与 `changes:restore` 通道在册
+   （`contracts/src/ipc.ts:73-88`），`ChangeHistoryPanel.vue` 挂在 `DocumentPane.vue:554` 并用 `<DiffHighlighter>`（`:189`）
+   与 `book.restoreChange`（`:211`）。真正死的是另一族：`VersionHistoryPanel.vue` 无人 import（仍等一句话，见任务清单）。
+4. 全书搜索替换：已有(半)——搜索是全书的（`useSearchStore.ts:90` + `SearchPanel.vue:16` 逐篇 `docRead`），
+   替换只有单篇内的（`useFindReplaceStore.ts`，`DocumentPane.vue:615`）；**全书替换没有任何契约**，
+   按铁律不做假控件，这条要的是主进程一条「逐篇写盘 + 指纹守卫 + 备份」的通道。
+5. 字数与日更目标：已有(全)——`WordCountPanel.vue:50-63` + `useWritingGoalStore.ts:133` 落 `.mochen/data/writing-goal.json`
+   （P0-7 那一刀从 localStorage 搬出来的）。
+6. 本地备份目录／WebDAV：不存在——`ExportFormat` 七种里只有单篇导出（`contracts/src/export.ts:14`），
+   走用户确认的保存对话框；整书目录镜像与远端同步的契约、凭据存储、调度器一样都没有。
+7. 本地模型预设与 token 统计：已有(半)——`PROVIDER_PRESETS` 九家加 `custom`
+   （`contracts/src/provider.ts:91,79`），Ollama 有 `OLLAMA_BASE_URL`（`:612`）与 LM Studio 那句提示（`:618`）
+   但**不是一枚预设行**；模型枚举通路已进 UI（`provider:list-models` → `provider-models.ts`）。
+   token 用量统计**不存在**：`provider-client.ts:140-150` 只读 `choices[0].delta`，`usage`、`prompt_tokens` 全仓零命中，
+   占用条用的是本地 `estimateTokens`（`utils/context.ts:60`）。
+
+### 三、本刀修的那条：带内错误帧（审计第 12 条）
+
+**病灶（回读原文，不是转述）**：`sse.ts:12-20` 一个帧内只取 `data:` 字段，`event:`／`id:`／`retry:` 按 SSE 语义丢掉——
+这本身合规；问题是 HTTP **200** 的流里 `data: {"error":{…}}` 这一条进了 `readDelta`（`provider-client.ts:132-153`）
+读出**全空**（没有 `choices`、没有 `delta`、`finish_reason` 为空），于是那一帧什么都不产出，流照旧走到断尾，
+最后由 `truncationNotice("incomplete")` 说成「这一轮的响应流在中途断了」。限流、超长、内容审核这些
+**上游已经写明白的原因**一个字都到不了眼前——用户会去查网络、查密钥，方向全错。
+
+**修法**：`provider-client.ts` 新增 `inBandError(parsed): string | null`，帧循环在 `JSON.parse` 之后判一次，
+命中就抛 `ProviderError("模型服务端在流里回了错误：" + 原话)`。三条口径写进函数注释并各配用例：
+1. 判空只看**有没有 `error` 这个键**，不看读不读得出句子（否则 `{"error":{"type":"overloaded_error"}}` 照旧静默）；
+2. `error: null` 与非串非对象的值**不算**错误形状（有的端点恒发 `"error": null` 表「没有错误」，
+   当错误就把每一轮正常回答变成一次失败）；
+3. 取不到 `message` 就退回压平的 JSON 片段，复用既有 `upstreamMessage` 与 `snippet`，不新写第二份句子提取（铁律 6）。
+
+抛出走既有通路：`agent-service.ts:678-687` 的 catch 把它发成 `error` 事件加 `turn-end failed`，
+**契约、IPC 计数、渲染层一行没动**。
+
+**先红后绿**：`red2.log` 是 **3 failed | 31 passed（34）**，三条红的正是需要新判定的那三条；
+`green1.log`／`green2.log`／`green3.log` 三次都是 **34 passed**，`FMT_EXIT=0`。
+
+| 变异 | 改法 | 结果 |
+| --- | --- | --- |
+| M1 | `error === undefined` 去掉 `\|\| error === null` | 1 红（反向守卫那条：`error:null` 被当错误） |
+| M2 | 只认 `message`，删掉字符串／JSON 压平两级兜底 | 2 红（`error` 是字符串、只有 `type`） |
+| M3 | 把新判定挪到帧循环开头 `signal.aborted` 守卫**之前** | 0 红（34 全绿）← 如实记账 |
+| M4 | 句子前缀改成「流里回了错误：」 | 1 红（整句 `toBe` 钉住的那条） |
+
+M3 空手的机制也量清楚了：外层 catch 里那句 `if (!req.signal.aborted) throw error`（`provider-client.ts:297-304`，
+读流期守卫）已经把任何抛出折回 `finish:aborted`，所以**兜住「打断优先」的是它，不是我的顺序**。
+因此源码里那句注释已改成只描述顺序、不宣称自己是闸；「打断优先」那条用例登记为**无杀伤变异的回归钉桩**
+（与第六十一节 M99 同一处置）。四处变异全部反向 Edit 还原，`cmp` 对快照逐字节确认：
+`M1_REVERT_IDENTICAL`、`M2_REVERT_IDENTICAL`、`M4_REVERT_IDENTICAL`；M3 的还原用 `diff` 量出只差那两行注释，
+再按注释改写后重跑一遍绿。快照 `pc.final2` 与 `pct.final` 是**内容落定之后**取的：
+那句自我拔高的注释写完之后又改过内容，所以 `green3` 与 M4 都重跑在最终态上。
+
+**行数预算**：`provider-client.ts` 315→342，`provider-client.test.ts` 650→**735/800**。
+后者只剩 65 行余量，下一条用例进来就会贴线——按 README 那句硬规矩，贴到 800 就拆，拆法是「不共享状态」，
+候选切法是把「带内错误帧」这一族与「打断／看门狗」这一族分成两份测试文件。这条登记为本刀的自记账，不另行通知。
+
+### 四、定稿遍（`39dfbdf`，六段全 0）
+
+先提交内容（`39dfbdf`，2 files/+119−7），**再在净树上跑六段**——这样绿说的是已提交的那棵树：
+`PRE_DIRTY_COUNT=0`、`FORMAT_EXIT=0`、`TYPECHECK_EXIT=0`、`ESLINT_EXIT=0`、`BOUNDARY_EXIT=0`、`BUDGET_EXIT=0`、
+`TEST_EXIT=0`、`POST_DIRTY_COUNT=0`；读数 **316 文件 / 4136 passed | 2 skipped（4138 条注册）**，`Duration 35.47s`。
+`FAILURE_HITS=1` 逐条查过：唯一命中是 `chain11/test.log:109` 那句自标的
+`[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到`——非开发者模式的本机噪音，不是失败，
+与第十一节起的口径一致。
+
+**Linux 侧现在是预测，不是读数**：本机新增 5 条全部平台中立（不碰 `process.platform` 分支），
+按平台账（win32 分支多注册 3 条、`it.skipIf(win32)` 那 2 条在 Linux 真跑）推 **`39dfbdf` 上 CI 应报
+`files=316 registered=4135 passed=4135 skipped=0 failures=0`**，于是 `4138 = 4135+3`、`4136 = 4135+1` 两侧对上。
+**这一句在推送并读回 annotation 之前不作数**，读回来写进本节末尾。
+
+顶格两格**没换绑**，仍绑 `2f0808e`：门面的每一句都是「在某枚提交上读到」的绑定式陈述，
+本刀加的 5 条让它落后一格是**免责段写明的既成状态**，不是假话（另见第六十一节留给 #62 的第 3 条交接）。
+
+### 五、留给 #63 的候选（按能不能自己动手排）
+
+1. **本刀自己的 annotation 回读**——把上面那句预测变成读数，这是顶格换绑的前置，不是换绑本身。
+2. **429/5xx 退避重试**（审计第 11 条，真缺口）：只在**一个字节都没吐出来**之前重试，
+   已经有增量之后再重放就是让用户看见两遍话——这条边界要用例钉住。
+3. **导出文件名净化补到与文档名同一档**（第 6 条那半边）：`sanitizeFilename` 现在比 `sanitizeDocFileName` 少
+   控制字符／尾点／保留名三样，且**零用例**。修法倾向直接复用 `contracts` 那份保留名真身，不写第二份。
+4. **`C:foo` 盘符相对写法**（第 5 条）：`paths.ts:14` 的正则去掉斜杠要求即可，但要先量清
+   「过闸之后到底会不会写出书外」——目前只证明它落不了盘，没证明它逃得出。
+5. **`docs/ATTRIBUTION.md:51` 那句陈旧话**（第 22 条）：生成脚本已入库，句子还在说它在 git-ignored 里。
+   属「数据变了、解释还在」那一族假话，改文档即可，但要连带核对 `:58` canvas-ui 那条 MIT 加 Commons Clause
+   的表述是否仍与 `apps/desktop/src/renderer/src/utils/canvasui/*` 的实际拆分一致。
+6. 仍在等同用户一句话的：通道级授权（第 15 条那一半，`ipc-guard.ts:115-116` 自认没做）、
+   LICENSE 与 `license` 字段（第 20 条，对外承诺）、打包配置（第 19 条，与并行会话那批撞车）、
+   WebDAV 或整书备份（功能第 6 条，缺契约）、全书替换（功能第 4 条，缺契约）、token 用量统计
+   （功能第 7 条，要先把 `usage` 从流里读出来再进事件与存储）。按铁律：报不出通路或字段名的控件不进 UI。
