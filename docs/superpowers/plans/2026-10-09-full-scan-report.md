@@ -5318,3 +5318,30 @@ ALL_OK=1
 补一句收尾口径：**本节入库之后还会再跑一遍整链**（证据目录 `/c/temp/m12-f/k60/chain9/`），
 但那一遍的数**不写进本节**——写进来就得改本节，改完那一遍又作废，这是第五十九节记过的死循环。
 本节对外引用的绿是 chain8：本机净树 316 文件 / 4133 条（含 2 skip），六段退出码全 0。
+### 送达（`2394644`，2026-10-14 04:31—04:47）：两枚 ref 各自拿码各自回读，外加一发「旧重试循环还活着就把送达记错人」
+
+`k60d-push.sh` 的第一遍（04:31 起）撞上整段网络不可达：feat 那枚 12 次重试全 `EXIT=128`
+（`Failed to connect to github.com:443 after 21033 ms: Could not connect to server`），
+fix 那枚跑到第 10 次才 `EXIT=0`——而那句是 `Everything up-to-date`，**它已经不是推送，是确认**。
+换前缀的 `k60e-push.sh`（04:4x）才是这一格的送达：
+
+```
+LOCAL_HEAD=2394644aba7dac196cd0af20d0a7a07e2209b04b
+PRE_DIRTY_COUNT=0
+PUSH_EXIT ref=feat/plan3-interaction-and-assembly code=0 attempts=3
+PUSH_EXIT ref=fix/ci-path-platform-neutrality code=0 attempts=1
+READBACK ref=feat/plan3-interaction-and-assembly remote=2394644aba7dac196cd0af20d0a7a07e2209b04b MATCH=YES
+READBACK ref=fix/ci-path-platform-neutrality remote=2394644aba7dac196cd0af20d0a7a07e2209b04b MATCH=YES
+POST_DIRTY_COUNT=0
+ALL_OK=1
+```
+
+收尾又独立读了一次远端（`/tmp/k60e/remote-final.txt`，`git ls-remote --heads` 退出 0）：
+两枚 ref 同为 `2394644`，`main` 仍是 `c475caf` 没动。
+
+**这一格真正要复用的形状**：`k60d` 被我移到后台之后并没有死——它在 `k60e` 把 feat 推上去之后才跑完自己的
+回读，于是它的输出写着 `READBACK … feat … MATCH=YES` 而它自己的 push 明明是 12 发全 128。
+如果当时只看后台通知的那句「completed (exit code 0)」加一份 `MATCH=YES`，就会把送达记到 `k60d` 头上。
+所以规矩补一条：**送达归属 = 「那一枚 ref 的 `git push` 自己返回 0」的那一遍**，
+回读为 `MATCH=YES` 只证明远端此刻在那枚哈希上，不证明是谁推上去的；
+换前缀重试之前，先确认上一遍的循环真结束了（或者干脆把它的日志读完再下结论）。
