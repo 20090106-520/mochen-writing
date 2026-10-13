@@ -2484,5 +2484,100 @@ attempt 3 只送上 fix 分支，attempt 4 又两头红，attempt 5 双 0。落�
 - 判据层没动的两处：日期只要求**同句内**存在（R3 活着的原样，第四节）；提取面只覆盖「## 门禁」一节。
   两者都是刻意留的边界，不是漏。
 
+## 三十九、2026-10-13：把第三十六节第三节那句「推出来的」换成读来的——Linux 侧 18 / 35 / 4105 全部对上
+
+### 一、欠的是哪两句话
+
+第三十六节第三节（「这一格的成色：哪部分是看到的，哪部分是推出来的」）自己划的线：「**推出来的**：Linux 上的 18 / 35 与合计 4100——**没有打开过逐作业日志**」；
+第三十七节末尾又押了一句预测「Linux 侧应当是 **4105**」。两句当时都不是读数。
+本刀把它们打开看了，两枚都对。
+
+### 二、读数从哪儿来：run #59 = `6c1fb91` @ `feat/plan3-interaction-and-assembly`
+
+run 摘要页整页读回（判据形状照第三十五节那条规矩：只认 run 页文本与 `svg[aria-label]`，不从提交标题抓状态）：
+
+| 字段 | 读回的原文 |
+| --- | --- |
+| run | `38339035996`，页面上是「门禁 pnpm verify **#59**」，commit `6c1fb91`，分支 feat |
+| 状态 | `Status Success`；页内 `svg[aria-label]` 四枚全是 `completed successfully` |
+| 时长 | `Total duration 2m 29s`，作业行 `六路 typecheck + lint + boundary + budget + 全量测试 2m 24s` |
+| 摘要报告 | `Vitest Test Report` / `Test Files: ✅ 313 passes · 313 total` / `Test Results: ✅ **4105** passes · 4105 total` / `Job summary generated at run-time` |
+
+逐作业日志里那两个文件（`Test Results` 只给总数，**每文件条数只在步骤日志里**）。
+下面引的是剥掉 ANSI 着色序列之后的文本，行首时间戳是日志自带的 UTC 时刻，不是转述：
+
+```
+2026-10-13T02:54:42.0269115Z  ✓ packages/fs-store/test/changes.test.ts (35 tests) 2193ms
+2026-10-13T02:54:49.5501685Z  ✓ packages/fs-store/test/path-boundary.test.ts (18 tests) 56ms
+2026-10-13T02:55:41.8397897Z  Test Files 313 passed (313)
+```
+
+`changes.test.ts` 那一行**没有** `| 2 skipped`——正是 `it.skipIf(process.platform === "win32")` 在 Linux 上不跳。
+
+### 三、两头合起来，残余归零，而且每个数都指着它的出处
+
+| 数 | Windows（本机同树实测） | Linux（run #59 日志 / 摘要页） | 与推导是否一致 |
+| --- | --- | --- | --- |
+| `path-boundary.test.ts` | 21 | **18** | 第三十六节推的 −3 ⇒ 读回 18，一致 |
+| `changes.test.ts` | 35 注册、**2 skipped**（⇒ 33 passed） | **35 注册、0 skipped** | 推的 +2 passed ⇒ 一致 |
+| passed 合计（树 `6c1fb91`） | **4106** | **4105** | `4105 + 3 − 2 = 4106`，差仍是那 1 条 |
+| 注册合计（树 `6c1fb91`） | 4108（4106 passed + 2 skipped） | **4105**（total 里不含 skip） | +3，与平台分支那一刀正好 |
+
+⇒ 第三十六节 `4103 − 3 = 4100` 那一族算式，**从这一格起两端都是读出来的**，没有一格靠推。
+
+### 四、通路（这一族下次照抄，两条都是本刀实测出来的，不是设想）
+
+1. **摘要页只给总数**；每文件条数在步骤日志里，得进作业页。
+2. 新版 Actions UI 的日志**不在 DOM 文本里**：页面 `fetch` 一个签名 Azure Blob。
+   端点形状是 `GET /<owner>/<repo>/commit/<sha>/checks/<checkJobId>/logs/<stepNo>`（本刀是 `.../checks/115105642630/logs/7`），
+   它 302 到 `https://productionresultssa<N>.blob.core.windows.net/actions-results/.../steps/step-logs-*.txt`。
+   **在页内直接 `fetch` 那个 github.com 端点会 `TypeError: Failed to fetch`**（跨源重定向不放行，实测撞到的），
+   正解是从 `list_network_requests` 里取**重定向之后的 blob URL**再 fetch——blob 那条能读，
+   本刀拿到 61,625 字节，按行过滤 `path-boundary|changes|Test Files` 只回 4 行，一次调用就够。
+3. 展开步骤要点 `check-step` 里的 `summary.CheckStep-header`；本刀点了两次都没把日志挂进 DOM
+   （`#job-logs-container`、`job-logs`、`logs-viewer` 全查不到，`check-step.shadowRoot` 也没有内容），
+   最后是从网络请求里拿到的 URL。⇒ **别把「日志面板打开了」当成「日志读到了」的证据**，要读到的是文本本身。
+4. 签名 URL 有有效期（`se=` / `st=` 那对参数，本刀拿到的是 10 分钟窗），所以取到就立刻用，别存着下轮再取。
+
+### 五、这一格仍欠的（不冒充已完成）
+
+- **run #61 = `1e0c215` 没读到**：导航过去时 `ERR_CONNECTION_TIMED_OUT`（这台机器今天下午第六次撞到 GitHub 不可达，
+  推送那一族也是同一副症状）。预期它是 **4107 passed**（本机 4108 − 1），但那句是**由新守卫推的**，
+  读回来之前它只是预测，不进 README、不算账。
+- `fix/ci-path-platform-neutrality` 上那一格孪生 run 同样没读。
+- 那两枚 `it.skipIf` 在 Linux 上**具体是哪两条用例**没点名（日志只给条数）；要点名得读用例标题，是另一格。
+
+### 六、顺带把门面上的数换了新的（这就是第三十八节「没做的事」第一条留的那一刀）
+
+第三十八节写明「README 里的数没回填」，本刀做掉：门禁那一节的两条数换成
+「CI 在 Linux 干净提交树 `6c1fb91`（2026-10-13，run #59）报 **313 文件 / 4105 用例**」与
+「本机 Windows 在 `1e0c215`（2026-10-13）实测 **313 文件 / 4108 passed \| 2 skipped**」，
+并补一句**这两个数不是同树对照**（`1e0c215` 比 `6c1fb91` 多 2 条守卫用例），同树对照是 4105 vs 4106。
+写之前当场读回 `git status --porcelain` = 0 条、`git rev-parse HEAD` = `1e0c215ebe201fa3003b62a469fb237379c99327`。
+换数之后的第一次跑，旧的那两格（`e4b52e4` 304/3965、`c9708b9` 311/4098）就地消失，
+不再需要「历史数」的注脚——因为它们本来就是「最近一次实测」那一族，被新的实测顶掉是它的正常生命周期。
+
+换完先跑了一次**只针对这族闸**的 scoped 检查：`vitest run tools/readme-claims.test.mjs` ⇒ `GUARD_EXIT=0`、
+`Tests 5 passed (5)`（日志 `/c/temp/m12-f/s39-readme-guard.log`），`prettier --check README.md` 也 0。
+新的两条数都带着日期 + 反引号哈希，所以第三十八节那族「宣称干净必须有哈希」的判据是**当场满足**的，不是靠放宽。
+
+### 七、门禁与推送
+
+本刀只动两份 markdown（这一份 + `README.md`），没有一行代码或用例改动，所以条数不动：
+定稿那一遍六段退出码全 0 落在 `/c/temp/m12-f/s39-exit.txt`，`test` 那一格仍是
+**313 文件 / 4108 passed | 2 skipped（4110）**——与第三十八节定稿那遍逐字相同，这正是「只动 markdown」的读数证据。
+scoped 之外照旧跑满六段（`format:check / typecheck / lint:eslint / lint:boundary / lint:budget / test`），
+不在本刀里用「反正只改了文档」当理由跳段。
+
+第三十八节那条「**跑过门禁**不等于**跑过提交的那棵树**」在本刀当场复发了一次：第一遍六段全 0
+（`/c/temp/m12-f/s39-run1-exit.txt`，`Test Files 313 passed (313)` / `Tests 4108 passed | 2 skipped (4110)`）
+跑完之后，我把这一节的标题与第一节那句出处从「第三十六节结尾」改成「**第三十六节第三节**」——
+逐条回盘其余跨节引用时发现其余都对得上（`4103 − 3 = 4100` 在第三十六节、`Linux 侧应当是 4105` 在第三十七节末、
+「README 里的数没回填」在第三十八节第七节第一条），只有这一处把小节位置说高了。**说高也是错**，所以作废那一遍：
+它覆盖的不是最终内容。定稿那一遍才是提交的那棵树，两遍的日志与退出码分开留档，不以第一遍冒充。
+
+提交后快进推两个 ref，判据仍是 `git ls-remote --heads` 回读等于本地 HEAD；
+run #61 那格等 GitHub 可达再读，读回来之前第五节那句预测不进门面。
+
 
 
