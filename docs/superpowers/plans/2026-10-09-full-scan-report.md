@@ -4515,3 +4515,56 @@ files=315 registered=4125 passed=4125 skipped=0 failures=0
 本机那格说 2 skipped，两句话口径不同：Linux 侧两枚 `it.skipIf(win32)` 根本不注册），不是引用侧与读数侧脱钩的问题。
 先把口径写成一句能被核对的话，再谈装闸。另外 `tools/readme-claims.test.mjs` 现在是 791/800，**下一刀再加断言就得拆第三份门面守卫文件**
 （拆法依据仍是「不共享状态」）。
+
+## 五十七·补、2026-10-14 02:22：`12b9fff` 的两枚 run 读回 —— 同一串数字第三次落地，而且它让 #58 的形状变了
+
+上一节把 Linux 侧「4125」在 `a953b12` 与 `36d11bb` 上各读回一次，然后写下「下一次成对换绑的门槛：两侧都在**同一棵已提交的树**上读到，
+本机那格还得当场落盘 porcelain 名单」。本节先补第三枚——`12b9fff`（就是上面那句「送达」里那枚 HEAD，02:20:27 提交的那份台账）。
+
+抓取脚本 `/c/temp/m12-f/k57-readci2.sh`，输出 `/c/temp/m12-f/k57/k57b-readci.out`，轮询逐字：
+
+```
+try=1 runs=2 completed=0 total_count=2
+try=1 cnt=2:0 ready=1
+try=2 runs=2 completed=0 total_count=2
+try=2 cnt=2:0 ready=1
+try=3 runs=2 completed=0 total_count=2
+try=3 cnt=2:0 ready=1
+try=4 runs=2 completed=2 total_count=2
+try=4 cnt=2:2 ready=0
+TABLE_EXIT=0
+```
+
+`k57b-cr.json`（02:22:53 落盘，sha256 `954d431934346f51f2ed3cb2c416826660f191ffa115473cf925b734ec8fa5d6`）里两枚 run 的
+`head_sha` **都是** `12b9fff20b9d53ff020f19de28f230a2eb3d8552`——这一句不是从别处搬来的，是当场 `JSON.parse` 后逐条打印读回的。
+id 由这份 JSON 里读、没有手抄（`k57b-cr-table.tsv` 逐字）：
+
+```
+115464344061	格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试	completed	success	38445972235/job/115464344061
+115464309132	格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试	completed	success	38445962594/job/115464309132
+```
+
+两枚各自取 annotation（`curl_exit=0` 两行也在 out 里），字段 `path=.github`、`start_line=7`、`annotation_level=notice`、
+`title=CI 用例总数`，消息两份逐字相同，且两份 JSON 文件的 sha256 也相同（`4696055b1f94980737a4fef19d5879753bd338e977db087cbbc88a8164547d07`）：
+
+```
+files=315 registered=4125 passed=4125 skipped=0 failures=0
+```
+
+**为什么这一串与 `a953b12` 上那串一字不差，不是巧合也不是抄的**：`git show <rev>:<file> | grep -c '^test('` 当场数过三枚——
+`readme-claims.test.mjs` 在 `a953b12`、`36d11bb`、HEAD 都是 13 条（行数从 778 长到 791，但 `^test(` 一条没加，
+`36d11bb` 改的是等式表与注释），`readme-gate-composition.test.mjs` 2 条、`ci-test-summary.test.mjs` 8 条两侧同值。
+用例集没变，注册的数当然没变。
+
+于是 #58 的形状和上一节想的不一样了：**要换的不是数字，是「哪棵树」这句话**。Linux 侧已经在一枚 README 与门面守卫都已提交的树上读到过
+（`36d11bb`、`12b9fff`——这两枚树上 `git show HEAD:README.md` 的字节就是顶格此刻引用的那一份），
+本机侧还缺一个「在同一棵已提交的树上、porcelain 跑前跑后都落盘名单」的定稿遍。
+下一刀的目标就是把顶格两格连同 quoted 原文一起换绑到那枚树上，并把现在那段靠 blob 哈希反推「哪两份文件未提交」的字节对照
+换成一句更短的话：跑前跑后各读回一次，名单为空。
+
+本节写之前那一读（02:25—02:26 之间）`git status --porcelain | wc -l` = `0`，HEAD 就是 `12b9fff20b9d53ff020f19de28f230a2eb3d8552`；
+写完后 02:27:55 再读一次是 `1` 条，而那 1 条正是这份 .md 自己——两次都当场落盘，不拿前一次冒充后一次。
+**本提交只动这份 .md**：门面可见的那四样（`README.md`、`tools/`、`package.json`、`.github/`）自 `36d11bb` 起一个字节没变
+（`git diff --name-only a953b12 HEAD` 读出三份，其中 README 与门面守卫的那份差异早在 `36d11bb` 就被 k57 定稿遍覆盖过——
+那一跑读的 README 字节即 `36d11bb` 的字节），所以六道闸上一遍的绿对本树仍成立；台账那份 `.md` 不在任何一道闸的读取路径上
+（依据同上一节：`.prettierignore:13`、`check-source-line-budget.mjs:22` 的 `SOURCE_FILE`、`git grep` 全仓只有一处注释提到它）。
