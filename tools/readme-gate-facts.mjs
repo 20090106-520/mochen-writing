@@ -8,11 +8,15 @@
  * `tools/readme-gate-composition.test.mjs`。两边都要用的只有这里这几样：仓库根、README 原文、
  * 「## 门禁」那一节的切法、把 `**` 与空白折叠成一个可读字符串的 `flatten`。
  *
- * 为什么不让两份测试各自写一遍：`gateSection()` 与 `flatten()` 是**判据的一部分**——它们决定了
+ * 为什么不让几份测试各自写一遍：`gateSection()` 与 `flatten()` 是**判据的一部分**——它们决定了
  * 「门面上的一句话算不算这一节里的说法」。抄第二份就会漂移（锁定前提第 6 条：同一份判据只许一处实现，
  * 先例是 `tools/platform-anchors.mjs`，锚点也只在它那里存一份）。
  *
- * 本模块不含任何断言判据：判据仍然只在两份测试文件里，各管各的口径。
+ * 2026-10-14 第五十九节：门面守卫从两份拆成三份（出处那一族六道搬去 `tools/readme-provenance.test.mjs`），
+ * 于是这里多了一样共用件——「反引号十六进制」的取枚正则 `SHA` / `SHA_G`。它被两份守卫同用：
+ * `readme-provenance.test.mjs` 拿它判「这条数配没配它所属那棵树的哈希」，`readme-claims.test.mjs`
+ * 拿它筛同树声明点名的短哈希。本模块仍然**不含任何断言口径**（谁算合格、缺一枚要红不红，都只在测试里判）；
+ * 它只认「门面上一枚反引号包着的十六进制串长什么样」这一件事。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -38,3 +42,13 @@ export function gateSection() {
 
 /** 去掉 `**` 并把所有空白折叠成单空格：判据量的是读者眼里的距离，不是磁盘上的原始下标。 */
 export const flatten = (t) => t.replace(/\*\*/g, "").replace(/\s+/g, " ");
+
+/**
+ * 门面写哈希的取枚正则：**不带 `g`** 的那一枚（`SHA`）只判「这句里有没有」，
+ * **带 `g`** 的那一枚（`SHA_G`）给需要数位置、逐个取出的判据用（`dateAttached` 量日期离哈希多远、
+ * `treeHashes` 把每一枚都掏出来再按长度筛树哈希）。
+ * 分成两枚是刻意的：带 `g` 的正则调 `.test()` 会把 `lastIndex` 留在两次判断之间，
+ * 跨句复用会把第二条主张误判成「没有哈希」。
+ */
+export const SHA = /`[0-9a-f]{7,}`/;
+export const SHA_G = /`[0-9a-f]{7,}`/g;

@@ -4725,3 +4725,197 @@ Windows 那一格在 `1ca943b` 上没有零脏项读数（本刀定稿遍跑时 
 行号引用——搬去 `tools/readme-provenance.test.mjs`），搬完门面那句「`tools/…`（N 道）」与「原文件留 N 道」要同改，
 第十四道当场核对。skip 口径那条照旧：先把「CI 说 `skipped=0`、本机那格说 2 skipped」写成一句能被核对的话
 （两枚 `it.skipIf(win32)` 在 Linux 上根本不注册），再谈装闸。
+
+## 五十八·补、2026-10-14 03:00：`1a3d529` 的送达 —— 第一枚 ref 重试到第 8 次才出去，以及那一格没名单的脏项
+
+`1a3d5292bbab47a4fb692ed701818832834222f7`（提交时刻 `2026-10-14T02:53:33+08:00`，只动台账这一份文件）。
+送达逐字回读自 `/tmp/k57/k58b-push-codes.txt`（mtime `03:00:26`）：
+
+```
+HEAD_FULL=1a3d5292bbab47a4fb692ed701818832834222f7
+PRE_PUSH_PORCELAIN=0
+PUSH ref=feat/plan3-interaction-and-assembly attempt=1 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=2 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=3 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=4 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=5 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=6 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=7 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=8 exit=0
+READBACK ref=feat/plan3-interaction-and-assembly try=1 exit=0
+REMOTE_SHA ref=feat/plan3-interaction-and-assembly value=1a3d5292bbab47a4fb692ed701818832834222f7
+STATUS ref=feat/plan3-interaction-and-assembly 送达
+PUSH ref=fix/ci-path-platform-neutrality attempt=1 exit=0
+READBACK ref=fix/ci-path-platform-neutrality try=1 exit=0
+REMOTE_SHA ref=fix/ci-path-platform-neutrality value=1a3d5292bbab47a4fb692ed701818832834222f7
+STATUS ref=fix/ci-path-platform-neutrality 送达
+POST_PUSH_PORCELAIN=1
+```
+
+两枚 ref 各自拿码、各自回读，回读码都是 0 且 `REMOTE_SHA` 与本地 HEAD 逐字相同——**送达**这两个字到这里才作数。
+`feat` 那七次 128 是外网卡（这台机器的老毛病，[[machine-profile]]），脚本自己的重试循环第 8 次成功，
+我没有手工绕过任何一步，也没有强推（快进范围 `1ca943b..1a3d529`）。
+
+**`POST_PUSH_PORCELAIN=1` 那一格没有名单**：`k58b-push.sh` 只在跑前打了 `*_LIST_START/END`，跑后只数了个数。
+于是「那 1 条是什么」永久问不出来，归因**未收口**——最像的解释是那一刻我正在往下写上面这段补记，但这句话是**推的**。
+这正是第五十八节第 2 发刚立的规矩（所有树状态读数一律走带名单的脚本）在**同一枚脚本**上的下一次违反：
+规矩是在 §五十八 正文里立的，而 `k58b-push.sh` 是那一节之前就派生出来的，我没回头给它补名单。
+处置：下一刀（#59）用的推送脚本从 `k58b-push.sh` 派生时，`POST` 那一段照 `PRE` 的形状一起补上。
+
+## 第五十九节（2026-10-14 02:55—03:20）：门面守卫切出第三份 `readme-provenance` —— 切因是**余量**不是超限，搬家全程可对字节
+
+### 切因：791/800 那一格余量
+
+上一刀留的话是「下一刀只要加一条就得先红一次门禁」。本刀**一条断言都没加**，只做搬家——因为先把文件切薄，
+下一刀才有地方加它要加的那条。当场数过：切之前 `tools/readme-claims.test.mjs` 是 **791 行 / 13 道**，
+预算 800，余量 9 行；`lint:budget` 那一遍（`k59-final2-budget.log`）此刻报的是「行数预算通过（**625 份**，含 .mjs/.cjs）」，
+上一刀的日志是 624 份——多的那一份就是本刀新增的 `tools/readme-provenance.test.mjs`，这个 625 是**读来的**。
+
+### 拆法依据：还是那句「不共享状态」
+
+搬出去的是「**这个数有没有出处**」那一族六条（逐字取自 `k59/m84.log`、`k59/m86.log` 的用例行）：
+
+1. 门禁那一节的每条测试数都说清了跑在哪棵树：宣称干净必须有哈希，声明脏树才免
+2. 出处闸的干净支在门面上得有实例：至少一条数带哈希，且其中一条明写干净
+3. 日期附加的两条路在门面上都得有实例：至少一条数挨着日期、至少一条数挨着哈希
+4. 门面上每个 run 页 ID 所在句都得配着另一枚提交哈希（ID 不能当自己的出处）
+5. run 页 ID 不许藏进引号里：剥 `「…」` 前后数出来的枚数必须相等
+6. 门面上每一处「某文件的第 N 行」都得真指到登记过的锚点，而且不能漏数
+
+留下的七条是「门面说的东西**指没指到、对不对表**」那一族：指向本身（`提取到的确实是门面里那些指向`）、
+仓库路径真实存在、pnpm 脚本在 `package.json` 里、等式自洽 + 两侧文件数对表（第九道）、同树声明对表（第十二道）、
+守卫条数对表（第十四道）、quoted CI 原文与「两侧都是 N」对表（第十五道）。
+两支不共享任何状态：出处族读的是「数 + 日期 + 哈希」的邻接关系，指向族读的是「说法 + 脚本 + 树」的对应关系，
+唯一共用的东西是**取文本**与**取枚哈希**——它们上了收（见下面那节）。
+
+### 搬家可对字节：两段区间逐字照搬，diff 空
+
+原始快照 `scratch59/readme-claims.orig-1a3d529.mjs`（791 行，sha256
+`6dfa29cf2ab814c3addba89bedcdb05e8b56499917576ad16c4175edc961f0e0`）；装配稿 `scratch59/new-provenance.txt`
+（336 行 = 我新写的表头 23 行 + 两段照搬 + 空行）。本节写作时**重新跑过**这两条对照，两条 diff 都是空：
+
+- 原文件 **130–366**（237 行）→ 新文件 **25–261**：`diff <(sed -n '130,366p' 快照) <(sed -n '25,261p' 装配稿)` 无输出。
+- 原文件 **500–573**（74 行）→ 新文件 **263–336**：同法无输出。
+
+装配稿与**最终文件**之间只有三处不同，都是本刀有意为之，`diff` 出来就三个 hunk（03:0x 那次装配之后才改的）：
+
+1. 表头下面那段「取文本的四样东西…」重写——原文说 `package.json` 也住在 facts 里、并与「门禁组成」那道闸共用，
+   搬家后共用方变成**三份**，且共用件多了两枚正则，所以那句得连「反引号十六进制」一起说。
+2. 删掉本地那枚 ``const SHA = /`[0-9a-f]{7,}`/;``——它改成从 `tools/readme-gate-facts.mjs` 导入。
+3. 删掉本地那枚 ``const SHA_G = /`[0-9a-f]{7,}`/g;`` 连同那两行「不能复用上面那枚」的注释，
+   换成一句「`SHA` / `SHA_G` 不在这里定义」。
+
+删这两枚不是清理，是**锁定前提第 6 条**：`SHA`/`SHA_G` 同时被 `readme-claims.test.mjs` 的第十二道（同树声明）用着，
+一份「反引号十六进制」的写法只该有一个定义处；照搬之后两份文件里各存一份同名正则，就是等下一次改写法时只改一边。
+于是 `tools/readme-gate-facts.mjs` 从 40 行涨到 **54 行**（`git diff --numstat` 读回 16 增 / 2 删），导出
+`SHA` 与 `SHA_G` 两枚并写明为什么要两枚（带 `g` 的那枚 `.test()` 会把 `lastIndex` 留在句子之间）。
+两份文件的 import 行现在是（`grep -n '^import'` 逐字）：
+
+```
+tools/readme-provenance.test.mjs:5:import { ROOT, readme, gateSection, flatten, SHA, SHA_G } from "./readme-gate-facts.mjs";
+tools/readme-claims.test.mjs:4:import { ROOT, readme, rootPkg, gateSection, flatten, SHA_G } from "./readme-gate-facts.mjs";
+```
+
+### 三份门面守卫此刻的数（全部 `wc -l` 与 `grep -c '^test('` 回读）
+
+| 文件 | 行 | 道 | 本刀 |
+| --- | --- | --- | --- |
+| `tools/readme-claims.test.mjs` | 485（原 791） | 7（原 13） | 删 330 增 24（numstat），删的是搬走的两段，增的是表头那三句拆法交代 |
+| `tools/readme-provenance.test.mjs` | 336 | 6 | 新建 |
+| `tools/readme-gate-composition.test.mjs` | 262 | 2 | 未动 |
+| `tools/readme-gate-facts.mjs` | 54（原 40） | 0 | 上收两枚正则 |
+
+最终文件 sha256（提交前读数）：README `7d6b044236a9adb9d6a2eb01633436fcfb8a75f775ff434019f2df671078b92f`、
+claims `3505cafafc35088133f4b4f813f4b1e5cbea747286b2150a63bce30a1bbf3254`、
+provenance `51e9aa6385188dc9975f325c61a52d075991a13c9959a85a9f73ed0fa9e4c5fd`、
+facts `aed7f5df6ccd337609ff93c12788fb6dc8f8dc9295141ac43ec2a2c3d06860f7`。
+三份单跑：**15 passed (15)**（`k59/guards-final.log`，mtime `03:11:06`，逐字 `7 tests` / `6 tests` / `2 tests`）。
+
+### 门面改了三处，三处都是「搬家后的实话」
+
+`git diff --numstat README.md` 读回 **11 增 / 3 删**，149 行 → **157 行**：
+
+1. 「原文件留 13 道」→「原文件留 **7** 道」，并新增 `tools/readme-provenance.test.mjs`（**6 道**）那句点名；
+   「两份共用的取文本层」改成「**当时**共用的取文本层」——旧说法在搬家后是假的，而第十四道正是拿门面点名的数
+   对表文件里行首 `test(` 的行数，写错就红。
+2. 「所以『门面守卫共几条』要**两份**文件各自数 `^test(` 再相加」→「要**三份**文件…」。
+3. 新增一段交代本刀**不换绑顶格两格**：那两格仍绑 `1cb4a29`（两侧都在零脏项树上的读数），本刀只多一枚测试文件、
+   没加断言，「而新树上 `vitest run` 的文件数会比 315 多 1，**这一句是推的、不是读来的**」。
+   —— 这一句本刀结束时仍是「推的」：`k59-final2-test.log:391` 读回 `Test Files 316 passed (316)`，
+   但那一遍跑的是**含 4 条脏项的工作树**（`PRE/POST_CHAIN_PORCELAIN=4`），不是净树，也不在 CI 上；
+   顶格那两格的标准是「两侧都在净树上读到」，所以 316 只能记在这里，不能写进门面当作那一格的出处。
+
+### 五枚变异：每枚只红一条，红的都是本刀动过的那句
+
+全部用反向 Edit 还原（禁 `perl -i`/`sed -i`），日志在 `/c/temp/m12-f/k59/`，每份都是
+`Test Files 1 failed | 2 passed (3)` + `Tests 1 failed | 14 passed (15)`——**只红一条**这件事本身是数出来的。
+
+| 枚 | 改法 | 红在哪一份哪一条 | 逐字首句（截断处见日志） | mtime |
+| --- | --- | --- | --- | --- |
+| M82 | 门面「原文件留 7 道」改成 **8** | claims 第十四道 | 「门面上这些条数已经不是那份文件的真身：tools/readme-claims.test.mjs 门面写 8 条，此刻数 7 条（「原文件留 8 道」）——加断言的人没回头改门面，这就是 2026-10-09 那枚冻死的「当前 215 文件 / 3014 用例」的下一代」 | 03:05:58 |
+| M83 | 门面「`tools/readme-provenance.test.mjs`（6 道）」改成 **7 道** | claims 第十四道 | 「…tools/readme-provenance.test.mjs 门面写 7 条，此刻数 6 条（「`tools/readme-provenance.test.mjs`（7 道）」）——…」 | 03:06:52 |
+| M84 | 删掉本机那一格的哈希 `` `1cb4a29` ``，留着数与日期 | **provenance** 出处闸 | 「这些测试数没连着出处：…——本机 Windows 在**同一棵树**（2026-10-14 02:37）实测 **315 文件 / 4126 pas[日期→数 10｜日期→哈希 无]」 | 03:07:25 |
+| M85 | 门面「顶格那两格如今是 `1cb4a29` 上…」改成 `` `1ca943b` `` | claims 第十二道 | 「门面上的同树声明指向了 2 枚不同的短哈希：…1ca943b←「顶格那两格如今是 `1ca943b` 上两侧同树读回的数…」——顶格两格 bump 了而免责段还留着旧树（或反过来）」 | 03:07:54 |
+| M86 | 门面「第 247 与 **302** 行」改成 **301** | **provenance** 行号引用闸 | 「门面上「`packages/fs-store/test/changes.test.ts` 的第 247 与 301 行」点到的第 301 行其实是 ""，不含锚点 it\.skipIf\(process\.platform === "win32"\)——那一行上面每插一条用例，行号就整体下移，门面必须跟着改」 | 03:08:17 |
+
+M82/M83/M85 三枚红在 claims（第十四道两枚、第十二道一枚），M84/M86 两枚红在 provenance——
+**每枚只红一条**是数出来的（五份日志逐份都有 `Test Files 1 failed | 2 passed (3)`），
+红的文件恰好是本刀改的那一句所住的文件。搬家前这六条和那七条住在同一份 791 行的文件里，
+「哪条判据住在哪份文件」以前没法用变异证明；现在五枚变异各指一份，门面点名的归属与真身一一对得上。
+M84 那一枚还顺带证明：只删哈希不删日期时，`日期→数 10` 仍在 12 的窗口内、日期那一臂不红，
+红的是**只有哈希算出处**那一臂。
+
+还树的证据只有落盘的两件：① 三份守卫在变异全部还原后单跑 **15 passed**（`k59/restore-green.log`，mtime `03:08`）；
+② 变异期快照 `README.mut-snapshot.md`（sha256 `6cec2e70a874dce9465c917f27fc1b820d35ec8473a696068a92aba748ecd657`，
+mtime `03:05`）与终稿 README（`7d6b044…`）现在 `diff` 出来**只有两处**，都是 `03:10` 之后的文案改动
+（「两份共用」→「当时共用」、一处换行重排），没有任何一处是变异残留。
+快照是**改内容之后重取的**，所以它的对照对象是变异期的门面，不是终稿——这一点与上一刀同一套做法。
+
+### 定稿遍：作废的第一遍与全 0 的第二遍
+
+**第一遍作废**（`k59-chain1.sh`，`k59-final1-codes.txt` mtime `03:10:15`）：前五段码 0（`03:09:14` 格式、
+`03:09:30` 类型、`03:09:43` eslint、`03:09:44` 边界、`03:09:45` 预算），第六段 `test_EXIT=127`（`03:10:14`）。
+两个作废理由，任一都够：① 那一遍跑完后我又改了门面两处（「两份共用」→「当时共用」，加上一处换行重排），
+终稿内容与那一遍跑的内容不是同一份——快照 `README.mut-snapshot.md`（`6cec2e70…`）与
+`README.final-prechain.md`（`7d6b044…`，与提交时 `cmp` 无输出）之间 `diff` 就出这两个 hunk；
+② 它的 test 段根本没跑完：`k59-final1-test.log` 只有 2593 字节，停在 `tools/mock-provider.test.mjs` 那三条 ✓ 之后，
+**没有 `Test Files` 汇总行**，日志里 grep `not found|ELIFECYCLE|Command failed|No such` 全部无命中。
+那一遍是我自己停的（任务 `bc5um861d`）并杀掉了属于本刀的两枚进程（16916 vitest、1492 corepack pnpm，
+杀前用 `Get-CimInstance Win32_Process` 核过命令行；24076 那枚是 Qoder 自己的 computer-use 启动器，没碰）。
+**127 由谁产生：未收口**——日志里没有 command-not-found 也没有 ELIFECYCLE，只能确定它不是「测试跑红了」，
+不能像上一刀那样把它写成「pnpm 找不到」。
+
+**第二遍（定稿遍）**`k59-chain2.sh` → `/tmp/k57/k59-final2-codes.txt` 逐字：`HEAD_FULL=1a3d5292bbab47a4fb692ed701818832834222f7`，
+`PRE_CHAIN_PORCELAIN=4`，名单四行 ` M README.md` / ` M tools/readme-claims.test.mjs` / ` M tools/readme-gate-facts.mjs` /
+`?? tools/readme-provenance.test.mjs`；六段码与时刻：`format_EXIT=0` `03:11:33`、`typecheck_EXIT=0` `03:11:49`、
+`eslint_EXIT=0` `03:12:02`、`boundary_EXIT=0` `03:12:03`、`budget_EXIT=0` `03:12:04`、`test_EXIT=0` `03:12:43`；
+`POST_CHAIN_PORCELAIN=4` 名单与跑前逐字相同。**这 4 条不是要掩盖的东西**：它们正是本刀要提交的四份文件，
+跑前跑后同一份。各段日志内容也复核过（退出码之外的第二证据）：
+`k59-final2-format.log`「All matched files use Prettier code style!」、`k59-final2-budget.log`「行数预算通过（625 份，含 .mjs/.cjs）」、
+`k59-final2-boundary.log`「边界检查通过」、`k59-final2-eslint.log` 只有命令行没有 problem 行、
+`k59-final2-typecheck.log` 六枚 `tsc --noEmit -p` 全列出、`k59-final2-test.log:391-392`
+`Test Files 316 passed (316)` / `Tests 4126 passed | 2 skipped (4128)`。
+
+### 本刀自己绊到的两发
+
+1. **通知的 0 码又催出一枚重复推送**：`k58b-push.sh` 还在重试循环里（第七次 128 之后、第八次之前），
+   一条后台通知回「completed (exit code 0)」，我当成送达就去派生了 `k58c-push.sh`——那份后来什么都没推成，
+   因为第一枚仍在跑。发现方式仍是读落盘：`k58b-push-codes.txt` 当时只写到 `attempt=7 exit=128`。
+   处置：杀掉 `k58c-push.sh`（PID 21528，杀前核过命令行）。两枚脚本推的是同一枚 HEAD，不会改写历史，
+   但**会把一份送达证据劈成两半**——这比推不送得更贵。规矩补一条：派生第二个推送脚本之前，
+   先读第一个脚本的日志尾行并确认它的循环进程已经不在了。
+2. **门面还没定稿就开跑六段**：链一在 `03:09:14` 起跑，而「两份共用」那句话是 `03:10` 之后才改的。
+   这是 [[feedback-cheap-gates-before-long-runs]] 的反面，代价是一整遍（约 60 秒）+ 一次进程清理。
+   处置：本刀起，派生长链之前先 `git diff --stat` 读一遍并将门面文案定稿，长链只允许在**内容不再变**之后启动。
+   （另外记一笔与本刀无关但同源的：`转述必须回盘` 在本刀的回收是那一枚 127 的归因——我一度把它当成
+   「corepack 找不到 pnpm」写进草稿，读日志才知道三个关键词全无命中，于是改写成**未收口**。）
+
+### 留给 #60 的
+
+- 顶格两格仍绑 `1cb4a29`。下一次回填必须**两侧都在净树上重读**，而 Linux 那一格的文件数会读成 **316**
+  （CI 还没在任何含 `readme-provenance.test.mjs` 的提交上跑过；本机 316 只在脏树上读到，见上面那句限定）；
+  届时把门面那段「这一句是推的、不是读来的」一起改掉。
+- skip 口径那条照旧：先把「CI 说 `skipped=0`、本机那格说 2 skipped」写成一句能被核对的话
+  （两枚 `it.skipIf(win32)` 在 Linux 上根本不注册），再谈装闸。
+- `tools/readme-claims.test.mjs` 现在 485/800，余量 315 行——下一刀加断言不必再拆；provenance 336/800 同理。
+- 推送脚本派生时把 `POST_PUSH_PORCELAIN` 那段补成带 `*_LIST_START/END` 的形状（见 §五十八·补）。
