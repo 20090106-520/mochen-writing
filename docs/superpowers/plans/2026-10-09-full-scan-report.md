@@ -2723,6 +2723,80 @@ CI 侧要等本刀触发的 run 读回来才知道是几）。没有当场回填
 退出码集合与 `test` 读数逐字相同。这是同一毛病在本轮第三次当场复发（第三十八、三十九节各一次），
 它复发得这么频繁本身就是证据：**「跑过门禁」和「跑过提交的那棵树」是两件事，得每次都分开认。**
 
+## 四十二、2026-10-13：第四十节第四节那格欠账，能就地闭的两条先闭——双生 run 读回、两枚 `skipIf` 点名
+
+### 一、双生 run：同一个提交在两个 ref 上各跑一遍，数一样、时长不一样
+
+第四十节第四节写「`fix/ci-path-platform-neutrality` 上的孪生 run 同样没读」。本刀把 `b21fc1f` 那一格读回来了。
+run `38345924658`，一次 `evaluate_script` 落盘成 `m12f-twin-b21.json` 再 `Read`，页面上逐栏读回：
+
+| 栏 | 页面上读回的原文 |
+| --- | --- |
+| 树 / 分支 | `b21fc1f` / `fix/ci-path-platform-neutrality` |
+| Status | `Success` |
+| Total duration | `1m 30s` |
+| 作业行 | `六路 typecheck + lint + boundary + budget + 全量测试` / `1m 27s` |
+| Vitest 报告块 | `Test Files: ✅ 313 passes · 313 total` / `Test Results: ✅ 4107 passes · 4107 total` |
+| `svg[aria-label]` | `completed successfully: ` —— 本次抽取只取到这一枚。#61 那一格当初报的是「命中 5 次」，两次抽取脚本不同，**不拿枚数当两格对照**，两边都只认「读到了完成态标签」 |
+
+⇒ 「ref 不同会不会换个数」这一格从此不是猜测：同一棵树在两个 ref 上读出**逐字相同的 313 / 4107**，只有时长不同
+（`b21fc1f` 在 feat 上是 run `38345924514`，`Success`、`1m 58s`、作业 `1m 55s`、同一份报告块）。
+
+剩下两对孪生（`38344732533` @ `a74d0ca`、`38340568495` @ `1e0c215`）此刻只在 run 列表快照里读到状态标签
+`completed successfully: `，**条数没读**——列表页不给报告块，而页面随后就打不开了（见第四节）。所以那一条欠账
+从「所有孪生都没读」缩成「还差这两格读数」，没有全闭。
+
+### 二、两枚 `it.skipIf(win32)` 点名——这一条不用等网络，读盘就够
+
+| 位置 | 用例标题（逐字从盘回读） | Windows | Linux |
+| --- | --- | --- | --- |
+| `packages/fs-store/test/changes.test.ts:247` | 「目标文稿是指向书外的软链 ⇒ 拒（形状检查看不出来，只有 realpath 看得穿）」 | 进 `skipped` | 真跑，进 `passed` |
+| `packages/fs-store/test/changes.test.ts:302` | 「备份句柄自己是指向书外的软链 ⇒ 拒」 | 进 `skipped` | 真跑，进 `passed` |
+
+出处分两段，不许混：**位置与标题是读盘**（同一刀 `grep -n skipIf` 回读，`:247` 那枚的标题在下一行 `:248`，
+谓词都是 `it.skipIf(process.platform === "win32")`）；**「Linux 上真跑且过」不是 Linux 侧的直接读数**，它由两段拼起来——
+谓词在 POSIX 上为假，加上第三十九节从 run #59 作业日志读回的那一行 `changes.test.ts` **没有** `| 2 skipped`
+（`2515` 行原文）。⇒ 第四十节「仍未点名」这一条闭合；要把这两条点成 Linux 侧直接读数，仍得打开那两行逐文件日志，
+与第一节剩下的那两格同批。
+
+顺带一条口径，两头都对上：全仓 `--include=*.test.{ts,mjs}` 扫 `.skip(` / `.skipIf` / `describe.skip`，扣掉这两枚之后
+只剩 4 行命中，且**全部**在 `tools/platform-test-count.test.mjs` 的注释与正则字符串里（`:14`、`:83`、`:108`、`:124`），
+不是真的 skip；跑数那一侧 `s41-test.log:388` 逐字读出 `Tests 4109 passed | 2 skipped (4111)`——skip 总数就是 2。
+`tools/platform-test-count.test.mjs` 又把 `skipIf=2`、`win32 分支 − POSIX 分支 = 3`、`本机 passed − Linux passed = 1`
+三段钉成断言，改任何一个都得先让它红。
+
+### 三、门面那两个数本刀**仍不回填**
+
+`154e2c1` 给 `readme-claims` 加了第 6 条用例，门面上那两格（Linux 4107 @ `1e0c215` / Windows 4108 passed @ `1e0c215`）
+从那一刀起两侧各落后 1。回填的判据与第四十一节第六条同：**必须先读回 CI 在 `154e2c1`（或其后代）上那条数**，
+不在台账里预支；只换 Windows 一侧会把刚建立的**同树对照**又拆掉，所以两格一起等下一刀。
+这一格在写到本节之前就已经读回来了——run `38346916366`（`154e2c1` @ feat）页面上读回 `Status Success`、
+`Total duration 2m 23s`、作业行 `2m 19s`、报告块 `Test Files: ✅ 313 passes · 313 total` /
+`Test Results: ✅ 4108 passes · 4108 total`（`m12f-run64b.json`，一次 `evaluate_script` 落盘再 `Read`）。
+⇒ 同树对照的第二格成立：`154e2c1` 上 Linux **4108** vs 本机 Windows **4109 passed | 2 skipped（4111 条注册）**，
+差的还是那 1 条。回填 README 是下一刀要做的动作，本刀不动门面。
+
+### 四、门禁那一遍：第一次跑完又改了字，所以作废重跑——同一毛病第四次当场复发
+
+本刀只动台账一份 markdown，条数不动，所以定稿遍判据是**六枚退出码全 0**（`/c/temp/m12-f/s42-exit.txt`）且
+`test` 逐字读出 `Test Files 313 passed (313)` / `Tests 4109 passed | 2 skipped (4111)`（与第四十一节同值）。
+三份文件 mtime 当场比对过：台账 12:43:16、`README.md` 12:25:54、`tools/readme-claims.test.mjs` 12:26:19，
+六段起跑 12:43:40——全部早于起跑，所以这一遍覆盖的就是提交的那棵树。日志里唯一命中仍是那条已知环境噪音
+（`s42-test.log:103`：`[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到`）。
+
+**第一次那一遍（`s42-run1-exit.txt`）确实是六枚全 0，但它作废了**：作废的原因就在这一节自己身上——
+写第四节时 GitHub 整站不可达，`git ls-remote --heads origin` 连试 3 次全部 `EXIT=128`
+（最后一行 `Failed to connect to github.com:443 after 21070 ms: Could not connect to server`，`lsr-1..3.txt`），
+浏览器导航 run 页依次报 `ERR_CONNECTION_RESET`、`ERR_CONNECTION_CLOSED`、`ERR_CONNECTION_TIMED_OUT`，
+所以那一版写的是「本刀先本地提交，推送等网络回来」。12:43:50 网络探针第一次成功
+（`net-probe-history.txt`：`probe1 12:43:50 EXIT=0`），`net-probe.txt` 当场回读两个 ref 都等于本地 HEAD
+`154e2c1366a120f5dbdfebe67115a486591fa099`——网络在本刀提交**之前**就回来了，那句承诺就此变成假话。
+按第三十八节那条规矩，跑绿之后再改内容 = 那一遍作废、重跑定稿遍；两遍之间只差这一节措辞，
+退出码集合与 `test` 读数逐字相同。这是同一毛病在本轮第四次当场复发（第三十八、三十九、四十一节各一次）。
+
+推送：快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD 才算送达。
+第一节 `b21fc1f` 那格双生读数是在断线之前抓完落盘的（`m12f-twin-b21.json`），不受这一格影响。
+
 
 
 
