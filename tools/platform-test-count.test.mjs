@@ -2,6 +2,12 @@ import { expect, test } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  CHANGES_TEST,
+  PATH_BOUNDARY_TEST,
+  PLATFORM_IF,
+  countSkipIfWin32
+} from "./platform-anchors.mjs";
 
 /**
  * 平台分支的用例计数守卫（2026-10-13）。
@@ -20,12 +26,13 @@ import { fileURLToPath } from "node:url";
  * 断言的是**差值**而不是绝对总数，加别的用例不会误伤；改平台分支必须同批改这里。
  * 三段提取各自带「提取到东西没有」的自我声明，且锚点（那句 `if (process.platform === "win32")`）
  * 一旦改名就直接抛错：守卫宁可当场炸，也不空跑装绿。
+ *
+ * 2026-10-13（第四十九节）锚点、`skipIf` 判据与被点名的文件路径搬到 `tools/platform-anchors.mjs`：
+ * 门面那份行号闸要用同一个判据，两处各写一份就是本仓那条锁定前提（枚举与映射只许一份实现）拦的事。
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
-
-const PLATFORM_IF = 'if (process.platform === "win32") {';
 
 /** 数一段源码里**行首**的 `it(`（注释与内联文本里的 `it(` 不算）。 */
 function countIt(source) {
@@ -78,14 +85,9 @@ function splitPlatformBranch(source, rel) {
   };
 }
 
-/** 数 `it.skipIf(process.platform === "win32")(` 这种「POSIX 才真跑」的用例。 */
-function countSkipIfWin32(source) {
-  return [...source.matchAll(/it\.skipIf\(process\.platform === "win32"\)/g)].length;
-}
-
-const boundary = read("packages/fs-store/test/path-boundary.test.ts");
-const changes = read("packages/fs-store/test/changes.test.ts");
-const branches = splitPlatformBranch(boundary, "packages/fs-store/test/path-boundary.test.ts");
+const boundary = read(PATH_BOUNDARY_TEST);
+const changes = read(CHANGES_TEST);
+const branches = splitPlatformBranch(boundary, PATH_BOUNDARY_TEST);
 const winIt = countIt(branches.win);
 const posixIt = countIt(branches.posix);
 const skipWin32 = countSkipIfWin32(changes);

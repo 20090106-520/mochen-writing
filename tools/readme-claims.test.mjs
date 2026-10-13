@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { LINE_ANCHORS, linesWith } from "./platform-anchors.mjs";
 
 /**
  * 门面主张守卫（2026-10-13）。
@@ -26,6 +27,8 @@ import { fileURLToPath } from "node:url";
  * 另一枚提交哈希——后者是第四十三节那格「我把 `1e0c215` 的孪生页 ID 安到了 `6c1fb91` 头上」钉出来的。
  * 第四类**等式自洽**（2026-10-13，第四十六节回填之后）：门面上跨格的算式自己得算得过，
  * 只 bump 一边当场红——免责段那句「只 bump 一边会把同树对照又拆掉」从这里起才有牙齿。
+ * 第五类**行号引用**（2026-10-13，第四十九节）：门面按行号点名某个文件时，那一行必须真含着登记过的
+ * 锚点，且锚点出现的全部行号不得漏数——锚点定义只在 `tools/platform-anchors.mjs` 存一份。
  * 每一类都带一条"提取到东西没有"的自我声明：正则写坏了会让守卫**空跑即绿**，那比没有守卫更糟。
  */
 
@@ -446,5 +449,80 @@ test("门禁那一节写出来的每一处等式都得自己算得过，而且�
           "顶格 bump 了而等式没跟着动（或反过来）。这一处该红的是「对表」，不是那句算术。"
       ).toBe(cells[tie.cell]);
     }
+  }
+});
+
+/**
+ * 门面上的**行号引用**闸（2026-10-13，第四十九节）。
+ *
+ * 病灶：门禁那一节点名「`packages/fs-store/test/changes.test.ts` 的第 247 与 302 行，都是书外软链的守卫」，
+ * 而前面四类一条都管不到它——路径闸只管文件存不存在，不管第几行写的是什么。这一类坏得比路径安静：
+ * 文件被删至少 `fs.existsSync` 会红，而行号不会因为**上面插了一条用例**而报错，只会整体下移；
+ * 那时门面上的第 247 行是一行 `});`，读者按图看到别的东西，门面却还在替他保证「都是书外软链的守卫」。
+ *
+ * 判据三层，少一层就留一条脱身通路：
+ * 1. **实例声明**：门面上至少得有一处「`某文件` 的第 N 行」的写法，提取不到即红（第四十二节那条教训：
+ *    正则写坏了比门面写错更糟，守卫静默失效）。
+ * 2. **锚点登记**：被点名的文件必须在 `LINE_ANCHORS` 里有锚点。没登记**不算跳过，算红**——
+ *    否则门面新点名一个文件写行号就不需要负任何责任。
+ * 3. **逐行 + 完整性**：每个被点名的行号，那一行确实含着锚点——这一头管门面**多写或写歪**（代码里摘掉一枚
+ *    `skipIf`、而门面还留着两个行号时，被摘掉的那一行不含锚点，先在这里红；变异 M13 测的就是这一头）；
+ *    并且锚点在文件里出现的**全部**行号必须等于被点名的那一组——这一头管**漏数**，两个方向各测一次：
+ *    门面侧漏写（变异 M14，只写 247 不写 302）与代码侧新增（变异 M16，临时插第三枚 POSIX-only 用例，
+ *    门面没跟上）。
+ *
+ * 锚点与逐行扫描 import 自 `tools/platform-anchors.mjs`，与 `platform-test-count.test.mjs` 用的是同一份
+ * 判据（锁定前提第 6 条：枚举与映射只许一份实现）。这里扫全文而不只看「## 门禁」那一节，是因为行号引用
+ * 出现在哪一节都该被核对；`「…」` 里的反例不剥——剥了等于给「把引用写进引号里」留通路（见上面 run 页 ID 那条）。
+ */
+const LINE_CITE = /`([^`\s]+\.[a-zA-Z]{1,6})`\s*的第\s*([0-9][0-9 与、，,和]*?)\s*行/;
+
+function lineCitations() {
+  return [...readme.matchAll(new RegExp(LINE_CITE.source, "g"))].map((m) => ({
+    file: m[1],
+    cited: [...m[2].matchAll(/[0-9]+/g)].map((n) => Number(n[0])),
+    raw: m[0].trim()
+  }));
+}
+
+test("门面上每一处「某文件的第 N 行」都得真指到登记过的锚点，而且不能漏数", () => {
+  const cites = lineCitations();
+  expect(
+    cites.length,
+    "README 里一处「`某文件` 的第 N 行」的引用都没提取到——要么门面不再按行号点名（那这一类判据就该连文件一起删），" +
+      "要么提取正则写坏了：后者会让这条闸静默失效"
+  ).toBeGreaterThan(0);
+  for (const c of cites) {
+    const anchor = LINE_ANCHORS[c.file];
+    expect(
+      anchor,
+      `门面上按行号点名了 ${c.file}，可 ` +
+        "`tools/platform-anchors.mjs` 的 `LINE_ANCHORS` 里没有它的锚点——「没登记就跳过」等于给门面开了「写行号不需要负责」的通路，" +
+        "所以这里直接红：要么给这个文件登记锚点（并确认逐行判据真的能认出那一行），要么把行号改成能被前四类核对的写法"
+    ).toBeTruthy();
+    const abs = path.join(ROOT, c.file);
+    expect(
+      fs.existsSync(abs),
+      `门面上「${c.raw}」点名的文件在仓库里不存在——路径闸（第一类）抓的是反引号路径，这里再钉一次：行号引用必须连着文件一起在场`
+    ).toBe(true);
+    const source = fs.readFileSync(abs, "utf8");
+    const lines = source.split("\n");
+    for (const n of c.cited) {
+      const text = lines[n - 1] ?? "";
+      expect(
+        text,
+        `门面上「${c.raw}」点到的第 ${n} 行其实是 ${JSON.stringify(text.trim().slice(0, 60))}，` +
+          `不含锚点 ${anchor.source}——那一行上面每插一条用例，行号就整体下移，门面必须跟着改`
+      ).toMatch(anchor);
+    }
+    const real = linesWith(source, anchor);
+    const sorted = [...c.cited].sort((a, b) => a - b);
+    const missed = real.filter((n) => !sorted.includes(n));
+    expect(
+      sorted,
+      `门面上「${c.raw}」点名了 ${sorted.join("、")} 行，可 ${c.file} 里锚点实际出现在 ${real.join("、")} 行：` +
+        `门面漏点了第 ${missed.join("、")} 行。多写的那一头由上面逐行那条判住（点名的行不含锚点就先红），` +
+        "这里只管漏数——读者按门面只找到一处守卫"
+    ).toEqual(real);
   }
 });

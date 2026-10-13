@@ -48,7 +48,8 @@ eslint（`--max-warnings=0`）、包边界检查、**单文件 800 行预算**�
 同树对照差的这 1 条不是漂移，而是同一份文件在两个平台各注册几条：win32 分支多注册 3 条、
 两枚 `it.skipIf(win32)`（`packages/fs-store/test/changes.test.ts` 的第 247 与 302 行，都是书外软链的守卫）
 在 Windows 上不真跑，`+3 − 2 = +1`；Linux 侧 4111 条注册 = 本机 4114 − 3。那笔账由
-`tools/platform-test-count.test.mjs` 钉着，改那两个平台分支时它会先红。
+`tools/platform-test-count.test.mjs` 钉着，改那两个平台分支时它会先红；那两个行号本身由
+`tools/readme-claims.test.mjs` 核对（锚点定义只在 `tools/platform-anchors.mjs` 存一份，行号一漂移门面就红）。
 再往前几轮也在同一条线上：CI 在 `d60b32d`（2026-10-13，run 页 `38368137670` 与孪生的 `38368142676`）报 313 文件 / 4110 用例；
 CI 在 `154e2c1`（2026-10-13，run 页 `38346916366`）报 313 文件 / 4108 用例；
 CI 在 `1e0c215`（2026-10-13，run 页 `38340571768`）报 313 文件 / 4107 用例；

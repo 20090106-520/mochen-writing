@@ -3228,6 +3228,68 @@ M11 没有再做一次旧闸对照（同一份旧实现里根本没有 `ties`，
 
 本刀动两份文件：`README.md`（顶格两格 + 平台账 + 历史行 + 免责段换绑）与 `tools/readme-claims.test.mjs`（等式闸第二层，条数仍 9）再加台账这一节。回填用的本机读数来自**提交前的 `e5d4046` 干净树**，而本刀的提交会让 HEAD 前移——README 那两格点名的是 `e5d4046` 这棵树、不是「最新那棵树」，所以数不失效，这正是门面写下树哈希的理由。定稿遍在内容全部落定之后起跑，六枚退出码与该遍的 `stat`/`CHAIN_START` 先后落在 `/c/temp/m12-f/s48-final-exit.txt`；**本节不预告那一遍的结果**。提交后照 §四十七 第四节那条姿势（`HEAD:refs/heads/<名>`）快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD。
 
+## 四十九、2026-10-13：门面那句「第 247 与 302 行」立成第十道闸——锚点只存一份，代码侧与门面侧各测一头
+
+### 一、上一刀那两枚 run 先读回来（逐字回盘，不是转述）
+
+- `38374760339`——`门禁 pnpm verify #80`：`pushed 93d2ce4` / `fix/ci-path-platform-neutrality` / `Status Success` / `2m 18s`，summary 两行 `Test Files: ✅ 313 passes · 313 total`、`Test Results: ✅ 4111 passes · 4111 total`（`/c/temp/m12-f/s49-run-fix-93d2ce4.json`，页面正文 `len=690`，是 hydrate 完成后的长度）。
+- `38374765450`——`门禁 pnpm verify #81`：同一枚 `93d2ce4`、`feat/plan3-interaction-and-assembly`、`Status Success`、`1m 40s`，两行 `Test Files: ✅ 313 passes · 313 total` / `Test Results: ✅ 4111 passes · 4111 total`（`s49-run-feat-page.json`，`len=694`）。两枚 ID 都出自当场的列表抓取（`s49-runlinks-fix.json`、`s49-runlinks-feat.json`），没有一枚是从记忆里打的——§四十八 第五节那条规则第一次真的被执行，而不是只写着。
+
+读数意义：`93d2ce4` 相对 `e5d4046` 只改了 markdown 与守卫内部（没加减用例），CI 两侧仍报 4111，与门面顶格那格一字不差。这是**第二次**确认「门面/守卫内部的改动不新增用例时 CI 数不动」（第一次是 §四十七 那对 `fb88a58`）。本刀**加了**一条断言，所以下一轮 CI 该是 4112——那是下一轮的读数，本节点名不预支。
+
+### 二、病灶：前四类闸一条都管不到「第 N 行写着什么」
+
+`README.md:49` 那句「两枚 `it.skipIf(win32)`（`packages/fs-store/test/changes.test.ts` 的第 247 与 302 行，都是书外软链的守卫）」此刻是真的——当场回读：`:247` 与 `:302` 两行行首都是 `it.skipIf(process.platform === "win32")`。但这类引用坏得比路径安静：路径消失了第一类闸的 `fs.existsSync` 会红，而**行号不会因为上面插了一条用例而报错，只会整体下移**；那时门面上的第 247 行是一行用例标题字符串，读者按图看到别的东西，门面却还在替他保证「都是书外软链的守卫」。M13 把这件事演了一遍：把 247 写成 248，那一行实际是
+
+```
+    "目标文稿是指向书外的软链 ⇒ 拒（形状检查看不出来，只有 realpath 看得穿）",
+```
+
+——数字差 1，肉眼在门面读不出任何异常。
+
+### 三、判据与「只许一份实现」怎么同时做到
+
+新文件 `tools/platform-anchors.mjs` 只干一件事：把锚点存成一份。导出 `PLATFORM_IF`、`SKIP_IF_WIN32_T`（非 `g`，用于逐行匹配与 `toMatch`）、`SKIP_IF_WIN32_G`（由前者的 `source` 派生，不手抄）、`PATH_BOUNDARY_TEST` / `CHANGES_TEST` 两枚相对路径、`linesWith(source, anchor)`（逐行扫描，返回 1 基行号，同一行两处则重复两次以保证与全文 `matchAll` 同数）、`skipIfWin32Lines`、`countSkipIfWin32 = skipIfWin32Lines(...).length`（**条数由行号列表派生**，不另写一遍匹配逻辑），以及 `LINE_ANCHORS`（门面可按行号点名的文件 → 锚点）。
+
+- `tools/platform-test-count.test.mjs`：删掉本地那份 `PLATFORM_IF` 与 `countSkipIfWin32`，两处字面路径改用常量，改为 import；**五条断言一字未改**（行为等价，还原后 `Tests 15 passed (15)` = 10 + 5）。
+- `tools/readme-claims.test.mjs` 第十道（`grep -c '^test('` 当场数：10）分三层：①**实例声明**——门面上至少有一处「`某文件` 的第 N 行」的写法，提取不到即红；②**锚点登记**——被点名的文件必须在 `LINE_ANCHORS` 里有锚点，没登记**不算跳过、算红**，否则门面新点名一个文件写行号就不需要负任何责任；③**逐行 + 完整性**——每个被点名的行号那一行确实含锚点（管多写/写歪），且锚点出现的**全部**行号等于被点名那一组（管漏数）。
+- 两处刻意的选择：扫描**全文**而非只扫「## 门禁」（行号引用出现在哪一节都该核对）；**不剥 `「…」`**（剥了等于给「把引用写进引号里躲闸」留通路，与 run 页 ID 那条同族）。
+
+### 四、先证明它能红：M13–M16，四枚变异两头都测到
+
+| 变异 | 只改什么 | 结果 | 落盘 |
+| --- | --- | --- | --- |
+| **M13** | README `第 247 与 302 行` → `第 248 与 302 行` | `M13_EXIT=1`，红在**逐行**：`点到的第 248 行其实是 "\"目标文稿是指向书外的软链 ⇒ 拒（形状检查看不出来，只有 realpath 看得穿）\",", 不含锚点 it\.skipIf\(…\)`；`Tests 1 failed \| 9 passed (10)` | `s49-mut-m13.log` |
+| **M14** | 只留 `第 247 行`，删掉「与 302」 | `M14_EXIT=1`，红在**完整性**：`点名了 247 行，可 … 锚点实际出现在 247、302 行`；`1 failed \| 9 passed (10)` | `s49-mut-m14.log` |
+| **M15** | 行号整句删掉，改成「`packages/fs-store/test/changes.test.ts` 里那两枚」 | `M15_EXIT=1`，红在**实例声明**：`README 里一处「某文件」的第 N 行的引用都没提取到… expected 0 to be greater than 0`；`1 failed \| 9 passed (10)` | `s49-mut-m15.log` |
+| **M16** | **代码侧**临时插第三枚 `it.skipIf(process.platform === "win32")`（文件末尾一行，真注册） | `M16_EXIT=1`，**两份守卫同时红**：readme-claims 完整性（`锚点实际出现在 247、302、706 行`）+ platform-test-count 的 `skipIf 现在是 3 条` + 同文件 `本机 passed 相对 Linux 差 0 条，不再是 1 条`；`Tests 3 failed \| 12 passed (15)` | `s49-mut-m16.log` |
+
+M16 是本刀最值一枚：它证明这条闸不是只盯 README 措辞，代码侧漂移同样打得到它；而且一次同时打红两份守卫，正是「锚点只存一份」的可见证据——两处判据同源，改一处代码两边一起知道。测完 M16 我把完整性的**错误文案**改写过一次（原句把「多写」与「漏写」混在一句里，而多写那一头已被逐行判据拦住，写出来会让人以为这里管两头）；改写后在**同一枚尚未还原的变异**上复跑：`M16C_EXIT=1`，新文案逐字 `门面漏点了第 706 行。多写的那一头由上面逐行那条判住（点名的行不含锚点就先红），这里只管漏数——读者按门面只找到一处守卫`，仍是 `1 failed | 9 passed (10)`（`s49-mut-m16c.log`）——即改文案没有把牙改钝。
+
+还原与复绿：四枚变异分别用 `cp /c/temp/m12-f/README.s49.orig.md README.md`、`cp /c/temp/m12-f/changes.s49.orig.ts packages/fs-store/test/changes.test.ts` 还原，每次 `cmp` 返回 0（终端记 `RESTORE_M13_CMP=OK`、`RESTORE_M14_CMP=OK`、`RESTORE_M15_CMP=OK`、`RESTORE_M16_CMP=OK`；这几条只打在终端上，落盘的是还原后 `git status --porcelain` 只剩本刀要提交的四行：` M README.md`、` M tools/platform-test-count.test.mjs`、` M tools/readme-claims.test.mjs`、`?? tools/platform-anchors.mjs`）。还原后两份守卫复跑：`VITEST_EXIT=0`、逐字 `Test Files  2 passed (2)` / `Tests  15 passed (15)`（`s49-after-restore.log`）；`pnpm exec prettier --check` 四份文件 `PRETTIER_EXIT=0`、`All matched files use Prettier code style!`（`s49-prettier.log`）。
+
+### 五、门面上改了哪一处（原文照抄自 `git diff -U0 README.md`，落盘 `s49-readme.diff.txt`）
+
+```
+-`tools/platform-test-count.test.mjs` 钉着，改那两个平台分支时它会先红。
++`tools/platform-test-count.test.mjs` 钉着，改那两个平台分支时它会先红；那两个行号本身由
++`tools/readme-claims.test.mjs` 核对（锚点定义只在 `tools/platform-anchors.mjs` 存一份，行号一漂移门面就红）。
+```
+
+顶格那两格（CI `4111` / 本机 `4112 passed | 2 skipped（4114 条注册）`）与那句平台账、历史行、免责段**本刀一律没动**：免责段明写「回填不是每刀必做」，而本刀新增了一条断言，这两个数此刻各落后 1 条——这正是门面那句话描述的状态，等下一次真要回填时两侧同树重读。等式闸对此完全无感也不该有感：它算的是门面上那几处等式自己，`3 → 9` 那句说的是 `6c1fb91`→`e5d4046` 那段跨度，与最新树无关。
+
+### 六、还剩的欠账（不冒充已完成）
+
+- 逐文件条数（`path-boundary.test.ts (18 tests)` 那一类）在 CI 上仍是推出来的，本刀没有新通路。
+- 「run 页 ID 只能来自当场抓取」目前仍只有 §四十八 那句话管着，没有断言。
+- `LINE_ANCHORS` 只登记了 `CHANGES_TEST` 一份。这是刻意的窄：门面点名别的文件写行号时会**直接红**而不是静默跳过，届时要么去登记锚点、要么把行号改成前四类能核对的写法。
+- 行号闸是**文本判据**：锚点若被写成跨行（`it.skipIf(\n  process.platform === "win32"\n)`）就扫不到——与 `platform-test-count` 同源同限，不是本刀新引入的洞，但记在这里。
+- `main` 仍停在 `c475caf`；`useBookStore.ts` 800/800 那一拆、`VersionHistoryPanel` 一族、侧栏 `.nav-row kbd` 死规则、皮肤广场 §五 A/B/C 仍等一句话拍板，拆 store 还被并行会话的未提交改动挡着。
+
+### 七、门禁与推送
+
+本刀动四份文件：新增 `tools/platform-anchors.mjs`，`tools/platform-test-count.test.mjs`（改 import，断言条数不变），`tools/readme-claims.test.mjs`（+1 道闸，10 条），`README.md`（那两行）再加台账这一节。内容全部落定后才起六路定稿遍（`format:check` → `typecheck` → `lint:eslint` → `lint:boundary` → `lint:budget` → `test`，逐段落盘、退出码落 `s49-final-exit.txt`、日志 grep 复核）**本节不预告那一遍的结果**；本机这一遍注册数应比 `e5d4046` 那轮多 1 条，但那是待读到的数，不是这里的数。提交后照旧用 `HEAD:refs/heads/<名>` 快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD。
+
 
 
 
