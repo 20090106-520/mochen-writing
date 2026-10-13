@@ -4306,3 +4306,144 @@ Linux 侧被读回来的树累计六枚（`6679fab`、`12b2bf0`、`fc1e17c`、`0
 **下一刀的口径变化（本刀的副作用）**：#57 若真做同树回填，现在要动的不只是顶格两格，
 还有**那份 quoted 的 annotation 原文**——第十五道把引用侧与读数侧钉在了一起，
 所以「只 bump 两格」这条路对本刀之后的每一刀都不通了（这正是本刀想要的后果）。
+
+## 第五十七节（2026-10-14 02:00—02:20）：门面顶格两格回填到 `a953b12` —— 顺带第一次把「porcelain 不是 0 条」那一跑写成字节对照
+
+**这一刀动的位置**：README 的门禁那一节 + `tools/readme-claims.test.mjs` 的 `EQUATIONS`。台账单独一条 commit。
+
+### 病灶
+
+顶格两格还绑在 `12b2bf0`（Linux 4123、本机 4126 条注册），而门面守卫身后又多了两条断言（第十四道在 `981cba2`、
+第十五道在 `a953b12`）。两侧当下的读数都已经有据：Linux 那格是 `a953b12` 上两枚 run 的 annotation
+（`files=315 registered=4125 passed=4125 skipped=0 failures=0`，见 §五十六·补），本机那格是 #56 定稿遍
+（`315 文件 / 4126 passed | 2 skipped`、4128 条注册）。所以「回填」这一次不缺数，缺的是**出处能不能被下一个人复查**。
+
+### 回填前必须先解决的一件事：那一跑的 porcelain 是 2 不是 0
+
+上一版门面写着「`git status --porcelain` 跑之前与跑之后各读回一次，两边都是 0 条」。**照抄到 `a953b12` 就是假话**：
+这一跑（`/tmp/k55/k56-final1-codes.txt`，逐字）是
+
+```
+PRE_CHAIN_PORCELAIN=2
+format_EXIT=0
+typecheck_EXIT=0
+eslint_EXIT=0
+boundary_EXIT=0
+budget_EXIT=0
+test_EXIT=0
+POST_CHAIN_PORCELAIN=2
+```
+
+那 2 条是**还没提交的 README 与门面守卫自己**（#56 的改动），不是别人压在树上的东西。处置不是在门面上抹掉这一句，
+而是换一条更硬的证法：**不比干净，比字节**——只要跑前快照与提交进去的 blob 逐字节相同，那一跑测的就是 `a953b12` 的内容，
+porcelain 是几就不重要了。四步全部当场读回：
+
+```
+$ git show a953b12:README.md | sha256sum
+cfb74203332f606be5ee1afe7da59d10f8439e72da1c7be42281c3ea276036df  *-
+$ git show a953b12:tools/readme-claims.test.mjs | sha256sum
+f49b5e7ae69e9a2346d9ff0448e4eb8d547cae5b9d6566a4555eb58d27362091  *-
+$ sha256sum /c/temp/m12-f/k56-orig/README.md /c/temp/m12-f/k56-orig/readme-claims.test.mjs
+cfb74203332f606be5ee1afe7da59d10f8439e72da1c7be42281c3ea276036df  */c/temp/m12-f/k56-orig/README.md
+f49b5e7ae69e9a2346d9ff0448e4eb8d547cae5b9d6566a4555eb58d27362091  */c/temp/m12-f/k56-orig/readme-claims.test.mjs
+$ git diff --stat a953b12 HEAD          # 取于本刀动手前，HEAD=c107ebd
+ .../plans/2026-10-09-full-scan-report.md | 44 +++++++++++++++++++++-
+ 1 file changed, 43 insertions(+), 1 deletion(-)
+```
+
+时刻由 mtime 与日志自己给出，不作推断：快照 `k56-orig/` 两份都是 **01:40:44**；变异 M64–M69 落在 01:41–01:42；
+还原后另跑一遍门面守卫确认树回到快照才起定稿遍（`k56-post-mutation-green.log`，01:42:24，
+`readme-gate-composition 2 + readme-claims 13 + ci-test-summary 8`＝`Tests 23 passed (23)`）；
+定稿遍 01:42:52 起（format 段落盘）→ vitest `Start at 01:43:23` → test 日志 01:44:06；提交 `a953b12` 的 committer 时间是
+`2026-10-14T01:44:58+08:00`。剩下唯一与 `a953b12` 有差的第三份文件是台账那份 `.md`，而六道闸没有一段读它的字节
+（`.prettierignore:13` = `docs/superpowers`；`tools/check-source-line-budget.mjs:22` 的 `SOURCE_FILE` 只匹配
+`\.(ts|vue|mjs|cjs)$`；全仓没有一条断言读台账的字节——门面上那句「第二十三节」是**引用**，不是读取）。
+
+### 差点把出处写错的一发：`k56-baseline-sha.txt` 不是那份快照
+
+`/tmp/k55/k56-baseline-sha.txt`（mtime 01:40:04）里 README 记的是 `b66c318a5036eb778699be7efbc30af549bf248c614a80ec3c56c4ee58c0105e`，
+与 **`k55-orig/README.md` 逐字节相同**——也就是说它是 #56 那次 README 改动**落地之前**的字节；40 秒后（01:40:44）
+取的 `k56-orig/` 才是落地之后、也就是进了 `a953b12` 的那一份。两份都叫"基线哈希"、都写于 01:40 那一分钟，指向两个不同的 README。
+如果我凭「01:40 取过基线」这句话就往门面上写「跑前快照与 blob 相同」，门面拿到的就是一份**错的出处**——
+而且这条错法正是本刀要抓的那种（数对得上、出处指错文件）。现在门面上那句写的是"两份 blob 的 sha256 与那份快照逐字节相同"，
+"那份"具体指 `k56-orig/`，时刻写在旁边。
+
+### 门面这一轮的改法（四处，缺一不可）
+
+1. 顶格两格换绑 `a953b12`：Linux 4125、本机 4126 passed | 2 skipped（4128 条注册），run 页换成 `38441185951` 与孪生的 `38441194363`。
+2. quoted 的 annotation 原文跟着换成 `files=315 registered=4125 passed=4125 skipped=0 failures=0`（第十五道钉的就是它，不换就是自红）。
+3. 平台那句等式换成「Linux 侧 4125 条注册 = 本机 4128 − 3」。
+4. 增量那句换成「从 4123 到 4125 差的 2 条 … 第十四道 1 条 + 第十五道 1 条」，出处各由
+   `git show 981cba2:tools/readme-claims.test.mjs`（12）与 `git show a953b12:tools/readme-claims.test.mjs`（13）数行首 `test(` 取回；
+   base 那枚 `12b2bf0` 数出来是 11。守卫侧同步：`EQUATIONS` 里「那一族 2 条 + CI 报数守卫 8 条」那处**摘掉 `ties`**（退成历史），
+   新那处挂 `ties: [{ at: 2, cell: "linux" }]`。`test(` 条数不变，所以门面上「原文件留 13 道」不动。
+
+### 变异：本刀的判据先证能红（全部反向 Edit 还树）
+
+| 编号 | 改哪一处 | 期望 | 实测（逐字摘录） |
+| --- | --- | --- | --- |
+| M70 | 只 bump 读数侧：顶格 Linux 用例 4125→4126 | 引用侧与等式侧都脱钩 | `Tests 2 failed`：一处「「Linux 侧注册数 = 本机注册数 − 平台多注册的那几条」的第 1 个数读成 4125，可它所描述的那一格（CI 那一格的用例数）现在是 4126」；另一处第十五道「`files=315 registered=4125 passed=4125 skipped=0 failures=0` 报 registered=4125，Linux 那一格的用例数是 4126」 |
+| M71 | 只 bump 新那处的对表：那句改成「从 4123 到 4126 差的 3 条 … 第十四道 1 条 + 第十五道 2 条」（算术仍成立） | **只有新那处红** | `Tests 1 failed`：「顶格那一轮测试数之差 = 第十四道 + 第十五道」的第 2 个数读成 4126，可它所描述的那一格（CI 那一格的用例数）现在是 4125 ← 归因对照：eq1 此刻仍是绿的 |
+| M72 | 只破坏新那处的算术：「第十五道 1 条」→「3 条」 | 走 `check` 那一支 | 「门面上这处等式算不过：读到的数是 4123, 4125, 2, 1, 3」 |
+| M73 | 整句删掉 | 走实例声明那一支 | 「门面上找不到「顶格那一轮测试数之差 = 第十四道 + 第十五道」的写法了——这一处此刻没有实例，等式闸对它静默失效」 |
+| M74 | 守卫侧给历史那处**重新挂回** `ties` | 证明「摘 ties」是回填的必要条件 | 「「历史那一轮测试数之差 = 门禁组成族 + CI 报数守卫族」的第 2 个数读成 4123，可它所描述的那一格…现在是 4125」 |
+| M75 | 门面只把一处同树说法留成 `12b2bf0` | 半回填必须红 | 「门面上的同树声明指向了 2 枚不同的短哈希：a953b12←… ／ a953b12←… ／ 12b2bf0←「顶格那两格如今是 `12b2bf0` 上两侧同树读回的数…」 ／ a953b12/a953b12/a953b12←…」 |
+
+还树核对：`cmp README.md /c/temp/m12-f/k57-orig/README.md` → `README_SAME`，
+`cmp tools/readme-claims.test.mjs /c/temp/m12-f/k57-orig/readme-claims.test.mjs` → `GUARD_SAME`（快照取于 02:00:17，
+sha256 `92722b3c…`／`6dfa29cf…`，与变异前工作树逐字节相同）；还原后再跑三份门面守卫 `Tests 20 passed (20)`。
+
+### 定稿遍（六段，逐段落码）
+
+`/tmp/k57/k57-final1-codes.txt`（02:06:30 起、02:07:47 收尾，逐字）：
+
+```
+PRE_CHAIN_PORCELAIN=3
+PRE_CHAIN_PORCELAIN_LIST_START
+ M README.md
+ M docs/superpowers/plans/2026-10-09-full-scan-report.md
+ M tools/readme-claims.test.mjs
+PRE_CHAIN_PORCELAIN_LIST_END
+format_EXIT=0
+typecheck_EXIT=0
+eslint_EXIT=0
+boundary_EXIT=0
+budget_EXIT=0
+test_EXIT=0
+POST_CHAIN_PORCELAIN=3
+POST_CHAIN_PORCELAIN_LIST_START
+ M README.md
+ M docs/superpowers/plans/2026-10-09-full-scan-report.md
+ M tools/readme-claims.test.mjs
+POST_CHAIN_PORCELAIN_LIST_END
+```
+
+这一遍用的是新写的 `/c/temp/m12-f/k57-chain1.sh`：与 #56 那份只差一处——**把 porcelain 的内容也落盘**，
+不只数个数。这个改动是为了补上本刀踩到的那个坑：#56 那一跑只留下「2 条」这个数，没留下**是哪两份**，
+所以「那 2 条就是尚未提交的 README 与门面守卫」这句话我这一刀只能靠 HEAD 时刻与提交内容反推（上面那四步字节对照就是反推的账），
+而不能直接读回。从这一刀起，下一次再要写这种句子，盘上有名单。
+
+各段日志（剥 ANSI 后行数）：`format` 3 / `typecheck` 1 / `eslint` 1 / `boundary` 2 / `budget` 2 / `test` 393。
+六段合起来 grep `error TS|ELIFECYCLE|Command failed|✖ N problem|^ FAIL|Tests N failed|EPERM|EBUSY|AssertionError`
+只有**一条**命中：`[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到`，就是已登记的那条 Windows 噪音。
+test 段摘要逐字：`Test Files  315 passed (315)`、`Tests  4126 passed | 2 skipped (4128)`、`Start at  02:07:03`、
+`Duration  42.16s`；budget 段 `行数预算通过（624 份，含 .mjs/.cjs）`；boundary 段 `边界检查通过`。
+
+**这一跑的数与门面上本机那一格逐字相同**（4126 passed | 2 skipped / 4128 注册）——#57 一条断言都没加，
+所以两侧本来都不该动，这算是把「本刀只改门面与等式」这句话钉在一次复现上。
+
+**定稿遍之后这份台账又被编辑过**（就是本节与下面几节）。按「跑绿后又改内容＝那一遍作废」的规矩这本该重跑；
+不必重跑的理由是那条规矩管的是六道闸读得到的文件，而台账 `.md` 不在其中——三处依据都当场读过：
+`.prettierignore:13` = `docs/superpowers`、`tools/check-source-line-budget.mjs:22` 的
+`SOURCE_FILE = /\.(ts|vue|mjs|cjs)$/`、以及全仓没有一条断言读台账的字节（只有
+`apps/desktop/src/renderer/src/composables/appearance-surface-ladder.test.ts:63` 的一条**注释**提到它）。
+README 与门面守卫这两份**在定稿遍之后再没动过一个字**，那才是门禁真正要看的东西。
+
+### 送达（跑完当场补）
+
+### 留给 #58 的
+
+`skipped=` 与 `failures=` 两格仍未被任何闸读回——但那是**skip 口径**的问题（CI 的 annotation 说 skipped=0，
+本机那格说 2 skipped，两句话口径不同：Linux 侧两枚 `it.skipIf(win32)` 根本不注册），不是引用侧与读数侧脱钩的问题。
+先把口径写成一句能被核对的话，再谈装闸。另外 `tools/readme-claims.test.mjs` 现在是 791/800，**下一刀再加断言就得拆第三份门面守卫文件**
+（拆法依据仍是「不共享状态」）。
