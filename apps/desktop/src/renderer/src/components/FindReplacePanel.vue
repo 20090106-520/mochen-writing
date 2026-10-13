@@ -308,7 +308,9 @@ onMounted(() => microfocus());
 
 .find-toggle:hover {
   background: var(--surface-hover, rgba(255, 255, 255, 0.05));
-  color: var(--text-secondary, #ccc);
+  /* 状态档底上的升档：基规则那枚三级灰压在 hover 档只有 4.38:1（浅）。
+     判据见 composables/appearance-surface-ladder.test.ts。 */
+  color: var(--text-on-state);
 }
 
 .find-toggle.is-active {
@@ -343,6 +345,8 @@ onMounted(() => microfocus());
 
 .find-nav-btn:active {
   background: var(--surface-selected, rgba(124, 92, 62, 0.14));
+  /* 按下那一档比 hover 更深（浅 0.12），基规则的二级灰在这里只剩 4.09:1。 */
+  color: var(--text-on-state);
 }
 
 .find-close-btn {
@@ -400,6 +404,8 @@ onMounted(() => microfocus());
 .find-action-btn--muted:hover:not(:disabled) {
   background: var(--surface-hover, rgba(255, 255, 255, 0.05));
   filter: none;
+  /* 状态档底：muted 那枚的基规则字色是二级灰，压在 hover 档只有 4.38:1。 */
+  color: var(--text-on-state);
 }
 
 /* 替换后的退路那一行：文案在左、按钮在右，字号与「替换/全部替换」那两枚同档。
@@ -431,6 +437,9 @@ onMounted(() => microfocus());
 
 .find-undo-btn:hover {
   background: var(--surface-hover, rgba(255, 255, 255, 0.05));
-  color: var(--neutral-solid-contrast, #fff);
+  /* 这里原来写的是 `var(--neutral-solid-contrast, #fff)`——那是**实心主按钮**的字色，
+     配的是 `--neutral-solid` 那整块底；这枚按钮的底是 hover 档（浅色 ≈ #e9e9e7），
+     白字压上去等于没写。它是「退路」那一行唯一的入口，不能看不见。 */
+  color: var(--text-on-state);
 }
 </style>

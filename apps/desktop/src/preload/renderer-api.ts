@@ -89,10 +89,14 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     togglePlugin: (dirName, enabled) => invoke(IPC_CHANNELS.pluginsToggle, dirName, enabled),
     uninstallPlugin: (dirName) => invoke(IPC_CHANNELS.pluginsUninstall, dirName),
     readPluginSource: (dirName) => invoke(IPC_CHANNELS.pluginsSource, dirName),
-    // 改稿历史五枚。回滚那条的第二实参是**盘上此刻**的指纹（与 docWrite 同一口径），
+    // 改稿历史六枚。回滚那条的第二实参是**盘上此刻**的指纹（与 docWrite 同一口径），
     // 少传一个不封 new Error：主进程边界自己会拒，渲染层不该在这里造第二套规则。
     listChanges: () => invoke(IPC_CHANNELS.changesList),
     readChange: (backupRelPath) => invoke(IPC_CHANNELS.changesRead, backupRelPath),
+    // 逐行对比（2026-10-13）：diff 文本由主进程算好交回来，渲染层只染颜色——
+    // 算法那份真身在 agent-runtime，而渲染层禁 import 它（判据见 contracts/ipc.ts 的 proposalDiff）。
+    diffChange: (backupRelPath, docRelPath) =>
+      invoke(IPC_CHANNELS.changesDiff, backupRelPath, docRelPath),
     restoreChange: (backupRelPath, expectedFingerprint) =>
       invoke(IPC_CHANNELS.changesRestore, backupRelPath, expectedFingerprint),
     // 保留上限三枚（2026-10-06 批次 5-⑧）。这里只转发：夹范围、判 persisted、挑删哪些

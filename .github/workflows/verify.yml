@@ -24,16 +24,34 @@ concurrency:
 
 jobs:
   verify:
-    name: 六路 typecheck + lint + boundary + budget + 全量测试
-    runs-on: ubuntu-latest
+    name: 格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试
+    # 这句作业名从 2026-10-13 起有闸看着（扫描总单第五十二节，第十三道）：按 `+` 切开的每一段必须
+    # 落进 `tools/readme-gate-composition.test.mjs` 的 `VERIFY_KINDS` 一类，每一类也必须被这段文案写到，
+    # 「6 枚 tsc」还得等于 `verify` 真身里的 tsc 段数。原来它写的是「六路 typecheck + lint +
+    # boundary + budget + 全量测试」——prettier/格式那一段根本不在里面，而前面十一道一条都不红。
+    # 之所以值得钉：GitHub 的 run 列表每跑一次就把这句话打在页面上，它是门面上「六道闸」的第三个口径
+    # （前两个是 README 与 `package.json`，各自都有闸）；往 `verify` 里再串一段时，脚本与门面会红，
+    # 作业名却会继续报少一件事。改这一段时三处一起改，只改一处当场红。
+    # 钉死镜像版本，不用 `ubuntu-latest`：GitHub 定在 2026-10-19 把 `ubuntu-latest` 自动切到
+    # Ubuntu 26。那一天没有任何一行我们的代码改过，门禁却可能凭空变红——而"红"必须能归因到
+    # 某一次具体提交，否则整条流水线的价值就没了（这条风险的原文登记在扫描总单第十五节）。
+    # 要升级镜像是另一刀：换这行、跑一次 CI、看日志，而不是让上游在我们睡觉时替我们换。
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      # 三枚 action 都升到「跑在 Node.js 24 上的那一批大版本」：原来钉 v4 时，runner 每次都在
+      # 日志里念一句弃用告警（action 声明的 runtime 是 Node 20，却被强制跑到 24 上）。
+      # 依据是从上游仓库当场读回来的 CHANGELOG 与 `action.yml`，不是记忆：checkout 的 CHANGELOG 写着
+      # v5.0.0 就是 "use node 24"，v6.0.0 改的是「凭据写进单独文件」、v7.0.0 挡的是 `pull_request_target` /
+      # `workflow_run` 的 fork 检出——本条流水线只在 push / pull_request 里检出、且从不往回推，
+      # 两条都碰不到；setup-node v7 与 pnpm/action-setup v6 的 `runs.using` 均为 node24，
+      # 而我们用到的输入只有 `node-version` 与 `cache`（v7 的 `cache` 仍支持 npm / yarn / pnpm）。
+      - uses: actions/checkout@v7
 
       # 版本从 package.json 的 packageManager 读（corepack 口径），这里不再钉一份号。
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         name: 准备 pnpm（读 packageManager 字段）
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         name: 准备 Node
         with:
           node-version: "24"
@@ -55,3 +73,14 @@ jobs:
       # 唯一的一道闸：整条 verify。它内部是 `&&` 串起来的，任何一段红都会把整个 job 变红。
       - name: pnpm verify
         run: pnpm verify
+
+      # 把用例总数报成一条 annotation，顺带落进 job summary（扫描总单第五十三节）。
+      # 为什么要它：Linux 侧那个数过去只能靠「本机注册数 − 平台那 3 条」推，而想把日志读回来有两条路都不可靠
+      # （`actions/jobs/<id>/logs` 未认证 403；浏览器面板一隐藏，GitHub 连懒加载日志都不抓）。
+      # `check-runs/<id>/annotations` 是当场探通的另一条（未认证 200），所以这里把数写进去，让它是**读来的**。
+      # 为什么 `if: success()` 而不是 `always()`：verify 红的时候 junit 多半根本没产出，
+      # 让这一步跟着红会在同一个 job 里多出第二枚红步骤，把归因从「哪段闸红」换成「哪步红」——
+      # 归因不该由报数这一步抢。数字与文案的真身在 `tools/ci-test-summary.mjs`，这里只负责跑它。
+      - name: 报数（用例总数写成 annotation）
+        if: success()
+        run: node tools/ci-test-summary.mjs

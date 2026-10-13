@@ -631,7 +631,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
   padding: 6px 10px;
   /* 字号用 rem：`:root` 的 font-size 就是 --ui-font-size（styles.css:33），写 px 用户调字号界面不动。 */
   font-size: 0.785714rem;
-  color: var(--text-secondary, #999);
+  color: var(--text-on-state);
   background: var(--surface-hover, rgba(255, 255, 255, 0.04));
   border-radius: 6px;
 }

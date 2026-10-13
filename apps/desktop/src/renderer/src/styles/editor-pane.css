@@ -268,13 +268,18 @@ html[data-platform="darwin"] .editor-header {
 }
 
 /* 只有 view-tabs 这一条分段控件：参考稿里的「正文 / 人物状态」双文件页签本仓没有对应概念，
-   它的样式规则不留作化石（同一条律见 document-pane-wiring.test.ts 的「化石清理」）。 */
+   它的样式规则不留作化石（同一条律见 document-pane-wiring.test.ts 的「化石清理」）。
+   2026-10-12 清单第 4 项又少一行：原先这里写着 `background: var(--surface-hover)`，
+   **一条都不生效**——`theme-runtime.css:160-170` 那条 `html[data-theme] :where(… .view-tabs …)`
+   特异性是 (0,1,1)（元素 + 属性选择器），压过本条的 (0,1,0)，而且它排在最后一层。
+   于是页签槽一直画的是 `--surface-muted`。留着它的代价不是"多一层红"，是**下一个人读到这条会以为
+   槽是 hover 档**，然后按 hover 档去算里面那些三级小字（`--text-tertiary` 压在 muted 上 4.71 达标、
+   压在 hover 上只有 4.38 掉线，判据整个反了）。所以删声明，不补 shadow。 */
 .view-tabs {
   display: flex;
   align-items: center;
   padding: 2px;
   border-radius: 7px;
-  background: var(--surface-hover);
 }
 
 .view-tabs button {
@@ -710,6 +715,12 @@ html[data-theme="dark"] .document-editor:focus-visible {
 }
 
 /* ── 编辑视图切换（编辑 / 分栏 / 预览） ─────────────────────── */
+/* 槽底从 `--surface-hover` 换成 `--surface-muted`（2026-10-12 清单第 4 项）。
+   槽里那三枚钮的字色是 `--text-tertiary`，而槽是**常显**的容器——不是 hover 才出现的一瞬。
+   浅底上 `hover` 档（0.085）对三级小字只有 4.38:1、深底 4.07:1，两档都不到 AA 的 4.5；
+   换成 `muted`（浅 0.045 / 深 0.09）后是 4.71 / 4.73，达标。
+   另一个理由是同族一致性：上面 `.view-tabs` 那一条槽的槽底**一直**是 muted
+   （`theme-runtime.css:160-170` 把它压在 hover 之上），这两处本来就是同一个控件的两副面孔。 */
 .editor-view-switch {
   display: flex;
   align-items: center;
@@ -717,7 +728,7 @@ html[data-theme="dark"] .document-editor:focus-visible {
   padding: 2px;
   margin-left: 4px;
   border-radius: 7px;
-  background: var(--surface-hover);
+  background: var(--surface-muted);
 }
 
 .editor-view-switch button {

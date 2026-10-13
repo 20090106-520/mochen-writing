@@ -1,7 +1,9 @@
-import type { ChangeEntry } from "@mochen/contracts";
+import type { ChangeDiffResult, ChangeEntry, DocWriteResult } from "@mochen/contracts";
+import { countDiffMarks } from "./diff-lines";
+import { failureReasonOf } from "./draft-flush";
 
 /**
- * 改稿历史的文案层（2026-10-05）。
+ * 改稿历史的判定、文案与「读一条备份」的编排（2026-10-05，逐行对比一档 2026-10-13 加进来）。
  *
  * 住 `.ts` 的理由与 `right-pane-labels.ts` 同款：本仓 verify 跑裸 `tsc`，`.vue` 的 `<script setup>`
  * 整体不进类型程序也没有运行时覆盖 ⇒ 文案写在 `.vue` 里改名能全绿通过。这里被 vitest 钉死。
@@ -90,3 +92,133 @@ export function changeListView(list: readonly ChangeEntry[]): ChangeListView {
  * 走 `changes:retention-get` 从主进程读，与写盘那侧读的是同一份）。
  * 文案只有这一处生成，「面板说的」与「主进程做的」不再靠人记得同步。
  */
+
+/**
+ * 逐行对比（2026-10-13）。
+ *
+ * 面板原先只把「改前的整篇」甩出来：几千行的章节改一句，用户也得从头看到尾，
+ * 而「这一次到底动了哪几行」正是决定要不要回滚的那个问题。
+ * diff 文本由主进程算（`changes:diff` → agent-runtime 的 `unifiedDiff`，与提案卡同一份真身），
+ * 渲染层这边只管把三种情况说清楚、以及把两扇 IO 缝编排好。
+ */
+
+/** peek 一条件用到的两扇 IPC：读改前那份、让主进程算它与盘上此刻的逐行差别。 */
+export interface ChangePeekIo {
+  readChange(backupRelPath: string): Promise<{ content: string; fingerprint: string }>;
+  diffChange(backupRelPath: string, docRelPath: string): Promise<ChangeDiffResult>;
+}
+
+export interface ChangePeekPreview {
+  /** 改前的整篇正文（展开看全文时才摆）。 */
+  content: string;
+  /**
+   * 逐行对比文本。三档不能压成一档：
+   * `null` = 没算出来（界面上得有那句话点名为什么），`""` = 算出来了且逐行相同，非空 = 有差别。
+   */
+  diff: string | null;
+}
+
+export interface ChangePeekResult {
+  /** 备份正文没读回来时是 null，浮层继续说「点上面那一条看改前的内容」。 */
+  preview: ChangePeekPreview | null;
+  /** 要上屏的一句话；一切正常时 null（null ≠ 「没有失败」，而是「不需要额外说一句」）。 */
+  notice: string | null;
+}
+
+/**
+ * 读一条备份 + 算它与盘上此刻的对比，编排成一条链。
+ *
+ * 两条规矩都是为了让失败可见而又不牵连成功的那半：
+ * ① 备份读不出来就**不再发第二扇**——正文都没有，拿什么去比，多发一次 IPC 只是多一次抖动；
+ * ② 对比那一侧无论回 `ok:false` 还是直接抛，都只当「没算出来」：正文照样交回去，
+ *    异常不许冒出去（冒出去调用方的在途标记就卡住了，面板从此点点不动）。
+ */
+export async function readChangePeek(
+  io: ChangePeekIo,
+  entry: ChangeEntry
+): Promise<ChangePeekResult> {
+  let content: string;
+  try {
+    content = (await io.readChange(entry.backupRelPath)).content;
+  } catch (err) {
+    return { preview: null, notice: `这条备份读不出来：${failureReasonOf(err)}` };
+  }
+  try {
+    const result = await io.diffChange(entry.backupRelPath, entry.docRelPath);
+    if (!result.ok) {
+      return {
+        preview: { content, diff: null },
+        notice: `逐行对比没算出来：${result.message}`
+      };
+    }
+    return { preview: { content, diff: result.diff }, notice: null };
+  } catch (err) {
+    return {
+      preview: { content, diff: null },
+      notice: `逐行对比没算出来：${failureReasonOf(err)}`
+    };
+  }
+}
+
+/**
+ * diff 上方那句话：把「比的是哪两份」与「± 各是什么意思」说死，再报数出来的行数。
+ *
+ * 方向固定 `改前 → 盘上此刻`，与提案卡那套（`原文 → 新稿`）同一读法，颜色只有一套含义。
+ * 这句话不许写成「本次改动」：中间如果又保存过几次，盘上这份是这几次**攒起来**的差别，
+ * 说「本次」就是在骗人（面板顶部那句保留说明讲的也是同一件事）。
+ */
+export function changeDiffCaption(diff: string | null): string | null {
+  if (diff === null) return null;
+  if (diff === "") return "逐行对比：这一份与盘上此刻的正文一个字都没差——回滚它不会有任何变化。";
+  const { added, removed } = countDiffMarks(diff);
+  return `逐行对比（改前 → 盘上此刻）：新增 ${added} 行、删除 ${removed} 行。＋ 是现在才有的行，－ 是现在已经没有的行。`;
+}
+
+/**
+ * 回滚一条件用到的两扇 IPC：先现读盘上此刻的那一篇（拿它的指纹），再把备份落回去。
+ * 只许现读现传——指纹传旧了，主进程那道「这之后还有人改过没有」的闸就白设了。
+ */
+export interface ChangeRestoreIo {
+  readDoc(relPath: string): Promise<{ fingerprint: string }>;
+  restoreChange(backupRelPath: string, expectedFingerprint: string): Promise<DocWriteResult>;
+}
+
+export interface ChangeRestoreResult {
+  /** 盘上真变了才重拉列表。守卫挡下、被闸拒绝、抛错三种都没变，不该多拉一次。 */
+  refresh: boolean;
+  /** 上屏的那句话，三档全在这儿，调用方只管摆。 */
+  notice: string;
+}
+
+/**
+ * 回滚的编排（2026-10-13 从 store 搬进来：store 只摆状态，判定与 IO 编排住 utils，
+ * 与 `readChangePeek`、`doc-read`、`draft-flush` 同一套路；这一搬也让那句「已回滚」的
+ * 顺序规矩有了一份能被 vitest 钉死的落点）。
+ *
+ * 守卫在前：**没打开那一篇就一个字都不动**——回滚的是正文，右栏还摆着别的内容时
+ * 把它换掉，用户看不见自己刚刚失去了什么。这里连一次 IPC 都不发。
+ */
+export async function restoreBackupToDoc(
+  io: ChangeRestoreIo,
+  entry: ChangeEntry,
+  activeDocTab: string | null
+): Promise<ChangeRestoreResult> {
+  const untouched = (notice: string): ChangeRestoreResult => ({ refresh: false, notice });
+  if (activeDocTab === null) {
+    return untouched("先打开那一篇正文，才能把它回滚回去。");
+  }
+  try {
+    const current = await io.readDoc(entry.docRelPath);
+    const result = await io.restoreChange(entry.backupRelPath, current.fingerprint);
+    if (!result.ok) {
+      return untouched(
+        result.reason === "stale"
+          ? "这一篇在这之后又被改过了，已经不是当时那份了——先看看现在的内容再决定。"
+          : (result.message ?? "没能回滚。")
+      );
+    }
+    return { refresh: true, notice: `已回滚 ${entry.docRelPath} 到改前的样子。` };
+  } catch (err) {
+    return untouched(`没能回滚：${failureReasonOf(err)}`);
+  }
+}

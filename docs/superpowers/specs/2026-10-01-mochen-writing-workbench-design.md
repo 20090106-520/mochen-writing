@@ -56,6 +56,14 @@
 - Vue 3.5 + TypeScript + Pinia + naive-ui 2.44，自定义毛玻璃主题
 - vitest 4 单元/契约测试；electron 冒烟脚本
 
+> **2026-10-12 就地更正这一行的技术栈（原文一字未删）**：`naive-ui` **从来没有被装过、也没有被引用过**——
+> `pnpm-lock.yaml` 里连一次出现都没有，`apps/desktop/package.json` 也不依赖它，全部 `.vue` 里没有一处 import。
+> 实际界面是**手搓 CSS + 自绘组件**，毛玻璃主题就是 `renderer/src/styles/` 里那几份 CSS 与 CSS 变量。
+> 当时写进 catalog 只是「先把版本号备着」，结果备成了一个随时能兑现的入口：谁在组件里顺手 `catalog:` 一下就能
+> 把一个组件库引进来，而「不新增任何 npm 依赖」是本项目的硬约束。2026-10-12 用户授权后该条目已删除，
+> 并由 `tools/no-component-library.test.mjs`（5 条）把这句话钉成闸：catalog、各 `package.json`、源码 import 三处
+> 任一处出现组件库即红。原文与逐条回读见扫描台账第 245 行 P2-11 那一行与第二十四节。
+
 ```
 墨宸 AI/
   apps/desktop/

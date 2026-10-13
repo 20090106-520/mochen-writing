@@ -22,7 +22,7 @@ export type { FlushQuitBlocked, FlushQuitReply } from "@mochen/contracts";
 export const QUIT_FLUSH_TIMEOUT_MS = 4000;
 
 export interface QuitFlushDeps {
-  /** 真身是 `app.on("before-quit", …)`。 */
+  /** 真身是窗口的 `close`（用户点关闭）与 `app.on("before-quit")`（程序主动退出）——两个事件交同一个 handler，接线理由见 `index.ts`。 */
   onBeforeQuit(handler: (event: { preventDefault(): void }) => void): void;
   /** 真身是 `ipcMain.handle(IPC_CHANNELS.appFlushDone, …)` 里把 payload 递给本模块那一步。 */
   onFlushReply(handler: (reply: FlushQuitReply) => void): void;

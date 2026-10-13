@@ -8,7 +8,7 @@ import type {
   StartTurnInput
 } from "./agent-event.js";
 import type { AppearanceSettings, AppearanceSettingsSnapshot } from "./appearance.js";
-import type { ChangeEntry, ChangePruneReport } from "./changes.js";
+import type { ChangeDiffResult, ChangeEntry, ChangePruneReport } from "./changes.js";
 import type { ChangeRetention, ChangeRetentionSnapshot } from "./change-retention.js";
 import type { SkillContent, SkillRef, SkillSource } from "./skill.js";
 import type { MarketListResult } from "./market.js";
@@ -94,6 +94,11 @@ export const IPC_CHANNELS = {
   changesRetentionGet: "changes:retention-get",
   changesRetentionSave: "changes:retention-save",
   changesPruneNow: "changes:prune-now",
+  /**
+   * 逐行对比一条备份与盘上此刻的那一篇（2026-10-13）。
+   * 与 `agent:diff` 同一口径：**主进程算，渲染层不 import agent-runtime**。
+   */
+  changesDiff: "changes:diff",
   agentLoadSession: "agent:load-session",
   agentListSessions: "agent:list-sessions",
   agentContextPreview: "agent:context-preview",
@@ -494,6 +499,14 @@ export interface RendererApi {
   listChanges(): Promise<ChangeEntry[]>;
   /** 读一条备份的正文，给回滚前预览。只读。 */
   readChange(backupRelPath: string): Promise<{ content: string; fingerprint: string }>;
+  /**
+   * 把一条备份与**盘上此刻**的那一篇做逐行对比，返回 unified diff 文本。只读。
+   *
+   * 方向固定 `改前 → 现在`：于是 `+` 是现在才有的行、`-` 是现在已经没有的行，
+   * 与提案卡那套 `proposalDiff` 同一读法（那边是 `原文 → 新稿`），界面不必两套颜色。
+   * 为什么不在渲染层算：见 `contracts/changes.ts` 的 `ChangeDiffResult`。
+   */
+  diffChange(backupRelPath: string, docRelPath: string): Promise<ChangeDiffResult>;
   /**
    * 把某篇文稿回滚到一条备份的内容。
    * `expectedFingerprint` 传**盘上此刻**的指纹（与 docWrite 同一口径）：对不上说明这之后还有人改过，

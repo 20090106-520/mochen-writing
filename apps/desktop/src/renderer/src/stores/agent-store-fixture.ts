@@ -286,6 +286,10 @@ export const api = {
   readChange: vi.fn(async (rel: string) => {
     throw new Error(`不该读改稿备份：${rel}`);
   }),
+  // 逐行对比（2026-10-13）：agent store 一个都不碰改稿历史，桩成「越权就抛」。
+  diffChange: vi.fn(async (rel: string) => {
+    throw new Error(`不该算改稿对比：${rel}`);
+  }),
   restoreChange: vi.fn(async (rel: string) => {
     throw new Error(`不该回滚：${rel}`);
   }),

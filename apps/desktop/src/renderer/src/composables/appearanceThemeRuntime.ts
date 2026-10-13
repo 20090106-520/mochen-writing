@@ -199,14 +199,57 @@ export { skinStyleVariables };
  *
  * ## 这次**没**顺手改的那一处（要单独定线，别混在这个数里）
  *
+ * ⚠ 下面这段的**病因判断已经作废**（2026-10-12 推翻，看紧跟着的那一节），留着只因为
+ * 那两个数字（4.38 / 4.09）仍是量对了的——错的是「要动阶梯」那句结论。
+ *
  * 次要文字压在 `--surface-hover`（浅 0.085）/ `--surface-selected`（浅 0.12）上时，
  * 0.71 仍只有 4.38 / 4.09。病因在**表面阶梯一层比一层深**，不在文字色——
  * 要修得动阶梯（或让 hover 换字色），那是全站列表的事，另开一条。
  *
  * （原先这里还挂着第二处「`--text-tertiary` 浅 0.5 对页底最低 2.87、对卡面 2.74，未定线」——
  * 同日下一轮解决了，推导与影响面见下面的 `TERTIARY_TEXT_MIX`，判据在皮肤守卫里。）
+ *
+ * ## 2026-10-12 清单第 4 项：那条「另开一条」开了，结论与上面这句话不一样
+ *
+ * 上面写的「病因在阶梯」当场量过就站不住：把 16 组（八套皮肤 × 明暗）逐档算完，
+ * 阶梯对**正文档**全员 ≥ 7.60（最低那一格是深底 `selected`，「汐 · 昼阁」），它没病；
+ * 有病的是「灰字落进状态档」这件事本身——浅底上 0.71 的灰要过 4.5，深度上限只有 **0.068**，
+ * 要按上一轮那条「留 0.2 留量」的口径回到 4.7，上限只剩 **0.048**，
+ * 而 `--surface-muted` 自己就已经是 0.045，`hover` 0.085 与 `selected` 0.12 都在上限之外。
+ * 两个上限都取 16 组里最紧的那一套（浅底 binding 全是「汐 · 昼阁」）。
+ * ⇒ **浅色不可能同时拥有五档阶梯与「灰字压在最深两档上达标」**，这不是系数能调出来的。
+ *
+ * 所以修的是用法而不是数字：状态档（`hover` / `selected`）一出现，那一块子树里的灰字
+ * 升到 `--text-on-state`（浅 0.78 / 深 0.80）。这正是上面那句「或让 hover 换字色」里
+ * 的第二条路，也是 `theme-runtime.css:118-135` 早就在给几族做的事（`background: 深档 +
+ * color: 正文`），只是那里只管元素自己、管不到 `small` / `kbd` / `.xxx-hint` 这些后代。
+ * 后代管得到的原因是**自定义属性会连子树一起继承**：在状态那条规则里 shadow 一次
+ * `--text-secondary`，子树里所有 `var(--text-secondary)` 当场改口（实现见样式表，
+ * 判据在 `appearance-surface-ladder.test.ts`）。
  */
-export const SURFACE_CARD_MIX = { light: 0.028, dark: 0.075 } as const;
+/**
+ * 表面阶梯五档的深度（纸色往墨色走多少）。这五行原先是 `setProperty` 调用行里的裸字面量，
+ * 拎出来做成常量的理由与 `SECONDARY_TEXT_MIX` 同一条：守卫要按**应用自己这一份**算，
+ * 系数留在调用行里，守卫就只能重抄数字（铁律 6）。
+ *
+ * 拎出来还多出一样东西：**这一张表现在是「谁能把谁当底」的判据本体**。
+ * 16 组（八套皮肤 × 明暗）逐档量完的结论写在下面 `ON_STATE_TEXT_MIX` 那段，
+ * 一句话版：浅 0.045 与深 0.09 这两档以下，灰字（0.71 / 0.72 / 深 0.62）处处 ≥ 4.5；
+ * `hover` 与 `selected` 这两档是**状态档**，灰字压上去必掉线。
+ * 所以这两档在样式表里的角色被钉成一条律——**画了状态档底，就得同时把那族灰字升档**，
+ * 由 `appearance-surface-ladder.test.ts` 逐条普查（清单第 4 项）。
+ */
+export const SURFACE_LADDER_MIX = {
+  raised: { light: 0.018, dark: 0.055 },
+  card: { light: 0.028, dark: 0.075 },
+  muted: { light: 0.045, dark: 0.09 },
+  hover: { light: 0.085, dark: 0.14 },
+  selected: { light: 0.12, dark: 0.2 }
+} as const;
+/** 状态档底上唯一安全的那一档灰。名字与 `--text-*` 同族，消费形状是「深档那条规则里 shadow 掉本族的 `--text-secondary`」。 */
+export const ON_STATE_TEXT_MIX = { light: 0.78, dark: 0.8 } as const;
+
+export const SURFACE_CARD_MIX = SURFACE_LADDER_MIX.card;
 export const SECONDARY_TEXT_MIX = { light: 0.71, dark: 0.72 } as const;
 /**
  * 第三级文字（`--text-tertiary`）的混合系数。先做成常量、由守卫按**应用自己这一份**算，
@@ -327,19 +370,19 @@ export function applyAppearanceThemeToDocument(input: {
   root.style.setProperty("--surface-main", theme.background);
   root.style.setProperty(
     "--surface-raised",
-    mix(theme.background, theme.foreground, scheme === "dark" ? 0.055 : 0.018)
+    mix(theme.background, theme.foreground, SURFACE_LADDER_MIX.raised[scheme])
   );
   root.style.setProperty(
     "--surface-muted",
-    mix(theme.background, theme.foreground, scheme === "dark" ? 0.09 : 0.045)
+    mix(theme.background, theme.foreground, SURFACE_LADDER_MIX.muted[scheme])
   );
   root.style.setProperty(
     "--surface-hover",
-    mix(theme.background, theme.foreground, scheme === "dark" ? 0.14 : 0.085)
+    mix(theme.background, theme.foreground, SURFACE_LADDER_MIX.hover[scheme])
   );
   root.style.setProperty(
     "--surface-selected",
-    mix(theme.background, theme.foreground, scheme === "dark" ? 0.2 : 0.12)
+    mix(theme.background, theme.foreground, SURFACE_LADDER_MIX.selected[scheme])
   );
   /* 表面阶梯的第四级：卡片比 --surface-raised 再高半级。此前卡片与编辑区同用 raised，
      又只靠 1px 描边区分，整屏所有东西挤在同一高度上（"干净但没感觉"的来源）。 */
@@ -370,6 +413,15 @@ export function applyAppearanceThemeToDocument(input: {
   root.style.setProperty(
     "--text-tertiary",
     mix(theme.background, theme.foreground, TERTIARY_TEXT_MIX[scheme])
+  );
+  /* 状态档底（`--surface-hover` / `--surface-selected`）上唯一达标的那一档灰。
+     它**不是**第四个文字层级：0.78 / 0.80 比次要还深，浅底上几乎没有「层级」可读，
+     它只干一件事——让「深档底 + 灰字」这一族组合在按下/hover/选中时回到 AA。
+     消费它的写法是在状态那条规则里 shadow 本族的 `--text-secondary`（见样式表普查守卫），
+     所以这一枚必须跟着主题重算，不能写成样式表里的常量。 */
+  root.style.setProperty(
+    "--text-on-state",
+    mix(theme.background, theme.foreground, ON_STATE_TEXT_MIX[scheme])
   );
 
   /**

@@ -245,6 +245,12 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
         event.preventDefault();
         layout.showSettings();
         return;
+      case "open-help":
+        // ? 键：同一套设置浮层，只是指名停在「快捷键」那一页（页签真身在 layoutStore 的 SettingsTab）。
+        // 不开第二块帮助浮层——HotkeysPanel.vue 已经在那儿了，再造一张表就是第二份判据。
+        event.preventDefault();
+        layout.showSettings("shortcuts");
+        return;
       case "open-book":
         // 与书架空态钮、输入卡书格同一条通路（store 的 pickAndOpen 是唯一真身，取消也有中文）。
         event.preventDefault();

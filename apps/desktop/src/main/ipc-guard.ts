@@ -420,6 +420,7 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   [IPC_CHANNELS.pluginsUninstall]: [id("要卸载的插件")],
   [IPC_CHANNELS.pluginsSource]: [id("要看源码的插件")],
   [IPC_CHANNELS.changesRead]: [relPath("那条备份")],
+  [IPC_CHANNELS.changesDiff]: [relPath("那条备份"), relPath("要比的那一篇")],
   [IPC_CHANNELS.changesRestore]: [relPath("那条备份"), id("期望指纹")],
   [IPC_CHANNELS.changesRetentionSave]: [objectRule("保留上限")],
   [IPC_CHANNELS.appearanceSave]: [objectRule("外观设置")],

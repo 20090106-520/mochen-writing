@@ -21,7 +21,7 @@ const FACTS: ReadonlyArray<{ term: string; detail: string }> = [
   {
     term: "配置",
     detail:
-      "外观设置与模型配置保存在本机 appData/mochen-ai；外观数据损坏时自动退回默认值，不挡启动。"
+      "外观设置与模型配置保存在本机 appData/mochen-ai；开发版另存一份在 appData/mochen-ai-dev，两份互不覆盖。外观数据损坏时自动退回默认值，不挡启动。"
   },
   {
     term: "密钥",

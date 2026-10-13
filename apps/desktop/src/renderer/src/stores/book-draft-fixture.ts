@@ -155,6 +155,7 @@ export function createBookApi(): BookApiFixture {
     buildExport: offLimits("buildExport"),
     listChanges: vi.fn(async () => []),
     readChange: offLimits("readChange"),
+    diffChange: offLimits("diffChange"),
     restoreChange: offLimits("restoreChange"),
     notify: vi.fn(),
     listSkills: offLimits("listSkills"),

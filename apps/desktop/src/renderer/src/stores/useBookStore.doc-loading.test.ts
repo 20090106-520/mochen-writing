@@ -168,6 +168,8 @@ const api = {
   })),
   listChanges: vi.fn(async () => []),
   readChange: vi.fn(async () => ({ content: "", fingerprint: "fp-bak" })),
+  // 逐行对比（2026-10-13）：这一组不测改稿历史，给一份「算出来了、逐行相同」的最小答复。
+  diffChange: vi.fn(async () => ({ ok: true as const, diff: "" })),
   restoreChange,
 
   // 2026-10-06 批次 5-⑧：保留上限的读 / 写 / 立即清理。

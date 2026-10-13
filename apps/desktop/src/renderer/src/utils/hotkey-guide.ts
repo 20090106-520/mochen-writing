@@ -26,6 +26,12 @@ export const HOTKEY_GUIDE: readonly HotkeyGuideGroup[] = [
     title: "全局",
     rows: [
       { keys: "Ctrl ,", label: "打开 / 关闭设置", when: "随时", needle: 'k === ",' },
+      {
+        keys: "Shift ?",
+        label: "打开本页（快捷键指南）",
+        when: "焦点不在输入框或文本输入里",
+        needle: 'k === "?"'
+      },
       { keys: "Ctrl O", label: "打开作品目录", when: "随时", needle: 'k === "o"' },
       { keys: "Ctrl B", label: "收起 / 展开左栏", when: "随时", needle: 'k === "b"' },
       {

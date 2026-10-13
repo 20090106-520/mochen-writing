@@ -80,6 +80,7 @@ const api = {
   buildExport: offLimits("buildExport"),
   listChanges: offLimits("listChanges"),
   readChange: offLimits("readChange"),
+  diffChange: offLimits("diffChange"),
   restoreChange: offLimits("restoreChange"),
 
   // 2026-10-06 批次 5-⑧ 新增的三个（保留上限）。写 store 用不到它们，

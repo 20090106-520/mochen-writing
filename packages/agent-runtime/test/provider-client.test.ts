@@ -37,12 +37,11 @@ function makeFetch(chunks: Uint8Array[], status = 200, errorText = "") {
   };
 }
 
-async function run(
+function requestOf(
   fetchImpl: Parameters<typeof streamChat>[0]["fetchImpl"],
-  signal = new AbortController().signal
-) {
-  const out: StreamEvent[] = [];
-  for await (const event of streamChat({
+  signal: AbortSignal
+): Parameters<typeof streamChat>[0] {
+  return {
     fetchImpl,
     baseURL: "http://127.0.0.1:8787/v1",
     apiKey: "sk-secret-token",
@@ -57,9 +56,31 @@ async function run(
     webSearchEnabled: false,
     // 连接期重试的间隔压到 1ms：错误类用例（429/5xx）会走一次重试，不注入就是 1.5 秒 ×N 条。
     retryDelayMs: 1
-  }))
-    out.push(event);
+  };
+}
+
+async function run(
+  fetchImpl: Parameters<typeof streamChat>[0]["fetchImpl"],
+  signal = new AbortController().signal
+) {
+  const out: StreamEvent[] = [];
+  for await (const event of streamChat(requestOf(fetchImpl, signal))) out.push(event);
   return out;
+}
+
+/** 与 run 同一份请求，但把「抛」也读回来：带内错误那几条既要验抛出的句子，也要验抛之前已经产出的增量。 */
+async function runSettled(
+  fetchImpl: Parameters<typeof streamChat>[0]["fetchImpl"],
+  signal = new AbortController().signal
+) {
+  const events: StreamEvent[] = [];
+  let error: unknown = null;
+  try {
+    for await (const event of streamChat(requestOf(fetchImpl, signal))) events.push(event);
+  } catch (caught) {
+    error = caught;
+  }
+  return { events, error };
 }
 
 // Task 15 §7 的最小复现夹具：真实 socket 被打断时，未收完的 reader.read() 是直接 reject
@@ -723,5 +744,69 @@ describe("streamChat · 连接期一次性自动重试（2026-10-11）", () => {
     const events = await pending;
     expect(events.at(-1)).toEqual({ kind: "finish", reason: "aborted" });
     expect(calls).toBe(1);
+  });
+});
+
+/**
+ * 带内错误帧（2026-10-14 第三方审计核对出的真缺口）。
+ *
+ * 上游可以在 **HTTP 200** 的流里夹一条 `{"error":…}`——Azure 与各家 OpenAI 兼容网关的常见形态，
+ * 限流、超长、内容审核都走这一条。改之前它一路被吞：`sse.ts` 一个帧内只取 `data:` 字段，
+ * `readDelta` 对这条帧读出全空（没有 choices），于是界面最后只剩 `truncationNotice("incomplete")`
+ * 那句「响应流在中途断了」，而上游给的真实原因一个字都没到过人眼前。
+ */
+describe("streamChat · 带内错误帧不再静默吞", () => {
+  it("error 帧带 message ⇒ 抛 ProviderError 且原话上屏，抛出前的增量照常产出", async () => {
+    const { fetchImpl } = makeFetch(
+      sse(
+        { choices: [{ delta: { content: "前半段" } }] },
+        { error: { message: "This key is rate limited" } }
+      )
+    );
+    const { events, error } = await runSettled(fetchImpl);
+    expect(events).toEqual([{ kind: "text-delta", text: "前半段" }]);
+    expect(error).toBeInstanceOf(ProviderError);
+    // 整句钉住：这句是给用户看的，前缀改了界面就换了一个说法而没人会发现。
+    expect((error as Error).message).toBe("模型服务端在流里回了错误：This key is rate limited");
+  });
+
+  it("error 是字符串 ⇒ 那句话原样带上，不折成「无响应体」", async () => {
+    const { fetchImpl } = makeFetch(sse({ error: "内容审核未通过" }));
+    const { error } = await runSettled(fetchImpl);
+    expect(error).toBeInstanceOf(ProviderError);
+    expect((error as Error).message).toContain("内容审核未通过");
+  });
+
+  it("error 只有 type 没有 message ⇒ 仍然抛，并把 type 说出口", async () => {
+    // 这一条钉的是「取不到 message 就不当错误」这个坏死法：overloaded_error 那种帧
+    // 一句 message 都没有，若按 message 判空就会照旧静默。
+    const { fetchImpl } = makeFetch(sse({ error: { type: "overloaded_error" } }));
+    const { error } = await runSettled(fetchImpl);
+    expect(error).toBeInstanceOf(ProviderError);
+    expect((error as Error).message).toContain("overloaded_error");
+  });
+
+  it("error 为 null 或压根没有 error 键 ⇒ 正常流完（反向守卫：这臂不许误伤正常帧）", async () => {
+    const { fetchImpl } = makeFetch(
+      sse(
+        { error: null, choices: [{ delta: { content: "照常说" } }] },
+        { choices: [{ delta: {}, finish_reason: "stop" }] }
+      )
+    );
+    expect(await run(fetchImpl)).toEqual([
+      { kind: "text-delta", text: "照常说" },
+      { kind: "finish", reason: "stop" }
+    ]);
+  });
+
+  it("已经打断 ⇒ 带内错误帧不越过打断，仍折成 finish:aborted", async () => {
+    // 打断优先是既有语义（帧循环开头那道守卫），这条钉的是新判定**不许**插到它前面：
+    // 用户按了 Esc 之后界面该说「已打断」，不该说「模型服务端回了错误」。
+    const controller = new AbortController();
+    controller.abort();
+    const { fetchImpl } = makeFetch(sse({ error: { message: "本该看不见的一条" } }));
+    const { events, error } = await runSettled(fetchImpl, controller.signal);
+    expect(error).toBeNull();
+    expect(events).toEqual([{ kind: "finish", reason: "aborted" }]);
   });
 });

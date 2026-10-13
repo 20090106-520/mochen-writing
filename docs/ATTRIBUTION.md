@@ -36,6 +36,8 @@ Apache License 2.0 的要求集中记录在本文件，许可证原文见仓库�
 
 - `apps/desktop/src/renderer/src/assets/brand/mochen-lockup.jpg`：用户提供的品牌图，原样使用。
 - `apps/desktop/resources/icon.ico`：由上一行整幅转出（格式转换与重采样）。
+  生成器是 `tools/build-brand-icons.mjs` + `tools/ico-container.mjs`（跨平台，零新依赖）；
+  盘上这枚是 2026-10-12 之前那份 Windows 专用脚本的产物，换像素口径属于换品牌资产，要用户点头。
 
 ## 皮肤整窗画面（`art` 层，`public/skins/`）
 

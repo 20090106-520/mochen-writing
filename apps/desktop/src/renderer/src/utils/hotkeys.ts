@@ -48,6 +48,7 @@ export type HotkeyAction =
   | "jump-tab"
   | "toggle-left"
   | "open-settings"
+  | "open-help"
   | "open-book"
   | "open-palette"
   | "reference-insert"
@@ -146,6 +147,13 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
   // 动作名不动：它是键位表的成员，改名会牵动 #105 的 chip 表与其测试，收益只有好听。
   if (k === "/" && noMods && !focus.composerIsFocused && !focus.textInputIsFocused)
     return { action: "open-palette" };
+
+  // ? 召唤快捷键指南（落在设置浮层的「快捷键」页，那一页的真身是 HotkeysPanel.vue）。
+  // 放行条件用 bare 而不是 noMods：US 布局上 ? 是 Shift+/ 打出来的，event.key 已是 "?" 且 shiftKey
+  // 为真——要求纯键等于这枚键永远按不出来。Ctrl/Alt/Meta 三枚仍一个都不许按（Ctrl 族在上面的分支就返回 none）。
+  // 焦点条件与 / 同一款：composer 或任一文本框有焦点时 ? 只是打字，不许截走（护栏 2）。
+  if (k === "?" && bare && !focus.composerIsFocused && !focus.textInputIsFocused)
+    return { action: "open-help" };
 
   // Tab 排队：仅运行中有文本，且焦点不在文本输入里；其余保留焦点移动（无障碍优先）。
   // 焦点条件写在护栏 2 的白名单里（textInputIsFocused 时只放行 newline/submit/全局 Ctrl+*），

@@ -171,14 +171,74 @@ describe("保留上限三枚（2026-10-06 批次 5-⑧）", () => {
   });
 });
 
+describe("逐行对比（2026-10-13）", () => {
+  /** 攒一次真写盘，返回那条备份的句柄。 */
+  async function backupOfNext(next: string): Promise<string> {
+    const written = await writeDocFile(
+      root,
+      CHAPTER,
+      next,
+      makeFingerprint(await readFile(path.join(root, CHAPTER), "utf8"))
+    );
+    if (!written.ok || written.backupRelPath === null) throw new Error("夹具没造出备份");
+    return written.backupRelPath;
+  }
+
+  it("比的是「改前 ↔ 盘上此刻」，两个方向各一行都摆得出来", async () => {
+    const backup = await backupOfNext(V2);
+    const result = await service().diff(backup, CHAPTER);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.diff).toContain("-雾从海面涌上来。");
+    expect(result.diff).toContain("+海雾涌上来，铁锈味很冲。");
+    // 头两行点名比的是哪一篇：用户在同一时刻可能连着看好几条历史，不带文件名的 diff 会串台。
+    expect(result.diff).toContain(`--- a/${CHAPTER}`);
+    expect(result.diff).toContain(`+++ b/${CHAPTER}`);
+  });
+
+  it("备份与正文逐行相同时回的是**成功 + 空串**，不是失败", async () => {
+    // 写出去又写回来：**第一条**备份装的正是当前盘上这一篇（V1），第二条装的是中间那版（V2）。
+    // 取错一条就等于比了两个不同的对象，所以两枚句柄都要点名。
+    const first = await backupOfNext(V2);
+    await backupOfNext(V1);
+    expect(await service().diff(first, CHAPTER)).toEqual({ ok: true, diff: "" });
+    // 对照：拿中间那一版（内容 V2，正文已是 V1）去比，必须是「有差别」的成功——
+    // 少了这一条，空串到底是「相同」还是「反正算不出来都回空」就没人说得清。
+    const all = await listChanges(root);
+    const middle = all.find((one) => one.backupRelPath !== first);
+    if (!middle) throw new Error("夹具没造出第二条备份");
+    expect(await service().diff(middle.backupRelPath, CHAPTER)).not.toEqual({
+      ok: true,
+      diff: ""
+    });
+  });
+
+  it("那一篇被删掉了要**点名说读不到**，不许静默回一份空对比", async () => {
+    const backup = await backupOfNext(V2);
+    await rm(path.join(root, CHAPTER), { force: true });
+    const result = await service().diff(backup, CHAPTER);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain(CHAPTER);
+  });
+
+  it("没开书与 read / restore 同一口径：抛中文，不另立一套失败形状", async () => {
+    open = false;
+    await expect(service().diff(".mochen/changes/x/a.md.bak", CHAPTER)).rejects.toThrow(
+      /还没打开作品目录/
+    );
+  });
+});
+
 describe("registerChangesIpc", () => {
-  it("只注册白名单里的五条，一条不多一条不少", () => {
+  it("只注册白名单里的七条，一条不多一条不少", () => {
     registerChangesIpc(handle, service());
     expect([...handlers.keys()].sort()).toEqual(
       [
         IPC_CHANNELS.changesList,
         IPC_CHANNELS.changesRead,
         IPC_CHANNELS.changesRestore,
+        IPC_CHANNELS.changesDiff,
         IPC_CHANNELS.changesRetentionGet,
         IPC_CHANNELS.changesRetentionSave,
         IPC_CHANNELS.changesPruneNow
@@ -206,5 +266,26 @@ describe("registerChangesIpc", () => {
     )) as { ok: boolean };
     expect(restored.ok).toBe(true);
     expect(await readFile(path.join(root, CHAPTER), "utf8")).toBe(V1);
+  });
+
+  it("diff 的两枚实参按位置下去：备份在前、文稿在后，调倒了就不许算出对比", async () => {
+    registerChangesIpc(handle, service());
+    const w = await writeDocFile(root, CHAPTER, V2, makeFingerprint(V1));
+    if (!w.ok || w.backupRelPath === null) throw new Error("夹具没造出备份");
+
+    const right = (await handlers.get(IPC_CHANNELS.changesDiff)?.(
+      trustedRendererEvent(),
+      w.backupRelPath,
+      CHAPTER
+    )) as { ok: boolean; diff?: string };
+    expect(right.ok).toBe(true);
+    expect(right.diff).toContain(`+++ b/${CHAPTER}`);
+
+    // 调倒：拿文稿当备份、拿备份当文稿。备份那一侧的形状闸（fs-store 的 parseBackupRelPath）
+    // 第一件事就是认备份路径，所以这里**抛**——与「备份本身读不到」同一档（文件头注释 ①）。
+    // 不许悄悄算出一份「谁和谁」都说不清的 diff，也不许在 preload 或这里补一层 try 把它吞成空串。
+    await expect(
+      handlers.get(IPC_CHANNELS.changesDiff)?.(trustedRendererEvent(), CHAPTER, w.backupRelPath)
+    ).rejects.toThrow(/改稿备份的路径/);
   });
 });

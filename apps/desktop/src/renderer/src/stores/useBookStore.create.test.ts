@@ -112,6 +112,7 @@ const api = {
   readSkill: offLimits("readSkill"),
   listChanges: offLimits("listChanges"),
   readChange: offLimits("readChange"),
+  diffChange: offLimits("diffChange"),
   restoreChange: offLimits("restoreChange"),
 
   // 2026-10-06 批次 5-⑧：`satisfies RendererApi` 要求这三个通道在场，但**这个 store 一个都不用**。

@@ -146,6 +146,7 @@ const api = {
   readSkill: offLimits("readSkill"),
   listChanges: offLimits("listChanges"),
   readChange: offLimits("readChange"),
+  diffChange: offLimits("diffChange"),
   restoreChange: offLimits("restoreChange"),
 
   // 2026-10-06 批次 5-⑧：保留上限的读 / 写 / 立即清理。

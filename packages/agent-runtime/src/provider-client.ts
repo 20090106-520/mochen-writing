@@ -137,6 +137,28 @@ function completionsUrl(baseURL: string): string {
   return `${baseURL.replace(/\/+$/, "")}/chat/completions`;
 }
 
+/**
+ * 一条 **HTTP 200** 的流里夹来的错误帧（Azure 与各家 OpenAI 兼容网关的常见形态：限流、超长、
+ * 内容审核都走这一条，状态码一切正常）。
+ *
+ * 判空的口径只有一条：**有没有 `error` 这个键**，不看它读不读得出句子。
+ * 若按「取到 message 才算错误」来判，`{"error":{"type":"overloaded_error"}}` 那种一句 message
+ * 都没有的帧就会照旧静默——而静默正是本函数要修掉的那个洞：改之前这条帧被 `readDelta` 读成全空，
+ * 用户最后只看见 `truncationNotice("incomplete")` 那句「响应流在中途断了」，上游给的真实原因一个字没到眼前。
+ * `error: null` 与非字符串非对象的值不算错误形状（有些端点恒发 `"error": null` 表示「没有错误」，
+ * 把它当错误会让每一轮正常回答都变成一次失败——那比原来更坏）。
+ */
+function inBandError(parsed: unknown): string | null {
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const error = (parsed as Record<string, unknown>)["error"];
+  if (error === undefined || error === null) return null;
+  const message = upstreamMessage(parsed);
+  if (message !== "") return message;
+  if (typeof error === "string") return snippet(error);
+  if (typeof error !== "object") return null;
+  return snippet(JSON.stringify(error));
+}
+
 interface PendingCall {
   id: string;
   name: string;
@@ -333,6 +355,11 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
       } catch (error) {
         throw new ProviderError("流式响应不是合法 JSON：" + snippet(frame), { cause: error });
       }
+      // 带内错误盖不住打断：真正兜住这件事的是下面 catch 里那句 `if (!req.signal.aborted) throw error`
+      // （读流期守卫，既有语义），把它挪到上面那道 aborted 守卫之前实测也红不了任何用例——
+      // 这句注释因此只描述顺序，不宣称自己是一条闸。
+      const inBand = inBandError(raw);
+      if (inBand !== null) throw new ProviderError(`模型服务端在流里回了错误：${inBand}`);
       const delta = readDelta(raw);
       if (delta.reasoning !== "") yield { kind: "reasoning-delta", text: delta.reasoning };
       if (delta.content !== "") yield { kind: "text-delta", text: delta.content };
