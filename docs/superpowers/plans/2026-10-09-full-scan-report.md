@@ -4168,3 +4168,21 @@ Windows 4127 注册 = Linux 4124 + 3，Windows 4125 passed = Linux 4124 + 1（�
 而本刀的动机是那条失明而不是数。这一格现在两侧的数都摆在台账里，若要回填，README 属六段之内，
 改完必须重跑定稿遍——它排进下一刀候选：#56 = 门面散文那两处仍无闸的数（「文件数那一格两侧都是 315」那句
 与 quoted 的 `files=315` 原文），#57（可选）= 那一次同树回填。
+
+**补送 `ef582e3` 这一格暴露了回读通路自己也会失败**（`k55b/k55c/k55d` 三份码文件逐字）：脚本按 ref 顺序推，
+`feat/plan3-interaction-and-assembly` 六次全 `exit=128`，随后 `fix/ci-path-platform-neutrality` 在 attempt 3 通了——
+同一枚树、同一次运行里一成一败，说明是 `github.com:443` 抖动而不是凭据或钩子。补送那一枚时
+`PUSH ... attempt=1 exit=0`（日志逐字 `981cba2..ef582e3  HEAD -> feat/plan3-interaction-and-assembly`，快进），
+可紧接着的回读又是 `exit=128`，脚本因此写下 `MATCH ... NO`。**这一格差点被我读成「没送达」**：
+送达与否的证据是远端那枚哈希，而 `MATCH NO` 在这里只证明**回读这一步没成功**，两件事不能混。
+单独复读到第 1 次就 `exit=0`、`read=ef582e3…`，与本地 HEAD 全哈希对上；最后再整表读一次三枚 ref：
+
+```
+ef582e35824320e608395b81949bc5fb1a24cc6b	refs/heads/feat/plan3-interaction-and-assembly
+ef582e35824320e608395b81949bc5fb1a24cc6b	refs/heads/fix/ci-path-platform-neutrality
+c475cafbe8edaeee81d3e3acf6711463efcb8971	refs/heads/main
+```
+
+**升级后的形状**：「推两枚 ref 要各自拿码、各自回读」这条还得配一句——**回读自己也要拿到 0 码才算做过**，
+回读非 0 时状态是「未核实」，不是「未送达」，也不是「送达」（三者都要能区分，写错一个就会在台账里留下假话）；
+而 `MATCH NO` 这种脚本自报的结论，落笔前要回到那一步自己的退出码上看它到底问的是哪件事。
