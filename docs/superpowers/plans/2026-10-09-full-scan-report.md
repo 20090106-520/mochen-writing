@@ -4963,9 +4963,14 @@ provenance 那两处同类残留还没改。**而那一枚 127 顺手把上一�
 - **第十六道闸的形状已经量好了：判据归属闸**。本刀那三条假指向（`README.md:57`、`platform-anchors.mjs:9`、
   `readme-provenance.test.mjs:22`）说明门面/注释里「某道闸住在 `tools/X.test.mjs`」这类句子**目前一条闸都没有**：
   第十四道只认 `` `tools/x.test.mjs`（N 道）`` 那种带数的点名，路径闸只认文件在不在。
-  可写的判据（先按这一条装，别扩）：门面上凡是「`tools/<facade>.test.mjs` + 句子里带某道闸的关键词」的说法，
-  被点名的那份文件此刻**必须真有一条 `test()` 的标题含着同一个关键词**——本刀那一句的关键词是「行号」，
-  `readme-provenance.test.mjs` 里有「门面上每一处『某文件的第 N 行』…」这条，claims 里没有。
+  可写的判据（先按这一条装，别扩）：门面上凡是「`tools/<facade>.test.mjs` + 句子里带某道闸的名字」的说法，
+  被点名的那份文件此刻**必须真有一条 `^test(` 的标题含着那道闸在标题里的可读到形状**。
+  这一句本刀先被自己量错过一次：我原本写「关键词是『行号』，provenance 里有对应那条」，`grep -nE '^test\('` 回读才知道
+  那条标题（`tools/readme-provenance.test.mjs:296`）写的是「某文件的**第 N 行**」「**锚点**」，**标题里根本没有「行号」两个字**。
+  所以词表必须是「闸名 → 标题里真能读到的词」（`行号引用闸 → ['第 N 行', '锚点']`），而且判据只能落在**标题**上：
+  `tools/readme-claims.test.mjs:29` 那份搬家说明里就写着「按行号点名时那一行必须真含着锚点」——按全文找这两个词，
+  指错的那句照样绿。还有一条形状要防：README 同一句里出现了裸词 `claims`（「不住在 claims 了」），
+  点名必须只认反引号里的 `` `tools/<name>.test.mjs` `` 全路径，否则这句否定说法会被当成一次点名而误红。
   装之前先证它能红：把 README 那句的文件名从 provenance 改成 claims，应当只红这一条新闸。
 - 顶格两格仍绑 `1cb4a29`。下一次回填必须**两侧都在净树上重读**，而 Linux 那一格的文件数会读成 **316**
   （CI 还没在任何含 `readme-provenance.test.mjs` 的提交上跑过；本机 316 已在第四遍读到，但那是**含 3 条脏项的树**，
@@ -4975,3 +4980,61 @@ provenance 那两处同类残留还没改。**而那一枚 127 顺手把上一�
 - `tools/readme-claims.test.mjs` 现在 485/800，余量 315 行——下一刀加断言不必再拆；provenance 336/800 同理。
 - 推送脚本派生时把 `POST_PUSH_PORCELAIN` 那段补成带 `*_LIST_START/END` 的形状（见 §五十八·补，
   本刀的 `k59-push.sh` 已经带上）；另外**停后台任务后必须回读进程表**确认脚本本体真没了（本刀第 3 发）。
+
+## 五十九·补、2026-10-14 03:45：`e4db111` 的送达 —— 三枚提交一次推上两枚 ref，两枚各自拿码各自回读
+
+送的是三枚：`01ee7b9`（第 59 刀本体，切出 `readme-provenance`）+ `136cd76`（那三条假指向的修复）+
+`e4db111`（本刀台账收口，只动这一份 `.md`）。远端此前停在 `1a3d529`，这一推是**快进**（下面 a11 日志逐字可见），
+没有强推、没有 rebase、没有 `--no-verify`。
+
+脚本 `/c/temp/m12-f/k59b-push.sh`（换全新前缀 `k59b`，因为 `k59-push.sh` 那份日志被停不掉的脚本续写过，
+已作废留档为 `k59-push-codes-contaminated.txt`）。派发前先过 `git ls-remote` 廉价探针——`03:36:48` 那一枚
+`k59b-probe.txt` 逐字是 `error: RPC failed; curl 28 Failed to connect to github.com:443 after 21065 ms`，
+`PROBE_EXIT=128`，所以这一轮的 128 是网络不是凭据。
+
+`/tmp/k57/k59b-push-codes.txt` 逐字（mtime `03:45:56`，1390 字节）：
+
+```
+HEAD_FULL=e4db1111cbba2967b17b11a997c1e8b445a42d88
+PRE_PUSH_PORCELAIN=0
+PRE_PUSH_PORCELAIN_LIST_START
+PRE_PUSH_PORCELAIN_LIST_END
+PUSH ref=feat/plan3-interaction-and-assembly attempt=1 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=2 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=3 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=4 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=5 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=6 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=7 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=8 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=9 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=10 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=11 exit=0
+READBACK ref=feat/plan3-interaction-and-assembly try=1 exit=0
+REMOTE_SHA ref=feat/plan3-interaction-and-assembly value=e4db1111cbba2967b17b11a997c1e8b445a42d88
+STATUS ref=feat/plan3-interaction-and-assembly 送达
+PUSH ref=fix/ci-path-platform-neutrality attempt=1 exit=0
+READBACK ref=fix/ci-path-platform-neutrality try=1 exit=0
+REMOTE_SHA ref=fix/ci-path-platform-neutrality value=e4db1111cbba2967b11a997c1e8b445a42d88
+STATUS ref=fix/ci-path-platform-neutrality 送达
+POST_PUSH_PORCELAIN=0
+POST_PUSH_PORCELAIN_LIST_START
+POST_PUSH_PORCELAIN_LIST_END
+```
+
+两枚 ref **各自**都是「推 exit=0 → 回读 exit=0 → `REMOTE_SHA` 逐字等于 `HEAD_FULL`」三条同时成立才写「送达」，
+第一枚的 10 发 128 没有算到第二枚头上（它第 1 发就 0）。两枚回读的原始日志也各自落盘并对得上：
+`k59b-lsremote-feat_plan3-interaction-and-assembly.txt`（`03:45:51`）第一列 `e4db1111…` 第二列
+`refs/heads/feat/plan3-interaction-and-assembly`；`k59b-lsremote-fix_ci-path-platform-neutrality.txt`（`03:45:55`）
+同一枚哈希配 `refs/heads/fix/ci-path-platform-neutrality`。128 那十发的内容也是逐字读回的不是归类的：
+`k59b-push-feat_plan3-interaction-and-assembly-a1.log`（`03:37:14`）写的是
+`fatal: unable to access 'https://github.com/20090106-520/mochen-writing.git/': Failed to connect to github.com:443 after 21202 ms: Could not connect to server`，
+成功那发 `a11.log`（`03:45:50`）写的是 `   1a3d529..e4db111  HEAD -> feat/plan3-interaction-and-assembly`——
+`..` 而不是 `+`，这就是「只快进」的现场证据。跑前跑后 porcelain 都是 0 条，两份名单都当场落盘且为空。
+
+**进程表这一条补记**（本刀第 3 发的规矩第一次真用上）：通知回「completed (exit code 0)」之后先读日志全文再读进程表。
+头一次查用 `-match 'k59'`，结果列出两枚 `bash.exe`（21488、24952）——那是**这条查询语句自己**：powershell 的命令行里
+就带着 `k59` 这三个字符，`Get-CimInstance` 把它自己_matched 进来了。改成运行时拼串（`'k5'+'9b'+'-push'`）再查，
+返回空表，脚本本体确实随通知一起结束了。**教训：拿 `CommandLine -match <模式>` 自证「没有残留进程」时，模式串本身
+会命中执行它的那枚进程**——要么运行时拼串，要么先把 `powershell.exe`/自己那枚 PID 排掉，否则永远查出「还在跑」。
+这一发也没有把 128 当成失败结论：十发 128 之后第十一发 0，说明重试循环在这里是有效的而不是掩盖。
