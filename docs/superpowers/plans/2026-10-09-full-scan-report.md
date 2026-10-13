@@ -4187,7 +4187,7 @@ c475cafbe8edaeee81d3e3acf6711463efcb8971	refs/heads/main
 回读非 0 时状态是「未核实」，不是「未送达」，也不是「送达」（三者都要能区分，写错一个就会在台账里留下假话）；
 而 `MATCH NO` 这种脚本自报的结论，落笔前要回到那一步自己的退出码上看它到底问的是哪件事。
 
-## 五十六、2026-10-14 01:45：第十五道闸——门面 quoted 的 CI annotation 原文与「两侧都是 N」那句文件数，从此要对着顶格那两格
+## 五十六、2026-10-14 01:44：第十五道闸——门面 quoted 的 CI annotation 原文与「两侧都是 N」那句文件数，从此要对着顶格那两格
 
 **病灶是 M57 量出来的，不是想出来的**：门面上有两处引用侧的数——
 「两枚 run 各自把 `files=315 registered=4123 passed=4123 skipped=0 failures=0` 写成一条 annotation」（第 48 行）
@@ -4264,3 +4264,45 @@ test 段（ANSI 去色后回读，`k56-final1-test.clean.log`）：
 而是"门面有没有把 skip 口径说清"的问题），要不要管、怎么管，得先定口径再动判据；
 **硬约束预告**：`tools/readme-claims.test.mjs` 已经 778 行、预算 800，**再加一条断言就得先按「不共享状态」拆出第三份文件**，
 不能等 `lint:budget` 红在提交那一刻才想起来（第五十二节那一刀就是这么发生的）。
+
+## 五十六·补、2026-10-14 01:47：`a953b12` 的送达、Linux 那一格从预测读成数，以及我手敲错的一枚 job id
+
+**送达（脚本 `/c/temp/m12-f/push-loop-56.sh`，逐枚拿码逐枚回读，`k56-push-push-codes.txt` 全文）**：
+
+```
+HEAD_FULL=a953b12e655fcfb2fe705faa76e9cd2fcf2090e2
+PRE_PUSH_PORCELAIN=0
+PUSH ref=feat/plan3-interaction-and-assembly attempt=1 exit=0
+READBACK ref=feat/plan3-interaction-and-assembly try=1 exit=0
+STATUS ref=feat/plan3-interaction-and-assembly 送达 read=a953b12e655fcfb2fe705faa76e9cd2fcf2090e2
+PUSH ref=fix/ci-path-platform-neutrality attempt=1 exit=0
+READBACK ref=fix/ci-path-platform-neutrality try=1 exit=0
+STATUS ref=fix/ci-path-platform-neutrality 送达 read=a953b12e655fcfb2fe705faa76e9cd2fcf2090e2
+POST_PUSH_PORCELAIN=0
+```
+
+两枚推送日志各两行，逐字：`9e2299e..a953b12  HEAD -> feat/plan3-interaction-and-assembly` 与
+`9e2299e..a953b12  HEAD -> fix/ci-path-platform-neutrality`（都是快进，无 `+`、无 `--force`）。
+这一格还顺带把上一刀·补二那枚 `9e2299e` 的送达**第二次**证实了：远端在快进之前就停在那枚上，
+所以范围才写成 `9e2299e..a953b12`——那一轮的台账只记到「回读三态」这条规矩，没记送达范围，这里补上。
+
+**CI 读数（未认证 API，两枚 run 都 `completed`/`success`）**：§五十六 那句「预测 Linux 4125 注册」到这里读成数，
+run 页 `38441194363`（job `115447900938`）与孪生的 `38441185951`（job `115447877457`），
+两份 annotation 各 1 条、逐字相同：
+
+```
+files=315 registered=4125 passed=4125 skipped=0 failures=0
+```
+
+平台那笔账继续同树两侧对得上：Windows 4128 注册 = Linux 4125 + 3，Windows 4126 passed = Linux 4125 + 1。
+Linux 侧被读回来的树累计六枚（`6679fab`、`12b2bf0`、`fc1e17c`、`0ab4aa2`、`981cba2`、`a953b12`）。
+
+**自己敲错的一发（记下来，因为它差点让孪生那一格变成"没读到"）**：取 annotation 时我把第二枚 job id
+手敲成 `115447872907`（真身 `115447877457`），curl 写出的文件名跟着错，node 读第二份时 `ENOENT` 当场炸——
+第一枚的数已经落盘，所以这次只是难看不是丢失。**形状**：id 要**从上一跳的 JSON 里读**（`check_runs[].id`），
+不要在下一跳的命令里重打一遍；这与「run 页 ID 只能来自本次会话当场抓取」是同一条规矩的下半段——
+抓来之后还要**不经过手抄**地传给下一次请求。处置：改脚本从 `s56-cr-a953b12.json` 里取 id 列表再逐枚取 annotation。
+
+**下一刀的口径变化（本刀的副作用）**：#57 若真做同树回填，现在要动的不只是顶格两格，
+还有**那份 quoted 的 annotation 原文**——第十五道把引用侧与读数侧钉在了一起，
+所以「只 bump 两格」这条路对本刀之后的每一刀都不通了（这正是本刀想要的后果）。
