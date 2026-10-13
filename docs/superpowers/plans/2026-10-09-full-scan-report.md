@@ -5086,3 +5086,124 @@ POST_PUSH_PORCELAIN_LIST_END
 ① 模式串运行时拼，别写死；② **排掉自己这一支**（`-notmatch 'powershell'` 不够，`bash -c` 外壳同样会带上模式串），
 判据改成「命令行里有没有 `.sh` 那枚脚本本体」而不是「有没有那个前缀字符串」。
 
+## 第六十节（2026-10-14 03:55—04:20）：第十六道闸——判据归属闸，门面那句「某道闸住在哪份文件」第一次有闸钉
+
+### 病根：三条假指向一条闸都不红，是因为「归属」这一层没人判
+
+第五十九刀把「数有没有出处」那一族六道整族搬进 `tools/readme-provenance.test.mjs` 之后，
+门面 `README.md:57`、`tools/platform-anchors.mjs:9`、`tools/readme-provenance.test.mjs:22` 三处
+「谁核对行号」的句子全还指着 `readme-claims`——十五道断言、六十六分钟的门禁链，一条都没红（见第五十九节
+「搬家留下的三条假指向」）。当时靠人眼抓到，本刀把这件事变成机器判。判的空档很清楚：
+
+- 第十四道（守卫条数）认的是 `` `tools/x.test.mjs`（N 道）`` 这种**带数的点名**，它管「份 ↔ 条数」，
+  不管「哪道闸住在哪份」；
+- 路径闸只认「这个反引号路径在不在仓库里」，`readme-claims` 当然在；
+- 行号引用闸只在门面写「某文件的第 N 行」时才核对锚点。
+
+所以「某道闸**归属**哪份文件」这一句话，在本刀之前是门面里唯一一种**没有任何闸读它**的说法。
+
+### 装之前先证能红，装完再证四层各能红
+
+按第五十九节留的形状动手前，先只做一件事：把 `README.md` 里那句归属的 `readme-provenance` 改成
+`readme-claims`（M87），当场确认没有闸红——**这一步是「闸不存在」的证明**，不是变异测试。装完闸之后再回到同一枚
+改法，它才红（下面 M87 那条）。
+
+四层判据（5 条断言，全在 `tools/readme-provenance.test.mjs`，该文件从 6 道变 11 道）：
+
+1. **提取自证**（`:422`）：门面的「## 门禁」一节 `flatten` 后必须提取到 ≥1 处 `` `tools/*.test.mjs` ``，
+   且登记表 ≥5 条。理由是这一族判据全是「每一条都合格」型——提取到 0 条时下面三条自动全绿，
+   所以第一发必须先钉「有东西可判」。实测：门面上 9 处点名、5 份不同文件。
+2. **双向覆盖**（`:435`）：门面点名过的每一份都在登记表里，登记表里的每一份也都真被门面点名过。
+   反向那半防的是登记表写门面没有的话（虚设的归属）。
+3. **文件在场且有标题**（`:453`）：登记的每份文件 `testTitles()` 不为 `null` 且行首 `test(` 至少一条。
+   整族搬空却不改登记表，就是第五十九刀那个形状。
+4. **归属句 + 词表排他**（`:469` 与 `:502`）：登记表里每道闸必须有一句门面把它指到登记的那份文件，
+   且那句与路径之间**不夹别的路径**；词表里的每个词只能在登记那份文件的**标题**里读到，
+   其余被门面点名的守卫一份都没有。
+
+判据落在标题层不是全文层，是当场量出来的：`tools/readme-claims.test.mjs:29` 那份搬家说明的**正文**里
+就写着「按行号点名时那一行必须真含着锚点」——按全文找这两个词，指错的那句照样绿。
+点名只认反引号里的全路径，因为门面同一句里有裸词 `claims`（「不住在 claims 了」），
+把裸词算点名会误红。登记表与共用件都进 `tools/readme-gate-facts.mjs`（锁定前提第 6 条：
+「什么算一条 `test(`」这份口径第十四道与归属闸同用，只许一处实现）。
+
+### 登记表此刻的 7 条与当场量到的距离（`node /c/temp/m12-f/k60/measure.mjs` 回读）
+
+| 门面上的原话 `key` | 登记的 `file` | `titleWords` | 合格归属句实测 gap |
+| --- | --- | --- | --- |
+| 行号引用闸 | `tools/readme-provenance.test.mjs` | 第 N 行 / 锚点 | 4 |
+| 数有没有出处 | `tools/readme-provenance.test.mjs` | 脏树 / run 页 ID | 56 |
+| 门禁由哪几段组成 | `tools/readme-gate-composition.test.mjs` | 那几道闸 / 真身 | 11 |
+| 作业名 | `tools/readme-gate-composition.test.mjs` | 作业名 | 14 与 151（该词出现 3 次，2 次合格） |
+| 守卫条数 | `tools/readme-claims.test.mjs` | 守卫条数 | 11 |
+| 那笔账 | `tools/platform-test-count.test.mjs` | 平台分支 | 2 |
+| 不吞码 | `tools/ci-gate.test.mjs` | 退出码 | 26 |
+
+### 窗口不是判别器：那句 7 比 14 更近的历史说法怎么被挡住的
+
+设计时以为「距离阈值」能区分归属句与顺带提到的句子，实测把它推翻了：`flatten` 后整节 5202 字符，
+合格归属句的距离是 2 / 4 / 11 / 11 / 14 / 26 / 56，而第五十二节那段讲拆分史的句子（此处为**转述**，
+非原文照抄）里「作业名」离 `tools/readme-claims.test.mjs` 只有 **7** 个字符——**比合格那句的 14 更近**。
+所以阈值只能用来拒绝「把整节门面当成一句话」（取 100，给最大那枚 56 留 44 字符余量），
+真判别器是另外两条：**指的文件对不对** + **中间夹不夹别的路径**。上面表里「作业名 → claims@7」这条
+候选在 `measure.mjs` 的输出里正是落在「夹了别的路径或指错文件的候选」那一栏。
+
+### 六枚变异：每枚只红一条，红的都是本刀新写的那条（逐字 AssertionError 从日志回读）
+
+| 枚 | 改法 | 红在哪条 | 现场（日志原文节选） |
+| --- | --- | --- | --- |
+| M87 | 门面那句归属的 `provenance` 改成 `claims` | 归属句那条 | 「门面上找不到「行号引用闸」→ tools/readme-provenance.test.mjs 这条归属句：这句话在门面上出现，但离它 100 字符内没有登记的那份路径；最近的点名是 tools/readme-claims.test.mjs@4…」 |
+| M88 | 把「第 N 行」从 provenance 那条标题里删掉 | 词表排他 | 「词「第 N 行」…此刻在 任何一份 的标题里读到，与登记的那份不一致」（**这一句读不通**，见下面第 2 发） |
+| M88b | 改好错误文案后重跑同一枚 | 词表排他 | 「词「第 N 行」…此刻在任何一份被门面点名的守卫标题里都读不到——把某道闸整族搬到别的文件却不改门面与登记表，量的就是这一发」 |
+| M89 | 把「锚点」同时塞进 claims 的一份标题 | 词表排他 | 「词「锚点」…此刻在 tools/readme-provenance.test.mjs、tools/readme-claims.test.mjs 的标题里读到，与登记的那份不一致: expected [ …(2) ] to deeply equal [ 'tools/readme-provenance.test.mjs' ] |
+| M90 | 从登记表删掉 `platform-test-count` 那条，门面不动 | 双向覆盖 | 「门面上点名了 tools/platform-test-count.test.mjs，可归属登记表里没有它——新装一道闸却不登记，等于让本闸对这一道永久失明」 |
+| M91 | `ATTRIBUTION_WINDOW` 100 → 3 | 归属句 | 「…但离它 3 字符内没有登记的那份路径；最近的点名是 tools/readme-provenance.test.mjs@4、tools/platform-test-count.test.mjs@65、tools/readme-claims.test.mjs@645」 |
+| M92 | 门面那句「守卫条数」改成「守卫条目数」 | 归属句（key 缺失支） | 「登记表里的原话「守卫条数」在门面上一个字都找不到——登记表写了门面没有的话」 |
+
+M87–M92 每枚都是 `Test Files 1 failed | 4 passed`、`Tests 1 failed | 30 passed`（M87、M91 那两枚跑的是
+两份文件的局部集，读数是 1 failed | 17 passed），**没有任何一枚红两条**。改法全部用 Edit 反向复原，
+复原后与变异前快照 `cmp` 逐字节相同——本刀没有用过一次 `git checkout --`。
+
+### 本刀自己绊到的两发
+
+1. **错误文案在「零命中」支上读不通**：M88 第一次的红文是「此刻在 任何一份 的标题里读到」——
+   `hits` 为空时那句话是病句，而判据本身是对的。补成按 `hits.length` 分支（`:511`）后重跑同一枚，
+   才是上面 M88b 那句。规矩：**红的时候读的文案也是产物**，文案不通等于现场丢了。
+2. **共用层注释里写重了一句**：`tools/readme-gate-facts.mjs` 的窗口注释里「比合格那句的 **14** 更近」
+   连着出现两次。它是注释，六道闸读不到，但它进了第一次提交（`eb04835`），所以修完必须**重跑整条链**——
+   上一遍绿的是旧内容。chain6 就是这一刀的重跑。
+3. 另一发不算绊倒但要点名：本刀的 5 条断言只加在既有测试文件里（6→11 道），**没有新增测试文件**，
+   所以门面顶格那两格仍绑 `1cb4a29`，不需要回填；而 `measure.mjs` 第一次跑出的 gap 集合（2/4/11/11/14/26/56）
+   是**改 README 之前**的树读的，改完重新读过一遍才写进上表。
+
+### 此刻盘上的数（全部 `wc -l` 与 `grep -cE '^test\('` 回读）
+
+`tools/readme-claims.test.mjs` 485 行 / 7 道（本刀**逐字节没动**：与 HEAD 的 `git diff` 为空，且与快照 `cmp` 相同）、
+`tools/readme-provenance.test.mjs` 518 行 / 11 道、`tools/readme-gate-composition.test.mjs` 262 行 / 2 道、
+`tools/readme-gate-facts.mjs` 146 行（新增 `GUARD_PATH(_G)`、`testTitles`、`ATTRIBUTION_WINDOW=100`、`GATE_ATTRIBUTIONS` 7 条）、
+`tools/platform-test-count.test.mjs` 148 行 / 5 道、`tools/ci-gate.test.mjs` 95 行 / 6 道、`README.md` 168 行。
+五份门面守卫定向 `vitest run` 在复原后读到 `Test Files 5 passed (5) / Tests 31 passed (31)`。
+
+### 定稿遍（两遍）
+
+- **chain5**，2026-10-14 04:10:06—04:11:46，跑在含 3 条脏项的树上（`README.md`、`readme-gate-facts.mjs`、
+  `readme-provenance.test.mjs`）：六段退出码 `format=0 typecheck=0 eslint=0 boundary=0 budget=0 test=0`，
+  `test` 段读数是 `Test Files 316 passed (316)` / `Tests 4131 passed | 2 skipped (4133)`（Windows 侧、`--maxWorkers=4`、
+  skip 另计不计入 passed），日志里 grep `error TS|ELIFECYCLE|Command failed|failed (` **零命中**，
+  前后 porcelain 各 3 条且逐条一致。
+- **chain6**，2026-10-14 04:13:36—04:15:14（`/c/temp/m12-f/k60/chain6/`），跑在**只有 `tools/readme-gate-facts.mjs` 一条脏项**的树上
+  （即注释重复子句已修完、`eb04835` 已入库之后）：六段退出码同样全 0，`test` 段读到的还是 316 / 4131 passed | 2 skipped (4133)，
+  前后 porcelain 各 1 条且一致，失败串 grep 零命中。
+- 这两遍的读数**只作现场记录，不回填门面顶格那两格**：它们都跑在含脏项的树上，而顶格那两格要求的是
+  「两侧都在净树上读到」的那枚提交（`1cb4a29`）。台账这一节写完之后再跑第三遍（chain7），
+  那一遍的数与两枚 ref 的送达一起记在 §六十·补。
+
+### 留给 #61 的
+
+- **门面顶格两格换绑要有真读数**：`readme-provenance` 那枚文件已在库里，CI 却还没在任何含它的提交上跑过；
+  下一次回填必须两侧都在**净树**上重读，Linux 那格的文件数预计读成 316——**这是推的**，不许写进门面当读数。
+- skip 口径那条照旧没动：先把「CI 说 `skipped=0`、本机这格说 2 skipped」写成一句能被核对的话
+  （两枚 `it.skipIf(win32)` 在 Linux 上根本不注册），再谈装闸。
+- 归属闸的词表是**照抄标题**的，所以标题一改就得同步登记表。下一刀若给某道闸改标题，
+  先跑 `measure.mjs` 那类提取看词还落在哪份文件——M89 量的就是这个形状。
+- `useBookStore.ts` 800/800 那一拆仍被并行会话阻塞（清单第 2 项），本刀没碰。
