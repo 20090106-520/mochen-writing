@@ -5038,3 +5038,51 @@ POST_PUSH_PORCELAIN_LIST_END
 返回空表，脚本本体确实随通知一起结束了。**教训：拿 `CommandLine -match <模式>` 自证「没有残留进程」时，模式串本身
 会命中执行它的那枚进程**——要么运行时拼串，要么先把 `powershell.exe`/自己那枚 PID 排掉，否则永远查出「还在跑」。
 这一发也没有把 128 当成失败结论：十发 128 之后第十一发 0，说明重试循环在这里是有效的而不是掩盖。
+
+## 五十九·补·补、2026-10-14 03:52：`dbca602` 的送达 —— 台账自己那一刀的第二遍，加上「自证没有残留进程」的第二次踩坑
+
+上面那节是 `e4db111` 送完之后当场写的，写完它就又成了未提交内容，所以本刀还有一推：`dbca6024ef230b3119a9507dc0c35709c382a415`
+（只动这份 `.md`，`git show --numstat` 读回 `66 3`，一条 gate-visible 文件都不在里面）。
+脚本换成第三枚前缀 `k59c`（`/c/temp/m12-f/k59c-push.sh`，用 `sed -E 's/k59b/k59c/g'` 从 `k59b` 那份派生——
+依旧是仓库之外的临时脚本，不是变异对象，理由与上面记的那条同源）。
+
+`/tmp/k57/k59c-push-codes.txt` 逐字（mtime `03:52:43`，1068 字节）：
+
+```
+HEAD_FULL=dbca6024ef230b3119a9507dc0c35709c382a415
+PRE_PUSH_PORCELAIN=0
+PRE_PUSH_PORCELAIN_LIST_START
+PRE_PUSH_PORCELAIN_LIST_END
+PUSH ref=feat/plan3-interaction-and-assembly attempt=1 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=2 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=3 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=4 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=5 exit=128
+PUSH ref=feat/plan3-interaction-and-assembly attempt=6 exit=0
+READBACK ref=feat/plan3-interaction-and-assembly try=1 exit=0
+REMOTE_SHA ref=feat/plan3-interaction-and-assembly value=dbca6024ef230b3119a9507dc0c35709c382a415
+STATUS ref=feat/plan3-interaction-and-assembly 送达
+PUSH ref=fix/ci-path-platform-neutrality attempt=1 exit=0
+READBACK ref=fix/ci-path-platform-neutrality try=1 exit=0
+REMOTE_SHA ref=fix/ci-path-platform-neutrality value=dbca6024ef230b3119a9507dc0c35709c382a415
+STATUS ref=fix/ci-path-platform-neutrality 送达
+POST_PUSH_PORCELAIN=0
+POST_PUSH_PORCELAIN_LIST_START
+POST_PUSH_PORCELAIN_LIST_END
+```
+
+两枚 ref 各自的 push 日志都是快进形状，逐字读回：`k59c-push-feat_plan3-interaction-and-assembly-a6.log` 与
+`k59c-push-fix_ci-path-platform-neutrality-a1.log` 都写 `   e4db111..dbca602  HEAD -> <各自的 ref>`——
+两枚 ref 从同一枚 `e4db111` 前进到同一枚 `dbca602`，此刻**远端两枚仍是同值**。
+`git worktree list` 同时读回另一件事：主工作树 `C:/Users/17863/Desktop/深渊写作` 仍停在
+`2487695 [feat/plan3-interaction-and-assembly]`，也就是**本地**那枚同名分支 ref 还是并行会话的位置、
+是本刀 HEAD 的祖先，远端已经跑到它前面三枚——这一枚本地 ref 不属于本刀，不动它、也不把它当成「远端没送达」的证据。
+
+**第二次踩同一个坑（形状不同，值得单记）**：这一轮按上面立的规矩查残留进程，先用运行时拼串
+`'k59' + 'c' + '\.sh'` 查文件名，返回 `NO_PUSH_SCRIPT_ALIVE`，这一条干净。但在此之前我拿
+`-match 'k59c-push'` 加 `Name -notmatch 'powershell'` 查过一次，它列出一枚 `bash.exe`（PID 18984）——
+那仍然不是残留的推送脚本，而是**执行这条查询的那枚 `bash -c` 外壳**：它的命令行里字面带着
+`cat /tmp/k57/k59c-push-feat…log` 这些日志路径。所以规矩要写成可执行的两条，而不是一条：
+① 模式串运行时拼，别写死；② **排掉自己这一支**（`-notmatch 'powershell'` 不够，`bash -c` 外壳同样会带上模式串），
+判据改成「命令行里有没有 `.sh` 那枚脚本本体」而不是「有没有那个前缀字符串」。
+
