@@ -688,3 +688,91 @@ test("门面上按文件点名的守卫条数必须等于那份文件此刻的 t
       "——加断言的人没回头改门面，这就是 2026-10-09 那枚冻死的「当前 215 文件 / 3014 用例」的下一代"
   ).toEqual([]);
 });
+
+/**
+ * 门面**quoted 的 CI 原文与「两侧都是 N」那句文件数**闸（2026-10-14，第五十六节，第十五道）。
+ *
+ * 病灶由 M57 量出来，不是猜的：门面上写着
+ * 「两枚 run 各自把 `files=315 registered=4123 passed=4123 skipped=0 failures=0` 写成一条 annotation」
+ * 和「文件数那一格两侧都是 315」这两句话，而**全仓没有一条断言读过括号里的数字**。
+ * 第九道闸（等式）只看写成等式的跨格算式，且它对文件数那一臂钉的是「两格彼此相等」——
+ * 于是把顶格两格**一起**从 315 改成 316，第九道照绿，而 quoted 的 CI 原文与那句散文还在说 315。
+ * 这正是 M57 那一跑复现出来的形状：只 bump 一边的确会红，两边一起 bump 或引用侧不动，则一句假话都不报。
+ *
+ * 失效形态与 2026-10-09 那枚冻死的「当前 215 文件 / 3014 用例」同一件东西，只是这次坏在**引用侧**：
+ * CI 报数原文是门面里唯一一处「不是手写读数、而是 CI 自己吐出来的字符串」，
+ * 它一旦与顶格那两格脱钩，门面就在拿一份旧 annotation 替当下的树背书。
+ *
+ * 三层判据，少一层就留脱身通路（与第十、十三、十四道同一形状）：
+ * 1. **实例声明**：quoted 原文与「两侧都是 N」两类站点各至少一处。提取不到即红——
+ *    把现役那句删掉或改写就不测，是这一族最便宜的作弊法（第三十八节）。
+ * 2. **文件数对表**：每处 quoted 原文的 `files=` 与每处「两侧都是 N」的 N，都必须等于顶格两格的文件数
+ *    （两格本身由第九道钉成同值，这里取 Linux 那一格为参照）。
+ * 3. **用例数对表**：每处 quoted 原文的 `registered=` 与 `passed=` 都必须等于 Linux 那一格的用例数。
+ *
+ * **本闸不钉历史**：门面上「CI 在 `05b1d53` 报 313 文件 / 4112 用例」那种连着哈希的历史句**不是**这两种形状，
+ * 天然不在提取范围里；但**quoted 的 annotation 原文只许有一份现役**——若将来真要在门面引一枚历史 annotation，
+ * 这一臂会当场红，那时要么把历史引用改写成不带 `files=…` 字面量的说法，要么连这条判据一起改（第四十二节那条教训）。
+ * 数法与顶格两格共用 `CELLS` 那一份正则，不另写第二份定义（锁定前提第 6 条）。
+ */
+const ANNOTATION_QUOTE =
+  /`files=(\d+) registered=(\d+) passed=(\d+) skipped=(\d+) failures=(\d+)`/g;
+const BOTH_SIDE_FILES = /文件数[^。；;]*?两侧都是\s*(\d+)/g;
+
+/** 顶格两格的文件数与 Linux 用例数——用第九道那两份正则读，不重写。 */
+function liveFacadeCells() {
+  const flat = flatten(gateSection().replace(/「[^」]*」/g, ""));
+  const linux = CELLS.linux.re.exec(flat);
+  const win = CELLS.win.re.exec(flat);
+  expect(
+    linux && win,
+    "读不出顶格那两格了（`CELLS` 的两份正则有一条不匹配）——本闸失去参照，一条也测不到"
+  ).toBeTruthy();
+  return {
+    linuxFiles: Number(linux[CELLS.linux.files]),
+    linuxCases: Number(linux[CELLS.linux.group]),
+    winFiles: Number(win[CELLS.win.files])
+  };
+}
+
+test("门面 quoted 的 CI 原文与「两侧都是 N」那句文件数，必须与顶格那两格同枚", () => {
+  const flat = flatten(gateSection().replace(/「[^」]*」/g, ""));
+  const quotes = [...flat.matchAll(ANNOTATION_QUOTE)];
+  const prose = [...flat.matchAll(BOTH_SIDE_FILES)];
+  expect(
+    quotes.length,
+    "「## 门禁」那一节里提取到 " +
+      quotes.length +
+      " 处 quoted 的 CI annotation 原文（`` `files=… registered=… passed=…` ``）——一处都没有时本闸第二、三臂全部空转，" +
+      "把那句改写或删掉就等于关掉本闸，所以实例声明先红"
+  ).toBeGreaterThan(0);
+  expect(
+    prose.length,
+    "「## 门禁」那一节里提取到 " +
+      prose.length +
+      " 处「文件数…两侧都是 N」的散文说法——一处都没有时本闸第二臂只剩 quoted 一半，" +
+      "门面不该出现「两侧都是」这种没有数可对的句式"
+  ).toBeGreaterThan(0);
+
+  const cells = liveFacadeCells();
+  const bad = [];
+  for (const m of quotes) {
+    const [, files, registered, passed] = m.map(Number);
+    if (files !== cells.linuxFiles || files !== cells.winFiles)
+      bad.push(`${m[0]} 的文件数是 ${files}，顶格两格是 ${cells.linuxFiles}/${cells.winFiles}`);
+    if (registered !== cells.linuxCases)
+      bad.push(`${m[0]} 报 registered=${registered}，Linux 那一格的用例数是 ${cells.linuxCases}`);
+    if (passed !== cells.linuxCases)
+      bad.push(`${m[0]} 报 passed=${passed}，Linux 那一格的用例数是 ${cells.linuxCases}`);
+  }
+  for (const m of prose) {
+    if (Number(m[1]) !== cells.linuxFiles)
+      bad.push(`「${m[0]}」说 ${m[1]}，顶格两格的文件数是 ${cells.linuxFiles}/${cells.winFiles}`);
+  }
+  expect(
+    bad,
+    "门面上这些引用侧的数已经不是顶格那两格的真身：" +
+      bad.join(" ／ ") +
+      "——引用侧与读数侧脱钩，门面就在拿一份旧 annotation 替当下的树背书（M57 量的正是这条通路）"
+  ).toEqual([]);
+});
