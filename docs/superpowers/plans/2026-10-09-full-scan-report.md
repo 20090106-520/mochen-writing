@@ -4117,3 +4117,54 @@ POST_CHAIN_PORCELAIN=3
 `0ab4aa2` 只改本台账这份 `.md`——按上面那条口径它不进任何一段，所以 CI 看到的测试面与 `12b2bf0` 完全相同。
 门面顶格那两格**仍绑 `12b2bf0`**，不回填：`0ab4aa2` 上 Windows 侧我没重跑干净树，只 bump Linux 一边正是
 第十二道闸盯的那笔单边漂移。
+
+**送达（`981cba2`，脚本 `/c/temp/m12-f/push-loop-55.sh`，逐枚拿码逐枚回读）**：这一版把 §五十五 记的那个文件名
+bug 修掉了——ref 名进日志文件名前先 `tr '/' '_'`，所以 `ls-remote` 那两格的退出码这次是真的。原文照贴
+（`k55-push-codes.txt` 全文）：
+
+```
+HEAD_FULL=981cba2a2b3f652aecf996f8bdd5e5a0595d7a26
+PRE_PUSH_PORCELAIN=0
+PUSH ref=feat/plan3-interaction-and-assembly attempt=1 exit=0
+LSREMOTE ref=feat/plan3-interaction-and-assembly exit=0 read=981cba2a2b3f652aecf996f8bdd5e5a0595d7a26
+MATCH ref=feat/plan3-interaction-and-assembly yes
+PUSH ref=fix/ci-path-platform-neutrality attempt=1 exit=0
+LSREMOTE ref=fix/ci-path-platform-neutrality exit=0 read=981cba2a2b3f652aecf996f8bdd5e5a0595d7a26
+MATCH ref=fix/ci-path-platform-neutrality yes
+POST_PUSH_PORCELAIN=0
+```
+
+两枚都是 attempt 1 就成了（`github.com:443` 此刻通），两枚的推送日志各只有两行，逐字：
+
+```
+To https://github.com/20090106-520/mochen-writing.git
+   0ab4aa2..981cba2  HEAD -> feat/plan3-interaction-and-assembly
+```
+```
+To https://github.com/20090106-520/mochen-writing.git
+   0ab4aa2..981cba2  HEAD -> fix/ci-path-platform-neutrality
+```
+
+`0ab4aa2..981cba2` 是快进，没有 `+`、没有 `--force`；`main` 仍停在 `c475caf`（那格本刀不动，也没人要求动）。
+跑前跑后 `git status --porcelain` 都数出 0 行——这一遍是干净提交树上推出去的，Windows 侧那个 4127 注册的数
+因此与 `981cba2` 这枚树等价，不必再复跑一次才算数（上一条口径：本机要报「干净树上的 N 文件 / M 用例」，
+得当场读回 porcelain 是 0 条，这里 PRE 与 POST 都是 0）。
+
+**`981cba2` 的 CI 读数（未认证 API，两枚 run 都 `completed`/`success`）**：§五十五 那笔「预测 Linux 4124」
+到这里读成数，逐字（`s55b-ann-115438766936.json` 与孪生的 `s55b-ann-115438729543.json` 各 1 条 annotation）：
+
+```
+files=315 registered=4124 passed=4124 skipped=0 failures=0
+```
+
+run 页 `38438535483`（job `115438766936`）与 `38438524818`（job `115438729543`），作业名仍是那句
+`格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试`。Linux 侧这是**第五枚**被读回来的树
+（`6679fab`、`12b2bf0`、`fc1e17c`、`0ab4aa2`、`981cba2`）。平台那笔账继续对得上，而且是**同树两侧**对得上：
+Windows 4127 注册 = Linux 4124 + 3，Windows 4125 passed = Linux 4124 + 1（那 3 条 win32 专属注册、
+2 条 `it.skipIf(win32)` 不参与本刀）；`tools/platform-test-count.test.mjs` 钉的就是这个形状，本刀那条新 `test(`
+加在两份共用的一份文件里，所以它同时进两侧。
+
+**门面顶格那两格仍不回填**（仍写 `12b2bf0`）：两侧同树的读数此刻确实换成了 `981cba2` 才有意义，
+而本刀的动机是那条失明而不是数。这一格现在两侧的数都摆在台账里，若要回填，README 属六段之内，
+改完必须重跑定稿遍——它排进下一刀候选：#56 = 门面散文那两处仍无闸的数（「文件数那一格两侧都是 315」那句
+与 quoted 的 `files=315` 原文），#57（可选）= 那一次同树回填。
