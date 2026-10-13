@@ -3604,7 +3604,80 @@ C:\Users\17863\Desktop\深渊写作-worktrees\ci-platform-neutral\tools\readme-g
 磁盘上已经没有那份日志了。所以这里如实标注它的出处是「当场读数」而不是「可回读的归档」，并且这一格记下改法：
 **下一刀起日志文件名带轮次**（`sNN-final-run<K>-<stage>.log`），否则「第一遍为什么红」这种恰恰最值钱的读数
 会被自己的复跑抹掉。第二遍六段全 0（`s52-final-exit.txt`），台账这一节改完之后按规矩要再起第三遍，
-第三遍的结果不属于本节。
+第三遍的结果不属于本节。第三遍已经用 `s52-final3-*` 起的名；本节之后又改过内容（补第十节那一格），
+按规矩重起的遍次（`s52-final4-*`、`s52-final5-*`）见第十节，那些遍的结果不属于本节。
+
+### 十、送达：推送回读，以及取数脚本自己写坏这一次
+
+本刀内容是 `cc392408a7a162506cd25c25da1aabeefb22f8f2`（父 `b432fe8`）。推送用的脚本
+`/c/temp/m12-f/s52-pushloop.sh` **第一版一枚也没推出去**，逐字（第一版当场输出）：
+
+```
+/c/temp/m12-f/s52-pushloop.sh: line 12: /c/temp/m12-f/s52-push-feat/plan3-interaction-and-assembly-1.log: No such file or directory
+PUSH_feat/plan3-interaction-and-assembly_ATTEMPT1_EXIT=1
+```
+
+两处都是取数脚本自己的病，与被推的东西无关：
+
+1. **ref 名带 `/` 直接拼进日志文件名**，重定向路径因此不存在，bash 在真正执行 `git push` **之前**就失败——
+   那五行 `ATTEMPT*_EXIT=1` 全是重定向的码，不是 git 的码。这一类和第九节的 eslint 是同一个方向的问题：
+   **提取／包装写坏，读数就完全没有鉴别力**，而它看起来仍然像「跑了、红了、重试过了」。
+2. 回读那句写成 `grep -F "refs/heads/$ref\$"`，`-F` 把行尾锚当**字面量**，所以哪怕远端真有那枚 ref 也永远匹配不上。
+   两版叠在一起的表现是「五连红 + 两枚 DELIVERED=NO」——运气好在这条链上还有 `git ls-remote` 落盘的那份原文
+   （`s52-lsremote.txt`），对着它才看出是脚本没匹配上，而不是远端没收到。修法：文件名把 `/` 换成 `_`，
+   回读改成 `awk -v r="refs/heads/$ref" '$2 == r {print $1}'` 逐字段比，并加一条「远端值为空也要红」。
+
+第二版逐字（输出与两枚 push 日志都留在 `/c/temp/m12-f/`）：
+
+```
+PUSH_feat_plan3-interaction-and-assembly_ATTEMPT1_EXIT=0
+PUSH_fix_ci-path-platform-neutrality_ATTEMPT1_EXIT=0
+   b432fe8..cc39240  HEAD -> feat/plan3-interaction-and-assembly
+   b432fe8..cc39240  HEAD -> fix/ci-path-platform-neutrality
+DELIVERED_feat/plan3-interaction-and-assembly=yes
+DELIVERED_fix/ci-path-platform-neutrality=yes
+```
+
+两枚 ref 第一次尝试就成功，两枚都**各自拿码、各自回读**过（§五十一 那条教训在这里生效：不是「第一枚成了」
+就算完），`git ls-remote --heads` 读回 `refs/heads/feat/plan3-interaction-and-assembly` 与
+`refs/heads/fix/ci-path-platform-neutrality` 都是 `cc392408a7a162506cd25c25da1aabeefb22f8f2`，等于本地 HEAD；
+`refs/heads/main` 仍是 `c475cafbe8edaeee81d3e3acf6711463efcb8971`（本刀没碰）。两次都是快进，没有强推。
+
+CI 那侧的**送达证据**这次是从 GitHub API 当场读回的（`s52-ghapi-checks.json`，未认证也能读公开仓的 check-runs），
+逐字两枚：
+
+```
+id=115328587147 | run_url=.../actions/runs/38406848324/job/115328587147 | name=格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试 | status=completed | conclusion=success | started=2026-10-13T13:40:18Z | head_sha=cc39240
+id=115328568563 | run_url=.../actions/runs/38406842591/job/115328568563 | name=格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试 | status=completed | conclusion=success | started=2026-10-13T13:40:16Z | head_sha=cc39240
+```
+
+两枚 `head_sha` 都等于本地 HEAD，作业名就是本刀钉成新写法的那一句——**CI 页面上现在说的话与 `verify` 真身、
+与门面是同一口径**，这正是第十三道闸要防的那件事，第一次在真页面上取到闭环。
+
+但**用例数这一格仍然没读回来**：`actions/jobs/<id>/logs` 未认证是 404/403，而本地内嵌浏览器面板此刻不可见
+（`take_snapshot` 能读结构、`click` 报 `NATIVE_BROWSER_VIEWPORT_UNAVAILABLE`），点开 `check-step-7` 后
+GitHub 的日志是懒加载的，隐藏面板不触发抓取（`innerText` 停在 17 字符）。所以 Linux 侧
+**314 文件 / 4117 条注册**照旧是**推出来的**（本机 4118 注册 − win32 那 3 条），不是读来的；
+门面那两个数因此**不回填**到 `cc39240`——回填要两侧同树重读，而 Linux 侧读不到数，回填就成了单边 bump，
+正是第九道闸盯着的那种漂移。这条欠账与「CI 逐文件条数是推的」记在同一处（第七节）。
+
+补完这一格之后按规矩重起定稿遍。`s52-final4-*` 那一遍跑在改字**之前**，按「跑绿后又改内容=那一遍作废」
+不再作数；下面引用的读数取 `s52-final6-*`（`CHAIN_START` 23:37:11 晚于这一份台账的最后一次改动 23:36:04，
+mtime 逐条列在 `s52-final6-exit.txt`）。第六遍当场读数逐字：`format/typecheck/eslint/boundary/budget/test`
+六段全 `_EXIT=0`，`HEAD_BEFORE=cc39240…`，`PORCELAIN_BEFORE=1`/`AFTER=1`（那一条就是这份台账自己）；
+六份日志剥 ANSI 后 grep `error TS|ELIFECYCLE|Command failed|✖ problem|^ FAIL|EPERM|EBUSY` 只命中一条，
+就是签过名那条 `[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到`；测试段末三行逐字
+`Test Files  314 passed (314)` / `Tests  4116 passed | 2 skipped (4118)` / `Duration  43.92s`。
+注册数这一头能对回上一节的账：§五十一 在 `3a8dcc7` 上读到的是 `313 文件 / 4114 passed | 2 skipped（4116 注册）`，
+其后 §五十一 自己加了第十二道（+1）、本刀加第十三道（+1，一个新 `test(`，里面多条 `expect` 不另计）
+⇒ 此刻 4118 注册 / 4116 passed，`+2` 恰好落在两道闸上；文件数 313→314（新增两份里只有
+`tools/readme-gate-composition.test.mjs` 被 `tools/*.test.mjs` 收进 include，`readme-gate-facts.mjs` 不是测试文件），
+从 `tools/readme-claims.test.mjs` 搬出去的门禁组成臂一条没多、一条没少。
+
+**自指这一处要交代清楚**：写下上面这几行本身又是改字，它让第六遍按规矩作废——但作废的只是这段文字的自证：
+它引的数字来自 `s52-final6-*` 那批日志，日志早于文字，读数不受影响。提交前另起最后一遍（`s52-final7-*`），
+那一遍的退出码只作**提交依据**、不再回填本节文字，否则这一格会一直改写下去——这是「跑绿后又改内容」这条规矩
+唯一能收口的写法。
 
 
 
