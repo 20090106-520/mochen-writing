@@ -3071,6 +3071,57 @@ Linux 侧按 ±1 应为 4110——**这一格不预支**，等它出现在 run �
 两遍之间只差这一节的 markdown，所以判据不变、条数也不变——「只动文档所以条数不动」这一条本身就是证据（第三十九节同族用法）。
 提交后快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD；两枚孪生 run 的读数照旧不预支（第七节那条边界）。
 
+## 四十六、2026-10-13：门面那两个数按免责段换成 `d60b32d` 的同树对照——两侧读数先读齐，守卫一条没加
+
+### 一、这一刀闭的是第四十五节第五节留下的那条边界
+
+上一刀第五节原话是「Linux 侧按 ±1 应为 4110——**这一格不预支**，等它出现在 run 列表里再读」，第七节第二条又补了一句「列表里都在，不预支」。现在两枚都读满了，逐字内容（同一页上一起抓到 ID、提交、分支，不是从两列各抓一次——第四十三节那条手法）：
+
+- run 页 `38368137670`（工作流编号 #74）：分支 `fix/ci-path-platform-neutrality`，pushed `d60b32d`，Status Success，总时长 2m 31s（verify 作业 2m 27s），`Test Files: ✅ 313 passes · 313 total`、`Test Results: ✅ 4110 passes · 4110 total`。
+- run 页 `38368142676`（#75）：分支 `feat/plan3-interaction-and-assembly`，pushed `d60b32d`，Status Success，总时长 2m 7s（verify 作业 2m 3s），同样 `313 passes · 313 total` / `4110 passes · 4110 total`。
+
+整页文本分别 690 与 692 字符，落盘在 `/c/temp/m12-f/s46-run-a.json`、`s46-run-feat.json`、`s46-run-feat-full.json`；状态只从 `svg[aria-label]`（`completed successfully: `）与页面上的 `Status / Success` 两行读，没有从提交标题猜。
+
+**这条算式第三次把预测变成读数**：前两次是 §三十九第五节预测 4107 → #61 读回 4107（第四十节第一节记的），§四十四第三节预测 4109 → `e5fc2b4` 两枚孪生都读回 4109（§四十五第六节标题就是「第四十四节预测的 4109 命中」）；这一刀是 §四十五第五节预测 4110 → 两枚孪生都读回 **4110**。从 4105 起每一格与守卫条数逐字对得上：4105（3 条）→ 4107（5 条，+2）→ 4108（6 条）→ 4109（7 条）→ 4110（8 条）。
+
+### 二、Windows 那格这次跑在**已提交**的树上，不是跑在提交前
+
+上一刀的 4111 是在 `d60b32d` **还没提交**的那一遍定稿遍上读的——`s45-final-exit.txt` 头部明写 `HEAD=e5fc2b419e9ffdd850f3b35d719dd8c3cb1135a0`。门面里「本机在干净提交树上实测」这句话要按第二十三节的老规矩立住，顺序只能是**先有提交、再读一次**，所以我没有拿提交前那一遍直接填门面，而是在 HEAD 已经是 `d60b32d` 的位置上重跑了一遍 `pnpm test`：
+
+- `/c/temp/m12-f/s46-clean-exit.txt` 逐字：`HEAD=d60b32d97b5a0a42c9497d68592aeae0be371616`、`PORCELAIN_COUNT_BEFORE=0`、`CHAIN_START=2026-10-13T16:24:10`、`test_EXIT=0`、`CHAIN_END=2026-10-13T16:24:49`、`PORCELAIN_COUNT_AFTER=0`（脏项计数在跑之前与跑之后各读一次，两次都是 0 条——只读一次的话，中间生成物落没落地看不见）。
+- `s46-clean-test.log` 逐字：`Test Files  313 passed (313)`、`Tests  4111 passed | 2 skipped (4113)`、`Duration  36.77s`；整份日志按 `windows-corepack-pnpm-verify-chain` 第 2 步那串 grep（`error TS|ELIFECYCLE|Command failed|✖ [0-9]+ problem|^ FAIL|EPERM|EBUSY`，先剥 ANSI）只剩一条已知环境噪音：`[环境噪音] 本机建不了符号链接（EPERM），软链逃逸那一条没验到`。
+
+两个数第一次在同一棵**已提交**的树上对齐：本机 4111 passed / 4113 注册，CI 4110 注册，差 3 条注册、差 1 条 passed——与 `tools/platform-test-count.test.mjs` 钉的那笔账（win32 多注册 3 条、两枚 `it.skipIf(win32)` 在 Windows 不真跑）逐字一致。
+
+### 三、门面上改了哪四处（原文照抄自 `git diff -U0 README.md`）
+
+1. 门禁第一段那格：CI 与本机两数所绑的树从 `154e2c1` 换成 `d60b32d`；CI 那侧从一枚 run 页（`38346916366`）换成**两枚**（`38368137670` 与孪生的 `38368142676`，并补一句「两个分支各触发一枚 run」）；那串数从 **313 文件 / 4108 用例** 换成 **313 文件 / 4110 用例**；本机那侧从 **313 文件 / 4109 passed | 2 skipped**（4111 条注册）换成 **313 文件 / 4111 passed | 2 skipped**（4113 条注册）。
+2. `Linux 侧 4108 条注册 = 本机 4111 − 3` 换成 `Linux 侧 4110 条注册 = 本机 4113 − 3`。
+3. 历史那一格从「再往前两轮」扩成「再往前几轮」：补进 `154e2c1` = 4108（run 页 `38346916366`）那一行，收口那句从「从 4105 到 4107 差的 2 条、从 4107 到 4108 差的 1 条，都出自门面守卫自己——用例数从 3 条加到 5 条、再加到 6 条」改成「从 4105 到 4110 差的 5 条**全部出自门面守卫自己**——从 3 条加到 8 条」，并加一句「每个数都由 `git show <rev>:tools/readme-claims.test.mjs` 数 `^test(` 的行数当场核对过」。
+4. 免责段那格把绑定的树从 `154e2c1` 挪到 `d60b32d`，并明写这一次是**两侧同树**读回的：「Linux 那格来自两枚 run 页，Windows 那格跑之前与跑之后各读回一次 `git status --porcelain`，两边都是 0 条」；「回填不是每刀必做，做的时候两侧都要从同一棵树重读，只 bump 一边会把同树对照又拆掉」那两句一字未动——它们就是这一刀的开工单。
+
+第 3 点那句「每个数都当场核对过」不是转述，是这一刀跑之前数的：`6c1fb91`=3、`1e0c215`=5、`154e2c1`=6、`e5fc2b4`=7、`d60b32d`=8。
+
+### 四、守卫一条没加，所以这一刀不需要「回填的同时再补一条断言」
+
+上一刀立的那条口径第一次真正起作用：门面数字与守卫条数解绑之后，回填就成了**纯文档动作**，不必再为「数落后几条」而改判据。本刀只动两份 markdown，`tools/readme-claims.test.mjs` 一字未改；起跑前用廉价探针单独数过它——`✓ tools/readme-claims.test.mjs (8 tests)` / `Tests  8 passed (8)`（`s46-probe-guard.log`，`GUARD_EXIT=0`），`prettier --check README.md` 也是 `PRETTIER_EXIT=0`（`s46-probe-prettier.log`）。探针只证「门面这两处改动能过闸」，不替代下面第六节那一遍定稿门禁。
+
+### 五、下一枚可以被证伪的话：只动 markdown 的这一轮，CI 应该还是 4110
+
+本刀提交的内容只有两份 markdown，注册数没变，所以它触发的两枚 run **应当**仍是 `313 文件 / 4110 用例`；任何一格变成 4111 或 4109，都说明「文档改动不影响条数」这条判据是错的——同一句话第四十节第二节已经用过一次并读回过：`a74d0ca`（run 页 `38344732423`）只动两份 markdown，Linux 侧读回来仍是 4107。这一句是**预测，不是读数**，照 §四十五第五节那条「不预支」的规矩，读数留给下一刀；本节里所有已经落定的数都来自起跑之前跑完并落盘的那些遍。
+
+### 六、门禁与推送
+
+本刀定稿遍（六段，判据沿用第四十二～四十五节）在**内容全部落定**之后才起跑：这一节写完、README 四处改完之后才按 `windows-corepack-pnpm-verify-chain` 的取码姿势跑，六枚退出码与该遍的 `stat`/`CHAIN_START` 先后一起落在 `/c/temp/m12-f/s46-final-exit.txt`。**本节不预告那一遍的结果**——第四十五节第八节记的第六次复发就是把「跑完在这里补读数」写进了判据段，那等于自己给自己立了一张必作废的单子；结果只落在日志里，读数以文件名指认。
+
+提交后快进推两个 ref（`fix/ci-path-platform-neutrality` 与 `feat/plan3-interaction-and-assembly` 继续同值），`git ls-remote --heads` 当场回读等于本地 HEAD；本机 Windows 数来自干净提交树那一遍，不再另跑。
+
+### 七、这一刀仍然没碰的
+
+- 逐文件条数（`path-boundary.test.ts (18 tests)` 那一条）在 CI 上仍是**推出来的**：第四十五节第七节已经否掉 `summary_raw` 与 job 页 `shadow root` 两条浏览器通路，本节没有新增通路，只是把总数两格读满了。
+- 门面上「跑在哪棵树上」这句话仍然靠 CI 与本机各自读回一次；跨平台对照的注册数差（3 条）只有 `tools/platform-test-count.test.mjs` 在本机钉着，CI 上没有对应的断言。
+- `useBookStore.ts` 800/800 那一拆、`VersionHistoryPanel` 一族、侧栏 `.nav-row kbd` 死规则等仍等一句话拍板，本刀没有自行动手。
+
 
 
 
