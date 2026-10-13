@@ -2579,5 +2579,73 @@ scoped 之外照旧跑满六段（`format:check / typecheck / lint:eslint / lint
 提交后快进推两个 ref，判据仍是 `git ls-remote --heads` 回读等于本地 HEAD；
 run #61 那格等 GitHub 可达再读，读回来之前第五节那句预测不进门面。
 
+**当场回读补正（同一刀内）**：那句「定稿那一遍六段退出码全 0 落在 `/c/temp/m12-f/s39-exit.txt`」在写下时是**承诺**，
+不是读数——写它的时候那一遍还没跑。它随后真的跑了：六枚退出码全 0，`Test Files 313 passed (313)` /
+`Tests 4108 passed | 2 skipped (4110)`。承诺后来兑现不等于承诺当时可以写成读数，所以这一段把两者的先后写明。
+
+## 四十、2026-10-13：Linux 侧从「两棵树各说各话」读成「同一棵树上差 1 条」——run #61 / #62 两格读数落盘
+
+### 一、这一刀读回来的是哪三行数
+
+第三十九节第五节欠的 run #61 今夜读到了，顺带把本刀提交自己触发的 #62 也读了。逐行照第三十五节那条规矩：
+只认 run 页文本与 `svg[aria-label]`，不从提交标题抓状态。
+
+| run | 页 ID | 树 | 页面上读回的原文 |
+| --- | --- | --- | --- |
+| **#61** | `38340571768` | `1e0c215` @ feat | `Status Success`、`Total duration 1m 54s`、作业行 `六路 typecheck + lint + boundary + budget + 全量测试 1m 49s`、`Vitest Test Report / Test Files: ✅ 313 passes · 313 total / Test Results: ✅ 4107 passes · 4107 total`，页内 `[aria-label]` 里 `completed successfully` 命中 5 次（另有 `Workflow run summary` / `Workflow run graph`） |
+| **#62** | `38344732423` | `a74d0ca` @ feat | 同上四栏（`Status Success`、`1m 54s` / `1m 49s`、`313 passes · 313 total`、**`4107 passes · 4107 total`**） |
+
+⇒ 第三十九节第五节那句「预期 **4107** passed」从这一格起是**读数**，预测与读数同值这一条成立；
+它当初写在读数之前并已落盘，所以「猜对了」这件事有先后顺序可查，不是事后追认。
+
+### 二、三棵树连成一条线，每一段差值都指着出处
+
+| 树 | Linux passed | Windows passed | Windows 注册 | 差值的出处 |
+| --- | --- | --- | --- | --- |
+| `6c1fb91` | 4105（#59，第三十九节） | 4106（第三十六节本机） | 4108 | 平台分支：win32 多注册 3、两枚 `skipIf` 在 Windows 不真跑 ⇒ `+3 − 2 = +1` |
+| `1e0c215` | **4107（#61，本刀读回）** | 4108（第三十九节本机，porcelain 0） | **4110**（第三十九节定稿那遍） | 同上，且与 `6c1fb91` 之间差 **2** = `tools/readme-claims.test.mjs` 从 3 条加到 5 条 |
+| `a74d0ca` | **4107（#62，本刀读回）** | 这一格不是读数，是**判据**：定稿那遍必须逐字读出 `4108 passed \| 2 skipped (4110)`，读不出就本刀不提交 | 同上 | 与 `1e0c215` 差 **0**：那一刀 `git diff --stat` 只动两份 markdown |
+
+`3 → 5` 那一句不是记忆，是当场 `git show <rev>:tools/readme-claims.test.mjs | grep -c "^test("` 读回的
+（`6c1fb91`=3、`1e0c215`=5、`a74d0ca`=5）。Linux 侧 4105 → 4107 与它逐字对得上，`a74d0ca` 只动文档所以仍是 4107。
+
+**同树对照今天第一次成立**：`1e0c215` 上 Linux 4107 vs Windows 4108 passed、Linux 4107 注册 vs Windows 4110 注册。
+第三十九节门面里那句「这两个数**不是同一棵树上的对照**」因此被换掉——它当时的正确性来自那两棵树确实不同，
+不是来自判据；新数把这一格消除，所以 README 的门禁段改成同树对照 + 更早一轮 `6c1fb91`（带哈希带 run 号）。
+
+### 三、通路：快照 uid 前缀每次变，跨快照复用必撞
+
+`click` 的 `args` 只吃**当前**快照里的 uid。本刀先 `take_snapshot`（前缀 `2_`）、再用前缀 `12_` 的 uid 去点，
+直接报 `uid validation failed`。⇒ 要么点之前重拍一次，要么干脆不点：本刀改用一个
+`evaluate_script` 把要的东西（`[aria-label]`、`innerText` 里 `Total duration` 上下 6 行、Vitest 报告块）一次取全，
+用 `filePath` 落成 JSON 再 `Read`。顺带一条 Windows 侧的坑：`Read` 吃 `C:\...` 反斜杠绝对路径，
+`/c/...` 形式在 `Read` 里会报 does not exist，而在 `Bash` 里正好相反。
+
+`dt` 那一族选择器在这次新版 run 页上取不到东西（返回空数组），所以状态与时长要从 `body.innerText`
+的行序里取——本刀读到的顺序是 `Status` / `Success` / `Total duration` / `1m 54s` 各占一行。
+
+### 四、这一格仍欠的（不冒充已完成）
+
+- **#61 / #62 作业页的逐文件条数没重读**：`path-boundary` 18、`changes` 35 这两行仍只在 #59 读过。
+  本刀用**码同一性**代替那次重读：`git diff --stat 6c1fb91..1e0c215` 只有台账 + `readme-claims.test.mjs`，
+  这两个测试文件一个字节没动，所以条数不可能变。**这是从盘上推出来的，不是读来的**，照第三十六节那条规矩写明。
+  作业页今夜两次打不开（`ERR_CONNECTION_RESET`、`ERR_CONNECTION_TIMED_OUT`），等可达时补读。
+- `fix/ci-path-platform-neutrality` 上的孪生 run 同样没读。
+- 那两枚 `it.skipIf` 在 Linux 上具体是哪两条用例仍未点名。
+- **`readme-claims` 的日期闸对「跨句写法」没有牙齿**（第三十八节第四节留的那格）：R3 变异（只删紧邻的数字里的年份）
+  至今活着，因为判据只看**同一句内**有没有 `\d{4}-\d{2}-\d{2}`；而同一句里出现「更早一轮」这类措辞时，
+  另一个日期会替它顶上。这一格要么收紧成「日期必须紧邻那串数」，要么把边界在门面上写得更明白——**没动，欠着**。
+
+### 五、门禁与推送
+
+本刀动两份 markdown：台账（这一节）+ `README.md` 门禁段换数。条数仍不动，所以定稿那遍的判据是
+**六枚退出码全 0 且 `test` 读数逐字等于 `313 文件 / 4108 passed | 2 skipped (4110)`**，落在
+`/c/temp/m12-f/s40-exit.txt`；改完门面先跑一次 scoped（`vitest run tools/readme-claims.test.mjs` +
+`prettier --check README.md`，日志 `s40-readme-guard.log`），再跑满六段。
+README 那条数换了写法（同树对照 + 更早一轮带哈希的 `6c1fb91`），**出处闸必须当场满足而不是靠放宽**：
+每个带数的句子都自带日期与反引号哈希，闸绿才算改完。
+提交后快进推两个 ref，`git ls-remote --heads` 回读等于本地 HEAD；本刀提交自己触发的 CI run 读数按 #62 的
+形状预期 `4107`，但那一格要读回来才算，不在台账里预支。
+
 
 
