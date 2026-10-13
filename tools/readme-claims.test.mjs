@@ -375,7 +375,7 @@ test("run 页 ID 不许藏进引号里：剥 `「…」` 前后数出来的枚�
  * （出处齐、日期挨着、ID 配着哈希），门面却当场说假话。这和三十八节「判据的一支没有实例＝那一支没测」
  * 是同一族病灶：规则写着，但没有东西替它算一遍。
  *
- * 所以这里只算门面上**已经写成等式**的三处，不新增任何主张：
+ * 所以这里只算门面上**已经写成等式**的四处，不新增任何主张：
  * 每一处都配一条实例声明（正则抓不到就是红），免得某一处的写法被改掉之后这条闸静默失效。
  * 数字一律先过 `flatten`（剥 `**`、折空白）再匹配，且这些正则**不带 `g`**——见上面那条注释。
  *
@@ -385,12 +385,26 @@ test("run 页 ID 不许藏进引号里：剥 `「…」` 前后数出来的枚�
  * 所以 `CELLS` 把两格读数各钉成一份实现，等式用 `ties` 指回它引用的那一格；对表用的正则与
  * 读格用的是同一枚，不另写第二份（锁定前提第 6 条）。Linux 那一侧两枚 `skipIf(win32)` 根本不注册，
  * 注册数＝用例数，所以第一处等式的第 1 个数对的就是 CI 那一格报的数。
+ *
+ * 第五十四节回填（顶格换绑到 `12b2bf0`）时动的是三处：`CELLS.linux` 不再把**文件数**钉死成 313
+ * （硬编码等于把「回填」这件事变成「每次都要先来改守卫」），改成**读出来与本机那一格对表**——
+ * 变异 M56 量的就是这个：只把 CI 那一格的文件数从 315 改成 314，门面守卫那三道文件（18 条）一条不红；
+ * 装上对表后同一条变异当场红，而两侧**一起**改成 316 仍然绿（这条闸不钉值，只钉「同一棵树两侧同数」）。
+ * 另外历史那处差值等式**摘掉 `ties`**、另起一处指着现况的：历史那句「从 4105 到 4113 差的 8 条」仍然
+ * 算得过，但它描述的格已经不再是顶格，所以它只对自己算；顶格由新那处对表。
  */
 const CELLS = {
-  linux: { re: /报的数：313 文件 \/ (\d+) 用例/, group: 1, name: "CI 那一格的用例数" },
+  linux: {
+    // 第 1 组是文件数：不钉死值，但两侧必须同值（见上面 M56 那段）。
+    re: /报的数：(\d+) 文件 \/ (\d+) 用例/,
+    files: 1,
+    group: 2,
+    name: "CI 那一格的用例数"
+  },
   win: {
-    re: /(\d+) passed \| (\d+) skipped（(\d+) 条注册）/,
-    group: 3,
+    re: /(\d+) 文件 \/ (\d+) passed \| (\d+) skipped（(\d+) 条注册）/,
+    files: 1,
+    group: 4,
     name: "本机那一格的注册数"
   }
 };
@@ -408,19 +422,27 @@ const EQUATIONS = [
   {
     name: "本机 passed + skipped = 本机注册数",
     re: CELLS.win.re,
-    check: ([passed, skipped, reg]) => passed + skipped === reg
+    check: ([, passed, skipped, reg]) => passed + skipped === reg
   },
   {
-    name: "两轮测试数之差 = 门面守卫的条数之差",
+    // 历史那一轮（`6c1fb91` → `3a8dcc7`，拆分前只有一份门面守卫文件的年代）。第五十四节起顶格不再是
+    // 4113，所以这一处**不再对表**——它只算自己那两句差值。对表由下面那处接手。
+    name: "历史那一轮测试数之差 = 门面守卫那一文件的条数之差",
     re: /从 (\d+) 到 (\d+) 差的 (\d+) 条[^。；;]*?用例数从 (\d+) 条加到 (\d+) 条/,
-    check: ([from, to, diff, tFrom, tTo]) => to - from === diff && tTo - tFrom === diff,
+    check: ([from, to, diff, tFrom, tTo]) => to - from === diff && tTo - tFrom === diff
+  },
+  {
+    name: "顶格那一轮测试数之差 = 门面守卫新增的条数之和",
+    re: /从 (\d+) 到 (\d+) 差的 (\d+) 条[^。；;]*?那一族 (\d+) 条 \+ CI 报数守卫 (\d+) 条/,
+    check: ([from, to, diff, split, reporter]) => to - from === diff && split + reporter === diff,
     ties: [{ at: 2, cell: "linux" }]
   }
 ];
 
-test("门禁那一节写出来的每一处等式都得自己算得过，而且每一处都得还在门面上有实例", () => {
+test("门禁那一节写出来的每一处等式都得自己算得过，每一处都得还在门面上有实例，而且两侧同树那两格的文件数得对上", () => {
   const flat = flatten(gateSection().replace(/「[^」]*」/g, ""));
   const cells = {};
+  const files = {};
   for (const [key, cell] of Object.entries(CELLS)) {
     const m = cell.re.exec(flat);
     expect(
@@ -429,7 +451,16 @@ test("门禁那一节写出来的每一处等式都得自己算得过，而且�
         "「ties」那一层此刻一条也没测（第三十八节：判据的一支没有实例＝那一支没测）"
     ).not.toBeNull();
     cells[key] = Number(m[cell.group]);
+    files[key] = Number(m[cell.files]);
   }
+  // 「两侧同一棵干净提交树」这句话在门面上出现的地方，读数是**两格**，而用例文件的数目不随平台变
+  // （变的只有一枚文件里注册几条，见 `tools/platform-test-count.test.mjs` 那笔 ±3 账）：
+  // 所以两格的文件数不同 ⇒ 要么两侧根本不同树，要么有一侧的数不是读来的。
+  expect(
+    files.linux,
+    `门面上 CI 那一格的文件数是 ${files.linux}，本机那一格是 ${files.win} —— 两侧都主张跑在同一棵干净提交树上，` +
+      "可文件数目不随平台变，两边不一致就只有两种解释：不同树，或者其中一格是抄的（第五十四节 M56 量的就是这一条）"
+  ).toBe(files.win);
   for (const eq of EQUATIONS) {
     const m = eq.re.exec(flat);
     expect(
