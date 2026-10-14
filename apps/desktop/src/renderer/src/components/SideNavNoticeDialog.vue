@@ -24,7 +24,6 @@ import { useModalFocus } from "../composables/useModalFocus";
 import { useDialogMotion } from "../composables/useDialogMotion";
 import { useTrashStore } from "../stores/useTrashStore";
 import { useBackupStore } from "../stores/useBackupStore";
-import { useBookStore } from "../stores/useBookStore";
 import type { SideNavStatsRow } from "../utils/stats-rows";
 
 export interface SideNavNotice {

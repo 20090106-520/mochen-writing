@@ -14,7 +14,7 @@ import {
   type WorkMode
 } from "@mochen/contracts";
 import type { IconName } from "../types/icons";
-import { NO_BOOK_CHIP_LABEL, permissionChipView } from "./permission-chip";
+import { permissionChipView } from "./permission-chip";
 import { toolRoster } from "./tool-roster";
 
 export type ComposerChipId =
@@ -80,11 +80,22 @@ export const WORK_MODE_CHIP_ICON: Record<WorkMode, IconName> = {
   act: "pen"
 };
 
+/**
+ * 无书时工作模式那一格的诚实文案（书级设置，没书就没有档）。
+ * 刻意不借用 permission-chip 的 NO_BOOK_CHIP_LABEL：两枚 chip 同排右端，
+ * 同一串文字并排出现像渲染事故（2026-10-14 真机截图实锤）。
+ * 「未定」不是第三档——WORK_MODE_LABELS 只有两档，这里报的是控制名 + 状态，不是档位名。
+ */
+export const WORK_MODE_NO_BOOK_LABEL = "工作模式：未定";
+
 function workModeChip(input: { hasBook: boolean; workMode: WorkMode }): ComposerChipView {
   if (!input.hasBook) {
     return {
       id: "work-mode",
-      text: NO_BOOK_CHIP_LABEL,
+      // 刻意**不**借用 permission-chip 的 NO_BOOK_CHIP_LABEL（2026-10-14 真机截图）：
+      // 两枚 chip 同排右端，同一串「未打开作品目录」并排出现，读起来像渲染事故。
+      // 各自报各自的控制名，谁也不开口冒充档位名（与 permission-chip 同一口径）。
+      text: WORK_MODE_NO_BOOK_LABEL,
       disabled: true,
       title: "还没打开作品目录，工作模式改不了（它是这本书的设置）。",
       active: false,

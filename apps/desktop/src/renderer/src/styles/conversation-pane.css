@@ -375,6 +375,15 @@ html[data-platform="darwin"] .conversation-header {
   margin-top: 22px;
 }
 
+/* 恒五张卡（真身 utils/workbench-state.ts 的 WORKBENCH_CARD_LABELS）：auto-fit 在中栏
+   常见宽度下排成 3+2，右下永远吊着一个洞（2026-10-14 评审截图实锤）。
+   与 settings-page.css 的 .agent-mode-grid:has(> :nth-child(4)) 同一条先例：
+   恰好五张锁两列 → 2×3，最后一行只空一槽，比 3+2 的孤行齐整。
+   minmax(0,1fr) 不带 148px 下限：窄栏下宁可卡片窄一点，也不把栅格撑出容器。 */
+.workbench-cards:has(> :nth-child(5)):not(:has(> :nth-child(6))) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .workbench-card {
   display: flex;
   align-items: flex-start;

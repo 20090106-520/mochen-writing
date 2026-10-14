@@ -28,7 +28,10 @@ import {
   motionPreferenceStorage
 } from "./utils/motion-preference";
 import { LEFT_PANE_MAX, LEFT_PANE_MIN, RIGHT_PANE_MIN, useLayoutStore } from "./stores/layoutStore";
-import { shouldAutoCollapseRightPaneWithoutBook } from "./stores/layoutStore";
+import {
+  shouldAutoCollapseRightPaneWithoutBook,
+  shouldAutoCollapseRightPaneWithoutDoc
+} from "./stores/layoutStore";
 import { runViewTransition } from "./utils/view-transition";
 import SearchPanel from "./components/SearchPanel.vue";
 import NotesPanel from "./components/NotesPanel.vue";
@@ -204,6 +207,8 @@ let unwatchSettings: (() => void) | null = null;
 let unwatchPreview: (() => void) | null = null;
 // 「有没有打开作品 → 右栏收放」这条 watch 的句柄（2026-10-11）。
 let unwatchHasBook: (() => void) | null = null;
+// 「有没有打开文稿 → 右栏收放」这条 watch 的句柄（2026-10-14 UI 评审批次）。
+let unwatchActiveDoc: (() => void) | null = null;
 
 /**
  * 没打开作品时把右栏收起来（2026-10-11）。判据的真身是
@@ -219,6 +224,27 @@ let unwatchHasBook: (() => void) | null = null;
  */
 function applyEmptyBookRightPane(): void {
   layout.setRightCollapsedByEmptyBook(shouldAutoCollapseRightPaneWithoutBook(0, book.hasBook));
+}
+
+/**
+ * 有作品但没开文稿时收右栏；文稿打开时推回来（2026-10-14 UI 评审批次）。
+ * 判据真身是 `shouldAutoCollapseRightPaneWithoutDoc`（layoutStore 里的纯函数，能单测），
+ * 这里只做**装配**——理由与上一条相同：纯几何的布局策略不反向依赖书 store。
+ *
+ * 收与展各由一个布尔驱动（store 侧 setRightCollapsedByEmptyDoc）：
+ *   - 收：书开着 + 文稿页签空转（浏览/资料两页签有真内容，不掺和）；
+ *   - 展：书开着 + 文稿开着——用户点开一篇文稿，右栏必须当场回来，
+ *     否则「点开了却什么都没发生」；手动折过的用户不受打扰（手动优先）。
+ */
+function applyActiveDocRightPane(): void {
+  layout.setRightCollapsedByEmptyDoc(
+    shouldAutoCollapseRightPaneWithoutDoc({
+      hasBook: book.hasBook,
+      activeDocTab: book.activeDocTab,
+      rightPaneMode: book.rightPaneMode
+    }),
+    book.hasBook && book.activeDocTab !== null
+  );
 }
 
 // Ctrl+Shift+F/N/T/O/G/B/P 与 Ctrl+Alt+F 面板快捷键的**落点**。
@@ -276,6 +302,12 @@ onMounted(() => {
   unwatchPreview = watch(() => skinBrowse.previewId, applyTheme);
   // 打开 / 关闭作品 → 右栏跟着收放（装配层接线，判定真身见 layoutStore 那个纯函数）。
   unwatchHasBook = watch(() => book.hasBook, applyEmptyBookRightPane);
+  // 打开 / 关闭文稿 → 右栏跟着收放（2026-10-14，同一条装配纪律）。
+  // 【watch 源刻意不含 rightPaneMode】用户亲手点「文稿」页签是在表达意图，
+  // 此刻自动把它收走就是跟用户打架；判据读 mode 只为「收的瞬间别误伤浏览/资料」。
+  unwatchActiveDoc = watch(() => [book.hasBook, book.activeDocTab], applyActiveDocRightPane);
+  // 挂载这一拍就先判一次：会话恢复时若已有一篇开着的文稿，右栏当场就位，不等第一次改动。
+  applyActiveDocRightPane();
 });
 
 onBeforeUnmount(() => {
@@ -284,6 +316,7 @@ onBeforeUnmount(() => {
   unwatchSettings?.();
   unwatchPreview?.();
   unwatchHasBook?.();
+  unwatchActiveDoc?.();
 });
 
 const agent = useAgentStore();

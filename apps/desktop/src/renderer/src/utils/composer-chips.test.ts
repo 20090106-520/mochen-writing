@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { permissionChipView } from "./permission-chip";
-import { CHIP_EMIT, composerChips, composerCounter } from "./composer-chips";
+import { NO_BOOK_CHIP_LABEL, permissionChipView } from "./permission-chip";
+import {
+  CHIP_EMIT,
+  composerChips,
+  composerCounter,
+  WORK_MODE_NO_BOOK_LABEL
+} from "./composer-chips";
 import { USER_TEXT_MAX_LEN, WORK_MODE_LABELS } from "@mochen/contracts";
 
 /** chip 行的入参默认值：只关心某一枚时，其余按「什么都没开」传。 */
@@ -70,6 +75,10 @@ describe("composer-chips · 六枚真开关/入口，排队不做按钮（F-D + 
     const c = chip("work-mode", { hasBook: false, mode: null });
     expect(c?.disabled).toBe(true);
     expect(c?.active).toBe(false);
+    expect(c?.text).toBe(WORK_MODE_NO_BOOK_LABEL);
+    // 反向钉（2026-10-14 真机截图）：不许和 permission chip 的无书文案撞成同一串——
+    // 两枚同排右端的 chip 并排一模一样，读起来像渲染事故。
+    expect(c?.text).not.toBe(NO_BOOK_CHIP_LABEL);
     expect(c?.title).toContain("作品目录");
   });
 

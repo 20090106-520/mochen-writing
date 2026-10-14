@@ -13,6 +13,7 @@ import {
   defaultRightPaneWidth,
   shouldAutoCollapseRightPane,
   shouldAutoCollapseRightPaneWithoutBook,
+  shouldAutoCollapseRightPaneWithoutDoc,
   useLayoutStore
 } from "./layoutStore";
 
@@ -218,6 +219,74 @@ describe("layout store", () => {
     store2.setRightCollapsedByEmptyBook(false); // 书打开了
     expect(refs2.rightCollapsed.value, "打开作品后不擅自推回来").toBe(true);
     store2.$dispose();
+  });
+
+  /**
+   * 2026-10-14 有作品但没开文稿：文稿页签空转就收；浏览/资料两页签有真内容，不掺和。
+   * 收展双向——文稿打开要推回来（「点开了文稿却什么都没发生」比不收还糟），
+   * 这是它与「只收不展」那两条唯一的分岔。手动优先仍然最高。
+   */
+  it("无文稿判据是纯函数：有作品 + 没文稿 + 文稿页签才收，浏览/资料不收", () => {
+    // 书开着、没文稿、正停在文稿页签：那格摆的是一排死格式钮，收。
+    expect(
+      shouldAutoCollapseRightPaneWithoutDoc({
+        hasBook: true,
+        activeDocTab: null,
+        rightPaneMode: "manuscript"
+      })
+    ).toBe(true);
+    // 浏览（挑文稿）与资料（书卡）在没有 activeDoc 时有真内容，不该被收。
+    expect(
+      shouldAutoCollapseRightPaneWithoutDoc({
+        hasBook: true,
+        activeDocTab: null,
+        rightPaneMode: "browse"
+      })
+    ).toBe(false);
+    expect(
+      shouldAutoCollapseRightPaneWithoutDoc({
+        hasBook: true,
+        activeDocTab: null,
+        rightPaneMode: "dossier"
+      })
+    ).toBe(false);
+    // 无作品那档归 shouldAutoCollapseRightPaneWithoutBook 管，这里恒不掺和；文稿开着显然不收。
+    expect(
+      shouldAutoCollapseRightPaneWithoutDoc({
+        hasBook: false,
+        activeDocTab: null,
+        rightPaneMode: "manuscript"
+      })
+    ).toBe(false);
+    expect(
+      shouldAutoCollapseRightPaneWithoutDoc({
+        hasBook: true,
+        activeDocTab: "chapters/01.md",
+        rightPaneMode: "manuscript"
+      })
+    ).toBe(false);
+  });
+
+  it("空文稿收、开文稿展（双向），手动优先仍然最高", () => {
+    installRuntime(1920);
+    const store = useLayoutStore();
+    const refs = storeToRefs(store);
+
+    // 有作品、没文稿：收。
+    store.setRightCollapsedByEmptyDoc(true, false);
+    expect(refs.rightCollapsed.value, "文稿页签空转应收").toBe(true);
+    // 文稿打开：推回来——用户点开一篇文稿，右栏必须当场回来。
+    store.setRightCollapsedByEmptyDoc(false, true);
+    expect(refs.rightCollapsed.value, "文稿打开要推回来").toBe(false);
+
+    // 手动闸门上锁后，收与展都住手。
+    store.togglePane("right"); // 用户手动折起
+    expect(refs.rightPaneManuallyToggled.value).toBe(true);
+    store.setRightCollapsedByEmptyDoc(false, true);
+    expect(refs.rightCollapsed.value, "手动意图优先，自动策略不得展开").toBe(true);
+    store.setRightCollapsedByEmptyDoc(true, false);
+    expect(refs.rightCollapsed.value, "手动意图优先，自动策略不得收起").toBe(true);
+    store.$dispose();
   });
 
   it("按**真实布局宽度**判，不按 window.innerWidth：Electron 缩放下两者能差一倍以上（真机 1280 vs 877）", async () => {

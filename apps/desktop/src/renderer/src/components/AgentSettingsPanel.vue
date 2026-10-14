@@ -76,6 +76,12 @@ function chooseSubmitKey(value: SubmitKey): void {
         <small>{{ option.note }}</small>
       </button>
     </div>
+    <!-- 档位真身住在每本书的 book.json（chooseMode 调 book.setPermissionMode）：
+         无书时 currentMode 为 null，三张卡全不亮是**语义正确**的——但不说这句，
+         用户只会觉得「选中态坏了」（2026-10-14 真机截图）。 -->
+    <p v-if="currentMode === null" class="settings-group-note">
+      三张卡都没亮是正常的：档位跟着每一本书走，还没打开作品就还没有「当前档」。选定后写进那本书。
+    </p>
     <p class="settings-group-note">
       换档只影响之后发起的那几轮；已经生成待审的提案仍旧逐条等你批准。
     </p>

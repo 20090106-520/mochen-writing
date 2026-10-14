@@ -4,6 +4,7 @@ import { computed, nextTick, onScopeDispose, ref, shallowRef, watch } from "vue"
 import { defineStore } from "pinia";
 import type { BookKind } from "@mochen/contracts";
 import { useOnboardingStore } from "./useOnboardingStore";
+import type { RightPaneMode } from "./useBookStore";
 import { createPanePointerCapture } from "../utils/panePointerCapture";
 import { runViewTransition } from "../utils/view-transition";
 import {
@@ -114,6 +115,28 @@ export function shouldAutoCollapseRightPaneWithoutBook(
   // 没有作品一律收。视口宽度这一维对这条判据没有影响：
   // 无作品时无论多宽，右栏摆出来都是那句「点一篇文稿就能在这儿写」，没有一个像素是有用的。
   return !hasBook || shouldAutoCollapseRightPane(viewportWidth);
+}
+
+/**
+ * 有作品但没开文稿时，文稿页签该收起来（2026-10-14 UI 评审批次）。
+ *
+ * 与上一条互补：无作品那档管「书都没开」，这一档管「书开了但文稿页签还空转」——
+ * 此时摆出来的是一排格式钮 + 一句「打开一篇文稿后才能插入片段」，
+ * 宽窗下约 1/3 宽度，同样没有一个像素有用。
+ *
+ * 【为什么只盯文稿页签】浏览页签（挑文稿）与作品资料页签（书卡）在没有 activeDoc
+ * 时是有真内容的，用户完全可能正在用——把它们也收了就是跟用户打架。
+ * 只有 manuscript 空转是纯死重。
+ *
+ * 【判据不掺和「无作品」那档】hasBook 为假时这里恒假，收的任务归上一条；
+ * 两条判据各管各的档，装配层（App.vue）两个 watch 都接。
+ */
+export function shouldAutoCollapseRightPaneWithoutDoc(input: {
+  hasBook: boolean;
+  activeDocTab: string | null;
+  rightPaneMode: RightPaneMode;
+}): boolean {
+  return input.hasBook && input.activeDocTab === null && input.rightPaneMode === "manuscript";
 }
 
 function initialRightPanePreferences(): RightPanePreferences {
@@ -330,6 +353,21 @@ export const useLayoutStore = defineStore("layout", () => {
   function setRightCollapsedByEmptyBook(shouldCollapse: boolean): void {
     if (rightPaneManuallyToggled.value) return;
     if (shouldCollapse) rightCollapsed.value = true;
+  }
+
+  /**
+   * 「有作品但没开文稿 → 收右栏；文稿打开 → 推回来」这条自动策略的**唯一写入口**
+   * （2026-10-14 UI 评审批次）。判据真身见 shouldAutoCollapseRightPaneWithoutDoc。
+   *
+   * 与 setRightCollapsedByEmptyBook 同一条手动闸门，但**收展双向**，展开有明确理由：
+   * 「打开文稿」是用户点了某一篇——此刻右栏要是不回来，用户看到的是
+   * 「点开了却什么都没发生」，比不收还糟。所以它与「打开作品不擅自推回来」
+   * 那条（只收不展）刻意分岔：开书可能只是来查资料，开文稿就是要写。
+   */
+  function setRightCollapsedByEmptyDoc(shouldCollapse: boolean, shouldExpand: boolean): void {
+    if (rightPaneManuallyToggled.value) return;
+    if (shouldCollapse) rightCollapsed.value = true;
+    else if (shouldExpand) rightCollapsed.value = false;
   }
 
   function centerPaneMinWidth(): number {
@@ -606,6 +644,7 @@ export const useLayoutStore = defineStore("layout", () => {
     setPaneCollapsed,
     togglePane,
     setRightCollapsedByEmptyBook,
+    setRightCollapsedByEmptyDoc,
     clampPaneWidth,
     setPaneWidth,
     preferredRightPaneWidth,
