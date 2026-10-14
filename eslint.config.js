@@ -10,6 +10,8 @@ export default tseslint.config(
   // prettier 默认就跳过 gitignored 文件，eslint 不跳，所以只有这一段会咬。
   // .superpowers/** 同理，而且它是整目录被 .superpowers/sdd/.gitignore 兜住的：
   // 里面放的是 CDP 真机巡检脚本与矢量素材生成器，一次跑完就作废，不进任何产物。
+  // .superdesign/** 是设计线（Superdesign 分享板）的本地草稿工作区：build-*.mjs 生成的示意稿
+  // HTML/PNG 与导入回执，65 MB 全可再生，且那份 JSON 是 UTF-16 存的——prettier 逐字节读会当成坏文件。
   {
     ignores: [
       "**/node_modules/**",
@@ -17,7 +19,8 @@ export default tseslint.config(
       "**/dist/**",
       "scratch/**",
       ".mochen-tmp/**",
-      ".superpowers/**"
+      ".superpowers/**",
+      ".superdesign/**"
     ]
   },
   js.configs.recommended,

@@ -6,6 +6,9 @@ dist
 # electron-builder 的出包目录（release/release-e2e 等）：全部是解包的 electron 自带文件，同理不进闸。
 release*
 .superpowers
+# 设计线（Superdesign 分享板）的本地草稿工作区：build-*.mjs 生成的示意稿 HTML/PNG 与导入回执，
+# 整目录可再生、不进任何产物；那份会话 JSON 还是 UTF-16 存的，prettier 逐字节读会当成坏文件直接红。
+.superdesign
 
 # 【P2-10 的声明式豁免】历史台账与方案/规格文档不参与 format 检查——理由与代价都记在这儿：
 # 真把它们放进闸，prettier 要改 20 个文件、-34575 / +38530 行（它连 markdown 里的代码块一起重排），

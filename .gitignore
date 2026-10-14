@@ -28,6 +28,9 @@ test-results/
 .workbuddy/
 .mavis/
 .designkit-history-delivery/
+# 设计线（Superdesign 分享板）的本地草稿工作区：示意稿 HTML/PNG、导入回执、会话 JSON，
+# 65 MB 全可再生（生成脚本 build-*.mjs 就在里面），且真身已存在分享板上——不跟着代码走。
+.superdesign/
 _tmp_*
 nul
 shot-*.png
