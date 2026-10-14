@@ -115,7 +115,7 @@ async function build(): Promise<Built> {
   const settings = createProviderSettings({ dir: secrets, credentials });
   const seeded = await settings.saveConnection({
     providerId: "custom",
-    baseURL: "http://mock/v1",
+    baseURL: "https://mock/v1",
     authHeader: "bearer",
     thinkingWire: "standard",
     apiKey: null

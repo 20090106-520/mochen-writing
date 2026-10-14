@@ -285,7 +285,9 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
       { needle: ".tree-row:hover", primary: true, shadow: ["--text-secondary"] },
       { needle: ".tree-row.is-selected", primary: true, shadow: ["--text-secondary"] },
       { needle: ".section-add:hover", primary: true },
-      { needle: ".tree-add-confirm:hover", primary: true }
+      { needle: ".tree-add-confirm:hover", primary: true },
+      // 统计对话框的行悬停（2026-10-14 收编）：本地线加的规则没进普查表——合并时两线各写了半边。
+      { needle: ".stats-table tr.is-openable:hover td", primary: true }
     ]
   },
   {

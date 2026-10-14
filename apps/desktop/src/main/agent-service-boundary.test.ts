@@ -152,7 +152,7 @@ async function build(
   // v3：地址与密钥都按连接分份。先把连接建出来拿到 id，密钥再直接写进那一份。
   const seeded = await provider.saveConnection({
     providerId: "custom",
-    baseURL: "http://mock/v1",
+    baseURL: "https://mock/v1",
     authHeader: "bearer",
     thinkingWire: "standard",
     apiKey: null

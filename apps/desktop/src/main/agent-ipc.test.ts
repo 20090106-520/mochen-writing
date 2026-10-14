@@ -26,7 +26,7 @@ const view: ProviderView = {
       id: CONNECTION_ID,
       providerId: "custom",
       label: "自定义（自己填地址）",
-      baseURL: "http://mock/v1",
+      baseURL: "https://mock/v1",
       authHeader: "bearer",
       thinkingWire: "standard",
       hasKey: true,
@@ -255,7 +255,7 @@ describe("registerProviderIpc", () => {
     expect(await fire(reg.fns, IPC_CHANNELS.providerGet)).toEqual(view);
     const draft: ConnectionDraft = {
       providerId: "custom",
-      baseURL: "http://mock/v1",
+      baseURL: "https://mock/v1",
       authHeader: "bearer",
       thinkingWire: "standard",
       apiKey: null
@@ -299,10 +299,10 @@ describe("registerProviderIpc", () => {
     const reg = registry();
     registerProviderIpc(reg.handle, stubSettings(seen), stubLister(seen));
     await fire(reg.fns, IPC_CHANNELS.providerListModels, {
-      baseURL: "http://draft.test/v1",
+      baseURL: "https://draft.test/v1",
       apiKey: "sk-draft"
     });
-    expect(seen).toEqual([["list", { baseURL: "http://draft.test/v1", apiKey: "sk-draft" }]]);
+    expect(seen).toEqual([["list", { baseURL: "https://draft.test/v1", apiKey: "sk-draft" }]]);
     // 不传草稿 = undefined 原样到 lister（走已存配置那一条路）。
     await fire(reg.fns, IPC_CHANNELS.providerListModels);
     expect(seen[1]).toBe("list");

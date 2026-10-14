@@ -194,7 +194,7 @@ async function build(fetchImpl: ProviderFetch, configured = true): Promise<Built
   if (configured) {
     const seeded = await settings.saveConnection({
       providerId: "custom",
-      baseURL: "http://mock/v1",
+      baseURL: "https://mock/v1",
       authHeader: "bearer",
       thinkingWire: "standard",
       apiKey: null

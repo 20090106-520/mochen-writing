@@ -19,7 +19,7 @@ import {
   type AssistantToolCall,
   type ChatMessage
 } from "./chat-message.js";
-import { dispatchToolCall, toolGateOf, toolsFor, type ToolHost } from "./tools.js";
+import { dispatchToolCall, toolGateOf, toolsFor, type ToolHost, type ToolOutcome } from "./tools.js";
 import { estimateTokens } from "./context.js";
 import { fitHistoryToWindow, historyNotice } from "./history-window.js";
 
@@ -231,6 +231,10 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
         else collected.finishReason = event.reason;
       }
     } catch (error) {
+      // 打断优先于失败（2026-10-14 审计项 1）：provider-client 已把打断折成 finish:aborted，
+      // 但取消与坏帧/错误帧竞态时异常仍会从这里逃出。人已经叫停了，异常只是打断的余波——
+      // 折成 interrupted，界面该说「已打断」，不该说「失败」。
+      if (deps.signal.aborted) return finishInterrupted(pendingProposals);
       const message =
         error instanceof ProviderError ? error.message : `本轮执行失败：${String(error)}`;
       emitSimple({ type: "error", message });
@@ -354,7 +358,18 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
         messages.push(toolMessage(call.id, gate.reason));
         continue;
       }
-      const outcome = await dispatchToolCall(deps.host, call, input.webSearchEnabled);
+      // 工具炸了不掀桌（2026-10-14 审计项 2）：dispatchToolCall 内部只拦参数解析，
+      // host.call 抛的异常会一路穿到这里。折成一张 ok:false 的工具回执——
+      // 模型看得见原因能自我纠正，回合照常收尾，不再因为一枚工具崩掉整轮对话。
+      let outcome: ToolOutcome;
+      try {
+        outcome = await dispatchToolCall(deps.host, call, input.webSearchEnabled);
+      } catch (error) {
+        const text = `工具 ${call.name} 执行异常：${
+          error instanceof Error ? error.message : String(error)
+        }`;
+        outcome = { ok: false, text, proposals: [] };
+      }
       emitSimple({
         type: "tool-call",
         callId: call.id,

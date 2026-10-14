@@ -577,7 +577,12 @@ export const connectionDraftSchema = z.object({
   baseURL: z
     .string()
     .min(1, "baseURL 不能为空")
-    .regex(httpUrl, "baseURL 必须以 http:// 或 https:// 开头"),
+    .regex(
+      // 保存口收紧（2026-10-14 审计项 4）：新配置只许 https 或本机回环的 http。
+      // 读取旧存档的 schema 保持宽松（收紧会把老 store 整份判坏），出网那头还有一道闸兜底。
+      /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?([/?#]|$))/i,
+      "baseURL 必须是 https://，或本机地址 http://localhost、127.0.0.1"
+    ),
   authHeader: z.enum(["bearer", "api-key"]),
   thinkingWire: z.enum(["standard", "xhigh"]),
   apiKey: z.string().nullable()

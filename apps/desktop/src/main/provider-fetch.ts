@@ -166,6 +166,33 @@ function bodyWithIdleWatchdog(
 }
 
 /**
+ * 「这个上游地址允许出网吗」（2026-10-14 审计项 4）。
+ *
+ * 密钥与全文都走这一个地址：明文 http 等于把它们裸送给链路上的任何一台设备。
+ * 只放行 https；本机回环的 http 除外——ollama / LM Studio 都长在 127.0.0.1 上，
+ * 本机流量不出网卡，谈不上「明文外送」。
+ *
+ * 为什么闸在 provider-fetch（真正出网的那只手）而不是只在保存配置的 schema：
+ * 旧配置文件里可能已经躺着一条明文 http 地址（读取 schema 必须保持宽松，
+ * 收紧会把整份 store 判成坏文件）——存档读得进来，但请求发不出去，两头都诚实。
+ */
+export function assertUpstreamUrlAllowed(rawUrl: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new ProviderError(`模型服务端地址不是合法 URL：${rawUrl}`);
+  }
+  if (parsed.protocol === "https:") return;
+  const loopback = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(parsed.hostname);
+  if (parsed.protocol === "http:" && loopback) return;
+  throw new ProviderError(
+    "模型服务端地址必须是 https://，或本机地址（localhost、127.0.0.1、::1）——" +
+      "明文 http 会把 API Key 和全文原样裸送出去。"
+  );
+}
+
+/**
  * 全局 fetch → ProviderFetch 的适配。请求对象原样交给 send（密钥只在 headers 里，
  * 由 provider-client 拼好），本函数不碰 url、不碰 body、不写任何日志。
  * 网络错误一律原样抛出：streamChat 会按「是否已打断」分别处理（Task 3）。
@@ -180,6 +207,8 @@ export function toProviderFetch(
   const firstByteMs = options.firstByteTimeoutMs ?? UPSTREAM_FIRST_BYTE_TIMEOUT_MS;
   const idleMs = options.idleTimeoutMs ?? UPSTREAM_IDLE_TIMEOUT_MS;
   return async (input): Promise<ProviderFetchResult> => {
+    // 出网前的最后一道闸（审计项 4）：解析失败的与明文非本机的地址都在这里死掉。
+    assertUpstreamUrlAllowed(input.url);
     const watchdog = new HangWatchdog();
     const signal = mergeAbortSignals([input.signal, watchdog.controller.signal]);
     let response: Response;

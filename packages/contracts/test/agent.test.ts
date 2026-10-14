@@ -173,6 +173,26 @@ describe("provider 与掩码", () => {
         apiKey: "sk-abcdef"
       }).success
     ).toBe(true);
+    // 2026-10-14 审计项 4：保存口只收 https 或本机回环的 http——
+    // 明文 http 发到公网地址等于把密钥和全文裸送出去；本机回环不出网卡，不算外送。
+    expect(
+      connectionDraftSchema.safeParse({
+        providerId: "custom",
+        baseURL: "https://api.deepseek.com/v1",
+        authHeader: "bearer",
+        thinkingWire: "standard",
+        apiKey: "sk-abcdef"
+      }).success
+    ).toBe(true);
+    expect(
+      connectionDraftSchema.safeParse({
+        providerId: "custom",
+        baseURL: "http://api.example.com/v1",
+        authHeader: "bearer",
+        thinkingWire: "standard",
+        apiKey: "sk-abcdef"
+      }).success
+    ).toBe(false);
     // 2026-10-09 批次 5-㊻：草稿里这一项是**必填**（与 authHeader 同一档），
     // 而盘上的旧连接是靠 schema 的 default 补出来的。两者不是一回事：
     // 草稿漏了就是「界面上根本没这一格」，应当当场拒。

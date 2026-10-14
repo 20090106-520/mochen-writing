@@ -11,10 +11,21 @@ export function toPosixRelPath(relPath: string): string {
 export function assertSafeRelPath(relPath: string): string {
   if (!relPath || relPath.trim() === "") throw new Error("invalid-path: 空路径");
   const posix = toPosixRelPath(relPath);
-  if (posix.startsWith("/") || /^[a-zA-Z]:\//.test(posix))
+  // 冒号一个不留（2026-10-14 审计项 5）：盘符相对路径 `C:foo` 不带斜杠，旧的 `^[a-zA-Z]:\//`
+  // 抓不到它，而 Windows 会把它按「C 盘当前目录」解析——书目录闸当场失效；NTFS 里冒号还是
+  // 备用数据流（ADS）的分隔符。书内相对路径任何位置都不该有冒号，不分平台一律拒（口径同保留名）。
+  if (posix.startsWith("/") || posix.includes(":"))
     throw new Error(`invalid-path: 需要书内相对路径，收到 ${relPath}`);
+  // 控制字符（含空字符）一律拒（2026-10-14 审计项 5）：`\0` 之后的字节会被 Win32 截断，
+  // 其余控制符的落盘行为同样未定义——挡在判定层比让 fs 半路抛错要诚实。
+  if (/[\u0000-\u001f]/.test(posix)) throw new Error("invalid-path: 路径里有控制字符");
   const segments = posix.split("/").filter((s) => s !== "" && s !== ".");
   if (segments.some((s) => s === "..")) throw new Error(`outside-book: 路径越界 ${relPath}`);
+  // 末尾的点与空格逐段拒（2026-10-14 审计项 5）：Windows 落盘时会吞掉它们
+  // （`笔记.md.` 建出来是 `笔记.md`），收进来的名字和盘上那个对不上——读写的两边都会被这条坑。
+  const ragged = segments.find((s) => /[. ]$/.test(s));
+  if (ragged !== undefined)
+    throw new Error(`invalid-path: 「${ragged}」末尾的点或空格在 Windows 上会被吞掉，去掉再试`);
   // Windows 保留名（P2-2 的后半）：`chapters/CON.txt` 写法逐字合法，但在 Windows 上根本落不了盘——
   // 而且本机实测 `fs.writeFile` **不抛错**（文件真能建出来），所以只能在这一层当场拒，
   // 并且不分平台一律拒（同一本书迟早被拷回 Windows）。理由那句由 contracts 那份真身给。

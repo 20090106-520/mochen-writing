@@ -687,3 +687,56 @@ describe("runTurn · 被截断的一轮要上屏（P2-5）", () => {
     expect(harness.events.map((e) => e.type)).toEqual(["user-message", "message", "interrupted"]);
   });
 });
+
+describe("runTurn · 工具与打断的鲁棒性（2026-10-14 审计项 1/2）", () => {
+  it("工具炸了不掀桌：host.call 抛异常折成 ok:false 回执，回合照常收尾", async () => {
+    const { deps, harness } = makeDeps(
+      [
+        [
+          {
+            kind: "tool-call",
+            call: { id: "c1", name: "read_doc", args: '{"path":"chapters/01.md"}' }
+          },
+          { kind: "finish", reason: "tool_calls" }
+        ],
+        [
+          { kind: "text-delta", text: "重来" },
+          { kind: "finish", reason: "stop" }
+        ]
+      ],
+      { ok: true, text: "", proposals: [] }
+    );
+    deps.host.call = async () => {
+      throw new Error("盘没挂上");
+    };
+    const out = await runTurn(deps, input);
+    // 异常没有掀翻整轮：第二轮照常发出，回合 done。
+    expect(harness.sentMessages.length).toBe(2);
+    expect(out.status).toBe("done");
+    // 模型拿到的是一张说得清原因的失败回执，而不是整轮崩掉。
+    const receipt = harness.events.find((e) => e.type === "tool-call");
+    expect(receipt?.type === "tool-call" && receipt.ok).toBe(false);
+    expect(receipt?.type === "tool-call" && receipt.resultText).toContain("执行异常");
+    expect(receipt?.type === "tool-call" && receipt.resultText).toContain("盘没挂上");
+  });
+
+  it("打断与异常竞态：人已叫停时逃出的异常只算余波，回合折成 interrupted 而不是 failed", async () => {
+    const { deps, harness, controller } = makeDeps([[{ kind: "text-delta", text: "说一半" }]], {
+      ok: true,
+      text: "",
+      proposals: []
+    });
+    const inner = deps.stream;
+    // 原流收完之后先 abort 再抛：真机情形就是「取消与错误帧/坏帧撞在同一拍」。
+    deps.stream = async function* (req) {
+      yield* inner(req);
+      controller.abort();
+      throw new Error("竞态里逃出的坏帧");
+    };
+    const out = await runTurn(deps, input);
+    expect(out.status).toBe("interrupted");
+    // 界面该说「已打断」：error 事件不许出现，failed 那条路一步都没走。
+    expect(harness.events.some((e) => e.type === "error")).toBe(false);
+    expect(harness.events.some((e) => e.type === "interrupted")).toBe(true);
+  });
+});

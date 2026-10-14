@@ -305,7 +305,7 @@ async function build(
     // v3：地址与密钥都按连接分份。先把连接建出来拿到 id，密钥再直接写进那一份。
     const seeded = await settings.saveConnection({
       providerId: "custom",
-      baseURL: "http://mock/v1",
+      baseURL: "https://mock/v1",
       authHeader: "bearer",
       thinkingWire: "standard",
       apiKey: null
@@ -663,7 +663,7 @@ describe("agentService 全链", () => {
     await service.startTurn(turn(CHAPTER, "改紧"));
     const request = requests[0];
     if (request === undefined) throw new Error("请求必须发出");
-    expect(request.url).toBe("http://mock/v1/chat/completions");
+    expect(request.url).toBe("https://mock/v1/chat/completions");
     expect(request.url).not.toContain(API_KEY);
     expect(request.headers.Authorization).toBe(`Bearer ${API_KEY}`);
     expect(request.body).not.toContain(API_KEY);

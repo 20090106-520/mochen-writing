@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ProviderFetchInput } from "@mochen/agent-runtime";
-import { toProviderFetch } from "./provider-fetch.js";
+import { ProviderError } from "@mochen/agent-runtime";
+import { assertUpstreamUrlAllowed, toProviderFetch } from "./provider-fetch.js";
 
 const enc = new TextEncoder();
 
 const input = {
-  url: "http://x/v1/chat/completions",
+  url: "https://x/v1/chat/completions",
   headers: {},
   body: "{}",
   signal: new AbortController().signal
@@ -285,5 +286,37 @@ describe("abortableFetch（联网搜索接上这一轮的打断）", () => {
     // 单源超时自己到点：合并后的 signal 也必须跟着 abort，否则 6s 有界那条闸门形同被摘掉。
     await new Promise((resolve) => setTimeout(resolve, 60));
     expect(merged.aborted).toBe(true);
+  });
+});
+
+describe("出网地址闸（2026-10-14 审计项 4）", () => {
+  it.each([
+    "https://api.deepseek.com/v1",
+    "http://127.0.0.1:11434/v1",
+    "http://localhost:1234/v1",
+    "http://[::1]:8080/v1"
+  ])("放行 %s", (url) => {
+    expect(() => assertUpstreamUrlAllowed(url)).not.toThrow();
+  });
+
+  it.each([
+    "http://api.example.com/v1",
+    "http://192.168.1.5:1234/v1",
+    "http://mock/v1",
+    "不是地址"
+  ])("拒绝 %s（明文 http 会把密钥和全文裸送出去）", (url) => {
+    expect(() => assertUpstreamUrlAllowed(url)).toThrow(ProviderError);
+  });
+
+  it("toProviderFetch 在 send 之前就拦下明文地址：请求根本不出手", async () => {
+    let called = false;
+    const guarded = toProviderFetch(async () => {
+      called = true;
+      return new Response("{}", { status: 200 });
+    });
+    await expect(guarded({ ...input, url: "http://x/v1/chat/completions" })).rejects.toThrow(
+      /https/
+    );
+    expect(called).toBe(false);
   });
 });
