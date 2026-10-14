@@ -35,7 +35,17 @@ export default defineConfig({
       rollupOptions: {
         // electron 必须留在外面（2026-10-14 真机教训）：内联进 bundle 会把 electron 包的
         // 安装器脚本（require fs/child_process）也打进去——将来若开沙箱，preload 加载即炸。
-        external: ["electron"]
+        external: ["electron"],
+        // 输出必须是 .mjs（2026-10-14 下午真机教训）：rollupOptions 一旦手写，就会把
+        // electron-vite 按 type:module 推出来的默认输出文件名（[name].mjs）顶掉，
+        // 产物变成「ESM 内容却叫 index.js」——main 里 ../preload/index.mjs 的引用当场落空，
+        // preload 整个不加载，window.mochen 消失，渲染层挂载钩子连环炸
+        // （CenterColumn startListening 报 onAgentEvent undefined，App 挂载收右栏也被打断）。
+        // 显式钉死 format + 文件名，两边引用才有唯一对得上的真身。
+        output: {
+          format: "es",
+          entryFileNames: "[name].mjs"
+        }
       }
     }
   },
