@@ -4,7 +4,11 @@
 import { computed, ref } from "vue";
 import { Moon, Sun, Monitor } from "lucide";
 import { MorphIcon } from "morphicons/vue";
-import { APPEARANCE_FONT_FAMILY_LABELS, type AppearanceMode } from "@mochen/contracts";
+import {
+  APPEARANCE_FONT_FAMILY_LABELS,
+  type AppearanceDensity,
+  type AppearanceMode
+} from "@mochen/contracts";
 import { useAppearanceStore } from "../stores/useAppearanceStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { findAppearanceSkin, defaultAppearanceSkin } from "../composables/appearanceSkins";
@@ -118,6 +122,27 @@ function setTranslucentSidebar(event: Event): void {
     light: { ...appearance.settings.light, translucentSidebar: enabled },
     dark: { ...appearance.settings.dark, translucentSidebar: enabled }
   });
+}
+
+/**
+ * 界面密度（2026-10-15 Wave 3，出处是设计稿变体 B「密度」）。
+ *
+ * 【这一档按的是界面 chrome 的节奏，不是正文版式】
+ * 导航行、页签、输入卡 chip、工作台卡内距那几族控件各降一档；正文的行距 / 字号 / 列宽
+ * 住在「写作」页那三档（`--editor-leading` 等），这里碰一下就成两份真相，
+ * 所以「界面密度」这四个字是边界而不是修辞。
+ *
+ * 【档位住 settings 顶层而不是 light / dark 两套里】
+ * 字号那两枚住在两套主题里是因为换皮肤会带着各自的字号走；密度与配色无关，
+ * 顶层一枚值就够，也没有「浅色紧凑、深色标准」这种要各自记的分裂态。
+ */
+const DENSITY_OPTIONS: Array<{ value: AppearanceDensity; label: string }> = [
+  { value: "standard", label: "标准" },
+  { value: "compact", label: "紧凑" }
+];
+
+function setDensity(density: AppearanceDensity): void {
+  void appearance.update({ density });
 }
 
 /**
@@ -247,6 +272,29 @@ const editorFontOptions = Object.entries(APPEARANCE_FONT_FAMILY_LABELS).filter((
         </select>
       </label>
     </div>
+
+    <div class="appearance-field">
+      <span class="appearance-field-label">界面密度</span>
+      <div class="appearance-segment" role="radiogroup" aria-label="界面密度">
+        <button
+          v-for="option in DENSITY_OPTIONS"
+          :key="option.value"
+          class="appearance-segment-button"
+          :class="{ 'is-active': appearance.settings.density === option.value }"
+          type="button"
+          role="radio"
+          :aria-checked="appearance.settings.density === option.value"
+          @click="setDensity(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+    </div>
+    <!-- 那句边界说明要写在屏上：稿子里的「密度」连着把正文列宽从 760 放宽到 820，
+         而正文版式在这儿已经有三档（写作页），不写清就会有人以为这一档也管正文。 -->
+    <p class="settings-group-note">
+      紧凑只把导航行、页签、输入卡与卡片内距各降一档，一屏多看几行；正文的行距、字号与列宽照旧由「写作」页那三档决定。
+    </p>
 
     <label class="appearance-field appearance-toggle-row">
       <span class="appearance-field-label">半透明侧栏（毛玻璃）</span>

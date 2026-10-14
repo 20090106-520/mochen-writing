@@ -8,6 +8,28 @@ export type AppearanceMode = z.infer<typeof AppearanceModeSchema>;
 export const AppearanceColorSchemeSchema = z.enum(["light", "dark"]);
 export type AppearanceColorScheme = z.infer<typeof AppearanceColorSchemeSchema>;
 
+/**
+ * 界面密度档（2026-10-15 设计稿对表 Wave 3，出处是变体 B「密度」那张稿）。
+ *
+ * 【这一档只管界面 chrome 的节奏】
+ * 导航行、页签、chip、卡片内距、工具条那几族控件的**高度与内边距**。
+ * 正文的行距 / 字号 / 列宽**不在这里**——那三件事已经有设置页「写作」那三档
+ * （`--editor-leading` / `--editor-font-size` / `--editor-measure`，由 DocumentPane 落变量），
+ * 再开一档就是同一件事两份真相（铁律 6）。
+ *
+ * 【为什么值得单独一档，而不是并进字号】
+ * 字号改的是**字**，这一档改的是**行给字留的空间**：把界面字号调到 12 并不会让
+ * 34px 高的导航行变矮。稿子上那句「只收紧节奏，结构/令牌体系一律不动」说的就是这个。
+ *
+ * 【`standard` 必须是第一档】
+ * 它同时是出厂值，也是渲染层写在 `<html>` 上的属性值（`data-density="standard"`），
+ * 而 `styles/density.css` 只为 `compact` 写规则——名字对不上，那一档就永远不显形。
+ */
+export const APPEARANCE_DENSITIES = ["standard", "compact"] as const;
+export const AppearanceDensitySchema = z.enum(APPEARANCE_DENSITIES);
+export type AppearanceDensity = z.infer<typeof AppearanceDensitySchema>;
+export const DEFAULT_APPEARANCE_DENSITY: AppearanceDensity = APPEARANCE_DENSITIES[0];
+
 export const APPEARANCE_FONT_SIZE_LIMITS = {
   uiFontSize: { min: 10, max: 24 },
   codeFontSize: { min: 10, max: 24 }
@@ -407,6 +429,8 @@ export type AppearanceThemeConfig = z.infer<typeof AppearanceThemeConfigSchema>;
 
 export const AppearanceSettingsSchema = z.object({
   mode: AppearanceModeSchema,
+  /** 界面密度（2026-10-15 Wave 3）。带 default：老 `appearance.json` 没这个字段时补标准档。 */
+  density: AppearanceDensitySchema.default(DEFAULT_APPEARANCE_DENSITY),
   light: AppearanceThemeConfigSchema,
   dark: AppearanceThemeConfigSchema,
   uiFontFamily: AppearanceUiFontSelectionSchema.default(DEFAULT_APPEARANCE_UI_FONT_FAMILY),
@@ -455,6 +479,7 @@ export function createDefaultAppearanceTheme(scheme: AppearanceColorScheme): App
 export function createDefaultAppearanceSettings(): AppearanceSettings {
   return {
     mode: "system",
+    density: DEFAULT_APPEARANCE_DENSITY,
     light: createDefaultAppearanceTheme("light"),
     dark: createDefaultAppearanceTheme("dark"),
     uiFontFamily: DEFAULT_APPEARANCE_UI_FONT_FAMILY,

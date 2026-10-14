@@ -26,6 +26,11 @@
 /* 视图过渡排在 motion.css 之后：它那几段「关掉动效」要压得住 motion.css 的出场动画表。 */
 @import "./styles/view-transition.css";
 @import "./styles/thinking-window.css";
+/* 界面密度档排在**全部**样式表之后：它的每一条与各自那条基规则同特异性
+   （`html[data-x] .cls` 这一形），平手只由先后裁决 —— 写在任何一个文件里都可能
+   排在基规则之前，于是那一档从此不生效而且**界面上完全看不出来**
+   （判据见 components/density-tier.test.ts 里那条「顺序」用例）。 */
+@import "./styles/density.css";
 
 :root {
   color: var(--text-primary, #202226);

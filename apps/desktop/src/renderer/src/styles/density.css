@@ -1,0 +1,110 @@
+/**
+ * 界面密度档（2026-10-15 设计稿对表 Wave 3，出处是变体 B「密度」那张稿）。
+ *
+ * 【总闸只有一个】`html[data-density="compact"]`，由
+ * `composables/appearanceThemeRuntime.ts` 按外观设置写；标准档不写任何规则，
+ * 于是「紧凑退回来」这条路的判据就是「属性值不再是 compact」，没有第二处开关。
+ *
+ * 【这一层只碰 chrome 的节奏，不碰版式也不碰结构】
+ * 逐条都是「同一选择器的高度 / 内边距降一档」：导航行、页签、chip、圆钮、卡片内距、
+ * 消息区上下留白。三族明确不在这里：
+ * ① 正文行距、字号、列宽——那三件事已经有设置页「写作」那三档
+ *   （`--editor-leading` / `--editor-font-size` / `--editor-measure`，DocumentPane 落变量），
+ *   在这里再写一遍就是同一件事两份真相（铁律 6）。
+ * ② 阅读栏宽度——稿子里那一档顺带把正文列从 760 放宽到 820，那是版式取舍不是密度，
+ *   而且列宽已经有人在管了（① 里那一档），不跟。
+ * ③ 栅格轨道本身（`.editor-pane` 的 `grid-template-rows`、`.desktop-shell` 的列宽）——
+ *   稿子确实改了栏头那三行，但**不搬**：`html[data-density="compact"] .editor-pane`
+ *   与既有 `html[data-platform="darwin"] .editor-pane` 特异性相同（一个类型 + 一个属性 + 一个类），
+ *   平手只由先后裁决，而本文件排在 editor-pane.css 之后 ⇒ 一上紧凑就会把 macOS 那四行轨道
+ *   顶成 Windows 的七行，右栏当场错位。栏头里真正摆着的那些控件（页签、视图切换、md 工具钮）
+ *   照稿子降档，轨道不动——代价是紧凑档下栏头会显得比里面那排钮松一点，这笔账如实记在这里。
+ *
+ * 【位置在 styles.css 的最后一批 @import 里】
+ * 这些选择器与各自基规则**同特异性**（都是 `html[data-x] .cls` 这一形），
+ * 赢只靠顺序；写在别的文件里就会排在基规则前面而永远不生效。
+ * 判据由 `components/density-tier.test.ts` 钉：既钉「每一条在基规则里都找得到同名选择器」，
+ * 也钉「每一条的值都和基值不一样」——后者拦的是那种「抄了一行等于没抄」的空转规则。
+ */
+
+/* 左栏三族行：一级 34→30、子项 30→27、文稿树 28→25。
+   这三条放最前面是因为它们是一屏里数量最多的一族，紧凑多出来的行数主要来自这里。 */
+html[data-density="compact"] .nav-row {
+  min-height: 30px;
+}
+
+html[data-density="compact"] .nav-subrow {
+  min-height: 27px;
+}
+
+html[data-density="compact"] .tree-row {
+  min-height: 25px;
+}
+
+html[data-density="compact"] .resource-section-heading {
+  min-height: 30px;
+}
+
+html[data-density="compact"] .section-toggle {
+  min-height: 28px;
+  padding: 3px 7px;
+}
+
+html[data-density="compact"] .icon-button {
+  width: 28px;
+  height: 28px;
+}
+
+html[data-density="compact"] .section-tab {
+  height: 37px;
+}
+
+html[data-density="compact"] .view-tabs button,
+html[data-density="compact"] .editor-view-switch button {
+  height: 23px;
+}
+
+html[data-density="compact"] .format-button {
+  width: 25px;
+  height: 25px;
+}
+
+html[data-density="compact"] .send-button,
+html[data-density="compact"] .round-tool-button {
+  /* 输入卡那三枚圆钮与 .icon-button 一起降到 28：工具条整行的视觉高度是一个整体，
+     只降其中两枚会读成「这几钮小一号」而不是「这一行紧凑了」。 */
+  width: 28px;
+  height: 28px;
+}
+
+html[data-density="compact"] .composer-chip {
+  height: 27px;
+}
+
+html[data-density="compact"] .composer-toolbar {
+  padding: 4px 8px 6px;
+}
+
+html[data-density="compact"] .workbench-cards {
+  gap: 8px;
+  margin-top: 16px;
+}
+
+html[data-density="compact"] .workbench-card {
+  gap: 4px;
+  padding: 9px 12px;
+}
+
+html[data-density="compact"] .workbench-intro {
+  margin-top: 14px;
+  padding: 12px 14px;
+}
+
+html[data-density="compact"] .message-list {
+  /* 只动上下留白，宽度那条（以及窄窗里 `calc(100% - 34px)` 那条 @media）一概不碰。 */
+  padding: 26px 0 56px;
+}
+
+html[data-density="compact"] .conversation-empty {
+  padding: clamp(16px, 5vh, 44px) 0 18px;
+}

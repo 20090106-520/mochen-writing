@@ -12,6 +12,7 @@ import {
   resolveAppearanceEditorFontStack,
   resolveAppearanceUiFontStack,
   type AppearanceColorScheme,
+  type AppearanceDensity,
   type AppearanceEditorFontSelection,
   type AppearanceThemeConfig,
   type AppearanceUiFontSelection
@@ -298,11 +299,16 @@ export function applyAppearanceThemeToDocument(input: {
   theme: AppearanceThemeConfig;
   uiFontFamily: AppearanceUiFontSelection;
   editorFontFamily: AppearanceEditorFontSelection;
+  density: AppearanceDensity;
 }): void {
   const { scheme, theme } = input;
   const root = document.documentElement;
   root.dataset.theme = scheme;
   root.style.colorScheme = scheme;
+  /* 界面密度（2026-10-15 Wave 3）：这一行写的就是 `styles/density.css` 那条总闸读的
+     属性（`html[data-density="compact"]`）。标准档也照样写、不摘属性：
+     属性值恒等于设置值，切回来靠值变回 `standard`，而不是靠「if 才写、else 才删」那半边分支。 */
+  root.dataset.density = input.density;
 
   /* 视觉四层。先于颜色写：卡面与边框的观感由它们决定，
      而它们的浓度又依赖 accent/foreground——那两组在下面立刻就写。
@@ -519,13 +525,15 @@ export function applyAppearanceSettingsToDocument(settings: {
   dark: AppearanceThemeConfig;
   uiFontFamily: AppearanceUiFontSelection;
   editorFontFamily: AppearanceEditorFontSelection;
+  density: AppearanceDensity;
 }): void {
   const theme = settings.scheme === "dark" ? settings.dark : settings.light;
   applyAppearanceThemeToDocument({
     scheme: settings.scheme,
     theme,
     uiFontFamily: settings.uiFontFamily,
-    editorFontFamily: settings.editorFontFamily
+    editorFontFamily: settings.editorFontFamily,
+    density: settings.density
   });
 }
 
