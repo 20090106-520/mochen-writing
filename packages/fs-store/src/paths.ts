@@ -18,7 +18,9 @@ export function assertSafeRelPath(relPath: string): string {
     throw new Error(`invalid-path: 需要书内相对路径，收到 ${relPath}`);
   // 控制字符（含空字符）一律拒（2026-10-14 审计项 5）：`\0` 之后的字节会被 Win32 截断，
   // 其余控制符的落盘行为同样未定义——挡在判定层比让 fs 半路抛错要诚实。
-  if (/[\u0000-\u001f]/.test(posix)) throw new Error("invalid-path: 路径里有控制字符");
+  // 按码点过滤而不用正则（同 contracts/book.ts 的口径：控制字符进正则会撞 no-control-regex）。
+  const hasControlChar = [...posix].some((ch) => (ch.codePointAt(0) ?? 0) <= 0x1f);
+  if (hasControlChar) throw new Error("invalid-path: 路径里有控制字符");
   const segments = posix.split("/").filter((s) => s !== "" && s !== ".");
   if (segments.some((s) => s === "..")) throw new Error(`outside-book: 路径越界 ${relPath}`);
   // 末尾的点与空格逐段拒（2026-10-14 审计项 5）：Windows 落盘时会吞掉它们
