@@ -19,7 +19,13 @@ import {
   type AssistantToolCall,
   type ChatMessage
 } from "./chat-message.js";
-import { dispatchToolCall, toolGateOf, toolsFor, type ToolHost, type ToolOutcome } from "./tools.js";
+import {
+  dispatchToolCall,
+  toolGateOf,
+  toolsFor,
+  type ToolHost,
+  type ToolOutcome
+} from "./tools.js";
 import { estimateTokens } from "./context.js";
 import { fitHistoryToWindow, historyNotice } from "./history-window.js";
 
