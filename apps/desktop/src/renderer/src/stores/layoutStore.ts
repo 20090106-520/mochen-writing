@@ -181,6 +181,24 @@ export const useLayoutStore = defineStore("layout", () => {
   const rightPaneManuallyToggled = ref(false);
   const desktopShell = shallowRef<HTMLElement | null>(null);
   const leftPaneWidth = ref(defaultLeftPaneWidth(viewportWidth.value));
+  /**
+   * 用户亲手拖过 / 键盘调过左栏宽度没有（2026-10-14 设计稿对表批次）。
+   *
+   * 【为什么需要这一位】`shellStyle` 把 `--left-pane-width` 作为**内联自定义属性**写在
+   * `.desktop-shell` 自己身上，而栅格读的正是这个元素（`styles.css:176`）。
+   * 内联赢过 `:root` 的 `@media (max-width: 1220px)`（`styles.css:271`）——
+   * 于是那条 CSS 判据从来没机会生效：窗口从宽拖窄，左栏卡在 286 不动。
+   * 更糟的是 `leftPaneWidth` 只在 store 创建那一刻按当时的视口算过一次，
+   * resize 通路 `reconcilePaneWidths` 只把同一个值重新夹一遍，等于「两份真相、都不更新」。
+   *
+   * 【为什么不是删掉 @media 让 JS 独走】删了它，脚本尚未跑起来的白屏期与
+   * jsdom 里没有 resize 的场合就没有兜底值；留着它，JS 必须跟着同一条判据走——
+   * 于是这里在 resize 时按 `defaultLeftPaneWidth` 重算，两边算的是同一个函数、同一个口径。
+   *
+   * 【为什么用户调过就不再自动改】与右栏那条 `rightPaneManuallyToggled` 同一条纪律：
+   * 用户亲手定的宽度是表达过的意图，窗口缩放不该替他改回来（否则拖窄一点栏就自己弹回去）。
+   */
+  const leftPaneUserAdjusted = ref(false);
   const rightPaneWidth = ref(initialRightPaneWidth);
   const rightPanePreferences = shallowRef<RightPanePreferences>(initialRightPanePreferences());
   const activeRightPanePreferenceKey = ref<string>();
@@ -488,6 +506,11 @@ export const useLayoutStore = defineStore("layout", () => {
       rightCollapsed.value = true;
     }
     if (!leftCollapsed.value) {
+      // 用户没亲手定过宽度时，跟着**当前**真实布局宽度重算默认档（窄窗 262 / 宽窗 286）。
+      // 判据用 layoutViewportWidth 而不是 viewportWidth：与上面右栏那条同一个口径。
+      if (!leftPaneUserAdjusted.value) {
+        leftPaneWidth.value = defaultLeftPaneWidth(layoutViewportWidth());
+      }
       setPaneWidth("left", leftPaneWidth.value);
     }
     if (!rightCollapsed.value) {
@@ -500,6 +523,9 @@ export const useLayoutStore = defineStore("layout", () => {
     const bounds = desktopShell.value.getBoundingClientRect();
     const width =
       resizingPane.value === "left" ? event.clientX - bounds.left : bounds.right - event.clientX;
+    // 拖拽条上动一下就是用户表达过意图了（与右栏 rightPaneManuallyToggled 同一纪律）：
+    // 此后窗口缩放不再替他重算默认档。
+    if (resizingPane.value === "left") leftPaneUserAdjusted.value = true;
     setPaneWidth(resizingPane.value, width);
   }
 
@@ -536,6 +562,7 @@ export const useLayoutStore = defineStore("layout", () => {
     const direction = event.key === "ArrowLeft" ? -1 : 1;
     const currentWidth = side === "left" ? leftPaneWidth.value : rightPaneWidth.value;
     const nextWidth = currentWidth + direction * (side === "left" ? 12 : -12);
+    if (side === "left") leftPaneUserAdjusted.value = true;
     setPaneWidth(side, nextWidth);
     if (side === "right" && rightPaneWidth.value !== currentWidth) {
       persistActiveRightPaneWidth(rightPaneWidth.value);
@@ -618,6 +645,7 @@ export const useLayoutStore = defineStore("layout", () => {
     leftCollapsed,
     rightCollapsed,
     rightPaneManuallyToggled,
+    leftPaneUserAdjusted,
     desktopShell,
     leftPaneWidth,
     rightPaneWidth,

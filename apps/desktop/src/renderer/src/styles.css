@@ -267,7 +267,15 @@ html[data-platform="darwin"] .desktop-shell {
    （同一特异性的平手只由先后裁决）。本仓的样式表是 `@import` 进来的，而 @import 全在文件头部——
    写在 theme-runtime.css 里的这一块永远排在下面这些本文件规则之前，于是它从来没赢过一次
    （真机实测：视口 1120、`matchMedia("(max-width:1220px)")` 为 true 时，`--left-pane-width` 仍读 286px）。
-   所以这块整段搬到这里，一份实现（铁律 6），不在 theme-runtime.css 留副本。 */
+   所以这块整段搬到这里，一份实现（铁律 6），不在 theme-runtime.css 留副本。
+   【2026-10-14 对表批次补的第二半：搬过来也还没赢】`.desktop-shell` 上的
+   `--left-pane-width` 是 App 经 layoutStore 的 `shellStyle` 写上去的**内联自定义属性**，
+   而栅格读的就是这个元素自己（上面 176 行）——内联永远压过 `:root` 的这条 @media，
+   于是「拖窄窗口左栏不收」在真机仍然成立。修法不在 CSS 里加 `!important`，
+   而是让写内联那一侧跟着同一条判据走：`layoutStore` 的 `defaultLeftPaneWidth()`
+   在每次 resize 重算（用户没亲手拖过时），两边算同一个函数，才谈得上「一份真身」。
+   这条 @media 留作脚本尚未跑起来的白屏兜底。`--right-pane-width: 395px` 同理被内联压住，
+   右栏另有按视图记忆宽度的通路（rightPanePreferences），此处不动它。 */
 @media (max-width: 1220px) {
   :root {
     --left-pane-width: 262px;

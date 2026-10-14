@@ -406,6 +406,75 @@ describe("layout store", () => {
     expect(store.writingRightPaneViewModel.maxWidth).toBe(680);
   });
 
+  /**
+   * 2026-10-14 设计稿对表批次：窄窗三判据里的「左栏 262」这一条，真机从来没生效过。
+   *
+   * 病因不在 CSS（`styles.css` 那条 @media 写得没错），在于 App 把同一个变量以**内联**
+   * 自定义属性写在 `.desktop-shell` 自己身上，而栅格读的正是这个元素——内联压过 @media，
+   * 且 `leftPaneWidth` 只在 store 创建时按当时视口算一次，resize 通路只重夹不重算。
+   * 下面三段各钉一条边界，缺任何一段都会退回原来那个「拖窄了左栏卡在 286」的真机表现。
+   */
+  it("窗口从宽拖窄：左栏跟着收到 262，不再卡在创建那一刻的 286", () => {
+    installRuntime(1400);
+    const store = useLayoutStore();
+    store.setPaneCollapsed("right", true);
+    store.desktopShell = shell(1400, 0);
+    store.reconcilePaneWidths();
+    expect(store.leftPaneWidth).toBe(286);
+
+    store.desktopShell = shell(1100, 0);
+    store.reconcilePaneWidths();
+    expect(store.leftPaneWidth, "≤1220 视口下左栏该收窄到 262").toBe(262);
+
+    store.desktopShell = shell(1400, 0);
+    store.reconcilePaneWidths();
+    expect(store.leftPaneWidth, "拖回宽窗要跟着回 286，收窄是一次档位不是一次性决定").toBe(286);
+  });
+
+  it("按**真实布局宽度**重算左栏档，不按 window.innerWidth（与右栏折叠同一条口径）", () => {
+    // innerWidth 报 1400（宽窗档），shell 实测 1100 —— 实际是窄窗，该收。
+    installRuntime(1400);
+    const store = useLayoutStore();
+    store.setPaneCollapsed("right", true);
+    store.desktopShell = shell(1100, 0);
+    store.reconcilePaneWidths();
+    expect(store.leftPaneWidth).toBe(262);
+  });
+
+  it("用户亲手拖过 / 键盘调过左栏之后，窗口缩放不再替他改宽度（手动优先）", () => {
+    installRuntime(1400);
+    const store = useLayoutStore();
+    store.setPaneCollapsed("right", true);
+    store.desktopShell = shell(1400, 0);
+
+    store.startPaneResize("left", { preventDefault: vi.fn() } as unknown as PointerEvent);
+    store.handleResizeMove({ clientX: 320 } as PointerEvent);
+    store.stopPaneResize();
+    expect(store.leftPaneWidth).toBe(320);
+    expect(store.leftPaneUserAdjusted).toBe(true);
+
+    store.desktopShell = shell(1100, 0);
+    store.reconcilePaneWidths();
+    expect(store.leftPaneWidth, "用户定的 320 不该被自动档顶掉").toBe(320);
+  });
+
+  it("键盘调宽（分隔条上的方向键）同样算用户表达过意图", () => {
+    installRuntime(1400);
+    const store = useLayoutStore();
+    store.setPaneCollapsed("right", true);
+    store.desktopShell = shell(1400, 0);
+
+    store.handleResizeKeydown("left", {
+      key: "ArrowRight",
+      preventDefault: vi.fn()
+    } as unknown as KeyboardEvent);
+    expect(store.leftPaneWidth).toBe(298);
+
+    store.desktopShell = shell(1100, 0);
+    store.reconcilePaneWidths();
+    expect(store.leftPaneWidth).toBe(298);
+  });
+
   it("tracks pointer resizing and removes global listeners on completion", () => {
     const runtime = installRuntime(1200);
     const store = useLayoutStore();

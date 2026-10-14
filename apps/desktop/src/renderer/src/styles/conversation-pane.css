@@ -472,12 +472,20 @@ html[data-platform="darwin"] .conversation-header {
   color: var(--text-primary);
 }
 
-/* 空状态的主 CTA：与 .dialog-primary-button 同一套口径（实心面 + 反色字），不另起一套。
-   浅色走 --neutral-solid，深色那一层由 theme-runtime.css 统一把它转成 accent（那边有一张表）。 */
+/* 主 CTA：与 .dialog-primary-button 同一套口径（实心面 + 反色字），不另起一套。
+   浅色走 --neutral-solid，深色那一层由 theme-runtime.css 统一把它转成 accent（那边有一张表）。
+   尺寸再提一档（2026-10-14 设计稿对表批次，钉在 workbench-cta-emphasis.test.ts）：
+   只换面色与字重不够——上面 285 行那段注释自己点过名「真正要用户点的『打开作品目录』
+   在卡外面，权重反而更低」，而基线的 31px 高 / 11px 字跟旁边那枚「新建作品」一模一样大。
+   刻意**只提主 CTA**，次要那枚保持原样：要的是层级差，不是两枚一起放大。
+   字号用 rem（`ui-font-scale-guard.test.ts` 那条纪律：写 px 用户调字号界面不动）。 */
 .workbench-open-book.is-primary {
+  min-height: 36px;
+  padding: 0 16px;
   border-color: var(--neutral-solid);
   background: var(--neutral-solid);
   color: var(--neutral-solid-contrast);
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
