@@ -13,6 +13,7 @@ import {
   appendAgentEvent,
   createSession,
   HISTORY_TOKEN_BUDGET,
+  UPSTREAM_WINDOW_TOKENS,
   type ProviderFetch,
   type ProviderFetchResult
 } from "@mochen/agent-runtime";
@@ -213,6 +214,22 @@ describe("agent-service · P1-3 历史切片与 notice", () => {
     expect(preview.history?.entries).toBeGreaterThan(0);
     expect(preview.history?.chars).toBeGreaterThanOrEqual(0);
     expect(preview.history?.approxTokens).toBeLessThanOrEqual(HISTORY_TOKEN_BUDGET);
+    built.service.dispose();
+  });
+
+  it("contextPreview 的压力分母就是切片用的那枚常量：主进程递引用，不递第二份数字", async () => {
+    const built = await build();
+    await seedLongHistory(built, 3);
+    await built.service.startTurn(turn(CHAPTER, "预热"));
+    const preview = await built.service.contextPreview({
+      docRelPath: CHAPTER,
+      profileId: null,
+      pinned: []
+    });
+    // 渲染层过不了包边界闸（禁止 import agent-runtime），所以窗口数只能由这里递出去。
+    // 钉的是**同一枚常量本身**：切片闸门哪天改了假设窗口，压力百分比必须跟着动；
+    // 若这里改成写死一个字面量，两侧就会安静地分家（铁律 6）。
+    expect(preview.windowApproxTokens).toBe(UPSTREAM_WINDOW_TOKENS);
     built.service.dispose();
   });
 });

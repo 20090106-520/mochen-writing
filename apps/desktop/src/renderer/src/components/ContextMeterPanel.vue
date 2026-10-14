@@ -10,12 +10,17 @@ import { ref, useId } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
 import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
-import type { ContextMeterRow } from "../utils/context-meter";
+import type { ContextMeterRow, ContextPressureReading } from "../utils/context-meter";
 
 const props = defineProps<{
   anchor: HTMLElement;
   rows: readonly ContextMeterRow[];
   profileName: string;
+  /**
+   * 窗口压力 + 已挂入项数那一行：整句由 utils/context-meter.ts 组好（连「该不该显形」都由
+   * 它判），面板只渲染。与 historyNotice 同一条纪律——面板不许自己除窗口、数挂入条目。
+   */
+  pressure?: ContextPressureReading;
   /**
    * P1-3 截断提示：那句话整句由 utils/history-window.ts 组好，面板只渲染。
    * 可选——空串/缺省都不显形；面板不许自己碰条数字（判据只许一处）。
@@ -72,6 +77,10 @@ function keydown(event: KeyboardEvent): void {
         </button>
       </header>
       <p class="context-meter-note">按当前档案「{{ profileName }}」装配</p>
+      <!-- 窗口压力行：可见性与文案都在 util，这里只挂 v-if="pressure?.visible"。 -->
+      <p v-if="pressure?.visible" class="context-meter-pressure" :title="pressure.title">
+        {{ pressure.text }}
+      </p>
       <ul class="context-meter-list">
         <li v-for="row in rows" :key="row.key" :class="{ 'is-active': row.active }">
           <span class="context-meter-kind">{{ row.label }}</span>

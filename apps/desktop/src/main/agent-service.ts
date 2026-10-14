@@ -40,6 +40,7 @@ import {
   runTurn,
   streamChat,
   unifiedDiff,
+  UPSTREAM_WINDOW_TOKENS,
   WORLD_KINDS,
   type AssembledContext,
   type ChatMessage,
@@ -730,11 +731,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     },
 
     /**
-     * 上下文占用条（spec §5「token 估算 + 已装配条目数」）。
-     *
-     * 与 startTurn 走**同一条**装配路径（assembleFor），所以占用条上显示的条目数
-     * 与字数就是这一轮真会发出去的那些——两处各装一遍的话，占用条就是个骗人的装饰。
-     * 读盘失败只少装一条，不抛：占用条是辅助信息，不该让界面因此报错。
+     * 上下文占用条（spec §5）。与 startTurn 走**同一条**装配路径（assembleFor），所以占用条上
+     * 显示的条目数与字数就是这一轮真会发出去的那些——两处各装一遍的话，它就是骗人的装饰。
+     * 读盘失败只少装一条、不抛：占用条是辅助信息，不该让界面因此报错（历史那一格同口径）。
      */
     async contextPreview(query: ContextPreviewQuery): Promise<ContextPreview> {
       const current = deps.book.current();
@@ -753,7 +752,6 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
       const { skills } = await readPinnedSkills(query.pinned ?? []);
       const assembled = await assembleFor(current, query.docRelPath, profile, [], skills);
       // P1-3：占用条必须把历史这一格算进去——不报历史，剩余预算就是假的（面板上的「还能塞」骗人）。
-      // 读盘失败/没会话只少报这一格，不抛：预览是辅助信息，不该让界面报错（与上面装配同口径）。
       // 数字只有 `historyStatFor` 那一份判据：这里再手搓一遍字段映射，就是第二套口径（铁律 6）。
       let historyStat = historyStatFor(null);
       try {
@@ -782,7 +780,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         chars: assembled.chars,
         approxTokens: assembled.approxTokens,
         empty: assembled.items.length === 0,
-        history: historyStat
+        history: historyStat,
+        // 分母只递引用：那枚保守假设窗口住在 agent-runtime，渲染层过不了包边界闸（铁律 6）。
+        windowApproxTokens: UPSTREAM_WINDOW_TOKENS
       };
     },
 

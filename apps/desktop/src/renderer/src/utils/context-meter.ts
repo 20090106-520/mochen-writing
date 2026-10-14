@@ -78,35 +78,113 @@ export function formatApproxTokens(tokens: number): string {
  * 被窗口切掉的历史（`droppedCount`）本就不发出去，因此**不进合计**；那句「丢了什么」
  * 只由 `utils/history-window.ts` 说一遍，这里不重复那句话。
  */
-export function contextMeterSummary(preview: ContextPreview | null): ContextMeterSummary {
-  if (preview === null || preview.empty || preview.items.length === 0) {
-    return { visible: false, text: "", title: "" };
-  }
+/** 折叠条与压力行共用的总账：两路数字只有这一处相加（铁律 6，钉在 context-meter-wiring）。 */
+interface MeterTotals {
+  entries: number;
+  chars: number;
+  approxTokens: number;
+  hasHistory: boolean;
+  historyEntries: number;
+  historyChars: number;
+}
+
+function meterTotals(preview: ContextPreview): MeterTotals {
   const history = preview.history;
   const historyEntries = history?.entries ?? 0;
   const historyChars = history?.chars ?? 0;
   const historyTokens = history?.approxTokens ?? 0;
-  const hasHistory = historyEntries + historyChars + historyTokens > 0;
+  return {
+    entries: preview.items.length + historyEntries,
+    chars: preview.chars + historyChars,
+    approxTokens: preview.approxTokens + historyTokens,
+    hasHistory: historyEntries + historyChars + historyTokens > 0,
+    historyEntries,
+    historyChars
+  };
+}
 
-  const entries = preview.items.length + historyEntries;
-  const chars = preview.chars + historyChars;
-  const tokens = formatApproxTokens(preview.approxTokens + historyTokens);
+export function contextMeterSummary(preview: ContextPreview | null): ContextMeterSummary {
+  if (preview === null || preview.empty || preview.items.length === 0) {
+    return { visible: false, text: "", title: "" };
+  }
+  const totals = meterTotals(preview);
+  const tokens = formatApproxTokens(totals.approxTokens);
   // 拆项先摆出来再给合计：一眼读到的那个数是总账，但「哪一路占多少」不能糊掉。
   const parts = [`装配 ${preview.items.length} 条 ${preview.chars} 字`];
-  if (hasHistory) parts.push(`会话历史 ${historyEntries} 条 ${historyChars} 字`);
+  if (totals.hasHistory) {
+    parts.push(`会话历史 ${totals.historyEntries} 条 ${totals.historyChars} 字`);
+  }
   // 有历史才需要「上界」这句提醒：装配那一路与 startTurn 同源，历史这一路按预留为零算，
   // 真起一轮只会切得更狠（第二十一节查实），所以合计是**上界**，不许写成「就是发出去的」。
-  const note = hasHistory
+  const note = totals.hasHistory
     ? "逐条清单点开看；装配那一路与 startTurn 同源，历史按预留为零的上界报——真发出去的那一轮只会更少，不会更多"
     : "逐条清单点开看；条目与 startTurn 同源";
 
   return {
     visible: true,
-    text: `${entries} 条 · ≈${tokens} tokens`,
+    text: `${totals.entries} 条 · ≈${tokens} tokens`,
     title:
       `这一轮会一起发给「${preview.profileName}」：${parts.join(" + ")}，` +
-      (hasHistory ? `共 ${chars} 字，` : "") +
+      (totals.hasHistory ? `共 ${totals.chars} 字，` : "") +
       `约 ${tokens} tokens（${note}）`
+  };
+}
+
+/** 展开面板头部那一行「窗口压力」读数。 */
+export interface ContextPressureReading {
+  visible: boolean;
+  /** 一行短文案：压力百分比 + 挂入项数。 */
+  text: string;
+  /** 这两个数各自从哪儿来、边界在哪儿——悬停/无障碍读这个。 */
+  title: string;
+}
+
+/**
+ * 「这一轮大概占掉上游窗口的多少」＋「显式挂入了几项」。
+ *
+ * 分子与折叠条**同一个数**（同一个 `meterTotals`，所以不许在这里再加一遍）；
+ * 分母只有回包里的 `windowApproxTokens` 一份——它就是主进程切历史用的那枚保守假设窗口
+ * （`agent-runtime` 的 `UPSTREAM_WINDOW_TOKENS`，经契约递过来，因为渲染层过不了包边界闸）。
+ * 换句话说这一行报的是**真那个闸门的刻度**，不是模型真实上限；title 里必须把这句说明白，
+ * 否则用户会以为 100% 等于模型拒绝服务。这里也绝不许多写一个 24000（铁律 6）。
+ *
+ * 三种不显形：没问过主进程、装不出东西、回包没给分母。最后一条是硬规矩——
+ * 拿不到分母就宁可缺一行，也不许编一个数骗人。
+ *
+ * 两处刻意的不夹顶 / 不重复：
+ * - 超过 100% 原样报（137% 比 100% 更要紧，夹顶等于把「已经超了」藏起来）；
+ *   但 >0 又不足 1% 时报 ≈1% 而不是 ≈0%——0% 在屏上读起来像「没带东西」，那是另一种骗人。
+ * - 被切掉的历史**这里不说**：那句「丢了什么」只由 `utils/history-window.ts` 讲一遍，
+ *   面板底部那一行就是它；这里再点一次条数字就是第二套口径。
+ */
+export function contextPressureReading(preview: ContextPreview | null): ContextPressureReading {
+  const windowTokens = preview?.windowApproxTokens ?? 0;
+  if (preview === null || preview.empty || preview.items.length === 0 || windowTokens <= 0) {
+    return { visible: false, text: "", title: "" };
+  }
+  const totals = meterTotals(preview);
+  const ratio = (totals.approxTokens / windowTokens) * 100;
+  const percent = totals.approxTokens === 0 ? 0 : Math.max(1, Math.round(ratio));
+  const pinned = preview.items.filter((item) => item.kind === "pinned").length;
+
+  const parts = [
+    `窗口 ≈${percent}%`,
+    `${formatApproxTokens(totals.approxTokens)} / ${formatApproxTokens(windowTokens)} tokens`
+  ];
+  if (pinned > 0) parts.push(`已挂入 ${pinned} 项`);
+
+  const ceiling =
+    percent >= 100
+      ? "已过保守窗口上界——更早的历史会被切掉，切了什么看下方那一行"
+      : "到 100% 后更早的历史会被切掉";
+
+  return {
+    visible: true,
+    text: parts.join(" · "),
+    title:
+      `分母 ${formatApproxTokens(windowTokens)} tokens 是切历史用的保守假设窗口，不是模型真实上限；` +
+      `分子与上方折叠条同一个数（装配 + 会话历史的上界）。${ceiling}。` +
+      (pinned > 0 ? "「已挂入」只数你显式挂进来的那些（@ 引用 / 加入上下文 / 技能）。" : "")
   };
 }
 

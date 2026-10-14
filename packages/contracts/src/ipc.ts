@@ -359,6 +359,19 @@ export interface ContextPreview {
    * 新字段只加不改，契约里已有序列化路径一个字都不动。
    */
   history?: ContextHistoryStat;
+  /**
+   * 占用条「窗口压力」那一行的**分母**（tokens）。
+   *
+   * 为什么由主进程递而不是渲染层自己算：那枚保守假设窗口住在
+   * `packages/agent-runtime/src/history-window.ts`（`UPSTREAM_WINDOW_TOKENS`），而包边界闸
+   * 禁止渲染层 import agent-runtime（它只在主进程跑）。历史切片用的就是这一个数——
+   * 把百分比的分母也交同一条路递出来，「离被切还有多远」才是**真那个闸门的刻度**，
+   * 而不是另起一套口径。**渲染层绝不许再抄一份 24000**（铁律 6）。
+   *
+   * **可选**且是**假设值**，不是模型真实上限：拿不到分母时压力行整条不显形，
+   * 宁可缺一行读数，也不许拿一个猜出来的数骗人。
+   */
+  windowApproxTokens?: number;
 }
 
 export interface RendererApi {

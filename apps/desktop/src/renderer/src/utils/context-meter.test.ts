@@ -10,6 +10,7 @@ import {
   contextMeterQueryKey,
   contextMeterRows,
   contextMeterSummary,
+  contextPressureReading,
   formatApproxTokens
 } from "./context-meter";
 // 交叉核对用的是历史行的**同一条**拼装通路（chip 的总账必须等于面板逐行之和）。
@@ -199,6 +200,99 @@ describe("折叠 chip 的总账 = 装配条目 + 会话历史", () => {
     );
     expect(rowsChars).toBe(5935);
     expect(contextMeterSummary(p).title).toContain(`共 ${rowsChars} 字`);
+  });
+});
+
+describe("contextPressureReading（窗口压力 + 已挂入项数）", () => {
+  /** 夹具：24000 只是**测试里的分母样本**，真码里那枚数由主进程从 agent-runtime 递过来。 */
+  const WINDOW = 24000;
+  const withWindow = (over: Partial<ContextPreview> = {}): ContextPreview =>
+    preview({
+      windowApproxTokens: WINDOW,
+      items: [item()],
+      chars: 1200,
+      approxTokens: 900,
+      ...over
+    });
+
+  it("回包没给分母 ⇒ 整行不显形：拿不到窗口就宁可缺一行，也不许编一个百分比", () => {
+    const p = preview({ items: [item()], approxTokens: 900 });
+    expect(p.windowApproxTokens).toBeUndefined();
+    expect(contextPressureReading(p).visible).toBe(false);
+  });
+
+  it("分母为 0 / 负数（坏回包）⇒ 同样不显形，绝不当成「占满了」吓用户", () => {
+    expect(contextPressureReading(withWindow({ windowApproxTokens: 0 })).visible).toBe(false);
+    expect(contextPressureReading(withWindow({ windowApproxTokens: -1 })).visible).toBe(false);
+  });
+
+  it("没问过主进程 / 主进程说 empty / 装不出条目 ⇒ 都不显形（与折叠条同一套显形判据）", () => {
+    expect(contextPressureReading(null).visible).toBe(false);
+    expect(contextPressureReading(withWindow({ empty: true })).visible).toBe(false);
+    expect(contextPressureReading(withWindow({ items: [] })).visible).toBe(false);
+  });
+
+  it("百分比 = 装配 + 会话历史的合账 ÷ 分母（照第二十二节真机读数：5621 / 24000 ⇒ 23%）", () => {
+    const p = withWindow({
+      items: [
+        item({ chars: 16, title: "第一章 · 开局" }),
+        item({ chars: 17, title: "第二章 · 中段" })
+      ],
+      chars: 33,
+      approxTokens: 29,
+      history: stat()
+    });
+    const r = contextPressureReading(p);
+    expect(r.visible).toBe(true);
+    expect(r.text).toBe("窗口 ≈23% · 5.6k / 24.0k tokens");
+  });
+
+  it("分子与折叠条**同一个数**：两路读数里的 tokens 一字不差（不许各加一遍）", () => {
+    const p = withWindow({
+      items: [item()],
+      approxTokens: 600,
+      history: stat({ entries: 1, chars: 500, approxTokens: 500, droppedCount: 0, droppedChars: 0 })
+    });
+    expect(contextPressureReading(p).text).toContain(formatApproxTokens(1100));
+    expect(contextMeterSummary(p).text).toContain(formatApproxTokens(1100));
+  });
+
+  it("超过 100% 原样报，不夹顶：夹到 100 等于把「已经超了」这件最要紧的事藏起来", () => {
+    const p = withWindow({ approxTokens: 30000 });
+    expect(contextPressureReading(p).text).toContain("≈125%");
+    expect(contextPressureReading(p).title).toContain("已过保守窗口上界");
+  });
+
+  it("带过东西却不足 1% ⇒ 报 ≈1%，不报 ≈0%：0% 在屏上读起来像「什么都没带」", () => {
+    const p = withWindow({ approxTokens: 100 });
+    expect(contextPressureReading(p).text).toContain("≈1%");
+    expect(contextPressureReading(p).text).not.toContain("≈0%");
+  });
+
+  it("title 说清分母是**保守假设窗口**而不是模型真实上限（否则 100% 会被读成「模型要拒了」）", () => {
+    const title = contextPressureReading(withWindow()).title;
+    expect(title).toContain("保守假设窗口");
+    expect(title).toContain("不是模型真实上限");
+    expect(title).toContain("24.0k");
+  });
+
+  it("那句「丢了什么」只由 history-window 说：压力行不许重复那条截断文案", () => {
+    const p = withWindow({ history: stat({ entries: 1, chars: 100, approxTokens: 100 }) });
+    expect(contextPressureReading(p).text).not.toContain("没有发给模型");
+    expect(contextPressureReading(p).title).not.toContain("没有发给模型");
+  });
+
+  it("已挂入只数 kind=pinned 的那些；一项都没挂就整句不提", () => {
+    const withPinned = withWindow({
+      items: [
+        item(),
+        item({ kind: "pinned", relPath: "materials/雾.md" }),
+        item({ kind: "pinned", relPath: "skills/节拍.md" })
+      ]
+    });
+    expect(contextPressureReading(withPinned).text).toContain("已挂入 2 项");
+    expect(contextPressureReading(withPinned).title).toContain("@ 引用 / 加入上下文 / 技能");
+    expect(contextPressureReading(withWindow()).text).not.toContain("已挂入");
   });
 });
 

@@ -94,6 +94,30 @@ describe("展开面板", () => {
   it("面板不许自己 import agent-runtime（渲染层边界）", () => {
     expect(vueSource("components/ContextMeterPanel.vue")).not.toContain("@mochen/agent-runtime");
   });
+
+  it("压力行整句由 util 组好，面板只渲染：v-if 挂在 pressure.visible 上，模板不除窗口、不数条目", () => {
+    expect(meter).toContain("contextPressureReading(agent.contextPreview)");
+    expect(meterTpl).toContain(':pressure="pressure"');
+    expect(panelTpl).toContain('v-if="pressure?.visible"');
+    expect(panelTpl).toContain("{{ pressure.text }}");
+    // 反向钉子：面板一旦自己去碰分母或自己 filter 挂入条目，就是第二套口径（铁律 6）。
+    expect(panelTpl).not.toContain("windowApproxTokens");
+    expect(panelTpl).not.toContain("approxTokens");
+    expect(panel).not.toContain("windowApproxTokens");
+  });
+
+  it("24000 这枚假设窗口只许住在 agent-runtime：渲染层两份源码里一个字都不许出现", () => {
+    // 分母走契约（ContextPreview.windowApproxTokens）而不是走抄写——
+    // 一旦渲染层出现字面量，历史切片改了假设窗口，压力行就会安静地变成假数。
+    expect(meterUtil).not.toContain("24000");
+    expect(vueSource("components/ContextMeterPanel.vue")).not.toContain("24000");
+    expect(vueSource("components/ContextMeter.vue")).not.toContain("24000");
+  });
+
+  it("压力行只在展开面板出现：折叠 chip 的横向额度是稀缺资源，不往里塞第三段读数", () => {
+    expect(meterTpl).not.toContain("窗口 ≈");
+    expect(meterUtil).not.toContain("pressure.text");
+  });
 });
 
 describe("挂载点", () => {
@@ -117,6 +141,14 @@ describe("样式", () => {
   it('两段规则都非空壳（ruleBlock 已 trim，空壳读出 ""）', () => {
     expect(ruleBlock(css, ".context-meter")).not.toBe("");
     expect(ruleBlock(css, ".context-meter-panel")).not.toBe("");
+  });
+
+  it("压力行有自己的规则且不是空壳；字号走 rem（根字号 14px 那条纪律）", () => {
+    const pressure = ruleBlock(css, ".context-meter-pressure");
+    expect(pressure).not.toBe("");
+    expect(pressure).toContain("var(--text-secondary)");
+    expect(pressure).toContain("tabular-nums");
+    expect(pressure).not.toMatch(/font-size:\s*\d+px/);
   });
 
   it("浮层语言与阶段弹层同源：同样的描边、圆角、投影", () => {

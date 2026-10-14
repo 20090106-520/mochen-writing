@@ -38,6 +38,15 @@
   color: var(--text-tertiary);
 }
 
+/* 窗口压力行（清单第二刀 Wave 2）：比 note 跳一档、比截断提示收敛一档——它是常态读数，
+   只在真出事（超上界）时才该抢眼睛，所以给次级正文色 + 等宽数字，不给底色。
+   数字取自保守假设窗口，「假设」这两个字由 util 写在 title 里，这里不另起一句。 */
+.context-meter-pressure {
+  margin: 0;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 .context-meter-list {
   display: flex;
   flex-direction: column;
