@@ -152,6 +152,10 @@ describe("密度档 · 生效通路两头对得上", () => {
     expect(runtime).toContain("root.dataset.density = input.density;");
     // 漏了这一行 = 设置存进盘、CSS 永远不显形，而屏幕上完全看不出来。
     expect(/dataset\.density/.test(runtime)).toBe(true);
+    // 【这一条拦不住的那一类，由 appearance-density-runtime.test.ts 拦】
+    // 变异实测（2026-10-15）：把那一行**注释掉**（`// root.dataset.density = ...`）时，
+    // 上面两条子串判据照样全绿——子串只认「字在不在」，不认「跑不跑」。
+    // 所以同一条通路必须有一份真执行一遍的用例，两道闸各管各的盲区。
   });
 
   it("装配那一头递的是 settings 里的密度，不是又写死一枚出厂值", () => {
