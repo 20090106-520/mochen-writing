@@ -123,10 +123,13 @@ describe("book-backup：名与目录的真身", () => {
     expect(backupDirOf("C:/书")).toContain("backups");
   });
 
-  it("名字形状 book-yyyy-MM-dd-HH-mm-ss；人话时间从名字里解出来", () => {
-    expect(backupNameFor(T0)).toBe("book-2026-10-10-19-52-30");
+  it("名字形状 book-yyyy-MM-dd-HH-mm-ss-mmm；旧备份（秒精度）与人话时间照旧认", () => {
+    expect(backupNameFor(T0)).toBe("book-2026-10-10-19-52-30-000");
+    expect(BACKUP_NAME_RE.test("book-2026-10-10-19-52-30-000")).toBe(true);
+    // 旧形状（秒精度）必须继续认：用户盘上已经躺着的那批备份不许失联。
     expect(BACKUP_NAME_RE.test("book-2026-10-10-19-52-30")).toBe(true);
     expect(BACKUP_NAME_RE.test("book-2026-10-10")).toBe(false);
+    expect(backupCreatedAtLabel("book-2026-10-10-19-52-30-000")).toBe("2026-10-10 19:52:30");
     expect(backupCreatedAtLabel("book-2026-10-10-19-52-30")).toBe("2026-10-10 19:52:30");
     expect(backupCreatedAtLabel("something-else")).toBe("");
   });
@@ -137,13 +140,15 @@ describe("create：复制什么、何时跳过", () => {
     const { service, fs } = serviceWith("C:/书", [T0]);
     await seedBook(fs, "C:/书");
     const result = await service.create("manual");
-    expect(result).toEqual({ ok: true, name: "book-2026-10-10-19-52-30", fileCount: 2 });
+    expect(result).toEqual({ ok: true, name: "book-2026-10-10-19-52-30-000", fileCount: 2 });
     expect(
       new TextDecoder().decode(
-        await fs.readFile("C:/书/.mochen/backups/book-2026-10-10-19-52-30/chapters/第一章.md")
+        await fs.readFile("C:/书/.mochen/backups/book-2026-10-10-19-52-30-000/chapters/第一章.md")
       )
     ).toBe("正文一");
-    expect(await fs.exists("C:/书/.mochen/backups/book-2026-10-10-19-52-30/.mochen")).toBe(false);
+    expect(await fs.exists("C:/书/.mochen/backups/book-2026-10-10-19-52-30-000/.mochen")).toBe(
+      false
+    );
   });
 
   it("原子写的半成品既不进备份也不进计数（2026-10-11 真机：备份里躺过 .mochen-tmp-xxxx）", async () => {
@@ -156,20 +161,20 @@ describe("create：复制什么、何时跳过", () => {
     );
     const result = await service.create("manual");
     // 计数仍只有 book.json + 正文那两件。
-    expect(result).toEqual({ ok: true, name: "book-2026-10-10-19-52-30", fileCount: 2 });
-    expect(await fs.readdir("C:/书/.mochen/backups/book-2026-10-10-19-52-30/chapters")).toEqual([
-      "第一章.md"
-    ]);
+    expect(result).toEqual({ ok: true, name: "book-2026-10-10-19-52-30-000", fileCount: 2 });
+    expect(await fs.readdir("C:/书/.mochen/backups/book-2026-10-10-19-52-30-000/chapters")).toEqual(
+      ["第一章.md"]
+    );
     // 还原走同一个 copyTree：旧备份里躺着的半成品也不许被放生到书旁的新目录。
     await fs.writeFile(
-      "C:/书/.mochen/backups/book-2026-10-10-19-52-30/chapters/第一章.md.mochen-tmp-deadbeef",
+      "C:/书/.mochen/backups/book-2026-10-10-19-52-30-000/chapters/第一章.md.mochen-tmp-deadbeef",
       new TextEncoder().encode("写到一半")
     );
-    expect(await service.restore("book-2026-10-10-19-52-30")).toEqual({
+    expect(await service.restore("book-2026-10-10-19-52-30-000")).toEqual({
       ok: true,
-      destName: "书-恢复自备份-2026-10-10-19-52-30"
+      destName: "书-恢复自备份-2026-10-10-19-52-30-000"
     });
-    expect(await fs.readdir("C:/书-恢复自备份-2026-10-10-19-52-30/chapters")).toEqual([
+    expect(await fs.readdir("C:/书-恢复自备份-2026-10-10-19-52-30-000/chapters")).toEqual([
       "第一章.md"
     ]);
   });
@@ -179,13 +184,13 @@ describe("create：复制什么、何时跳过", () => {
     await seedBook(fs, "C:/书");
     expect(await service.create("daily")).toEqual({
       ok: true,
-      name: "book-2026-10-10-19-52-30",
+      name: "book-2026-10-10-19-52-30-000",
       fileCount: 2
     });
     expect(await service.create("daily")).toEqual({ ok: true, name: null, fileCount: 0 });
     // manual 档同一天照样再备一份：手动按钮不许被去重挡住。
     const again = await service.create("manual");
-    expect(again).toEqual({ ok: true, name: "book-2026-10-10-20-00-00", fileCount: 2 });
+    expect(again).toEqual({ ok: true, name: "book-2026-10-10-20-00-00-000", fileCount: 2 });
   });
 
   it("跨天 daily 再备一份（去重键是「哪一天」，不是「有没有备过」）", async () => {
@@ -193,7 +198,7 @@ describe("create：复制什么、何时跳过", () => {
     await seedBook(fs, "C:/书");
     await service.create("daily");
     const next = await service.create("daily");
-    expect(next).toEqual({ ok: true, name: "book-2026-10-11-08-00-00", fileCount: 2 });
+    expect(next).toEqual({ ok: true, name: "book-2026-10-11-08-00-00-000", fileCount: 2 });
   });
 
   it("没开书回 no-book；半途失败拆掉半成品目录", async () => {
@@ -232,8 +237,8 @@ describe("list 与保留上限", () => {
     await service.create("manual");
     const list = await service.list();
     expect(list.ok && list.entries.map((e) => e.name)).toEqual([
-      "book-2026-10-10-20-00-00",
-      "book-2026-10-10-19-52-30"
+      "book-2026-10-10-20-00-00-000",
+      "book-2026-10-10-19-52-30-000"
     ]);
   });
 
@@ -246,8 +251,8 @@ describe("list 与保留上限", () => {
     await service.create("manual");
     const list = await service.list();
     expect(list.ok && list.entries.map((e) => e.name)).toEqual([
-      "book-2026-10-11-08-00-00",
-      "book-2026-10-10-20-00-00"
+      "book-2026-10-11-08-00-00-000",
+      "book-2026-10-10-20-00-00-000"
     ]);
     expect(await fs.exists("C:/书/.mochen/backups/我的手工备份")).toBe(true);
   });
@@ -258,11 +263,11 @@ describe("restore：落点与盖写防线", () => {
     const { service, fs } = serviceWith("C:/书", [T0]);
     await seedBook(fs, "C:/书");
     await service.create("manual");
-    const result = await service.restore("book-2026-10-10-19-52-30");
-    expect(result).toEqual({ ok: true, destName: "书-恢复自备份-2026-10-10-19-52-30" });
+    const result = await service.restore("book-2026-10-10-19-52-30-000");
+    expect(result).toEqual({ ok: true, destName: "书-恢复自备份-2026-10-10-19-52-30-000" });
     expect(
       new TextDecoder().decode(
-        await fs.readFile("C:/书-恢复自备份-2026-10-10-19-52-30/chapters/第一章.md")
+        await fs.readFile("C:/书-恢复自备份-2026-10-10-19-52-30-000/chapters/第一章.md")
       )
     ).toBe("正文一");
     // 原书原样还在（恢复期间它保持可写）。
@@ -273,15 +278,17 @@ describe("restore：落点与盖写防线", () => {
     const { service, fs } = serviceWith("C:/书", [T0]);
     await seedBook(fs, "C:/书");
     await service.create("manual");
-    await fs.mkdir("C:/书-恢复自备份-2026-10-10-19-52-30", { recursive: true });
+    await fs.mkdir("C:/书-恢复自备份-2026-10-10-19-52-30-000", { recursive: true });
     await fs.writeFile(
-      "C:/书-恢复自备份-2026-10-10-19-52-30/旧文件.txt",
+      "C:/书-恢复自备份-2026-10-10-19-52-30-000/旧文件.txt",
       new TextEncoder().encode("别动我")
     );
-    const result = await service.restore("book-2026-10-10-19-52-30");
-    expect(result).toEqual({ ok: true, destName: "书-恢复自备份-2026-10-10-19-52-30-2" });
+    const result = await service.restore("book-2026-10-10-19-52-30-000");
+    expect(result).toEqual({ ok: true, destName: "书-恢复自备份-2026-10-10-19-52-30-000-2" });
     expect(
-      new TextDecoder().decode(await fs.readFile("C:/书-恢复自备份-2026-10-10-19-52-30/旧文件.txt"))
+      new TextDecoder().decode(
+        await fs.readFile("C:/书-恢复自备份-2026-10-10-19-52-30-000/旧文件.txt")
+      )
     ).toBe("别动我");
   });
 
@@ -291,7 +298,7 @@ describe("restore：落点与盖写防线", () => {
     await service.create("manual");
     for (const bad of [
       "..",
-      "book-2026-10-10-19-52-30/../../etc",
+      "book-2026-10-10-19-52-30-000/../../etc",
       "随便",
       "book-2026-13-99-00-00-00"
     ]) {

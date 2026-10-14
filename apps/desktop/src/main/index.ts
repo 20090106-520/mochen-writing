@@ -220,6 +220,12 @@ app.whenReady().then(async () => {
       preload: fileURLToPath(new URL("../preload/index.mjs", import.meta.url)),
       contextIsolation: true,
       nodeIntegration: false,
+      // 2026-10-14 审计项 6 的判定：沙箱**想开，但本机开不了**。对照实验两轮——
+      // sandbox:true 下 GPU 进程连环崩（exit_code=-1073741819，加 --disable-gpu-sandbox 也好不全面），
+      // 渲染进程页面加载挂死（page target 空标题空 URL、executeJavaScript 永不应答）；
+      // --no-sandbox 则一切正常。本机/本环境里 Chromium 子进程沙箱是坏的（疑似安全软件或驱动干扰），
+      // 硬开沙箱等于交付一个渲染不出界面的应用。防御由其余几道闸承担：contextIsolation、
+      // nodeIntegration:false、will-navigate/setWindowOpenHandler 双闸、来源校验的 IPC、CSP。
       sandbox: false
     }
   });
@@ -467,9 +473,12 @@ app.whenReady().then(async () => {
     trustedHandler(
       IPC_CHANNELS.saveFileExport,
       async (_evt, content: string | Uint8Array, filename: string, title?: string) => {
+        // 2026-10-14 审计项 6：渲染层递来的名字只取末段——路径分隔符与 `..` 在这里全部剥掉，
+        // 对话框永远从默认目录起跳。用户在对话框里亲手选的落点不受影响（那一步是用户自己确认的）。
+        const safeName = path.basename(typeof filename === "string" ? filename : "").trim();
         const result = await dialog.showSaveDialog(win, {
           title: title ?? "保存文件",
-          defaultPath: filename,
+          ...(safeName === "" ? {} : { defaultPath: safeName }),
           filters: [{ name: "所有文件", extensions: ["*"] }]
         });
         if (result.canceled || !result.filePath) return false;

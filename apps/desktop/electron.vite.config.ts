@@ -31,7 +31,12 @@ export default defineConfig({
   preload: {
     build: {
       lib: { entry: "src/preload/index.ts" },
-      externalizeDeps: { exclude: ["@mochen/contracts"] }
+      externalizeDeps: { exclude: ["@mochen/contracts"] },
+      rollupOptions: {
+        // electron 必须留在外面（2026-10-14 真机教训）：内联进 bundle 会把 electron 包的
+        // 安装器脚本（require fs/child_process）也打进去——将来若开沙箱，preload 加载即炸。
+        external: ["electron"]
+      }
     }
   },
   renderer: {

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { streamChat, type ProviderFetchResult, type StreamEvent } from "../src/provider-client.js";
+import {
+  retryWaitMsOf,
+  streamChat,
+  type ProviderFetchResult,
+  type StreamEvent
+} from "../src/provider-client.js";
 import { chatMessage } from "../src/chat-message.js";
 
 // 与 provider-client.test.ts 的同名夹具同口径（重试间隔钉在 1ms）。
@@ -110,5 +115,33 @@ describe("streamChat · 连接期一次性自动重试（2026-10-11）", () => {
     const events = await pending;
     expect(events.at(-1)).toEqual({ kind: "finish", reason: "aborted" });
     expect(calls).toBe(1);
+  });
+});
+
+describe("retryWaitMsOf · 等多久的判定真身（2026-10-14 审计项 7）", () => {
+  it("测试钉死的 retryDelayMs 最优先", () => {
+    expect(
+      retryWaitMsOf(
+        { retryDelayMs: 1 },
+        { status: 429, stream: null, errorText: "", retryAfterMs: 9_000 }
+      )
+    ).toBe(1);
+  });
+
+  it("其次听上游的 Retry-After，封顶 60 秒", () => {
+    expect(
+      retryWaitMsOf({}, { status: 429, stream: null, errorText: "", retryAfterMs: 4_000 })
+    ).toBe(4_000);
+    expect(
+      retryWaitMsOf({}, { status: 503, stream: null, errorText: "", retryAfterMs: 600_000 })
+    ).toBe(60_000);
+    expect(retryWaitMsOf({}, { status: 503, stream: null, errorText: "", retryAfterMs: 0 })).toBe(
+      1_500
+    );
+  });
+
+  it("都没有才落到默认默哀", () => {
+    expect(retryWaitMsOf({}, undefined)).toBe(1_500);
+    expect(retryWaitMsOf({}, { status: 500, stream: null, errorText: "busy" })).toBe(1_500);
   });
 });

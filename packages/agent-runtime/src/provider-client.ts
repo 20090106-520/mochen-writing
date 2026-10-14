@@ -20,6 +20,8 @@ export interface ProviderFetchResult {
   status: number;
   stream: AsyncIterable<Uint8Array> | null;
   errorText: string;
+  /** 上游 `Retry-After` 头折算出的毫秒数（provider-fetch 解好；没有这颗头就缺省）。 */
+  retryAfterMs?: number;
 }
 
 export type ProviderFetch = (input: ProviderFetchInput) => Promise<ProviderFetchResult>;
@@ -94,6 +96,25 @@ export interface StreamRequest {
  */
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 export const STREAM_RETRY_DELAY_MS = 1_500;
+
+/** Retry-After 的上限：上游说等多久就等多久，但一轮对话不该为一发重试静默站一小时。 */
+export const RETRY_AFTER_MAX_MS = 60_000;
+
+/**
+ * 本轮重试等多久（2026-10-14 审计项 7 的判定真身）：
+ * 测试注入的 `retryDelayMs` 最优先（钉死时序用）；其次是上游 `Retry-After` 头
+ * （服务端说等多久就等多久，封顶 {@link RETRY_AFTER_MAX_MS}）；都没有才落到默认默哀。
+ * 判定收成一份纯函数：provider-fetch 负责把头**解出来**，这里只决定**听谁的**。
+ */
+export function retryWaitMsOf(
+  req: { retryDelayMs?: number },
+  result?: ProviderFetchResult
+): number {
+  if (req.retryDelayMs !== undefined) return req.retryDelayMs;
+  const upstream = result?.retryAfterMs;
+  if (upstream !== undefined && upstream > 0) return Math.min(upstream, RETRY_AFTER_MAX_MS);
+  return STREAM_RETRY_DELAY_MS;
+}
 
 export class ProviderError extends Error {}
 
@@ -266,7 +287,6 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
 
   // 连接期（发请求 → 拿到响应头）带一次性重试：见 RETRYABLE_STATUS 处的说明。
   // 字节一旦开始吐就不再有重试——那之后的失败由既有的看门狗与 abort 语义接管。
-  const retryDelayMs = req.retryDelayMs ?? STREAM_RETRY_DELAY_MS;
   let result: ProviderFetchResult | null = null;
   let connectError: unknown = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -292,14 +312,14 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
       (result !== null && RETRYABLE_STATUS.has(result.status));
     // 不可重试的失败（4xx 之类）或已是第二次尝试：跳出循环，走下面既有的错误通路。
     if (!retryable || attempt === 1) break;
-    // 默哀一秒半再试。abort-aware：等待期间被打断就直接收成 aborted——
-    // 人都叫停了，第二发不该再出网。
+    // 默哀再试。等多久由 retryWaitMsOf 一份判定（测试钉死 > 上游 Retry-After > 默认）。
+    // abort-aware：等待期间被打断就直接收成 aborted——人都叫停了，第二发不该再出网。
     const aborted = await new Promise<boolean>((resolve) => {
       if (req.signal.aborted) {
         resolve(true);
         return;
       }
-      const timer = setTimeout(() => resolve(false), retryDelayMs);
+      const timer = setTimeout(() => resolve(false), retryWaitMsOf(req, result ?? undefined));
       req.signal.addEventListener(
         "abort",
         () => {

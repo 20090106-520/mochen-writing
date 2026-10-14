@@ -740,3 +740,20 @@ describe("runTurn · 工具与打断的鲁棒性（2026-10-14 审计项 1/2）",
     expect(harness.events.some((e) => e.type === "interrupted")).toBe(true);
   });
 });
+
+describe("runTurn · maxToolRounds 的守卫（2026-10-14 审计项 7）", () => {
+  it("传 0 不再静默返回空结果：至少跑一轮，模型照常说话", async () => {
+    const { deps, harness } = makeDeps(
+      [
+        [
+          { kind: "text-delta", text: "说" },
+          { kind: "finish", reason: "stop" }
+        ]
+      ],
+      { ok: true, text: "", proposals: [] }
+    );
+    const out = await runTurn({ ...deps, maxToolRounds: 0 }, input);
+    expect(out.status).toBe("done");
+    expect(harness.sentMessages.length).toBe(1);
+  });
+});

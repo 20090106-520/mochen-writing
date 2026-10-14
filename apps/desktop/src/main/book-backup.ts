@@ -33,14 +33,15 @@ export function backupDirOf(root: string): string {
   return path.join(root, ".mochen", "backups");
 }
 
-/** 备份目录名形状：`book-<yyyy-MM-dd-HH-mm-ss>`。还原/清理只认这一份正则。 */
-export const BACKUP_NAME_RE = /^book-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$/;
+/** 备份目录名形状：`book-<yyyy-MM-dd-HH-mm-ss>[-mmm]`。毫秒段是 2026-10-14 审计项 7 加的，
+ * 旧备份（秒精度）照旧认——还原/清理只认这一份正则。 */
+export const BACKUP_NAME_RE = /^book-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}(-\d{3})?$/;
 
 /** 从备份目录名解出人话时间（`2026-10-10 19:52:30`）；不合形状的返回空串。 */
 export function backupCreatedAtLabel(name: string): string {
   const match = BACKUP_NAME_RE.exec(name);
   if (match === null) return "";
-  const body = name.slice("book-".length);
+  const body = name.slice("book-".length).replace(/-\d{3}$/, "");
   return `${body.slice(0, 10)} ${body.slice(11).replaceAll("-", ":")}`;
 }
 
@@ -129,12 +130,13 @@ async function copyTree(
   return count;
 }
 
-/** 时间戳 → 备份目录名（`book-2026-10-10-19-52-30`）。 */
+/** 时间戳 → 备份目录名（`book-2026-10-10-19-52-30-123`，毫秒精度）。
+ * 秒精度在连续手动备份时会撞名——后一份把前一份整个盖掉，备份反而变成丢失的入口。 */
 export function backupNameFor(date: Date): string {
-  const pad = (n: number): string => String(n).padStart(2, "0");
+  const pad = (n: number, width = 2): string => String(n).padStart(width, "0");
   return `book-${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}-${pad(
     date.getHours()
-  )}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`;
+  )}-${pad(date.getMinutes())}-${pad(date.getSeconds())}-${pad(date.getMilliseconds(), 3)}`;
 }
 
 export function createBookBackupService(deps: BookBackupServiceDeps): BookBackupService {

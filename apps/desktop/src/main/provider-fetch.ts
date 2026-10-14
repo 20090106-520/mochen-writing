@@ -1,5 +1,5 @@
 import type { ProviderFetch, ProviderFetchInput, ProviderFetchResult } from "@mochen/agent-runtime";
-import { ProviderError } from "@mochen/agent-runtime";
+import { ProviderError, RETRY_AFTER_MAX_MS } from "@mochen/agent-runtime";
 import type { WebFetchLike } from "./web-search.js";
 
 /**
@@ -193,6 +193,22 @@ export function assertUpstreamUrlAllowed(rawUrl: string): void {
 }
 
 /**
+ * `Retry-After` 头折算成毫秒（2026-10-14 审计项 7）。秒数与 HTTP-date 两种形状都认；
+ * 解不出就不缺省这颗字段——等多久的那份判定住在 provider-client 的 `retryWaitMsOf`，
+ * 这里只负责把上游的话翻译出来，绝不发明数字。
+ */
+export function retryAfterMsOf(headers: Headers, now = Date.now()): number | undefined {
+  const raw = headers.get("retry-after");
+  if (raw === null) return undefined;
+  const seconds = Number(raw);
+  if (raw.trim() !== "" && Number.isFinite(seconds) && seconds >= 0)
+    return Math.min(seconds * 1000, RETRY_AFTER_MAX_MS);
+  const at = Date.parse(raw);
+  if (!Number.isNaN(at)) return Math.max(0, Math.min(at - now, RETRY_AFTER_MAX_MS));
+  return undefined;
+}
+
+/**
  * 全局 fetch → ProviderFetch 的适配。请求对象原样交给 send（密钥只在 headers 里，
  * 由 provider-client 拼好），本函数不碰 url、不碰 body、不写任何日志。
  * 网络错误一律原样抛出：streamChat 会按「是否已打断」分别处理（Task 3）。
@@ -238,7 +254,14 @@ export function toProviderFetch(
         // 其余读体失败仍按老行为吞成空串，由上层写「无响应体」——那是状态码已知、只是没解释。
         errorText = "";
       }
-      return { status: response.status, stream: null, errorText };
+      const retryAfter = retryAfterMsOf(response.headers);
+      return {
+        status: response.status,
+        stream: null,
+        errorText,
+        // exactOptionalPropertyTypes：头不在就缺省，不写 undefined。
+        ...(retryAfter === undefined ? {} : { retryAfter })
+      };
     }
     return {
       status: response.status,

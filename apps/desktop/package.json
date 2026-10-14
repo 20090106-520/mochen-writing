@@ -1,6 +1,7 @@
 {
   "name": "@mochen/desktop",
   "version": "0.1.0",
+  "license": "UNLICENSED",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",

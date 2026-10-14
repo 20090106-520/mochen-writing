@@ -181,7 +181,12 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
   ];
   let pendingProposals = 0;
 
-  for (let round = 0; round < deps.maxToolRounds; round += 1) {
+  // 上限的守卫（2026-10-14 审计项 7）：0 与负数在旧循环里是「模型一个字都不发就 done」——
+  // 静默的空结果比把话说出口更坏；非整数一律收口到 1。真身只传常量，这层兜的是未来的手滑。
+  const maxRounds = Number.isFinite(deps.maxToolRounds)
+    ? Math.max(1, Math.floor(deps.maxToolRounds))
+    : 1;
+  for (let round = 0; round < maxRounds; round += 1) {
     // P1-1 的③之一：**每轮开头**查一次打断。
     // 上一轮那条工具可能正好跑着用户按了 Esc——那时照样发下一笔请求，界面上就是
     // 「按了打断还在转圈」。（这里不做整轮硬总时长：长回答会被误杀，只掐「没有任何新字节」，
@@ -389,9 +394,9 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
       }
       messages.push(toolMessage(call.id, outcome.text));
     }
-    if (round === deps.maxToolRounds - 1) {
+    if (round === maxRounds - 1) {
       // 上限计的是「轮」不是「次」：一轮可以派发好几个工具调用，单位写错会让用户以为还能再调几次。
-      const message = `本轮工具调用达到上限（${deps.maxToolRounds} 轮），已停下等你介入。`;
+      const message = `本轮工具调用达到上限（${maxRounds} 轮），已停下等你介入。`;
       emitSimple({ type: "error", message });
       return { status: "failed", message };
     }

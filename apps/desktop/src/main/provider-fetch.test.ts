@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ProviderFetchInput } from "@mochen/agent-runtime";
 import { ProviderError } from "@mochen/agent-runtime";
-import { assertUpstreamUrlAllowed, toProviderFetch } from "./provider-fetch.js";
+import { assertUpstreamUrlAllowed, retryAfterMsOf, toProviderFetch } from "./provider-fetch.js";
 
 const enc = new TextEncoder();
 
@@ -318,5 +318,29 @@ describe("出网地址闸（2026-10-14 审计项 4）", () => {
       /https/
     );
     expect(called).toBe(false);
+  });
+});
+
+describe("Retry-After 折算（2026-10-14 审计项 7）", () => {
+  it("秒数形状：Retry-After: 2 ⇒ 2000ms", () => {
+    const headers = new Headers({ "retry-after": "2" });
+    expect(retryAfterMsOf(headers)).toBe(2000);
+  });
+
+  it("HTTP-date 形状：按现在到那一刻的差算（HTTP-date 秒级截断，只断言区间），过去那刻收 0", () => {
+    const at = Date.now() + 5_000;
+    const wait = retryAfterMsOf(new Headers({ "retry-after": new Date(at).toUTCString() }));
+    expect(wait).toBeGreaterThan(4_000);
+    expect(wait).toBeLessThanOrEqual(5_000);
+    expect(retryAfterMsOf(new Headers({ "retry-after": "Wed, 21 Oct 2015 07:28:00 GMT" }))).toBe(0);
+  });
+
+  it("解不出就不缺省这颗字段：等多久由 provider-client 的判定说了算，这里不发明数字", () => {
+    expect(retryAfterMsOf(new Headers())).toBeUndefined();
+    expect(retryAfterMsOf(new Headers({ "retry-after": " soon " }))).toBeUndefined();
+  });
+
+  it("上游要等太久也不许全听：封顶 60 秒", () => {
+    expect(retryAfterMsOf(new Headers({ "retry-after": "86400" }))).toBe(60_000);
   });
 });
