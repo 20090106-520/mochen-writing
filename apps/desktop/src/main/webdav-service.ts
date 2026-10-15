@@ -28,11 +28,9 @@ import type { WebdavConfigStore } from "./webdav-config-store.js";
 /**
  * WebDAV 远程备份服务（2026-10-15）。
  *
- * 【铁律 6 暂时豁免】
- * `provider-fetch.ts:assertUpstreamUrlAllowed` 与 `webdav-client.ts:isWebdavUrlAllowed` 是
- * 同一份判据的两处复述——provider 那份抛 `ProviderError`，而 webdav-client 不应依赖
- * agent-runtime（包边界检查会红）。本刀先就地复述，下一刀抽到 `upstream-url.ts` 一并归一。
- * 取舍记在台账第六十八节。
+ * 【URL 白名单判据不在此处另写】
+ * 出网地址判据的真身在 `./upstream-url.ts`（与 `provider-fetch` 同一份）——第七十三节把
+ * 第六十八节记的「暂时豁免」归一了。本服务只取 `isWebdavUrlAllowed` 的 boolean 结果。
  *
  * 【verify 不要求开书】
  * push / list / pull 要落到 `<url>/<bookId>/<name>/`，没书就没有 bookId；但 verify 只是探活，

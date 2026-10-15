@@ -1,5 +1,6 @@
 import type { ProviderFetch, ProviderFetchInput, ProviderFetchResult } from "@mochen/agent-runtime";
 import { ProviderError, RETRY_AFTER_MAX_MS } from "@mochen/agent-runtime";
+import { judgeUpstreamUrl } from "./upstream-url.js";
 import type { WebFetchLike } from "./web-search.js";
 
 /**
@@ -169,23 +170,18 @@ function bodyWithIdleWatchdog(
  * 「这个上游地址允许出网吗」（2026-10-14 审计项 4）。
  *
  * 密钥与全文都走这一个地址：明文 http 等于把它们裸送给链路上的任何一台设备。
- * 只放行 https；本机回环的 http 除外——ollama / LM Studio 都长在 127.0.0.1 上，
- * 本机流量不出网卡，谈不上「明文外送」。
+ * 判据（https，或本机回环的 http）的**真身住在 `./upstream-url.ts`**——与 webdav-client
+ * 同一份，第六十八节记的那半句「暂时豁免」在本刀归一（台账第七十三节）。这里只负责把
+ * 三态翻成两句话：解析不出怪地址本身，协议不合怪明文出网会把密钥裸送。
  *
  * 为什么闸在 provider-fetch（真正出网的那只手）而不是只在保存配置的 schema：
  * 旧配置文件里可能已经躺着一条明文 http 地址（读取 schema 必须保持宽松，
  * 收紧会把整份 store 判成坏文件）——存档读得进来，但请求发不出去，两头都诚实。
  */
 export function assertUpstreamUrlAllowed(rawUrl: string): void {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    throw new ProviderError(`模型服务端地址不是合法 URL：${rawUrl}`);
-  }
-  if (parsed.protocol === "https:") return;
-  const loopback = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(parsed.hostname);
-  if (parsed.protocol === "http:" && loopback) return;
+  const verdict = judgeUpstreamUrl(rawUrl);
+  if (verdict === "ok") return;
+  if (verdict === "not-a-url") throw new ProviderError(`模型服务端地址不是合法 URL：${rawUrl}`);
   throw new ProviderError(
     "模型服务端地址必须是 https://，或本机地址（localhost、127.0.0.1、::1）——" +
       "明文 http 会把 API Key 和全文原样裸送出去。"

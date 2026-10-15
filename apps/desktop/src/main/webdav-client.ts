@@ -9,10 +9,11 @@
  * 【不依赖 electron、不依赖 agent-runtime】
  * electron 在这一层用不到（fetch 由 service 注入，主进程 `fetch` 与 `net.fetch` 都行）；
  * agent-runtime 的 `ProviderError` 也不该漏进来——WebDAV 出网错误对渲染层是「连不上」，
- * 与「模型上游连不上」是两个语义。所以 URL 白名单判据这里**就地复述一份**：
- * 与 `provider-fetch.ts:assertUpstreamUrlAllowed` 同口径（https 或本机回环 http），
- * 铁律 6 的暂时豁免理由见 `webdav-service.ts` 头注释，台账第六十八节记下这个取舍。
+ * 与「模型上游连不上」是两个语义。URL 白名单因此只取 boolean 适配（判据真身在
+ * `./upstream-url.ts`，与 `provider-fetch` 同一份，台账第七十三节把第六十八节记的
+ * 「暂时豁免」归一了），本文件不再另写一份判据。
  */
+import { judgeUpstreamUrl } from "./upstream-url.js";
 
 /** 窄 fetch 面：service 注入真 fetch，单测注入「按 url / 方法回固定状态码与 body」。 */
 export interface WebdavRequestInit {
@@ -61,23 +62,12 @@ export const nodeWebdavFetch: WebdavFetch = async (init) => {
 };
 
 /**
- * 上游 URL 白名单（与 `provider-fetch.ts:assertUpstreamUrlAllowed` 同口径）。
- *
- * 只放行 https；http 仅本机回环例外（与 ollama 同档理由：本机流量不出网卡）。
- * 这条判据**两处各写一份**——provider-fetch 那份抛 `ProviderError`，
- * 而 webdav-client 不应依赖 agent-runtime（包边界检查会红），所以这里返回 boolean。
- * 取舍记在台账第六十八节「判据暂未抽出」一节；下一刀抽到 `upstream-url.ts` 时两处一并归一。
+ * WebDAV 出网地址白名单——判据真身在 `./upstream-url.ts`（与 `provider-fetch` 同一份），
+ * 这里只留 boolean 适配形状：WebDAV 这一层只需知道「能不能出网」，不关心是「解析不出」
+ * 还是「协议不合」（那是 provider-fetch 才要分两句的话）。
  */
 export function isWebdavUrlAllowed(rawUrl: string): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    return false;
-  }
-  if (parsed.protocol === "https:") return true;
-  const loopback = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(parsed.hostname);
-  return parsed.protocol === "http:" && loopback;
+  return judgeUpstreamUrl(rawUrl) === "ok";
 }
 
 /** `Authorization: Basic <base64>`。用户名 / 密码里有非 ASCII 时按 UTF-8 编码（RFC 7617）。 */

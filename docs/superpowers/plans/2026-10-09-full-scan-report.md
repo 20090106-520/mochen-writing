@@ -6226,3 +6226,45 @@ useAgentStore.ts 790 行未越 800）/ vitest（356 文件 **4663 通过** 2 ski
 
 **划掉**：无（本节是从零补齐，不是收口前面留下的半条路）。
 **仍等同用户一句话的**：无。
+
+---
+
+## 第七十三节：上游地址白名单判据归一（`upstream-url.ts`）
+
+**为什么必须做**：第六十八节「取舍记入台账」第 1 条——`provider-fetch.ts:assertUpstreamUrlAllowed`
+与 `webdav-client.ts:isWebdavUrlAllowed` 是同一份判据（https，或本机回环 http）的两处复述。
+两处各写一份，改一处漏一处就是两套口径（铁律 6）。本节把它抽成一份真身，两处只留各自对外的适配形状。
+
+**落在哪里 + 纠正第六十八节的一处断言**：真身落 `apps/desktop/src/main/upstream-url.ts`。
+第六十八节当时记的理由是「`webdav-client` 不应依赖 agent-runtime（包边界检查会红）」——
+但两处判据其实**同在主进程**（`provider-fetch.ts` 与 `webdav-client.ts` 都在 `apps/desktop/src/main/`），
+彼此是同一目录里的相对引用，根本不涉及包边界。所以这次是零风险的目录内重构：不新增包、
+不动 `exports`、不碰 `check-package-boundary.mjs`。
+
+**为什么返回三态（`"ok" | "not-a-url" | "not-allowed"`）而不是 boolean**：两处对外的**话术**不同——
+provider-fetch 把「解析不出」与「协议不合」说成两句不同的话（一处怪地址本身、一处怪明文出网会
+把密钥裸送），压成 boolean 就把这份区分丢了。三态正是这条判据的真实粒度：`webdav-client` 只取
+`=== "ok"`，`provider-fetch` 按档给两句。这是本刀唯一「没有最小化」的地方，理由记在这儿。
+
+**两处适配形状（对外签名一字未改）**：
+- `provider-fetch.ts` 的 `assertUpstreamUrlAllowed` 仍是 void + 抛 `ProviderError`，两句话照旧；
+- `webdav-client.ts` 的 `isWebdavUrlAllowed` 收成一行 `judgeUpstreamUrl(rawUrl) === "ok"`，
+  对 `webdav-service.ts` 的调用点零改动。
+
+**改动文件**：
+- 新增 `apps/desktop/src/main/upstream-url.ts`（判据真身 + `UpstreamUrlVerdict` 三态）
+- 新增 `apps/desktop/src/main/upstream-url.test.ts`（5 例；钉住 `not-a-url` 与 `not-allowed` 的区分
+  ——这一档只有判据本体自己能钉，两处适配层都看不见）
+- `provider-fetch.ts`（头注释 + 函数体改接真身）、`webdav-client.ts`（头注释 + 判据收成一行）、
+  `webdav-service.ts`（头注释把「铁律 6 暂时豁免」块换成「判据不在此处另写」）
+
+**变异实测一处红后原样回退**：`upstream-url.ts` 去掉 `&& loopback`（http 一律放行）⇒ 红 6 条，
+跨三层：判据本体（`not-allowed` 档）+ provider-fetch（明文地址该抛却没抛、`/https/` 那条）+
+webdav-client（http 非回环该拒）——即这条判据对**两个适配层都承重**，不是摆设。
+
+**门禁**：prettier（5 个改动文件）/ tsc（6 项目）/ eslint / boundary / 行数预算（702 份，
+新增 2 份）/ vitest（357 文件 **4668 通过** 2 skipped，比第七十二节 +1 文件 +5 用例）全绿。
+
+**划掉**：第六十八节「取舍记入台账」第 1 条那句「下一刀抽到 `upstream-url.ts` 时两处一并归一」
+——本刀做完了；铁律 6 的这半格豁免到此结束。
+**仍等同用户一句话的**：无。
