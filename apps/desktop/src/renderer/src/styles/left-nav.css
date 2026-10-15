@@ -147,11 +147,12 @@ html[data-platform="darwin"] .sidebar-brand-row {
 /* 选中态（演示图工作台那一行的浅底高亮）：视图只有工作台 / 设置两种，互相排斥。 */
 .nav-row.is-active {
   background: var(--selected);
-  color: var(--accent);
-  /* 选中行右侧那枚快捷键 `kbd` 是三级灰，压在 selected 档只有 4.09:1。
-     （svg 不用管：下一条规则已经把它收成 accent。）
-     字色本身是「accent 当字色」另一族病，本批只登记不动，见台账 §二十九。
+  /* 字色是正文级：theme-runtime.css 那条 :where(.nav-row.is-active, …) 本意就是它，是本条
+     (0,2,0) 把 accent 覆上去、浅底 6/8 套掉出 4.5（16 组实测 9 组不达标，最低 3.42）。
+     2026-10-15 改回正文级；主题感留给下一条 `svg` 的 accent（非文本，3:1 线，同一对色过线）。
      判据见 composables/appearance-surface-ladder.test.ts。 */
+  color: var(--text-primary);
+  /* 选中行右侧那枚快捷键 `kbd` 是三级灰，压在 selected 档只有 4.09:1 ⇒ 本档升到状态档灰。 */
   --text-tertiary: var(--text-on-state);
 }
 

@@ -6353,3 +6353,46 @@ typecheck 阶段机械红（比人工数站点稳），运行期则照旧由 `in
 **划掉**：第六十九节留在 `channel-trust.ts` 的两处「sensitive 档留下一刀
 （要求"没有进行中的 agent 轮"等更严判据要装第二个查询器）」——本刀做完了。
 **仍等同用户一句话的**：无。
+
+## 第七十五节：侧栏选中行的字色（「accent 当字色」那一族的第一处，2026-10-15）
+
+**为什么先动这一处**：第三十节 §四 把「accent 被当字色」整族登记成「等用户拍板」，族里 4 处豁免还在
+普查表上挂着（`appearance-surface-ladder.test.ts` 第 233 / 326 / 352 / 388 行）；`.nav-row.is-active`
+是其中最该先动的一处——它压在**状态档底**（`--selected` ≡ `--surface-selected`）上，且是全站看得最多的
+一行字（工作台入口 / 技能库 / 插件 / 皮肤广场都走这条规则）。实测 16 组里 9 组不到 4.5:1，最低 3.42
+（灯楼·晴昼 浅档）。
+
+**口径（本节自定）**：不是换一枚新 token，而是**删掉本层的覆写**。`theme-runtime.css` 那条
+`html[data-theme] :where(.nav-row.is-active, .tree-row.is-selected) { …; color: var(--text-primary) }`
+的**本意就是正文级字色**，是左栏这条 `.nav-row.is-active`（(0,2,0)）压过它（(0,1,1)）把字色覆写成
+`var(--accent)`。所以修法＝改回 `color: var(--text-primary)`：**主题层早就写着正确答案，是本层覆写
+把它打回去**。主题感不丢——下一条 `.nav-row.is-active svg { color: var(--accent) }` 原样保留（图标是
+非文本，按 3:1 线；同一对色 16 组最低 3.42 也过线），选中行仍是「accent 图标 ＋ 状态档底」。
+
+**为什么不新增数值断言**：正文级 × 五档 ≥ 7:1 这条数值律**已经**把 `--text-primary` 压 selected 档钉死了
+（数值律的 rungs 含 selected），换过去必然 ≥7:1。本轮只动**结构普查**那一条判词，不立第二份判据（铁律 6）。
+
+**先写会红的用例**（本刀顺序）：先改普查表那条判词（`exempt: "accent-as-text"` ⇒ `primary: true`，
+保留 `shadow: ["--text-tertiary"]`）⇒ 红：
+
+    AssertionError: styles/left-nav.css :: .nav-row.is-active：
+    判词说要写明正文级字色，块里的 color 是 var(--accent)
+
+再改 CSS（`color: var(--accent)` → `color: var(--text-primary)`）⇒ 绿。`shadow` 那条
+（`kbd` 压 selected 档只有 4.09:1 ⇒ 本档升到 `--text-on-state`）原样不动。
+
+**变异一处**：把 CSS 改回 `color: var(--accent)` ⇒ 红 1 条（上面那句判词），随后原样回退。
+
+**改动文件**：`apps/desktop/src/renderer/src/styles/left-nav.css`（1 行实现 + 注释重写）、
+`apps/desktop/src/renderer/src/composables/appearance-surface-ladder.test.ts`（1 条判词）。
+
+**门禁**：prettier（2 文件）/ tsc（6 项目）/ eslint / boundary / 行数预算（703 份）/ vitest
+（358 文件 4673 通过 2 skipped）全绿。
+
+**旧节失效的一处**：§四 那批 16 组读数里 `.nav-row.is-active` 的**字色**那一列（9 组 <4.5、最低 3.42）
+随本节失效——改后字色是正文级（≥7:1）。§四 的读数照旧留着当当时的现场记录，不回头改。
+
+**划掉**：第三十节 §四 第 2 条「accent 当字色那一族（本节点四）等用户拍板，不在本刀」——这一族的
+**第一处**做完了（族里其余 4 处豁免不在本刀）。
+**仍等同用户一句话的**：① `.nav-row kbd` 死规则（§三：删规则 vs 给左栏真补键帽）；② 广场卡那 2/16 格
+（`2026-10-08-tertiary-contrast-report.md` §五 的 A/B/C）。

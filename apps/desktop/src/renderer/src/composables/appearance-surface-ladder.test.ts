@@ -267,12 +267,13 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
     file: "styles/left-nav.css",
     sites: [
       {
+        /* 这里原先是 `accent-as-text` 豁免：本层 (0,2,0) 覆写掉 theme-runtime.css 那条本意给它
+           正文色的 `:where()`，浅底 6/8 套不到 4.5（实测 16 组里 9 组不达标，最低 3.42）。
+           2026-10-15 修掉（台账 §七十五）：字色改回正文级，accent 只留在下面那条 `svg` 上
+           （非文本，按 3:1 线）。 */
         needle: ".nav-row.is-active",
-        shadow: ["--text-tertiary"],
-        exempt: {
-          kind: "accent-as-text",
-          why: "全站看得最多的一行字，把 accent 当字色压在 selected 档（浅底 6/8 套不到 4.5，最低 3.42）。它同时**赢了** theme-runtime.css 那条本意给它正文色的 `:where()`（(0,2,0) > (0,1,1)），所以这一处还是「本层覆写了主题层」的事故。另案，见台账 §二十九"
-        }
+        primary: true,
+        shadow: ["--text-tertiary"]
       },
       { needle: ".nav-subrow:hover", primary: true, shadow: ["--text-tertiary"] },
       { needle: ".nav-row:hover", primary: true, shadow: ["--text-secondary", "--text-tertiary"] },
