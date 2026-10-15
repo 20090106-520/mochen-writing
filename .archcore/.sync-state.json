@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "files": {},
+  "relations": [
+    {
+      "source": "decisions/main-process-owns-book-wide-rewrites.adr.md",
+      "target": "decisions/ipc-channel-trust-tiers.adr.md",
+      "type": "related"
+    },
+    {
+      "source": "conventions/ipc-channel-registration.rule.md",
+      "target": "decisions/ipc-channel-trust-tiers.adr.md",
+      "type": "related"
+    },
+    {
+      "source": "architecture/ipc-guard.spec.md",
+      "target": "decisions/ipc-channel-trust-tiers.adr.md",
+      "type": "related"
+    }
+  ]
+}

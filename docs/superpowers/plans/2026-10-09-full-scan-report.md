@@ -6543,3 +6543,71 @@ equal []`）。
 
 **划掉**：§七十七 结尾「仍等同用户一句话的」那一条 —— 收掉。
 **仍等同用户一句话的**：暂无（台账里当前没有挂着的句子）。
+
+---
+
+## 第七十九节：Archcore 知识库初始化（把散在台账与代码注释里的规则固化成可检索的形状）
+
+**来源**：用户装上 Archcore 插件开场，要求「你觉得需要弄什么就弄什么」「开始」「执行吧」。
+本节即那次初始化的全部取舍与实测读数。**本刀不碰产品代码**——只加 `.archcore/**` 与本段文字。
+
+**先要装 CLI，这一步是硬前提**：插件自带的 MCP 服务起不来，因为 `archcore` 不在 PATH 上，
+`mcp__archcore__*` 一个工具都注册不上（初始 ToolSearch 查 0 命中）。装上 CLI（v0.12.0，
+`irm https://archcore.ai/install.ps1 | iex`）之后，**本会话的 MCP 列表仍不可见**——宿主在会话
+启动时读 MCP 配置，那一刻 CLI 还不存在。于是这一轮直接用 stdio 驱动 `archcore mcp` + JSON-RPC
+把文档落地（脚本落在 `%TEMP%`，用完即删，不进仓库）。下一轮重启会话即可走插件原生命令。
+
+**落了什么**：`.archcore/` 13 份文档（全部 `accepted`）＋ 3 条关联边。
+
+- `conventions/` 6 条 rule：`project-stack`（栈约定）、`outbound-field-single-mapping`、
+  `failures-must-be-visible`、`red-first-tests`、`source-line-budget`、`ipc-channel-registration`。
+- `decisions/` 3 份 adr：`main-process-owns-book-wide-rewrites`（§六十六）、
+  `webdav-credential-split-storage`（§六十八）、`ipc-channel-trust-tiers`（§六十九 / §七十四）。
+- `onboarding/running-the-project.guide.md`：装依赖 → 假模型服务 → dev → build+smoke → verify。
+- `architecture/`：`top-level-map` 与 `entry-points` 两份 doc，外加 `ipc-guard.spec.md`。
+
+**`ipc-guard.spec.md` 是新写的，不是从台账转述**：读 `channel-trust.ts` 全篇与 `ipc-guard.ts` 的
+顶注、导出面、`trustedHandler` 判序区（L619-659）之后落的规范。判序写成「来源 → 通道档位 → 形状 →
+自定义 check」，四类拒绝 `untrusted / guard / arg / check`；三条 invariant 钉的是**容易被后人改错**
+的地方：判据真身各只一份、子帧判据必须走 `WebFrameMain.parent !== null`（Electron 42 的 invoke
+事件**没有** `parentFrameId`，按它判永远判不出子帧）、全仓唯一一处参数 `as` 必须在形状闸之后
+（写早了会把「这条通道没走闸」一起吞掉）。挂了三份出处：两份 rule 与那份信任分档 adr。
+
+**取舍**：
+
+- 栈规则那条里 Electron 不在 CLI 的框架白名单内，写成「Vue 3 单文件组件」对齐白名单，
+  Electron 的身份交给 doc 与 spec 说。
+- **没建 AGENTS.md / CLAUDE.md**：根目录本来就没有；插件自身（skills + MCP 指令）已覆盖发现路径，
+  再造一份就是第二个真身（铁律 6）。
+- rule 的一处 clause 原本写成 `MUST NOT 引入组件库、MUST NOT 新增 npm 依赖`（一次两个 modal），
+  当场拆成两条各自一个。
+
+**当场量到的两件事（顺手，但有用）**：
+
+- 规模判定 **large**：5 个域、176 个 >100 LOC 模块（344 源文件 / 295 测试文件）。
+- **六个文件贴着 765–800 行**：`agent-service.ts` 799 / `useBookStore.ts` 800 / `ipc-guard.ts` 800 /
+  `web-search.ts` 796 / `useAgentStore.ts` 791 / `contracts/ipc.ts` 765——而且正是近 90 天改动最频
+  的那批（22 / 18 / 17 / 15 次提交）。**预算最紧的地方与改动最频的地方重合**，这不是巧合，
+  下次拆哪个有据可依了。
+
+**新增 format 闸的风险，当场收掉**：`.prettierignore` 没有排除 `.archcore`，而 `pnpm verify` 的
+第一段就是 `prettier . --check`——手写的 13 份 md 里有 5 份当场判红。处置取**跑 `--write` 让它合规**，
+**没有**去改 `.prettierignore`：那条排除名单由 `tools/prettier-scope.test.mjs` 钉着，加一条就得
+连带改闸、还得挂牌子。复核过改动内容——prettier 只加了 TS 代码块的分号与一处 Vue 块排版，
+规范正文（numbered clause 逐条）一行未动。
+
+**工具侧两条实测（不是本仓的 bug，写下来免得下次误会）**：
+
+- `search_documents` 的返回里 `incoming_relations` / `outgoing_relations` **恒为空**（两次复现）。
+  同一份文档用 `get_document` 取就带 3 条 `incoming_relations`；`list_relations` 也正常返回，
+  `path` 过滤确实生效（拿没有边的文档问过，回 `[]`）。翻过 `search_documents` 的入参 schema，
+  **没有**开启关联边的开关——是服务侧那一段没接上，不是用法错。
+- `add_relation` 的入参是 `source` / `target` / `type`，不是 `from` / `to`（第一次按后者发被判缺参）。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）没上车。
+
+**门禁**：本刀不碰源码、样式、契约，所以 tsc / eslint / boundary / 行数预算 / vitest 与本节无关；
+真正会被本刀影响的那一段（prettier `--check`）已复核全绿。
+
+**划掉**：无（本节不是从哪句挂着的句子来的）。
+**仍等同用户一句话的**：暂无（台账里当前没有挂着的句子）。
