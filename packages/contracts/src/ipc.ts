@@ -30,6 +30,13 @@ import type {
   TxtImportCommitResult,
   TxtImportPreviewResult
 } from "./import.js";
+import type {
+  WebdavConfigInput,
+  WebdavConfigSnapshot,
+  WebdavListResult,
+  WebdavPushResult,
+  WebdavVerifyResult
+} from "./webdav.js";
 
 export const IPC_CHANNELS = {
   bookOpen: "book:open",
@@ -169,7 +176,37 @@ export const IPC_CHANNELS = {
    * 所以这条通道不接「只替换命中的那几篇」——那会把第 201 处以后悄悄漏掉。
    * 它按当前书的整份文稿快照走，回执上如实报「扫了几篇 / 改了几篇 / 共几处 / 哪几篇没动」。
    */
-  bookReplaceAll: "book:replace-all"
+  bookReplaceAll: "book:replace-all",
+  /**
+   * WebDAV 远程备份五条（2026-10-15）。
+   *
+   * 【这条通路不动正文、不动本地备份本体】
+   * 远程仓库是「把已经做好的本地整书备份（`<书>/.mochen/backups/book-<时间戳>/`）推一份到
+   * 用户自己配的 WebDAV 服务器」——备份本体与本地淘汰仍由 `book-backup` 那一套全权负责，
+   * 这里只是字节搬运：MKCOL + 递归 PUT（push）/ PROPFIND（list）/ MKCOL+DELETE 探活（verify）。
+   *
+   * 【为什么不在渲染层 fetch】
+   * 备份字节在主进程手里（`<书>/.mochen/backups/`），渲染层 fetch 还要先跨 IPC 把字节搬过去
+   * 再绕回来出网——而 CSP（`renderer-csp.ts`）`connect-src` 打包态只放行 `'self'`，
+   * 给 WebDAV 开域名白名单就等于把「远程域白名单」与 `provider-fetch` 那套口径分家（铁律 6）。
+   * ⇒ 字节、网络、URL 白名单都在主进程，与 `book-backup` 同款。
+   *
+   * 【为什么配置与凭据分开存】
+   * url / username 落 `<appData>/webdav-config.json`（与 appearance 同款原子写），
+   * password 走 `credential-store`（ref = `WEBDAV_CRED_REF`）——与 provider 密钥同套加密分份。
+   * 渲染层 `config-get` 拿到的快照只有 `hasPassword`，不回明文密钥（已在加密存好的密钥
+   * 不再走 IPC 暴露在结构化克隆与渲染进程内存里）。
+   *
+   * 【为什么不做 pull】
+   * push + list + verify 三条已经构成一条可证伪的备份通路（推、看到、自检）；
+   * pull 是 `restoreBookBackup` 的远程镜像（MKCOL 书旁新目录 → 递归 GET），与本地 restore 同一条
+   * 「绝不盖写已有内容」口径，单刀再加这条 + 测试 + 变异 + 门禁会越过失败边界。pull 留下一刀。
+   */
+  webdavConfigGet: "webdav:config-get",
+  webdavConfigSave: "webdav:config-save",
+  webdavVerify: "webdav:verify",
+  webdavPush: "webdav:push",
+  webdavList: "webdav:list"
 } as const;
 
 /** 退出握手里有稿子没能落盘的那一篇：点名到文件与原因，好让人自己拍板走不走。 */
@@ -683,4 +720,34 @@ export interface RendererApi {
   importTxtPreview(): Promise<TxtImportPreviewResult>;
   /** 把预览确认后的章目落成 `chapters/` 下的文稿；重名在写盘前整批拦下（all-or-nothing）。 */
   importTxtCommit(input: TxtImportCommitInput): Promise<TxtImportCommitResult>;
+  /**
+   * 读 WebDAV 配置快照（2026-10-15）。
+   *
+   * 密钥不回——`hasPassword` 是渲染层决定那一栏显示「已保存」还是「待填写」的全部依据。
+   * 与 `appearanceGet` 同一档口径：盘上没有 / 读不回时 `persisted: false` + 默认空配置，
+   * 不抛、不阻塞启动。
+   */
+  webdavConfigGet(): Promise<WebdavConfigSnapshot>;
+  /**
+   * 整份写回 WebDAV 配置；`password` 三态见 `WebdavConfigInput` 的注释。
+   *
+   * 与 `appearanceSave` 同款：失败带原因回来，渲染层必须显示出来，不许再 `catch {}`。
+   */
+  webdavConfigSave(input: WebdavConfigInput): Promise<void>;
+  /**
+   * 连通性体检（软校验）：**只回答「现在连不连得上」，不决定能不能存**。
+   * 与 `providerVerify` 同一条铁律：硬校验会把「服务没起」「凭据不对」全压成死路，
+   * 而用户完全可能想先把配置填好、回头再连。结果分五档如实报。
+   */
+  webdavVerify(): Promise<WebdavVerifyResult>;
+  /**
+   * 推一份新整书备份到远程：复用 `createBookBackup("manual")` 做本地新备份，
+   * 然后递归 PUT 到 `<url>/<当前书 meta.id>/<book-时间戳>/`。回执如实分报推了多少文件。
+   */
+  webdavPush(): Promise<WebdavPushResult>;
+  /**
+   * 列远程这本书已有的备份（PROPFIND `<url>/<当前书 meta.id>/`，新的在前）。
+   * 没开书 / 没配置都如实分档报，不抛。
+   */
+  webdavList(): Promise<WebdavListResult>;
 }

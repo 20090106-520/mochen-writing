@@ -182,7 +182,13 @@ export function createBookApi(): BookApiFixture {
     updateCheck: offLimits("updateCheck"),
     importTxtPreview: offLimits("importTxtPreview"),
     importTxtCommit: offLimits("importTxtCommit"),
-    replaceAllInBook: offLimits("replaceAllInBook")
+    replaceAllInBook: offLimits("replaceAllInBook"),
+    // WebDAV 远程备份（2026-10-15）：这条路上一个都不该被调到——谁真要用它在用例里显式铺好 mock。
+    webdavConfigGet: offLimits("webdavConfigGet"),
+    webdavConfigSave: offLimits("webdavConfigSave"),
+    webdavVerify: offLimits("webdavVerify"),
+    webdavPush: offLimits("webdavPush"),
+    webdavList: offLimits("webdavList")
   } satisfies RendererApi;
 
   return {

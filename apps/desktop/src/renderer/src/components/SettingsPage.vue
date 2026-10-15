@@ -18,6 +18,7 @@ import WritingGoalSettingsPanel from "./WritingGoalSettingsPanel.vue";
 import ProjectSettingsPanel from "./ProjectSettingsPanel.vue";
 import { useLayoutStore, type SettingsTab } from "../stores/layoutStore";
 import type { IconName } from "../types/icons";
+import WebdavPanel from "./WebdavPanel.vue";
 
 const layout = useLayoutStore();
 const { settingsTab } = storeToRefs(layout);
@@ -74,6 +75,12 @@ const SECTIONS: SettingsSection[] = [
         label: "项目管理",
         icon: "folder",
         keywords: "多作品 切换 最近 项目 书架"
+      },
+      {
+        id: "webdav",
+        label: "远程备份",
+        icon: "save",
+        keywords: "WebDAV NAS 坚果云 Nextcloud 远程 备份 推送 整书"
       }
     ]
   },
@@ -159,6 +166,7 @@ function selectCategory(id: SettingsTab): void {
         <HotkeysPanel v-else-if="settingsTab === 'shortcuts'" />
         <WritingGoalSettingsPanel v-else-if="settingsTab === 'goals'" />
         <ProjectSettingsPanel v-else-if="settingsTab === 'projects'" />
+        <WebdavPanel v-else-if="settingsTab === 'webdav'" />
         <AboutPanel v-else-if="settingsTab === 'about'" />
       </div>
     </main>

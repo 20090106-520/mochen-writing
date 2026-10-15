@@ -147,6 +147,15 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     importTxtCommit: (input) => invoke(IPC_CHANNELS.importCommit, input),
     // 全书替换（2026-10-15）：只递「找什么 + 换成什么」。要动哪几篇、怎么逐篇过指纹闸与备份，
     // 全在主进程 book-replace.ts 一处；这里连 relPath 都递不出去，也就没有「渲染层点哪篇」这条路。
-    replaceAllInBook: (input) => invoke(IPC_CHANNELS.bookReplaceAll, input)
+    replaceAllInBook: (input) => invoke(IPC_CHANNELS.bookReplaceAll, input),
+    // WebDAV 远程备份五条（2026-10-15）。配置那两条只递草稿（密钥三态见 contracts
+    // `WebdavConfigInput`），密钥在主进程落加密分份；verify/push/list 三条无参——
+    // 要落到哪台服务器哪本书哪一份，全由主进程按配置与当前书根自己拼。
+    // 这里一行判定都不加——「能不能跑」与「跑哪」都在主进程，preload 是字面转发。
+    webdavConfigGet: () => invoke(IPC_CHANNELS.webdavConfigGet),
+    webdavConfigSave: (input) => invoke(IPC_CHANNELS.webdavConfigSave, input),
+    webdavVerify: () => invoke(IPC_CHANNELS.webdavVerify),
+    webdavPush: () => invoke(IPC_CHANNELS.webdavPush),
+    webdavList: () => invoke(IPC_CHANNELS.webdavList)
   };
 }

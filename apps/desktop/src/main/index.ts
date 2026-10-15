@@ -66,8 +66,11 @@ import { createAutoUpdateService, checkOnBoot, type UpdaterLike } from "./auto-u
 import electronUpdaterPkg from "electron-updater";
 const { autoUpdater } = electronUpdaterPkg;
 import { createTrashService, registerTrashIpc, type TrashSnapshot } from "./doc-trash.js";
-import { createBookBackupService, registerBookBackupIpc } from "./book-backup.js";
+import { backupFs, createBookBackupService, registerBookBackupIpc } from "./book-backup.js";
 import { createImportService, registerImportIpc } from "./import-service.js";
+import { nodeWebdavFetch } from "./webdav-client.js";
+import { createWebdavConfigStore, registerWebdavConfigIpc } from "./webdav-config-store.js";
+import { createWebdavService, registerWebdavServiceIpc } from "./webdav-service.js";
 
 /** F-4：旧品牌目录名只出现在迁移的入参里；新品牌那两个名字（打包 / 开发）住在 `app-dirs.ts`。 */
 const LEGACY_APP_DIR_NAME = "mochen-writing";
@@ -385,6 +388,26 @@ app.whenReady().then(async () => {
     bookRoot: () => service.current()?.root ?? null
   });
   registerBookBackupIpc((channel, fn) => ipcMain.handle(channel, fn), backupService);
+  // WebDAV 远程备份五条（2026-10-15）：把已经做好的本地整书备份推到用户配的 NAS 上。
+  // 配置全局一份（appData/webdav-config.json + credential-store 的 secrets/webdav.enc），
+  // verify/push/list 三条复用上面那只 backupService 做「新本地备份」再递归 PUT——远程只是字节搬运。
+  // backupFs 直接复用 book-backup.ts 那一份——读写「<书>/.mochen/backups/<name>/」的真身只此一只。
+  const webdavConfigStore = createWebdavConfigStore({
+    dir: activeDir,
+    credentials
+  });
+  registerWebdavConfigIpc((channel, fn) => ipcMain.handle(channel, fn), webdavConfigStore);
+  const webdavService = createWebdavService({
+    bookSnapshot: () => {
+      const current = service.current();
+      return current === null ? null : { root: current.root, metaId: current.meta.id };
+    },
+    configStore: webdavConfigStore,
+    fetch: nodeWebdavFetch,
+    backupService,
+    backupFs
+  });
+  registerWebdavServiceIpc((channel, fn) => ipcMain.handle(channel, fn), webdavService);
   // TXT 导入（2026-10-11）：选文件、读字节、切章、落盘全在主进程；对话框挂当前窗口（模态感）。
   const importService = createImportService({
     book: () => {

@@ -5885,3 +5885,107 @@ N 行，用户读到的是排版垃圾而不是一个数。
 
 **划掉**：第六十六节末尾"仍等同用户一句话"里的「token 用量统计」——本刀做完了。**仍等同用户一句话的**：
 通道级授权、LICENSE 字段、WebDAV/整书备份。
+
+## 第六十八节：WebDAV 远程备份——本地备份的字节搬运到用户自己的 NAS（2026-10-15）
+
+### 范围：不替代本地，叠一条远程通路
+
+上一刀的整书本地备份（`book-backup.ts` → `<书>/.mochen/backups/book-<时间戳>/`）做完了。
+本刀**不动本地本体**，叠一条远程通路：把那一份已经做好的本地备份**字节搬运**一份到
+用户自己配的 WebDAV 服务器——`<url>/<当前书 meta.id>/<book-时间戳>/`。复用本地备份本体
+意味着远程这条只是「字节搬运」，不在远程做任何决定（建什么目录、推哪几篇、按什么次序）。
+
+### 五条通道，pull 留下一刀
+
+- `webdavConfigGet` / `webdavConfigSave`：配置存读（url + username 落 JSON，password 走 credential-store，
+  ref = `"webdav"`，与 provider 密钥同套加密分份）。
+- `webdavVerify`：探活——MKCOL `<url>/.mochen-probe-<random>/` 后立刻 DELETE，5 档如实分报
+  （ok / no-config / auth-failed / forbidden / io-error）。**verify 不要求开书**——用户刚配好想验一下
+  能不能写很合理，探活目录在 `<url>/` 下、不依赖 bookId。
+- `webdavPush`：复用 `BookBackupService.create("manual")` 做一份新本地备份，递归 PUT 到
+  `<url>/<bookId>/<name>/`。403 在 push 表里**故意压成 io-error**——push 的 reason 表里没有 forbidden
+  那一档（用户下一步动作一样：去 NAS 看权限，不必在 push 这条细分）。
+- `webdavList`：PROPFIND `<url>/<bookId>/`，用 `BACKUP_NAME_RE` 过滤子项，按名字降序。
+
+**pull 不做**：与 `restoreBookBackup` 同结构但单刀做完五条通道 + 单测 + 变异 + 门禁会越过失败边界，
+留下一刀。
+
+### 取舍记入台账
+
+1. **铁律 6 暂时豁免 URL 白名单判据**。`provider-fetch.ts:assertUpstreamUrlAllowed` 与
+   `webdav-client.ts:isWebdavUrlAllowed` 是同一份判据的两处复述（https 或本机回环 http 例外）——
+   `provider-fetch` 那份抛 `ProviderError`，而 `webdav-client` 不应依赖 agent-runtime（包边界检查会红）。
+   本刀先就地复述一份返回 boolean，下一刀抽到 `upstream-url.ts` 时两处一并归一。
+
+2. **CSP 不放行渲染层 fetch**。打包态 `connect-src` 只放行 `'self'`——给 WebDAV 开域名白名单会与
+   `provider-fetch` 口径分家。所以本刀**全在主进程出网**：配置与字节都住主进程，IPC 只递草稿与档位，
+   渲染层递不出任意远程 URL 或绝对路径，也就递不出去任意书——与 `market:install` /
+   `plugins:toggle` / `book-backup:create` 同一条铁律。
+
+3. **PROPFIND XML 用最小正则提取**。主进程没有 `DOMParser`，引 `fast-xml-parser` 是新依赖（违反硬约束）。
+   PROPFIND XML 形状在 RFC 4918 里固定，只需要「子项的路径」这一项——正则提取在这一层足够，
+   且能在不引库的前提下被单测逐字符钉。
+
+4. **password 三态刻意做出区分**。`WebdavConfigInput.password` 三态：`undefined`=保留、`""`=清空、
+   非空=替换——与 `provider-save` 那条 `apiKey null = 保留、"" = 清空` 同一条铁律（铁律 6）。
+   没有第四种「password 是 null」——`exactOptionalPropertyTypes` 下 `string | undefined` 不接 null。
+
+5. **配置与密钥分开存**。url / username 落 `<appData>/webdav-config.json`（与 appearance 同款原子写），
+   password 走 `credential-store`（ref = `WEBDAV_CRED_REF`）——把密码写进 JSON 等于把已经加密存好的
+   密钥再明文落盘一次，等于没加密。`read()` 不回明文密钥，只回 `hasPassword`——出网那一层
+   （`webdav-service.ts` 的 `prepare`）在主进程内单独调 `readPassword()` 取密钥，密钥只住在主进程内存
+   的这一次请求里，IPC 边界永远看不到。
+
+6. **ipc-guard 形状闸：4 条无参 + 1 条对象规则**。`webdavConfigGet` / `webdavVerify` / `webdavPush` /
+   `webdavList` 进 `IPC_NO_ARG_CHANNELS`；`webdavConfigSave` 进 `IPC_ARG_SHAPES` 用 `objectRule`
+   只判「是不是一个对象」——那三段的语义判定住在 `webdav-config-store.ts`，这里再判就是第二份判据。
+   被挡时各照其契约的失败档回话：`webdavConfigGet` 回空快照（与「未配置」同档），
+   `verify` / `push` / `list` 回 `io-error` 档（被挡是来源问题，归类成 io 是诚实的）。
+
+### 变异实测（两处红后回退）
+
+- `webdav-client.ts` 的 `mkcolDir`：把 `405 ⇒ 已存在` 改成 `404 ⇒ 已存在`。
+  「405 = 已存在（多数服务端如此回）」用例当场红——`expected { ok: false, status: 405, … } to
+  deeply equal { ok: true, existed: true }`。回退后全绿。
+- `webdav-service.ts` 的 `classifyHttpStatusForPush`：把 `401 ⇒ auth-failed` 改成 `403 ⇒ auth-failed`。
+  两条 push 用例当场红——「401 ⇒ auth-failed」收到 io-error，「403 ⇒ io-error」收到 auth-failed。
+  回退后全绿。
+
+### 落地的文件
+
+新建：
+- `packages/contracts/src/webdav.ts`（schema + 5 个返回类型）
+- `apps/desktop/src/main/webdav-client.ts`（纯函数：URL 白名单 / Bearer 鉴权 / joinWebdavUrl /
+  最小正则提 href / MKCOL / PUT / DELETE / PROPFIND）
+- `apps/desktop/src/main/webdav-config-store.ts`（配置存读 + IPC 注册）
+- `apps/desktop/src/main/webdav-service.ts`（verify / push / list + IPC 注册）
+- `apps/desktop/src/renderer/src/components/WebdavPanel.vue`（最小配置区 + 三按钮）
+- `apps/desktop/src/main/webdav-client.test.ts`（32 条）
+- `apps/desktop/src/main/webdav-config-store.test.ts`（13 条）
+- `apps/desktop/src/main/webdav-service.test.ts`（19 条）
+
+修改：
+- `packages/contracts/src/ipc.ts`（顶部 import 5 个 webdav 类型；`IPC_CHANNELS` 末尾加 5 条常量；
+  `RendererApi` 接口末尾加 5 个方法签名）
+- `packages/contracts/src/index.ts`（末尾 export `./webdav.js`）
+- `apps/desktop/src/preload/renderer-api.ts`（5 条字面转发）
+- `apps/desktop/src/main/index.ts`（import + 装配 webdavConfigStore + webdavService）
+- `apps/desktop/src/main/ipc-guard.ts`（`IPC_ARG_SHAPES` 加 webdavConfigSave；
+  `IPC_NO_ARG_CHANNELS` 加 4 条；`IPC_DENY_REPLIES` 加 5 条按契约失败档回话）
+- `apps/desktop/src/renderer/src/components/SettingsPage.vue`（import WebdavPanel；
+  SECTIONS 加「远程备份」分类；template 加 `<WebdavPanel v-else-if="settingsTab === 'webdav'" />`）
+- `apps/desktop/src/renderer/src/stores/layoutStore.ts`（`SettingsTab` 加 `"webdav"`）
+- `apps/desktop/src/renderer/src/styles/settings-page.css`（追加 `.webdav-*` 样式）
+- 8 个 fixture / 测试文件补 5 条 webdav mock 方法（`offLimits` 或 `async () => { throw }` 风格，
+  匹配各自文件原有写法）
+- `apps/desktop/src/preload/renderer-api.test.ts`（通道数 57→62；新增 5 条 webdav 调用、通道、实参、
+  method 名）
+- `apps/desktop/src/main/ipc-guard.test.ts`（无改——它本身就是「全通道不许两边都不落」的守卫，
+  本刀在 `ipc-guard.ts` 里把 5 条通道全落到 IPC_ARG_SHAPES 或 IPC_NO_ARG_CHANNELS 后，
+  它的「形状表 ∪ 没有参数清单 = 全部要收的通道」用例自然绿）
+
+**六段门禁**：prettier（全仓）/ tsc（6 项目）/ eslint / boundary / 行数预算（699 份）/ vitest（356 文件
+4631 通过 2 skipped）全绿。
+
+**划掉**：第六十六节末尾"仍等同用户一句话"里的「WebDAV/整书备份」——本刀做完了。**仍等同用户一句话的**：
+通道级授权、LICENSE 字段。

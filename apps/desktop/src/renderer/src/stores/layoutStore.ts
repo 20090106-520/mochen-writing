@@ -45,7 +45,15 @@ export type AppView = "workspace" | "settings";
 export type CenterView = "chat" | "skills" | "plugins" | "skins";
 /** 设置浮层的页签真身：showSettings 可指名打开哪一页（/model 走模型页，外观入口走外观页）。 */
 export type SettingsTab =
-  "model" | "agent" | "writing" | "appearance" | "shortcuts" | "goals" | "projects" | "about";
+  | "model"
+  | "agent"
+  | "writing"
+  | "appearance"
+  | "shortcuts"
+  | "goals"
+  | "projects"
+  | "webdav"
+  | "about";
 export type PaneSide = "left" | "right";
 
 export const LEFT_PANE_MIN = 220;

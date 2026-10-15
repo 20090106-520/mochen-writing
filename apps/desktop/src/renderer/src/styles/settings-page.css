@@ -931,3 +931,90 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
+
+/* ---- WebDAV 远程备份面板（2026-10-15）------------------------------------------
+   与本地整书备份（book-backup.ts）同一条铁律的延伸：把本地整书备份的字节 PUT 一份
+   到用户自配的 WebDAV 服务器。配置与密钥分别落盘——渲染层只递草稿与档位。 */
+.webdav-config-card {
+  display: grid;
+  gap: 8px;
+}
+
+.webdav-field {
+  flex-direction: column;
+  gap: 5px;
+}
+
+.webdav-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--editor);
+  font: inherit;
+  font-size: 0.857143rem;
+}
+
+.webdav-input:focus-visible {
+  border-color: var(--theme-line);
+  outline: none;
+}
+
+.webdav-password-hint {
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+}
+
+.webdav-actions,
+.webdav-ops {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.webdav-receipt {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  line-height: 1.5;
+}
+
+.webdav-result-line {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.webdav-result-fail {
+  color: var(--danger);
+}
+
+.webdav-entries {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.webdav-entry {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+}
+
+.webdav-entry-name {
+  font-family: var(--code-font);
+  overflow-wrap: anywhere;
+}
+
+.webdav-entry-time {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}

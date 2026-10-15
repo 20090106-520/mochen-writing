@@ -445,7 +445,10 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   // 全书替换（2026-10-15）：递的是一个对象（要找的文本 + 换成什么）。
   // 那两段文本的语义（空查询一律拒）判定住在 `book-replace.ts`，这里再判一遍就是第二份判据；
   // 这条通道也没有 relPath 参数，所以注册点**不挂** insideCurrentBook（挂上会把空路径判成书外）。
-  [IPC_CHANNELS.bookReplaceAll]: [objectRule("全书替换的输入")]
+  [IPC_CHANNELS.bookReplaceAll]: [objectRule("全书替换的输入")],
+  // WebDAV 远程备份（2026-10-15）：config-save 递配置草稿（url/username/password 三态）。
+  // 那三段的语义判定住在 `webdav-config-store.ts`，这里只判「是不是一个对象」。
+  [IPC_CHANNELS.webdavConfigSave]: [objectRule("WebDAV 配置草稿")]
 };
 
 export function argRulesFor(channel: string): ArgRule[] {
@@ -472,7 +475,13 @@ export const IPC_NO_ARG_CHANNELS: readonly string[] = [
   IPC_CHANNELS.trashList,
   IPC_CHANNELS.bookBackupList,
   IPC_CHANNELS.importPreview,
-  IPC_CHANNELS.updateCheck
+  IPC_CHANNELS.updateCheck,
+  // WebDAV 远程备份（2026-10-15）：config-get / verify / push / list 全部无参——
+  // 要落到哪台服务器哪本书哪一份，全由主进程按配置与当前书根自己拼。
+  IPC_CHANNELS.webdavConfigGet,
+  IPC_CHANNELS.webdavVerify,
+  IPC_CHANNELS.webdavPush,
+  IPC_CHANNELS.webdavList
 ];
 
 /**
@@ -552,6 +561,30 @@ const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
   [IPC_CHANNELS.bookReplaceAll]: (info) => ({
     ok: false,
     reason: "invalid-input",
+    message: info.message
+  }),
+  // WebDAV（2026-10-15）被挡时各照其契约的失败档回话：渲染层 await 后按 result.ok 或 persisted
+  // 分支，抛错会让那几颗按钮悬死在 await 上。config-get 回空快照（与「未配置」同档）；
+  // verify / push / list 回 io-error 档（被挡是来源问题，归类成 io 是诚实的）。
+  [IPC_CHANNELS.webdavConfigGet]: () => ({
+    persisted: false,
+    url: "",
+    username: "",
+    hasPassword: false
+  }),
+  [IPC_CHANNELS.webdavVerify]: (info) => ({
+    ok: false,
+    reason: "io-error",
+    message: info.message
+  }),
+  [IPC_CHANNELS.webdavPush]: (info) => ({
+    ok: false,
+    reason: "io-error",
+    message: info.message
+  }),
+  [IPC_CHANNELS.webdavList]: (info) => ({
+    ok: false,
+    reason: "io-error",
     message: info.message
   })
 };

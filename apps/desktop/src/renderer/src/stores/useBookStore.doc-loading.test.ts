@@ -231,6 +231,22 @@ const api = {
   },
   replaceAllInBook: async () => {
     throw new Error("不该在这条用例里做全书替换");
+  },
+  // WebDAV 远程备份（2026-10-15）：这条路上一个都不该被调到——谁真要用它在用例里显式铺好 mock。
+  webdavConfigGet: async () => {
+    throw new Error("不该读 WebDAV 配置");
+  },
+  webdavConfigSave: async () => {
+    throw new Error("不该存 WebDAV 配置");
+  },
+  webdavVerify: async () => {
+    throw new Error("不该验活 WebDAV");
+  },
+  webdavPush: async () => {
+    throw new Error("不该推 WebDAV 远程备份");
+  },
+  webdavList: async () => {
+    throw new Error("不该列 WebDAV 远程备份");
   }
 } satisfies RendererApi;
 
