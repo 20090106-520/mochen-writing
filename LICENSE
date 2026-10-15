@@ -1,0 +1,17 @@
+墨宸 AI（mochen-ai）
+Copyright (c) 2026 潇潇. 保留所有权利 / All rights reserved.
+
+本仓库是私有作品，不通过 npm 或任何公共渠道发布（各 package.json 的 `license` 字段为
+`UNLICENSED`，根包与 app 包另带 `private: true`）。版权所有者未授予任何明示或默示的
+许可：未经事先书面同意，不得复制、修改、分发、再许可或以任何形式使用本仓库的任何部分。
+
+以下两类例外不适用上面的保留条款，各自的许可与义务如下——想查某一块的来源，看
+`docs/ATTRIBUTION.md` 的逐文件对照表，不要凭印象猜：
+
+1. 与开源项目 deepwrite 同源的界面 / 交互层实现（结构、CSS、行为）
+   —— 按 Apache License 2.0 授权。许可证全文见仓库根目录 `LICENSE-DEEPWRITE.txt`；
+   上游为 https://github.com/20090106-520/deepwrite （v1.5.6），设置中心骨架另参考
+   https://github.com/swjybky/deepwrite 。
+
+2. 随仓库使用的第三方 npm 依赖
+   —— 各遵循其自身许可证，版权归各自作者（清单见 `docs/ATTRIBUTION.md`「其他第三方库」一节）。

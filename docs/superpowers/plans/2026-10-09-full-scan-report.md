@@ -6068,3 +6068,42 @@ vitest（356 文件 4639 通过 2 skipped）全绿。
 
 **划掉**：第六十八节末尾"仍等同用户一句话"里的「通道级授权」——本刀做完了。
 **仍等同用户一句话的**：LICENSE 字段。
+
+## 第七十节（2026-10-15）：仓库对外许可落位——根 `LICENSE` 文件 + 四个工作区包的 `license` 字段
+
+**台账原判据已过期**：第六十二节审计第 20 条写「各 package.json 均无 `license` 字段（根与 apps/desktop 都 private: true）」
+——那是 2026-10-09/10 的读数。`ec24a3e`（2026-10-14，审计 6-8 项收口）已给根包与 `apps/desktop`
+各补一行 `"license": "UNLICENSED"`（`git show ec24a3e -- package.json apps/desktop/package.json`，
+两处各 +1 行）。属「数据变了、解释还在」那一族，不能按字面当待办。
+
+**本刀真正缺的两块**：
+1. 仓库根没有 `LICENSE` 文件——盘上只有 `LICENSE-DEEPWRITE.txt`，那是 Apache-2.0 的**文本副本**
+   （按许可证要求随仓库保存，见 `docs/ATTRIBUTION.md:3-5`），不是本仓库自己的许可声明。
+2. `packages/{contracts,fs-store,agent-runtime,plugin-kernel}/package.json` 四个工作区包没有 `license` 字段。
+
+**为什么取 UNLICENSED 而不是另挑一条开源许可**：这一句原先记作「属对外承诺，等一句话」。
+仓库自己已经把答案写死在两处——根包与 app 包的 `license` 字段都是 `UNLICENSED`，两包另带
+`private: true`。本刀按**已声明的口径**落位（跟着现树走，不新造一种立场），也没有再立第三份
+许可声明（铁律 6 的同款：同一件事只许一份真身）。
+
+**根 `LICENSE` 写了什么**（新建）：
+- 抬头版权署名 + 「保留所有权利 / All rights reserved」；署名取**仓库提交作者名**，不另造署名主体。
+- 明写本仓库为私有作品、不通过 npm 或任何公共渠道发布——对得上各包 `license: UNLICENSED`
+  与根/app 的 `private: true`。
+- 明写未授予任何明示或默示许可。
+- 两类例外与 `docs/ATTRIBUTION.md` 对齐：① 与 deepwrite 同源的界面/交互层实现按 Apache-2.0，
+  指向 `LICENSE-DEEPWRITE.txt` 与逐文件对照表；② 第三方 npm 依赖各遵循其自身许可证。
+
+**四个工作区包**：`license: "UNLICENSED"` 插在 `version` 之后，与根包 / app 包同型同序。
+
+**为什么不动 README / ATTRIBUTION / AboutPanel**：README §出处与许可讲的是 deepwrite 那笔来路，
+ATTRIBUTION 讲的是逐文件义务，`AboutPanel.vue:4` 顶注明写「许可信息不进 UI 文案」——三者各有分工，
+本刀只补「本仓库自己的对外许可声明」这一块，不越界改它们。
+
+**门禁**：prettier（6 个改动 package.json）/ tsc（6 项目）/ eslint / boundary / 行数预算（700 份）/
+vitest（356 文件 4639 通过 2 skipped）全绿。纯声明文件 + JSON 字段，无运行期逻辑，故无单测与变异
+（没有可证伪的判据，重造一条只为凑数反而违铁律）。
+
+**划掉**：第六十九节末尾「仍等同用户一句话的：LICENSE 字段」中的「根 LICENSE 文件 + 四个工作区包字段」
+这一块——本刀做完了（根包与 app 包的字段 `ec24a3e` 早已落位）。
+**仍等同用户一句话的**：若将来要改口径，改 `LICENSE` 与各包 `license` 字段即可；本刀取的是已声明那条。
