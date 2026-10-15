@@ -434,28 +434,43 @@ describe("皮肤广场页 · 接线（.vue 零类型检查，只能读源码）"
 const RELEASE_BODY = "color-mix(in srgb, var(--surface-main) 52%, transparent)";
 
 /**
+ * 广场那一页**自己的**放行档（2026-10-15，台账 §七十七）。
+ *
+ * 【为什么不跟上面那条同值】广场的卡面是 `.skin-card`（那层 40% 的玻璃），卡说明（次要）
+ * 与卡脚出处（10.5px 元信息小字）就压在这条合成底上，而这幅画**最暗的那块**正好落在卡位
+ * 底下：真机量出来的阶梯是 52% ⇒ 4.38（书舟·夜航 / 墨潭·沉雾 那两处）、60% ⇒ 4.55、
+ * 70% ⇒ 4.73、实底 ⇒ 4.87。60% 只有 0.05 的留量——图上更暗的一块按同一比例就能再吃掉它
+ * （52% 那一档实测吃掉 0.49）⇒ 取 **70%**：最暗那块按 70% 折算还吃掉约 0.17，落点 ≈ 4.70。
+ * 代价是广场看到的画变淡（画在页面合成里的占比 48% → 30%），这是用户点的 A 方案：
+ * 既不写豁免、也不给卡面加衬垫。
+ */
+const PLAZA_RELEASE_BODY = "color-mix(in srgb, var(--surface-main) 70%, transparent)";
+
+/**
  * 那条「带画才放行」规则的**选择器串**（整组，不是某一条）。
  *
  * 【为什么单列一个函数】
  * 放行是一组并列选择器，写成一条 `toContain(".conversation-pane")` 只钉得住「这行字在文件里
  * 出现过一次」——注释里提一句同样的话就能把它喂饱。这里按「选择器里含 `data-skin-art`
- * 且正文里含那枚 52% 的 `color-mix`」把整组捞出来，断言只在这组**内部**成立。
+ * 且正文里含给定的那枚 `color-mix`」把整组捞出来，断言只在这组**内部**成立。
  * 找不到那一组一律抛错：返回空串会让组内每条 `toContain` 一起变绿，看不出缺的是哪条规则
  * （与 `ruleBlock` 同一句理由）。
+ * `body` 有默认值：默认那一档（52%）是中栏、右栏与另两张整页共用的那份；
+ * 广场那一页 2026-10-15 起单列 70%，调用方显式传 `PLAZA_RELEASE_BODY`。
  */
-function releasedSelectors(css: string): string {
+function releasedSelectors(css: string, body: string = RELEASE_BODY): string {
   const groups: string[] = [];
   for (const one of css.matchAll(/([^{}]*html\[data-skin-art\][^{}]*)\{([^}]*)\}/g)) {
     const sel = one[1];
-    const body = one[2];
+    const inner = one[2];
     // `noUncheckedIndexedAccess` 下这两枚都带 `| undefined`。不显式判空而用 `?? ""` 兜底，
     // 会把「正则没抓到组」伪装成「抓到了但组是空的」——那时下面那条抛错就不会响。
-    if (sel !== undefined && body !== undefined && body.includes(RELEASE_BODY)) {
+    if (sel !== undefined && inner !== undefined && inner.includes(body)) {
       groups.push(sel);
     }
   }
   if (groups.length === 0) {
-    throw new Error("theme-runtime.css 里找不到那条「带画才放行」（52% color-mix）的规则");
+    throw new Error(`theme-runtime.css 里找不到正文为「${body}」的那条「带画才放行」的规则`);
   }
   return groups.join(" ");
 }
@@ -502,11 +517,25 @@ describe("视觉四层的消费 · 硬约束：背景与图案不落正文区", 
        `background: var(--surface-main)`），所以三张一起进名单，不留「这页放行那页不放行」的
        第二套规矩。
        可读性不比正文那一档差：页面放行 52% 之后，卡面还压着 `--surface-raised` 40%，
-       合成实底 ≈ 0.4 + 0.6×0.52 ≈ 71%，比正文区单独那 52% 更厚。 */
-    const group = releasedSelectors(strippedStyleSource("theme-runtime.css"));
-    for (const page of [".skin-gallery", ".extensions-page", ".settings-page"]) {
+       合成实底 ≈ 0.4 + 0.6×0.52 ≈ 71%，比正文区单独那 52% 更厚。
+
+       2026-10-15 广场那一页的**档位**单列了（见 `PLAZA_RELEASE_BODY`）：三张页仍一起放行，
+       分开的只是比例——广场卡面上压着卡说明与 10.5px 的卡脚出处这一族元信息小字，
+       而这幅画最暗的那块正好落在卡位下，52% 时实测从 4.87（实底）掉到 4.38。 */
+    const css = strippedStyleSource("theme-runtime.css");
+    const group = releasedSelectors(css);
+    for (const page of [".extensions-page", ".settings-page"]) {
       expect(group, `整页 ${page} 不在放行名单里 —— 画会被这一页盖成一整块实底`).toContain(page);
     }
+    // 广场页也在名单里，只是档位更低（70%）：不放行的话它同样会把整窗画盖成一块实底。
+    const plaza = releasedSelectors(css, PLAZA_RELEASE_BODY);
+    expect(plaza, "广场页不在放行名单里 —— 画会被这一页盖成一整块实底").toContain(".skin-gallery");
+    // 反向：广场页不许同时留在 52% 那一组里。两条规则并存时实际档位由顺序决定，
+    // 这一页的判词就落不到它身上（名单看起来还在，量到的却是另一档）。
+    expect(
+      group,
+      "广场页同时留在 52% 那一组里 —— 这一页的实际档位就不由它自己的规则决定了"
+    ).not.toContain(".skin-gallery");
     // 反向：正文区不许顺手加进这一组（它有上面那条独立守卫，这里只钉「别在同一张单子上」）。
     expect(group).not.toMatch(/\.document-editor|\.message-markdown/);
   });

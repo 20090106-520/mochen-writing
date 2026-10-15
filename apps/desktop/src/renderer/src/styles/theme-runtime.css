@@ -331,15 +331,30 @@ html[data-theme] .desktop-shell {
    合成实底 ≈ 0.4 + 0.6×0.52 ≈ 71%，比正文区单独那 52% 更厚。
    `.settings-sidebar` 与 `.workspace-dialog` **故意不在这份名单里**：前者是一根窄列，
    后者是模态框——表单与按钮的可读性优先级高于「画露多少」，那条判据由
-   appearance-skin-plaza-wiring.test.ts 里「正文区不在这组」的反向断言一起守。 */
+   appearance-skin-plaza-wiring.test.ts 里「正文区不在这组」的反向断言一起守。
+
+   2026-10-15（台账 §七十七）广场那一页的**档位**单列了一档（70%，见下一条）：三张页仍一起
+   放行，分开的只是比例。广场卡面上压着卡说明与 10.5px 的卡脚出处这一族元信息小字，
+   而这幅画**最暗的那块**正好落在卡位底下——真机 6×6 无损采样量到的阶梯是
+   52% ⇒ 4.38（书舟·夜航 / 墨潭·沉雾 那两处）／60% ⇒ 4.55／70% ⇒ 4.73／实底 ⇒ 4.87，
+   而 60% 只剩 0.05 的留量：图上更暗的一块按同一比例就能再吃掉它（52% 那一档实测吃掉 0.49）。
+   ⇒ 取 **70%**（最暗那块的折算余量 ≈ 0.17，落点 ≈ 4.70）。代价是广场看到的画变淡
+   （画在页面合成里的占比 48% → 30%）——这是用户点的 A 方案：不写豁免、也不给卡面加衬垫。
+   另两张整页没跟着动：它们的卡（`.extension-card` / `.settings-card`）里没有 10.5px 这一族。 */
 html[data-skin-art]:not([data-skin-art="none"]) .conversation-pane,
 html[data-skin-art]:not([data-skin-art="none"]) .conversation-header,
 html[data-skin-art]:not([data-skin-art="none"]) .conversation-scroll,
 html[data-skin-art]:not([data-skin-art="none"]) .editor-pane,
-html[data-skin-art]:not([data-skin-art="none"]) .skin-gallery,
 html[data-skin-art]:not([data-skin-art="none"]) .extensions-page,
 html[data-skin-art]:not([data-skin-art="none"]) .settings-page {
   background-color: color-mix(in srgb, var(--surface-main) 52%, transparent);
+}
+
+/* 广场这一页自己的放行档（70%）。理由、量到的阶梯与「为什么不跟上面那组同值」都写在
+   上一段的 2026-10-15 那一小节里；判据在 appearance-skin-plaza-wiring.test.ts
+   （两条反向断言钉住它既不在 52% 那一组里、也不从名单里消失）。 */
+html[data-skin-art]:not([data-skin-art="none"]) .skin-gallery {
+  background-color: color-mix(in srgb, var(--surface-main) 70%, transparent);
 }
 
 /* 图案层：网格。端场那两条线（1px 横 @4px / 1px 竖 @120px）是**暗底**上的值，
