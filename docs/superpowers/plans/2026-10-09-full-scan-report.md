@@ -6713,3 +6713,34 @@ equal []`）。
 **划掉**：§七十九 热点表里 `apps/desktop/src/renderer/src/stores/useBookStore.ts` 那一行（提交次数最多那格，已有 spec）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；
 本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第八十三节：把 `useAgentStore.ts` 这份「渲染层线程态」捕获成 spec（Archcore 第五刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §八十二 未走完的热点表往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/use-agent-store.spec.md` 与本段文字。
+
+**为什么下一个是它**：热点表里 `apps/desktop/src/renderer/src/stores/useAgentStore.ts`（791 行 / 2172 测试行 / 22 份用例）是 §八十二 之后的第一候选。它是中栏那唯一一份线程态：入站推送归约、事件折叠、一轮的起 / 排 / 断、历史水合八规则、审批出口、`/` 面板派发、订阅挂摘，全在这一份 store，也正是 agent-service 那份 spec 在渲染层的对面。
+
+**不是转述注释，是读源码落的**：读全篇 790 行之外，另读了两处被判「抽出去」的真身——`utils/agent-thread.ts`（`ThreadView` / `newThread` / `threadKeyFor` / `malformedPush` / `plainList` / `composeStatusLine` / `composeStatusReport`，这一层的纯判定与文案全在那一份），并扫了 store 目录下八份 `useAgentStore.*.test.ts`（主案 / 水合 / 订阅 / 会话 / 技能 / 斜杠 / 草稿 / 实时错误）的标题与关键用例。规范里的 invariant 与失败规则就是从这些判据抄的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 5 条关联边（指回通道契约 spec、agent-service spec、use-book-store spec、行数预算 rule、失败可见 rule）。正文 23 条 MUST / 10 条失败规则 / 9 条 constraint+invariant，body 约 97 行（spec 限 120 行）。
+
+**取舍**：
+
+- 23 条 MUST 刻意分成四组口径：单一真身（`viewOf` 是线程视图唯一取处、`agentEventOff` 是订阅唯一真身、`malformedPush` 是进 store 唯一形状闸）、线程隔离（按载荷 `threadKey` 归位、迟到守卫严格相等）、一轮的收口顺序（`turn-end` 先发队首再谈水合 = 裁定 G3；还字账只在入口清空时记）、水合八规则的逐条复述。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 「迟到守卫不能顺手补 `turnId !== null &&`」那条单独成一条 invariant：这是 2026-10-05 真机查出的 P0（流式输出中按 Esc 后屏幕上凭空多出一段没人写过的字），源码注释与专门一组用例都钉着它，必须在规范里留一句，否则后人「顺手补个空判」会把坑再挖回来。
+- `viewOf` 必须回读响应式代理那条也单独成一条 invariant：这是「值对、视图旧」那类最难查的坑（占位永久停在「正在恢复这一条线程…」），八条规则的用例天生测不到，靠一条 computed 回归用例钉住；规范里点名「裸对象与代理是同一个 target、两套拦截」。
+- 与 agent-service 那份 homologue：两份 spec 各钉各的入口——那份钉「`runningTurns` 是主进程侧唯一真身，渲染层 running 只是某窗口自己的状态」，这份钉渲染层的线程密钥口径与迟到守卫。同一类坑两处各钉各的。
+- 5 条关联边里多带了 `failures-must-be-visible.rule.md`：这份 store 的失败规则（畸形推送留痕、水合坏行播报、取数失败只写 notice 不清空）几乎全是那条 rule 的具体落点，指过去便于后人改前先读到口径。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "apps/desktop/src/renderer/src/stores/useAgentStore.ts"})`：coverage 17 / hits 15，新 spec 以 `reason:"file"` 排第 1。这条查询正是「改它之前先读什么」的那一次调用，落点是准的。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次，其余全部 `unchanged`。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§七十九 热点表里 `apps/desktop/src/renderer/src/stores/useAgentStore.ts` 那一行（§八十二 之后的第一候选，已有 spec）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；
+本刀这份新 spec 用户尚未过目，读着不对就说，我改。

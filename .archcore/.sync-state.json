@@ -66,6 +66,31 @@
       "source": "architecture/use-book-store.spec.md",
       "target": "conventions/failures-must-be-visible.rule.md",
       "type": "related"
+    },
+    {
+      "source": "architecture/use-agent-store.spec.md",
+      "target": "architecture/ipc-channel-contract.spec.md",
+      "type": "related"
+    },
+    {
+      "source": "architecture/use-agent-store.spec.md",
+      "target": "architecture/agent-service.spec.md",
+      "type": "related"
+    },
+    {
+      "source": "architecture/use-agent-store.spec.md",
+      "target": "architecture/use-book-store.spec.md",
+      "type": "related"
+    },
+    {
+      "source": "architecture/use-agent-store.spec.md",
+      "target": "conventions/source-line-budget.rule.md",
+      "type": "related"
+    },
+    {
+      "source": "architecture/use-agent-store.spec.md",
+      "target": "conventions/failures-must-be-visible.rule.md",
+      "type": "related"
     }
   ]
 }
