@@ -484,7 +484,9 @@ html[data-platform="darwin"] .conversation-pane {
 }
 
 /* markdown 渲染出来的块级元素：外边距一律归零，靠容器 line-height 与下面这几条自己的 padding 定距。
-   不归零的话 `<p>` 默认 1em 上下边距会把每一行都撑成一段，段落感密得看不清。 */
+   不归零的话 `<p>` 默认 1em 上下边距会把每一行都撑成一段，段落感密得看不清。
+   （`blockquote` 2026-10-15 从这一组删了：简易 markdown 渲染器不产它，规则匹配不到，
+   判据在 dead-css-guard.test.ts 的标签普查，台账 §七十八。） */
 .message-markdown p,
 .message-markdown h1,
 .message-markdown h2,
@@ -492,8 +494,7 @@ html[data-platform="darwin"] .conversation-pane {
 .message-markdown h4,
 .message-markdown ul,
 .message-markdown ol,
-.message-markdown pre,
-.message-markdown blockquote {
+.message-markdown pre {
   margin: 0;
 }
 

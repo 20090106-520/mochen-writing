@@ -945,14 +945,9 @@ html[data-theme="dark"] .document-editor:focus-visible {
   margin: 0.3em 0;
 }
 
-.markdown-body blockquote {
-  border-left: 3px solid var(--accent, #7c5c3e);
-  margin: 1em 0;
-  padding: 0.4em 1em;
-  color: var(--text-secondary);
-  background: color-mix(in srgb, var(--accent, #7c5c3e) 6%, transparent);
-  border-radius: 0 4px 4px 0;
-}
+/* `.markdown-body blockquote` 2026-10-15 删了：简易 markdown 渲染器（markdownToSimpleHtml）
+   不产 `<blockquote>`（`> ` 那行原样留成文本），这条规则一行也匹配不到。
+   哪天给渲染器补上引用块，规则与这条注一起加回来；判据在 dead-css-guard.test.ts，台账 §七十八。 */
 
 .markdown-body pre {
   /* 5-㉓：正文那条 `overflow-wrap: break-word` 会继承进来，把这里原本的

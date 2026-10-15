@@ -6491,3 +6491,55 @@ typecheck 阶段机械红（比人工数站点稳），运行期则照旧由 `in
 
 **划掉**：`2026-10-08-tertiary-contrast-report.md` §五 A/B/C 里用户点的 **A** —— 收掉。
 **仍等同用户一句话的**：① 要不要给死 CSS 守卫补一层「元素选择器」普查（§七十六 留下的边界）。
+
+## 第七十八节：死 CSS 守卫补上「元素（标签）选择器」普查（§七十六 留下的边界，2026-10-15）
+
+**来源**：§七十六 结尾留下的那句「`styles/*.css` 里的标签选择器（`kbd` 这类）一个元素也匹配不到时
+**没有闸**，要不要立，你说一句就行」；用户点了「执行吧」，本节即那层闸。
+
+**口径**（注释与判据都落在 `dead-css-guard.test.ts` 里，此处只记取舍）：
+
+- **谁算「会造出这个元素」**：渲染层自己的 .vue/.ts（去掉 `*.test.ts`——否则本测试文件提到的标签
+  会把判定喂饱，与类名那条一字不差的理由）、`renderer/index.html`（`<html>` / `<body>` /
+  `<div id="app">` 只住在这里）、以及 `packages/fs-store/src/export-shared.ts`——
+  `markdownToSimpleHtml` 是**运行时**造 HTML 的那一支，`hr` 在渲染层源码里一个 `<hr` 都搜不到、
+  只有它造。
+- **判定形状是 `<tag`，不是裸词**：第一版调研在渲染层语料上用裸词量，`hr` 被判成死规则（因为语料
+  少算了 fs-store）；更要紧的是裸词对**单字母标签是静默的**——`a` / `i` / `p` 在任何一段英文注释或
+  字符串里都能命中，死规则会被判成活得。改成要求 `<tag ` / `<tag>` / `<tag/` / `</tag` 形状之后，
+  真死的那两条当场露出来。
+- 复用 `utils/vue-source-reader.ts` 的 `cssRules`（**不另写第二份解析**，铁律 6）；先过
+  `strippedStyleSource` 剥注释再解析——theme-runtime.css 的注释里就写着带大括号的规则片段，
+  不剥会被当真的解析、抽出并不存在的标签。`@media` 之外还让开 `@keyframes` 的帧关键字 `from` / `to`。
+
+**先红后绿**：新写的普查（含「不是空转」那条）先跑，红在 `a <- theme-runtime.css`、
+`blockquote <- agent-pane.css, editor-pane.css`；处置后再跑 ⇒ 该文件 6 passed。
+
+**逮到的两条真死规则（都是简易 markdown 渲染器不产的标签）**：
+- `html[data-theme] :where(.message-markdown a)`（theme-runtime.css）——渲染器不产 `<a>`，
+  本仓 markdown 链接是按纯文本落的；
+- `.message-markdown blockquote`（agent-pane.css 那一组的成员）＋ `.markdown-body blockquote`
+  （editor-pane.css 独立一条）——渲染器不产 `<blockquote>`（`> ` 那行原样留成文本）。
+
+**处置取「删规则」**（与 §七十六 的 `.nav-row kbd` 同一条口径）：另一条出路是**接线**（给渲染器补
+链接 / 引用块渲染），那是产品功能改动（`[text](url)` 要不要变成可点锚点、`>` 要不要变成引用块，
+还牵着 v-html 那一面的口子），**不该由我替产品加功能**。删掉是零观感影响（规则本来就匹配不到）。
+三处原地各留一条注，写清「哪天补上渲染器支持，规则与注一起加回来」。
+
+**变异两处（均验红后原样回退）**：① `isTagProduced` 改成恒 `true` ⇒ 红（「凭空一枚标签要被判成
+没有产生点」那条 `expected true to be false`，钉住普查不会变成永动机）；② 把 `.message-markdown
+blockquote` 加回 agent-pane 那一组 ⇒ 红（`expected [ 'blockquote  <-  agent-pane.css' ] to deeply
+equal []`）。
+
+**改动文件**：`components/dead-css-guard.test.ts`（新增普查 + 两条「不是空转」反向断言）、
+`styles/theme-runtime.css` / `styles/agent-pane.css` / `styles/editor-pane.css`（各删一处死规则 + 留注）。
+
+**这一层不管的（注释里写过，本节再记一遍）**：`styles/*.css` 之外的内联 `<style>` 块（类名那条
+同样不管，口径一致）；源码注释里写的 `<p class="…">` 会把该标签喂成「有消费者」——与类名那条同一
+局限，**只影响漏报、不影响误报**（方向是绿的）。
+
+**门禁**：prettier（4 文件）/ tsc（6 项目）/ eslint / boundary / 行数预算（703 份）/ vitest
+（358 文件 4675 通过 2 skipped）全绿。
+
+**划掉**：§七十七 结尾「仍等同用户一句话的」那一条 —— 收掉。
+**仍等同用户一句话的**：暂无（台账里当前没有挂着的句子）。

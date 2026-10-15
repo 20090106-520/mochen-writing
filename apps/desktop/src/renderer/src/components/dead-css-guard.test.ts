@@ -23,6 +23,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { cssRules, strippedStyleSource } from "../utils/vue-source-reader";
 
 const SRC = fileURLToPath(new URL("../", import.meta.url));
 const STYLES = path.join(SRC, "styles");
@@ -31,6 +32,10 @@ const CONTRACTS = fileURLToPath(
 );
 const PROVIDER_CONTRACTS = fileURLToPath(
   new URL("../../../../../../packages/contracts/src/provider.ts", import.meta.url)
+);
+/** markdown 渲染器：`hr` / `li` 这些标签是它在**运行时**造出来的，渲染层源码里一个都搜不到。 */
+const MARKDOWN_RENDERER = fileURLToPath(
+  new URL("../../../../../../packages/fs-store/src/export-shared.ts", import.meta.url)
 );
 
 const stripComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, " ");
@@ -182,5 +187,132 @@ describe("死 CSS 守卫 · 类名不许写了规则却匹配不到任何元素"
     // 它必须出现在 navIdOf（data-nav-id 的计算）里，而不是 class 绑定上
     expect(sidebar).toContain(':data-nav-id="navIdOf(group, child)"');
     expect(sidebar).not.toMatch(/:class="[^"]*navIdOf/);
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+   元素（标签）选择器的普查（2026-10-15，台账 §七十八）
+
+   【为什么补这一层】上面那一组只认类名：`styles/*.css` 里 `.xxx` 有没有被源码用到。
+   可标签选择器（`kbd` / `hr` / `blockquote` 这类）写不写都算「有规则」，
+   而源码里一个 `<kbd` 都没有时**没有任何闸**——2026-10-15 那条 `.nav-row kbd`
+   就是这样被人工看出来的（§七十六），当时留下一句「没有闸，要不要立，你说一句就行」。
+
+   【谁算「会造出这个元素」】三份源码一起看：
+   · 渲染层自己的 .vue/.ts（去掉 `*.test.ts`——否则本文件提到的标签会把判定喂饱，
+     理由与类名那条一字不差）；
+   · `renderer/index.html`：`<html>` / `<body>` / `<div id="app">` 只住在这里；
+   · `packages/fs-store/src/export-shared.ts`：`markdownToSimpleHtml` 是**运行时**造 HTML 的那一支，
+     `hr` 在渲染层源码里一个 `<hr` 都搜不到、只有它造（本轮实测：不把这份文件算进来，
+     `.markdown-body hr` 会被误判成死规则）。
+
+   【判定形状：`<tag`，不是裸词】裸词匹配（`\bhr\b`）对单字母标签是**静默的**——
+   `a` / `i` / `p` 在任意一段英文注释或字符串里都能命中，死规则会被判成活的。
+   换成要求 `<tag ` / `<tag>` / `<tag/` / `</tag` 这个形状之后，`a` 与 `blockquote` 当场露出来。
+
+   【这一层不管的】`styles/*.css` 之外的内联 `<style>` 块（类名那条同样不管，口径一致）；
+   源码注释里写的 `<p class="…">` 会把该标签喂成「有消费者」——与类名那条同一局限，
+   只影响漏报、不影响误报（方向是绿的）。
+   ───────────────────────────────────────────────────────────────────────── */
+/** `@keyframes` 的帧关键字，不是标签选择器：抽标签时让开。 */
+const KEYFRAME_FRAME_WORDS = new Set(["from", "to"]);
+
+/**
+ * 一条选择器里的元素（标签）选择器：每个复合选择器的首个裸词，前置不是 `.` `#` `:` `[`。
+ * 属性选择器先剥掉——`[data-theme="dark"]` 的属性名与取值看着像词，都不是标签。
+ * `:not(pre)` 这类伪类括号里的标签**不收**（保守：宁可漏报也不误报）。
+ */
+function typeSelectorsIn(selector: string): string[] {
+  const out: string[] = [];
+  for (const compound of selector.replace(/\[[^\]]*\]/g, "").split(/[\s>+~,]+/)) {
+    const first = /^([a-z][a-z0-9]*)/.exec(compound.trim());
+    if (first === null) continue;
+    const tag = first[1]!;
+    if (!KEYFRAME_FRAME_WORDS.has(tag)) out.push(tag);
+  }
+  return out;
+}
+
+/** 样式表 → 这一页写了哪些标签选择器（标签 → 出现在哪些文件名里，去重且按名字排序）。 */
+function tagSelectorsInStyles(): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const file of fs
+    .readdirSync(STYLES)
+    .filter((f) => f.endsWith(".css"))
+    .sort()) {
+    // 必须先剥注释再交给 cssRules：theme-runtime.css 的注释里就写着带大括号的规则片段，
+    // 不剥的话那些片段会被当成真规则、抽出并不存在的标签。
+    for (const rule of cssRules(strippedStyleSource(file))) {
+      // at-rule 前奏不是选择器（`@keyframes` 的帧由上面那枚常量让开）。
+      if (rule.selector.startsWith("@")) continue;
+      for (const tag of typeSelectorsIn(rule.selector)) {
+        const files = out.get(tag) ?? [];
+        if (!files.includes(file)) files.push(file);
+        out.set(tag, files);
+      }
+    }
+  }
+  return out;
+}
+
+/** 真会造出元素的源码正文（渲染层 .vue/.ts − 测试 + index.html + markdown 渲染器）。 */
+function tagProducerSource(): string {
+  return [
+    ...walk(SRC)
+      .filter((f) => /\.(ts|vue)$/.test(f) && !f.endsWith(".test.ts"))
+      .map((f) => fs.readFileSync(f, "utf8")),
+    fs.readFileSync(path.join(SRC, "..", "index.html"), "utf8"),
+    fs.readFileSync(MARKDOWN_RENDERER, "utf8")
+  ].join("\n");
+}
+
+/**
+ * 一枚标签有没有产生点。**要求 `<tag` 这个形状**，不用裸词——理由见上面那段注释。
+ * 单拎出来，是为了能在**合成输入**上证明它真的会咬（`isTagProduced("xyzzy", …)` 必须为 false）：
+ * 一个恒返回 true 的实现会让孤儿集合恒为空，普查就成了永动机。
+ */
+function isTagProduced(tag: string, source: string): boolean {
+  return new RegExp(`<\\s*/?\\s*${tag}(?=[\\s/>])`, "i").test(source);
+}
+
+describe("死 CSS 守卫 · 元素选择器不许写了规则却匹配不到任何元素", () => {
+  it("styles/*.css 里的每个标签选择器都有产生点", () => {
+    const source = tagProducerSource();
+    const orphans: string[] = [];
+    for (const [tag, files] of tagSelectorsInStyles()) {
+      if (!isTagProduced(tag, source)) orphans.push(`${tag}  <-  ${files.join(", ")}`);
+    }
+    expect(
+      orphans.sort(),
+      "CSS 里的孤儿标签选择器：源码里没有任何 `<tag` 会落进这条规则，规则一行也匹配不到。" +
+        "确认是改版残留、或渲染器根本不产的那种标签（如简易 markdown 渲染器不产 blockquote），" +
+        "就删掉规则；若是有意留的预备样式，先接线（把元素真造出来）再用。"
+    ).toEqual([]);
+  });
+
+  it("普查不是空转：抽到的标签是这些，且渲染器造的 hr 也算有产生点", () => {
+    const tags = [...tagSelectorsInStyles().keys()];
+    expect(tags.length, "一枚标签选择器都没抽到，解析口径坏了").toBeGreaterThan(20);
+    for (const expected of [
+      "html",
+      "body",
+      "button",
+      "input",
+      "textarea",
+      "select",
+      "svg",
+      "hr",
+      "kbd"
+    ]) {
+      expect(tags, `没抽到标签选择器 ${expected}`).toContain(expected);
+    }
+    // 反向：`.foo` / `#app` / `:hover` / `[data-theme]` 的碎片都不是标签，不许混进来。
+    for (const notTag of ["foo", "app", "hover", "data-theme", "from", "to"]) {
+      expect(tags, `${notTag} 不是标签选择器，被误抽进来了`).not.toContain(notTag);
+    }
+    // `hr` 的产生点在 markdown 渲染器里，这一条钉住那份文件真的进了语料（不然它会漏判成死）。
+    expect(isTagProduced("hr", tagProducerSource()), "hr 的产生点没被读进来").toBe(true);
+    // 反向：凭空一枚标签不能被当成有产生点——这是「判据真的会咬」的地基。
+    expect(isTagProduced("xyzzy", tagProducerSource())).toBe(false);
   });
 });
