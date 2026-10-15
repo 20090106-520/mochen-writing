@@ -5699,3 +5699,39 @@ M3 空手的机制也量清楚了：外层 catch 里那句 `if (!req.signal.abor
 **划掉**：第六十三节末尾"仍等同用户一句话"里的"`assembleFor` 每轮全量读盘改'按预算读 + 限并发'"
 ——本刀做完了。**仍等同用户一句话的**：通道级授权、LICENSE 字段、WebDAV/整书备份、全书替换、
 token 用量统计；以及 429/5xx 退避重试那一摊（第六十三节列的另一条，尚未动）。
+
+## 第六十五节：429 预登记方案的收口——补上"已经吐出字节的轮绝不重放"这道闸（2026-10-15）
+
+起因：第六十三节末尾"仍等同用户一句话的"第二条"429/5xx 退避重试"预登记方案，其原始 session 的 todo
+是 `survey → 拆 provider-client.test.ts → 补闸：部分流出的轮绝不重放 → 实现重试逻辑 → 门禁`。核查发现
+**四步里"实现"与"拆测试"早已落地**：`provider-client.ts:288-336` 的重试循环完整（含 `RETRYABLE_STATUS`、
+`retryWaitMsOf`、abort-aware 等待），测试也早已拆成 `provider-client.test.ts`（694 行）+ `provider-client-retry.test.ts`
+（135 行）两文件分工、后者 7 条 retry 用例。**唯一没做的只剩"补闸"**：`已经吐出字节的轮绝不重放`
+没有任何用例钉住。
+
+**性质为什么值得单独一道闸**：重试只许发生在"连接期"——一个字节都还没吐给用户的时候（`provider-client.ts:288-289`
+的注释就写了这句）。一旦流开始吐字节（text-delta 已经上屏），后面无论出什么错都**不许**重发请求：重放会把
+用户已经看见的半截回答再吐一遍（正文凭空重复），比"报错"坏得多。这条性质目前**由代码结构保证**（重试循环
+在读流之前，读流期的 catch 只 `throw error`、不重连），但结构没有用例钉住——将来有人顺手把"失败就重试"
+包到整段请求上，这条性质会静默失守。
+
+**做了什么**：`provider-client-retry.test.ts` 新增用例"已经吐出字节的轮绝不重放：流中途坏了只报错，fetch
+只发一次"。桩：`status:200` + 自定义流先吐一个 `text-delta:半截` 再 `throw`；断言三件事——(1) 整轮
+`rejects`（错原样上抛，不是被吞成 aborted），(2) `fetchImpl` **只被调用一次**（关键断言 `expect(calls).toBe(1)`），
+(3) 已流出的 `[{kind:"text-delta", text:"半截"}]` 恰好就是用户看到的全部。
+
+**变异实测**（不为过）：临时在 `provider-client.ts:401` 的读流 catch 里塞一次 naive 重连
+（`await req.fetchImpl({...})`），复跑用例当场红——`AssertionError: expected 2 to be 1`（fetch 被调了两次，
+正是被守卫的那条路），随后原样回退（`git diff` 对 `provider-client.ts` 为空）。守卫有牙，不是摆设。
+
+**顺带核对**：台账第 5472 行审计项 7"用户取消被报成失败"早已判"不存在"（`tool-loop.ts:189/:318` 查
+`signal.aborted` 返回 `status:"interrupted"`，渲染层有独立中性块、终态行只对 `endedAs!=="done"` 报错）
+——上一刀 summary 提示的"grep 选了 cancelled 漏看 interrupted"这条，核实结果是**台账本来就对**，无需再动。
+
+**测试数变动**：净 +1（346 文件 4515→4516）。
+
+**六段门禁**：prettier / tsc / eslint / boundary / 行数预算 / vitest 全绿。
+
+**划掉**：第六十三节末尾"仍等同用户一句话"里的"429/5xx 退避重试那一摊"——四步（survey 早已、拆测试早已、
+补闸本刀、实现早已）全部收口。**仍等同用户一句话的**：通道级授权、LICENSE 字段、WebDAV/整书备份、
+全书替换、token 用量统计。

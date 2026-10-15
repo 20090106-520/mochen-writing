@@ -93,6 +93,38 @@ describe("streamChat · 连接期一次性自动重试（2026-10-11）", () => {
     expect(calls()).toBe(1);
   });
 
+  it("已经吐出字节的轮绝不重放：流中途坏了只报错，fetch 只发一次", async () => {
+    // 反向守卫（2026-10-15，预登记方案的最后一道闸）：重试只许发生在「连接期」——
+    // 也就是一个字节都还没吐给用户的时候。一旦流开始吐字节（这里先吐一个 text-delta
+    // 再断线），后面无论出什么错都**不许**重新发一次请求：重放会把用户已经看见的半截
+    // 回答再吐一遍（正文凭空重复），比「报错」坏得多。这条性质目前由代码结构保证
+    // （重试循环在读流之前，见 provider-client.ts:288-336），本用例把结构钉成事实——
+    // 将来若有人顺手把「失败就重试」包到整段请求上，这里当场红。
+    let calls = 0;
+    const out: StreamEvent[] = [];
+    const fetchImpl = async (): Promise<ProviderFetchResult> => {
+      calls += 1;
+      return {
+        status: 200,
+        stream: {
+          async *[Symbol.asyncIterator]() {
+            yield sse({ choices: [{ delta: { content: "半截" } }] })[0]!;
+            throw new Error("模拟读流中途连接断了");
+          }
+        },
+        errorText: ""
+      };
+    };
+    await expect(
+      (async () => {
+        for await (const event of streamChat(requestOf(fetchImpl, new AbortController().signal)))
+          out.push(event);
+      })()
+    ).rejects.toThrow(/连接断/);
+    expect(calls).toBe(1); // 重放的话会变 2 —— 用户就会把「半截」看两遍
+    expect(out).toEqual([{ kind: "text-delta", text: "半截" }]);
+  });
+
   it("重试等待期间被打断 → 安静收尾 aborted，不再发第二次", async () => {
     const controller = new AbortController();
     let calls = 0;
