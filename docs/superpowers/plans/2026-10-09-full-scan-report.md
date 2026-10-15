@@ -6611,3 +6611,45 @@ equal []`）。
 
 **划掉**：无（本节不是从哪句挂着的句子来的）。
 **仍等同用户一句话的**：暂无（台账里当前没有挂着的句子）。
+
+## 第八十节：把 `contracts/ipc.ts` 这份通道契约面捕获成 spec（Archcore 第二刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §七十九 未走完的热点表往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/ipc-channel-contract.spec.md` 与本段文字。
+
+**为什么下一个是它**：§七十九 量到六份贴预算顶、且改动最频的文件，`packages/contracts/src/ipc.ts`
+（765 行 / 近 90 天 17 次提交）是其中唯一还没有文档的一份。补上它，IPC 这条线就齐了：
+登记规则（rule）→ 信任分档（adr）→ 入口守卫（spec）→ 通道契约面（本刀）。
+
+**不是转述台账，是读源码落的**：读全篇 765 行之外，另读了它下游的三处真身——`preload/renderer-api.ts`
+（唯一实现方）、`renderer-api.test.ts`（`Object.keys(api).sort()` 那份点名册）、
+`ipc-guard-coverage.test.ts`（「每一条要收的通道都在主进程注册过」与「不许裸写 `handle(IPC_CHANNELS.x)`」
+两份普查）。规范里的 invariant 就是从这三处抄的判据，不是我编的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 3 条关联边（指回守卫 spec、信任分档 adr、登记规则 rule）。
+正文 12 条 MUST / 8 条失败规则 / 7 条 constraint+invariant，body 68 行（spec 限 120 行）。
+
+**取舍**：
+
+- 12 条 MUST 里刻意**没有**一条去重申 `IPC_CHANNELS` 已有的东西，只写**容易被后人改错**的地方：
+  preload 不许加判定、失败必须走联合的一支而不是抛错、密钥只回存在位、主进程独占算法
+  （渲染层不许 import agent-runtime）。规范不重述真身，只钉口径。
+- 第 8 条把「渲染层递 URL」限死在 `app:open-web-source` 这一条通道——因为它是全仓**唯一**一条，
+  另一条看着同类的 `app:open-external` 走的是「只收 providerId 不收地址」的**反**口径。
+  两条为什么相反，源码注释里写全了，规范只钉「唯一性」这一面。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "packages/contracts/src/ipc.ts"})`：coverage 14 / hits 9，
+  新 spec 以 `reason:"file"` 排第 1（紧随其后的是守卫 spec）。这条查询正是「改它之前先读什么」
+  的那一次调用，落点是准的。
+- 全 `.archcore/**/*.md` 跑 `prettier --write` 全部 `unchanged`——本刀写的 md 一次就干净，
+  没有再出现 §七十九 那种开场判红。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：与 §七十九 同理——只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改；
+会被影响的那一段（prettier `--check`）已当场复核。
+
+**划掉**：§七十九 热点表里 `packages/contracts/src/ipc.ts` 那一行（唯一没文档的一份，已补齐）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；
+`ipc-guard.spec.md` 与本节这份新 spec 用户尚未过目，读着不对就说，我改。
