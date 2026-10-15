@@ -31,6 +31,21 @@
       "source": "architecture/ipc-channel-contract.spec.md",
       "target": "conventions/ipc-channel-registration.rule.md",
       "type": "related"
+    },
+    {
+      "source": "architecture/agent-service.spec.md",
+      "target": "architecture/ipc-channel-contract.spec.md",
+      "type": "related"
+    },
+    {
+      "source": "architecture/agent-service.spec.md",
+      "target": "architecture/ipc-guard.spec.md",
+      "type": "related"
+    },
+    {
+      "source": "architecture/agent-service.spec.md",
+      "target": "decisions/ipc-channel-trust-tiers.adr.md",
+      "type": "related"
     }
   ]
 }

@@ -6653,3 +6653,34 @@ equal []`）。
 **划掉**：§七十九 热点表里 `packages/contracts/src/ipc.ts` 那一行（唯一没文档的一份，已补齐）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；
 `ipc-guard.spec.md` 与本节这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第八十一节：把 `agent-service.ts` 这份「一轮的编排面」捕获成 spec（Archcore 第三刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §八十 未走完的热点表往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/agent-service.spec.md` 与本段文字。
+
+**为什么下一个是它**：热点表里 `apps/desktop/src/main/agent-service.ts`（798 行 / 4150 测试行 / 近 90 天 15 次提交）是分数最高、也最贴预算顶的一份。它是「通道契约」与「入口守卫」之下真正跑一轮的服务：把跨进程输入校验、线程闸门、按书作用域、审批落盘这四件事全收在一处，改动最频、也最容易改错。
+
+**不是转述注释，是读源码落的**：读全篇 798 行之外，另读了下游三处真身——`agent-ipc.ts`（七条 agent 通道的唯一注册方）、`book-scope.ts`（`scopedApprovalKey` 的唯一真身）、`approval-read.ts`（三态审批读），并扫了 `agent-service-turn-gate.test.ts` / `-boundary.test.ts` / `-book-scope.test.ts` 三份用例标题。规范里的 invariant 与失败规则就是从这些判据抄的，不是我编的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 3 条关联边（指回通道契约 spec、入口守卫 spec、信任分档 adr）。正文 19 条 MUST / 11 条失败规则 / 9 条 constraint+invariant，body 约 100 行（spec 限 120 行）。
+
+**取舍**：
+
+- 19 条 MUST 刻意分成四组口径：入收校验（单句中文，不许裸 ZodError 落渲染层）、线程闸门（P2-7：先占 `runningTurns` 再发 turn-start、`finally` 里按 turnId 只摘自己那一轮）、按书作用域（每个入口先 `sync()`、换书即清五张表、免审键必过 `scopedApprovalKey`）、审批落盘（批准才判档、唯一写盘通路 `book.writeDoc`、指纹失效不静默）。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 把「替代品」那一面也钉死了：渲染层那个 running 只是某窗口自己的状态，两个窗口／IPC 重放能叠两轮进同一 JSONL —— 所以闸门必须落在本层，`runningTurns` 是唯一真身。这条正是 P2-7 的由来。
+- 三条 constraint 里有两条是借别的文档的口径（800 行预算拆出块见 line-budget rule、sensitive 档判据 `hasRunningTurn` 见信任分档 adr），规范只引用、不复制真身。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "apps/desktop/src/main/agent-service.ts"})`：coverage 15 / hits 13，
+  新 spec 以 `reason:"file"` 排第 1。这条查询正是「改它之前先读什么」的那一次调用，落点是准的。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次，其余全部 `unchanged`
+  （不再出现 §七十九 那种开场判红）。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§七十九 热点表里 `apps/desktop/src/main/agent-service.ts` 那一行（分数最高那格，已有 spec）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；
+本刀这份新 spec 用户尚未过目，读着不对就说，我改。
