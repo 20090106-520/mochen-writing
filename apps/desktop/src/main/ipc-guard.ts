@@ -441,7 +441,11 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   [IPC_CHANNELS.appFlushQuitDone]: [objectRule("落盘的回话")],
   // TXT 导入（2026-10-11）：预览无参；提交递一章目清单（对象），清单内部每章的标题/正文
   // 形状与总量判定住在 import-service 的 commit——这里再逐章判就是第二份判据。
-  [IPC_CHANNELS.importCommit]: [objectRule("这一批导入的章节")]
+  [IPC_CHANNELS.importCommit]: [objectRule("这一批导入的章节")],
+  // 全书替换（2026-10-15）：递的是一个对象（要找的文本 + 换成什么）。
+  // 那两段文本的语义（空查询一律拒）判定住在 `book-replace.ts`，这里再判一遍就是第二份判据；
+  // 这条通道也没有 relPath 参数，所以注册点**不挂** insideCurrentBook（挂上会把空路径判成书外）。
+  [IPC_CHANNELS.bookReplaceAll]: [objectRule("全书替换的输入")]
 };
 
 export function argRulesFor(channel: string): ArgRule[] {
@@ -541,6 +545,13 @@ const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
   [IPC_CHANNELS.importCommit]: (info) => ({
     ok: false,
     reason: "no-book",
+    message: info.message
+  }),
+  // 全书替换（2026-10-15）被挡时照 BookReplaceResult 的失败档回话：调用点是 await 后按 result.ok
+  // 分支的，抛错会让那颗按钮悬死在 await 上（回一个真实的失败比「什么都不回」好）。
+  [IPC_CHANNELS.bookReplaceAll]: (info) => ({
+    ok: false,
+    reason: "invalid-input",
     message: info.message
   })
 };

@@ -10,6 +10,8 @@ import { useModalFocus } from "../composables/useModalFocus";
 import AppIcon from "./AppIcon.vue";
 import { imeOwnsKey } from "../utils/slash-commands";
 import { loadAllDocContents } from "../utils/doc-checkup";
+import { useNotificationStore } from "../stores/useNotificationStore";
+import { bookReplaceNotice, runBookReplace } from "../utils/book-replace";
 
 const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -31,11 +33,74 @@ useModalFocus({
 const search = useSearchStore();
 const book = useBookStore();
 const layout = useLayoutStore();
+const notif = useNotificationStore();
 
 const { lastResult, isSearching, searchHistory } = storeToRefs(search);
 const inputRef = ref<HTMLInputElement | null>(null);
 const localQuery = ref("");
 const selectedIndex = ref(0);
+
+/* ────────────────── 全书替换（2026-10-15） ────────────────── */
+
+const localReplacement = ref("");
+/**
+ * 「全书替换」的两步确认：第一下把按钮变成「确认替换全书 N 篇？」，第二下才真动手。
+ * 没有这一步，一次误点就把上千篇文稿翻一遍——虽然每篇改前的样子都会进改稿历史、
+ * 逐篇还有指纹守卫兜着，但「能找回」不等于「该让它随随便便发生」。
+ */
+const replaceArmed = ref(false);
+const replacing = ref(false);
+
+/**
+ * 能不能做全书替换：**只在精确命中那一轮里给**。
+ * 容错命中（一字之差）是「相似不是相同」——照着它去改盘上正文，会把用户没找的那几个字一起换掉，
+ * 那正是「不做假控件」要拦的事。所以这一轮不给按钮，也不留一句「点了没反应」的空控件。
+ */
+const canReplace = computed(
+  () =>
+    lastResult.value !== null &&
+    lastResult.value.mode === "exact" &&
+    localQuery.value.trim().length >= 2
+);
+
+// 查询或替换词一变就把确认撤掉：留着它，等于让「我刚才确认过的」替一份没确认过的输入背书。
+watch([localQuery, localReplacement], () => {
+  replaceArmed.value = false;
+});
+
+function onReplaceKeydown(e: KeyboardEvent): void {
+  // 组合态里那一下回车是输入法在选词，不是「确认替换」。
+  if (imeOwnsKey(e)) return;
+  if (e.key === "Enter") {
+    e.preventDefault();
+    void onReplaceAll();
+  }
+}
+
+async function onReplaceAll(): Promise<void> {
+  const query = localQuery.value.trim();
+  if (!canReplace.value || query === "" || replacing.value) return;
+  if (!replaceArmed.value) {
+    replaceArmed.value = true;
+    return;
+  }
+  replaceArmed.value = false;
+  replacing.value = true;
+  try {
+    const result = await runBookReplace({
+      query,
+      replacement: localReplacement.value,
+      // 与检索口径一致：面板找人时就不分大小写，换的时候也照同一档走。
+      caseSensitive: false
+    });
+    const notice = bookReplaceNotice(result, query, localReplacement.value);
+    notif.notify({ title: "全书替换", message: notice.message, level: notice.level });
+  } finally {
+    replacing.value = false;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────── */
 
 // 打开时把焦点接进面板这一件事由 useModalFocus 一处提供（5-㊲ 撤掉了这里那处 setTimeout 聚焦）
 watch(
@@ -44,6 +109,8 @@ watch(
     if (vis) {
       localQuery.value = search.query;
     }
+    // 收起来就把确认撤掉：面板再打开时那一枚按钮不该还是「确认替换…」的样子。
+    replaceArmed.value = false;
   }
 );
 
@@ -151,6 +218,36 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
           @keydown="onKeydown"
         />
         <kbd class="search-shortcut">Esc</kbd>
+      </div>
+
+      <!-- 全书替换（2026-10-15）：只在**精确命中**那一轮里给（见 canReplace 的说明）。
+           替换在主进程逐篇做：指纹守卫 + 整篇备份 + 原子写，回执如实报哪几篇没动。 -->
+      <div v-if="canReplace" class="search-replace-row">
+        <span class="search-replace-hint">替换为</span>
+        <input
+          v-model="localReplacement"
+          class="search-replace-input"
+          type="text"
+          spellcheck="false"
+          placeholder="替换成…（留空＝删掉）"
+          aria-label="替换为"
+          @keydown="onReplaceKeydown($event)"
+        />
+        <button
+          type="button"
+          class="search-replace-btn"
+          :class="{ 'is-armed': replaceArmed }"
+          :disabled="replacing"
+          @click="onReplaceAll"
+        >
+          {{
+            replacing
+              ? "替换中…"
+              : replaceArmed
+                ? `确认替换全书 ${book.docs.length} 篇？`
+                : "全书替换"
+          }}
+        </button>
       </div>
 
       <!-- 搜索历史 -->
@@ -284,6 +381,72 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   border-radius: 4px;
   color: var(--text-secondary, #999);
   background: rgba(255, 255, 255, 0.04);
+}
+
+/* 全书替换那一行：只在精确命中且查询有效时进 DOM（见 canReplace）。 */
+.search-replace-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
+}
+
+.search-replace-hint {
+  flex-shrink: 0;
+  font-size: 0.785714rem;
+  color: var(--text-muted, #777);
+}
+
+.search-replace-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 9px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary, #e8e8e8);
+  font-size: 0.928571rem;
+  outline: none;
+}
+
+.search-replace-input:focus-within {
+  border-color: var(--accent, #7c5c3e);
+}
+
+.search-replace-input::placeholder {
+  color: var(--text-muted, #777);
+}
+
+.search-replace-btn {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary, #999);
+  font-size: 0.785714rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.search-replace-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary, #e8e8e8);
+}
+
+/* 按下第一下之后是「确认替换全书 N 篇？」——这一步与第一下必须一眼分得开，
+   否则「误点两次」就等于没有确认。 */
+.search-replace-btn.is-armed {
+  background: var(--accent, #7c5c3e);
+  border-color: var(--accent, #7c5c3e);
+  color: var(--neutral-solid-contrast, #fff);
+}
+
+.search-replace-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .search-history {

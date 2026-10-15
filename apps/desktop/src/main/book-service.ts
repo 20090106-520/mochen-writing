@@ -13,6 +13,7 @@ import {
   type BookDataWriteResult,
   type BookMeta,
   type BookOpenResult,
+  type BookReplaceResult,
   type DocContent,
   type DocCreateResult,
   type DocRefreshResult,
@@ -35,6 +36,9 @@ import {
 } from "@mochen/fs-store";
 // 来源闸 + 参数形状 + 书根 realpath 判定：判据只有这一份，注册点只调不改写（P1-7）。
 import { handleTrusted, relPathStaysInsideRoot, type IpcRegistrar } from "./ipc-guard.js";
+// 全书替换的循环住在自己那个模块里（与 book-backup / doc-trash 同一安排）：
+// 这一段是「很多篇各自的一次写」，凑进 book-service 只会让这一份越写越长。
+import { replaceAcrossBook } from "./book-replace.js";
 
 export interface BookSnapshot {
   root: string;
@@ -49,6 +53,12 @@ export interface BookService {
   saveMeta(meta: BookMeta): Promise<void>;
   readDoc(relPath: string): Promise<DocContent>;
   writeDoc(relPath: string, content: string, expectedFingerprint: string): Promise<DocWriteResult>;
+  /**
+   * 全书替换（2026-10-15）：按当前快照逐篇「读 → 换 → 写」，回执如实分报。
+   * 入参按 unknown 收——形状（有没有 query/replacement）由 `replaceAcrossBook` 自己判，
+   * 不在注册点 cast 成类型（那样等于把判定推回给调用方）。
+   */
+  replaceAllInBook(input: unknown): Promise<BookReplaceResult>;
   /** 按规划好的书内路径建一篇空文档；relPath 由渲染层用 contracts 的 planDocRelPath 生成，这里兜底再验一遍。 */
   createDoc(relPath: string, title: string): Promise<DocCreateResult>;
   /**
@@ -113,6 +123,12 @@ export function registerBookIpc(
     IPC_CHANNELS.docRefresh,
     (_event, relPath) => service.refreshDoc(relPath as string),
     { check: insideCurrentBook("重算文稿", service) }
+  );
+  // 全书替换（2026-10-15）：**不挂 insideCurrentBook**——闸把 args[0] 当 relPath 看，
+  // 这条通道递来的是一个对象，取出来是空串，会被判成「书外」而一律拒。
+  // 要动哪几篇由主进程自己的快照决定，每一篇在读写时仍各自过一遍 realpath 闸（fs-store 那一层）。
+  handleTrusted(register, IPC_CHANNELS.bookReplaceAll, (_event, input) =>
+    service.replaceAllInBook(input)
   );
   // 设定数据这两条**不把参数 cast 成 string 再交给 service**：键与文本都要由 service 按 unknown
   // 判一遍（白名单、有没有开书）。在这里 `as BookDataKey` 等于把判定推到调用方，白名单就白了。
@@ -252,6 +268,24 @@ export function createBookService(deps: BookServiceDeps): BookService {
         // 装配没给好不等于保存失败：正文必须照写，淘汰退回默认档。
       }
       return writeDocFile(snapshot.root, relPath, content, expectedFingerprint, retention, deps.fs);
+    },
+
+    async replaceAllInBook(input) {
+      if (snapshot === null)
+        return {
+          ok: false,
+          reason: "no-book",
+          message: "尚未打开作品目录，全书替换没有可动的文稿。"
+        };
+      // 上限取哪一份、每一篇怎么读怎么写，全在 `replaceAcrossBook` 一处（与 `writeDoc` 同一条链子：
+      // readDocFile / writeDocFile 自带 realpath 闸、指纹守卫、整篇备份与原子写），这里只把「当前这本书」递给它。
+      return replaceAcrossBook(input, {
+        root: snapshot.root,
+        docs: snapshot.docs,
+        retention: deps.retention,
+        // `exactOptionalPropertyTypes` 下 `{ fs: undefined }` 不是「没传 fs」：只在真有值时才带上这一项。
+        ...(deps.fs === undefined ? {} : { fs: deps.fs })
+      });
     },
 
     async createDoc(relPath, title) {

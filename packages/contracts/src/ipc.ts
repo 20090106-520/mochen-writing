@@ -156,7 +156,20 @@ export const IPC_CHANNELS = {
    * 与 market:install、plugins:toggle 同一条铁律：渲染层递不了路径。
    */
   importPreview: "import:pick-preview",
-  importCommit: "import:commit"
+  importCommit: "import:commit",
+  /**
+   * 全书替换（2026-10-15）：按**字面**把当前这本书里每一篇的 query 换成 replacement。
+   *
+   * 【为什么不走「渲染层逐篇 doc:write」那条路】渲染层要自己换就得先把全书正文拉进内存
+   * ——3000 章就是 3000 次 `doc:read` 加一整本书的文本驻在渲染进程里，而替换**一处在哪一篇**
+   * 本来只有盘上那份字节说了算。主进程逐篇「读 → 换 → 写」既不多搬一次正文，又天然吃到
+   * `readDocFile`/`writeDocFile` 已有的指纹守卫、整篇备份与原子写——判据一份都不新造。
+   *
+   * 【与「不做假控件」的关系】全文搜索面板上的处数是**封顶的**（200 处），
+   * 所以这条通道不接「只替换命中的那几篇」——那会把第 201 处以后悄悄漏掉。
+   * 它按当前书的整份文稿快照走，回执上如实报「扫了几篇 / 改了几篇 / 共几处 / 哪几篇没动」。
+   */
+  bookReplaceAll: "book:replace-all"
 } as const;
 
 /** 退出握手里有稿子没能落盘的那一篇：点名到文件与原因，好让人自己拍板走不走。 */
@@ -262,6 +275,54 @@ export type DocWriteResult =
   | { ok: true; fingerprint: string; backupRelPath: string | null }
   | { ok: false; reason: "stale"; currentFingerprint: string }
   | { ok: false; reason: "invalid-path" | "outside-book" | "io-error"; message: string };
+
+/**
+ * book:replace-all 的输入（2026-10-15）。
+ *
+ * 只收**要找的那段字面文本**与**换成什么**（外加「区不区分大小写」）：
+ * 不收 relPath 清单——要动哪几篇由主进程按自己的文稿快照决定，理由写在通道表那一段注释里。
+ */
+export interface BookReplaceInput {
+  /** 要找的字面文本。空串会被拒（空模式会匹配每一处间隙，那是切碎不是替换）。 */
+  query: string;
+  /** 换成什么。空串＝删掉，这是合法且常用的输入。 */
+  replacement: string;
+  /** 区分大小写；默认 false。 */
+  caseSensitive?: boolean;
+}
+
+/**
+ * 没被替换掉的那一篇：`stale` = 我读完之后有人改过它（没有盖掉别人的字）；
+ * `failed` = 读或写这一步本身失败（含 realpath 判到书外）。
+ */
+export interface BookReplaceSkipped {
+  relPath: string;
+  title: string;
+  reason: "stale" | "failed";
+  message: string;
+}
+
+/**
+ * book:replace-all 的回执（2026-10-15）。
+ *
+ * 【为什么不是全有全无】整本书一个事务在本仓没有实现（也没有意义）：真出事的时候，
+ * 每篇改前的样子都已经在改稿历史里了，用户要的是**如实知道哪几篇没换成**，
+ * 而不是「全书回滚」那一套（那会把期间用户自己保存的别的改动一起抹掉）。
+ *
+ * `ok:true` 说的是「这一趟跑完了」，**不是**「每一篇都换成了」——后者由 skipped 如实报出。
+ */
+export type BookReplaceResult =
+  | {
+      ok: true;
+      /** 这一趟扫过几篇（当前书的文稿快照条数）。 */
+      scannedDocs: number;
+      /** 真正换掉内容的篇数（一处都没命中的篇不计）。 */
+      changedDocs: number;
+      /** 全书实际换掉的处数。 */
+      replacedCount: number;
+      skipped: BookReplaceSkipped[];
+    }
+  | { ok: false; reason: "no-book" | "invalid-input" | "io-error"; message: string };
 
 /**
  * doc:create 的返回：ok 侧带上新文件的指纹，渲染层拿它直接 openDocTab，不用再读一次盘。
@@ -385,6 +446,14 @@ export interface RendererApi {
   saveMeta(meta: BookMeta): Promise<void>;
   readDoc(relPath: string): Promise<DocContent>;
   writeDoc(relPath: string, content: string, expectedFingerprint: string): Promise<DocWriteResult>;
+  /**
+   * 全书替换（2026-10-15）：把当前这本书里每一篇的字面命中一次性换掉。
+   *
+   * 逐篇「读 → 换 → 写」，每篇都走 `doc:write` 那一套（指纹守卫 + 整篇备份 + 原子写）：
+   * 谁在我读完之后改了那一篇，我就报 `stale` 不动它，绝不盖掉人家刚写的字。
+   * 回执如实分报扫了几篇/改了几篇/共几处/哪几篇没动，**不是**全有全无。
+   */
+  replaceAllInBook(input: BookReplaceInput): Promise<BookReplaceResult>;
   /** 按已规划好的书内路径建一篇空文档（frontmatter title 用用户起的名字）；文件已存在会被拒绝，绝不盖写。 */
   createDoc(relPath: string, title: string): Promise<DocCreateResult>;
   /**

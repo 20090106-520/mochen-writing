@@ -181,7 +181,8 @@ export function createBookApi(): BookApiFixture {
     restoreBookBackup: offLimits("restoreBookBackup"),
     updateCheck: offLimits("updateCheck"),
     importTxtPreview: offLimits("importTxtPreview"),
-    importTxtCommit: offLimits("importTxtCommit")
+    importTxtCommit: offLimits("importTxtCommit"),
+    replaceAllInBook: offLimits("replaceAllInBook")
   } satisfies RendererApi;
 
   return {

@@ -5735,3 +5735,79 @@ token 用量统计；以及 429/5xx 退避重试那一摊（第六十三节列�
 **划掉**：第六十三节末尾"仍等同用户一句话"里的"429/5xx 退避重试那一摊"——四步（survey 早已、拆测试早已、
 补闸本刀、实现早已）全部收口。**仍等同用户一句话的**：通道级授权、LICENSE 字段、WebDAV/整书备份、
 全书替换、token 用量统计。
+
+## 第六十六节：全书替换——主进程一条「逐篇写盘 + 指纹守卫 + 备份」的通道（2026-10-15）
+
+起因：第六十三节末尾"仍等同用户一句话"里的第五条「全书替换」。台账原文是"**全书替换没有任何契约**"。
+核查确认：全书**搜索**早已存在（`SearchPanel.vue` → `useSearchStore.search(docs, rawQuery)`，逐行
+`toLocaleLowerCase().indexOf`，大小写不敏感子串，命中封顶 `MAX_HITS = 200`），而**替换**在全书范围上
+一个契约都没有——文档内 Ctrl+F 那套（`useFindReplaceStore`）是**单篇**的。
+
+**用户原话只到「好的，执行吧」**：这一条历史上等的是"用户一句话"，但用户已连续五次授权自行挑项落地，
+所以本刀按台账写下的事实自行收口，取舍与理由全在本节。
+
+**为什么替换不能落在渲染层**（这是本刀最关键的一个取舍）：渲染层要自己换，就得先把全书正文拉进内存
+——3000 章＝3000 次 `doc:read` 外加一整本书的文本驻在渲染进程里；而"哪一篇里有这一处"本来只有盘上
+那份字节说了算。所以做成**主进程一条通道** `book:replace-all`：逐篇「读 → 换 → 写」，一篇正文都不往
+渲染层搬。preload 与契约里**连 relPath 都递不出去**（输入只有 `{query, replacement, caseSensitive?}`），
+要动哪几篇由主进程按自己的文稿快照决定——这是这一刀的安全面，接线守卫反向钉死了它。
+
+**为什么不做「只替换命中的那几篇」**：搜索面板上的处数是**封顶的**（200 处），按它去挑篇等于把第 201
+处以后悄悄漏掉。这条通道按整份快照走，回执如实报「扫了几篇 / 改了几篇 / 共几处 / 哪几篇没动」。
+
+**判据只有一份**（铁律 6）：字面匹配与替换住 `packages/contracts/src/text-replace.ts`
+（`escapeRegExpLiteral` / `literalPattern` / `replaceLiteral`），主进程与渲染层吃同一份；顺手把
+`useFindReplaceStore.compileSearchRegex` 的非正则支（含非法正则的兜底支）改成调它——**转义只写一遍**
+（这是**减**重复，不是加），于是"查找面板里找得到、全书替换却换不掉"这一类分叉不可能出现。
+
+**安全面与 `doc:write` 一字不差**：读走 `readDocFile`、写走 `writeDocFile`，于是 realpath 位置闸
+（软链越界写不出去）、指纹守卫、改前原文整篇进 `.mochen/changes/...`、原子写、按篇淘汰，判据一份都不新造。
+关键是**传进去的指纹就是"我刚读到的那份字节"的指纹**：谁在这之后改了那一篇，这一篇报 `stale` 一个字都
+不动，绝不盖掉人家刚写的字。
+
+**为什么没有「全有全无」**：这个操作本来就是"很多篇各自的一次写"，不是一件事务。真出事时每篇改前的
+样子都在改稿历史里（能看 diff、能回滚），用户要的是**知道哪几篇没换成**；搞"全书回滚"反而会把期间
+用户自己保存的别的改动一起抹掉。所以回执 `ok:true` 只说"这一趟跑完了"——没换成的在 `skipped[]` 里
+点名并给出理由（`stale`：读完之后有人改过；`failed`：读或写这一步本身失败）。
+
+**IPC 闸**（P1-7）：`IPC_ARG_SHAPES` 加 `[book:replace-all]: [objectRule("全书替换的输入")]`；那两段文本的
+语义（空查询一律拒——空模式会匹配每一处间隙，那是切碎不是替换）判定住 `book-replace.ts` 一处，不在闸里
+再判一遍。同时 `IPC_DENY_REPLIES` 补上它的失败档：调用点是 `await` 之后按 `result.ok` 分支的，抛错会让
+按钮悬死在 await 上，回一个真失败比什么都不回好（`BookReplaceResult` 的失败档因此多了 `io-error` 一支，
+承接"IPC 本身没跑到"）。**刻意不挂 `insideCurrentBook`**：那道闸把 `args[0]` 当 relPath 取，这条通道递的
+是对象，取出来是空串会被判成"书外"而一律拒——要动的篇在读写时各自过 `fs-store` 那一层 realpath 闸。
+
+**UI 只给精确命中那一轮**：`SearchPanel` 的替换行要 `lastResult.mode === "exact"` 且有查询才进 DOM。
+容错命中（一字之差）是"相似不是相同"，照着它去改盘上正文会把用户没找的那几个字一起换掉——面板上连
+按钮都不给，而不是给了再拦。**两步确认**：第一下只把按钮变成"确认替换全书 N 篇？"（`is-armed` 换底色，
+一眼分得开），第二下才真动手；查询或替换词一变、面板一收，确认状态立刻撤掉。文案真身是
+`renderer/utils/book-replace.ts` 的纯函数 `bookReplaceNotice`：四档如实分报（失败 / 一处没命中 / 干净
+改完 / 改完了但有篇没动），`replacedCount === 0` 与 `changedDocs > 0` 在屏上不许长得一样；通知里还如实
+交代"正开在编辑器里的篇不会自己变，需要重新打开才能看到新正文（免得盖掉你没保存的字）"。
+
+**用例与变动**
+
+- 新增 `packages/contracts/test/text-replace.test.ts`（6 条）：元字符按字面看（`1.5` 不吃 `1x5`）、
+  默认不区分大小写且开关有效、替换串里的 `$` 一律字面、整词口径、空查询不换、count 报的是真处数。
+- 新增 `apps/desktop/src/main/book-replace.test.ts`（7 条）：篇数/处数对得上且盘上真换了、没命中就一个
+  字节都不动且不留假备份、改前原文进改稿历史、空查询拒、读不到的篇进 `skipped`（点名 + 理由）、
+  写不下去时如实报 `failed` 且盘上还是原文、**指纹对不上就跳过且不留痕迹**（`vi.doMock` 把"读到的那份
+  字节"的指纹换掉，模拟"我读完之后有人改过它"）。
+- 新增 `apps/desktop/src/renderer/src/utils/book-replace.test.ts`（8 条）：通知四档 + IPC 抛错也回真结果。
+- 新增 `components/search-replace-wiring.test.ts`（4 条读源码的接线守卫）：只走 `runBookReplace` 一枚入口、
+  反向钉"组件里不写盘也不递路径"、容错那一轮不给入口、两步确认存在。
+- 改既有：`preload/renderer-api.test.ts`（通道表/实参表/点名册/计数 56→57 四处）、`RendererApi` 的 8 份
+  测试夹具补 `replaceAllInBook`（都不该碰它，铺 `offLimits` 或直接抛）。
+
+**变异实测**（三处，都当场红、原样回退）：① `book-replace.ts` 把 `stale` 支吞掉（`if (!written.ok && reason !== "stale")`）
+⇒ "指纹对不上"用例红；② `escapeRegExpLiteral` 退化成恒等 ⇒ "元字符按字面看"用例红；③ `ipc-guard.ts`
+摘掉 `book:replace-all` 的形状行 ⇒ 形状表并集用例红（`expected [ 'book:replace-all' ] to deeply equal []`）。
+三处守卫都有牙。
+
+**测试数变动**：本刀用例净 +25（350 文件 4516→4541）。
+
+**六段门禁**：prettier（全仓）/ tsc（6 项目）/ eslint / boundary / 行数预算（685 份）/ vitest（350 文件
+4541 测试）全绿。
+
+**划掉**：第六十三节末尾"仍等同用户一句话"里的「全书替换」——本刀做完了。**仍等同用户一句话的**：
+通道级授权、LICENSE 字段、WebDAV/整书备份、token 用量统计。

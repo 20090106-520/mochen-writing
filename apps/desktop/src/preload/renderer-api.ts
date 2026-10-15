@@ -144,6 +144,9 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     // TXT 导入两条（2026-10-11）：预览无参（选文件框、读字节、切章全在主进程）；
     // 提交只递标题+正文清单，`chapters/<标题>.md` 由主进程拼。preload 不加判定。
     importTxtPreview: () => invoke(IPC_CHANNELS.importPreview),
-    importTxtCommit: (input) => invoke(IPC_CHANNELS.importCommit, input)
+    importTxtCommit: (input) => invoke(IPC_CHANNELS.importCommit, input),
+    // 全书替换（2026-10-15）：只递「找什么 + 换成什么」。要动哪几篇、怎么逐篇过指纹闸与备份，
+    // 全在主进程 book-replace.ts 一处；这里连 relPath 都递不出去，也就没有「渲染层点哪篇」这条路。
+    replaceAllInBook: (input) => invoke(IPC_CHANNELS.bookReplaceAll, input)
   };
 }

@@ -10,6 +10,9 @@
  */
 import { defineStore } from "pinia";
 import { ref } from "vue";
+// 字面匹配的模式串与「全书替换」（主进程 book-replace）吃同一份：转义只写一遍，
+// 免得「面板里找得到、全书替换却换不掉」（铁律 6；判定真身在 contracts/text-replace）。
+import { literalPattern } from "@mochen/contracts";
 
 export interface HighlightPosition {
   start: number;
@@ -81,11 +84,9 @@ export const useFindReplaceStore = defineStore("findReplace", () => {
     let pattern: string;
     if (useRegex.value) {
       pattern = raw;
+      if (wholeWord.value) pattern = `\\b${pattern}\\b`;
     } else {
-      pattern = raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    }
-    if (wholeWord.value) {
-      pattern = `\\b${pattern}\\b`;
+      pattern = literalPattern(raw, { wholeWord: wholeWord.value });
     }
     const flags = caseSensitive.value ? "g" : "gi";
 
@@ -93,10 +94,8 @@ export const useFindReplaceStore = defineStore("findReplace", () => {
       return new RegExp(pattern, flags);
     } catch {
       // 正则非法：容错，退回纯文本字面匹配。
-      const escaped = raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const fbPattern = wholeWord.value ? `\\b${escaped}\\b` : escaped;
       try {
-        return new RegExp(fbPattern, flags);
+        return new RegExp(literalPattern(raw, { wholeWord: wholeWord.value }), flags);
       } catch {
         return null;
       }

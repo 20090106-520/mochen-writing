@@ -129,6 +129,9 @@ const api = {
   },
   importTxtCommit: async () => {
     throw new Error("不该提交 TXT 导入");
+  },
+  replaceAllInBook: async () => {
+    throw new Error("不该在这条用例里做全书替换");
   }
 } satisfies RendererApi;
 

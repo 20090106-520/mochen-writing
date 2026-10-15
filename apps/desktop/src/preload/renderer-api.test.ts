@@ -243,8 +243,11 @@ describe("createRendererApi", () => {
     // TXT 导入两条（2026-10-11）：预览无参；提交递一章目清单（路径由主进程拼）。
     await api.importTxtPreview();
     await api.importTxtCommit({ chapters: [{ title: "第一章", content: "正文" }] });
+    // 全书替换（2026-10-15）：只递「找什么 + 换成什么」——**一个 relPath 都递不出去**，
+    // 要动哪几篇由主进程按自己的快照决定（这一列就是那道形状的证明）。
+    await api.replaceAllInBook({ query: "小明", replacement: "阿明" });
 
-    expect(calls.length).toBe(56);
+    expect(calls.length).toBe(57);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -316,7 +319,9 @@ describe("createRendererApi", () => {
       "book-backup:restore",
       // TXT 导入两条（2026-10-11）。同样不许从 IPC_CHANNELS 派生，理由同上。
       "import:pick-preview",
-      "import:commit"
+      "import:commit",
+      // 全书替换（2026-10-15）。同样不许从 IPC_CHANNELS 派生，理由同上。
+      "book:replace-all"
     ]);
     expect(calls.map((call) => call.args)).toEqual([
       [],
@@ -388,7 +393,9 @@ describe("createRendererApi", () => {
       // 导入两枚的实参：预览不收东西（选文件框、读字节都在主进程）；
       // 提交只收标题+正文清单——**一个路径都不许出现**，chapters/<标题>.md 由主进程拼。
       [],
-      [{ chapters: [{ title: "第一章", content: "正文" }] }]
+      [{ chapters: [{ title: "第一章", content: "正文" }] }],
+      // 全书替换的实参：整个对象原样出网（preload 一个字都不许拆或补）。
+      [{ query: "小明", replacement: "阿明" }]
     ]);
     // 渲染层只拿到这些方法：invoke/on/ipcRenderer 一个字都不许泄漏成键。
     expect(Object.keys(api).sort()).toEqual([
@@ -453,6 +460,9 @@ describe("createRendererApi", () => {
       // 只重算一篇（2026-10-10 P1-4 后半）：它进这份点名册的理由与别的改稿通道一样——
       // 少一枚渲染层就调不到（退回整本重扫），多一枚就是多开的口子。
       "refreshDoc",
+      // 全书替换（2026-10-15）：这条通道会把整本书翻一遍，和其它改稿通道一样进这份点名册：
+      // 少一枚面板点不到、多一枚就是多开的口子。
+      "replaceAllInBook",
       "restoreBookBackup",
       "restoreChange",
       "restoreTrash",

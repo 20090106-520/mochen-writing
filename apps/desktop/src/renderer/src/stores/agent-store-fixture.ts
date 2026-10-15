@@ -352,6 +352,10 @@ export const api = {
   },
   importTxtCommit: async () => {
     throw new Error("不该提交 TXT 导入");
+  },
+  // 全书替换（2026-10-15）：这条通道会把整本书翻一遍，谁真要用它在用例里显式铺好 mock。
+  replaceAllInBook: async () => {
+    throw new Error("不该在这条用例里做全书替换");
   }
 } satisfies RendererApi;
 
