@@ -10,8 +10,14 @@
  * 【它不是第二份判据】这里只**造形状**，一次比较都不做：不解析 URL、不比 origin、不读 env。
  * 「什么算自己人」这句话仍然只在 `ipc-guard.ts` 里写了一遍——`ipc-guard-coverage.test.ts`
  * 专门钉着这一点（它对这个文件的豁免仅限「可以出现 senderFrame 这个词」）。
+ *
+ * 【通道级授权默认装一份「有书」】2026-10-15 台账第六十九节加 self 档后，self 档通道在没装
+ * `installChannelTrustDeps` 时会被 fail closed 挡下。`trustedRendererEvent` 默认装一份「有书」
+ * 的查询器——与真进程里「从打开的书内的渲染层发出来的 IPC」同款。要测「没书」场景的用例
+ * 自己调 `installChannelTrustDeps({ currentBookRoot: () => null })` 覆盖。
  */
 import { installRendererTrust, type RendererTrust, type SenderEventLike } from "./ipc-guard.js";
+import { installChannelTrustDeps } from "./channel-trust.js";
 
 /** 开发态那一份页面的地址；夹具把它同时装成「被信任的来源」与「事件里的那一帧」。 */
 export const TRUSTED_FRAME_URL = "http://localhost:5173/index.html";
@@ -26,6 +32,7 @@ export function trustedRendererEvent(
   trust: RendererTrust = { allowedUrl: TRUSTED_FRAME_URL }
 ): SenderEventLike {
   installRendererTrust(trust);
+  installChannelTrustDeps({ currentBookRoot: () => "D:/books/潮信" });
   return { senderFrame: { url: trust.allowedUrl, parent: null } };
 }
 
@@ -34,6 +41,7 @@ export function untrustedRendererEvent(
   options: { url?: string; parent?: boolean; nullFrame?: boolean } = {}
 ): SenderEventLike {
   installRendererTrust({ allowedUrl: TRUSTED_FRAME_URL });
+  installChannelTrustDeps({ currentBookRoot: () => "D:/books/潮信" });
   if (options.nullFrame === true) return { senderFrame: null };
   return {
     senderFrame: {
@@ -46,4 +54,5 @@ export function untrustedRendererEvent(
 /** 把信任拆掉：用于「没装配＝一律不信」那条 fail-closed 断言。 */
 export function uninstallRendererTrust(): void {
   installRendererTrust(null);
+  installChannelTrustDeps(null);
 }

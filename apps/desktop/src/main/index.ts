@@ -44,6 +44,8 @@ import {
   resolveRendererLoad,
   trustedHandler
 } from "./ipc-guard.js";
+// 通道级授权装配点（2026-10-15，台账第六十九节）：判据真身在 channel-trust.ts。
+import { installChannelTrustDeps } from "./channel-trust.js";
 import { createCredentialStore } from "./credential-store.js";
 import { electronCipher } from "./electron-cipher.js";
 import { APP_DIR_NAME, appDirNameFor, devSeedNotice, resolveAppDataDir } from "./app-dirs.js";
@@ -197,6 +199,10 @@ app.whenReady().then(async () => {
   });
   // 来源判定装上：所有 IPC 通道与 `will-navigate` 用的就是这一份（`ipc-guard.ts` 里唯一那份）。
   installRendererTrust(rendererLoad.trust);
+  // 通道级授权装上（2026-10-15，台账第六十九节）：self 档通道要求当前书已打开。
+  // 判据真身在 book-service（`service.current()?.root`），这里只通过装配点递查询器，
+  // 与 installRendererTrust 同款——不写第二份"当前书根"判定（铁律 6）。
+  installChannelTrustDeps({ currentBookRoot: () => service.current()?.root ?? null });
 
   const win = new BrowserWindow({
     width: 1440,

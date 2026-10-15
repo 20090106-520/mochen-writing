@@ -8,8 +8,7 @@
  *   ② `book:open` 把 renderer 递来的 string 直接当**绝对路径**去读 `book.json`，`book:create` 的
  *      directory 同样；`doc:*` 只有 fs-store 那层的**词法** `..` 检查——符号链接逐字都对；
  *   ③ 窗口侧没有 `will-navigate` / `setWindowOpenHandler`，preload 注的是整套 `window.mochen`。
- * 三件叠起来的后果写在扫描总单里：渲染层一旦能执行脚本，就能往 `<appData>/plugins/x/index.js`
- * 写文件（`doc:write` 当时管不了写哪），再触发 `plugins:list` 的 `import()` ⇒ **主进程任意代码执行**。
+ * 三件叠起来的后果写在扫描总单里：渲染层一旦能执行脚本，就能往 `<appData>/plugins/x/index.js` 写文件（`doc:write` 当时管不了写哪），再触发 `plugins:list` 的 `import()` ⇒ **主进程任意代码执行**。
  *
  * 【这一层挡得住什么】
  *   - 不是我们这个页面发来的指令（远程页面、被导航出去后的页面、iframe 子帧、已经销毁的帧）；
@@ -18,13 +17,9 @@
  *   - 主窗口被导航走、被 `window.open` 开新窗口；打包版被 env 牵着去 load 远程 URL。
  *
  * 【这一层挡不住什么——别把下面这些当成已经解决了】
- *   - 我们自己的页面里被注入的脚本：那一帧的 URL 与来源完全合法，`isTrustedSender` 认它。
- *     真正拦这件事的是 CSP（策略住在 `renderer-csp.ts`，由 vite 插件按开发/打包两态插进 html；
- *     `index.html` 里没有写死的那一条）与 fs-store 的写盘闸，不是这里。
- *   - 已经打开的书目录里本来就有的软链：`book:open` 收的是绝对路径，用户自己选的目录里有什么，
- *     这一层不猜（词法越界与 realpath 越界在 `doc:*` 上拒，但 `book:open` 没有「书内」可判）。
- *   - 能改 `<appData>` 或能改安装目录的进程＝已经拿到了这个用户的文件写权限，闸在它面前形同虚设；
- *     这里防的是「浏览器里跑起来的一段脚本」，不是「本机任意进程」。
+ *   - 我们自己的页面里被注入的脚本：那一帧的 URL 与来源完全合法，`isTrustedSender` 认它。真正拦这件事的是 CSP（`renderer-csp.ts`，vite 插件按开发/打包两态插进 html）与 fs-store 的写盘闸，不是这里。
+ *   - 已经打开的书目录里本来就有的软链：`book:open` 收的是绝对路径，用户自己选的目录里有什么，这一层不猜（词法越界与 realpath 越界在 `doc:*` 上拒，但 `book:open` 没有「书内」可判）。
+ *   - 能改 `<appData>` 或能改安装目录的进程＝已经拿到了这个用户的文件写权限，闸在它面前形同虚设；这里防的是「浏览器里跑起来的一段脚本」，不是「本机任意进程」。
  *   - `sandbox: false` 本轮没动：改掉它要先验证 preload 与插件挂载在沙箱里还起得来（见报告的真机复验清单）。
  *
  * 【为什么判据只有这一份】`isTrustedSender` / `isSameRendererOrigin` / `relPathStaysInsideRoot`
@@ -35,8 +30,7 @@
  *   - `IpcMainInvokeEvent.senderFrame: WebFrameMain | null`——官方注释：在帧已导航或被销毁之后取到 null；
  *   - `WebFrameMain.parent: WebFrameMain | null`——官方注释：top frame 时为 null ⇒ 子帧判据是 `parent !== null`；
  *   - `WebFrameMain.url: string`——这一帧当前 URL。
- *   42 的 invoke 事件**没有** `parentFrameId` 这枚字段（只有 `frameId` / `processId`），
- *   所以「非主帧」不能按 `parentFrameId !== -1` 判——那样写会永远判不出子帧，这里用 `parent`。
+ *   42 的 invoke 事件**没有** `parentFrameId` 这枚字段（只有 `frameId` / `processId`），所以「非主帧」不能按 `parentFrameId !== -1` 判——那样写会永远判不出子帧，这里用 `parent`。
  */
 
 import { realpath } from "node:fs/promises";
@@ -82,6 +76,9 @@ export function installedRendererTrust(): RendererTrust | null {
   return installedTrust;
 }
 
+// 通道级授权（台账第六十九节）：判据真身在 channel-trust.ts，这里只 import（铁律 6）。
+import { channelTrustVerdict } from "./channel-trust.js";
+
 function parseUrl(raw: unknown): URL | null {
   if (typeof raw !== "string" || raw === "") return null;
   try {
@@ -115,8 +112,7 @@ function isUnderReal(child: string, root: string): boolean {
  * - `http(s)://`：同一 origin 即可。开发态 vite 整页重载会改 query、客户端路由会改 hash，
  *   那是同一条页面而不是被导航走；要换 origin 就得让 vite 服务出去，本来就不是正常路径。
  *
- * 局限照写：同源之下的别的页面（未来若加第二份 html）也算自己人。这一层不做「哪个页面能用哪条通道」，
- * 那是通道级授权（本轮没做，见报告）。
+ * 局限照写：同源之下的别的页面（未来若加第二份 html）也算自己人。「哪个页面能用哪条通道」由 channel-trust.ts 的 self 档收口（台账第六十九节）。
  */
 export function isSameRendererOrigin(rawUrl: unknown, trust: RendererTrust): boolean {
   const allowed = parseUrl(trust.allowedUrl);
@@ -234,8 +230,8 @@ export const MAX_ID_CHARS = 256;
 /** 单篇正文上限：4M 字（约 12 MB utf-8）——比任何一本真实书都宽，窄到 1M 会把长文拦成「保存失败」。 */
 export const MAX_BODY_CHARS = 4_000_000;
 
-/** 被挡下的三种原因：来源不对 / 参数形状不对 / 追加检查（例如书外路径）没过。 */
-export type GuardDenyKind = "untrusted" | "arg" | "check";
+/** 被挡下的四种原因：来源不对 / 通道档位没满足 / 参数形状不对 / 追加检查没过。`guard` 档的判定住在 channel-trust.ts。 */
+export type GuardDenyKind = "untrusted" | "arg" | "check" | "guard";
 export interface DenyInfo {
   message: string;
   kind: GuardDenyKind;
@@ -617,8 +613,7 @@ function refuse(channel: string, options: GuardOptions, info: DenyInfo): unknown
  * 把一条 handler 包成「先问来源、再问形状、然后才干活」。
  *
  * 单独导出这个（而不是只有 `handleTrusted`）是因为 `index.ts` 里那四条通道得写成
- * `ipcMain.handle(IPC_CHANNELS.x, trustedHandler(...))`：渲染层有一条源码契约测试钉着那句字面量
- * （`export-dialog-wiring.test.ts`），把注册本身换掉会让那条测试假红。
+ * `ipcMain.handle(IPC_CHANNELS.x, trustedHandler(...))`——`export-dialog-wiring.test.ts` 钉着字面量，换注册会让那条测试假红。
  */
 export function trustedHandler<A extends readonly unknown[]>(
   channel: string,
@@ -631,6 +626,12 @@ export function trustedHandler<A extends readonly unknown[]>(
       // 这一句必须进主进程日志：渲染层被劫持时，界面上什么都不会发生，只有这里有痕迹。
       console.warn(`[IPC 来源闸] ${channel} ← ${verdict.reason}`);
       return refuse(channel, options, { message: verdict.reason, kind: "untrusted" });
+    }
+    // 通道级授权：来源可信后再问"这条通道的档位要求满不满足"（真身在 channel-trust.ts）。
+    const channelDeny = channelTrustVerdict(channel);
+    if (channelDeny !== null) {
+      console.warn(`[IPC 通道档] ${channel} ← ${channelDeny}`);
+      return refuse(channel, options, { message: channelDeny, kind: "guard" });
     }
     const rules = options.args ?? argRulesFor(channel);
     for (let index = 0; index < rules.length; index += 1) {

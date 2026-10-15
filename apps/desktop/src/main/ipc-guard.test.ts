@@ -23,6 +23,7 @@ import {
   type IpcRegistrar,
   type SenderEventLike
 } from "./ipc-guard.js";
+import { IPC_TRUST_LEVELS, channelTrustVerdict, installChannelTrustDeps } from "./channel-trust.js";
 
 /**
  * IPC 来源闸与参数形状闸（2026-10-10 全仓扫描 P1-7 / P1-8 的第一环）。
@@ -87,6 +88,10 @@ function registry(): { channels: string[]; fns: Map<string, GuardedCall>; regist
 beforeEach(() => {
   // 判定用的 trust 是启动时装上去的那一份（见 index.ts）；用例之间不许互留。
   installRendererTrust(null);
+  // 通道级授权默认装一份「有书」的查询器：现有形状闸 / check 闸用例都假设「有书」是常态
+  // （它们的语义是测形状 / 越界，不是测通道档位），channelTrustVerdict 不该因为没装查询器
+  // 把 self 档通道全挡了。fail closed 那条语义由 channelTrustVerdict 的 describe 块显式装 null 测。
+  installChannelTrustDeps({ currentBookRoot: () => "D:/books/潮信" });
 });
 
 describe("isTrustedSender：只认这一个渲染层来源", () => {
@@ -313,6 +318,130 @@ describe("handleTrusted：不可信调用挡回去，且按各通道现有契约
     expect(reg.fns.get("custom:channel")!(event(frame("https://evil.example.com/")))).toEqual({
       refused: true
     });
+  });
+});
+
+describe("channelTrustVerdict：通道级授权（self 档要求当前书已打开）", () => {
+  /** 装好来源 trust + 通道查询器（root=null 表示没开书），注册一条通道，触发；返回 "passthrough" 或抛错消息。 */
+  function fireWithBook(channel: string, root: string | null, ...args: unknown[]): unknown {
+    installRendererTrust({ allowedUrl: DEV_URL });
+    installChannelTrustDeps({ currentBookRoot: () => root });
+    const reg = registry();
+    handleTrusted(reg.register, channel, () => "passthrough");
+    const fn = reg.fns.get(channel)!;
+    try {
+      return fn(event(frame(DEV_URL)), ...args);
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  it("self 档通道：没装 ChannelTrustDeps 时 fail closed（与来源闸没装 trust 同款）", () => {
+    installRendererTrust({ allowedUrl: DEV_URL });
+    installChannelTrustDeps(null);
+    const reg = registry();
+    let called = 0;
+    handleTrusted(reg.register, IPC_CHANNELS.bookSaveMeta, () => {
+      called += 1;
+      return "不该走到这里";
+    });
+    expect(() => reg.fns.get(IPC_CHANNELS.bookSaveMeta)!(event(frame(DEV_URL)), {})).toThrowError(
+      /通道级授权没装上|按不可信处理/
+    );
+    expect(called).toBe(0);
+  });
+
+  it("self 档通道：装了查询器但 currentBookRoot 返回 null（没开书）⇒ 挡下，handler 不被叫到", () => {
+    installRendererTrust({ allowedUrl: DEV_URL });
+    installChannelTrustDeps({ currentBookRoot: () => null });
+    const reg = registry();
+    let called = 0;
+    handleTrusted(reg.register, IPC_CHANNELS.docRead, () => {
+      called += 1;
+      return "不该走到这里";
+    });
+    expect(() =>
+      reg.fns.get(IPC_CHANNELS.docRead)!(event(frame(DEV_URL)), "chapters/01.md")
+    ).toThrowError(/self 档|没有书|当前已打开/);
+    expect(called).toBe(0);
+  });
+
+  it("self 档通道：装了查询器且有书 ⇒ 照常通过到形状闸", () => {
+    expect(fireWithBook(IPC_CHANNELS.docRead, "D:/books/潮信", "chapters/01.md")).toBe(
+      "passthrough"
+    );
+    expect(fireWithBook(IPC_CHANNELS.bookSaveMeta, "D:/books/潮信", {})).toBe("passthrough");
+  });
+
+  it("public 档通道：不查 currentBookRoot，没装查询器 / 没书都照常过", () => {
+    installRendererTrust({ allowedUrl: DEV_URL });
+    installChannelTrustDeps(null);
+    const reg = registry();
+    handleTrusted(reg.register, IPC_CHANNELS.skillsList, () => "ok");
+    expect(reg.fns.get(IPC_CHANNELS.skillsList)!(event(frame(DEV_URL)))).toBe("ok");
+    expect(fireWithBook(IPC_CHANNELS.webdavConfigGet, null)).toBe("passthrough");
+  });
+
+  it("挡下时说得出理由：「没装上」与「没有书」是两回事，日志要分得开", () => {
+    installRendererTrust({ allowedUrl: DEV_URL });
+    installChannelTrustDeps(null);
+    expect(channelTrustVerdict(IPC_CHANNELS.docRead)).toMatch(/没装上|按不可信/);
+    installChannelTrustDeps({ currentBookRoot: () => null });
+    const reasonNoBook = channelTrustVerdict(IPC_CHANNELS.docRead);
+    expect(reasonNoBook).toMatch(/self 档|没有书|当前已打开/);
+    expect(reasonNoBook).not.toMatch(/没装上/);
+    installChannelTrustDeps({ currentBookRoot: () => "D:/books/潮信" });
+    expect(channelTrustVerdict(IPC_CHANNELS.docRead)).toBeNull();
+  });
+
+  it("IPC_TRUST_LEVELS 表里每条都是 contracts 里的真通道名，且落在形状表 ∪ 无参清单的并集里", () => {
+    const real = new Set<string>(Object.values(IPC_CHANNELS));
+    const covered = new Set([...Object.keys(IPC_ARG_SHAPES), ...IPC_NO_ARG_CHANNELS]);
+    for (const channel of Object.keys(IPC_TRUST_LEVELS)) {
+      expect(real.has(channel), `${channel} 不是 contracts 里的通道名`).toBe(true);
+      expect(IPC_TRUST_LEVELS[channel], `${channel} 的档位必须是 "self"`).toBe("self");
+      expect(
+        covered.has(channel),
+        `${channel} 在 IPC_TRUST_LEVELS 里但形状表与无参清单都没落`
+      ).toBe(true);
+    }
+  });
+
+  it("self 档通道在 check 闸之前挡下：不走到 realpath（realpath 闸不会因为没书被误触发）", () => {
+    installRendererTrust({ allowedUrl: DEV_URL });
+    installChannelTrustDeps({ currentBookRoot: () => null });
+    const reg = registry();
+    let checkCalled = 0;
+    handleTrusted(reg.register, IPC_CHANNELS.docWrite, () => "不该走到这里", {
+      check: () => {
+        checkCalled += 1;
+        return null;
+      }
+    });
+    const reply = reg.fns.get(IPC_CHANNELS.docWrite)!(
+      event(frame(DEV_URL)),
+      "chapters/01.md",
+      "正文",
+      "fp"
+    ) as Record<string, unknown>;
+    expect(reply.ok).toBe(false);
+    expect(String(reply.message)).toMatch(/self 档|没有书|当前已打开/);
+    expect(checkCalled).toBe(0);
+  });
+
+  it("没挂 insideCurrentBook 的 self 档通道：原先没书时靠 service 各自判 no-book，现在主进程侧先挡", () => {
+    installRendererTrust({ allowedUrl: DEV_URL });
+    installChannelTrustDeps({ currentBookRoot: () => null });
+    const reg = registry();
+    let called = 0;
+    handleTrusted(reg.register, IPC_CHANNELS.bookSaveMeta, () => {
+      called += 1;
+      return "不该走到这里";
+    });
+    expect(() => reg.fns.get(IPC_CHANNELS.bookSaveMeta)!(event(frame(DEV_URL)), {})).toThrowError(
+      /self 档|没有书|当前已打开/
+    );
+    expect(called).toBe(0);
   });
 });
 

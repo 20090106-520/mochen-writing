@@ -5989,3 +5989,82 @@ N 行，用户读到的是排版垃圾而不是一个数。
 
 **划掉**：第六十六节末尾"仍等同用户一句话"里的「WebDAV/整书备份」——本刀做完了。**仍等同用户一句话的**：
 通道级授权、LICENSE 字段。
+
+## 第六十九节（2026-10-15）：通道级授权——self 档通道要求当前书已打开
+
+**事故事件**：台账第十五条那一半——`ipc-guard.ts:115-116` 自认"不做『哪个页面能用哪条通道』，
+那是通道级授权（本轮没做）"。同源页内注入脚本趁「没书」时调 self 档通道（特别是没挂
+insideCurrentBook 的那批：`book:save-meta` / `book-data:*` / `book-backup:*` /
+`book:replace-all` / `import:commit`），原先它们在没书时被 service 各自判 no-book 挡回去，
+但主进程侧没有形式化真身——靠的是 service 各自"误打误撞"挡住，理由说不出口。
+
+**判据收口与装配点模式**：与 `installRendererTrust` 同款，判据真身住在 book-service
+（`service.current()?.root`，见 `book-service.ts:81` 的 `current()` 与 `agent-service.ts:158`
+的 `currentRoot`）。`channel-trust.ts` 只通过装配点取它，不写第二份「当前书根」判定（铁律 6）。
+真进程里在 `index.ts:204` 装上：`installChannelTrustDeps({ currentBookRoot: () => service.current()?.root ?? null })`。
+
+**两档口径**：
+- `public`（默认，不在表里也算 public）：不要求当前书已打开。开建选书（`book:open` /
+  `book:create` / `book:pick`）、设置类（`provider:*` / `appearance:*` / `skills:*` /
+  `market:*` / `plugins:*`）、应用级（`app:*` / `update:check`）、agent 控制（`agent:*`）、
+  远程配置（`webdav:*`，要不要落到哪本书在 service 内部判）、`import:pick-preview`。
+- `self`：要求当前书已打开。22 条——`doc:*` / `trash:*` / `changes:*` / `book-backup:*` /
+  `book-data:*` / `book:save-meta` / `book:replace-all` / `import:commit`。
+- sensitive 档（要求"没有进行中的 agent 轮"等更严判据）留下一刀避免越失败边界
+  （与台账「webdav pull 留下一刀」同一条铁律）。
+
+**与 insideCurrentBook 的关系**：insideCurrentBook 判「relPath 解出来在书内」（realpath 级），
+它的前提「书根非 null」是隐式判——书根 null 时 realpath 失败也拒，但属于"误打误撞挡住"。
+`channelTrustVerdict` 判「有没有书」（快判），是 doc:* 的前置快判：没书时直接拒，不走 realpath，
+理由说得出口。两者不重复：一个判"书状态"，一个判"路径越界"。
+
+**GuardDenyKind 加 guard 档**：`trustedHandler` 在 `senderTrustVerdict` 之后、`argRulesFor` 之前
+挂 `channelTrustVerdict`。挡下时 `console.warn` + `refuse(channel, options, { message, kind: "guard" })`，
+回话形状按通道在 `IPC_DENY_REPLIES` 里登记的走（与现有形状被拒时回话同款）。
+
+**为什么独立成 channel-trust.ts**：ipc-guard.ts 的 800 行预算已经吃紧（来源闸 + 形状闸 +
+realpath 闸 + 窗口闸四块），通道级授权这一刀加进来会越线。拆到这里不改变「判据只有一份」的约束
+（铁律 6）：`channelTrustVerdict` 只在 channel-trust.ts 实现一次，ipc-guard.ts 只 import 调用。
+
+**这一层挡不住什么**：同源页内注入脚本趁「有书」时调任意通道——那一帧的 URL 与来源完全合法，
+主进程侧与合法脚本不可区分（ipc-guard.ts 顶上注释已自认）。真正拦这件事的是 CSP + fs-store 写盘闸，
+不是这里。本刀只在「没书」这个判据上做实质拦阻。
+
+**测试夹具同步**：`ipc-trust-fixture.ts` 的 `trustedRendererEvent` / `untrustedRendererEvent` /
+`uninstallRendererTrust` 同步装上 `installChannelTrustDeps`——与真进程里「从打开的书内的渲染层
+发出来的 IPC」同款。要测「没书」场景的用例自己调 `installChannelTrustDeps({ currentBookRoot: () => null })`
+覆盖。`ipc-guard.test.ts` 的 `beforeEach` 装默认「有书」查询器，channelTrustVerdict describe 块里
+有 8 个用例（含 fail closed / 没书 / 有书 / public 档 / 理由分得开 / IPC_TRUST_LEVELS 完整性 /
+check 闸之前挡下 / 没挂 insideCurrentBook 的 self 档）。
+
+**变异实测两处都红后原样回退**：
+1. 去掉 `if (root === null) return ...` 那段 ⇒ 红 4 条（没书场景全放行）；
+2. 把 `IPC_CHANNELS.docRead` 改成 `"public"` ⇒ 红 3 条（self 档完整性 + 没书挡下）。
+
+**取舍记录**：
+- 仅做 self 档避免越失败边界——sensitive 档要装第二个查询器（如"没有进行中的 agent 轮"），
+  留下一刀与「webdav pull」同一条铁律。
+- 不在 channelTrustVerdict 里抢 service 的判——`webdav:push/list` 要不要落到哪本书由
+  webdav-service 内部判 no-book，与 channelTrustVerdict 不重复（铁律 6）。
+- `agent:*` 全部 public——`agent:list-sessions` / `agent:load-session` 在没书时也能用
+  （用户可能先看历史线程再开书）；`agent:start-turn` 等的「有没有书」判据住在 agent-service
+  自己那层，不在 channelTrustVerdict 抢。
+
+**改动文件**：
+- `apps/desktop/src/main/channel-trust.ts`（新建，133 行）：ChannelTrustDeps 接口 +
+  installChannelTrustDeps / installedChannelTrustDeps 装配点 + IPC_TRUST_LEVELS 表
+  （22 条 self 档通道）+ channelTrustVerdict 真身
+- `apps/desktop/src/main/ipc-guard.ts`：GuardDenyKind 加 "guard" 档；trustedHandler 里挂
+  channelTrustVerdict 调用（来源闸之后、形状闸之前）；import channelTrustVerdict
+- `apps/desktop/src/main/index.ts`：line 204 装配 installChannelTrustDeps，递 book-service
+  的 current() 查询器；import 改成从 ./channel-trust.js
+- `apps/desktop/src/main/ipc-guard.test.ts`：import 拆开（channel-trust 符号从 ./channel-trust.js）；
+  beforeEach 装默认「有书」查询器；新增 channelTrustVerdict describe 块 8 个用例 + fireWithBook 辅助
+- `apps/desktop/src/main/ipc-trust-fixture.ts`：trustedRendererEvent / untrustedRendererEvent /
+  uninstallRendererTrust 同步装 installChannelTrustDeps，让用夹具的其它测试不被 self 档挡
+
+**六段门禁**：prettier（5 改动文件）/ tsc（6 项目）/ eslint / boundary / 行数预算（700 份）/
+vitest（356 文件 4639 通过 2 skipped）全绿。
+
+**划掉**：第六十八节末尾"仍等同用户一句话"里的「通道级授权」——本刀做完了。
+**仍等同用户一句话的**：LICENSE 字段。
