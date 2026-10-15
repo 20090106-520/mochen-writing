@@ -6684,3 +6684,32 @@ equal []`）。
 **划掉**：§七十九 热点表里 `apps/desktop/src/main/agent-service.ts` 那一行（分数最高那格，已有 spec）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；
 本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第八十二节：把 `useBookStore.ts` 这份「渲染层书态」捕获成 spec（Archcore 第四刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §八十一 未走完的热点表往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/use-book-store.spec.md` 与本段文字。
+
+**为什么下一个是它**：热点表里 `apps/desktop/src/renderer/src/stores/useBookStore.ts`（800 行 / 3225 测试行 / 近 90 天 18 次提交）是提交次数最多、也正贴预算顶的一份。它是渲染层那唯一一本打开的书：开书 / 建书、文稿标签与草稿、自动保存、book.json 可写档位的落盘、右栏三格、改稿历史与伏笔台账，全在这一份 store，改动最频。
+
+**不是转述注释，是读源码落的**：读全篇 800 行之外，另读了两处被判「抽出去」的真身——`utils/draft-flush.ts`（`saveOutcomeOf` / `flushDocBeforeDrop` / `flushIOFor` / `docStateOf` / `EMPTY_DOC`，800 行预算尾巴那批）与 `utils/meta-mode-step.ts`（权限档 / 工作模式 / 阶段 / 档案四档判定），并扫了 store 目录下八份 `useBookStore.*.test.ts` 的标题。规范里的 invariant 与失败规则就是从这些判据抄的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 4 条关联边（指回通道契约 spec、agent-service spec、行数预算 rule、失败可见 rule）。正文 17 条 MUST / 9 条失败规则 / 9 条 constraint+invariant，body 约 95 行（spec 限 120 行）。
+
+**取舍**：
+
+- 17 条 MUST 刻意分成四组口径：单一真身（`hasBook` 是「有没有打开作品」唯一判据、`persistMeta` 是 book.json 可写字段唯一通路、`saveActive` 是文稿唯一落盘通路）、落盘安全（切标签先 `cancelAutoSave`+`stashActive`、关标签先 flush、退出兜底一篇失败不中断其余）、判据不重述（`docStateOf` / `flushIOFor` / `saveOutcomeOf` / `meta-mode-step` 一律读 utils，不手拼）、`absorbAgentWrite` 的镜像语义（干净重载、手改挂冲突）。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 把「换书即失效」那一面也钉死了：三处都要求作废在途读（`bumpDocLoadToken` + `resetBrowseReadGates`）并清 `draftsByPath`，且换书前其它 store 的数据由 `withBookDataFlush` 交回上一本 —— 与 agent-service 那份 spec 的「按书作用域」是同一类坑，两处各钉各的入口。
+- `draftsByPath` 的值只许由 `docStateOf` 产出这条单独成一条 invariant：手拼会漏掉 `conflict` 另造对象，两处共享同一冲突对象后被外部改动一起带跑（源码注释里写着的真实发生的坑）。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "apps/desktop/src/renderer/src/stores/useBookStore.ts"})`：coverage 16 / hits 14，新 spec 以 `reason:"file"` 排第 1。这条查询正是「改它之前先读什么」的那一次调用，落点是准的。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次，其余全部 `unchanged`。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§七十九 热点表里 `apps/desktop/src/renderer/src/stores/useBookStore.ts` 那一行（提交次数最多那格，已有 spec）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；
+本刀这份新 spec 用户尚未过目，读着不对就说，我改。
