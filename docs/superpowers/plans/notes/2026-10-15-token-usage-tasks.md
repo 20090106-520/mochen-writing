@@ -53,5 +53,5 @@
 
 ## T8 台账与提交
 
-- [ ] `docs/superpowers/plans/2026-10-09-full-scan-report.md` 追加第六十七节（取舍、变异数、测试数变动、剩余三项）
-- [ ] `git add <明确文件名>` 提交（不 add 脏文件）
+- [x] `docs/superpowers/plans/2026-10-09-full-scan-report.md` 追加第六十七节（取舍、变异数、测试数变动、剩余三项）
+- [x] `git add <明确文件名>` 提交（不 add 脏文件）—— commit `345e54a`
