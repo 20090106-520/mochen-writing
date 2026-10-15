@@ -61,6 +61,19 @@ export interface DocRef {
    * 与 `excerpt` 共用那一次 readFile，不额外碰盘。消费处一律 `?? 0`。
    */
   chars?: number;
+  /**
+   * 各章开头句的原料（2026-10-15 读放大刀）：剥掉 frontmatter 后正文的首个非空行原文，
+   * 由 scan 顺路带出——与 `excerpt`/`chars` 共用那一次 readFile，零额外 IO。
+   *
+   * 加它的动机：`assembleContext` 的 `openings`（「别每章同一套起手式」的提示词原料）过去从
+   * `contents` 取全文再 split 首行——这意味着 `assembleFor` 即使按预算只读 3 章全文，仍得为
+   * 「其余章的首行」再读 997 次 `readDocFile`（每次还带一次 `realpath` 边界检查）。把这行原料
+   * 顺路存在 DocRef 上，`assembleFor` 就能真正只读会被装进上下文的那几章，1000 章的书上
+   * `readDocFile` 次数从 1004 降到个位数。口径与旧实现逐字一致——同一个 `body`、同一句
+   * `split("\\n").find(l => l.trim() !== "")`，只是提取时机从「装配时」挪到「扫描时」。
+   * 跨 IPC 消费处一律 `?? ""`，与 `excerpt` 同一档可选语义。
+   */
+  opening?: string;
 }
 
 /**
@@ -78,7 +91,8 @@ export const docRefSchema = z.object({
   kind: z.enum(BOOK_KINDS),
   title: z.string(),
   excerpt: z.string().optional(),
-  chars: z.number().int().min(0).optional()
+  chars: z.number().int().min(0).optional(),
+  opening: z.string().optional()
 });
 
 const stageSchema = z.object({

@@ -26,8 +26,12 @@ export interface ContextItem {
 export interface AssembleContextInput {
   profile: AgentProfile;
   activeDocRelPath: string | null;
-  /** scanBook 的结果，装配只读它的 relPath / kind / title。 */
-  docs: readonly { relPath: string; kind: string; title: string }[];
+  /**
+   * scanBook 的结果，装配只读它的 relPath / kind / title / opening。
+   * `opening`（2026-10-15）是 scan 顺路带出的首行非空行原文，给 `openings` 用——
+   * 装配层不再为「其余章的首行」从 `contents` 读全文。
+   */
+  docs: readonly { relPath: string; kind: string; title: string; opening?: string }[];
   /** relPath → 正文全文。由主进程读好传进来，装配层不碰盘。 */
   contents: Readonly<Record<string, string>>;
   /** 用户显式挂入的 relPath（@ 引用 / 「加入当前上下文」/ 技能）。 */
@@ -253,18 +257,14 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
   }
 
   const chars = items.reduce((sum, item) => sum + item.chars, 0);
-  // 各章开头句（2026-10-10 四段）：从**全文**取首个非空行——前情提要是尾部切片，
-  // 开头只有全文里有。注意取的是原文头一行正文，与 items 的截断口径无关。
+  // 各章开头句（2026-10-10 四段 / 2026-10-15 改源）：从 DocRef.opening 取——scan 顺路提取的
+  // 首个非空行原文，口径与旧实现逐字同源（同一个 body、同一句 split-首行非空），只是提取时机
+  // 从「装配时读全文」挪到「扫描时顺路」。这让 assembleFor 不必再为「其余章的首行」单独跑
+  // readDocFile——1000 章的书上 readDocFile 次数从 1004 降到个位数。截到 CHAPTER_OPENING_CHARS
+  // 仍在这一步做（scan 存原文不截，包边界不许 fs-store import 这儿的常量）。
   const openings = docs
     .filter((doc) => doc.kind === "chapter")
-    .map((doc) => textOf(doc.relPath))
-    .map(
-      (text) =>
-        text
-          .split("\n")
-          .find((line) => line.trim() !== "")
-          ?.trim() ?? ""
-    )
+    .map((doc) => doc.opening ?? "")
     .filter((line) => line !== "")
     .map((line) => clip(line, CHAPTER_OPENING_CHARS));
   return {
@@ -273,6 +273,47 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
     approxTokens: estimateTokens(items.map((i) => i.text).join("\n")),
     openings
   };
+}
+
+/**
+ * 粗粒度预算：按 `profile.context` 选出「这一轮要读全文的篇」清单（2026-10-15 读放大刀）。
+ *
+ * 调用方（assembleFor）据此只读会被 `assembleContext` 装进 items 的那些篇——1000 章的书
+ * 主笔档案（priorChapters=2, chapterDigests=false）只读 3 章，而非全量 1004 次 readDocFile。
+ *
+ * **粗粒度**是刻意的：castCharacters 预算所有 character，而 assembleContext 只装名字在当前章的
+ * ——「名字在不在当前章」这条细粒度判据仍只住 assembleContext 一份，不抄到主进程。不变量
+ * `预算 ⊇ 实装` 钉在 context.test.ts（删掉非预算章的 contents 不影响 items/openings/chars）。
+ * priorChapters 的 order/slice 判定与 assembleContext 逐字同源（含 active 不在 order 里取最后 N 章）。
+ */
+export interface SelectBudgetInput {
+  scope: ContextScope;
+  docs: readonly { relPath: string; kind: string }[];
+  activeDocRelPath: string | null;
+  pinned?: readonly string[];
+  chapterOrder?: readonly string[];
+}
+
+export function selectBudgetDocPaths(input: SelectBudgetInput): readonly string[] {
+  const { scope, docs, activeDocRelPath: active, pinned, chapterOrder } = input;
+  const budget = new Set<string>(pinned ?? []);
+  if (scope.currentChapter !== "none" && active !== null) budget.add(active);
+  if (scope.outlineSummary) for (const d of docs) if (d.kind === "outline") budget.add(d.relPath);
+  if (scope.castCharacters) for (const d of docs) if (d.kind === "character") budget.add(d.relPath);
+  if (scope.priorChapters > 0) {
+    const order =
+      chapterOrder && chapterOrder.length > 0
+        ? chapterOrder
+        : docs.filter((d) => d.kind === "chapter").map((d) => d.relPath);
+    const activeIndex = active === null ? -1 : order.indexOf(active);
+    const start = activeIndex < 0 ? order.length : activeIndex;
+    for (const rel of order.slice(Math.max(0, start - scope.priorChapters), start)) budget.add(rel);
+  }
+  if (scope.chapterDigests)
+    for (const d of docs) if (d.kind === "chapter" && d.relPath !== active) budget.add(d.relPath);
+  if (scope.materials) for (const d of docs) if (d.kind === "material") budget.add(d.relPath);
+  if (scope.worldbuilding) for (const d of docs) if (WORLD_KINDS.has(d.kind)) budget.add(d.relPath);
+  return [...budget];
 }
 
 /**

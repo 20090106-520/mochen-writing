@@ -38,10 +38,10 @@ import {
   readSession,
   renderContextBlock,
   runTurn,
+  selectBudgetDocPaths,
   streamChat,
   unifiedDiff,
   UPSTREAM_WINDOW_TOKENS,
-  WORLD_KINDS,
   type AssembledContext,
   type ChatMessage,
   type ProviderFetch,
@@ -172,10 +172,11 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
   const bookScope = createBookScope(currentRoot, clearBookScoped);
 
   /**
-   * 读出这一轮要装配进上下文的那些正文（spec §5）。
-   *
-   * 读盘在这里，不在 agent-runtime：那份是纯函数、零 Electron 依赖，装配层只管切片。
-   * 读不到的文档静默跳过——一本书里有半篇残稿不该让整轮对话失败。
+   * 读出这一轮要装配进上下文的那些正文（spec §5）。读盘在这里（不在 agent-runtime：
+   * 那份是纯函数），读不到的文档静默跳过。2026-10-15 按预算读：`selectBudgetDocPaths` 按
+   * `profile.context` 算「会被装的篇」清单，只读这些——1000 章主笔档案从 1004 次
+   * readDocFile 降到个位数。openings 不再读全文（scan 顺路带 `DocRef.opening`）。预算判据
+   * 与 assembleContext 同源、住 agent-runtime 一份；不变量「预算 ⊇ 实装」钉在 context.test.ts。
    */
   async function assembleFor(
     book: BookSnapshot,
@@ -184,18 +185,16 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     pinned: readonly string[],
     skills: readonly PinnedSkill[] = []
   ): Promise<AssembledContext> {
+    const budget = selectBudgetDocPaths({
+      scope: profile.context,
+      docs: book.docs,
+      activeDocRelPath: docRelPath,
+      pinned,
+      chapterOrder: book.meta.chapterOrder
+    });
     const contents: Record<string, string> = {};
-    const wanted = new Set<string>(pinned);
-    for (const doc of book.docs) {
-      if (doc.kind === "chapter" || doc.kind === "outline" || doc.kind === "character") {
-        wanted.add(doc.relPath);
-      }
-      if (doc.kind === "material" || (WORLD_KINDS as ReadonlySet<string>).has(doc.kind)) {
-        wanted.add(doc.relPath);
-      }
-    }
     await Promise.all(
-      [...wanted].map(async (relPath) => {
+      budget.map(async (relPath) => {
         try {
           contents[relPath] = (await readDocFile(book.root, relPath)).content;
         } catch {

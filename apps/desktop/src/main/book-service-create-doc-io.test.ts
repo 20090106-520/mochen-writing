@@ -146,7 +146,8 @@ describe("createDoc 不再整本重扫（P1-4）", () => {
       kind: "chapter",
       title: "08-补遗",
       excerpt: "",
-      chars: 0
+      chars: 0,
+      opening: ""
     });
     // 与整本重扫对同一篇的结果再核一次：docRefFor 与 scanBook 必须是同一份判据（铁律 6）。
     const rescanned = (await scanBook(book)).find((doc) => doc.relPath === "chapters/08-补遗.md");
@@ -233,7 +234,8 @@ describe("createDoc 不再整本重扫（P1-4）", () => {
       kind: "chapter",
       title: "99-断链",
       excerpt: "",
-      chars: 0
+      chars: 0,
+      opening: ""
     });
     await open.close();
   });
@@ -254,7 +256,8 @@ describe("createDoc 不再整本重扫（P1-4）", () => {
       kind: "chapter",
       title: "07-新章",
       excerpt: "",
-      chars: 0
+      chars: 0,
+      opening: ""
     });
     // 带回来的那一条必须与「主进程缓存里这一篇」同值：两处不同值＝渲染层拼的树与主进程的树分家。
     expect(created.doc).toEqual(

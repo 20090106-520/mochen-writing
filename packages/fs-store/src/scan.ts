@@ -75,7 +75,14 @@ export async function docRefFor(root: string, relPath: string): Promise<DocRef |
 
 async function docRefOf(full: string, rel: string, kind: BookKind): Promise<DocRef> {
   const meta = await docMetaOf(full, rel);
-  return { relPath: rel, kind, title: meta.title, excerpt: meta.excerpt, chars: meta.chars };
+  return {
+    relPath: rel,
+    kind,
+    title: meta.title,
+    excerpt: meta.excerpt,
+    chars: meta.chars,
+    opening: meta.opening
+  };
 }
 
 /** 收集要读的文稿清单：目录顺序、跳过规则、`.md` 与文稿目录判据都与旧的 walk 逐字一致。 */
@@ -113,20 +120,45 @@ const EXCERPT_MAX = 80;
 async function docMetaOf(
   full: string,
   rel: string
-): Promise<{ title: string; excerpt: string; chars: number }> {
+): Promise<{ title: string; excerpt: string; chars: number; opening: string }> {
   const base = path.basename(rel, ".md");
   const fallback = (base.match(/^\d*[-_]?(.*)$/)?.[1] ?? "").trim() || rel;
   try {
     // 只读这一次：frontmatter 出 title，body 出 excerpt 与 chars，与旧 titleOf 的 readFile 次数完全一致。
     // 逃逸口提醒：IO 计数护栏（scan-excerpt.test.ts 的 readFile spy）只认这条 readFile——
     // 若改用 readFileSync / createReadStream 读，护栏的调用计数看不见，读放大就悄悄溜过。
+    // opening（2026-10-15）也共用这一次 readFile，零额外 IO——它的口径与 agent-runtime 的
+    // assembleContext.openings 逐字同源：同一份 body、同一句 split-首行非空。提取时机挪到这儿，
+    // 是为了让 assembleFor 不必再为「其余章的首行」单独跑 readDocFile（每次还带 realpath）。
     const { data, body } = parseFrontmatter(await readFile(full, "utf8"));
     const raw = data.title;
     const title = typeof raw === "string" && raw.trim() ? raw.trim() : fallback;
-    return { title, excerpt: excerptOf(body), chars: proseCharCount(body) };
+    return {
+      title,
+      excerpt: excerptOf(body),
+      chars: proseCharCount(body),
+      opening: openingLineOf(body)
+    };
   } catch {
-    return { title: fallback, excerpt: "", chars: 0 };
+    return { title: fallback, excerpt: "", chars: 0, opening: "" };
   }
+}
+
+/**
+ * 各章开头句的原料：剥掉 frontmatter 后正文的首个非空行原文（不截断、不剥 markdown）。
+ *
+ * 口径与 `agent-runtime/context.ts` 的 `openings` 逐字同源——同一个 `body`、同一句
+ * `split("\\n").find(l => l.trim() !== "")`。过去那行在装配时从 `contents` 取全文再 split，
+ * 现在挪到扫描时顺路取，零额外 IO（body 已读）。截到 `CHAPTER_OPENING_CHARS` 仍由装配层做，
+ * 这里只存原文——scan 不知道那个常量（包边界：fs-store 不 import agent-runtime）。
+ */
+function openingLineOf(body: string): string {
+  return (
+    body
+      .split("\n")
+      .find((line) => line.trim() !== "")
+      ?.trim() ?? ""
+  );
 }
 
 /** 取正文里第一段非空的纯文本，按码点截断；整篇空（或只有 frontmatter）⇒ 空串。 */

@@ -5629,3 +5629,73 @@ M3 空手的机制也量清楚了：外层 catch 里那句 `if (!req.signal.abor
 **仍等同用户一句话的**（本轮**没动**）：通道级授权、LICENSE 与 `license` 字段、WebDAV 或整书备份、
 全书替换、token 用量统计；以及本轮体检新提出、尚未拍板的两条：`assembleFor` 每轮全量读盘改"按预算读
 ＋限并发"（先量测再改）、429/5xx 退避重试（动之前先按预登记方案拆 `provider-client.test.ts`）。
+
+## 第六十四节：assembleFor 按预算读 + openings 改从 DocRef 取（2026-10-15）
+
+起因：第六十三节末尾把"`assembleFor` 每轮全量读盘改'按预算读 + 限并发'"列为"等同用户一句话"。
+用户说"都行"——按清单顺序动手。Advisor 上次给的指示是"先量测再改"，在 `scratch/` 造 1000 章合成书
+量 `assembleFor` 墙钟与内存，并按"被跳过的恰好是 `fitHistoryToWindow` 会截掉的那些"这条不变量钉用例。
+
+**量测先做（量不到的不算已验）**
+
+夹具 1000 章 × 3000 字（盘上 ~2.9 MB），主笔档案（`priorChapters=2, chapterDigests=false`），
+当前章设为最后一章。量测脚本 `scratch/bench-read-amplification.test.ts`（不进版本库，vitest include
+不含 scratch/，用临时 config 跑）。
+
+| 读法 | readDocFile 次数 | 墙钟 | contents 总字节 | items | openings |
+|---|---|---|---|---|---|
+| 全量读（现状） | 1004 | 175 ms | 2.90 MB | 5 条 | 1000 |
+| 预算读（openings 仍走 readDocFile 取首行） | 1003 | 152 ms | 0.01 MB | 5 条 | 1000 |
+| 预算读 + openings 从 DocRef 取（改后） | ~6 | ~5 ms（推算） | ~0.01 MB | 5 条 | 1000 |
+
+量测坐实两件事，比 Advisor 预判的更深一层：
+
+1. **"限并发"已过时**。`scan.ts:30-45` 早在 2026-10-10 就改成"并发度 = 文稿数，不设上限"，实测
+   1000 章 21–31 ms、峰值堆 30–46 MB，有 `scan-concurrency.test.ts` 护栏。Advisor 说的"复用
+   scan.ts:37 的并发口径"是旧版"限 8"，现在 scan 不限了，assembleFor 也不该限。
+2. **真瓶颈不是并发，是"按预算读"单独做收益有限**。openings（`context.ts:258-269`）过去从 `contents`
+   取全文再 split 首行——这意味着 assembleFor 即使按预算只读 3 章全文，仍得为"其余 997 章的首行"
+   再读 997 次 `readDocFile`（每次还带一次 `realpath` 边界检查，这是 scan 21ms vs assembleFor 175ms
+   差 5–8 倍的主因）。必须组合"openings 改从 DocRef 取"才能让 readDocFile 真正从 1004 降到个位数。
+
+**做了什么（四步同刀，分不开）**
+
+1. `contracts/book.ts` — `DocRef` + `docRefSchema` 加 `opening?: string`。与 `excerpt`/`chars`
+   同档可选语义，跨 IPC 消费处一律 `?? ""`。
+2. `fs-store/scan.ts` — `docMetaOf` 顺路提取 `opening`（`openingLineOf(body)`），与 `excerpt`/`chars`
+   共用那一次 `readFile`，**零额外 IO**（`scan-excerpt.test.ts:81-85` 的 readFile 次数护栏自动守卫）。
+   口径与旧 `context.ts` 的 openings 逐字同源：同一个 `body`、同一句 `split("\n").find(l => l.trim() !== "")`，
+   只是提取时机从"装配时读全文"挪到"扫描时顺路"。存原文不截断——截到 `CHAPTER_OPENING_CHARS` 仍由
+   装配层做（包边界：fs-store 不 import agent-runtime 的常量）。
+3. `agent-runtime/context.ts` — `AssembleContextInput.docs` 类型加 `opening?`；`openings` 改从
+   `doc.opening ?? ""` 取，不再 `textOf(relPath)` 读全文。新增导出纯函数 `selectBudgetDocPaths(input)`：
+   按 `profile.context` 算"会被装的篇"清单（粗粒度预算），与 `assembleContext` 同源 scope 判定、
+   住在同一文件一份。`priorChapters` 的 order/slice 判定逐字复刻 `assembleContext`（含 active 不在
+   order 里时取最后 N 章）。
+4. `apps/desktop/agent-service.ts` — `assembleFor` 改调 `selectBudgetDocPaths` 拿预算清单，只读这些，
+   不再全量 `Promise.all` 所有 chapter/outline/character/material/world。删掉不再用的 `WORLD_KINDS`
+   import（逻辑挪进 `selectBudgetDocPaths` 了）。
+
+**粗粒度预算的取舍**：`castCharacters` 预算所有 character，而 `assembleContext` 只装名字在当前章的
+——"名字在不在当前章"这条细粒度判据仍只住 `assembleContext` 一份，不抄到主进程。即"预算 ⊇ 实装"
+（多读的会被 `context.ts:143` 的空串跳过兜住），"预算 ⊊ 实装"由测试钉死不许发生。
+
+**不变量与用例**
+
+- `context.test.ts` 新增"预算读的不变量"：删掉非预算章（04）的 contents，`items`/`chars`/`openings`
+  逐字不变——同时验证"非预算章不进 items"和"openings 不再依赖 contents"。openings 用例改成从
+  `docs.opening` 取（夹具 DOCS 加 opening 字段）；新增"opening 为空串不进清单"+"contents 空也不影响
+  openings"反向验证改源。
+- `scan-excerpt.test.ts` 新增 3 条 opening 口径断言：正常章首行原文、带 markdown 记号章存原文
+  （`# 世界观`，与 excerpt 的剥记号纯文本 `海是深蓝的，雾很浓。` 区分）、空文 opening 是空串。
+  readFile 次数护栏（85 行）自动守卫 opening 零 IO。
+- `book-service-create-doc-io.test.ts` 三处 `toEqual` 补 `opening: ""` 字段（新章空模板的 opening）。
+
+**测试数变动**：本刀用例净 +6（context +3、scan-excerpt +3）。
+
+**六段门禁**：prettier / tsc（6 项目）/ eslint / boundary / 行数预算（agent-service.ts 801→799
+行，靠把预算逻辑提成 `selectBudgetDocPaths` 纯函数省回 30 行）/ vitest（346 文件 4515 测试）全绿。
+
+**划掉**：第六十三节末尾"仍等同用户一句话"里的"`assembleFor` 每轮全量读盘改'按预算读 + 限并发'"
+——本刀做完了。**仍等同用户一句话的**：通道级授权、LICENSE 字段、WebDAV/整书备份、全书替换、
+token 用量统计；以及 429/5xx 退避重试那一摊（第六十三节列的另一条，尚未动）。

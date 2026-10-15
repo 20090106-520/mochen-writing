@@ -9,10 +9,15 @@ import {
 } from "../src/context.js";
 
 const DOCS = [
-  { relPath: "chapters/01-开篇.md", kind: "chapter", title: "开篇" },
-  { relPath: "chapters/02-暗流.md", kind: "chapter", title: "暗流" },
-  { relPath: "chapters/03-深渊之下.md", kind: "chapter", title: "深渊之下" },
-  { relPath: "chapters/04-回声.md", kind: "chapter", title: "回声" },
+  { relPath: "chapters/01-开篇.md", kind: "chapter", title: "开篇", opening: "第一章正文。" },
+  { relPath: "chapters/02-暗流.md", kind: "chapter", title: "暗流", opening: "第二章正文。" },
+  {
+    relPath: "chapters/03-深渊之下.md",
+    kind: "chapter",
+    title: "深渊之下",
+    opening: "第三章正文。"
+  },
+  { relPath: "chapters/04-回声.md", kind: "chapter", title: "回声", opening: "第四章正文。" },
   { relPath: "outline/全书.md", kind: "outline", title: "全书大纲" },
   { relPath: "characters/李深.md", kind: "character", title: "李深" },
   { relPath: "characters/周砚.md", kind: "character", title: "周砚" },
@@ -318,28 +323,62 @@ describe("出场人物卡按真出场过滤（2026-10-10 三段：给 AI 的上�
   });
 });
 
-describe("各章开头句 openings（2026-10-10 四段：开头防套路的原料）", () => {
-  it("按章节顺序取每个 chapter 的首个非空行，截到 24 字；非 chapter 不进清单", () => {
+describe("各章开头句 openings（2026-10-10 四段 / 2026-10-15 改源：从 DocRef.opening 取）", () => {
+  it("按章节顺序取每个 chapter 的 opening，截到 24 字；非 chapter 不进清单", () => {
     const result = assemble("lead-writer", {
-      contents: {
-        ...CONTENTS,
-        "chapters/01-开篇.md": "\n\n夜色像墨一样漫开，压住了整座港城的第一盏灯。\n",
-        "chapters/02-暗流.md": "雨下个不停。",
-        "characters/李深.md": "李深：主角。" // 非 chapter：不进 openings
-      }
+      docs: [
+        ...DOCS,
+        {
+          relPath: "chapters/05-夜潮.md",
+          kind: "chapter",
+          title: "夜潮",
+          opening: "夜色像墨一样漫开，压住了整座港城的第一盏灯。"
+        },
+        { relPath: "chapters/06-骤雨.md", kind: "chapter", title: "骤雨", opening: "雨下个不停。" }
+      ],
+      chapterOrder: [
+        "chapters/01-开篇.md",
+        "chapters/02-暗流.md",
+        "chapters/03-深渊之下.md",
+        "chapters/04-回声.md",
+        "chapters/05-夜潮.md",
+        "chapters/06-骤雨.md"
+      ]
     });
     expect(result.openings).toEqual([
+      "第一章正文。",
+      "第二章正文。",
+      "第三章正文。",
+      "第四章正文。",
       "夜色像墨一样漫开，压住了整座港城的第一盏灯。", // 22 字没到 24 截断线，句号在
-      "雨下个不停。",
-      "第三章正文。", // active 章也有开头
-      "第四章正文。"
+      "雨下个不停。"
     ]);
   });
 
-  it("开头的判定用全文，不受 items 截断口径影响；空文不进清单", () => {
+  it("opening 为空串的章不进清单；contents 缺了也不影响 openings（不再依赖全文）", () => {
+    const docs04Empty = DOCS.map((d) =>
+      d.relPath === "chapters/04-回声.md" ? { ...d, opening: "" } : d
+    );
     const result = assemble("lead-writer", {
-      contents: { ...CONTENTS, "chapters/04-回声.md": "" }
+      docs: docs04Empty,
+      contents: {} // 故意空：证明 openings 不再从 contents 取
     });
-    expect(result.openings).toHaveLength(3);
+    expect(result.openings).toEqual(["第一章正文。", "第二章正文。", "第三章正文。"]);
+  });
+
+  it("预算读的不变量：删掉非预算章的 contents 不影响 items/chars/openings", () => {
+    // lead-writer（active=03, priorChapters=2, chapterDigests=false）的预算章：
+    // 03(当前) + 01,02(前2章) + outline + characters + materials。
+    // 04 是非预算章（不是前2章、chapterDigests=false 不装全书摘要）——删它的 contents 不该影响装配。
+    const full = assemble("lead-writer");
+    const prunedContents = Object.fromEntries(
+      Object.entries(CONTENTS).filter(([k]) => k !== "chapters/04-回声.md")
+    );
+    const pruned = assemble("lead-writer", { contents: prunedContents });
+    expect(pruned.items).toEqual(full.items);
+    expect(pruned.chars).toBe(full.chars);
+    // openings 仍含 04（从 docs.opening 取，不靠 contents）——这条同时验证 openings 改源
+    expect(pruned.openings).toEqual(full.openings);
+    expect(pruned.openings).toContain("第四章正文。");
   });
 });

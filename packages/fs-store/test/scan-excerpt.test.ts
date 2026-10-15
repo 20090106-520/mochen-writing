@@ -87,6 +87,31 @@ describe("scanBook · excerpt 顺路带出第一段", () => {
 });
 
 /**
+ * `opening` = 剥掉 frontmatter 后正文的首个非空行**原文**（2026-10-15 读放大刀）。
+ * 与 `excerpt` 的区别：excerpt 剥 markdown 记号后取首段纯文本，opening 存原文首行。
+ * 两者口径不同各有各的消费处——opening 给 `assembleContext.openings`（起手式提示词），
+ * excerpt 给书卡摘要。它共用 docMetaOf 那一次 readFile，零额外 IO（上面的 IO 计数护栏自动守卫）。
+ */
+describe("scanBook · opening 顺路带出首个非空行原文", () => {
+  it("正常章 ⇒ 首行原文（与 excerpt 相同——首行就是首段时两者碰巧一致）", async () => {
+    const docs = await scanBook(root);
+    expect(find(docs, "chapters/正常.md").opening).toBe("夜色沉下去，海雾从崖底涌上来。");
+  });
+
+  it("带 markdown 记号的章 ⇒ opening 存原文首行（含 #），excerpt 剥记号后取首段", async () => {
+    const docs = await scanBook(root);
+    expect(find(docs, "chapters/带记号.md").opening).toBe("# 世界观");
+    // 同一篇的 excerpt 剥了记号、跳了标题行——两个口径各管各的
+    expect(find(docs, "chapters/带记号.md").excerpt).toBe("海是深蓝的，雾很浓。");
+  });
+
+  it("只有 frontmatter、正文为空 ⇒ opening 是空串（与 excerpt 同档缺省语义）", async () => {
+    const docs = await scanBook(root);
+    expect(find(docs, "chapters/仅元数据.md").opening).toBe("");
+  });
+});
+
+/**
  * `chars` = 这一篇的**正文字数**（剥掉 frontmatter、按 `proseCharCount` 的非空白码点口径）。
  * 它存在的唯一理由：书卡上的「正文 N 字」要能不加第二次盘 IO 就报出来，
  * 且与打开同一篇时页脚那个数**是同一个口径**——两侧各数一遍就会出现两个数。
