@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { plainList } from "./agent-thread";
+import type { AgentEvent } from "@mochen/contracts";
+import { composeStatusReport, newThread, plainList } from "./agent-thread";
 
 /**
  * `plainList` 的判据就是**结构化克隆过得去**。
@@ -47,5 +48,58 @@ describe("plainList", () => {
     const out = plainList([item]);
 
     expect(out[0]).toBe(item);
+  });
+});
+
+/**
+ * `/status` 报告里的用量行（2026-10-15）。
+ *
+ * 用量那一行由 `sessionUsageText(thread.items)` 组好塞进 parts，**空串即跳过**——
+ * 没提问也没回报时不硬凑一句。这里钉「有数才出现、没数不出现」这条边界。
+ */
+describe("composeStatusReport · 用量行（2026-10-15）", () => {
+  const TS = "2026-10-01T08:00:00.000Z";
+
+  function factsWith(items: AgentEvent[]): Parameters<typeof composeStatusReport>[0] {
+    return {
+      threadKey: "chapters/01.md",
+      thread: { ...newThread(), items },
+      cards: 0,
+      pending: 0,
+      hasBook: true,
+      permissionMode: "read-only",
+      stageName: "初稿"
+    };
+  }
+
+  it("有提问且有回报 ⇒ 报告里带「用量：N 轮里 M 轮有上游回报」", () => {
+    const report = composeStatusReport(
+      factsWith([
+        { id: "u1", ts: TS, turnId: "t1", type: "user-message", text: "写" },
+        {
+          id: "s1",
+          ts: TS,
+          turnId: "t1",
+          type: "usage",
+          requests: 1,
+          reported: 1,
+          promptTokens: 120,
+          completionTokens: 30,
+          totalTokens: 150
+        }
+      ])
+    );
+    expect(report).toContain("用量：1 轮里 1 轮有上游回报，输入 120 · 输出 30 · 合计 150 Token");
+  });
+
+  it("没有任何事件 ⇒ 报告里不出现「用量」那一行（空串跳过）", () => {
+    expect(composeStatusReport(factsWith([]))).not.toContain("用量");
+  });
+
+  it("有提问但一次都没报 ⇒ 明说「还没回报过」，不静默吞掉", () => {
+    const report = composeStatusReport(
+      factsWith([{ id: "u1", ts: TS, turnId: "t1", type: "user-message", text: "写" }])
+    );
+    expect(report).toContain("用量：还没有上游回报过（本会话 1 轮都没报）。");
   });
 });

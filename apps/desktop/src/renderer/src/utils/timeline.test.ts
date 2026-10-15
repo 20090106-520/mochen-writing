@@ -685,3 +685,71 @@ describe("replayProposalStatuses 的 stale 改判（缺陷③）", () => {
     expect(replayProposalStatuses(events)).toEqual({ pOpen: "expired" });
   });
 });
+
+/**
+ * 用量块（2026-10-15）。
+ *
+ * 钉两件：① `usage` 事件落成一块 `kind: "usage"`，`text` 已由 `turnUsageText` 组好
+ * （模板只渲染 text，不自己拼）；② 它的判定来自事件里的 requests/reported，缺省的
+ * 事件形状不该让 buildTimeline 崩。
+ */
+describe("buildTimeline · 用量块（2026-10-15）", () => {
+  it("usage 事件 → usage 块，text 是组好的人话", () => {
+    const blocks = buildTimeline(
+      [
+        event("usage", {
+          requests: 1,
+          reported: 1,
+          promptTokens: 12345,
+          completionTokens: 678,
+          totalTokens: 13023
+        })
+      ],
+      NO_TAIL
+    );
+    expect(blocks).toEqual([
+      {
+        kind: "usage",
+        id: "e-usage",
+        text: "本轮用量：输入 12,345 · 输出 678 · 合计 13,023 Token"
+      }
+    ]);
+  });
+
+  it("部分报的那一轮：文案带「几次没回报」，且仍是一块 usage（不落进 message）", () => {
+    const blocks = buildTimeline(
+      [
+        event("usage", {
+          requests: 2,
+          reported: 1,
+          promptTokens: 100,
+          completionTokens: 20,
+          totalTokens: 120
+        })
+      ],
+      NO_TAIL
+    );
+    expect(blocks[0]).toEqual({
+      kind: "usage",
+      id: "e-usage",
+      text: "本轮用量：输入 100 · 输出 20 · 合计 120 Token（这轮共 2 次请求，其中 1 次上游没回报用量）"
+    });
+  });
+
+  it("usage 块与 error 块各成一块，顺序按事件到达", () => {
+    const blocks = buildTimeline(
+      [
+        event("error", { message: "这一轮被截断了" }),
+        event("usage", {
+          requests: 1,
+          reported: 1,
+          promptTokens: 1,
+          completionTokens: 2,
+          totalTokens: 3
+        })
+      ],
+      NO_TAIL
+    );
+    expect(blocks.map((block) => block.kind)).toEqual(["error", "usage"]);
+  });
+});

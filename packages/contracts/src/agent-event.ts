@@ -17,7 +17,8 @@ export const AGENT_EVENT_TYPES = [
   "decision",
   "written",
   "interrupted",
-  "error"
+  "error",
+  "usage"
 ] as const;
 export type AgentEventType = (typeof AGENT_EVENT_TYPES)[number];
 
@@ -115,6 +116,33 @@ export const agentEventSchema = z.discriminatedUnion("type", [
     type: z.literal("error"),
     message: z.string().min(1),
     proposalId: id.optional()
+  }),
+  /**
+   * 本轮 token 用量（2026-10-15）。
+   *
+   * 【为什么不挂在 error / message 上】那是两个不同的事实：error 答「这一轮有没有出错」，
+   * message 是模型正文；用量答「这一轮烧了多少 token」。塞进任何一方都会让回放与消费方
+   * 多一条「顺便读一下某字段」的隐式契约，而它需要 requests/reported 两个计数，
+   * 单靠一个字符串字段装不下。
+   *
+   * 【三枚数是什么】只有**上游回过用量的那几次请求之和**。没回报的那几次**不估算、不补零**：
+   * `reported < requests` 就是「有几发上游没给数」这件事本身，如实说出来，绝不拿两个数凑第三个。
+   *
+   * 【requests / reported 的语义】requests = 这一轮发了几次请求（连接期失败也算发过一次）；
+   * reported = 其中几次上游回了用量。reported === 0 时**不发**这枚事件（runTurn 只在其 >0 时发）
+   * ——让失败轮/打断轮不往时间线上刷一行「用量」噪音。
+   *
+   * 【进不进模型历史】不进。`rollout.ts` 的 `eventsToMessages` 有 default 分支天然忽略它；
+   * `agent-thread.ts` 的 `malformedPush` 读 AGENT_EVENT_TYPES 自动放行。两处都不用改。
+   */
+  z.object({
+    ...turn,
+    type: z.literal("usage"),
+    requests: z.number().int().min(0),
+    reported: z.number().int().min(0),
+    promptTokens: z.number().int().min(0),
+    completionTokens: z.number().int().min(0),
+    totalTokens: z.number().int().min(0)
   })
 ]);
 export type AgentEvent = z.infer<typeof agentEventSchema>;

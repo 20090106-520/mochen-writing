@@ -1,7 +1,7 @@
 import { sseDataFrames } from "./sse.js";
 import { toWireMessages, type AssistantToolCall, type ChatMessage } from "./chat-message.js";
 import { thinkingBodyField, wireToolsFor } from "./per-run-fields.js";
-import type { AuthHeader, ThinkingLevel, ThinkingWire } from "@mochen/contracts";
+import type { AuthHeader, ThinkingLevel, ThinkingWire, TokenUsage } from "@mochen/contracts";
 
 export interface ChatToolSpec {
   name: string;
@@ -39,6 +39,15 @@ export type StreamEvent =
    * 实际有一条工具调用凭空消失。现在它成为一个事实，由 runTurn 落成一张 ok:false 的回执卡。
    */
   | { kind: "tool-call-truncated"; call: AssistantToolCall }
+  /**
+   * 上游在这一发请求里报的 token 用量（2026-10-15）。
+   *
+   * 只在**三枚数都齐**时才吐（判定见 `readUsage`）：缺一枚就当它没报，一个字都不冒。
+   * 与 `finish` 可能落在同一帧里（DeepSeek 类把 usage 与 finish_reason 一块发），
+   * 也可能单独一帧（OpenAI 类 usage 块常带空 `choices`）——两条路都由 `streamChat` 统一收。
+   * 同一请求内后到覆盖先到（usage 是累计值），累计的活归 tool-loop，这一层只负责**报事实**。
+   */
+  | { kind: "usage"; usage: TokenUsage }
   | { kind: "finish"; reason: string };
 
 /**
@@ -207,6 +216,40 @@ function readDelta(raw: unknown): {
       ? (delta.tool_calls as Record<string, unknown>[])
       : []
   };
+}
+
+/**
+ * 上游这一发请求报的 token 用量（2026-10-15）。
+ *
+ * 【为什么住在这里】`prompt_tokens` 这枚 wire 字段名全仓只有这里该知道（紧挨 `readDelta`，
+ * 同一处守 wire 形状），再往上（tool-loop / 渲染层）只认 `TokenUsage` 的驼峰形状。
+ *
+ * 【三枚齐全才算报】`prompt_tokens` / `completion_tokens` / `total_tokens` **三枚都是
+ * 有限非负整数**才回一个 `TokenUsage`；缺一枚就回 `null`。宁可不报，也不拿两个数凑第三个
+ * ——那正是「估算冒充实测」这条铁律要挡的事。`Number.isInteger` 天然排除 NaN / Infinity /
+ * 小数，`>= 0` 再挡负数。
+ *
+ * 【为什么不加 `stream_options:{include_usage:true}`】刻意不加：严格端点会因此整批 400
+ * （历史先例 2026-10-08 真机 400/422），且这条改动本机无法验证。于是口径改成
+ * 「上游报了就统计，没报就如实说没报」——被放弃的覆盖率是 OpenAI 官方端点默认不带 usage。
+ */
+function readUsage(raw: unknown): TokenUsage | null {
+  const root = (raw ?? {}) as Record<string, unknown>;
+  const usage = root.usage;
+  if (typeof usage !== "object" || usage === null) return null;
+  const counts = usage as Record<string, unknown>;
+  const promptTokens = counts.prompt_tokens;
+  const completionTokens = counts.completion_tokens;
+  const totalTokens = counts.total_tokens;
+  if (!nonNegativeInt(promptTokens)) return null;
+  if (!nonNegativeInt(completionTokens)) return null;
+  if (!nonNegativeInt(totalTokens)) return null;
+  return { promptTokens, completionTokens, totalTokens };
+}
+
+/** 有限非负整数：`Number.isInteger` 天然排除 NaN / Infinity / 小数，`>= 0` 再挡负数。 */
+function nonNegativeInt(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
 
 /**
@@ -381,6 +424,11 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
       const inBand = inBandError(raw);
       if (inBand !== null) throw new ProviderError(`模型服务端在流里回了错误：${inBand}`);
       const delta = readDelta(raw);
+      // 用量与 finish_reason 可能同帧（DeepSeek 类把两者一块发），也可能单独一帧
+      // （OpenAI 类 usage 块常带空 `choices`）。位置在 readDelta 之后、finish 判定之前：
+      // 同帧时让 usage 先于 finish 到达循环，循环收尾时才有数可累计。
+      const usage = readUsage(raw);
+      if (usage !== null) yield { kind: "usage", usage };
       if (delta.reasoning !== "") yield { kind: "reasoning-delta", text: delta.reasoning };
       if (delta.content !== "") yield { kind: "text-delta", text: delta.content };
       for (const fragment of delta.toolCalls) {

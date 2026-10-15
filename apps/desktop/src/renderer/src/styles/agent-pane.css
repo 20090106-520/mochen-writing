@@ -565,7 +565,8 @@ html[data-platform="darwin"] .conversation-pane {
 
 .error-line,
 .turn-error,
-.interrupted-line {
+.interrupted-line,
+.usage-line {
   padding: 10px 12px;
   border-radius: 10px;
   font-size: 0.928571rem;
@@ -580,6 +581,12 @@ html[data-platform="darwin"] .conversation-pane {
 .interrupted-line {
   background: var(--warning-soft);
   color: var(--warning);
+}
+
+/* 用量播报（2026-10-15）：安静的信息行，不是告警也不是打断——所以不给底色，只把字色压到次要档，
+   免得每一轮都跳出来抢注意力。 */
+.usage-line {
+  color: var(--text-soft);
 }
 
 .proposal-stack {

@@ -23,6 +23,7 @@ export * from "./patch.js";
 export * from "./ipc.js";
 export * from "./tools.js";
 export * from "./agent-event.js";
+export * from "./token-usage.js";
 export * from "./web-source.js";
 export * from "./per-run.js";
 export * from "./provider.js";

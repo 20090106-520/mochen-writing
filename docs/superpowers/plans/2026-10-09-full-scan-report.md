@@ -5811,3 +5811,77 @@ token 用量统计；以及 429/5xx 退避重试那一摊（第六十三节列�
 
 **划掉**：第六十三节末尾"仍等同用户一句话"里的「全书替换」——本刀做完了。**仍等同用户一句话的**：
 通道级授权、LICENSE 字段、WebDAV/整书备份、token 用量统计。
+
+## 第六十七节：token 用量——只在「上游真报了」时如实播报（2026-10-15）
+
+起因：第六十六节末尾"仍等同用户一句话"里的第四条「token 用量统计」。核查确认：全仓 API 里
+`usage` / `prompt_tokens` **零命中**（唯一沾边的 `usageCount` 是"模板被用过几次"，与此无关），
+也就是说这条数据从来没被读出来过——流解析唯一入口只看 `choices[0].delta`，`usage` 这一格一直没人看。
+
+**用户原话只到「好的，执行吧」**：这一条历史上等的是"用户一句话"，但用户已连续六次授权自行挑项落地，
+所以本刀按台账写下的事实自行收口，取舍与理由全在本节。
+
+**为什么不改出站请求体**（本刀最关键的一个取舍）：最容易想到的做法是往 body 里加
+`stream_options:{include_usage:true}` 让上游默认就带 usage。**刻意不加**——① 严格端点会因为多出这个字段
+整批 400（历史先例 2026-10-08 真机 400/422 `tools[9].function`），而这条改动**本机无法验证**（没有真机端点）。
+于是口径改成「上游报了就统计，没报就如实说没报」。**被放弃的覆盖率必须写明**：OpenAI 官方端点默认不带
+usage，所以在那些端点上这一刀多数时候只会说「还没回报过」——这不是缺陷，是如实。
+
+**三枚齐全才算报，绝不拿两个数凑第三个**：`readUsage` 读 root 的 `usage` 对象，
+`prompt_tokens` / `completion_tokens` / `total_tokens` **三枚都是有限非负整数**才回一个 `TokenUsage`；
+缺一枚就当**它没报**，一个字都不冒。宁可不报，也不拿两个数凑第三个——那正是「估算冒充实测」这条铁律
+要挡的事。`Number.isInteger` 天然排除 NaN / Infinity / 小数，`>= 0` 再挡负数。
+
+**后到覆盖先到，绝不逐帧相加**：同一请求内上游可能发多帧 usage，而它是**累计值**（不是增量），
+所以每一帧覆盖上一帧，收尾时只取最后一帧并入总计。逐帧相加会得到成倍的假数——这正是变异实测要杀的。
+
+**只在 `reported > 0` 时发一枚事件**：失败轮/打断轮本来就没有可信的数，冒一行「用量」只会是噪音。
+所以 `emitUsage` 的头一行就是 `if (reported === 0) return;`。**丢弃「逐轮发」方案**：那会把时间线刷成
+N 行，用户读到的是排版垃圾而不是一个数。
+
+**收口唯一**：`runTurn` 内加一枚 `finish`，把全部 6 个 `return` 点与 `finishInterrupted` 的 return 都包进去，
+用量事件正好在收尾前发出一次。六个 return 点各写一遍 `emitUsage` 迟早会漏一处——漏的那处最容易被忘，
+往往正是打断。
+
+**判据只有一份**（铁律 6）：`prompt_tokens` 这枚 wire 字段名全仓只有 `provider-client.readUsage` 该知道
+（紧挨 `readDelta`，同一处守 wire 形状）；形状 `TokenUsage` 只此一份，住新建的
+`packages/contracts/src/token-usage.ts`（仿 `text-replace.ts` 先例），agent-runtime 与渲染层吃同一份；
+那句中文只住渲染层新建的 `apps/desktop/src/renderer/src/utils/token-usage.ts`（`turnUsageText` /
+`sessionUsageText`），timeline 只把它摆成一块、模板只渲染 `text`，谁都不再自己拼一遍。**刻意不复用**
+`context-meter.ts` 的 `formatApproxTokens`：那是「估算上下文占用」专用的近似写法（会输出「约 1.2 万」
+这种），拿它显示上游**实报**的值，等于把真数改写成约数——本条功能的正题就是「如实」，用近似格式自相矛盾。
+所以数字一律 `toLocaleString("zh-CN")` 出精确千分位。
+
+**自动生效、无需改的三处**（写下来是为了下次不再重复排查）：① 持久化走 `agent-service.ts` 的
+`publish→appendAgentEvent`，新事件类型自动落盘；② `rollout.ts` 的 `eventsToMessages` 有 default 分支，
+天然忽略 usage——**它不进模型历史**（用量不是对话内容，回喂上游毫无意义）；③ `agent-thread.ts` 的
+`malformedPush` 读 `AGENT_EVENT_TYPES` 这张白名单，加进枚举即自动放行，不会把它当成"无法识别的类型"丢掉。
+
+**行数预算逼出的拆分**：`provider-client.test.ts`（738 行）与 `tool-loop.test.ts`（760 行）都已贴着 800 上限
+（`check-source-line-budget.mjs` 对测试文件同样生效），本刀新用例因此**单开两文件**：
+`provider-client-usage.test.ts`、`tool-loop-usage.test.ts`，各自带精简夹具。
+
+**用例与变动**
+
+- 新增 `packages/agent-runtime/test/provider-client-usage.test.ts`（7 条）：三枚齐全原样吐、单独一帧（空
+  choices）也读到、缺 total / 缺 prompt ⇒ 视为没报、小数/负数/字符串/缺失一律没报、普通帧不误伤、
+  多帧逐帧原样吐（覆盖的活留给循环层）。
+- 新增 `packages/agent-runtime/test/tool-loop-usage.test.ts`（6 条）：单轮全报、reported===0 不发、
+  多帧后到覆盖、两轮相加（requests=2）、一轮没报另一轮报了（reported<requests）、失败轮不通报。
+- 新增 `apps/desktop/src/renderer/src/utils/token-usage.test.ts`（7 条）：两档文案 + 千分位 + 空档 +
+  「还没回报过」档 + N/M 各自独立计数。
+- 改既有 `utils/timeline.test.ts`（+3）：usage 事件落成 usage 块、部分报文案、与 error 块共存。
+- 改既有 `utils/agent-thread.test.ts`（+3）：/status 带用量行、无事件时不出现、有提问没回报时明说。
+- 同步更新既有 `stores/useAgentStore.slash.test.ts` 的 /status 期望串（新增的用量行按新口径出现在报告里）。
+
+**变异实测**（两处，都当场红、原样回退）：① `tool-loop.ts` 把 `roundUsage = event.usage`（覆盖）改成
+逐帧相加 ⇒ "多帧后到覆盖先到"用例红（1 失败）；② `emitUsage` 摘掉 `if (reported === 0) return;` ⇒
+"reported===0 不发 usage"等用例红（14 失败，含既有事件序列断言）。两处守卫都有牙。
+
+**测试数变动**：本刀用例净 +26（350 文件 4541→353 文件 4567，另 2 条既有 skip 不变）。
+
+**六段门禁**：prettier（全仓）/ tsc（6 项目）/ eslint / boundary / 行数预算（691 份）/ vitest（353 文件
+4567 通过）全绿。
+
+**划掉**：第六十六节末尾"仍等同用户一句话"里的「token 用量统计」——本刀做完了。**仍等同用户一句话的**：
+通道级授权、LICENSE 字段、WebDAV/整书备份。

@@ -6,6 +6,7 @@ import type {
   ProposalDecision,
   ThinkingLevel,
   ThinkingWire,
+  TokenUsage,
   TurnEndStatus,
   WebSource
 } from "@mochen/contracts";
@@ -137,7 +138,19 @@ type EmitBody =
       backupRelPath: string | null;
     }
   | { type: "interrupted"; pendingProposals: number }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | {
+      /**
+       * 这一轮发了几次请求、其中几次上游回了用量、以及**已回报部分**的三枚数之和（2026-10-15）。
+       * 没回报的那几次不估算、不补零；`requests - reported` 就是「有几发没给数」这件事本身。
+       */
+      type: "usage";
+      requests: number;
+      reported: number;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
 
 export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOutcome> {
   const stamp = () => ({ id: deps.newId(), ts: deps.now(), turnId: input.turnId });
@@ -148,13 +161,39 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
   };
   emitSimple({ type: "user-message", text: input.userText });
 
+  // 本轮用量计数（2026-10-15）。requests 每发一次请求就 +1（连接期失败也算发过）；
+  // reported 只在某一发上游回了用量时 +1；三枚数只累加**已回报**的那些，没回报的不估算、不补零。
+  let requests = 0;
+  let reported = 0;
+  let promptTokens = 0;
+  let completionTokens = 0;
+  let totalTokens = 0;
+
+  /**
+   * 用量播报只在这一处出口（2026-10-15）。reported === 0 时一个字都不发：
+   * 失败轮/打断轮本来就没有可信的数，冒一行「用量」只会是噪音。
+   */
+  const emitUsage = (): void => {
+    if (reported === 0) return;
+    emitSimple({ type: "usage", requests, reported, promptTokens, completionTokens, totalTokens });
+  };
+
+  /**
+   * 收口唯一（2026-10-15）：全部 return 都从这里出去，用量事件正好在收尾前发出一次。
+   * 六个 return 点各写一遍 emitUsage 迟早会漏一处——漏的那处最容易被忘，往往正是打断。
+   */
+  const finish = (outcome: TurnOutcome): TurnOutcome => {
+    emitUsage();
+    return outcome;
+  };
+
   /**
    * 打断的收尾只有一份：三个入口（流式期打断、一轮工具跑一半被打断、上一轮工具执行期间
    * 被打断）此前各写各的，句子与事件顺序迟早会分家——同一个处境两种说法是这仓反复栽过的。
    */
   const finishInterrupted = (pending: number): TurnOutcome => {
     emitSimple({ type: "interrupted", pendingProposals: pending });
-    return { status: "interrupted", message: INTERRUPTED_MESSAGE };
+    return finish({ status: "interrupted", message: INTERRUPTED_MESSAGE });
   };
 
   /**
@@ -198,6 +237,11 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
     // 「按了打断还在转圈」。（这里不做整轮硬总时长：长回答会被误杀，只掐「没有任何新字节」，
     // 那一条在上游看门狗 provider-fetch.ts。）
     if (deps.signal.aborted) return finishInterrupted(pendingProposals);
+    // 每轮开头记一次请求（连接期失败也算发过一次请求，见契约注释）。
+    requests += 1;
+    // 这一轮的用量：上游在**同一请求内**可能发多帧 usage，后到覆盖先到（usage 是累计值，
+    // 绝不逐帧相加）。整轮正常走完才并入总计。
+    let roundUsage: TokenUsage | null = null;
     const collected: Collected = {
       reasoning: "",
       text: "",
@@ -239,6 +283,9 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
         // 这一支必须在 `else collected.finishReason` 之前：漏掉它，截断标记会被当成收尾原因，
         // 于是 `reason` 是 undefined、上面那句人话也就发不出去了。
         else if (event.kind === "tool-call-truncated") collected.truncatedCalls.push(event.call);
+        // usage 这一支必须在最后那个 else 之前：那是 finish 的兜底，漏掉这里，
+        // usage 事件会被当成收尾原因（event.reason 对 usage 根本不存在）。
+        else if (event.kind === "usage") roundUsage = event.usage;
         else collected.finishReason = event.reason;
       }
     } catch (error) {
@@ -249,7 +296,16 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
       const message =
         error instanceof ProviderError ? error.message : `本轮执行失败：${String(error)}`;
       emitSimple({ type: "error", message });
-      return { status: "failed", message };
+      return finish({ status: "failed", message });
+    }
+
+    // 流循环正常走完才并入这一轮的用量：失败那一发从 catch 里提前 return，没有可信的数，
+    // 于是它只计入 requests、不计入 reported——正是「有几发上游没给数」要如实说的事。
+    if (roundUsage !== null) {
+      reported += 1;
+      promptTokens += roundUsage.promptTokens;
+      completionTokens += roundUsage.completionTokens;
+      totalTokens += roundUsage.totalTokens;
     }
 
     const aborted = deps.signal.aborted || collected.finishReason === "aborted";
@@ -321,7 +377,7 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
       }
     }
 
-    if (collected.calls.length === 0) return { status: "done", message: "" };
+    if (collected.calls.length === 0) return finish({ status: "done", message: "" });
 
     messages.push(assistantToolMessage("", collected.calls));
     for (const [index, call] of collected.calls.entries()) {
@@ -404,8 +460,8 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
       // 上限计的是「轮」不是「次」：一轮可以派发好几个工具调用，单位写错会让用户以为还能再调几次。
       const message = `本轮工具调用达到上限（${maxRounds} 轮），已停下等你介入。`;
       emitSimple({ type: "error", message });
-      return { status: "failed", message };
+      return finish({ status: "failed", message });
     }
   }
-  return { status: "done", message: "" };
+  return finish({ status: "done", message: "" });
 }

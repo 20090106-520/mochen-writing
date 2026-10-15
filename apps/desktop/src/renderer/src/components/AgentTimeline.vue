@@ -170,6 +170,10 @@ function openSource(url: string): void {
 
       <p v-else-if="block.kind === 'error'" class="error-line">{{ block.text }}</p>
 
+      <!-- 用量播报（2026-10-15）：文案已在 utils/token-usage 组好，这里只渲染 text。
+           必须在末尾 `v-else`（message 分支）之前，否则 usage 块会掉进 message 渲染。 -->
+      <p v-else-if="block.kind === 'usage'" class="usage-line">{{ block.text }}</p>
+
       <p v-else-if="block.kind === 'interrupted'" class="interrupted-line">
         已打断 · {{ block.pending }} 条提案仍在等待审批
       </p>

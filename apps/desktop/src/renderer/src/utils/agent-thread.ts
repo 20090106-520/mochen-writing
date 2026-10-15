@@ -23,6 +23,7 @@ import {
   UNBOUND
 } from "@mochen/contracts";
 import { permissionChipView } from "./permission-chip";
+import { sessionUsageText } from "./token-usage";
 
 /**
  * 与主进程同名的哨兵：定义只有 contracts 那一份，两侧都从它拿。
@@ -241,6 +242,8 @@ export function composeStatusReport(facts: StatusFacts): string {
         : `历史未回放（本页 ${events} 条）`;
   const ended = thread === undefined ? "还没有这一条线程" : endStateLine(thread.endedAs);
   const label = facts.threadKey === UNBOUND ? "未绑定文稿" : facts.threadKey;
+  // 用量那一行只在有数可说时才出现（sessionUsageText 空串即跳过）——没提问也没回报时不硬凑一句。
+  const usage = sessionUsageText(thread?.items ?? []);
   const parts = [
     `线程 ${label}`,
     replay,
@@ -248,6 +251,7 @@ export function composeStatusReport(facts: StatusFacts): string {
     `排队 ${thread?.queued.length ?? 0} 条`,
     `权限档：${permission.text}`,
     `阶段：${facts.stageName}`,
+    ...(usage === "" ? [] : [usage]),
     ended
   ];
   return `状态 · ${parts.join(" · ")}`;

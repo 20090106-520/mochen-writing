@@ -1,5 +1,6 @@
 import type { AgentEvent, AgentToolName, ProposalStatus, WebSource } from "@mochen/contracts";
 import { toolArgsText } from "./tool-args";
+import { turnUsageText } from "./token-usage";
 
 export interface StreamingTail {
   reasoning: string;
@@ -51,6 +52,11 @@ export type TimelineBlock =
       rawFolded: boolean;
     }
   | { kind: "error"; id: string; text: string }
+  /**
+   * 本轮 token 用量（2026-10-15）。`text` 是**组好的人话**（`turnUsageText`），
+   * 模板只渲染它、不自己拿 requests/reported 再拼一遍——判定与句子都只在这一处（铁律 6）。
+   */
+  | { kind: "usage"; id: string; text: string }
   | { kind: "interrupted"; id: string; pending: number };
 
 /**
@@ -172,6 +178,11 @@ export function buildTimeline(items: AgentEvent[], tail: StreamingTail): Timelin
     }
     if (event.type === "error") {
       blocks.push({ kind: "error", id: event.id, text: event.message });
+      continue;
+    }
+    if (event.type === "usage") {
+      // 文案在 token-usage.ts 里组好，这里只把它摆成一块——模板读 text，不自己判。
+      blocks.push({ kind: "usage", id: event.id, text: turnUsageText(event) });
       continue;
     }
     if (event.type === "interrupted") {
