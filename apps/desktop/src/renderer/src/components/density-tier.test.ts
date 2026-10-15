@@ -4,12 +4,14 @@
  *
  * 这一刀的全部风险都落在**「不显形」**这一族上：CSS 里写了规则、属性名也对、
  * 但顺序或特异性不对 ⇒ 屏幕上一点变化都没有，而界面也不会报错。
- * 所以这里钉的不是「density.css 存在」，而是四条能各自失败的判据：
+ * 所以这里钉的不是「density.css 存在」，而是五条能各自失败的判据：
  * ① 每一条紧凑规则的**选择器在基样式里真的找得到**，且它改的那条属性基规则里也真写着；
  * ② 每一条的**值和基值不一样**——拦的是「抄了一行等于没抄」的空转规则；
  * ③ `density.css` 排在 `styles.css` 全部 @import 的**最后**（同特异性只由先后裁决）；
  * ④ 属性名与档位名和运行时/契约同源（`data-density` / `compact`），
- *    两边写岔一个字母就是「设置存得下来、界面永远不动」。
+ *    两边写岔一个字母就是「设置存得下来、界面永远不动」；
+ * ⑤ 每一条的**特异性压得住**基样式里同族同属性的最强一条——①～④ 全是字符串级判据，
+ *    看不见「同一个类被基样式写成复合链」那种压制，而它正是真机量出来的那一条（见下文 `.tree-row`）。
  *
  * 另加两条反向闸（明确不许碰的两族）：栅格轨道与阅读栏宽度——
  * 前者会把 macOS 那四行栏头顶成 Windows 的七行（同特异性，见 density.css 抬头第 ③ 条），
@@ -78,6 +80,54 @@ function baseValues(selector: string, property: string): string[] {
   return [...new Set(found)];
 }
 
+/**
+ * 特异性的近似算法：`(id, 类/属性/伪类, 类型/伪元素)` 三段各 100 进制位。
+ * `:where()` 按规范自身不计分，这里**照计**——宁可把基规则估得更强（误红，得人来收口），
+ * 也不要估得更弱（误绿，而误绿的症状是「设置存了、屏幕上什么都不动」，没人会去查）。
+ */
+function specificity(selector: string): number {
+  const text = selector.replace(/\s+/g, " ");
+  const ids = (text.match(/#[\w-]+/g) ?? []).length;
+  const tokens = text.match(/\[[^\]]+\]|\.[\w-]+|::?[a-z-]+(?:\([^)]*\))?/gi) ?? [];
+  const classes = tokens.filter((t) => !t.startsWith("::")).length;
+  const pseudoElements = tokens.filter((t) => t.startsWith("::")).length;
+  const types = (text.match(/(?:^|[ >+~])[a-z][\w-]*/gi) ?? []).length;
+  return ids * 10000 + (classes + pseudoElements) * 100 + types;
+}
+
+/** 选择器最右一段（真正命中的那个复合选择器）——同类判据只该跟它比。 */
+const rightmost = (selector: string): string =>
+  selector
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/[ >+~]/)
+    .pop() ?? "";
+
+/** 同族判据取类名：`.tree-row` 从 `.resource-tree > .tree-node > .tree-row` 里剥出来。 */
+function classToken(selector: string): string | null {
+  const match = /\.([a-zA-Z][\w-]*)/.exec(rightmost(selector));
+  return match ? `.${match[1]}` : null;
+}
+
+/** 基样式里「同一个类 + 同一条属性」的最强一条规则（含写成复合链的那些）。 */
+function strongestBase(
+  selector: string,
+  property: string
+): { spec: number; selector: string } | null {
+  const token = classToken(selector);
+  if (!token) return null;
+  let best: { spec: number; selector: string } | null = null;
+  for (const rule of baseRules) {
+    if (!rule.declarations.has(property)) continue;
+    for (const candidate of rule.selectors) {
+      if (!rightmost(candidate).includes(token)) continue;
+      const spec = specificity(candidate);
+      if (!best || spec > best.spec) best = { spec, selector: candidate };
+    }
+  }
+  return best;
+}
+
 describe("密度档 · 每一条都对着基规则", () => {
   it('至少有一条紧凑规则，而且都带着 html[data-density="compact"] 那条总闸', () => {
     expect(densityRules.length).toBeGreaterThan(0);
@@ -97,6 +147,25 @@ describe("密度档 · 每一条都对着基规则", () => {
       for (const property of rule.declarations.keys()) {
         const values = baseValues(rule.base, property);
         expect(values.length, `${rule.base} 的 ${property} 在基样式里根本没有`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("特异性 ≥ 基样式里同族同属性的最强一条（平手才轮到顺序赢）", () => {
+    // 【为什么单开这一道】①～④ 全是「字符串级」判据：选择器名在不在、属性在不在、值同不同、顺序对不对。
+    // `.tree-row` 那条真机量出来的是另一种死法——四条判据照样全绿，屏幕上却一点不动：
+    // 基值 30 住在 `.resource-tree > .tree-node > .tree-row`（0,3,0），
+    // 而 `html[data-density="compact"] .tree-row` 只有 (0,2,1)，属性写得再对也轮不到它。
+    for (const rule of densityRules) {
+      for (const property of rule.declarations.keys()) {
+        const strongest = strongestBase(rule.base, property);
+        if (!strongest) continue;
+        const got = specificity(`${GATE} ${rule.base}`);
+        expect(
+          got,
+          `${GATE} ${rule.base} 的特异性 ${got} 压不过基规则 ${strongest.selector}（${strongest.spec}）——` +
+            `这一条要照抄基规则那条复合链，否则紧凑档不显形`
+        ).toBeGreaterThanOrEqual(strongest.spec);
       }
     }
   });

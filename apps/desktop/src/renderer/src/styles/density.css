@@ -21,13 +21,17 @@
  *   照稿子降档，轨道不动——代价是紧凑档下栏头会显得比里面那排钮松一点，这笔账如实记在这里。
  *
  * 【位置在 styles.css 的最后一批 @import 里】
- * 这些选择器与各自基规则**同特异性**（都是 `html[data-x] .cls` 这一形），
- * 赢只靠顺序；写在别的文件里就会排在基规则前面而永远不生效。
- * 判据由 `components/density-tier.test.ts` 钉：既钉「每一条在基规则里都找得到同名选择器」，
- * 也钉「每一条的值都和基值不一样」——后者拦的是那种「抄了一行等于没抄」的空转规则。
+ * 平手才轮得到顺序赢：这里每一条的**特异性都不低于**它所压的那条基规则，
+ * 写在别的文件里就会排在基规则前面而永远不生效。
+ * 判据由 `components/density-tier.test.ts` 钉三层：既钉「每一条在基规则里都找得到同名选择器」，
+ * 也钉「每一条的值都和基值不一样」（拦那种「抄了一行等于没抄」的空转规则），
+ * 还钉「每一条的特异性 ≥ 基样式里同族同属性的最强一条」——
+ * 特异性这一条是真机量出来的（2026-10-15）：`.tree-row` 的基值实际住在
+ * `.resource-tree > .tree-node > .tree-row`（0,3,0）而不是裸 `.tree-row`，
+ * 裸选择器挂总闸只有 (0,2,1)，源码四道闸全绿而屏幕上纹丝不动。
  */
 
-/* 左栏三族行：一级 34→30、子项 30→27、文稿树 28→25。
+/* 左栏三族行：一级 34→30、子项 30→27、文稿树 30→25。
    这三条放最前面是因为它们是一屏里数量最多的一族，紧凑多出来的行数主要来自这里。 */
 html[data-density="compact"] .nav-row {
   min-height: 30px;
@@ -37,7 +41,10 @@ html[data-density="compact"] .nav-subrow {
   min-height: 27px;
 }
 
-html[data-density="compact"] .tree-row {
+/* 这条必须照抄基规则那条复合链（`.resource-tree > .tree-node > .tree-row`，min-height:30）：
+   裸 `html[data-density="compact"] .tree-row` 特异性 (0,2,1) 低于它的 (0,3,0)，
+   真机量过——写裸的那一条时文稿树在两档下都是 30px，紧凑档白切一次。 */
+html[data-density="compact"] .resource-tree > .tree-node > .tree-row {
   min-height: 25px;
 }
 
