@@ -15,6 +15,10 @@ export const SLASH_COMMANDS = [
   "stage",
   "skills",
   "plugins",
+  "skins",
+  "export",
+  "wordcount",
+  "newbook",
   "resume",
   "clear"
 ] as const;
@@ -33,6 +37,10 @@ export const SLASH_COMMAND_DESCRIPTIONS: Record<SlashCommand, string> = {
   stage: "切换创作阶段（带阶段名可直接切，如 /stage 大纲）",
   skills: "打开技能库浏览（只读；选中技能不装配，要挂入得按卡片上的「加入当前上下文」）",
   plugins: "打开插件面板（看装了哪些、它们加了哪些能力；可停用或卸载）",
+  skins: "打开皮肤广场（挑外观皮肤并整窗预览，与左栏那枚钮同一处）",
+  export: "导出这本书（Markdown / TXT / EPUB 等格式，与右栏头部那枚钮同一处）",
+  wordcount: "打开字数统计看板（总字数、章节分布与写作目标）",
+  newbook: "新建一本作品（选目录、起书名，与左栏「+」同一路）",
   resume: "重新读取这条线程的历史",
   clear: "只清空本页显示，不动盘上的会话历史"
 };
@@ -46,7 +54,15 @@ const DURING_TURN_COMMANDS: readonly SlashCommand[] = ["model", "permissions", "
  * 项目律「拒绝一律回单句中文原因，不静默丢弃」，而「不列出来」正是这里合规的拒绝形式。
  * （波 1 的 GATED_COMMANDS 曾把 stage 整条门控掉，等的就是档案落地；那条门控已随六档案删除。）
  */
-const NEEDS_BOOK: readonly SlashCommand[] = ["resume", "permissions", "stage", "skills"];
+const NEEDS_BOOK: readonly SlashCommand[] = [
+  "resume",
+  "permissions",
+  "stage",
+  "skills",
+  // 导出 / 字数统计要有书才有内容：两处都读 book.docs，没书就只有一排零。
+  "export",
+  "wordcount"
+];
 
 export function availableCommands(focus: PaletteFocus): SlashCommand[] {
   return SLASH_COMMANDS.filter((command) => {

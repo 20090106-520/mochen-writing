@@ -221,4 +221,27 @@ describe("useAgentStore · / 面板动作", () => {
     expect(store().notice).not.toBe("");
     expect(store().notice).toContain("阶段");
   });
+
+  /**
+   * 第七十二节补齐的四条：每一条都落到 layout 上**已经存在**的动作，
+   * 走的正是左栏/右栏那枚钮同一条真身（`showCenter` / `openExport` / `openWordCount` / `openNewBook`）。
+   * 面板不新造任何实现，也不改动任何状态位本身。
+   */
+  it("/skins /export /wordcount /newbook 各自落到 layout 的既有动作上（不新造实现）", () => {
+    const layout = useLayoutStore();
+
+    store().runSlashCommand("newbook", "");
+    expect(layout.newBookOpen).toBe(true);
+    layout.closeNewBook();
+    expect(layout.newBookOpen).toBe(false);
+
+    store().runSlashCommand("export", "");
+    expect(layout.panelVisibility.export).toBe(true);
+
+    store().runSlashCommand("wordcount", "");
+    expect(layout.panelVisibility.wordCount).toBe(true);
+
+    store().runSlashCommand("skins", "");
+    expect(layout.centerView).toBe("skins");
+  });
 });

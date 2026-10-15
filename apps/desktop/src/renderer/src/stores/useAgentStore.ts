@@ -715,6 +715,23 @@ export const useAgentStore = defineStore("agent", {
           // 而中栏显示什么是与书无关的布局状态，正是 layout 的作用域。
           useLayoutStore().showCenter("plugins");
           return;
+        case "skins":
+          // 与左栏那枚「皮肤广场」钮同一条真身：layout.showCenter("skins")。
+          // 它与技能库/插件同属「左栏某枚钮通向的中栏那一格」，落点只能是中栏。
+          useLayoutStore().showCenter("skins");
+          return;
+        case "export":
+          // 与右栏头部那枚「导出」钮同一条真身：layout.openExport()（面板可见态住在 layout）。
+          useLayoutStore().openExport();
+          return;
+        case "wordcount":
+          // 与右栏头部那枚「字数统计」钮同一条真身：layout.openWordCount()。
+          useLayoutStore().openWordCount();
+          return;
+        case "newbook":
+          // 与左栏「+」同一条真身：layout.openNewBook()（开合真身是 layout.newBookOpen）。
+          useLayoutStore().openNewBook();
+          return;
         case "stage": {
           // 无参：报当前阶段 + 可选值（回一句实话，而不是「按了没反应」）。
           if (argument.trim() === "") {

@@ -6181,3 +6181,48 @@ ipc-guard 799 行未越线）/ vitest（356 文件 **4662 通过** 2 skipped，�
 **划掉**：第六十八节「五条通道，pull 留下一刀」留下的那半条路（第六十九 / 七十节把它的
 「同一条铁律」当先例引用过两次）——本刀做完了。
 **仍等同用户一句话的**：无（第六十六节末尾列的四项，第六十七至七十一节依次收口）。
+
+---
+
+## 第七十二节：`/` 命令面板补齐命令（只接已有真通路）
+
+**为什么必须做**：`/` 面板当时只有 8 条命令，而左栏 / 右栏好几枚钮（皮肤广场、导出、字数统计、
+新建作品）背后都已是真通路，却打不出对应命令。本节把「已有真通路、面板里没有」的那几条补齐——
+**不新造任何实现，也不造假控件**：每条新命令都落到 layout 上**已经存在**、且正被某枚真钮调着的那个
+动作上，任一新命令都能报得出它落的 store 动作。
+
+**补的 4 条 + 各自落的真身**：
+- `skins` → `useLayoutStore().showCenter("skins")`（左栏 ExtensionsNavRow「皮肤广场」钮同一条）
+- `export` → `useLayoutStore().openExport()`（右栏头部「导出」钮同一条）
+- `wordcount` → `useLayoutStore().openWordCount()`（右栏头部「字数统计」钮同一条）
+- `newbook` → `useLayoutStore().openNewBook()`（左栏「+」同一条）
+
+**为什么只补 4 条、且停在 `clear` 之前**：行内菜单一次最多列 `REFERENCE_OPTION_LIMIT`（=12）条
+（`utils/inline-reference-menu.ts` 的 `filterReferenceOptions` 做 `slice(0, 12)`）。补到 12 条整好排满
+一排；再来一条就会把末位的 `clear` 挤出可见列表（`clear` 仍可输入 `/cl` 过滤到，但默认那一屏要少一条）。
+所以左栏「导入 TXT」那条真通路这次**没有**进表——它是「有通路但不进」的一个刻意取舍，不是漏。
+
+**书闸（NEEDS_BOOK）新增两条**：`export` / `wordcount` 都要读 `book.docs`，没书就一排零，
+与 `resume` / `permissions` / `stage` / `skills` 同例，没书时不列出来（「不列出来」即合规的拒绝形式）。
+`skins` / `newbook` **不设书闸**：皮肤广场列的是应用自己的皮肤目录、与当前书无关；新建作品恰恰是
+无书时的第一步。
+
+**turn 运行中仍只四条**：`DURING_TURN_COMMANDS` 一个字没改（model / permissions / status / clear）——
+新增四条要么切中栏那一格、要么弹模态框，都会把进行中那轮的输入框挤走，故与 skills / plugins 同例。
+
+**改动文件**：
+- `apps/desktop/src/renderer/src/utils/slash-commands.ts`：`SLASH_COMMANDS` +4、`SLASH_COMMAND_DESCRIPTIONS` +4、`NEEDS_BOOK` +2
+- `apps/desktop/src/renderer/src/stores/useAgentStore.ts`：`runSlashCommand` +4 case（各一行落既有 store 动作，无新实现）
+- 测试：`slash-commands.test.ts`（终态 8→12、有书空闲 8→12、无书清单 +skins/newbook）、
+  `useReferenceMenuStore.test.ts`（无书那一格 4→6）、`useAgentStore.slash.test.ts`（+1 用例，
+  逐条断言落到 layout 既有动作：newBookOpen / panelVisibility.export / panelVisibility.wordCount / centerView）
+
+**变异实测两处都红后原样回退**：
+1. `case "skins"` 里 `showCenter("skins")` 改成 `showCenter("plugins")` ⇒ 红 1 条（centerView 不是 skins）；
+2. `NEEDS_BOOK` 去掉 `"export"` ⇒ 红 1 条（无书那一格多出一条 export）。
+
+**门禁**：prettier（5 个改动文件 + 本台账）/ tsc（6 项目）/ eslint / boundary / 行数预算（700 份，
+useAgentStore.ts 790 行未越 800）/ vitest（356 文件 **4663 通过** 2 skipped，比第七十一节 +1）全绿。
+
+**划掉**：无（本节是从零补齐，不是收口前面留下的半条路）。
+**仍等同用户一句话的**：无。
