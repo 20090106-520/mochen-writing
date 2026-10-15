@@ -29,6 +29,14 @@
  * 特异性这一条是真机量出来的（2026-10-15）：`.tree-row` 的基值实际住在
  * `.resource-tree > .tree-node > .tree-row`（0,3,0）而不是裸 `.tree-row`，
  * 裸选择器挂总闸只有 (0,2,1)，源码四道闸全绿而屏幕上纹丝不动。
+ *
+ * 【两档实测数（2026-10-15，临时 user-data 实例 + CDP，逐族量真实几何）】
+ * 标准→紧凑：nav-row 34→30、nav-subrow 30→27、tree-row 30→25、resource-section-heading 34→30、
+ * section-toggle 32→28、icon-button 32→28、section-tab 41→37、view-tabs 与 editor-view-switch
+ * 的钮 25→23、format-button 27→25、send 与 round-tool 的钮 30→28、composer-chip 29→27、
+ * composer-toolbar 43→38、workbench-cards 354→320（gap 10→8）、workbench-card 117→107、
+ * workbench-intro 259→255、message-list 上下留白 34/72→26/56。
+ * 这张表的用处是「声明值 ≠ 屏幕值」的对账：上面每一条都在屏幕上落到过，量不到的一律不当已验。
  */
 
 /* 左栏三族行：一级 34→30、子项 30→27、文稿树 30→25。
