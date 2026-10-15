@@ -1018,3 +1018,10 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   flex: 0 0 auto;
   color: var(--text-tertiary);
 }
+
+/* 「拉回本地」那颗行内小按钮：列表是一排时间戳，按钮不该把行撑高、也不该抢视线。 */
+.webdav-entry-pull {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  font-size: 0.785714rem;
+}

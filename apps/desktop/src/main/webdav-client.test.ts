@@ -2,11 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   basicAuthHeader,
   deleteResource,
+  extractEntriesFromPropfindXml,
   extractHrefsFromPropfindXml,
+  getFile,
   isWebdavUrlAllowed,
   joinWebdavUrl,
   mkcolDir,
   propfindChildren,
+  propfindEntries,
   putFile,
   type WebdavFetch
 } from "./webdav-client.js";
@@ -147,6 +150,74 @@ describe("webdav-client · extractHrefsFromPropfindXml", () => {
   });
 });
 
+describe("webdav-client · extractEntriesFromPropfindXml", () => {
+  it("带 collection 的项是目录、resourcetype 空的项是文件（自身那条被过滤）", () => {
+    const xml = `<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/dav/book/</D:href>
+    <D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/dav/book/chapters/</D:href>
+    <D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/dav/book/book.json</D:href>
+    <D:propstat><D:prop><D:resourcetype/></D:prop></D:propstat>
+  </D:response>
+</D:multistatus>`;
+    const result = extractEntriesFromPropfindXml(xml, "https://nas/dav/book/");
+    expect(result).toEqual([
+      { path: "/dav/book/chapters/", isDir: true },
+      { path: "/dav/book/book.json", isDir: false }
+    ]);
+  });
+
+  it("成对的小写 <d:collection></d:collection> 也认（不同服务端写法不一）", () => {
+    const xml = `<d:multistatus>
+  <d:response>
+    <d:href>/dav/book/</d:href>
+    <d:resourcetype><d:collection></d:collection></d:resourcetype>
+  </d:response>
+  <d:response>
+    <d:href>/dav/book/chapters/</d:href>
+    <d:resourcetype><d:collection></d:collection></d:resourcetype>
+  </d:response>
+</d:multistatus>`;
+    const result = extractEntriesFromPropfindXml(xml, "https://nas/dav/book/");
+    expect(result).toEqual([{ path: "/dav/book/chapters/", isDir: true }]);
+  });
+
+  it("文件名里含 collection 字样不误判成目录（判据要求「<」紧跟 collection）", () => {
+    const xml = `<D:multistatus>
+  <D:response><D:href>/dav/book/</D:href></D:response>
+  <D:response>
+    <D:href>/dav/book/my-collection.md</D:href>
+    <D:propstat><D:prop><D:resourcetype/></D:prop></D:propstat>
+  </D:response>
+</D:multistatus>`;
+    const result = extractEntriesFromPropfindXml(xml, "https://nas/dav/book/");
+    expect(result).toEqual([{ path: "/dav/book/my-collection.md", isDir: false }]);
+  });
+
+  it("绝对 URL 的 href 解 pathname；重复项去重", () => {
+    const xml = `<D:multistatus>
+  <D:response><D:href>https://nas/dav/book/</D:href></D:response>
+  <D:response><D:href>https://nas/dav/book/y.md</D:href></D:response>
+  <D:response><D:href>https://nas/dav/book/y.md</D:href></D:response>
+</D:multistatus>`;
+    const result = extractEntriesFromPropfindXml(xml, "https://nas/dav/book/");
+    expect(result).toEqual([{ path: "/dav/book/y.md", isDir: false }]);
+  });
+
+  it("空 XML / 无 href 的块不抛，回空数组", () => {
+    expect(extractEntriesFromPropfindXml("", "https://nas/dav/book/")).toEqual([]);
+    expect(
+      extractEntriesFromPropfindXml("<D:multistatus><D:response/></D:multistatus>", "https://x/y/")
+    ).toEqual([]);
+  });
+});
+
 describe("webdav-client · mkcolDir", () => {
   it("201 = 已建（existed=false）", async () => {
     const fetch = fetchReturning(201, "");
@@ -269,5 +340,94 @@ describe("webdav-client · propfindChildren", () => {
     const result = await propfindChildren(fetch, "https://nas/dav/book/", {});
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.status).toBe(0);
+  });
+});
+
+describe("webdav-client · propfindEntries", () => {
+  it("207 ⇒ 解析出带 isDir 的项（与 propfindChildren 同一份请求、不同输出面）", async () => {
+    const body = `<D:multistatus xmlns:D="DAV:">
+  <D:response><D:href>/dav/book/</D:href><D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>
+  <D:response><D:href>/dav/book/chapters/</D:href><D:propstat><D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop></D:propstat></D:response>
+  <D:response><D:href>/dav/book/book.json</D:href><D:propstat><D:prop><D:resourcetype/></D:prop></D:propstat></D:response>
+</D:multistatus>`;
+    const fetch = fetchReturning(207, body);
+    const result = await propfindEntries(fetch, "https://nas/dav/book/", {});
+    expect(result.ok).toBe(true);
+    if (result.ok)
+      expect(result.entries).toEqual([
+        { path: "/dav/book/chapters/", isDir: true },
+        { path: "/dav/book/book.json", isDir: false }
+      ]);
+  });
+
+  it("404 视为空（这一格远程没有）", async () => {
+    const fetch = fetchReturning(404, "");
+    const result = await propfindEntries(fetch, "https://nas/dav/book/", {});
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.entries).toEqual([]);
+  });
+
+  it("非 207/404 ⇒ ok=false + 状态码与人话", async () => {
+    const fetch = fetchReturning(403, "Forbidden");
+    const result = await propfindEntries(fetch, "https://nas/dav/book/", {});
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(403);
+      expect(result.message).toContain("Forbidden");
+    }
+  });
+
+  it("fetch 抛错回 ok=false + status=0", async () => {
+    const fetch = fetchThrowing("socket hang up");
+    const result = await propfindEntries(fetch, "https://nas/dav/book/", {});
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.status).toBe(0);
+  });
+});
+
+describe("webdav-client · getFile", () => {
+  it("200 且带 bytes ⇒ 按字节原样回（图片等二进制件靠这一位）", async () => {
+    const data = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff]);
+    const fetch: WebdavFetch = vi.fn(async () => ({ status: 200, text: "ignored", bytes: data }));
+    const result = await getFile(fetch, "https://nas/dav/book/a.png", {});
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(Array.from(result.data)).toEqual(Array.from(data));
+  });
+
+  it("200 只给 text（夹具路径）⇒ 按 UTF-8 编码成字节", async () => {
+    const fetch = fetchReturning(200, "第一章");
+    const result = await getFile(fetch, "https://nas/dav/book/a.md", {});
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(new TextDecoder().decode(result.data)).toBe("第一章");
+  });
+
+  it("用 GET 且不带 body；HEAD 那类语义不在这一层", async () => {
+    const fetch = vi.fn(async (init) => {
+      expect(init.method).toBe("GET");
+      expect(init.body).toBeNull();
+      return { status: 200, text: "ok" };
+    });
+    await getFile(fetch, "https://nas/dav/book/a.md", {});
+    expect(fetch).toHaveBeenCalled();
+  });
+
+  it("非 200 ⇒ ok=false + 状态码与 body 摘要", async () => {
+    const fetch = fetchReturning(404, "Not Found");
+    const result = await getFile(fetch, "https://nas/dav/book/a.md", {});
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(404);
+      expect(result.message).toContain("Not Found");
+    }
+  });
+
+  it("fetch 抛错回 ok=false + status=0 + 人话", async () => {
+    const fetch = fetchThrowing("connection reset");
+    const result = await getFile(fetch, "https://nas/dav/book/a.md", {});
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(0);
+      expect(result.message).toContain("connection reset");
+    }
   });
 });

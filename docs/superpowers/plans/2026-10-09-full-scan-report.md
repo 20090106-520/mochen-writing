@@ -6107,3 +6107,77 @@ vitest（356 文件 4639 通过 2 skipped）全绿。纯声明文件 + JSON 字�
 **划掉**：第六十九节末尾「仍等同用户一句话的：LICENSE 字段」中的「根 LICENSE 文件 + 四个工作区包字段」
 这一块——本刀做完了（根包与 app 包的字段 `ec24a3e` 早已落位）。
 **仍等同用户一句话的**：若将来要改口径，改 `LICENSE` 与各包 `license` 字段即可；本刀取的是已声明那条。
+
+## 第七十一节（2026-10-15）：WebDAV pull——把远程某一份备份拉回书旁边
+
+**为什么必须做**：第六十八节落的 push / list / verify 只解决「推得上去、看得到」，远程备份半边
+路——本机盘坏掉时，命里那份备份在 NAS 上却取不回来。pull 就是 `restoreBookBackup` 的远程镜像。
+
+**落点照 `restoreBookBackup` 同款（书**旁边**，不在书里）**：`<书父目录>/<书名>-恢复自远程备份-<时间戳>/`，
+已存在就顺位加 `-2` / `-3`，**绝不盖写任何已有内容**。不在书内落的理由与本地 restore 一样：
+恢复出来的东西混进正被扫描的书树才是事故；也因此不需要走书内那套原子写 / 指纹守卫。
+
+**递归形状与 push 同一套**：逐层 `PROPFIND Depth: 1`（Depth: infinity 多数服务端禁用、整棵树一次进内存），
+`stack` + 一层层下钻；文件走 `GET` 落盘。**PROPFIND 的请求构造收成一处的 `propfindRaw`**——
+list 与 pull 是两个输出面（路径 / 带 isDir 的项），但请求是同一条，分两份写就会出现
+「一边改了深度或 body、另一边没改」的分家。
+
+**`WebdavResponse` 多带一态 `bytes`**：`Response.text()` 按 UTF-8 解，备份里的图片 / 字体等
+二进制件走 text 再编回来会被替换字符打烂。真 fetch 改成读一次 `arrayBuffer`，同一份 buffer
+既解文本（PROPFIND）也留字节（GET）。夹具只给 text 时按 UTF-8 兜底编码。
+
+**`<D:collection/>` 就是「是不是目录」的判据**：`extractHrefsFromPropfindXml` 只出路径、判不出目录，
+另加 `extractEntriesFromPropfindXml`（按 `<response>` 块切，块内找 href 再用 `<collection` 判目录）。
+判据写成 `<collection` 后跟 `/` 或 `>` 或空白，**成对标签与自闭合都认**，且不会把
+文件名里的 `collection` 误判（那种情形 `<` 前面是 `/` 或别的字符）。
+
+**发现并修掉的一个真 bug（写测试时被红出来）**：`joinWebdavUrl(base, "")` 会回 `base/`（末尾多一条斜杠）。
+pullTree 的根层原本用 `joinWebdavUrl(remoteRoot, "")`，于是根那层 PROPFIND 打到 `.../book-<时间戳>/`，
+假服务器按「没有这一格」回 404 ⇒ 递归一层都没走、`fileCount` 为 0，而它**仍是 ok:true**——
+这种「成功但什么都没搬」只有用例抓得到。修法：空层直接用 `remoteRoot` 本身，不拼。
+
+**半途失败不留半截**：这目录是我们刚在书外新建的（建之前 `exists` 确认过不存在），所以任何一步
+失败（列目录非 207、GET 非 200、写盘抛错）都用 `discardHalfPull` 把整目录 `rm` 掉再回 io 档——
+书旁躺一份「看起来像还原」的残件，比明说失败更难分辨。
+
+**名字形状闸在**：只认 `BACKUP_NAME_RE`（`book-` + 时间戳），不合则 `not-found` 且**一个请求都不发**。
+渲染层递的只是「远程目录名」（名单由 list 给出），递不出服务器地址、递不出盘上路径（与 list 同一闸）。
+
+**六档如实分报**：`no-config` / `no-book` / `not-found`（名字不合或远程没有这一份）/ `auth-failed`(401) /
+`forbidden`(403) / `io-error`（网络、解析、写盘）。「远程有没有这一份」由一层 PROPFIND 探：
+404 与「空的一格」都判 not-found——push 出来的一格必有 `book.json`，不可能是空的。
+
+**ipc-guard 净增 0 行**：`ipc-guard.ts` 在第六十九节后是 798 行（预算 800）。本刀加 pull 的形状行 +
+失败档回话，为不越线把 webdav verify / push / list / pull 四条**一模一样的** deny 闭包抽成一份
+`webdavDenyIo`（顺带把段落注释压短）。收工 799 行。
+
+**通道档位不动**：`webdav:*` 全在 public 档（要不要落哪本书由 service 内部判 no-book），
+pull 同档，`channel-trust.ts` 与 `IPC_TRUST_LEVELS` 一个字没改。
+
+**界面**：`WebdavPanel.vue` 远程清单每条挂一颗「拉回本地」，回执按 `result.ok` 分支——
+成功报「已拉回 N 个文件，落在书旁边的『某某』」，失败报 message。新增 `webdav-entry-pull` 小按钮样式。
+
+**改动文件**：
+- `packages/contracts/src/webdav.ts`：+`WebdavPullResult`（ok 带 destName / fileCount；失败六档）
+- `packages/contracts/src/ipc.ts`：`IPC_CHANNELS.webdavPull = "webdav:pull"`、`RendererApi.webdavPull(name)`
+- `apps/desktop/src/main/webdav-client.ts`：`WebdavResponse.bytes`、nodeWebdavFetch 读 arrayBuffer、
+  抽出 `propfindRaw`、+`propfindEntries` / `extractEntriesFromPropfindXml` / `getFile`
+- `apps/desktop/src/main/webdav-service.ts`：+`pull()`、`pullTree` / `discardHalfPull` / `leafNameOf`、
+  注册点第四条
+- `apps/desktop/src/main/ipc-guard.ts`：形状表 +`webdavPull: [id("远程备份条目名")]`；deny 表四条共用 `webdavDenyIo`
+- `apps/desktop/src/preload/renderer-api.ts`：+`webdavPull`
+- `apps/desktop/src/renderer/src/components/WebdavPanel.vue` + `styles/settings-page.css`
+- 8 处 RendererApi 夹具同步（agent-store-fixture / book-draft-fixture / 6 个 store 测试）
+- 测试：`webdav-client.test.ts`（+13）、`webdav-service.test.ts`（+9，含 recordingBackupFs）、
+  `renderer-api.test.ts`（62→63 条点名）
+
+**变异实测两处都红后原样回退**：
+1. `dirRe` 改成 `/<(?:D:|d:)?collectionX[\s/>]/`（判不出目录）⇒ 红 5 条（client 3 + service 2）；
+2. 去掉 `walked.ok` 分支里的 `discardHalfPull` ⇒ 红 1 条（半截目录没清）。
+
+**门禁**：prettier（19 个改动文件）/ tsc（6 项目）/ eslint / boundary / 行数预算（700 份，
+ipc-guard 799 行未越线）/ vitest（356 文件 **4662 通过** 2 skipped，比第六十九节 +23）全绿。
+
+**划掉**：第六十八节「五条通道，pull 留下一刀」留下的那半条路（第六十九 / 七十节把它的
+「同一条铁律」当先例引用过两次）——本刀做完了。
+**仍等同用户一句话的**：无（第六十六节末尾列的四项，第六十七至七十一节依次收口）。

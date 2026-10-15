@@ -246,16 +246,18 @@ describe("createRendererApi", () => {
     // 全书替换（2026-10-15）：只递「找什么 + 换成什么」——**一个 relPath 都递不出去**，
     // 要动哪几篇由主进程按自己的快照决定（这一列就是那道形状的证明）。
     await api.replaceAllInBook({ query: "小明", replacement: "阿明" });
-    // WebDAV 远程备份五条（2026-10-15）：config-get / verify / push / list 无参；
-    // config-save 只递配置草稿（密钥三态见 contracts）。**一个服务器地址或 bookId 都不递**——
-    // 落到哪台服务器、哪本书、哪一份，全由主进程按配置与当前书根自己拼。
+    // WebDAV 远程备份六条（2026-10-15）：config-get / verify / push / list 无参；
+    // config-save 只递配置草稿（密钥三态见 contracts），pull 只递**远程备份目录名**。
+    // **一个服务器地址、一个盘上路径、一个 bookId 都不递**——
+    // 落到哪台服务器、哪本书、哪一份、写回哪儿，全由主进程按配置与当前书根自己拼。
     await api.webdavConfigGet();
     await api.webdavConfigSave({ url: "https://nas.local/dav/", username: "alice" });
     await api.webdavVerify();
     await api.webdavPush();
     await api.webdavList();
+    await api.webdavPull("book-2026-10-15-12-00-00");
 
-    expect(calls.length).toBe(62);
+    expect(calls.length).toBe(63);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -330,12 +332,13 @@ describe("createRendererApi", () => {
       "import:commit",
       // 全书替换（2026-10-15）。同样不许从 IPC_CHANNELS 派生，理由同上。
       "book:replace-all",
-      // WebDAV 五条（2026-10-15）。同样不许从 IPC_CHANNELS 派生，理由同上。
+      // WebDAV 六条（2026-10-15）。同样不许从 IPC_CHANNELS 派生，理由同上。
       "webdav:config-get",
       "webdav:config-save",
       "webdav:verify",
       "webdav:push",
-      "webdav:list"
+      "webdav:list",
+      "webdav:pull"
     ]);
     expect(calls.map((call) => call.args)).toEqual([
       [],
@@ -410,13 +413,15 @@ describe("createRendererApi", () => {
       [{ chapters: [{ title: "第一章", content: "正文" }] }],
       // 全书替换的实参：整个对象原样出网（preload 一个字都不许拆或补）。
       [{ query: "小明", replacement: "阿明" }],
-      // WebDAV 五条的实参：config-get / verify / push / list 不收东西；
-      // config-save 只递整个配置草稿（密钥三态见 contracts）——**一个 bookId 都不递**。
+      // WebDAV 六条的实参：config-get / verify / push / list 不收东西；
+      // config-save 只递整个配置草稿（密钥三态见 contracts），pull 只递远程备份目录名——
+      // **一个服务器地址、一个盘上路径、一个 bookId 都不递**。
       [],
       [{ url: "https://nas.local/dav/", username: "alice" }],
       [],
       [],
-      []
+      [],
+      ["book-2026-10-15-12-00-00"]
     ]);
     // 渲染层只拿到这些方法：invoke/on/ipcRenderer 一个字都不许泄漏成键。
     expect(Object.keys(api).sort()).toEqual([
@@ -496,11 +501,12 @@ describe("createRendererApi", () => {
       "uninstallMarketSkill",
       "uninstallPlugin",
       "updateCheck",
-      // WebDAV 五条（2026-10-15）：远程备份进这份点名册，与本地整书备份同一档理由——
+      // WebDAV 六条（2026-10-15）：远程备份进这份点名册，与本地整书备份同一档理由——
       // 少一枚面板调不到、多一枚就是多开的口子。
       "webdavConfigGet",
       "webdavConfigSave",
       "webdavList",
+      "webdavPull",
       "webdavPush",
       "webdavVerify",
       "writeBookData",

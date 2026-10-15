@@ -34,6 +34,7 @@ import type {
   WebdavConfigInput,
   WebdavConfigSnapshot,
   WebdavListResult,
+  WebdavPullResult,
   WebdavPushResult,
   WebdavVerifyResult
 } from "./webdav.js";
@@ -197,16 +198,18 @@ export const IPC_CHANNELS = {
    * 渲染层 `config-get` 拿到的快照只有 `hasPassword`，不回明文密钥（已在加密存好的密钥
    * 不再走 IPC 暴露在结构化克隆与渲染进程内存里）。
    *
-   * 【为什么不做 pull】
-   * push + list + verify 三条已经构成一条可证伪的备份通路（推、看到、自检）；
-   * pull 是 `restoreBookBackup` 的远程镜像（MKCOL 书旁新目录 → 递归 GET），与本地 restore 同一条
-   * 「绝不盖写已有内容」口径，单刀再加这条 + 测试 + 变异 + 门禁会越过失败边界。pull 留下一刀。
+   * 【pull 一起做的理由（2026-10-15 稍晚）】
+   * 远程备份只推不拉是条半截路：命里那份备份在 NAS 上，本机盘坏掉时唯一的用法就是拉回来。
+   * pull 是 `restoreBookBackup` 的远程镜像（逐层 PROPFIND Depth:1 → 递归 GET），
+   * 落点与本地 restore 同一处（书的**旁边**一份新目录，绝不盖写）。它只递一个远程目录名，
+   * 与 list 同一条铁律——渲染层递不出服务器地址，也就递不出去别的书别的份。
    */
   webdavConfigGet: "webdav:config-get",
   webdavConfigSave: "webdav:config-save",
   webdavVerify: "webdav:verify",
   webdavPush: "webdav:push",
-  webdavList: "webdav:list"
+  webdavList: "webdav:list",
+  webdavPull: "webdav:pull"
 } as const;
 
 /** 退出握手里有稿子没能落盘的那一篇：点名到文件与原因，好让人自己拍板走不走。 */
@@ -750,4 +753,12 @@ export interface RendererApi {
    * 没开书 / 没配置都如实分档报，不抛。
    */
   webdavList(): Promise<WebdavListResult>;
+  /**
+   * 把远程某一份备份拉回本地（`restoreBookBackup` 的远程镜像）。
+   *
+   * 只递**远程目录名**（`book-<时间戳>` 那一串，由上面的 list 给出），不递服务器地址、
+   * 不递盘上路径：落点与远程位置都由主进程按配置与当前书根自己拼。落到书的旁边一份新目录
+   * （`<书名>-恢复自远程备份-<时间戳>`，重名顺位加号），**绝不盖写已有内容**。
+   */
+  webdavPull(name: string): Promise<WebdavPullResult>;
 }

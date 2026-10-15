@@ -372,6 +372,9 @@ export const api = {
   },
   webdavList: async () => {
     throw new Error("不该列 WebDAV 远程备份");
+  },
+  webdavPull: async () => {
+    throw new Error("不该拉 WebDAV 远程备份");
   }
 } satisfies RendererApi;
 

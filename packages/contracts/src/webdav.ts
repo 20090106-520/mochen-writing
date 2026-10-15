@@ -11,11 +11,12 @@ import { z } from "zod";
  * 与 `market:install` / `plugins:toggle` / `book-backup:create` 同一条铁律：
  * 渲染层递不出任意远程 URL 或绝对路径，也就递不出去任意书。
  *
- * 【pull 为什么不在这一刀】
- * `push + list + verify` 这三条已经构成一条可证伪的备份通路（推、看到、自检）；
- * pull 是 `restoreBookBackup` 的远程镜像（MKCOL 书旁新目录 → 递归 GET），
- * 与本地 restore 同一条「绝不盖写已有内容」的口径，但 GET 整份的字节量是 PUT 的反向，
- * 单刀做完五条通道加单测加变异再加门禁，反而会拖到失败边界。这一刀做 5 条，pull 留下一刀。
+ * 【pull 在一刀之后（2026-10-15 稍晚）】
+ * `push + list + verify` 先单独落地（那一刀的重心是「推得上去、看得到、自检得过」）；
+ * pull 是 `restoreBookBackup` 的远程镜像——逐层 PROPFIND + 递归 GET，落到书的**旁边**
+ * 一份新目录，与本地 restore 同一条「绝不盖写已有内容」的口径。
+ * GET 必须按字节原样（备份里的图片等二进制件在 text 解码下会损坏），所以
+ * `WebdavResponse` 多带一态 `bytes`：同一份 buffer 既解文本（PROPFIND）也留字节（GET）。
  *
  * 【为什么 url 要 https，但 schema 不强约束】
  * `provider-fetch.ts` 的 `assertUpstreamUrlAllowed` 把「明文 http 出网」判死，
@@ -112,5 +113,28 @@ export type WebdavListResult =
   | {
       ok: false;
       reason: "no-config" | "no-book" | "auth-failed" | "forbidden" | "io-error";
+      message: string;
+    };
+
+/**
+ * `webdav:pull` 的返回：把远程某一份备份拉回本地。
+ *
+ * 【落点在书的旁边，不在书里】
+ * 与 `book-backup:restore` 同款：拉到 `<书父目录>/<书名>-恢复自远程备份-<时间戳>/`，
+ * 已存在就顺位加 `-2` / `-3`——**绝不盖写任何已有内容**，也不往当前书树里掺东西
+ * （混进正被扫描的书树才是事故）。`destName` 是那个落点目录的名字，供界面上报给人看。
+ *
+ * 【六档如实分报】
+ *   - `no-config`：没配过地址 / 用户名 / 密码；
+ *   - `no-book`：没开书——拉回来的落点跟着当前这本书走；
+ *   - `not-found`：名字不合备份形状，或远程没有这一份；
+ *   - `auth-failed` / `forbidden`：连得上但不许读（401 / 403）；
+ *   - `io-error`：网络、解析、写盘失败（半途失败会把刚落的那半截目录清掉再回这档）。
+ */
+export type WebdavPullResult =
+  | { ok: true; destName: string; fileCount: number }
+  | {
+      ok: false;
+      reason: "no-config" | "no-book" | "not-found" | "auth-failed" | "forbidden" | "io-error";
       message: string;
     };

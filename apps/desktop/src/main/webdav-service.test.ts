@@ -6,7 +6,7 @@ import type { WebdavConfigStore } from "./webdav-config-store.js";
 import type { BackupFs } from "./book-backup.js";
 
 /**
- * WebDAV 服务层（2026-10-15）。verify / push / list 三流程的判档是这一刀的本体：
+ * WebDAV 服务层（2026-10-15）。verify / push / list / pull 四流程的判档是这一刀的本体：
  * 不连真服务器——fetch 注入「按 url / 方法回固定状态码与 body」，逐条钉分类与回执。
  * 配置与 backupService 全用内存件。
  */
@@ -326,8 +326,235 @@ describe("webdavService · list", () => {
   });
 });
 
+/** 记下写盘与删目录的 fs：pull 的「落到哪 / 半截是否清掉」都要能被断言。 */
+function recordingBackupFs(): BackupFs & { written: string[]; removed: string[] } {
+  const files = new Map<string, Uint8Array>();
+  const dirs = new Set<string>();
+  const written: string[] = [];
+  const removed: string[] = [];
+  return {
+    written,
+    removed,
+    async mkdir(p) {
+      dirs.add(p);
+    },
+    async readdir() {
+      return [];
+    },
+    async readFile(p) {
+      const data = files.get(p);
+      if (data === undefined) throw new Error(`ENOENT ${p}`);
+      return data;
+    },
+    async writeFile(p, data) {
+      files.set(p, data);
+      written.push(p);
+    },
+    async rm(p) {
+      removed.push(p);
+      files.delete(p);
+      dirs.delete(p);
+    },
+    async exists(p) {
+      return files.has(p) || dirs.has(p);
+    }
+  };
+}
+
+/** 归一去分隔符后比（Windows 用 \、POSIX 用 /），与 push 那条用例同一手法。 */
+function slashed(value: string): string {
+  return value.replace(/[\\/]+/g, "/");
+}
+
+describe("webdavService · pull 的前置判", () => {
+  it("没配过 ⇒ no-config（连请求都不发）", async () => {
+    const store = configStoreMock(
+      configuredSnapshot({ persisted: false, url: "", username: "" }),
+      null
+    );
+    const fetch = vi.fn(async () => ({ status: 207, text: "" })) as unknown as WebdavFetch;
+    const service = createWebdavService({ ...makeDeps({ configStore: store, fetch }) });
+    const result = await service.pull(BACKUP_NAME);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("no-config");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("没开书 ⇒ no-book（落点跟着当前这本书走）", async () => {
+    const service = createWebdavService({ ...makeDeps({ bookSnapshot: () => null }) });
+    const result = await service.pull(BACKUP_NAME);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("no-book");
+  });
+
+  it("名字不合备份形状 ⇒ not-found，连请求都不发（渲染层递不出别的路径）", async () => {
+    const fetch = vi.fn(async () => ({ status: 207, text: "" })) as unknown as WebdavFetch;
+    const service = createWebdavService({ ...makeDeps({ fetch }) });
+    for (const bad of [
+      "",
+      "not-a-backup",
+      "../book-2026-10-15-12-00-00",
+      42 as unknown as string
+    ]) {
+      const result = await service.pull(bad);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe("not-found");
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("远程 404 / 空的一格 ⇒ not-found（push 出来的一格必有内容）", async () => {
+    for (const text of [
+      "",
+      `<D:multistatus xmlns:D="DAV:"><D:response><D:href>/dav/${META_ID}/${BACKUP_NAME}</D:href></D:response></D:multistatus>`
+    ]) {
+      const fetch = vi.fn(async () => ({ status: 404, text })) as unknown as WebdavFetch;
+      const service = createWebdavService({ ...makeDeps({ fetch }) });
+      const result = await service.pull(BACKUP_NAME);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe("not-found");
+    }
+  });
+
+  it("PROPFIND 401 / 403 ⇒ auth-failed / forbidden", async () => {
+    for (const [status, reason] of [
+      [401, "auth-failed"],
+      [403, "forbidden"]
+    ] as const) {
+      const fetch = vi.fn(async () => ({ status, text: "" })) as unknown as WebdavFetch;
+      const service = createWebdavService({ ...makeDeps({ fetch }) });
+      const result = await service.pull(BACKUP_NAME);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe(reason);
+    }
+  });
+});
+
+describe("webdavService · pull 的搬运", () => {
+  /** 假远程：根一格（book.json + chapters/），chapters 里一件 01.md。 */
+  function remoteTreeFetch(): WebdavFetch {
+    return async (init) => {
+      const url = init.url;
+      if (init.method === "GET") {
+        if (url.endsWith("/book.json"))
+          return {
+            status: 200,
+            text: '{"title":"书"}',
+            bytes: new TextEncoder().encode('{"title":"书"}')
+          };
+        if (url.endsWith("/01.md")) return { status: 200, text: "正文" };
+        return { status: 404, text: "" };
+      }
+      const selfEntry = (href: string, isDir: boolean): string =>
+        `<D:response><D:href>${href}</D:href><D:propstat><D:prop><D:resourcetype>${
+          isDir ? "<D:collection/>" : ""
+        }</D:resourcetype></D:prop></D:propstat></D:response>`;
+      const base = `/dav/${META_ID}/${BACKUP_NAME}`;
+      if (url.endsWith(BACKUP_NAME)) {
+        return {
+          status: 207,
+          text: `<D:multistatus xmlns:D="DAV:">${selfEntry(base, true)}${selfEntry(
+            `${base}/book.json`,
+            false
+          )}${selfEntry(`${base}/chapters/`, true)}</D:multistatus>`
+        };
+      }
+      if (url.endsWith("/chapters")) {
+        return {
+          status: 207,
+          text: `<D:multistatus xmlns:D="DAV:">${selfEntry(`${base}/chapters/`, true)}${selfEntry(
+            `${base}/chapters/01.md`,
+            false
+          )}</D:multistatus>`
+        };
+      }
+      return { status: 404, text: "" };
+    };
+  }
+
+  it("两层递归搬完：落在书的旁边一份新目录，fileCount 与写盘路径都对", async () => {
+    const fs = recordingBackupFs();
+    const service = createWebdavService({
+      ...makeDeps({ fetch: remoteTreeFetch(), backupFs: fs })
+    });
+    const dest = `book-恢复自远程备份-${BACKUP_NAME.slice(5)}`;
+    const result = await service.pull(BACKUP_NAME);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.destName).toBe(dest);
+      expect(result.fileCount).toBe(2);
+    }
+    expect(fs.written.map(slashed).sort()).toEqual([
+      `/${dest}/book.json`,
+      `/${dest}/chapters/01.md`
+    ]);
+    // 落点在书的旁边（同父目录），不在书里
+    expect(fs.written.every((p) => slashed(p).startsWith(`/${dest}/`))).toBe(true);
+  });
+
+  it("落点重名 ⇒ 顺位加 -2，绝不盖写", async () => {
+    const base = `/book-恢复自远程备份-${BACKUP_NAME.slice(5)}`;
+    const fs = recordingBackupFs();
+    const service = createWebdavService({
+      ...makeDeps({
+        fetch: remoteTreeFetch(),
+        backupFs: {
+          ...fs,
+          async exists(p) {
+            return slashed(p) === base;
+          }
+        }
+      })
+    });
+    const result = await service.pull(BACKUP_NAME);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.destName).toBe(`${base.slice(1)}-2`);
+  });
+
+  it("GET 半途失败 ⇒ io-error 且把书旁那半截目录清掉", async () => {
+    const fs = recordingBackupFs();
+    const fetch = remoteTreeFetch();
+    const service = createWebdavService({
+      ...makeDeps({
+        backupFs: fs,
+        fetch: async (init) =>
+          init.method === "GET" && init.url.endsWith("/01.md")
+            ? { status: 500, text: "boom" }
+            : fetch(init)
+      })
+    });
+    const result = await service.pull(BACKUP_NAME);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("io-error");
+    // 已写的 book.json 所在目录被清掉（书旁不留「看起来像还原」的残件）
+    expect(fs.removed.map(slashed)).toContain(`/book-恢复自远程备份-${BACKUP_NAME.slice(5)}`);
+  });
+
+  it("写盘抛错 ⇒ io-error，同样清半截", async () => {
+    const fs = recordingBackupFs();
+    const service = createWebdavService({
+      ...makeDeps({
+        fetch: remoteTreeFetch(),
+        backupFs: {
+          ...fs,
+          async writeFile() {
+            throw new Error("disk full");
+          }
+        }
+      })
+    });
+    const result = await service.pull(BACKUP_NAME);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("io-error");
+      expect(result.message).toContain("disk full");
+    }
+    expect(fs.removed.length).toBeGreaterThan(0);
+  });
+});
+
 describe("webdavService · IPC 注册", () => {
-  it("registerWebdavServiceIpc 注册三条：verify / push / list", async () => {
+  it("registerWebdavServiceIpc 注册四条：verify / push / list / pull", async () => {
     const { registerWebdavServiceIpc } = await import("./webdav-service.js");
     const { IPC_CHANNELS } = await import("@mochen/contracts");
     const registered = new Map<string, (...args: unknown[]) => unknown>();
@@ -338,5 +565,6 @@ describe("webdavService · IPC 注册", () => {
     expect(registered.has(IPC_CHANNELS.webdavVerify)).toBe(true);
     expect(registered.has(IPC_CHANNELS.webdavPush)).toBe(true);
     expect(registered.has(IPC_CHANNELS.webdavList)).toBe(true);
+    expect(registered.has(IPC_CHANNELS.webdavPull)).toBe(true);
   });
 });

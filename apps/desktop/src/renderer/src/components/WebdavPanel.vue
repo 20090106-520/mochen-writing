@@ -1,13 +1,15 @@
 <!-- WebDAV 远程备份面板（设置中心「远程备份」分类）。
-     与本地整书备份（book-backup.ts）同一条铁律的延伸：这一刀只做「把本地整书备份的字节
-     PUT 一份到用户自己配的 WebDAV 服务器」。配置与密钥分别落盘（密钥走 credential-store，
-     与模型密钥同套加密分份），渲染层只递草稿与档位——主进程按当前书的 meta.id 拼远程子目录。
+     与本地整书备份（book-backup.ts）同一条铁律的延伸：这一刀做「把本地整书备份的字节
+     PUT 一份到用户自己配的 WebDAV 服务器」，以及反过来「把远程某一份拉回书旁边」。
+     配置与密钥分别落盘（密钥走 credential-store，与模型密钥同套加密分份），渲染层只递
+     草稿 / 档位 / 远程目录名——服务器地址与盘上落点都由主进程按当前书的 meta.id 拼。
      卡片外壳是 settings-page.css 的 settings-card。 -->
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import type {
   WebdavConfigSnapshot,
   WebdavListResult,
+  WebdavPullResult,
   WebdavPushResult,
   WebdavVerifyResult
 } from "@mochen/contracts";
@@ -26,6 +28,8 @@ const passwordDraft = ref("");
 const verifyResult = ref<WebdavVerifyResult | null>(null);
 const pushResult = ref<WebdavPushResult | null>(null);
 const listResult = ref<WebdavListResult | null>(null);
+/** 最近一次「拉回本地」的回执；null = 没有新的。 */
+const pullResult = ref<WebdavPullResult | null>(null);
 /** save 的回执（一句人话）；null = 没有新的。 */
 const saveReceipt = ref<string | null>(null);
 const busy = ref(false);
@@ -105,6 +109,20 @@ async function list(): Promise<void> {
   }
 }
 
+/**
+ * 把远程某一份拉回本地（递的只是 list 给的那串目录名——服务器地址与盘上落点都由主进程定）。
+ * 拉到的是书的**旁边**一份新目录，绝不盖写任何已有内容，所以这里没有「确认覆盖」这一步。
+ */
+async function pull(name: string): Promise<void> {
+  busy.value = true;
+  pullResult.value = null;
+  try {
+    pullResult.value = await window.mochen.webdavPull(name);
+  } finally {
+    busy.value = false;
+  }
+}
+
 onMounted(loadConfig);
 </script>
 
@@ -177,10 +195,11 @@ onMounted(loadConfig);
     </div>
 
     <div class="settings-card webdav-ops-card">
-      <h3 class="settings-group-title">推送到远程</h3>
+      <h3 class="settings-group-title">远程备份（推 / 拉）</h3>
       <p class="settings-group-note">
         推送会先做一份新本地整书备份，再把那份字节 PUT 到远程
         <code>&lt;url&gt;/&lt;书的 meta.id&gt;/&lt;备份时间戳&gt;/</code>——书没开就推不上去。
+        下面清单里每一条都能「拉回本地」：落到当前这本书**旁边**一份新目录，不覆盖任何现有内容。
       </p>
       <div class="settings-item webdav-ops">
         <button class="dialog-secondary-button" type="button" :disabled="busy" @click="verify">
@@ -225,9 +244,27 @@ onMounted(loadConfig);
             <li v-for="entry in listResult.entries" :key="entry.name" class="webdav-entry">
               <span class="webdav-entry-name">{{ entry.name }}</span>
               <span class="webdav-entry-time">{{ entry.createdAt }}</span>
+              <button
+                class="dialog-secondary-button webdav-entry-pull"
+                type="button"
+                :disabled="busy"
+                @click="pull(entry.name)"
+              >
+                拉回本地
+              </button>
             </li>
           </ul>
           <p v-else class="webdav-result-line">远程还没有备份。</p>
+        </div>
+      </div>
+
+      <div v-if="pullResult !== null" class="settings-item webdav-result">
+        <div class="settings-item-text">
+          <strong>拉回</strong>
+          <p v-if="pullResult.ok" class="webdav-result-line">
+            已拉回 {{ pullResult.fileCount }} 个文件，落在书旁边的「{{ pullResult.destName }}」。
+          </p>
+          <p v-else class="webdav-result-line webdav-result-fail">{{ pullResult.message }}</p>
         </div>
       </div>
     </div>

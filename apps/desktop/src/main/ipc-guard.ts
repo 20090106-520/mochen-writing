@@ -442,9 +442,10 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   // 那两段文本的语义（空查询一律拒）判定住在 `book-replace.ts`，这里再判一遍就是第二份判据；
   // 这条通道也没有 relPath 参数，所以注册点**不挂** insideCurrentBook（挂上会把空路径判成书外）。
   [IPC_CHANNELS.bookReplaceAll]: [objectRule("全书替换的输入")],
-  // WebDAV 远程备份（2026-10-15）：config-save 递配置草稿（url/username/password 三态）。
-  // 那三段的语义判定住在 `webdav-config-store.ts`，这里只判「是不是一个对象」。
-  [IPC_CHANNELS.webdavConfigSave]: [objectRule("WebDAV 配置草稿")]
+  // WebDAV 远程备份（2026-10-15）：config-save 递配置草稿（密钥三态见契约，语义判定住在
+  // webdav-config-store.ts）；pull 只递一个远程备份目录名——盘上落点由主进程按当前书根拼。
+  [IPC_CHANNELS.webdavConfigSave]: [objectRule("WebDAV 配置草稿")],
+  [IPC_CHANNELS.webdavPull]: [id("远程备份条目名")]
 };
 
 export function argRulesFor(channel: string): ArgRule[] {
@@ -479,6 +480,17 @@ export const IPC_NO_ARG_CHANNELS: readonly string[] = [
   IPC_CHANNELS.webdavPush,
   IPC_CHANNELS.webdavList
 ];
+
+/**
+ * WebDAV 那四条（verify / push / list / pull）被挡时的**同一份**回话：
+ * `io-error` 是它们四份契约里的共同兜底档。抽出来是因为四条各写一段一模一样的闭包，
+ * 等于在加固层里维持四份可能分家的形状，也在 800 行预算里白占十行。
+ */
+const webdavDenyIo = (info: DenyInfo): unknown => ({
+  ok: false,
+  reason: "io-error",
+  message: info.message
+});
 
 /**
  * 通道 → 被挡时**照原契约**的回话形状。
@@ -561,28 +573,17 @@ const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
   }),
   // WebDAV（2026-10-15）被挡时各照其契约的失败档回话：渲染层 await 后按 result.ok 或 persisted
   // 分支，抛错会让那几颗按钮悬死在 await 上。config-get 回空快照（与「未配置」同档）；
-  // verify / push / list 回 io-error 档（被挡是来源问题，归类成 io 是诚实的）。
+  // verify / push / list / pull 四条共用下面那份回话（被挡是来源问题，归类成 io 是诚实的）。
   [IPC_CHANNELS.webdavConfigGet]: () => ({
     persisted: false,
     url: "",
     username: "",
     hasPassword: false
   }),
-  [IPC_CHANNELS.webdavVerify]: (info) => ({
-    ok: false,
-    reason: "io-error",
-    message: info.message
-  }),
-  [IPC_CHANNELS.webdavPush]: (info) => ({
-    ok: false,
-    reason: "io-error",
-    message: info.message
-  }),
-  [IPC_CHANNELS.webdavList]: (info) => ({
-    ok: false,
-    reason: "io-error",
-    message: info.message
-  })
+  [IPC_CHANNELS.webdavVerify]: webdavDenyIo,
+  [IPC_CHANNELS.webdavPush]: webdavDenyIo,
+  [IPC_CHANNELS.webdavList]: webdavDenyIo,
+  [IPC_CHANNELS.webdavPull]: webdavDenyIo
 };
 
 /**

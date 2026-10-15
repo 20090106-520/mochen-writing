@@ -25,6 +25,15 @@ export interface WebdavRequestInit {
 export interface WebdavResponse {
   status: number;
   text: string;
+  /**
+   * 响应的**原始字节**（2026-10-15 pull 那一刀加的）。
+   *
+   * 为什么不能只有 text：pull 要把远程的件按字节落回本地，而 `Response.text()` 是按
+   * UTF-8 解的——备份里的图片 / 字体等二进制件走 text 再 `TextEncoder` 编回来就被替换字符
+   * 打烂了。真 fetch 两态都给（同一份 buffer 派生），夹具只给 text 时按 UTF-8 编码兜底
+   * （夹具造的都是文本件，二进制在假 fetch 里不会出现）。
+   */
+  bytes?: Uint8Array;
 }
 
 export type WebdavFetch = (init: WebdavRequestInit) => Promise<WebdavResponse>;
@@ -45,8 +54,10 @@ export const nodeWebdavFetch: WebdavFetch = async (init) => {
     // 收窄到 fetch 认识的那种，string / Uint8Array / null 三态都接得上。
     body: (init.body ?? null) as BodyInit | null
   });
-  const text = await response.text();
-  return { status: response.status, text };
+  // 一次读完 buffer，再派生两态：pull 的 GET 要按字节原样落盘（`text()` 会把二进制件打烂），
+  // PROPFIND 要文本。两态同源、只读一次网，不会因为「先读 text 再读 bytes」变成两次消费。
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return { status: response.status, text: new TextDecoder().decode(bytes), bytes };
 };
 
 /**
@@ -146,6 +157,63 @@ export function extractHrefsFromPropfindXml(xml: string, requestedUrl: string): 
   return result;
 }
 
+/** PROPFIND 子项的一枚：`path` 是归一后的路径（与 extractHrefs 同一份口径），`isDir` 来自 `<resourcetype>`。 */
+export interface WebdavPropfindEntry {
+  path: string;
+  isDir: boolean;
+}
+
+/**
+ * 与 `extractHrefsFromPropfindXml` **同一份 XML、不同的输出面**：这一份多带「是不是目录」。
+ *
+ * 【为什么要多带这一位】
+ * pull 是递归搬运：PROPFIND Depth:1 的响应里目录与文件是混在一起的，只有「是不是目录」
+ * 能决定「再往里 PROPFIND」还是「GET 下来写盘」。光有路径的 `extractHrefsFromPropfindXml`
+ * 判不出这一位（list 只需要路径，用那份），所以这里按 `<response>` 块切，块内再找 href 与 collection。
+ *
+ * 【`<resourcetype>` 里有没有 `<collection/>` 就是「是不是目录」的判据】
+ * RFC 4918：目录的 `resourcetype` 含 `<collection/>`，普通文件是空的。
+ * 自闭合 `<D:collection/>` 与成对 `<D:collection></D:collection>` 都认——所以判据写成
+ * `<collection` 后面跟 `/`、`>` 或空白，而不是认死 `/>`。**不会误判**：href 文本里出现
+ * `collection` 时它前面是 `/` 或别的字符，不满足「`<` 紧跟 collection」这一条。
+ */
+export function extractEntriesFromPropfindXml(
+  xml: string,
+  requestedUrl: string
+): WebdavPropfindEntry[] {
+  let selfPath: string | null;
+  try {
+    selfPath = new URL(requestedUrl).pathname.replace(/\/+$/, "");
+  } catch {
+    selfPath = null;
+  }
+  const blocks = /<(?:D:|d:)?response\b[^>]*>([\s\S]*?)<\/(?:D:|d:)?response>/g;
+  const hrefRe = /<(?:D:|d:)?href>([^<]+)<\/(?:D:|d:)?href>/;
+  const dirRe = /<(?:D:|d:)?collection[\s/>]/;
+  const seen = new Set<string>();
+  const result: WebdavPropfindEntry[] = [];
+  let block: RegExpExecArray | null;
+  while ((block = blocks.exec(xml)) !== null) {
+    const body = block[1] ?? "";
+    const hrefMatch = hrefRe.exec(body);
+    if (hrefMatch === null) continue;
+    const href = hrefMatch[1]!.trim();
+    if (href === "") continue;
+    let hrefPath: string;
+    try {
+      hrefPath = new URL(href, requestedUrl).pathname;
+    } catch {
+      hrefPath = href;
+    }
+    // 自身那条（请求目录自己）不算子项——与 extractHrefs 同一条过滤口径。
+    if (selfPath !== null && hrefPath.replace(/\/+$/, "") === selfPath) continue;
+    if (seen.has(hrefPath)) continue;
+    seen.add(hrefPath);
+    result.push({ path: hrefPath, isDir: dirRe.test(body) });
+  }
+  return result;
+}
+
 /** MKCOL：建目录。201 = 已建；405 = 已存在（多数 WebDAV 服务端如此回）；401/403 = 凭据/权限；其余 = 失败。 */
 export async function mkcolDir(
   fetch: WebdavFetch,
@@ -224,15 +292,18 @@ export async function deleteResource(
 }
 
 /**
- * PROPFIND Depth: 1：列一层子项。返回子项的相对路径数组（service 自己再 joinWebdavUrl）。
+ * PROPFIND Depth: 1 的真请求，回原始 XML（或失败档）。**只有这一处构造 PROPFIND**：
+ * list 与 pull 是两个输出面（路径 / 带目录位的项），但请求是同一条——
+ * 分两份写就会出现「一边改了深度或 body、另一边没改」的那种分家。
  *
- * 207 是 PROPFIND 成功的标准状态码（Multi-Status）。405/404 表示资源不存在。
+ * 207 是 PROPFIND 成功的标准状态码（Multi-Status）。404 表示资源不存在，按空 XML 回
+ * （调用方各自把「空」解成「没有子项」/「没有这一份」）。
  */
-export async function propfindChildren(
+async function propfindRaw(
   fetch: WebdavFetch,
   url: string,
   headers: Record<string, string>
-): Promise<{ ok: true; children: string[] } | { ok: false; status: number; message: string }> {
+): Promise<{ ok: true; xml: string } | { ok: false; status: number; message: string }> {
   let response: WebdavResponse;
   try {
     response = await fetch({
@@ -250,12 +321,66 @@ export async function propfindChildren(
       message: `PROPFIND 请求失败：${error instanceof Error ? error.message : String(error)}`
     };
   }
-  if (response.status === 404) return { ok: true, children: [] };
+  if (response.status === 404) return { ok: true, xml: "" };
   if (response.status !== 207)
     return {
       ok: false,
       status: response.status,
       message: `PROPFIND 失败（HTTP ${response.status}）：${response.text.slice(0, 200)}`
     };
-  return { ok: true, children: extractHrefsFromPropfindXml(response.text, url) };
+  return { ok: true, xml: response.text };
+}
+
+/** 列一层子项的**路径**（service 自己再 joinWebdavUrl）。list 用这一份。 */
+export async function propfindChildren(
+  fetch: WebdavFetch,
+  url: string,
+  headers: Record<string, string>
+): Promise<{ ok: true; children: string[] } | { ok: false; status: number; message: string }> {
+  const raw = await propfindRaw(fetch, url, headers);
+  if (!raw.ok) return raw;
+  return { ok: true, children: extractHrefsFromPropfindXml(raw.xml, url) };
+}
+
+/** 列一层子项的**项**（路径 + 是不是目录）。pull 递归搬运用这一份。 */
+export async function propfindEntries(
+  fetch: WebdavFetch,
+  url: string,
+  headers: Record<string, string>
+): Promise<
+  { ok: true; entries: WebdavPropfindEntry[] } | { ok: false; status: number; message: string }
+> {
+  const raw = await propfindRaw(fetch, url, headers);
+  if (!raw.ok) return raw;
+  return { ok: true, entries: extractEntriesFromPropfindXml(raw.xml, url) };
+}
+
+/**
+ * GET 一个文件。200 才算拿到内容（不认 206 部分内容——备份里的件都是一次取完的整份）。
+ *
+ * 回的是**字节**而不是文本：备份里的图片 / 字体落回本地时必须原样。
+ * 夹具只给 `text`（不给 `bytes`）时按 UTF-8 兜底编码——夹具造的都是文本件。
+ */
+export async function getFile(
+  fetch: WebdavFetch,
+  url: string,
+  headers: Record<string, string>
+): Promise<{ ok: true; data: Uint8Array } | { ok: false; status: number; message: string }> {
+  let response: WebdavResponse;
+  try {
+    response = await fetch({ method: "GET", url, headers, body: null });
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      message: `GET 请求失败：${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+  if (response.status !== 200)
+    return {
+      ok: false,
+      status: response.status,
+      message: `GET 失败（HTTP ${response.status}）：${response.text.slice(0, 200)}`
+    };
+  return { ok: true, data: response.bytes ?? new TextEncoder().encode(response.text) };
 }

@@ -188,7 +188,8 @@ export function createBookApi(): BookApiFixture {
     webdavConfigSave: offLimits("webdavConfigSave"),
     webdavVerify: offLimits("webdavVerify"),
     webdavPush: offLimits("webdavPush"),
-    webdavList: offLimits("webdavList")
+    webdavList: offLimits("webdavList"),
+    webdavPull: offLimits("webdavPull")
   } satisfies RendererApi;
 
   return {
