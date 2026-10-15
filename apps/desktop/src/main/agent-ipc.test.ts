@@ -71,6 +71,10 @@ function stubService(seen: unknown[]): AgentService {
       seen.push(turnId);
       return true;
     },
+    hasRunningTurn() {
+      // 不走 IPC 派发，所以不记 seen：通道级授权 sensitive 档才用它（不在本文件的范围里）。
+      return false;
+    },
     async decide(input: DecideInput) {
       seen.push(input);
       return { ok: false, reason: "not-pending", message: "" };

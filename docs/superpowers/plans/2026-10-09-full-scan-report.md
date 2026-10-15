@@ -6268,3 +6268,88 @@ webdav-client（http 非回环该拒）——即这条判据对**两个适配层
 **划掉**：第六十八节「取舍记入台账」第 1 条那句「下一刀抽到 `upstream-url.ts` 时两处一并归一」
 ——本刀做完了；铁律 6 的这半格豁免到此结束。
 **仍等同用户一句话的**：无。
+
+---
+
+## 第七十四节：通道级授权第三档 `sensitive`（整书级批量改写）
+
+**为什么必须做**：第六十九节落地 self 档时，`channel-trust.ts` 头注释与 `ChannelTrustDeps` 上各留了
+一块「sensitive 档（要求"没有进行中的 agent 轮"等更严判据）要装第二个查询器，留下一刀」。
+本节把这一刀做完：加第三档 `sensitive` = 要求「当前书已打开」**且**「没有一轮 agent 正在跑」。
+
+**口径是本节自己定的（用户在授权时没有点清单，只有一个方向）**，所以把入选与排除逐条记在这儿，
+留一个廉价否决点：
+
+入选（两条，整书级批量改写）：
+- `book:replace-all`：逐篇读取→替换→原子写盘，一口气重写全书所有命中篇；
+- `import:commit`：把确认后的章目批量落成 `chapters/` 文稿，并改写 `meta.chapterOrder`。
+
+入选理由（同一句）：轮次中调用会与 agent **待落盘的提案**结构性冲突——那批改动结算时基线已变，
+指纹守卫会拒，于是那一轮以一句难懂的话失败（用户看到的是「模型忽然抽风」）。这一档把这个难懂的
+失败**前移成一句人话**（拒绝理由里直接提示「先等它答完，或按 Esc 打断那一轮再试」）。
+
+排除（三条，都记了理由，防以后有人顺手加回去）：
+- `book:save-meta`：**会被合法调用踩到**。`/permissions`（→ `book.setPermissionMode`）与 `/stage`
+  都在 `DURING_TURN_COMMANDS`（`model` / `permissions` / `status` / `clear`）里，轮次中改权限模式与切换
+  阶段是用户正当动作，闸了就是误伤。
+- `book-backup:restore`：落点在**书旁边**（`<书父目录>/<书名>-恢复自备份-<时间戳>/`），不碰当前书的
+  字节，与进行中的轮次没有可冲突面。
+- `changes:restore`：单篇回滚太合法（轮次中改错了单篇要立刻回滚是常态），它只动一篇，不是整书级改写。
+
+落笔前做的两处 grep 验证（堵「误伤」这条风险）：
+1. `IPC_TRUST_LEVELS` 的消费方只有 `channel-trust.ts` 自己（定义 + `channelTrustVerdict` 读取）与
+   `ipc-guard.test.ts` 那条表用例两处 ⇒ 改类型只波及已知的一条断言；
+2. 渲染层 `book:replace-all` 的唯一入口是 `SearchPanel` 那颗按钮（经 `utils/book-replace.ts` 的
+   `runBookReplace`），`import:commit` 的唯一入口是 `ImportTxtDialog` 的提交（`importTxtCommit`）
+   ——两条都不在 `DURING_TURN_COMMANDS` 通路上，也没有自动恢复 / 备份恢复后的后续动作去踩它们。
+
+**fail closed 的取舍（选「必填字段」而不是「缺了就算了」）**：按项目原则「漏装一次＝裸奔，没装上＝
+一律不信」，`ChannelTrustDeps` 新增 `turnRunning(): boolean` 设为**必填**——漏装它的装配点会在
+typecheck 阶段机械红（比人工数站点稳），运行期则照旧由 `installedChannelDeps === null` 那条兜住
+（不新增第二套防御逻辑，铁律 6）。代价是夹具与用例里所有 `installChannelTrustDeps` 调用都要补这一项，
+已全部补齐（见下）。
+
+**判定顺序（两档共用一道前置快判）**：`channelTrustVerdict` 里先判「有没有书」，`self` 到此为止，
+`sensitive` 再加判「有没有轮在跑」。所以「有轮但没书」时理由说的是「没有书」，不是「有一轮在跑」
+（有用例钉住这一格）。两档的拒绝理由都带档位名（`属于 ${level} 档`），日志里分得开。
+
+**真身只有两处，都不新写判定**：书那枚 `currentBookRoot` 照旧取自 `service.current()?.root`；
+轮次那枚 `turnRunning` 取自 `agent.hasRunningTurn()`（其真身是 `agent-service.ts` 里那条
+`runningTurns.size > 0`，与 `finally` 摘锁那句共用同一张表）。装配点从 `index.ts:205` **下移**到
+`registerAgentIpc` 之后——这是「两枚查询器同时在手」的唯一位置，且仍在 `win.loadURL/loadFile`（592 行）
+之前，渲染层发不出 IPC。**没有**为了少写这一句而引入延迟装配或第二份状态。
+
+**改动文件**：
+- `apps/desktop/src/main/channel-trust.ts`：`ChannelTrustDeps` +`turnRunning`（必填）、
+  `IPC_TRUST_LEVELS` 类型 +`"sensitive"`、两条通道由 self 移入 sensitive、`channelTrustVerdict`
+  加 sensitive 分支；头注释两处「留下一刀」改成本节口径 + 三条排除理由
+- `apps/desktop/src/main/agent-service.ts`：`AgentService` 接口 +`hasRunningTurn()`，
+  实现 `() => runningTurns.size > 0`
+- `apps/desktop/src/main/index.ts`：装配点补 `turnRunning: () => agent.hasRunningTurn()`（并移位）
+- `apps/desktop/src/main/ipc-trust-fixture.ts`：三处 install 补 `turnRunning`（默认 `() => false`）
+- **新增** `apps/desktop/src/main/channel-trust.test.ts`：通道授权整块用例从 `ipc-guard.test.ts` 拆出
+  （12 例：fail closed / 没书 / 有书 / public / 理由分得开 / 表完整性 / sensitive 清单恰两条 /
+  sensitive 有书空闲放行 / sensitive 有轮挡下 / sensitive 没书先撞「没有书」/ check 闸前挡下 /
+  没挂 insideCurrentBook 的通道）
+- `apps/desktop/src/main/ipc-guard.test.ts`：整块 describe 迁出，只留「档位语义已搬走」的一句指路
+- `apps/desktop/src/main/agent-service.test.ts`：+1 例（空闲 false → 起轮 true → 跑完 false）
+- `apps/desktop/src/main/agent-ipc.test.ts`：`stubService` 补 `hasRunningTurn`（不走 IPC，返回 false）
+
+**行数预算怎么过的（两处都顶了墙）**：`agent-service.ts` 原 799 行，本刀只能净增 ≤1 行，故把新增写成
+接口一行（尾注）+ 实现一行（尾注），并**合并**两处同义注释（`prompt-assembly` 指路两行并一行、
+`UNBOUND 取自 contracts` 两行并一行）腾出位置——纯注释合并，无行为变化。`ipc-guard.test.ts` 原 796 行，
+本刀 +61 会顶破，故把整块档位用例搬到新文件（真身 `channel-trust.ts` 当初也是为同一原因从
+`ipc-guard.ts` 拆出去的，用例跟着判据走）。
+
+**变异实测两处都红后原样回退**：
+1. `agent-service.ts` 的 `hasRunningTurn` 恒 `return false` ⇒ 红 1 条（`agent-service.test.ts` 那条
+   「跑中为 true」）；
+2. `channel-trust.ts` 的 sensitive 分支加 `&& false`（永不挡）⇒ 红 1 条（`channel-trust.test.ts`
+   那条「有书但有一轮在跑 ⇒ 挡下」）。
+
+**门禁**：prettier（改动 7 个文件 + 新增 1 个 + 本台账）/ tsc（6 项目）/ eslint / boundary /
+行数预算（703 份）/ vitest（358 文件 **4673 通过** 2 skipped，比第七十三节 +1 文件 +5 用例）全绿。
+
+**划掉**：第六十九节留在 `channel-trust.ts` 的两处「sensitive 档留下一刀
+（要求"没有进行中的 agent 轮"等更严判据要装第二个查询器）」——本刀做完了。
+**仍等同用户一句话的**：无。

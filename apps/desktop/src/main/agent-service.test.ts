@@ -565,6 +565,17 @@ describe("agentService 全链", () => {
     service.dispose();
   });
 
+  it("hasRunningTurn：空闲为 false、一轮在跑时为 true、跑完回到 false（sensitive 档的判据）", async () => {
+    const { service } = await build(sseFetch(proposeChunks));
+    expect(service.hasRunningTurn()).toBe(false);
+    // 不 await：startTurn 在第一个 await 之前就把 runningTurns 置上了，所以此刻必为 true。
+    const running = service.startTurn(turn(CHAPTER, "改紧"));
+    expect(service.hasRunningTurn()).toBe(true);
+    await running;
+    expect(service.hasRunningTurn()).toBe(false);
+    service.dispose();
+  });
+
   it("流中进行中的 turnId 打断返回 true，半截文本入库并停住后续字节", async () => {
     const { service } = await build(hangingFetch());
     const running = service.startTurn(turn(CHAPTER, "写下去"));

@@ -60,12 +60,10 @@ import { webRead } from "./web-read.js";
 // 打断与出网时限的接线住在 provider-fetch.ts：这一层只负责把「这一轮那只 signal」递进去。
 import { abortableFetch } from "./provider-fetch.js";
 import { withPlugins, type PluginTools } from "./plugin-host.js";
-// 提示词装配住在 prompt-assembly.ts：那里只把「一轮的现场」排成一段话，与服务编排不共享状态。
-// 档案写入范围那句人话同属那一层（2026-10-10 搬过去，那边有测试；这里只是调用点）。
+// 提示词装配（含「档案写入范围」那句人话）住在 prompt-assembly.ts：那里只把「一轮的现场」排成一段话，不共享状态。
 import { writeScopeSentence, type PromptContext } from "./prompt-assembly.js";
 
-// UNBOUND 取自 contracts：它与渲染层是同一个跨进程哨兵。这里曾经另有一份本地声明，
-// 与渲染层 utils/agent-thread.ts 那份只靠一句注释绑定——同值只是巧合，改一边另一边照样编译通过。
+// UNBOUND 取自 contracts（与渲染层 utils/agent-thread.ts 那份同值只是巧合）——这里不再另立一份。
 const MAX_TOOL_ROUNDS = 4;
 
 // 这条线程已有一轮在跑时那句当场拒绝（P2-7）：只住这一处，由 startTurn 抛出、走既有拒绝通路
@@ -102,6 +100,7 @@ export interface AgentService {
   /** 解析时机：turn 结束（含落盘与自动批准）后才 resolve；turnId 通过 turn-start 事件提前送达。 */
   startTurn(input: StartTurnInput): Promise<{ turnId: string }>;
   interrupt(turnId: string): Promise<boolean>;
+  hasRunningTurn(): boolean; // 有没有任意一条线程正在跑一轮（channel-trust sensitive 档判据，真身在下面 runningTurns）
   decide(input: DecideInput): Promise<DecisionResult>;
   diffOf(proposalId: string): string;
   /** 只读回放：读这条线程落盘的 JSONL；no-book/no-session 返回 found:false，首行坏/超长抛中文。 */
@@ -140,9 +139,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
   // Plan 3 引入 AgentProfile 后把 autoSession 的本地那一半换成 profileId（spec §5.1 约束 1）。
   const autoSession = new Set<string>();
   const autoDocTool = new Set<string>();
-  // 同一个 jsonl 上的并发 append 会交错成坏行，所以落盘严格串行。
+  // 同一 jsonl 上的并发 append 会交错成坏行 ⇒ 落盘严格串行；自动批准发生在 host 的同步回调里，
+  // 只能排队、且轮次 resolve 前必须排空。
   let persist: Promise<void> = Promise.resolve();
-  // 自动批准发生在 host 的同步回调里，只能排队；轮次 resolve 前必须排空。
   let autos: Promise<unknown> = Promise.resolve();
 
   function snapshot(): BookSnapshot {
@@ -701,6 +700,7 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
       controller.abort();
       return true;
     },
+    hasRunningTurn: () => runningTurns.size > 0, // 与摘锁那句共用同一份真身（只读 runningTurns）
 
     async decide(input: DecideInput): Promise<DecisionResult> {
       // 同上：审批的拒绝也只送单句中文（裁定 n），渲染层拿不到 issue 数组。

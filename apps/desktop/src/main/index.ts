@@ -199,10 +199,6 @@ app.whenReady().then(async () => {
   });
   // 来源判定装上：所有 IPC 通道与 `will-navigate` 用的就是这一份（`ipc-guard.ts` 里唯一那份）。
   installRendererTrust(rendererLoad.trust);
-  // 通道级授权装上（2026-10-15，台账第六十九节）：self 档通道要求当前书已打开。
-  // 判据真身在 book-service（`service.current()?.root`），这里只通过装配点递查询器，
-  // 与 installRendererTrust 同款——不写第二份"当前书根"判定（铁律 6）。
-  installChannelTrustDeps({ currentBookRoot: () => service.current()?.root ?? null });
 
   const win = new BrowserWindow({
     width: 1440,
@@ -350,6 +346,14 @@ app.whenReady().then(async () => {
     plugins
   });
   registerAgentIpc((channel, fn) => ipcMain.handle(channel, fn), agent);
+  // 通道级授权装上（第六十九节 self 档 / 第七十四节 sensitive 档）：两枚查询器只有在这里才齐——
+  // 判据真身分别在 book-service（`service.current()?.root`）与 agent-service（`agent.hasRunningTurn()`），
+  // 装配层只递查询器、不写第二份判定（铁律 6）。位置必须早于渲染层发得出 IPC：`win.loadURL/loadFile`
+  // 在下方 592 行才跑，这里已经装好了。
+  installChannelTrustDeps({
+    currentBookRoot: () => service.current()?.root ?? null,
+    turnRunning: () => agent.hasRunningTurn()
+  });
   registerProviderIpc((channel, fn) => ipcMain.handle(channel, fn), settings, modelLister);
   // 技能库只读：全局那份跟着 activeDir 走；书内那份跟着当前书走。
   // 注意（F-4 的已知边界）：§12 只搬那三个已知**文件**，全局 `skills/` 目录不在其中——

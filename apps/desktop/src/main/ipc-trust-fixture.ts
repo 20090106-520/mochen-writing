@@ -14,7 +14,11 @@
  * 【通道级授权默认装一份「有书」】2026-10-15 台账第六十九节加 self 档后，self 档通道在没装
  * `installChannelTrustDeps` 时会被 fail closed 挡下。`trustedRendererEvent` 默认装一份「有书」
  * 的查询器——与真进程里「从打开的书内的渲染层发出来的 IPC」同款。要测「没书」场景的用例
- * 自己调 `installChannelTrustDeps({ currentBookRoot: () => null })` 覆盖。
+ * 自己调 `installChannelTrustDeps({ currentBookRoot: () => null, turnRunning: () => false })` 覆盖。
+ *
+ * 【sensitive 档那枚查询器默认「没有轮在跑」】第七十四节加 sensitive 档后，`turnRunning` 也是
+ * 必填。夹具默认 `() => false`——与真进程里「空闲时从书内渲染层发出来的 IPC」同款。要测
+ * 「有轮在跑」场景的用例自己覆盖 `turnRunning: () => true`。
  */
 import { installRendererTrust, type RendererTrust, type SenderEventLike } from "./ipc-guard.js";
 import { installChannelTrustDeps } from "./channel-trust.js";
@@ -32,7 +36,7 @@ export function trustedRendererEvent(
   trust: RendererTrust = { allowedUrl: TRUSTED_FRAME_URL }
 ): SenderEventLike {
   installRendererTrust(trust);
-  installChannelTrustDeps({ currentBookRoot: () => "D:/books/潮信" });
+  installChannelTrustDeps({ currentBookRoot: () => "D:/books/潮信", turnRunning: () => false });
   return { senderFrame: { url: trust.allowedUrl, parent: null } };
 }
 
@@ -41,7 +45,7 @@ export function untrustedRendererEvent(
   options: { url?: string; parent?: boolean; nullFrame?: boolean } = {}
 ): SenderEventLike {
   installRendererTrust({ allowedUrl: TRUSTED_FRAME_URL });
-  installChannelTrustDeps({ currentBookRoot: () => "D:/books/潮信" });
+  installChannelTrustDeps({ currentBookRoot: () => "D:/books/潮信", turnRunning: () => false });
   if (options.nullFrame === true) return { senderFrame: null };
   return {
     senderFrame: {
