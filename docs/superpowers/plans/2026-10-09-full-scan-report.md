@@ -6396,3 +6396,40 @@ typecheck 阶段机械红（比人工数站点稳），运行期则照旧由 `in
 **第一处**做完了（族里其余 4 处豁免不在本刀）。
 **仍等同用户一句话的**：① `.nav-row kbd` 死规则（§三：删规则 vs 给左栏真补键帽）；② 广场卡那 2/16 格
 （`2026-10-08-tertiary-contrast-report.md` §五 的 A/B/C）。
+
+## 第七十六节：撤掉 `.nav-row kbd` 那条没有 DOM 的死规则（2026-10-15）
+
+**来源**：第三十节 §三 那一格（「四格里有一格在屏幕上不存在」）。本轮收掉，取「**删规则**」这一条：
+另一条出路是给侧栏真补键帽，那是产品观感改动（左栏现在走 `title` 提示），不该由我替产品加控件。
+
+**落笔前复核（本轮真的对过，不是复述 §三）**：
+
+- `grep kbd` 全仓：`<kbd>` 只出现在 `ComposerReferenceMenu.vue`（3 处）与 `HotkeysPanel.vue`（1 处）；
+  挂 `nav-row` 的两处模板（`LeftSidebar.vue` / `ExtensionsNavRow.vue`）里没有一个 `<kbd>`，两处的子元素
+  只有 `AppIcon`（svg）与一枚**裸 span**（无 class）⇒ 这条选择器命中数恒为 0。
+- 那枚 `--text-tertiary: var(--text-on-state)` 映射有没有别的消费者：主题运行时记着全仓
+  `var(--text-tertiary)` 87 处 + 别名 `var(--text-dim)` 43 处，但**落在 `.nav-row` 子树里的只有 `kbd`**。
+  同族另两枚映射有人消费，照旧不动：`.nav-subrow:hover` 的（消费者 `.nav-subrow-chevron` 是三级灰）、
+  `.section-toggle:hover` 的（消费者 `.section-toggle-chevron`）。`.nav-group-chevron` 虽是三级灰，
+  但它住的 `.nav-row.nav-group-toggle` class 写死成 `"nav-row nav-group-toggle"`，永远不带档位。
+
+**改动**：`styles/left-nav.css` 删 `.nav-row kbd` 规则（5 行），`.nav-row.is-active` / `.nav-row:hover`
+各撤掉 `--text-tertiary: var(--text-on-state)`（两处注释改写成「将来真给侧栏补键帽，规则与映射得一起加回来，
+否则灰字压这一档只有 4.09:1」）；普查表撤两处 shadow（`.nav-row.is-active` 只剩 `primary: true`，
+`.nav-row:hover` 只剩 `["--text-secondary"]`）。
+
+**红在哪（本刀是删，没有能先写的判词，如实记）**：先撤映射 ⇒ 守卫红一条「少了
+`--text-tertiary: var(--text-on-state)` —— 本族的灰字压在这档上会掉出 AA」。这就是 §三 那句
+「否则守卫会以为还有东西要护」的机器证据；再把普查表两处 shadow 一并撤掉 ⇒ 绿。
+
+**变异点：无（如实说）**。这一刀是**删**：删掉的东西加回去不会被任何守卫咬到——死 CSS 守卫
+（`components/dead-css-guard.test.ts`）只普查**类名**（`styles/*.css` 里的 `.xxx` 有没有被源码用到），
+**不普查元素选择器**（`kbd` 这类标签）。所以「有一条标签规则一个元素也匹配不到」这件事，目前只有一次
+人工普查发现过、**没有闸**。这是本节留下的边界，不是我新开的登记项（要不要立闸，你说一句就行）。
+
+**门禁**：prettier（2 文件）/ tsc（6 项目）/ eslint / boundary / 行数预算（703 份）/ vitest
+（358 文件 4673 通过 2 skipped）全绿。
+
+**划掉**：第三十节 §三 那一格「等一句话」——按「删规则」收掉。
+**仍等同用户一句话的**：① 广场卡那 2/16 格（`2026-10-08-tertiary-contrast-report.md` §五 的 A/B/C）；
+② 要不要给死 CSS 守卫补一层「元素选择器」普查（本节留下的那个边界）。

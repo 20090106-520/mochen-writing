@@ -152,8 +152,9 @@ html[data-platform="darwin"] .sidebar-brand-row {
      2026-10-15 改回正文级；主题感留给下一条 `svg` 的 accent（非文本，3:1 线，同一对色过线）。
      判据见 composables/appearance-surface-ladder.test.ts。 */
   color: var(--text-primary);
-  /* 选中行右侧那枚快捷键 `kbd` 是三级灰，压在 selected 档只有 4.09:1 ⇒ 本档升到状态档灰。 */
-  --text-tertiary: var(--text-on-state);
+  /* 这里原先还有 `--text-tertiary: var(--text-on-state)`，为的是选中行右侧那枚 `kbd`——可全仓模板里
+     一个 `<kbd>` 都不在 `.nav-row` 里，那条规则一个元素也匹配不到（台账 §七十六把规则与映射一起撤）。
+     将来真给侧栏补键帽，两样都得照着 §七十六加回来，否则灰字压在这一档上只有 4.09:1。 */
 }
 
 .nav-row.is-active svg {
@@ -320,21 +321,14 @@ html[data-platform="darwin"] .sidebar-brand-row {
 .nav-row:hover {
   background: var(--hover);
   color: var(--text-primary);
-  /* 状态档底：这一行的两个后代都是灰字（`svg` 二级、`kbd` 三级），hover 只换底、
-     不把它们升档就还是 4.09~4.38。判据见 composables/appearance-surface-ladder.test.ts。 */
+  /* 状态档底：这一行唯一在册的灰字后代是 `svg`（二级），hover 只换底、不把它升档就还是 4.09~4.38。
+     （原先还给 `kbd` 留了一枚三级灰的映射，那条规则没有 DOM，已随台账 §七十六一起撤。）
+     判据见 composables/appearance-surface-ladder.test.ts。 */
   --text-secondary: var(--text-on-state);
-  --text-tertiary: var(--text-on-state);
 }
 
 .nav-row svg {
   color: var(--text-secondary);
-}
-
-.nav-row kbd {
-  color: var(--text-tertiary);
-  font-family: inherit;
-  font-size: 0.714286rem;
-  font-weight: 450;
 }
 
 @keyframes nav-background-pulse {

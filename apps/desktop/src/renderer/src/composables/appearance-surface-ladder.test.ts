@@ -270,13 +270,13 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
         /* 这里原先是 `accent-as-text` 豁免：本层 (0,2,0) 覆写掉 theme-runtime.css 那条本意给它
            正文色的 `:where()`，浅底 6/8 套不到 4.5（实测 16 组里 9 组不达标，最低 3.42）。
            2026-10-15 修掉（台账 §七十五）：字色改回正文级，accent 只留在下面那条 `svg` 上
-           （非文本，按 3:1 线）。 */
+           （非文本，按 3:1 线）。同一天 §七十六把 `kbd` 那枚 shadow 也撤了——`.nav-row kbd`
+           全仓一个元素也匹配不到，留着只是让守卫以为还有东西要护。 */
         needle: ".nav-row.is-active",
-        primary: true,
-        shadow: ["--text-tertiary"]
+        primary: true
       },
       { needle: ".nav-subrow:hover", primary: true, shadow: ["--text-tertiary"] },
-      { needle: ".nav-row:hover", primary: true, shadow: ["--text-secondary", "--text-tertiary"] },
+      { needle: ".nav-row:hover", primary: true, shadow: ["--text-secondary"] },
       {
         needle: ".section-toggle:hover",
         inheritFrom: ".section-toggle",
