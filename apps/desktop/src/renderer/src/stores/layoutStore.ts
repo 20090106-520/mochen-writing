@@ -204,14 +204,19 @@ export const useLayoutStore = defineStore("layout", () => {
   const activeRightPanePreferenceKey = ref<string>();
   const resizingPane = ref<PaneSide | null>(null);
   const paneTransitionSuppressed = ref(false);
-  /** 新面板开合态（App 层持有，避免浮层互制） */
+  /**
+   * 走本 store 的开合态（App 层持有，避免浮层互制）。
+   *
+   * 【为什么只剩两枚】2026-10-15 收口：原先这里列着六枚，其中 `search` / `notes` / `templates`
+   * 的可见态其实由 App.vue 自己的 `searchOpen` / `notesOpen` / `tplPanelOpen` 三个局部 ref 持有，
+   * 同一件事因此在两处各存一份；`versionHistory` 更彻底——它指向的面板 `VersionHistoryPanel.vue`
+   * 全仓无人 import、写快照的 `createSnapshot` 也零调用，是整族死代码（详见第六十三节）。
+   * 判据不是「我觉得它多余」，而是**没有任何模板读过这四个键**：新守卫住在
+   * `components/dead-panel-entry.test.ts`，它会当场红。
+   */
   const panelVisibility = ref({
-    search: false,
-    notes: false,
     wordCount: false,
-    export: false,
-    templates: false,
-    versionHistory: false
+    export: false
   });
   /** 首次引导流程：因为 onboarding store 独立，这里只负责「App 这边要不要展示浮层」的信号桥 */
   const showOnboarding = ref(false);
@@ -569,8 +574,8 @@ export const useLayoutStore = defineStore("layout", () => {
     }
   }
 
-  // 新面板开关
-  type PanelKey = "search" | "notes" | "wordCount" | "export" | "templates" | "versionHistory";
+  // 新面板开关（只剩真被模板读过的那两枚，见上面 panelVisibility 那段）
+  type PanelKey = "wordCount" | "export";
 
   function openPanel(panel: PanelKey): void {
     panelVisibility.value[panel] = true;
@@ -584,23 +589,11 @@ export const useLayoutStore = defineStore("layout", () => {
     panelVisibility.value[panel] = !panelVisibility.value[panel];
   }
 
-  function openSearch(): void {
-    openPanel("search");
-  }
-  function openNotes(): void {
-    openPanel("notes");
-  }
   function openWordCount(): void {
     openPanel("wordCount");
   }
   function openExport(): void {
     openPanel("export");
-  }
-  function openTemplates(): void {
-    openPanel("templates");
-  }
-  function openVersionHistory(): void {
-    openPanel("versionHistory");
   }
 
   // 引导流程桥
@@ -689,11 +682,7 @@ export const useLayoutStore = defineStore("layout", () => {
     openPanel,
     closePanel,
     togglePanel,
-    openSearch,
-    openNotes,
     openWordCount,
-    openExport,
-    openTemplates,
-    openVersionHistory
+    openExport
   };
 });

@@ -12,7 +12,6 @@ const PANELS = [
   "OutlinePanel.vue",
   "ProjectSettingsPanel.vue",
   "ProjectSwitcher.vue",
-  "VersionHistoryPanel.vue",
   "WordCountPanel.vue"
 ] as const;
 

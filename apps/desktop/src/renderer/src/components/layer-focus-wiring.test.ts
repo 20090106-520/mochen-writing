@@ -42,9 +42,6 @@ const EXCEPTIONS: Record<string, string> = {
   ConversationHistoryMenu:
     "它的 @keydown.esc 挂在 .conversation-history-control 上——那是**触发钮的祖先**，" +
     "焦点本来就在钮上，事件自然冒得到（p536n 量到它是九枚里 Esc 可收的一枚）。",
-  VersionHistoryPanel:
-    "全仓无人引用的死组件（popover-reachability.cjs 量到引用数为 0），Esc 从来没接过。" +
-    "谁复活它，谁就得先给它接上真身——这条例外本身就是那条待办。",
   OnboardingGuide:
     "引导流程：只有上一步/下一步/完成，Esc 在这里的语义是「跳过」，与「收层」不是一回事（5-㊲ 裁定）。"
 };

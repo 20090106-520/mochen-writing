@@ -230,3 +230,44 @@ describe("两条具体回归（都是真机撞出来的那两次）", () => {
     }
   });
 });
+
+/**
+ * 【反向那一面】（2026-10-15 补）
+ *
+ * 上面几段都是**从模板出发**地问：这枚 `:visible` 有没有写者、有没有入口。
+ * 于是留了一格谁也照不到——键写在 `panelVisibility` 里，模板却压根没读过它：
+ * 没有 `:visible` 就进不了 BINDINGS，也就同时躲开了「少写者」和「够不着」两道断言。
+ * 死在这一格里的东西**最彻底也最安静**：`versionHistory` 的面板键有、`openVersionHistory` 有、
+ * 面板组件与写快照的 store 也在，而全仓没有一行 `panelVisibility.versionHistory`——
+ * 直到把三处交叉读一遍才发现，写快照的 `createSnapshot` 连一个调用方都没有。
+ * 同族被一并收掉的还有 `search` / `notes` / `templates`（App.vue 用局部 ref 干着同一件事，
+ * 那三枚是从没被读过的重复状态；要动的不是它们的功能，是重复的那一份）。
+ *
+ * 口径：从 `layoutStore.ts` 的 `panelVisibility` 对象字面量**反向枚举键**，
+ * 每枚键都必须被某个 `.vue` 模板读成 `panelVisibility.<键>`。
+ * 这样新加一枚没人读的键，这刀会当场红，不必等谁想起来。
+ */
+describe("反向：panelVisibility 的每一枚键都得有模板读它（上面几段的盲区）", () => {
+  const LITERAL = /const panelVisibility = ref\(\{([\s\S]*?)\}\);/m.exec(layoutSrc);
+  const keys = [...(LITERAL?.[1] ?? "").matchAll(/(?:^|\n)\s*([A-Za-z][A-Za-z0-9]*)\s*:/g)].map(
+    (m) => m[1] ?? ""
+  );
+  const templateTexts = [appTpl, ...ALL_TEMPLATES.map((f) => f.tpl)];
+
+  it("解析器没空转（正则坏掉会一枚都枚举不到，那是绿的假绿）", () => {
+    expect(LITERAL, "没能从 layoutStore 抠出 panelVisibility 字面量").not.toBeNull();
+    expect(keys.length).toBeGreaterThanOrEqual(2);
+    expect(keys).toContain("wordCount");
+    expect(keys).toContain("export");
+  });
+
+  it("每枚键都被某个模板读到", () => {
+    const orphans = keys.filter(
+      (key) => !templateTexts.some((t) => t.includes(`panelVisibility.${key}`))
+    );
+    expect(
+      orphans,
+      `这些面板键没有任何模板读过——既开不出来也关不掉，是死面板：\n${orphans.join(", ")}`
+    ).toEqual([]);
+  });
+});

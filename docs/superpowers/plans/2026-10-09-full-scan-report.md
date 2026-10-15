@@ -5585,3 +5585,47 @@ M3 空手的机制也量清楚了：外层 catch 里那句 `if (!req.signal.abor
    LICENSE 与 `license` 字段（第 20 条，对外承诺）、打包配置（第 19 条，与并行会话那批撞车）、
    WebDAV 或整书备份（功能第 6 条，缺契约）、全书替换（功能第 4 条，缺契约）、token 用量统计
    （功能第 7 条，要先把 `usage` 从流里读出来再进事件与存储）。按铁律：报不出通路或字段名的控件不进 UI。
+
+## 第六十三节：版本历史那一族按删除结掉（2026-10-15）
+
+起因：用户让"看看软件还有什么地方可以优化"，我按体检清单回盘，翻出第 5501 行那格"等他一句话"
+的下一层——那格只写了"`VersionHistoryPanel.vue` 无人 import"，实际死得比这深。
+
+**判据（不是"没人 import"，是三处交叉读出来的）**
+
+1. `createSnapshot` 全仓**零调用**（`useVersionStore.ts:101` 定义、`:205` 导出，别处没有第三处命中）
+   ⇒ 一个快照都不会产生。
+2. `layoutStore` 的 `openVersionHistory()` 同样**零调用**，`panelVisibility.versionHistory`
+   没有任何模板读过 ⇒ 连入口都不存在。这条走的是下面第 3 点补的那道闸。
+3. 兜底计算：面板空态那句"每次自动保存时会自动生成快照（最多 50 个）"（`VersionHistoryPanel.vue:101`）
+   **是句假话**——没有任何一行代码在做这件事。
+4. 替代通路在场、且是活的：`fs-store` 的整篇备份链（`read-write.ts:178-220`，原子写 + 按篇淘汰）
+   ＋ `ChangeHistoryPanel` 的 diff/回滚。
+5. 存储设计本身站不住：50 × 100000 字/文档 = 5 MB 原始文本进 localStorage（配额通常 5–10 MB/源）；
+   且 `saveMeta` 的 catch 自称"静默淘汰最旧"，函数体是空的，配额一到就静默停写。
+
+**做了什么**
+
+- 删 `stores/useVersionStore.ts`（210 行）＋ `components/VersionHistoryPanel.vue`（493 行）。
+- `layoutStore` 收掉**四枚从来没被任何模板读过**的面板键（`search` / `notes` / `templates` /
+  `versionHistory`）与对应的 `openX`；`PanelKey` 只剩 `wordCount | export` 两枚。
+  那三枚不是功能删除——同一件事的真身在 App.vue 的 `searchOpen` / `notesOpen` / `tplPanelOpen`
+  三个局部 ref 上，收掉的是**重复的那一份状态**（`dead-panel-entry.test.ts:211` 那条反向钉照旧绿）。
+- 同步三处引用：`char-count-wiring.test.ts` 的 PANELS 去掉一枚（用例 -1）、
+  `layer-focus-wiring.test.ts` 的例外表去掉一条（留着会被它自己的"例外表里没有已经修好的"断言咬住）、
+  `dead-store-guard.test.ts:17-27` 改写那段"本守卫不管挂载图"的说明，记下这格如何结的。
+- 补闸：`dead-panel-entry.test.ts` 新增一段**反向枚举**——`panelVisibility` 的每一枚键都必须被某个
+  `.vue` 模板读成 `panelVisibility.<键>`。上面几段都是"从模板出发"问有没有写者，
+  因此留了一格谁也照不到（键在 store 里、模板压根没读过它）：那正是 `versionHistory` 住的地方。
+  变异实测：往字面量里塞一枚 `mutationProbe`，该用例当场 1 failed 并点名它；撤回探针后 14 passed。
+
+**测试数变动（说明用，README 那两格"回填不是每刀必做"）**：本刀用例净 +1
+（`char-count-wiring` −1、`dead-panel-entry` +2）。
+
+**同一刀里核实、可以划掉的**：第 62 节第 6 项里"打包配置（第 19 条，与并行会话那批撞车）"
+已由并行会话补上——`apps/desktop/package.json` 有 `dist` / `dist:dir` 与 `electron-builder ^26.15.3`。
+两点如实记下：它是 `^` 范围、**没进 catalog**，与"不新增任何 npm 依赖"的仓规是两码事，合入前值得再看一眼。
+
+**仍等同用户一句话的**（本轮**没动**）：通道级授权、LICENSE 与 `license` 字段、WebDAV 或整书备份、
+全书替换、token 用量统计；以及本轮体检新提出、尚未拍板的两条：`assembleFor` 每轮全量读盘改"按预算读
+＋限并发"（先量测再改）、429/5xx 退避重试（动之前先按预登记方案拆 `provider-client.test.ts`）。

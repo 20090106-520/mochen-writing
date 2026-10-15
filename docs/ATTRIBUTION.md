@@ -48,8 +48,11 @@ Apache License 2.0 的要求集中记录在本文件，许可证原文见仓库�
   **本仓库自绘**，由参数化脚本按 `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md` §2
   的构图硬规则生成，无第三方素材、无外部字体、无可读文字与 logo，因此**不涉及任何许可义务**。
   两点如实记下：
-  ① 生成脚本住在 git-ignored 的 `.superpowers/sdd/`，不进版本库，
-  所以这六张 SVG **成品文件本身是唯一真身**，由 `appearance-skin-assets.test.ts` 读盘钉存在性；
+  ① 生成脚本在 `apps/desktop/scripts/`（`gen-scene-svgs.mjs`，与 `scene-palettes.mjs`、
+  `check-scene-art.mjs` 同批），**已进版本库**，所以这六张 SVG 由脚本可复现，
+  不再是"成品文件本身是唯一真身"；存在性仍由 `appearance-skin-assets.test.ts` 读盘钉住。
+  （2026-10-15 更正：原文写的是"生成脚本住在 git-ignored 的 `.superpowers/sdd/`，不进版本库"，
+  与 `git ls-files apps/desktop/scripts` 的实测不符——属"数据变了、解释还在"那一族。）
   ② 这一批走矢量是因为图像生成通路返回 403、外部位图未到位，
   **不是**「矢量就够用了」——带人物立绘的那一族仍等位图素材。
 

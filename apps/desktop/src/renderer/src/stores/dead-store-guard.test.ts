@@ -14,9 +14,17 @@
  * 而 `agent-store-fixture.ts` / `book-draft-fixture.ts` / `book-data-test-harness.ts` 是测试夹具，
  * 它们本来只该被测试用到——写死一份豁免名单，下次加夹具还得回来改这里。
  *
- * 这条守卫**不管**「引用方自己没挂载」：`useVersionStore.ts` 的唯一引用方是 `VersionHistoryPanel.vue`，
- * 而那只面板当前不挂载（属台账里等他一句话的那一格）。面板在不在是挂载图的事，不在本守卫的判据里，
- * 免得一刀切进去把还没拍板的东西当成已决。
+ * 这条守卫**不管**「引用方自己没挂载」：面板在不在是挂载图的事，不在本守卫的判据里。
+ *
+ * 【2026-10-15 那格结掉之后】原先举的例子是 `useVersionStore.ts`——它唯一的引用方
+ * `VersionHistoryPanel.vue` 不挂载，属台账里"等他一句话"的一格。用户给了弃权后按删除处理：
+ * 那座 store 与那只面板连同 `layoutStore` 的 `versionHistory` 面板键一起删掉了，理由是
+ * **判据不止"没人 import"**——`createSnapshot` 全仓零调用（一个快照都不会产生），
+ * 面板空态那句"每次自动保存时会自动生成快照"因此是句假话，而活着的替代通路
+ * （`fs-store` 的整篇备份链 + `ChangeHistoryPanel` 的 diff/回滚）已覆盖同一需求。
+ *
+ * 本守卫的盲区也一并补了：它只看得到 store，看不到"面板键没人读"。那道反向守卫现在住在
+ * `components/dead-panel-entry.test.ts`：`panelVisibility` 的每一个键都必须被某个模板读到。
  */
 import fs from "node:fs";
 import path from "node:path";
