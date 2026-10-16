@@ -7054,7 +7054,7 @@ equal []`）。
 
    落地时各自同步对应的 Archcore spec（`use-book-store` / `document-pane` / `ipc-guard` / `agent-service`）。
 
-2. Archcore ≥600 行池剩余两格：`ExportDialog.vue`（653）与 `CenterColumn.vue`（476 行 / 近 90 天 **32 次提交**）尚无 spec。
+2. ~~Archcore ≥600 行池剩余两格：`ExportDialog.vue`（653）与 `CenterColumn.vue`（476 行 / 近 90 天 **32 次提交**）尚无 spec。~~ **已落地，§九十六**（`architecture/export-dialog.spec.md` / `architecture/center-column.spec.md`）。
 3. README 顶格测试数仍落后（门面绑 `2f0808e` 的 316/4130；实际 359/4681）——按现规「回填不是每刀必做」，不冒充已回填。
 
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）。
@@ -7117,3 +7117,27 @@ equal []`）。
 
 **测试数变动**：无（本刀只复核、未改任何代码）。
 **门禁**：本刀只动台账（`*.md`），仍跑一次 `pnpm verify` 确认 prettier 对 `*.md` 的检查与全仓用例不受影响（退出码 0）。
+
+## 第九十六节：补 `ExportDialog.vue` 与 `CenterColumn.vue` 两份 Archcore spec（2026-10-16）
+
+**来源**：用户「按建议 1 执行」——§九十三 挂着的「Archcore ≥600 行池尚有两格无 spec」。
+
+**补了什么**：
+
+- 新 `.archcore/architecture/export-dialog.spec.md`（`ExportDialog.vue`，653 行 / 3 提交）：圈定「七档格式表 + 范围多选 + 四枚选项 + 走 IPC 的异步组装 + 预览两格 + 复制/保存两钮 + 三条可见失败出口」；17 条 MUST、2 条 constraint + 5 条 invariant、8 条 failure、Conformance 一段。真身指认：复制三道闸与空选判定住 `utils/export-clipboard`、尺寸估算与字节格式化住 `@mochen/fs-store/export-shared`、可见态住 `layoutStore.panelVisibility.export`、重名清理住 `packages/fs-store`。
+- 新 `.archcore/architecture/center-column.spec.md`（`CenterColumn.vue`，476 行 / 32 提交，近 90 天提交最密的一格）：圈定对话头 / 滚动骨架三态 / 卡片三分组 / 工作台入口 / 状态栏 / 输入卡接线 / 两枚瞬时浮层 / 订阅与心跳的挂摘；23 条 MUST、3 条 constraint + 5 条 invariant、6 条 failure。
+- `.archcore/.sync-state.json` 的 `relations` 补 9 条（export-dialog 4 条、center-column 5 条），与同族 renderer spec 一致地链到 `conventions/source-line-budget.rule.md` 与 `conventions/failures-must-be-visible.rule.md`。
+
+**顺带写进规范的两条真问题**（不是文档装饰，是这次读代码核出来的）：
+
+1. `ExportDialog.loadDocsForExport` 用 `Promise.allSettled` **静默丢弃**读不出来的章节——屏上没有一句「N 篇没读出来」。它与本仓 `conventions/failures-must-be-visible.rule.md` 有张力，已作为「已知代价」写进该 spec 的 Failure Behavior 第 7 条；改善方向是补一条可见告警（**本刀只登记，未落地**）。
+2. `CenterColumn` 卸载时**不许**摘订阅（`stopListening` 全仓零处）这条反方向判定，原先只活在 `center-column-listening-wiring.test.ts` 的注释里，现在进了 spec 的 invariant。
+
+**顺带核对**：全仓 `*.ts` / `*.mjs` / `*.js` / `*.json` 里 grep `.archcore` **零命中** —— 没有门禁读这份文档树，所以本刀是纯文档改动（行数预算 / 包边界 / 6 份 tsc / eslint / 用例数全不受影响）。
+
+**测试数变动**：359 文件 4681 passed | 2 skipped → **不变**。
+**门禁**：`pnpm verify` 全绿（退出码 0）。首跑因两份新 md 未过 prettier 红过一次（`[warn] center-column.spec.md` / `[warn] export-dialog.spec.md`），`prettier --write` 后复跑绿。
+
+**划掉**：§九十三 未动手清单第 2 条。
+
+**仍未动手**：README 顶格测试数仍落后（门面绑 `2f0808e` 的 316/4130；实际 359/4681）；§九十五 里两份贴顶文件（`useBookStore.ts` 799 / `agent-service.ts` 798）仍是待办。
