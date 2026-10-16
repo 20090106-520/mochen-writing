@@ -28,6 +28,7 @@ import { buildEpub } from "./epub.js";
 import {
   escapeHtml,
   estimateExportSize,
+  FALLBACK_EXPORT_NAME,
   formatByteSize,
   markdownToSimpleHtml,
   sanitizeFilename,
@@ -377,7 +378,7 @@ export function buildExportContent(
   options: Partial<ExportOptions> = {}
 ): ExportResult {
   const opts: ExportOptions = { ...DEFAULT_OPTIONS, ...options };
-  const safeName = sanitizeFilename(meta?.title ?? "未命名作品");
+  const safeName = sanitizeFilename(meta?.title ?? FALLBACK_EXPORT_NAME);
 
   let content: string;
   let filename: string;

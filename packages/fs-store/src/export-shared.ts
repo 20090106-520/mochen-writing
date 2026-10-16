@@ -15,7 +15,7 @@
  * 类型与判定的唯一真身现在在 **contracts 的 `export.ts`**（跨层契约，preload 要用它声明形状），
  * 本文件只 re-export + 放纯函数，不重写一份（铁律 6）。
  */
-import { proseCharCount, splitFrontmatter } from "@mochen/contracts";
+import { proseCharCount, splitFrontmatter, windowsReservedNameProblem } from "@mochen/contracts";
 import type { ExportFormat, ExportableDoc } from "@mochen/contracts";
 
 export type { ExportableDoc, ExportFormat, ExportOptions, ExportResult } from "@mochen/contracts";
@@ -117,13 +117,28 @@ export function markdownToSimpleHtml(markdown: string): string {
   return html;
 }
 
+/** 书名为空、或净化后为空/撞 Windows 保留名时的兜底导出名。**真身只有这一处**（铁律 6）。 */
+export const FALLBACK_EXPORT_NAME = "未命名作品";
+
 /**
- * 文件名去非法字符（渲染层算「文件名：xxx」那行预览也要用，所以住这里）。
+ * 导出默认文件名（保存对话框里那个默认名，`export-service.ts` 拼 `${safeName}.md`）。
  *
- * **真身唯一**：`export-service.ts` 也调它，两处不许各写一份正则（铁律 6）。
+ * **与 `contracts` 的 `sanitizeDocFileName` 同一档口径**（2026-10-16 收口台账 §六十三 第 3 条）：
+ * 去八样非法字符、删控制字符、剥尾部点与空格、挡 Windows 保留名——保留名判据直接复用
+ * `windowsReservedNameProblem` 那份真身，不写第二份（铁律 6）。差别只有两处，都是导出特有：
+ * ① 长度封 80（导出名不进书目录，但要防超长路径）；
+ * ② 净化后为空或撞保留名时**不返回 null，退回 `FALLBACK_EXPORT_NAME`**：导出名只是保存
+ *    对话框里的默认值，用户看得见也能改；让对话框拿到一个安全的默认名，比给一个 `CON.md`
+ *    或空名要诚实（同 `sanitizeDocFileName`「拒绝而不是悄悄改名」那条——这里给的不是被改过的
+ *    原名，而是一个中性默认名）。
  */
 export function sanitizeFilename(name: string): string {
-  return name.replace(/[/\\<>:|"*?]/g, "_").slice(0, 80);
+  const cleaned = Array.from(name.slice(0, 80).replace(/[/\\<>:|"*?]/g, "_"))
+    .filter((ch) => ch.charCodeAt(0) > 0x1f)
+    .join("")
+    .replace(/[\s.]+$/g, "");
+  if (cleaned === "") return FALLBACK_EXPORT_NAME;
+  return windowsReservedNameProblem(cleaned) === null ? cleaned : FALLBACK_EXPORT_NAME;
 }
 
 /** 某格式对应的文件名后缀（含点）。渲染层算预览与主进程真写盘共用这一份。 */

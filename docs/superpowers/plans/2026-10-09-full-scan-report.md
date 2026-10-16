@@ -7016,3 +7016,45 @@ equal []`）。
 
 **划掉**：§九十一 之后按双判据（≥600 行池）重排的下一格（`apps/desktop/src/renderer/src/components/OutlinePanel.vue`，池里分数最高的一份，已有 spec）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第九十三节：收掉两处预存脏文件 + 导出默认文件名净化补到与文档名同一档（2026-10-16）
+
+**来源**：用户「看看我这个软件还有什么问题」→ 全仓体检（跑 `pnpm verify` 全绿）→ 用户「开始」。本刀落两件：预存脏文件上车、§六十三 第 3 条那半边收口。**4 份顶格文件的预拆方案只登记、不落地**（见末尾候选表）。
+
+**一、两处预存脏文件上车**（commit `886006c`）
+
+`workbench-cta-emphasis.test.ts` + `conversation-pane.css`——工作台能力卡栅格从「按张数锁两列的 `:has()`」改成「列宽下限 200px（148→200）+ 奇数张末张 `grid-column: 1 / -1`」，守卫同步改写。这刀从 §八十九 起被连着四刀记为「预存脏文件照旧没上车」，本刀把它提交（代码与守卫自洽、含它跑全绿）。
+
+**二、`sanitizeFilename` 补到与 `sanitizeDocFileName` 同一档**（§六十三 第 3 条那半边）
+
+- 旧实现（`packages/fs-store/src/export-shared.ts`）只换 `/ \ < > : " | * ?` 八样 + 截 80，**零用例**；比 `contracts` 的 `sanitizeDocFileName`（`book.ts:189`）少删控制字符、少剥尾点尾空格、少挡 Windows 保留名。
+- 现与那一份同一档：删控制字符（`charCodeAt > 0x1f`）、剥尾部点与空格、**保留名判据直接复用 `windowsReservedNameProblem` 那份真身**（铁律 6，不写第二份）。
+- 两处导出特有差异写进注释：① 长度仍封 80（导出名不进书目录，但要防超长路径）；② 净化后为空或撞保留名**不返回 null，退回新常量 `FALLBACK_EXPORT_NAME`（「未命名作品」）**——`export-service.ts` 拼 `${safeName}.md` 处那枚字面量也改用该常量（单一真身）。理由：导出名只是保存对话框里的默认名，用户看得见也能改；给一个安全的默认名，比给 `CON.md` 或空名诚实。
+- 新增 `packages/fs-store/test/export-filename-sanitize.test.ts`（6 条，单开文件：行数预算所迫）：八样非法字符 + 正常书名不误伤、控制字符删、尾点尾空格剥、保留名退兜底、空名退兜底、长度封 80。
+
+**先红后绿**：新用例在旧实现上先跑——`4 failed | 2 passed`（控制字符／尾点／保留名／空名四条红，八样替换与 80 截两条绿），实现后 `6 passed`。
+**变异**：把保留名分支改成 `return cleaned`（去掉判据）→ 当场 `1 failed`（保留名那条），原样回退。
+
+**测试数变动**：本刀之前 358 文件 4675 passed | 2 skipped → 本刀之后 **359 文件 4681 passed | 2 skipped**（+1 文件 / +6 用例，全出自新测试文件）。
+
+**门禁**：`pnpm verify` 全绿（prettier / 6 项目 tsc / eslint / boundary / 行数预算 703 份 / vitest 359 文件 4681 通过），退出码 0。
+
+**划掉**：§八十九 起四处「预存脏文件照旧没上车」这一格；§六十三 第 3 条「`sanitizeFilename` 比 `sanitizeDocFileName` 弱一档且零用例」。
+
+**仍未动手（本刀只登记，不落地）**：
+
+1. **4 份顶格文件的预拆候选**（各距 800 行只剩 1–2 行，下一次小改必先撞红行数预算）。候选按「不共享状态」挑，**落地前须按该判据复核**：
+
+   | 文件 | 行数 | 建议搬出的那一族（不共享状态） | 拟搬到 |
+   | --- | --- | --- | --- |
+   | `apps/desktop/src/renderer/src/stores/useBookStore.ts` | 799 | 浏览右栏态（`browseTabs`/`activeBrowse`/`browseContents`/`browseErrors` + `browse()`/`closeBrowse()`，约 L526-563） | `stores/useBookBrowseStore.ts` |
+   | `apps/desktop/src/renderer/src/components/DocumentPane.vue` | 799 | 查找高亮 mirror（`findVisible`/`mirrorSource`/`highlightMirrorHtml` + 滚动同步与刷新，约 L231-325） | `utils/doc-find-mirror.ts`（配纯函数用例） |
+   | `apps/desktop/src/main/ipc-guard.ts` | 799 | 窗口侧闸（`installWindowGuards`：`will-navigate` + `setWindowOpenHandler`，约 L731-799） | `main/window-guards.ts` |
+   | `apps/desktop/src/main/agent-service.ts` | 798 | 审批落盘（`applyDecision` 那一族，约 L397-541，状态密度最高） | `main/agent-approval.ts`（可能需以工厂注入共享态，落地前须复核「不共享状态」成立否） |
+
+   落地时各自同步对应的 Archcore spec（`use-book-store` / `document-pane` / `ipc-guard` / `agent-service`）。
+
+2. Archcore ≥600 行池剩余两格：`ExportDialog.vue`（653）与 `CenterColumn.vue`（476 行 / 近 90 天 **32 次提交**）尚无 spec。
+3. README 顶格测试数仍落后（门面绑 `2f0808e` 的 316/4130；实际 359/4681）——按现规「回填不是每刀必做」，不冒充已回填。
+
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）。
