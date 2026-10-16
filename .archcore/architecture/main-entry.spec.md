@@ -15,7 +15,7 @@ Depended on by: `electron.vite.config.ts`（主进程入口指向本文件）、
 
 Out of scope:
 
-- 来源闸 / 窗口闸 / 加载目标判定 —— 住 `ipc-guard.ts`（`resolveRendererLoad` / `installRendererTrust` / `installWindowGuards` / `trustedHandler`）。
+- 来源闸 / 窗口闸 / 加载目标判定 —— 来源与加载目标住 `ipc-guard.ts`（`resolveRendererLoad` / `installRendererTrust` / `trustedHandler`），窗口闸住 `window-guards.ts`（`installWindowGuards`，第九十四节为行数预算从 ipc-guard.ts 拆出，判据仍 import 自 ipc-guard.ts）。
 - 通道级授权分档与判定 —— 住 `channel-trust.ts`（`IPC_TRUST_LEVELS` / `channelTrustVerdict`）。
 - 异常钩子三规矩 —— 住 `crash-guard.ts`；退出握手三条规矩与 `waiting` / `released` 状态机 —— 住 `quit-flush.ts`。
 - 目录名唯一判据与开发态「只复制不搬走」 —— 住 `app-dirs.ts`；旧品牌目录迁移 —— 住 `app-data-migration.ts`。
@@ -33,7 +33,7 @@ Out of scope:
 - `registerPickDirectoryIpc` / `Menu.setApplicationMenu(null)` — 同文件 — 选目录桥与原生菜单整条去掉。
 - `rendererLoad` / `installRendererTrust` — 同文件 — 一次算完「加载哪」与「谁算自己人」。
 - `win`（`new BrowserWindow({…})` + `once("ready-to-show")`）/ `applyTitleBarOverlay` / `nativeTheme.on("updated")` — 同文件 — 唯一窗口；窗控叠加区配色随主题刷新。
-- `installWindowGuards` — 同文件 — `will-navigate` + `setWindowOpenHandler`，任何加载动作之前装。
+- `installWindowGuards` — @apps/desktop/src/main/window-guards.ts — `will-navigate` + `setWindowOpenHandler`，任何加载动作之前装。
 - 智能体链：`credentials` / `settings` / `modelLister` / `readSkillForTurn` / `pluginsDir` / `seedBuiltinPlugins` / `plugins` / `agent` / `registerAgentIpc` / `registerProviderIpc` / `installChannelTrustDeps` — 同文件 — 密钥只在主进程；通道授权查询器齐了才装。
 - 其余注册：`registerSkillIpc` / `registerSkillMarketIpc` / `registerChangesIpc` / `registerTrashIpc` / `registerBookBackupIpc` / `registerWebdavConfigIpc` / `registerWebdavServiceIpc` / `registerImportIpc` / `registerWebSourceIpc` / `registerAppearanceIpc` / 直注册的 `updateCheck` / `buildExport` / `saveFileExport` / `appNotify` — 同文件 — 各业务 IPC 装配点（一律经闸包装）。
 - `win.on("closed")` → `agent.dispose()` / `installQuitFlush({…})` — 同文件 — 收尾与退出握手。

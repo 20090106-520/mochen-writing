@@ -5476,7 +5476,7 @@ quoted 的 CI 原文与新起的差值等式）同树回填。三件都做了，
 | 11 | 429/5xx 无重试 | **过期 → 就地更正为已实现**（2026-10-15） | 原判据「全仓 `backoff/retry/retries` 零命中」是 grep 关键词选错了——实现用的命名是 `attempt/retryDelayMs/RETRYABLE_STATUS/retryWaitMsOf/STREAM_RETRY_DELAY_MS/RETRY_AFTER_MAX_MS`，所以那三个英文词当然零命中（除了 `sse.ts` 那句注释与测试文件名 `provider-client-retry.test.ts` 本身）。**实际已实现**：`provider-client.ts:97` `RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504])`；`:98` 默认 1.5 秒默哀；`:101` Retry-After 封顶 60 秒；`:109-117` `retryWaitMsOf` 纯函数判定（测试钉死 > 上游 Retry-After > 默认）；`:288-336` 连接期一次性重试（`for attempt < 2`），abort-aware（等待期打断直接收成 aborted）；注释明写「字节一旦开始吐就不再有重试——那之后的失败由既有的看门狗与 abort 语义接管」。测试：`provider-client-retry.test.ts` 7 条用例覆盖 429→200、500/500→抛、401 不重试、打断、Retry-After 三档。`provider-fetch.ts` 把 Retry-After 头解出 `retryAfterMs` 传给 `ProviderFetchResult`（`:23-24` 字段）。**仍等同用户一句话的反而只剩**：可选的多发退避（现在是固定 1.5 秒，没有指数或抖动）、4xx 的细分（401/403/422 各自该不该区分对待） |
 | 12 | 带内 `error` 帧被吞 | 真 ← 本刀修的就是它 | 见第三节 |
 | 13 | `baseURL` 不校验，等于明文走 http | 半真 | 「不校验」不成立：`/^https?:\/\//` 在 `contracts/src/provider.ts:3,395,577-580`。真的是**只验协议形状不验协议**：http 明确合法，内置 Ollama 本身就是 `http://127.0.0.1:11434`（`provider.ts:612`），用户自填远端 http 地址不拦不提示。密钥落盘是 safeStorage 加密（`credential-store.ts:113-125`：不可用即拒存、密文含明文即拒） |
-| 14 | `sandbox: false`、没有导航闸 | 半真 | `sandbox: false` 属实且在 `ipc-guard.ts:28` 自认并给了理由；`contextIsolation: true`／`nodeIntegration: false` 是显式收紧（`index.ts:211-216`）。导航闸**有**：`installWindowGuards`（`index.ts:232-242` → `ipc-guard.ts:647-684`）`will-navigate` 非同源一律 `preventDefault`、`setWindowOpenHandler` 一律 `deny`，`window-guards.test.ts` 全覆盖 |
+| 14 | `sandbox: false`、没有导航闸 | 半真 | `sandbox: false` 属实且在 `ipc-guard.ts:28` 自认并给了理由；`contextIsolation: true`／`nodeIntegration: false` 是显式收紧（`index.ts:211-216`）。导航闸**有**：`installWindowGuards`（`index.ts:232-242` → `window-guards.ts`，第九十四节从 `ipc-guard.ts:647-684` 拆出）`will-navigate` 非同源一律 `preventDefault`、`setWindowOpenHandler` 一律 `deny`，`window-guards.test.ts` 全覆盖 |
 | 15 | IPC 不验来源 | 不存在 | `trustedHandler`（`ipc-guard.ts:514-548`）+ `senderTrustVerdict`（`:139-177`）验 `event.senderFrame`：null 拒、子帧拒、`isSameRendererOrigin` 比对启动时装上的那份允许 URL，打包态忽略 `ELECTRON_RENDERER_URL` fail-closed。**它自认不管的那一半是真的**：`:115-116` 明写「不做『哪个页面能用哪条通道』，那是通道级授权（本轮没做）」，于是同源页内注入脚本可发任意通道，靠 CSP 兜 |
 | 16 | preload 暴露泛化 `invoke` | 不存在 | `preload/index.ts:4-10` 只 `exposeInMainWorld("mochen", createRendererApi(...))`，`renderer-api.ts:36-129` 每通道一个具名方法，channel 全部取自 `IPC_CHANNELS`（`contracts/src/ipc.ts:29-117`）；泛化 `invoke` 只是模块内闭包参数，没暴露 |
 | 17 | 审批提示硬编码 read-only、教模型「切档再批准」 | 半真 ×2 | 字面确实写死 `PERMISSION_LABELS["read-only"]`（`permission.ts:60`），但 `mode-too-tight` 只在 `input.mode === "read-only"` 时才产出（`contracts/src/permission.ts:89-94`），所以档位名与实际永远一致。后半句：那句「把权限档切到 X 后再批准」是写给**人**的，模型没有切档工具——花名册六枚（`contracts/src/tools.ts:1-8`）里没有档位，切档唯一入口在渲染层 `PermissionMenu.vue:25-28`，主进程从不自行改档 |
@@ -7049,7 +7049,7 @@ equal []`）。
    | --- | --- | --- | --- |
    | `apps/desktop/src/renderer/src/stores/useBookStore.ts` | 799 | 浏览右栏态（`browseTabs`/`activeBrowse`/`browseContents`/`browseErrors` + `browse()`/`closeBrowse()`，约 L526-563） | `stores/useBookBrowseStore.ts` |
    | `apps/desktop/src/renderer/src/components/DocumentPane.vue` | 799 | 查找高亮 mirror（`findVisible`/`mirrorSource`/`highlightMirrorHtml` + 滚动同步与刷新，约 L231-325） | `utils/doc-find-mirror.ts`（配纯函数用例） |
-   | `apps/desktop/src/main/ipc-guard.ts` | 799 | 窗口侧闸（`installWindowGuards`：`will-navigate` + `setWindowOpenHandler`，约 L731-799） | `main/window-guards.ts` |
+   | `apps/desktop/src/main/ipc-guard.ts` | 799 | ~~窗口侧闸（`installWindowGuards`：`will-navigate` + `setWindowOpenHandler`，约 L731-799）~~ **已落地，§九十四** | `main/window-guards.ts`（799 → 728） |
    | `apps/desktop/src/main/agent-service.ts` | 798 | 审批落盘（`applyDecision` 那一族，约 L397-541，状态密度最高） | `main/agent-approval.ts`（可能需以工厂注入共享态，落地前须复核「不共享状态」成立否） |
 
    落地时各自同步对应的 Archcore spec（`use-book-store` / `document-pane` / `ipc-guard` / `agent-service`）。
@@ -7058,3 +7058,33 @@ equal []`）。
 3. README 顶格测试数仍落后（门面绑 `2f0808e` 的 316/4130；实际 359/4681）——按现规「回填不是每刀必做」，不冒充已回填。
 
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）。
+
+## 第九十四节：`ipc-guard.ts` 拆出窗口闸（行数预算腾挪，2026-10-16）
+
+**来源**：用户「继续」——承接 §九十三 末尾「4 份顶格文件的预拆候选」里 `ipc-guard.ts` 那一行。本刀只落这一刀，其余三份（`useBookStore` / `DocumentPane` / `agent-service`）不动。
+
+**一、搬了什么**：候选表 `ipc-guard.ts` 那一行落地。
+
+- 新文件 `apps/desktop/src/main/window-guards.ts`（97 行）：`WindowGuardDeps` + `installWindowGuards`（`will-navigate` + `setWindowOpenHandler`）**逐字搬迁**，只改一行——`installedTrust`（ipc-guard 的模块私有变量）换成 ipc-guard 的公开取值器 `installedRendererTrust()`。
+- `apps/desktop/src/main/ipc-guard.ts`：**799 → 728 行**（腾出 71 行，重新回到 800 预算之下）。
+- 判据仍单一真身（铁律 6）：`isSameRendererOrigin` 待在 `ipc-guard.ts`，`window-guards.ts` 只 import、不重写第二份；外链白名单仍是 `web-source-link.ts` 那一份。新文件一个模块级变量都不持——这正是候选表挑它的理由（「不共享状态」复核通过）。
+- 搬出后 `ipc-guard.ts` 里为窗口闸服务的那条 `isOpenableWebSource` import 一并移除（不留没人用的 import）。
+
+**二、调用点改口**：`index.ts` 的 `installWindowGuards` 改从 `./window-guards.js` import（原与来源闸同一条 import 拆成两条）；`window-guards.test.ts` 的 `installWindowGuards` / `WindowGuardDeps` 同样改口，`FrameLike` / `RendererTrust` / `installRendererTrust` 仍从 `ipc-guard.ts` 取。
+
+**三、守卫同步**（`ipc-guard-coverage.test.ts` 那两条按源码字面量钉接线的用例）：
+
+- 「定义点只有一处」：`installWindowGuards` 的定义点从 `ipc-guard.ts` 变成了 `window-guards.ts`，断言由 `["ipc-guard.ts"]` 改为 `["ipc-guard.ts","window-guards.ts"]`，并给 `definers` 补 `.sort()`——原断言隐含依赖 `readdirSync` 返回顺序，加一枚文件后不该靠运气。
+- 「除 ipc-guard 之外没有第二处导航闸」：放宽为「除 `ipc-guard.ts` 与 `window-guards.ts` 之外没有第二处」——否则新文件里同框的 `preventDefault` + `setWindowOpenHandler` 会被这条自指守卫判成「第二份判据」（假红）。
+
+**四、Archcore 同步**：`architecture/ipc-guard.spec.md`（Purpose 的管子三件套、Depended on by、Surface 的 `installWindowGuards` 改标 `window-guards.ts`、Constraint 里的拆解去处）与 `architecture/main-entry.spec.md`（Out of scope 第 1 条、Surface 的 `installWindowGuards` 行）各按新位置改口。
+
+**测试数变动**：359 文件 4681 passed | 2 skipped → **不变**（本刀只搬迁 + 改写既有断言的位置，未增删用例）。
+
+**变异**：本刀是搬运、无新行为，故不做新文件变异；等价性由「逐字搬迁」+ 全绿断言 + 上面两条自指守卫共同钉住。被改写的那两处是**位置断言**，已按新位置核对。
+
+**门禁**：`pnpm verify` 全绿（prettier / 6 项目 tsc / eslint / boundary / 行数预算 / vitest 359 文件 4681 通过），退出码 0。首跑因新文件未过 prettier 红过一次（`[warn] window-guards.ts`），`prettier --write` 后复跑绿。
+
+**划掉**：§九十三 候选表的 `ipc-guard.ts` 那一行。
+
+**仍未动手**：§九十三 候选表其余三行（`useBookStore` / `DocumentPane` / `agent-service`）；Archcore ≥600 行池两格（`ExportDialog.vue` / `CenterColumn.vue`）；README 顶格测试数落后。**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令。

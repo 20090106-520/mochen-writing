@@ -1,12 +1,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 
-import {
-  installRendererTrust,
-  installWindowGuards,
-  type FrameLike,
-  type RendererTrust,
-  type WindowGuardDeps
-} from "./ipc-guard.js";
+import { installRendererTrust, type FrameLike, type RendererTrust } from "./ipc-guard.js";
+import { installWindowGuards, type WindowGuardDeps } from "./window-guards.js";
 
 /**
  * 窗口侧的来源闸（2026-10-10 全仓扫描 P1-8）。

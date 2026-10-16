@@ -38,12 +38,9 @@ import { createBookService, registerBookIpc } from "./book-service.js";
 import { installCrashGuard } from "./crash-guard.js";
 import { installQuitFlush } from "./quit-flush.js";
 // 来源闸与窗口闸（2026-10-10 全仓扫描 P1-7 / P1-8）：判据只有 ipc-guard 那一份，装配层只负责装上。
-import {
-  installRendererTrust,
-  installWindowGuards,
-  resolveRendererLoad,
-  trustedHandler
-} from "./ipc-guard.js";
+import { installRendererTrust, resolveRendererLoad, trustedHandler } from "./ipc-guard.js";
+// 窗口侧两道闸（第九十四节为行数预算从 ipc-guard.ts 拆出）：判据仍是 ipc-guard 那一份，这里只负责装上。
+import { installWindowGuards } from "./window-guards.js";
 // 通道级授权装配点（2026-10-15，台账第六十九节）：判据真身在 channel-trust.ts。
 import { installChannelTrustDeps } from "./channel-trust.js";
 import { createCredentialStore } from "./credential-store.js";

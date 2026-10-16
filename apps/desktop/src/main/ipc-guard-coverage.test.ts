@@ -118,20 +118,22 @@ describe("判据只许一份", () => {
     expect(code).not.toMatch(/allowedUrl\s*(===|!==|==|!==)/);
   });
 
-  it("来源判定、形状闸、窗口闸的定义点只有 ipc-guard.ts 一处", () => {
+  it("来源判定、形状闸（ipc-guard.ts）与窗口闸（window-guards.ts）各自只有一处定义点", () => {
+    // 窗口闸第九十四节从 ipc-guard.ts 拆到了 window-guards.ts——两份都是真身，多一处就是第二份判据。
     const definers = sources
       .filter((one) =>
         /export function (isTrustedSender|handleTrusted|trustedHandler|installWindowGuards)\s*\(/.test(
           one.code
         )
       )
-      .map((one) => one.file);
-    expect(definers).toEqual(["ipc-guard.ts"]);
+      .map((one) => one.file)
+      .sort();
+    expect(definers).toEqual(["ipc-guard.ts", "window-guards.ts"]);
   });
 
-  it("除 ipc-guard 之外没有第二处自己写的**导航**闸（preventDefault 与 will-navigate 同框才算）", () => {
+  it("导航闸只有 window-guards.ts 一处（preventDefault 与 will-navigate 同框才算）", () => {
     const hits = sources
-      .filter((one) => one.file !== "ipc-guard.ts")
+      .filter((one) => one.file !== "ipc-guard.ts" && one.file !== "window-guards.ts")
       .filter(
         (one) =>
           one.code.includes("preventDefault") && /will-navigate|setWindowOpenHandler/.test(one.code)

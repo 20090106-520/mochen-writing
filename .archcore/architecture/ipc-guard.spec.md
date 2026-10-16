@@ -9,9 +9,9 @@ tags:
 
 ## Purpose & Scope
 
-这一份对「主进程收进来的每一条 IPC 指令」那道入口守卫有规范力：`apps/desktop/src/main/ipc-guard.ts` 加 `channel-trust.ts` 这一个管子，从来源问到档位再到参数形状。
+这一份对「主进程收进来的每一条 IPC 指令」那道入口守卫有规范力：`apps/desktop/src/main/ipc-guard.ts` 加 `channel-trust.ts` 加 `window-guards.ts` 这一个管子，从来源问到档位再到参数形状、再落到窗口侧那两道闸。
 
-Depended on by: 主进程里每一处 `ipcMain.handle` 注册点（`apps/desktop/src/main/index.ts`、`agent-ipc.ts`、插件与备份那几处），以及窗口侧的 `installWindowGuards`。动这两份文件的任何一刀都按本规范走。
+Depended on by: 主进程里每一处 `ipcMain.handle` 注册点（`apps/desktop/src/main/index.ts`、`agent-ipc.ts`、插件与备份那几处），以及窗口侧的 `installWindowGuards`（真身已第九十四节迁到 `window-guards.ts`，本文件仍是它调用的判据）。动这三份文件的任何一刀都按本规范走。
 
 Out of scope:
 
@@ -33,7 +33,7 @@ Out of scope:
 - `channelTrustVerdict(channel)` — @apps/desktop/src/main/channel-trust.ts —— 通道档位裁决点。
 - `installChannelTrustDeps(deps)` — 同文件 —— 通道档位的装配点，`turnRunning` 是必填字段。
 - `IPC_TRUST_LEVELS` — 同文件 —— 三档表（`public` / `self` / `sensitive`）。
-- `installWindowGuards(deps, trust)` — @apps/desktop/src/main/ipc-guard.ts —— 窗口闸装配点。
+- `installWindowGuards(deps, trust)` — @apps/desktop/src/main/window-guards.ts —— 窗口闸装配点（第九十四节为行数预算从 ipc-guard.ts 拆出，判据仍 import 自 ipc-guard.ts）。
 
 States: 未装配 → 启动装配（`index.ts`）→ 每次请求判一遍。装配未就位时本管子一律 fail closed。
 
@@ -56,7 +56,7 @@ States: 未装配 → 启动装配（`index.ts`）→ 每次请求判一遍。�
 
 - Constraint: `IPC_ARG_SHAPES` ∪ `IPC_NO_ARG_CHANNELS` 必须覆盖主进程收的全部通道 —— `ipc-guard.test.ts` 钉着这条并集，漏一处就是一条没人看着的通道。
 - Constraint: 新增通道落在带参形状表或无参清单之一，并在 `IPC_DENY_REPLIES` 配一条回会（见 `conventions/ipc-channel-registration.rule.md`）。
-- Constraint: `ipc-guard.ts` 正贴 800 行预算顶 —— 新能力往 `channel-trust.ts` 一类新文件拆，不往这里塞（见 `conventions/source-line-budget.rule.md`）。
+- Constraint: `ipc-guard.ts` 正贴 800 行预算顶 —— 新能力往 `channel-trust.ts` / `window-guards.ts` 一类新文件拆，不往这里塞（见 `conventions/source-line-budget.rule.md`）。
 - Invariant: 判据真身只有一份 —— `isTrustedSender`、`isSameRendererOrigin`、`relPathStaysInsideRoot`、`channelTrustVerdict` 各自只实现一次。
 - Invariant: 装配未就位时一律 fail closed，「漏装一次＝那张档位全放行」这个失败模式不允许出现。
 - Invariant: 子帧判据走 `WebFrameMain.parent !== null` —— Electron 42 的 invoke 事件没有 `parentFrameId`，按它判会永远判不出子帧。
