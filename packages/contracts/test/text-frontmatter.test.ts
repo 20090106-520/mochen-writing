@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { codePointLength, proseCharCount } from "../src/text.js";
+import { codePointLength, normalizeNewlines, proseCharCount } from "../src/text.js";
 import { FRONTMATTER_FENCE, splitFrontmatter } from "../src/frontmatter.js";
 
 /** 源文件里不写裸 BOM 字符（它在编辑器里完全不可见），按码点显式造。 */
@@ -92,5 +92,40 @@ describe("splitFrontmatter（围栏切分）", () => {
 
   it("围栏常量就是那三根横线：改动它等于改磁盘格式，必须显式", () => {
     expect(FRONTMATTER_FENCE).toBe("---");
+  });
+
+  // 2026-10-17 真机撞出（台账 §一百一十二 / §一百一十三）：CRLF 写的稿子首行是 `---\r`，
+  // 旧实现只认 `---\n`，于是整篇被当成「没有围栏」——章节 title 落回相对路径、字数把元数据算进去、
+  // 技能的 stage / appliesTo 全丢。Windows 上记事本与多数编辑器默认写 CRLF，这条可达。
+  it("CRLF 围栏照样切得开：Windows 上写的大概率是 CRLF", () => {
+    const { block, body } = splitFrontmatter("---\r\ntitle: 深渊之下\r\n---\r\n正文第一段。\r\n");
+    expect(block).toBe("---\ntitle: 深渊之下\n---");
+    expect(body).toBe("正文第一段。\n");
+  });
+
+  it("孤立 CR（经典 Mac 稿件）也算换行，与 import 切章同口径", () => {
+    const { block, body } = splitFrontmatter("---\rtitle: A\r---\r正文\r");
+    expect(block).toBe("---\ntitle: A\n---");
+    expect(body).toBe("正文\n");
+  });
+
+  it("无围栏的 CRLF 正文：body 归一到 LF，字一个不丢", () => {
+    const { block, body } = splitFrontmatter("只有正文。\r\n第二句。\r\n");
+    expect(block).toBeNull();
+    expect(body).toBe("只有正文。\n第二句。\n");
+  });
+});
+
+/**
+ * 「什么算换行」的唯一实现点。`import.ts` 切章与 `frontmatter.ts` 认围栏读的是同一条口径：
+ * 各写一遍正则的话，Windows 写的稿子只会在这两处中的一处被认出来。
+ */
+describe("normalizeNewlines（换行唯一口径）", () => {
+  it("CRLF 与孤立 CR 都收成 LF；本来就是 LF 的原样返回", () => {
+    expect(normalizeNewlines("甲\r\n乙\r丙\n丁")).toBe("甲\n乙\n丙\n丁");
+  });
+
+  it("没有换行的串原样返回", () => {
+    expect(normalizeNewlines("海雾")).toBe("海雾");
   });
 });

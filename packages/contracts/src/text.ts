@@ -22,3 +22,18 @@ export function proseCharCount(text: string): number {
   }
   return count;
 }
+
+/**
+ * 「什么算换行」的唯一实现点：CRLF 与孤立 CR 都收成 LF。
+ *
+ * 为什么单独立出来：`import.ts` 切章与 `frontmatter.ts` 认围栏读的是同一条口径。
+ * 各写一遍正则就等于两套口径，而 Windows 上写的稿子只会在其中一处被认出来——
+ * 2026-10-17 真机上撞到的正是后半句：CRLF 的稿子首行是 `---\r`，只认 `---\n` 的实现
+ * 把整篇当成「没有围栏」，章节标题落回相对路径、字数把元数据算进去、技能的 stage / appliesTo 全丢。
+ *
+ * 注意这一处只做「读」的归一：盘上原文的行尾仍由 `fs-store/read-write.ts` 按首行结束符保着，
+ * 两者不是同一件事（后者管写回，前者管认元数据）。
+ */
+export function normalizeNewlines(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
+}

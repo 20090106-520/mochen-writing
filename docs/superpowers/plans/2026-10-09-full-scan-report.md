@@ -7474,9 +7474,36 @@ equal []`）。
 
 **为什么没顺手修**：这一条动的是全仓共用的围栏切分原语，而仓库对「行尾归一」另有一处**刻意的相反约定**——`packages/agent-runtime/src/apply-patch.ts:9` 明写「锚点按盘上字节逐字匹配（仓库约定 UTF-8+LF，**不做任何换行归一化**）」。要不要在切分层破这条约定，是控制方该定的口径，不在本刀授权内。**可达性**：Windows 上记事本与多数编辑器默认写 CRLF，用户把自己已有的 `.md` 稿件拷进 `chapters/` 就会撞上（章节标题变成相对路径、字数把元数据算进去、技能两路硬信号失效）。
 
-**未做**：上面这条 CRLF 缺陷未修、未加用例，作为新挂账记在此处，等控制方定夺是否在切分层归一。
+**未做**：上面这条 CRLF 缺陷未修、未加用例，作为新挂账记在此处，等控制方定夺是否在切分层归一。（2026-10-17 已由 §一百一十三 收口：口径定为「只归一读侧」。）
 
 **测试数变动**：本刀只改文档、不动源码与用例，本机实数仍是 **362 文件 / 4721 passed | 2 skipped（4723 条注册）**；README「## 门禁」节的数**不动它**（它绑的是 `2d26be3` 那次 CI run，与本刀无关）。
 
 **门禁**：`pnpm verify` 全绿（退出码 0）。
+
+## 第一百一十三节：CRLF 的 frontmatter 认出来了——换行口径收成一份（2026-10-17）
+
+**来源**：§一百一十二 末尾挂的新账——真机冒烟顺带撞出的「CRLF 行尾的 `frontmatter` 整块认不出」。用户回「继续」（按已记档偏好＝授权按台账已记的可行任务落地），本刀修这条。走仓里硬规矩：**先写会红的用例再实现**（TDD）。
+
+**根因**：`packages/contracts/src/frontmatter.ts` 的 `splitFrontmatter` 只认 `text.startsWith("---\n")`。CRLF 稿子首行是 `---\r`，这一句立刻不成立 ⇒ 整篇被当成「没有围栏」。后果与 §一百一十二 实测逐字一致：章节 `title` 落回相对路径、`chars` 把 `---` 与 `title:` 算了进去、技能 `name` / `stage` / `appliesTo` 全空。
+
+**怎么修的**（一把收口，不做半截）：
+
+1. `packages/contracts/src/text.ts` — 新增导出 **`normalizeNewlines(text)`**（`/\r\n?/g` → `\n`，CRLF 与孤立 CR 都收成 LF）。它是「什么算换行」的**唯一实现点**。注释写清这一处只做**读**的归一：盘上原文的行尾仍由 `fs-store/read-write.ts` 按首行结束符保着，两者不是同一件事（后者管写回，前者管认元数据）。
+2. `packages/contracts/src/frontmatter.ts` — `splitFrontmatter` 改为先剥 BOM、再 `normalizeNewlines`、再判围栏；`FrontmatterSplit.body` 注释同步改口径（「BOM 已去掉，换行已归一成 LF」）。
+3. `packages/contracts/src/import.ts` — `splitTxtChapters` 里自写的 `text.replace(/\r\n?/g, "\n")` 换成 `normalizeNewlines(text)`。**铁律 6**：原来切章与认围栏是两份换行正则，收成一份。
+
+**红先绿后（本刀的账）**：
+
+- RED：`vitest run` 两文件 → **6 failed | 26 passed**（新增 6 条全红，正红在「CRLF 认不出」这条上）。
+- GREEN：`vitest run packages/contracts/test/text-frontmatter.test.ts packages/fs-store/test/skills.test.ts packages/contracts/test/import.test.ts packages/fs-store/test/line-ending.test.ts` → **4 passed (4) / 65 passed (65)**。
+
+新增 6 条用例分两处：`contracts/test/text-frontmatter.test.ts`（CRLF 围栏切分 / 孤立 CR / 无围栏 CRLF 正文归一 3 条 + 新起 describe `normalizeNewlines` 2 条）、`fs-store/test/skills.test.ts`（CRLF 写的 `SKILL.md` 照样认得出 frontmatter 1 条，钉用户可见影响）。
+
+**边界核对（为什么不许动「写回」那侧）**：`splitFrontmatter` 的消费面逐一核过（`fs-store/frontmatter.ts`、`scan.ts`、`skills.ts`、`export-service.ts`、`epub.ts`、`export-shared.ts`、`foreshadow.ts`、`timeline-check.ts`、`volume-outline.ts`、`agent-runtime/context.ts`、渲染层 `ComposerContextBar.vue` / `DocumentPane.vue` / `doc-title.ts` / `doc-checkup.ts`）——**无一处把 `body` 写回磁盘**，故 body 归一安全。与 `agent-runtime/src/apply-patch.ts:9` 那句「不做任何换行归一化」不冲突：那里不读 `splitFrontmatter`，管的是 patch 锚点按盘上字节逐字匹配。§一百一十二 里「不动全仓共用的切分原语」的顾虑，本刀用「只归一**读**侧、写回侧原样」化解。
+
+**测试数变动**：本机净 **+6 条**（用例全加在既有两文件里，**文件数不变**）⇒ 实测 **362 文件 / 4727 passed | 2 skipped（4729 条注册）**。README「## 门禁」节的数**不动它**：它绑的是 `2d26be3` 那次 CI run，而本轮**推送仍被网络层挡住、CI 读不回**，绝不把本机数冒充 CI。
+
+**门禁**：`pnpm verify` 全绿（退出码 0），prettier / tsc（6 项目）/ eslint / 边界 / 行数预算 / vitest 六段全过。
+
+**划掉**：§一百一十二 末尾「**未做**：上面这条 CRLF 缺陷未修、未加用例」——本刀做完。
 

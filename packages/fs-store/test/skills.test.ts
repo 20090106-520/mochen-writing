@@ -54,6 +54,24 @@ describe("scanSkills", () => {
     expect(byDir.get("b")?.appliesTo).toEqual(["outline"]);
   });
 
+  it("CRLF 写的 SKILL.md 照样认得出 frontmatter（Windows 上写的大概率是 CRLF）", async () => {
+    // 2026-10-17 真机撞出（台账 §一百一十二）：CRLF 的 SKILL.md 旧实现整个 frontmatter 不认，
+    // 显示名落回目录名、stage / appliesTo 全空 ⇒ 推荐条的两路硬信号失效。
+    const root = await tmp();
+    const full = path.join(root, "crlf");
+    await mkdir(full, { recursive: true });
+    await writeFile(
+      path.join(full, SKILL_FILE_NAME),
+      "---\r\nname: 伏笔收束\r\nstage: 正文\r\nappliesTo: chapter\r\n---\r\n\r\n说明一句。\r\n",
+      "utf8"
+    );
+    const [ref] = await scanSkills(root, "global");
+    expect(ref?.displayName).toBe("伏笔收束");
+    expect(ref?.stages).toEqual(["正文"]);
+    expect(ref?.appliesTo).toEqual(["chapter"]);
+    expect(ref?.description).toBe("说明一句。");
+  });
+
   it("没有 name / description 时退回目录名与正文首段，卡上不留空壳（标题行不算说明）", async () => {
     const root = await tmp();
     await skill(root, "无名氏", "", "## 标题行\n这一行是说明。\n- 这是要点。\n");

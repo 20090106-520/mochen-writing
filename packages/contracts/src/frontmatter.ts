@@ -1,3 +1,5 @@
+import { normalizeNewlines } from "./text.js";
+
 /**
  * frontmatter 围栏切分的唯一实现点。
  *
@@ -16,12 +18,17 @@ const BOM = String.fromCharCode(0xfeff); // 源文件里不写裸 BOM 字符：�
 export interface FrontmatterSplit {
   /** 含首尾两行 `---` 的整块原文；`null` ⇒ 这篇没有合法围栏。 */
   block: string | null;
-  /** 剥掉围栏后的正文（BOM 已去掉）；没有围栏时就是去 BOM 后的原文。 */
+  /** 剥掉围栏后的正文（BOM 已去掉，换行已归一成 LF）；没有围栏时就是去 BOM 并归一后的原文。 */
   body: string;
 }
 
 export function splitFrontmatter(raw: string): FrontmatterSplit {
-  const text = raw.startsWith(BOM) ? raw.slice(1) : raw;
+  const stripped = raw.startsWith(BOM) ? raw.slice(1) : raw;
+  // 换行先归一（口径见 `normalizeNewlines`）：CRLF 稿子的首行是 `---\r`，不归一的话
+  // 下面那句 `startsWith("---\n")` 立刻不成立，整篇会被当成「没有围栏」——
+  // 真机上撞到的就是这一条：章节 title 落回相对路径、字数把 `---` 与 `title:` 算了进去、
+  // 技能的 stage / appliesTo 全空（台账 §一百一十二）。
+  const text = normalizeNewlines(stripped);
   if (!text.startsWith(`${FRONTMATTER_FENCE}\n`)) return { block: null, body: text };
   const lines = text.split("\n");
   let close = -1;

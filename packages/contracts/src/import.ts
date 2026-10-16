@@ -11,7 +11,7 @@
  */
 
 import { planDocRelPath } from "./book.js";
-import { proseCharCount } from "./text.js";
+import { proseCharCount, normalizeNewlines } from "./text.js";
 
 /** 一次导入的字节上限。20 MB ≈ 一部 700 万字的长篇还有余；超限说明选错了文件（比如整站打包）。 */
 export const TXT_IMPORT_MAX_BYTES = 20 * 1024 * 1024;
@@ -74,7 +74,7 @@ function headingTitleOf(line: string): string {
  * - 一条标题都没有 ⇒ 整篇就是一章，标题用 `fallbackTitle`。
  */
 export function splitTxtChapters(text: string, fallbackTitle: string): TxtChapterDraft[] {
-  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const lines = normalizeNewlines(text).split("\n");
   const chapters: TxtChapterDraft[] = [];
   let currentTitle: string | null = null;
   let buffer: string[] = [];
