@@ -7,8 +7,10 @@
  * ① 主 CTA 只换面色字重不够——`conversation-pane.css:285` 那段自陈的欠账是「权重反而更低」，
  *    优化稿补的是**尺寸**一档（36px 高 / 16px 内距 / 0.875rem 字），且刻意只提主 CTA。
  *    两枚一起放大等于没放大。
- * ② 恒五张能力卡（真身 `utils/workbench-state.ts`）在 auto-fit 下排成 3+2，右下吊一个洞；
- *    恰好五张锁两列才齐整。这条与 ① 一样是纯 CSS 判据，删一行没人会发现，所以得有闸。
+ * ② 恒五张能力卡（真身 `utils/workbench-state.ts`）的收口两条：auto-fit 的列宽下限
+ *    148 → 200px（中栏约 520px 内容宽下原排 3 列、每张 167px，提示断成末行只剩「批。」的
+ *    孤字行），以及奇数张时末张跨整列。这两条与 ① 一样是纯 CSS 判据，删一行没人会发现，
+ *    所以得有闸。原先那条「恰好五张锁两列」的 :has() 判据已被 200px 下限取代（见下面的 not 那条）。
  */
 import { describe, expect, it } from "vitest";
 import { ruleBlock, strippedStyleSource } from "../utils/vue-source-reader";
@@ -36,14 +38,22 @@ describe("无书空态：主 CTA 提一档尺寸，次要那枚保持原样", ()
   });
 });
 
-describe("工作台恒五张卡：恰好五张锁两列", () => {
-  const five = ruleBlock(PANE, ".workbench-cards:has(> :nth-child(5)):not(:has(> :nth-child(6)))");
+describe("工作台恒五张卡：列宽下限 200px + 奇数张末张通栏", () => {
+  const cards = ruleBlock(PANE, ".workbench-cards");
+  const lastOdd = ruleBlock(PANE, ".workbench-cards > :last-child:nth-child(odd)");
 
-  it("五张时锁 repeat(2, minmax(0,1fr))，消掉 3+2 的右下孤洞", () => {
-    expect(five).toContain("repeat(2, minmax(0, 1fr))");
+  it("列宽下限提到 200px：520px 内容宽下保持 2 列（255px/张），提示不再断成孤字行", () => {
+    expect(cards).toContain("repeat(auto-fit, minmax(200px, 1fr))");
   });
 
-  it("锁列那条不带 148px 下限：窄栏宁可卡窄一点，也不把栅格撑出容器", () => {
-    expect(five).not.toContain("148px");
+  it("奇数张时末张跨整列，收掉右侧空半屏；判的是奇偶不是「第 5 张」这个位置", () => {
+    expect(lastOdd).toContain("grid-column: 1 / -1");
+    expect(lastOdd).not.toContain("nth-child(5)");
+  });
+
+  it("按张数锁两列那条已被 200px 下限取代，不许两套并存", () => {
+    // 两套并存时窄栏那档会互相打架：auto-fit 自己按 200px 下限决定列数，
+    // :has() 会在同一批元素上再强按一次，且 :has() 那条不带下限、会把栅格撑破容器。
+    expect(PANE).not.toContain(":nth-child(5)");
   });
 });
