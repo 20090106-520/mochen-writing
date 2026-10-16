@@ -7047,10 +7047,10 @@ equal []`）。
 
    | 文件 | 行数 | 建议搬出的那一族（不共享状态） | 拟搬到 |
    | --- | --- | --- | --- |
-   | `apps/desktop/src/renderer/src/stores/useBookStore.ts` | 799 | 浏览右栏态（`browseTabs`/`activeBrowse`/`browseContents`/`browseErrors` + `browse()`/`closeBrowse()`，约 L526-563） | `stores/useBookBrowseStore.ts` |
-   | `apps/desktop/src/renderer/src/components/DocumentPane.vue` | 799 | 查找高亮 mirror（`findVisible`/`mirrorSource`/`highlightMirrorHtml` + 滚动同步与刷新，约 L231-325） | `utils/doc-find-mirror.ts`（配纯函数用例） |
+   | `apps/desktop/src/renderer/src/stores/useBookStore.ts` | 799 | 浏览右栏态（`browseTabs`/`activeBrowse`/`browseContents`/`browseErrors` + `browse()`/`closeBrowse()`，约 L526-563）—— **复核不通过，见 §九十五** | `stores/useBookBrowseStore.ts`（搁置：与 `rightPaneMode`/`notice` 共享） |
+   | `apps/desktop/src/renderer/src/components/DocumentPane.vue` | 799 | 查找高亮 mirror（`findVisible`/`mirrorSource`/`highlightMirrorHtml` + 滚动同步与刷新，约 L231-325）—— **复核不通过，见 §九十五**（纯切分部分 2026-10-10 已在 `utils/find-mirror.ts`） | `utils/doc-find-mirror.ts`（搁置：剩的是被 `find-mirror-mount-wiring.test.ts` 钉住的接线） |
    | `apps/desktop/src/main/ipc-guard.ts` | 799 | ~~窗口侧闸（`installWindowGuards`：`will-navigate` + `setWindowOpenHandler`，约 L731-799）~~ **已落地，§九十四** | `main/window-guards.ts`（799 → 728） |
-   | `apps/desktop/src/main/agent-service.ts` | 798 | 审批落盘（`applyDecision` 那一族，约 L397-541，状态密度最高） | `main/agent-approval.ts`（可能需以工厂注入共享态，落地前须复核「不共享状态」成立否） |
+   | `apps/desktop/src/main/agent-service.ts` | 798 | 审批落盘（`applyDecision` 那一族，约 L397-541，状态密度最高）—— **复核不通过，见 §九十五** | `main/agent-approval.ts`（搁置：闭包吃十几样共享态，须另设计而非搬迁） |
 
    落地时各自同步对应的 Archcore spec（`use-book-store` / `document-pane` / `ipc-guard` / `agent-service`）。
 
@@ -7088,3 +7088,32 @@ equal []`）。
 **划掉**：§九十三 候选表的 `ipc-guard.ts` 那一行。
 
 **仍未动手**：§九十三 候选表其余三行（`useBookStore` / `DocumentPane` / `agent-service`）；Archcore ≥600 行池两格（`ExportDialog.vue` / `CenterColumn.vue`）；README 顶格测试数落后。**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令。
+
+## 第九十五节：剩余三份顶格文件按「不共享状态」复核 —— 三行全不通过（2026-10-16）
+
+**来源**：用户「继续」。任务＝§九十三 候选表其余三行**落地前的那道必经复核**（表内原话：「落地前须按该判据复核」）。本刀**只复核、不落地**——复核结论是三条都不过关，硬搬会比 799 行更差。
+
+**一、`useBookStore.ts`（799）浏览右栏态 —— 不通过**
+
+拟搬 `browseTabs` / `activeBrowse` / `browseContents` / `browseErrors` + `browse()` / `closeBrowse()`。复核出三处共享（任一处都足以否掉「不共享状态」）：
+
+- `browse()` 必写 `rightPaneMode = "browse"`（`:535`），而 `openDossier()`（`:429`）与 `openDocTab()`（`:343`）写的是**同一格**——右栏三态是三个页签共用的真身，不可能跟着浏览态一起搬；
+- `browse()` 的失败分支必写 `notice`（`:550`），而 `notice` 是全 store 共用的唯一提示通道；
+- `applyOpened()` 要整体重置这四格并调 `resetBrowseReadGates()`（`:189-192`、`:204`）、`renameDocTitle()` 要按重扫后的 `docs` 重写 `browseTabs`（`:326`）⇒ 另立 store 后这两处立刻变成跨 store 写。
+
+再加读点散在 `App.vue`（`rightPaneMode`）、`DocumentPane.vue`（四格 + `browse` / `closeBrowse`）、`CenterColumn.vue` 与多处测试（钉的多是 `book.browseTabs` 一类字面量）：拆出来的新耦合比省下的 70 行贵。**本行搁置。**
+
+**二、`DocumentPane.vue`（799）查找高亮 mirror —— 已基本兑现，剩下的不宜再搬**
+
+- 纯切分那半**早在 2026-10-10 就搬走了**，现住 `utils/find-mirror.ts`（该文件头自述：「这套切分原先长在 `DocumentPane.vue` 的 computed 里」）。候选表这一行描述的「主体」已经不在组件里了。
+- 组件里剩的是**接线**：`mirrorSource` 的 `useTrailingValue` 快照（`:264-270`）、`highlightMirrorHtml` 的可见闸（`:271-275`）、`syncMirrorScroll` 的 null 闸（`:278-285`）、面板打开那一拍的补同步（`:288-292`）。而 `components/find-mirror-mount-wiring.test.ts` **刻意把这四件事钉在组件的 script 上**（`:64-87`：`if (!ta || !mirror) return;`、`findMirrorHtml(snap.draft`、`useTrailingValue`、watch 正则）——再搬等于和一份**有意的**守卫对打，还得同步改那份守卫的四处断言。
+- 且它读的 `editorEl` 与撤销栈（`useEditUndo`）、片段插入（`useSnippetToolbar`）、预览滚动同步三处共用 ⇒ 同样不是「不共享状态」。**本行搁置。**
+
+**三、`agent-service.ts`（798）审批落盘 —— 不通过**
+
+候选自己就写着「可能需以工厂注入共享态，落地前须复核」。复核确认：`applyDecision`（`:397`）是 `createAgentService` 的闭包，直接吃十几样闭包态——`pending` / `diffs` / `threads` / `controllers` / `runningTurns` / `autoSession` / `autoDocTool` / `persist` / `autos` / `bookScope` / `deps`，并调 `snapshot()` / `drain()` / `publish()` / `registerProposal()` / `threadFor()`。搬出去得把这一整串当参数或开工厂 ⇒ 那是**重新设计**，不是搬迁。**本行搁置**（要动须单独设计并复核）。
+
+**结论**：§九十三 那四行里，只有 `ipc-guard.ts` 真满足「不共享状态」（§九十四 已落地）。其余三行照判据复核**均不通过**，本刀不落地——`useBookStore.ts`（799）与 `agent-service.ts`（798）仍是贴顶状态，下一次小改仍会先撞行数预算；届时须按「哪一格真独立」**重新挑**，而不是照原候选表硬搬。方向上建议：`useBookStore` 里唯一明显独立的是 `editorViewMode` + `cycleEditorViewMode`（约 5 行、不写 `notice`），收益有限、优先级低；真撞顶时更该做的是**接受放置**（拆解的收益已小于新耦合的代价）。
+
+**测试数变动**：无（本刀只复核、未改任何代码）。
+**门禁**：本刀只动台账（`*.md`），仍跑一次 `pnpm verify` 确认 prettier 对 `*.md` 的检查与全仓用例不受影响（退出码 0）。
