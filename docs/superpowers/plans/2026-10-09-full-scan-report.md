@@ -6986,3 +6986,33 @@ equal []`）。
 
 **划掉**：§九十 之后按双判据（≥600 行池）重排的下一格（`apps/desktop/src/renderer/src/components/NotesPanel.vue`，池里分数最高的一份，已有 spec）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第九十二节：把 `OutlinePanel.vue` 这份「文档大纲浮层」捕获成 spec（Archcore 第十四刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §九十一 之后按双判据（≥600 行池）往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/outline-panel.spec.md`、4 条关联边与本段文字。
+
+**为什么下一个是它**：§八十九 落定池子口径之后，`NotesPanel.vue` 已收口，它就是 ≥600 行池里分数最高且还没有 spec 的一份（`apps/desktop/src/renderer/src/components/OutlinePanel.vue`，697 行 / 近 90 天 3 次提交）。它是大纲面板的**唯一组件壳**：统计行、搜索框、工具栏（两档排序 + 全部展开 / 折叠）、按 `BOOK_KIND_ORDER` 分节的可折叠分组树、页脚快捷键提示，以及 ↑↓ 浏览那条通路；也是本仓「页脚承诺的那件事真有通路」这条纪律落地得最直白的一处——页脚写着 `<kbd>↑</kbd><kbd>↓</kbd> 浏览`，而走位算术被整块抽进 `utils/outline-navigation`，组件只剩焦点搬运。
+
+**不是转述注释，是读源码落的**：读全篇 697 行之外，另读了四处被判「抽出去」的下游真身——`utils/outline-navigation.ts`（「往哪儿走」的唯一算术：`visibleNavNodes` 跳过折叠分节 / `stepNavNode` 的三条口径——游标不在队列里时从一端起、越界停住不环回、空列表给 `null`）、`utils/book-kinds.ts`（`BOOK_KIND_ORDER` / `BOOK_KIND_LABELS` 唯一表）、`utils/char-count.ts`（`formatCharCount`）、`utils/transientScrollbar.ts`（`createTransientScrollbarController`）；另扫了五份直接针对它的用例（`outline-nav-wiring.test.ts` 两组 9 条、`outline-navigation.test.ts` 9 条、`modal-focus-wiring.test.ts` 里大纲这一格与「@keydown.esc 已退役」那一条、`char-count-wiring.test.ts`、`foreshadow-wiring.test.ts` 里「OutlinePanel 自持那份 `KIND_ICON` 也没丢」那一条）的标题与断言。规范里的 invariant 与失败规则就是从这些判据抄的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 4 条关联边（指回 use-book-store spec、left-sidebar spec、行数预算 rule、失败可见 rule）。正文 23 条 MUST / 8 条失败规则 / 7 条 constraint+invariant，body 97 行（spec 限 120 行）。
+
+**取舍**：
+
+- 23 条 MUST 分成五组口径：单一真身（走位只经 `utils/outline-navigation`、标签与顺序只经 `utils/book-kinds`、字数只经 `formatCharCount`、滚动条只经 `createTransientScrollbarController`、Esc 与焦点回场只经 `useModalFocus`、组合态只经 `imeOwnsKey`）、分组视图（只留 `nodes.length > 0` 的分节、折叠只用一个对象表达）、键盘通路（只在真走一步时才吞键、拿到焦点必须滚进视野、↵ 不另写 keydown）、激活与选中（`chapter` 走 `openDocTab`、其余走 `browse`、选中只认 `activeDocTab`）、如实（不许留拖拽的视觉占位）。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 「`order` 档不另排是承诺行为不是漏实现」单独成一条 invariant + 规范正文里的 MUST 8：`docs` 进组件之前已按 `book.json` 的 `chapterOrder` 排过，补一层空转排序反倒是错的；配套的失败规则 6 就是「假控件」那一族的处置——点下去什么也不变且不是承诺行为的档位，摘掉而不是再补一层。
+- 「折叠掉的分节整个不参与 ↑↓」单独成一条 invariant（MUST 12 + FAIL 2）：折叠的节点在 DOM 里不存在，焦点走进去等于交给一个不存在的元素，表现为「按了键没反应」；游标所在分节刚被折叠时 MUST 从队列一端重新起走，别让一次折叠把键盘导航打死。
+- 「本组件自持一份 `KIND_ICON`」如实登记为未收口项（Constraint + Invariant）：`LeftSidebar` 那份已抽进 `utils/kind-icons`，大纲这份仍在组件里，`foreshadow-wiring.test.ts` 专门钉了「两处都得有；新增 kind 时两处都要有」。规范里**不假装已统一**，只把这件事写清楚。
+- 4 条关联边里指向 `use-book-store.spec.md`（`docs` / `activeDocTab` / `openDocTab` / `browse` / `sortDocsByOrder` 五个 store 真身）与 `left-sidebar.spec.md`（拖拽排序的真身在那边——本组件「没有拖拽」这条正是与它对照才说得清）与 `failures-must-be-visible.rule.md`（本组件的失败规则＝全折叠 / 筛空时的空态与不吞键、越界停住、游标被折叠打散后从一端重起）。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "apps/desktop/src/renderer/src/components/OutlinePanel.vue"})`：coverage 26 / hits 23，新 spec 以 `reason:"file"` **排第 1**。`get_document` 回读 `outgoing_relations` 四条齐（use-book-store spec / left-sidebar spec / 行数预算 rule / 失败可见 rule，全 `related`），`status: accepted`、tags `architecture` / `renderer`。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次（97 行），其余全部 `unchanged`。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§九十一 之后按双判据（≥600 行池）重排的下一格（`apps/desktop/src/renderer/src/components/OutlinePanel.vue`，池里分数最高的一份，已有 spec）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
