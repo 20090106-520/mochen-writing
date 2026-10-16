@@ -7507,3 +7507,23 @@ equal []`）。
 
 **划掉**：§一百一十二 末尾「**未做**：上面这条 CRLF 缺陷未修、未加用例」——本刀做完。
 
+## 第一百一十四节：推送解封 + README 顶格门禁数据换绑到 `4bc3973`（2026-10-17）
+
+**来源**：§一百一十三 末尾那句「README 门禁数不动它：它绑的是 `2d26be3` 那次 CI run，而本轮推送仍被网络层挡住、CI 读不回」。用户三次回「好的，执行吧」，按已记档偏好＝授权把「能由我发起的那一条」跑掉。
+
+**先把推送解封（三面诊断 + 一条通路）**：当场实测三面——(1) HTTPS 到 GitHub 网络本身通（`api.github.com` 200）；(2) SSH 22 端口 `Connection refused`（防火墙挡端口）；(3) SSH 443 端口（`ssh.github.com:443`）握手通但 `Permission denied (publickey)`，显式 `-i ~/.ssh/id_ed25519` 也拒 ⇒ 本机那枚公钥没在 GitHub 注册；(4) HTTPS push 侧 GCM 无凭据。**唯一没走过的那条**：允许交互的 GCM push——`$env:GIT_TERMINAL_PROMPT="1"; $env:GCM_INTERACTIVE="Auto"; git push`，当场成功：`b2da983..4bc3973  feat/plan3-interaction-and-assembly -> feat/plan3-interaction-and-assembly`（`PUSH_EXIT=0`）。`git status -sb` 随后读回不带 `ahead`（本地＝远端）。
+
+**读回 CI**：本次推送触发 run `38934635255`（`head_sha=4bc3973`，run #157）`completed / success`；job `117086913206`（作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试」）日志末行 `##[notice]` 原文为 `files=362 registered=4726 passed=4726 skipped=0 failures=0`（run 页 ID、`head_sha`、job log 均当场从 REST 读回）。私有库未认证 REST 返 404，凭据取自 GCM 存储（`git credential fill`，摘录时只打印长度、不落原文）。
+
+**两侧账**：本机 Windows 在同一棵树 `4bc3973` 上跑 `pnpm verify`，`git status --porcelain` 跑前跑后各读回 **0 条**、尾行 `VERIFY_EXIT=0`，实测 **362 文件 / 4727 passed | 2 skipped（4729 条注册）**；CI Linux 侧 4726 = 本机 4729 − 3、本机 passed 比 Linux 多 1（`+3 − 2 = +1`），与门面现役算式同形。
+
+**README 改动（换绑，不改历史叙事的事实）**：顶格两格 `2d26be3`（362 / 4721 | 2（4723））→ `4bc3973`（362 / 4727 | 2（4729））；quoted annotation 原文 `files=362 registered=4720 passed=4720` → `files=362 registered=4726 passed=4726`；现役 run 页 `38922159003` → `38934635255`；等式的 `4720 条注册 = 本机 4723 − 3` → `4726 条注册 = 本机 4729 − 3`；「文件数那一格两侧都是 362」这一句不动（两侧仍同为 362）；免责段与换绑叙事段的树与页码同步，`2d26be3`（4720）退成「上一版」叙事，`19c3065`（4687）/`83f6eaa`（4683）顺次后移。
+
+**守卫注释同步**：`tools/readme-claims.test.mjs` 那条 `EQUATIONS[6]` 的说明里「第一百一十一节再换到 `2d26be3`（4720）」补到 `4bc3973`（4726），差值「4130→4720 那 590 条」改为「4130→4726 那 596 条」（4726 − 4130 = 596，与门面那句写的是同一件事）。
+
+**口径**：README 那两个数**绑的是 CI 在 `4bc3973` 上读回的真数**（run 页 `38934635255`），不是本机推算，更不是编的。
+
+**未做**：无（§一百一十三 那条「README 不回填」至此结清；台账当前没有不依赖外部条件的未收口条目）。
+
+**门禁**：`pnpm verify` 全绿（退出码 0）；README 与守卫均过 prettier `--check`。
+
