@@ -6805,3 +6805,33 @@ equal []`）。
 
 **划掉**：§八十四 之后按双判据重排的第一格（`apps/desktop/src/renderer/src/components/DocumentPane.vue`，六份之后行数 × 提交最高的一份，已有 spec）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第八十六节：把 `LeftSidebar.vue` 这份「左栏导航壳」捕获成 spec（Archcore 第八刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §八十五 之后按双判据（近 800 行预算 × 近 90 天提交次数）往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/left-sidebar.spec.md`、3 条关联边与本段文字。
+
+**为什么下一个是它**：§八十五 落地 DocumentPane 之后，按双判据重排的下一格是 `apps/desktop/src/renderer/src/components/LeftSidebar.vue`（788 行 / 近 90 天 12 次提交），当前双判据最高的一份。它是渲染层左栏唯一的组件壳：品牌行、主操作（工作台 / 我的作品 / 功能导航四组）、文稿树（行内新建 / 行尾菜单 / 行内改名 / 章节拖拽重排）、技能库 / 插件 / 皮肤广场三枚中栏入口、低频书务入口「更多」组、底部齿轮行、导航响应对话框全在这一层；与 §八十五 的 DocumentPane 恰成左右对称的两份壳。
+
+**不是转述注释，是读源码落的**：读全篇 788 行之外，另读了六处被判「抽出去」的下游真身——`utils/side-nav.ts`（导航表 + 子项四态判定 + 各 hint 与标语）、`utils/new-doc.ts`（行内新建判定）、`utils/text-row-keydown.ts`（两个输入框共用的键盘裁决工厂）、`utils/stats-rows.ts`（统计行数据），加两份子组件壳 `LibraryNavRows.vue` / `ExtensionsNavRow.vue` 与统一出口 `SideNavNoticeDialog.vue`；另扫了两份直接针对它的用例（`left-sidebar-nav.test.ts` 八个 describe / `need-book-guard-wiring.test.ts`）的标题与断言。规范里的 invariant 与失败规则就是从这些判据抄的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 3 条关联边（指回 use-book-store spec、行数预算 rule、失败可见 rule）。正文 22 条 MUST / 8 条失败规则 / 8 条 constraint+invariant，body 98 行（spec 限 120 行）。
+
+**取舍**：
+
+- 22 条 MUST 分成四组口径：单一真身（导航表只读 `SIDE_NAV_GROUPS`、子项判定只读 `sideNavChildState`、键盘裁决只经 `textRowKeydown`、need-book 闸只经 `requireBook`）、顺序钉死（行内新建 / 改名「先读 → 再 cancel → 后落盘」、进入改名态「先关菜单 → 再 focus → 再 select」）、绑定链（工作台 active = `currentView` × `centerView` 两件同判）、结构纪律（低频入口按钮交子组件、响应留本文件；组件不写 `<style>`）。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 「同一格高亮只有一条绑定链」单独成一条 invariant：`ExtensionsNavRow` 与工作台争同一格，分两处改就会出现两枚同时亮——用户只会当成渲染坏了（用例注释里记着这个坑）。
+- need-book 闸的判据单独钉：必须读 `book.hasBook`，**不许**读 `docs.length`——那说的是「这本书还是空的」，一本刚建好还没写字的书会被误挡（原导入 TXT 就踩在这上面，`need-book-guard-wiring.test.ts` 的「反向钉」记着这条）。
+- 组合态那条也钉住：`imeOwnsKey` 闸必须排 `preventDefault` 之前，模板不许挂 `.enter.prevent`——修饰符无条件执行，组合态那一下回车拦不住，拼音会被当标题落盘。
+- 3 条关联边里多带了 `failures-must-be-visible.rule.md`：本组件的失败规则（need-book 引导、输入法放行、判定不过关给理由、拖拽错位直接返回）几乎全是那条 rule 的落点，指过去便于后人改前先读到口径。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "apps/desktop/src/renderer/src/components/LeftSidebar.vue"})`：coverage 20 / hits 18，新 spec 以 `reason:"file"` 排第 1。这条查询正是「改它之前先读什么」的那一次调用，落点是准的。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次（98 行），其余全部 `unchanged`。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§八十五 之后按双判据重排的第一格（`apps/desktop/src/renderer/src/components/LeftSidebar.vue`，当前双判据最高的一份，已有 spec）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
