@@ -406,7 +406,7 @@ export function estimateTokens(text: string): number   // Math.ceil(码点数 / 
   3. 浏览与挂入都不动当前线程的 `items`/`running`；turn 正在跑时开浏览标签**不触发打断**（Plan 2 波 A 修过的 F-2 行为，此处补保护性断言）；
   4. 「加入当前上下文」是唯一让技能进入上下文的动作，选中技能行不产生任何装配效果。
 
-## 11. 技能库只读浏览与显式挂入（波 3）
+## 11. 技能库只读浏览、显式挂入与自动推荐（波 3；自动推荐为 2026-10-17 追加）
 
 - 两个来源：全局 `<appData>/mochen-ai/skills/<名>/SKILL.md` + 书内 `.mochen/skills/<名>/SKILL.md`。
 - `fs-store` 新增纯函数（**不动 `scanBook`**——`.mochen` 被 `scan.ts:18` 跳过是既有正确行为，文稿扫描不该看见会话/备份/技能）：
@@ -431,6 +431,7 @@ frontmatter 解析复用 `fs-store/frontmatter.ts`。id 冲突时书内优先，
 - 读取安全（三条都要反向用例）：`relPath` 必须是 `<单层目录名>/SKILL.md`，文件名一字不差；解析后必须仍在该 skills 目录内（越界中文拒绝，复用 `fs-store/paths.ts` 的守卫思路）；不跟随符号链接出目录。单文件读上限 64 KB，超出 `truncated: true`。
 - 挂入：`useAgentStore` 存 `skillPathsByThread: Record<threadKey, string[]>`（内存态，重启清空并在 UI 说明）；`StartTurnInput` 加 `skillPaths: string[]`（`z.array(z.string().min(1).max(300)).max(12)`，中文拒绝句）；`buildContextPack` 把它们渲染成 `kind: "skills"` 节，技能正文读不到 ⇒ 跳过并 emit 一条 `error`「有 N 个挂入技能读不到，已跳过」（总 spec §9：失败可见，不只进日志）。
 - UI：左栏加「技能库」入口（第五类文稿 `material` 的树不动，技能不是 `BookKind`）；技能行走浏览标签只读渲染，卡脚一个「加入当前上下文」按钮 + 已挂入标记。没有编写、删除、导入按钮。
+- 自动推荐得分（2026-10-17 追加，`apps/desktop/src/renderer/src/utils/skill-pick.ts`）：上面那条「挂入是**唯一**让技能进入上下文的动作」的口径**不因此改动一个字**——本节新增的是**推荐**，不是**挂入**。`rankSkills(candidates, scene, limit, pinned)` 是纯函数、无状态、零 IPC：拿三路正信号（技能 `stage` 命中当前阶段名 +40、`appliesTo` 命中当前文稿 kind +30、指令二元字命中技能标题/说明每词 +8 且封顶 24）打分，排除已挂入的、去掉 0 分、同分按 id 升序、按 `SKILL_PATHS_MAX`（12）取前 N。**推荐不越过用户批准**：它只产出一张排序清单，真正进上下文仍只有「加入当前上下文」钮这一条路（spec §10 第 4 条）。`stage`/`appliesTo` 按 contracts 的既有声明「只作提示、不作闸门」——只当正信号，不给未命中的轴扣分。
 
 ## 12. F-4 · 磁盘路径迁移（波 3）
 
