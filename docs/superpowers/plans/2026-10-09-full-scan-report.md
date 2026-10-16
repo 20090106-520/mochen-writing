@@ -7438,3 +7438,45 @@ equal []`）。
 
 **未做**：§一百一十 记的「真机冒烟」仍未做（需 UI 环境，开着书切到技能页目检推荐随阶段 / 输入框变化）。
 
+## 第一百一十二节：推荐条真机冒烟收口 —— 随阶段 / 输入框双向变化，且推荐 ≠ 挂入（2026-10-17）
+
+**来源**：用户连续回「继续」，把 §一百一十 与 §一百一十一 末尾同记的那句「**未做**：真机冒烟（开着书、切到技能页看推荐随阶段 / 输入框变化）留待有 UI 环境时补」收口。本节只做取证，**不改任何源代码**。
+
+**怎么做的**：
+
+- 构建并起开发版真机：`corepack pnpm build`（退出 0）→ `corepack pnpm --filter @mochen/desktop exec electron . --remote-debugging-port=9222`。这是真机窗口本身，不是无头壳。
+- 取证不靠「凭记忆点按钮」：走 `--remote-debugging-port` 的 CDP，在**真实渲染页**里以 `Runtime.evaluate` 读真实 DOM 的 `section.extensions-recommend`；另以 `Page.captureScreenshot` 落一张 1440×902 的 PNG 做目检。
+- 造一份最小现场（全在仓库外、冒烟后已删）：临时书目录（`book.json` 阶段 构思 / 正文，`activeStage=draft`，三章）+ 开发版全局技能目录两枚 `SKILL.md`（`smoke-stage` 声明 `stage: 正文`；`smoke-keyword` 只在说明里带「伏笔」）。
+- 一次性取证脚本（`cdp-eval.mjs` / `cdp-shot.mjs`）放在临时目录，**未进仓库**。
+
+**逐条实测读数**（同一实例、逐个动作后读回 DOM）：
+
+| # | 动作 | 推荐条读数 |
+| --- | --- | --- |
+| 1 | 开书，`activeStage=draft`（阶段名「正文」） | 显形：「正文推进检查（冒烟件） / 阶段「正文」匹配 / 挂入」 |
+| 2 | `setActiveStage("idea")`（阶段名「构思」） | **空**（两枚技能都不命中） |
+| 3 | 切回 `draft` | 又显形，与第 1 条逐字相同 |
+| 4 | 输入框写入「帮我看看伏笔收得怎么样」 | 多出一条「smoke-keyword / 命中关键词「伏笔」「笔收」 / 挂入」 |
+| 5 | 清空输入框 | keyword 那条消失，只剩阶段那枚 |
+| 6 | 点推荐条里的「挂入」 | `skillPathsOf` 由 `[]` 变 `["global:smoke-stage"]`，推荐条随即不再列它；取下后恢复 `[]` |
+
+⇒ 用户要目检的两件事都成立：推荐条随「当前阶段」与「输入框指令」**双向**变化；第 6 条另钉住了 §一百一十 那条边界——**推荐 ≠ 挂入**，只有点「挂入」才进上下文，推荐条自己一个字都不写线程态。
+
+**截面目检**：技能库页顶部那条浅底推荐面板渲染正常（标题句 + 两枚卡各带中文理由与一颗「挂入」），左栏导航 / 中栏全库网格 / 右栏均正常，无空白或错位。
+
+**顺带撞出一条同族缺陷（不在本刀授权内，不顺手改，记下待决策）**：**CRLF 行尾的 `frontmatter` 整块认不出**。取证是同一形状只换行尾的 A/B：
+
+- `chapters/03.md`（LF，`---\ntitle: …`）⇒ 扫描读数 `title="第三章 灯下"`、`chars=17`、`excerpt` 就是正文首段。
+- `chapters/02.md`（CRLF，`---\r\ntitle: …`）⇒ `title="chapters/02.md"`（落回相对路径当标题）、`chars=32`、`excerpt="--- title: 第二章 雾港 ---"`（围栏与键值被当成了正文）。
+- 技能侧同形：`smoke-keyword/SKILL.md` 是 CRLF ⇒ `displayName` 落回目录名、`stages` / `appliesTo` 全空（截图上那张卡的说明就是它自己的 frontmatter 原文）。
+
+**根因指向**：`packages/contracts/src/frontmatter.ts` 的 `splitFrontmatter` 只认 `text.startsWith("---\n")`；CRLF 文件首行是 `---\r`，这一句立刻不成立，于是整篇被当成「没有围栏」。消费这一份的有 `scan.ts`（章节 title / excerpt / chars）、`skills.ts`（技能 name / stage / appliesTo）、`export-service.ts` 与 `epub.ts`（导出正文）。
+
+**为什么没顺手修**：这一条动的是全仓共用的围栏切分原语，而仓库对「行尾归一」另有一处**刻意的相反约定**——`packages/agent-runtime/src/apply-patch.ts:9` 明写「锚点按盘上字节逐字匹配（仓库约定 UTF-8+LF，**不做任何换行归一化**）」。要不要在切分层破这条约定，是控制方该定的口径，不在本刀授权内。**可达性**：Windows 上记事本与多数编辑器默认写 CRLF，用户把自己已有的 `.md` 稿件拷进 `chapters/` 就会撞上（章节标题变成相对路径、字数把元数据算进去、技能两路硬信号失效）。
+
+**未做**：上面这条 CRLF 缺陷未修、未加用例，作为新挂账记在此处，等控制方定夺是否在切分层归一。
+
+**测试数变动**：本刀只改文档、不动源码与用例，本机实数仍是 **362 文件 / 4721 passed | 2 skipped（4723 条注册）**；README「## 门禁」节的数**不动它**（它绑的是 `2d26be3` 那次 CI run，与本刀无关）。
+
+**门禁**：`pnpm verify` 全绿（退出码 0）。
+
