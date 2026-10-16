@@ -10,7 +10,8 @@
  * - cliche    描写套话——「嘴角勾起」「眼底闪过」这类模板化神态动作，出现 2 次起报；
  * - essay     议论腔——「众所周知」「与此同时」这类报告腔，小说里出现 1 次就报；
  * - adverb    副词滥用——「缓缓」「微微」不是错词，堆多了才是机器味，5 次起报；
- * - cognitive 认知转述——「他知道，……」「她明白，这不是……」句式，3 次起报。
+ * - cognitive 认知转述——「他知道，……」「她明白，这不是……」句式，3 次起报；
+ * - 结构级两类（复用 essay 类别、阈值另设）——不是A，是B 式升华对偶 3 次起报、章末总结体 1 次起报。
  *
  * 已知重叠：套话里含副词（「嘴角微微上扬」同时命中「微微」）会各计一次，
  * 是可接受的启发式误差——两处都值得作者看一眼。
@@ -115,6 +116,35 @@ export const AI_FLAVOR_COGNITIVE_PATTERN =
 /** 界面与报告里认知转述条目的显示名（它不是一个固定词，报的是句式）。 */
 export const AI_FLAVOR_COGNITIVE_LABEL = "他知道，/她明白，式转述";
 
+/**
+ * 结构级机器味的两类（2026-10-16，与生成端 DE_AI_FLAVOR_STRUCTURE_INSTRUCTION 同一批）：
+ * 词库管「用词」、认知转述管「句式」，这两类管**结构**——生成端那一节的 ③（不是A，是B 升华对偶）
+ * 与 ⑥（章末四禁）在扫描端此前没有判据，写的时候拦一道、写完扫的却是另一份，这条不变量被拉开了。
+ * 补这两条把它接回去；破折号、否定排比、明喻密度那些要读整章上下文才判得准的，
+ * 留给体检的人工判读，不硬上正则。
+ *
+ * 类别沿用 "essay"（议论腔）：它们是「替读者下结论」的同一族毛病；单开类别会牵动
+ * 体检分类标签与界面筛选，收益不抵票据。条目的**显示名**自成一目（见下面两个 LABEL），
+ * 报告里一眼分得清是哪一类结构问题。
+ */
+export const AI_FLAVOR_ANTITHESIS_PATTERN = /不是[^，。！？；]{1,24}[，。；]?\s*(?:而)?是/g;
+/** 升华对偶的显示名（它不是一个固定词，报的是句式）。 */
+export const AI_FLAVOR_ANTITHESIS_LABEL = "不是A，是B 式升华对偶";
+export const AI_FLAVOR_TAILCLAUSE_PATTERN =
+  /(?:他终于(?:明白|懂了|想通)|这一夜[，,]?\s*注定|人生就是这样|人生就是如此|注定无人入眠|他不知道的是|更大的风暴)/g;
+/** 章末总结体／升华／伏笔预告的显示名（同上，按句式计）。 */
+export const AI_FLAVOR_TAILCLAUSE_LABEL = "章末总结体／升华／伏笔预告";
+
+/**
+ * 结构级两类的起报阈值：只对这两个模式的条目生效——升华对偶偶一用是修辞、3 次起才是机器味，
+ * 章末总结体一章就一个结尾、出现 1 次已经是章末那股腔；其余条目照旧走 MIN_COUNT[category]。
+ * 阈值只有体检（analyzeAiFlavor）用；退稿闸不计阈值，全量计入，但**名目与体检同一批**。
+ */
+export const AI_FLAVOR_STRUCTURE_MIN_COUNT: Record<string, number> = {
+  [AI_FLAVOR_ANTITHESIS_LABEL]: 3,
+  [AI_FLAVOR_TAILCLAUSE_LABEL]: 1
+};
+
 export const AI_FLAVOR_CATEGORY_LABELS: Record<AiFlavorCategory, string> = {
   cliche: "描写套话",
   essay: "议论腔",
@@ -196,7 +226,7 @@ function sentencesOf(content: string): string[] {
 
 /**
  * 全书 AI 味扫描。contents 是全书各篇正文（按文档顺序，docIndex 语义与其对齐）。
- * 词命中用 indexOf 数遍（词都是纯中文短串，逐行扫足够快）；认知转述按正则计；
+ * 词命中用 indexOf 数遍（词都是纯中文短串，逐行扫足够快）；认知转述与结构级两类按正则计；
  * 每个词第一次命中时顺手记下位置——体检条目要能点回原文。
  */
 export function analyzeAiFlavor(contents: string[]): AiFlavorReport {
@@ -231,10 +261,18 @@ export function analyzeAiFlavor(contents: string[]): AiFlavorReport {
         }
         if (hits > 0) record(term, category, hits, where);
       }
-      // 认知转述：String.match(带 g) 每次调用都是全新状态，没有 lastIndex 串行坑。
+      // 认知转述与结构级两类：String.match(带 g) 每次调用都是全新状态，没有 lastIndex 串行坑。
       const cognitiveHits = line.match(AI_FLAVOR_COGNITIVE_PATTERN);
       if (cognitiveHits !== null) {
         record(AI_FLAVOR_COGNITIVE_LABEL, "cognitive", cognitiveHits.length, where);
+      }
+      const antithesisHits = line.match(AI_FLAVOR_ANTITHESIS_PATTERN);
+      if (antithesisHits !== null) {
+        record(AI_FLAVOR_ANTITHESIS_LABEL, "essay", antithesisHits.length, where);
+      }
+      const tailHits = line.match(AI_FLAVOR_TAILCLAUSE_PATTERN);
+      if (tailHits !== null) {
+        record(AI_FLAVOR_TAILCLAUSE_LABEL, "essay", tailHits.length, where);
       }
     }
   }
@@ -242,7 +280,9 @@ export function analyzeAiFlavor(contents: string[]): AiFlavorReport {
   const entries: AiFlavorEntry[] = [];
   for (const [term, count] of counts) {
     const category = categories.get(term) ?? "cliche";
-    if (count < MIN_COUNT[category]) continue;
+    // 阈值走结构级专项表：这两类结构味的起报线不跟 essay 的 1 次走；其余照旧 MIN_COUNT。
+    const threshold = AI_FLAVOR_STRUCTURE_MIN_COUNT[term] ?? MIN_COUNT[category];
+    if (count < threshold) continue;
     entries.push({
       term,
       category,
@@ -300,7 +340,7 @@ export const AI_FLAVOR_GATE = {
 
 export interface AiFlavorGateVerdict {
   pass: boolean;
-  /** 重罪命中数（描写套话 + 议论腔 + 认知转述；副词不算——太常见，不是死罪）。 */
+  /** 重罪命中数（描写套话 + 议论腔 + 认知转述 + 结构级两类；副词不算——太常见，不是死罪）。 */
   hits: number;
   perThousand: number;
   charCount: number;
@@ -320,8 +360,8 @@ export interface AiFlavorGateVerdict {
 }
 
 /**
- * 对一篇（或一段）新增正文做退稿判定。与 analyzeAiFlavor 同一份词表
- * （AI_FLAVOR_TERMS + 认知转述正则），不抄第二份；不计入报告上限——闸要看全量。
+ * 对一篇（或一段）新增正文做退稿判定。与 analyzeAiFlavor 同一份判据
+ * （AI_FLAVOR_TERMS + 认知转述/结构级正则），不抄第二份；不计入报告上限——闸要看全量。
  * 短于 minChars 的文本直接放行：样本太少，密度失真。
  */
 export function aiFlavorGate(text: string): AiFlavorGateVerdict {
@@ -341,9 +381,13 @@ export function aiFlavorGate(text: string): AiFlavorGateVerdict {
     }
     bump(term, hits);
   }
-  // 认知转述：String.match(带 g) 每次调用都是全新状态，没有 lastIndex 串行坑。
+  // 认知转述与结构级两类：String.match(带 g) 每次调用都是全新状态，没有 lastIndex 串行坑。
   const cognitive = text.match(AI_FLAVOR_COGNITIVE_PATTERN);
   bump(AI_FLAVOR_COGNITIVE_LABEL, cognitive?.length ?? 0);
+  const antithesis = text.match(AI_FLAVOR_ANTITHESIS_PATTERN);
+  bump(AI_FLAVOR_ANTITHESIS_LABEL, antithesis?.length ?? 0);
+  const tail = text.match(AI_FLAVOR_TAILCLAUSE_PATTERN);
+  bump(AI_FLAVOR_TAILCLAUSE_LABEL, tail?.length ?? 0);
 
   const charCount = text.length;
   const hits = [...counts.values()].reduce((sum, n) => sum + n, 0);

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  AI_FLAVOR_ANTITHESIS_LABEL,
   AI_FLAVOR_CATEGORY_LABELS,
   AI_FLAVOR_COGNITIVE_LABEL,
+  AI_FLAVOR_TAILCLAUSE_LABEL,
   AI_FLAVOR_TERMS,
   aiFlavorGate,
   textSimilarity,
@@ -96,6 +98,31 @@ describe("ai-flavor · analyzeAiFlavor", () => {
     expect(d.entries.map((entry) => entry.term)).not.toContain(AI_FLAVOR_COGNITIVE_LABEL);
   });
 
+  it("结构级两类：『不是A，是B 式升华对偶』3 次起报，「章末总结体」1 次起报（2026-10-16，与生成端同一批）", () => {
+    // 生成端 DE_AI_FLAVOR_STRUCTURE_INSTRUCTION 写了「禁不是A，是B 式升华对偶」与「章末四禁」，
+    // 扫描端此前没有对应判据——写的时候拦一道、写完扫的却是另一份。这两条把它接回来。
+    const antithesis = analyzeFlavorWithRepeat("他不是来偷东西的，是来灭灯的。\n", 3);
+    const antithesisEntry = antithesis.entries.find(
+      (entry) => entry.term === AI_FLAVOR_ANTITHESIS_LABEL
+    )!;
+    expect(antithesisEntry.count).toBe(3);
+    // 类别沿用「议论腔」（替读者下结论的同一族毛病），显示名自成一目。
+    expect(antithesisEntry.category).toBe("essay");
+    expect(antithesisEntry.first.line).toBe(1);
+    // 阈值不跟 essay 的 1 次走：偶一用是修辞，3 次起才是机器味。
+    const short = analyzeFlavorWithRepeat("他不是来偷东西的，是来灭灯的。\n", 2);
+    expect(short.entries.map((entry) => entry.term)).not.toContain(AI_FLAVOR_ANTITHESIS_LABEL);
+
+    // 章末总结体：一章一个结尾，出现 1 次就已经是章末那股腔。
+    const tail = analyzeAiFlavor(["他关上门。这一夜，注定无人入眠。\n"]);
+    const tailEntry = tail.entries.find((entry) => entry.term === AI_FLAVOR_TAILCLAUSE_LABEL)!;
+    expect(tailEntry.count).toBe(1);
+    expect(tailEntry.category).toBe("essay");
+    // 反例：正常的「他忽然想起」不是章末总结体，不误伤。
+    const clean = analyzeAiFlavor(["他忽然想起白天那句闲话。\n"]);
+    expect(clean.entries.map((entry) => entry.term)).not.toContain(AI_FLAVOR_TAILCLAUSE_LABEL);
+  });
+
   it("密度按千字计；句长均值与波动要够 10 句才算，样本不足回 null 不编数", () => {
     const body = "他嘴角勾起一抹笑。".repeat(6); // 每句 9 字（含句号），共 6 句
     const report = analyzeAiFlavor([body]);
@@ -175,6 +202,20 @@ describe("ai-flavor · aiFlavorGate 自动退稿闸", () => {
     expect(verdict.startRepeat).toBeNull();
     expect(verdict.flatRhythm).toBeNull();
     expect(verdict.pass).toBe(true);
+  });
+
+  it("结构级两类也进闸：『不是A，是B 升华对偶』与『章末总结体』（2026-10-16，与体检同一批正则）", () => {
+    // 与 analyzeAiFlavor 同一份正则、同一批 label——闸不抄第二份判据。
+    const text = (
+      "他不是来偷东西的，是来灭灯的。" +
+      "船在雾里靠岸。" +
+      "这一夜，注定无人入眠。"
+    ).repeat(8);
+    const verdict = aiFlavorGate(text);
+    const terms = verdict.topTerms.join("、");
+    expect(terms).toContain(AI_FLAVOR_ANTITHESIS_LABEL);
+    expect(terms).toContain(AI_FLAVOR_TAILCLAUSE_LABEL);
+    expect(verdict.pass).toBe(false);
   });
 });
 
