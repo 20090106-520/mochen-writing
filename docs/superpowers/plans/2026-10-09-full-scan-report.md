@@ -6835,3 +6835,34 @@ equal []`）。
 
 **划掉**：§八十五 之后按双判据重排的第一格（`apps/desktop/src/renderer/src/components/LeftSidebar.vue`，当前双判据最高的一份，已有 spec）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第八十七节：把 `main/index.ts` 这份「主进程装配层」捕获成 spec（Archcore 第九刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §八十六 之后按双判据（近 800 行预算 × 近 90 天提交次数）往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/main-entry.spec.md`、3 条关联边与本段文字。
+
+**为什么下一个是它**：§八十六 落地 LeftSidebar 之后，按双判据重排的下一格是 `apps/desktop/src/main/index.ts`（595 行 / 近 90 天 17 次提交）——渲染层两份壳（DocumentPane / LeftSidebar）清完之后剩下的行数 × 提交最高的一份，也是主进程侧唯一一处碰 Electron 的装配层。它把 §八十／§八十一 两份契约（通道契约、agent 编排）的「注册点」串起来，与 §七十九 init 时那份 `entry-points.doc.md` 恰成「入口清单」与「入口装配口径」两份。
+
+**不是转述注释，是读源码落的**：读全篇 595 行之外，另读了六处被判「抽出去」的判据真身——`ipc-guard.ts`（`resolveRendererLoad` / `installRendererTrust` / `installWindowGuards` / `senderTrustVerdict` / 形状闸）、`channel-trust.ts`（`IPC_TRUST_LEVELS` / `channelTrustVerdict` / `installChannelTrustDeps` 的 fail-closed 口径）、`crash-guard.ts`（`installCrashGuard` 三规矩）、`quit-flush.ts`（`installQuitFlush` 三规矩与 `waiting` / `released` 状态机）、`app-dirs.ts`（`resolveAppDataDir` 两态 + `devSeedNotice`）；另扫了四份直接针对它的源码契约用例（`ipc-guard-coverage.test.ts` 的四问、`quit-flush-close-arm.test.ts` 的七条接线断言、`window-min-size.test.ts` 的五条地板断言、`window-guards.test.ts` 的 will-navigate / setWindowOpenHandler / trust 三组）的标题与断言。规范里的 invariant 与失败规则就是从这些判据抄的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 3 条关联边（指回 ipc-guard spec、行数预算 rule、失败可见 rule）。正文 20 条 MUST / 8 条失败规则 / 6 条 constraint+invariant，body 80 行（spec 限 120 行）。
+
+**取舍**：
+
+- 20 条 MUST 分成四组口径：单一装配层（碰 Electron 只此一处、判定与文案一律不住这里）、顺序钉死（crash-guard 在 whenReady **之前**、迁移在建 store **之前**、retention 读在建 BookService **之前**、外观读在建窗口 **之前**、seedBuiltinPlugins 在 mountAll **之前**、通道授权在 loadURL/loadFile **之前**）、一次算完（`resolveRendererLoad` 同时给出「加载哪」与 trust；`appendCrashLine` 是诊断件唯一落点）、接线纪律（每条通道一律经闸包装、退出握手两事件交同一 handler、`() => service.current()` 每次现取不拍快照）。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 「加载哪份页面」与「谁算自己人」是同一份输出，单独成一条 invariant：分两处写就会出现「加载的是 env 那条、判据认的是 index.html」这种对不上的错装——`resolveRendererLoad` 把两面合成一个函数就是这个理由。
+- 「退出握手两事件交同一 handler」单独钉：Windows 上用户「点关闭」只走 `win` 的 `close`，`app.quit()` 会重发 `before-quit`；分两处接线就会「只挂 before-quit ⇒ 点关闭时没人拦 ⇒ 稿子跟窗口一起没」，或「放行那次还拦 ⇒ quit 拦 quit 死循环」。这条是真机探针（`scratch/quit-order-probe/`）量出来的，`quit-flush-close-arm.test.ts` 逐条钉住。
+- 「唯一一扇窗」单独成 constraint：`new BrowserWindow` 只此一处 ⇒ 无 `window-all-closed` 兜底、`setWindowOpenHandler` 一律 deny、没有第二条 `.destroy()` 绕过 close 的路；给不会发生的场景加通路就是本仓反复清理的那类假控件。
+- `sandbox: false` 那条写进 MUST 而不是失败规则：它是**本机开不了**的判定（`sandbox:true` 下 GPU 连环崩、渲染进程挂死，对照实验两轮），防御由 contextIsolation / nodeIntegration:false / 双窗口闸 / 来源校验 / CSP 承担——后人「顺手把它打开」会把应用改成渲染不出界面。
+- 3 条关联边里指向 `ipc-guard.spec.md`（index.ts 正是它的装配点）与 `failures-must-be-visible.rule.md`（本文件的失败规则＝崩溃钩子 / 退出握手 / kept-old / 插件装不上，几乎全是那条 rule 的落点）；同时未经手 `channel-trust` 另立 spec——它的判据已在 §七十九 的 `ipc-channel-trust-tiers.adr.md` 与 `ipc-guard.spec.md` 覆盖，本刀只从装配层这一面提「查询器齐了才装」这条 MUST。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "apps/desktop/src/main/index.ts"})`：coverage 21 / hits 19，新 spec 以 `reason:"file"` 命中；**位次第 2**（第 1 是 `ipc-guard.spec.md`——index.ts 正是它的装配点，这条命中说得通，不是落点跑偏）。`get_document` 回读 `outgoing_relations` 三条齐（ipc-guard spec / 行数预算 rule / 失败可见 rule，全 `related`）。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次（80 行），其余全部 `unchanged`；`prettier --check` 该 spec 单文件也 `All matched files use Prettier code style`。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§八十六 之后按双判据重排的第一格（`apps/desktop/src/main/index.ts`，渲染层两份壳清完之后行数 × 提交最高的一份，已有 spec）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
