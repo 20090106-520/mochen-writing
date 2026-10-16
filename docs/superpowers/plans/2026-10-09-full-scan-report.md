@@ -6896,3 +6896,33 @@ equal []`）。
 
 **划掉**：§八十七 之后按双判据重排的第一格（`apps/desktop/src/renderer/src/stores/layoutStore.ts`，主进程侧清完之后行数 × 提交最高的一份，已有 spec）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第八十九节：把 `provider.ts` 这份「供应商契约面」捕获成 spec（Archcore 第十一刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §八十八 之后按双判据（近 800 行预算 × 近 90 天提交次数）往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/provider-contract.spec.md`、4 条关联边与本段文字。
+
+**为什么下一个是它**：§八十八 落地 layoutStore 之后，本刀**先把候选池重排了一遍**（§八十五 起的四刀是靠「行数 × 提交」挑的，但当时没有把池子写下来，于是先落一次口径）：取「≥600 行、尚无 spec」的源文件，按 `行数 × 近 90 天提交次数` 排序，池里最高的是 `packages/contracts/src/provider.ts`（647 行 / 6 次提交）——其后依次是 `SearchPanel.vue`（611 / 5）、`NotesPanel.vue`（717 / 3）、`OutlinePanel.vue`（697 / 3）、`ExportDialog.vue`（653 / 3）。顺带量到一条**池外**的：`CenterColumn.vue` 只有 476 行却有 **32 次**提交（全仓 90 天内提交最多的文件），但按「贴 800 行预算」这一半判据它不够格，本刀不动它，登记在这里备查。本刀落在 provider.ts：它与 §八十 那份 `contracts/ipc.ts` 并列，是「契约层两块面」的第二块——通道契约管**怎么收**，供应商契约管**模型怎么连**。
+
+**不是转述注释，是读源码落的**：读全篇 647 行之外，另读了它的下游真身——`main/provider-settings.ts`（读 config.json、跑 `migrateProviderStore`、装配密钥的落盘侧）与 `main/provider-models.ts` / `provider-fetch.ts`（拉名单与出网两侧）以及 `packages/agent-runtime/src/provider-client.ts`（只 import 类型的消费方）；另扫了五份直接针对它的用例（`packages/contracts/test/provider-presets.test.ts` 的三组共 28 条、`main/provider-models.test.ts` 的 `authHeadersOf` / `resolveModelListTarget` / `networkFailureOf` / 密钥不出门四组、`model-profile-dialog-wiring.test.ts`、`composer-model-chip-wiring.test.ts`、`ollama-local-provider.test.ts`）的标题与断言。规范里的 invariant 与失败规则就是从这些判据抄的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 4 条关联边（指回通道契约 spec、出网字段单份映射 rule、行数预算 rule、失败可见 rule）。正文 23 条 MUST / 7 条失败规则 / 6 条 constraint+invariant，body 96 行（spec 限 120 行）。
+
+**取舍**：
+
+- 23 条 MUST 分成四组口径：唯一真身（形状只有本文件一份、密钥头读连接自己的 `authHeader`、最高档思考读 `THINKING_WIRE_TOP_VALUE`、掩码只经 `maskApiKey`）、两代分工（保存口收紧正则 / 读取口保持宽松、外键完整性放 schema 最后关卡）、不猜不乱兜（认不出回 `custom`、没有 `models` 出处给空数组、地址解析不出退通用名都不抛）、迁移三态（v1/v2/v3 + 固定 `legacy` id + 档案 id 不变）。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 「读旧存档必须带 `.default`」这条写进 MUST 而不是失败规则：它是**能不能升级**的问题——2026-10-09 前存的每份 config.json 都没 `thinkingWire`，schema 不给默认值就会让用户所有的连接整份读不出来、界面变成「还没有模型」而他明明配过；这类「静默假死」是本仓最贵的一类错。
+- 「保存口收紧 / 读取口宽松」这一对分工单独成条（MUST 3 + 失败规则 7）：2026-10-14 审计把新配置的地址收紧到 https 或本机回环 http，但**不能**顺手动读取路径——收紧读取会把老 store 整份判坏（老存档里就有任意 http 地址），出网那头另有闸兜底。
+- 「认不出来必须带出密钥头」这一族（MUST 10 / 15 / 16）单独拆三处：MiMo 只认 `api-key` 头、Agnes 只认 `xhigh` 这档，两个都是「选了它就永远 401 / 整笔 400」的死法，且都是「能切供应商 / 能调思考档」这个新能力带来的新坑。规范把「识别的结果必须带上这两样」钉住——只给名字不算认出来。
+- 4 条关联边里多带了 `outbound-field-single-mapping.rule.md`（`authHeader` / `thinkingWire` 正是那条 rule 的两个实例：同一个入站值怎么映射到出网字段只许有一份真身）与 `ipc-channel-contract.spec.md`（`provider:verify` / `provider:list-models` / `provider:save` 三条通道的载荷形状就是本文件这几组 schema）。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "packages/contracts/src/provider.ts"})`：coverage 23 / hits 9，新 spec 以 `reason:"file"` **排第 1**（其后是通道契约 spec、栈规则、顶层图 doc）。`get_document` 回读 `outgoing_relations` 四条齐（通道契约 spec / 出网字段映射 rule / 行数预算 rule / 失败可见 rule，全 `related`）。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次（96 行），其余全部 `unchanged`。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§八十八 之后按双判据（≥600 行池）重排的第一格（`packages/contracts/src/provider.ts`，池里分数最高的一份，已有 spec）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
