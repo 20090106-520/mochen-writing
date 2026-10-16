@@ -7202,4 +7202,22 @@ equal []`）。
 
 **仍未动手**：README 顶格回填（§九十七 已裁定阻断，待授权推送）；§九十五 三份贴顶文件（`DocumentPane.vue` 800 / `useBookStore.ts` 800 / `agent-service.ts` 799）复核后判「不共享状态」不成立，§九十五 结论是「真撞顶时接受放置」；下一次若再要拆，候选是 `web-search.ts`（796）/ `useAgentStore.ts`（791）/ `LeftSidebar.vue`（789）。
 
+## 第一百节：剩余三份贴顶候选逐个复核——web-search / useAgentStore / LeftSidebar（2026-10-16）
+
+**来源**：用户「继续按台账处理剩余文件」。§九十九 记的「下一次若再要拆」候选三份，逐个按 §九十五 的双判据（① 存在不共享状态的整块；② 拆解收益 > 新耦合代价）复核。
+
+**结论：三份都不该拆，接受放置（与 §九十五 同判）。** 逐份取证：
+
+1. **`apps/desktop/src/main/web-search.ts`（796 / 800）** —— 看着最该拆：三大解析器（`parseDuckDuckGoHtml` / `parseSo360Html` / `parseBingHtml`）加几枚纯词法辅助（`decodeEntities` / `stripTags` / `cleanSnippet` / `attr` / `truncateSnippet` / `unwrapDdgHref` / `LANDING_CARD_MARKERS`）确是不共享状态的整块，搬去 `web-search-parsers.ts` 可把本文件压到约 540 行。**但代价面太宽**：五个主进程用例（`web-search.test.ts` / `web-search-bing.test.ts` / `web-search-second.test.ts` / `web-search-body-timeout.test.ts` / `doc-tools-host.test.ts`）逐个 `import … from "./web-search.js"` 那些符号，两个渲染层源码契约用例（`utils/timeline.test.ts` 读 `main/web-search.ts` 取 `WEB_SEARCH_RESULTS_LIMIT`、`components/web-source-wiring.test.ts` 读同一份源）按**文件路径**钉字面量——搬迁要同时改七处 import / 路径，且这份 spec 的 Constraint 明写「只读工具、单文件自足」。净收益（省一个还没撞的闸）小于连带改动的风险 ⇒ 放置。
+2. **`apps/desktop/src/renderer/src/stores/useAgentStore.ts`（791 / 800）** —— 单枚 `defineStore("agent")`，整份就是一枚共享状态中心；与 §九十五 判掉的 `useBookStore.ts` **同族**（Pinia store 的每块 getter / action 都读写同一份 state），「不共享状态」判据天然不成立 ⇒ 放置。
+3. **`apps/desktop/src/renderer/src/components/LeftSidebar.vue`（789 / 800）** —— 早已重度拆过：`utils/stats-rows`、`components/need-book-guard-wiring.test.ts` 钉的那道闸、`createTransientScrollbarController`（`sidebarScrollbar`，L90）、导航树形状等可复用的判据都已搬出，留在组件里的全是**只对这一个组件有意义**的响应式状态（`sections` / `openGroups` / `addingKind` / `renamingPath` / `actionMenuFor` …）——无一满足「不共享状态且被第二处复用」⇒ 放置。
+
+**顺带收口「≥600 行池」**：按官方口径（`tools/check-source-line-budget.mjs` 的 ROOTS）重扫，≥600 行**非测试**源文件共 **17** 份；除 `apps/desktop/scripts/gen-scene-svgs.mjs`（664）外**每份都有对应 spec**。那一份是构建脚本、已在 `architecture/entry-points.doc.md` 与 `top-level-map.doc.md` 登记（脚本按 entry-point 归档，不立 spec），故不构成覆盖空洞——**≥600 行池至此确实清空**。
+
+**测试数变动**：359 文件 4684 passed | 2 skipped → **不变**（本刀纯台账，无产品代码改动）。
+**门禁**：`pnpm verify` 全绿（退出码 0）。
+
+**仍未动手**：README 顶格回填（§九十七 已裁定阻断，待授权推送）——这是台账里**唯一**还剩的一条，且卡在外部条件（授权推送 + 从 CI run 读回出处）上；其余条目本轮已全部收口。
+
+
 
