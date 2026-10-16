@@ -11,7 +11,8 @@
  * - essay     议论腔——「众所周知」「与此同时」这类报告腔，小说里出现 1 次就报；
  * - adverb    副词滥用——「缓缓」「微微」不是错词，堆多了才是机器味，5 次起报；
  * - cognitive 认知转述——「他知道，……」「她明白，这不是……」句式，3 次起报；
- * - 结构级两类（复用 essay 类别、阈值另设）——不是A，是B 式升华对偶 3 次起报、章末总结体 1 次起报。
+ * - 结构级三类（复用 essay 类别、阈值另设）——不是A，是B 式升华对偶 3 次起报、章末总结体 1 次起报、
+ *   「声音不大，却……」反差模板 2 次起报。
  *
  * 已知重叠：套话里含副词（「嘴角微微上扬」同时命中「微微」）会各计一次，
  * 是可接受的启发式误差——两处都值得作者看一眼。
@@ -117,14 +118,14 @@ export const AI_FLAVOR_COGNITIVE_PATTERN =
 export const AI_FLAVOR_COGNITIVE_LABEL = "他知道，/她明白，式转述";
 
 /**
- * 结构级机器味的两类（2026-10-16，与生成端 DE_AI_FLAVOR_STRUCTURE_INSTRUCTION 同一批）：
- * 词库管「用词」、认知转述管「句式」，这两类管**结构**——生成端那一节的 ③（不是A，是B 升华对偶）
- * 与 ⑥（章末四禁）在扫描端此前没有判据，写的时候拦一道、写完扫的却是另一份，这条不变量被拉开了。
- * 补这两条把它接回去；破折号、否定排比、明喻密度那些要读整章上下文才判得准的，
+ * 结构级机器味的三类（2026-10-16，与生成端 DE_AI_FLAVOR_STRUCTURE_INSTRUCTION 同一批）：
+ * 词库管「用词」、认知转述管「句式」，这三类管**结构**——生成端那一节的 ③（不是A，是B 升华对偶）、
+ * ⑥（章末四禁）与 ⑨（反差模板）在扫描端此前没有判据，写的时候拦一道、写完扫的却是另一份，这条不变量被拉开了。
+ * 补这三条把它接回去；破折号、否定排比、明喻密度那些要读整章上下文才判得准的，
  * 留给体检的人工判读，不硬上正则。
  *
  * 类别沿用 "essay"（议论腔）：它们是「替读者下结论」的同一族毛病；单开类别会牵动
- * 体检分类标签与界面筛选，收益不抵票据。条目的**显示名**自成一目（见下面两个 LABEL），
+ * 体检分类标签与界面筛选，收益不抵票据。条目的**显示名**自成一目（见下面三个 LABEL），
  * 报告里一眼分得清是哪一类结构问题。
  */
 export const AI_FLAVOR_ANTITHESIS_PATTERN = /不是[^，。！？；]{1,24}[，。；]?\s*(?:而)?是/g;
@@ -134,15 +135,26 @@ export const AI_FLAVOR_TAILCLAUSE_PATTERN =
   /(?:他终于(?:明白|懂了|想通)|这一夜[，,]?\s*注定|人生就是这样|人生就是如此|注定无人入眠|他不知道的是|更大的风暴)/g;
 /** 章末总结体／升华／伏笔预告的显示名（同上，按句式计）。 */
 export const AI_FLAVOR_TAILCLAUSE_LABEL = "章末总结体／升华／伏笔预告";
+/**
+ * 「声音不大，却……」反差模板（2026-10-16 §一百零七）：deslop 技能自己写着
+ * 「这一句几乎是 AI 的指纹」，§一百零四 折了它五条里的四条却没折到这一条。
+ * 反差本身是好手法，露馅的是「某属性不显著 → 却做出显著结果」这个固定转折句式。
+ */
+export const AI_FLAVOR_CONTRAST_PATTERN =
+  /(?:声音|语气|语调|嗓音|口气)(?:不大|不高|不重|很轻|很低|平静|平淡)[，,]?\s*却/g;
+/** 反差模板的显示名（同上，按句式计）。 */
+export const AI_FLAVOR_CONTRAST_LABEL = "「声音不大，却……」反差模板";
 
 /**
- * 结构级两类的起报阈值：只对这两个模式的条目生效——升华对偶偶一用是修辞、3 次起才是机器味，
- * 章末总结体一章就一个结尾、出现 1 次已经是章末那股腔；其余条目照旧走 MIN_COUNT[category]。
+ * 结构级三类的起报阈值：只对这几个模式的条目生效——升华对偶偶一用是修辞、3 次起才是机器味，
+ * 章末总结体一章就一个结尾、出现 1 次已经是章末那股腔，反差模板翻两句就露馅、2 次起；
+ * 其余条目照旧走 MIN_COUNT[category]。
  * 阈值只有体检（analyzeAiFlavor）用；退稿闸不计阈值，全量计入，但**名目与体检同一批**。
  */
 export const AI_FLAVOR_STRUCTURE_MIN_COUNT: Record<string, number> = {
   [AI_FLAVOR_ANTITHESIS_LABEL]: 3,
-  [AI_FLAVOR_TAILCLAUSE_LABEL]: 1
+  [AI_FLAVOR_TAILCLAUSE_LABEL]: 1,
+  [AI_FLAVOR_CONTRAST_LABEL]: 2
 };
 
 export const AI_FLAVOR_CATEGORY_LABELS: Record<AiFlavorCategory, string> = {
@@ -226,7 +238,7 @@ function sentencesOf(content: string): string[] {
 
 /**
  * 全书 AI 味扫描。contents 是全书各篇正文（按文档顺序，docIndex 语义与其对齐）。
- * 词命中用 indexOf 数遍（词都是纯中文短串，逐行扫足够快）；认知转述与结构级两类按正则计；
+ * 词命中用 indexOf 数遍（词都是纯中文短串，逐行扫足够快）；认知转述与结构级三类按正则计；
  * 每个词第一次命中时顺手记下位置——体检条目要能点回原文。
  */
 export function analyzeAiFlavor(contents: string[]): AiFlavorReport {
@@ -273,6 +285,10 @@ export function analyzeAiFlavor(contents: string[]): AiFlavorReport {
       const tailHits = line.match(AI_FLAVOR_TAILCLAUSE_PATTERN);
       if (tailHits !== null) {
         record(AI_FLAVOR_TAILCLAUSE_LABEL, "essay", tailHits.length, where);
+      }
+      const contrastHits = line.match(AI_FLAVOR_CONTRAST_PATTERN);
+      if (contrastHits !== null) {
+        record(AI_FLAVOR_CONTRAST_LABEL, "essay", contrastHits.length, where);
       }
     }
   }
@@ -340,7 +356,7 @@ export const AI_FLAVOR_GATE = {
 
 export interface AiFlavorGateVerdict {
   pass: boolean;
-  /** 重罪命中数（描写套话 + 议论腔 + 认知转述 + 结构级两类；副词不算——太常见，不是死罪）。 */
+  /** 重罪命中数（描写套话 + 议论腔 + 认知转述 + 结构级三类；副词不算——太常见，不是死罪）。 */
   hits: number;
   perThousand: number;
   charCount: number;
@@ -388,6 +404,8 @@ export function aiFlavorGate(text: string): AiFlavorGateVerdict {
   bump(AI_FLAVOR_ANTITHESIS_LABEL, antithesis?.length ?? 0);
   const tail = text.match(AI_FLAVOR_TAILCLAUSE_PATTERN);
   bump(AI_FLAVOR_TAILCLAUSE_LABEL, tail?.length ?? 0);
+  const contrast = text.match(AI_FLAVOR_CONTRAST_PATTERN);
+  bump(AI_FLAVOR_CONTRAST_LABEL, contrast?.length ?? 0);
 
   const charCount = text.length;
   const hits = [...counts.values()].reduce((sum, n) => sum + n, 0);

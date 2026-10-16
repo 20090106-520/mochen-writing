@@ -3,6 +3,7 @@ import {
   AI_FLAVOR_ANTITHESIS_LABEL,
   AI_FLAVOR_CATEGORY_LABELS,
   AI_FLAVOR_COGNITIVE_LABEL,
+  AI_FLAVOR_CONTRAST_LABEL,
   AI_FLAVOR_TAILCLAUSE_LABEL,
   AI_FLAVOR_TERMS,
   aiFlavorGate,
@@ -123,6 +124,22 @@ describe("ai-flavor · analyzeAiFlavor", () => {
     expect(clean.entries.map((entry) => entry.term)).not.toContain(AI_FLAVOR_TAILCLAUSE_LABEL);
   });
 
+  it("反差模板：『声音不大，却』2 次起报（2026-10-16，补 deslop 未融合的那一条）", () => {
+    // §一百零四 折了 deslop 五条里的四条，把它自己写着「几乎是 AI 的指纹」的
+    // 「声音不大，却……」反差模板漏在外面；本刀补上。
+    const a = analyzeFlavorWithRepeat("他声音不大，却压住了整个屋子。\n", 2);
+    const entry = a.entries.find((e) => e.term === AI_FLAVOR_CONTRAST_LABEL)!;
+    expect(entry.count).toBe(2);
+    expect(entry.category).toBe("essay");
+    expect(entry.first.line).toBe(1);
+    // 偶一用是修辞，不到 2 次不报。
+    const once = analyzeFlavorWithRepeat("他声音不大，却压住了整个屋子。\n", 1);
+    expect(once.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_CONTRAST_LABEL);
+    // 反例：没有「却」的反差写法不该被误伤。
+    const plain = analyzeFlavorWithRepeat("他声音不大，压住了整个屋子。\n", 3);
+    expect(plain.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_CONTRAST_LABEL);
+  });
+
   it("密度按千字计；句长均值与波动要够 10 句才算，样本不足回 null 不编数", () => {
     const body = "他嘴角勾起一抹笑。".repeat(6); // 每句 9 字（含句号），共 6 句
     const report = analyzeAiFlavor([body]);
@@ -216,6 +233,12 @@ describe("ai-flavor · aiFlavorGate 自动退稿闸", () => {
     expect(terms).toContain(AI_FLAVOR_ANTITHESIS_LABEL);
     expect(terms).toContain(AI_FLAVOR_TAILCLAUSE_LABEL);
     expect(verdict.pass).toBe(false);
+  });
+
+  it("反差模板也进闸（与体检同一批正则，2026-10-16）", () => {
+    const text = ("他声音不大，却压住了整个屋子。" + "船在雾里靠岸，缆绳松了。").repeat(8);
+    const verdict = aiFlavorGate(text);
+    expect(verdict.topTerms.join("、")).toContain(AI_FLAVOR_CONTRAST_LABEL);
   });
 });
 

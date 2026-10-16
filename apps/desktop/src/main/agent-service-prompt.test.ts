@@ -105,6 +105,8 @@ describe("defaultPromptFor · 拼装", () => {
     expect(text).toContain("章末");
     expect(text).toContain("伏笔式预告");
     expect(text).toContain("给普通名词加戏");
+    // 2026-10-16 §一百零七：补 deslop 里没折进来的那一条（反差模板）。
+    expect(text).toContain("反差模板");
   });
 });
 

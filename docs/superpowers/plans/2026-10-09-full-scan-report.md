@@ -7339,5 +7339,20 @@ equal []`）。
 **门禁**：`pnpm verify` 全绿（退出码 0）。
 **口径**：README 那两个数**绑的是 CI 在 `19c3065` 上读回的真数**（run 页 `38911652691`），不是本机推算，更不是编的。
 
+## 第一百零七节：融合 deslop 漏折的那一条——「声音不大，却……」反差模板（2026-10-16）
+
+**来源**：回头逐条对 `apps/desktop/src/main/skill-catalog-style.ts` 里 `deslop`「把 AI 腔一条条挑掉」原文，发现 §一百零四 声称「融合技能库三条去味技能」，实际只折了它的五条里的四条：**破折号承担转折、否定排比、模糊修饰密度、抽象名词当主语**进去了，**「声音不大，却……」这一类反差模板**（技能原文自己写着「这一句几乎是 AI 的指纹」）既没进常驻约束、也没进扫描端。这本是「寻找可用的技能方法 → 融合」剩下的一处，补上。
+
+**本刀改动（先红后绿）**：
+- `packages/contracts/src/ai-flavor.ts`：新增 `AI_FLAVOR_CONTRAST_PATTERN = /(?:声音|语气|语调|嗓音|口气)(?:不大|不高|不重|很轻|很低|平静|平淡)[，,]?\s*却/g` 与显示名 `AI_FLAVOR_CONTRAST_LABEL`「「声音不大，却……」反差模板」；并入 `AI_FLAVOR_STRUCTURE_MIN_COUNT`（**2 次起报**——偶一用是修辞，翻两句才露馅）；`analyzeAiFlavor` 与 `aiFlavorGate` 各接一处（与 §一百零五 同一批正则、同一处 `line.match`）。
+- `apps/desktop/src/main/prompt-assembly.ts`：`DE_AI_FLAVOR_STRUCTURE_INSTRUCTION` 加第 ⑨ 条（生成端同步拦住同一句式）。
+- 用例：`packages/contracts/test/ai-flavor.test.ts` +2（体检 2 次起报/1 次不报、退稿闸同批）、`apps/desktop/src/main/agent-service-prompt.test.ts` +1（提示词含「反差模板」）。
+
+**只补能机器判的这一条**：破折号、否定排比、明喻密度仍按 §一百零五 记下的理由**不上正则**（要读整章上下文才判得准）。反例核对：`他声音不大，压住了整个屋子。`（无「却」的普通反差写法）三次也不报，不误伤。
+
+**测试数变动**：本刀加 2 条用例，本机实数升至 **359 文件 / 4690 passed | 2 skipped（4692 条注册）**；README「## 门禁」节的数仍**绑在 `19c3065` 的那次 CI run**（4687/4688/4690），那是那次 run 所在树上的读数，与本刀新提交无关，**不动它**。
+
+**门禁**：`pnpm verify` 全绿（退出码 0）。
+
 
 
