@@ -7561,9 +7561,21 @@ equal []`）。
 
 **测试数变动**：**无**——本刀只动两份 markdown，不碰源码与用例，本机实数仍是
 **362 文件 / 4727 passed | 2 skipped（4729 条注册）**。README「## 门禁」节的数**不动它**：它绑的是
-CI 在 `4bc3973` 上读回的真数（run 页 `38934635255`），本刀不产生新读数，绝不拿本机数冒充 CI。
+CI 在 `4bc3973` 上读回的真数（run 页 `38934635255`）；本刀推送后读回的那枚 run 与它**读数一字未变**
+（见下「推送与 CI 读回」），故不必换绑——绝不拿本机数冒充 CI。
 
 **划掉**：第三十三节第二目末尾那句「这条留白登记在案，不算闭」——本刀闭。
 
-**门禁**：`pnpm verify` 全绿（退出码 0）；两份 markdown 均过 prettier `--check`。
+**门禁**：`pnpm verify` 全绿（退出码 0），六段（prettier / 6 枚 tsc / eslint / 边界 / 行数预算 / vitest）全过，
+本机实测 **362 文件 / 4727 passed | 2 skipped（4729 条注册）**——与上一刀同数（本刀不碰用例）。两份 markdown 均过 prettier `--check`。
+
+**推送与 CI 读回**：提交 `eb9be18`（`52cb56d..eb9be18`，`PUSH_EXIT=0`），通路与 §一百一十四 同一枚
+（`GIT_TERMINAL_PROMPT="1"` + `GCM_INTERACTIVE="Auto"`）。该次推送触发 run `38940228827`（`head_sha=eb9be18`）
+`completed / success`，job `117105691167`（作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试」）的
+annotation 当场读回为 `files=362 registered=4726 passed=4726 skipped=0 failures=0`——**读数一字未变**
+（4726 = 本机 4729 − 3、本机 passed 比 Linux 多 1，与门面现役算式同形）。这一条顺带证明本刀**没有挪动用例数**，
+所以 README「## 门禁」节**不动它**：它仍绑 `4bc3973`（run 页 `38934635255`）。
+
+**这一段 CI 读数是推送后补记的**：本节的 `eb9be18` 已按上面的本机 verify 验过再推；补记这段本身只动 markdown，
+按同一套门禁重跑一次再提交，口径不变（README 两个数不受影响，也不做第二次读回避免无限套娃）。
 
