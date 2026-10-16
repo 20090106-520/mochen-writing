@@ -6775,3 +6775,33 @@ equal []`）。
 
 **划掉**：§七十九 热点表里 `apps/desktop/src/main/web-search.ts` 那一行（六份里最后一份，已补齐）——**至此六份热点表全部清零**。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第八十五节：把 `DocumentPane.vue` 这份「右栏文稿壳」捕获成 spec（Archcore 第七刀，2026-10-16）
+
+**来源**：用户一句「好的，执行吧」，接 §八十四 之后按双判据（近 800 行预算 × 近 90 天提交次数）往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/document-pane.spec.md`、3 条关联边与本段文字。
+
+**为什么下一个是它**：§八十四 把 §七十九 六份贴预算顶的文件全部清零之后，按双判据重排的下一格是 `apps/desktop/src/renderer/src/components/DocumentPane.vue`（740 行 / 近 90 天 13 次提交），六份之后的最高一份。它是渲染层右栏唯一的组件壳：右栏三态、六枚浮层锚点、正文 / 预览 / 高亮三层、页脚两格、标题行可编辑，全在这一层；也是全仓「判定住 utils、行为住 composable、组件只挂线」这条纪律最典型的一次落地。
+
+**不是转述注释，是读源码落的**：读全篇 740 行之外，另读了六处被判「抽出去」的下游真身——`utils/editor-readout.ts`（骨架 / 空态三态与话术）、`utils/browse-body.ts`（浏览三态）、`utils/save-state.ts`（保存态五句）、`utils/right-pane-labels.ts`（两张文案表）、`utils/find-mirror.ts`（高亮层 HTML 与封顶）、`utils/slash-commands.ts`（组合态判据），加 `composables/useEditUndo.ts` / `usePreviewDraft.ts` / `useTrailingValue.ts` / `useSnippetToolbar.ts` 与三份 `utils/editor-*-preference.ts`；另扫了组件目录下七份直接针对它的用例（`document-pane-wiring` / `document-pane-readout-wiring` / `document-pane-browse-body` / `find-mirror-mount-wiring` / `edit-undo-wiring` / `ime-guard-wiring` / `writing-preferences-contract`）的标题。规范里的 invariant 与失败规则就是从这些判据抄的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 3 条关联边（指回 use-book-store spec、行数预算 rule、失败可见 rule）。正文 22 条 MUST / 8 条失败规则 / 10 条 constraint+invariant，body 99 行（spec 限 120 行）。
+
+**取舍**：
+
+- 22 条 MUST 分成四组口径：单一真身（`mode` 只读 `book.rightPaneMode`、撤销栈只经 `useEditUndo`、组合态只经 `imeOwnsKey`、两张文案表只读 utils）、三态与双层（正文三态挡住编辑区与预览区**两处**、高亮层与 textarea 让位类同开关同判据）、落后一拍（预览吃 `previewDraft`、高亮吃 `mirrorSource` 三件同拍）、接线纪律（手打先 `invalidateUndo` 再 `onEdit`、键盘闸门与 `preventDefault` 同一个函数、浮层开合交给已有真身）。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 「变量挂 `.editor-document` 共同祖先」单独成一条 invariant：两个症状（mirror 字号对不上 / 分栏左右两种字号）都是真机量过的，挂错盒子读不到变量只吃兜底，静态扫不出来，必须在规范里留一句。
+- 「快照三件同拍」也单独钉住：位置是照草稿算的，草稿新、位置旧就整体错位——那是「把 B 的内容记到 A 头上」的同族错；只给草稿套静默窗不够，这条注释写在 `utils/find-mirror` 与 `composables/useTrailingValue` 两处。
+- 「保存态全栏只剩底栏一处」连同「栏头不许长出第十枚 `icon-button`」一起钉：那是 1440 视口真机量出来的 79px 账（去掉栏头副本正好腾出 79px），后人再塞一个控件就会把右端按钮重新压进系统窗控带。
+- 3 条关联边里多带了 `failures-must-be-visible.rule.md`：本组件的失败规则（浏览失败带理由、标题空名不发请求、保存失败走底栏 notice）几乎全是那条 rule 的具体落点，指过去便于后人改前先读到口径。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "apps/desktop/src/renderer/src/components/DocumentPane.vue"})`：coverage 19 / hits 17，新 spec 以 `reason:"file"` 排第 1。这条查询正是「改它之前先读什么」的那一次调用，落点是准的。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次（99 行），其余全部 `unchanged`。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§八十四 之后按双判据重排的第一格（`apps/desktop/src/renderer/src/components/DocumentPane.vue`，六份之后行数 × 提交最高的一份，已有 spec）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
