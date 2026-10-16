@@ -6956,3 +6956,33 @@ equal []`）。
 
 **划掉**：§八十九 之后按双判据（≥600 行池）重排的下一格（`apps/desktop/src/renderer/src/components/SearchPanel.vue`，池里分数次高的一份，已有 spec）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第九十一节：把 `NotesPanel.vue` 这份「笔记浮层」捕获成 spec（Archcore 第十三刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §九十 之后按双判据（≥600 行池）往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/notes-panel.spec.md`、4 条关联边与本段文字。
+
+**为什么下一个是它**：§八十九 落定池子口径之后，池里下一位就是 `apps/desktop/src/renderer/src/components/NotesPanel.vue`（717 行 / 近 90 天 3 次提交）——`SearchPanel.vue` 已收口，它就是 ≥600 行池里分数最高且还没有 spec 的一份（其后是 `OutlinePanel.vue` 697 / 3）。它是笔记面板的**唯一组件壳**：四档页签、搜索框、新建表单（正文 + 标签 + 「附在当前章上」三件都能真落库）、卡片列表（编辑态 / 展示态）、页脚三枚动作（跳到原文 / 编辑 / 归档与取回）、底部标签集，以及落盘失败那一行，全在这一层；也是本仓「判定一律抽进 `utils/*.ts`、组件只留接线」这条分工落地得最完整的一处——四处判定（档位筛选、搜索匹配、空态文案、批注目标）无一留在 `.vue` 里。
+
+**不是转述注释，是读源码落的**：读全篇 717 行之外，另读了四处被判「抽出去」的下游真身——`utils/note-scope.ts`（四处判定的唯一真身：`NOTE_SCOPES` 档位表 / `notesForScope` / `filterNotesByQuery` / `scopeEmptyText` / `annotationTarget`，目录里 17 条纯函数用例）、`stores/useNotesStore.ts`（落库、两条创建路、归档双向、`activeNotes` / `archivedNotes` / `allTags` / `saveError` 四个视图）、`utils/tag-input.ts`（`parseTags`：中英文逗号、去空白、去空项、去重、保序）、`composables/useModalFocus.ts`（焦点进出与 Esc 的唯一接管点）；另扫了四份直接针对它的用例（`notes-panel-wiring.test.ts` 三组 12 条、`book-data-save-error-wiring.test.ts` 里笔记这一格、`modal-focus-wiring.test.ts`、`dead-panel-entry.test.ts`）的标题与断言。规范里的 invariant 与失败规则就是从这些判据抄的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 4 条关联边（指回 use-book-store spec、通道契约 spec、行数预算 rule、失败可见 rule）。正文 22 条 MUST / 8 条失败规则 / 7 条 constraint+invariant，body 94 行（spec 限 120 行）。
+
+**取舍**：
+
+- 22 条 MUST 分成五组口径：单一真身（四处判定只经 `utils/note-scope`、标签只经 `parseTags`、落库只经 store、跳转只经 `book.refOf`、Esc 与焦点只经 `useModalFocus`）、临时态治理（收起全清 + 打开撤陈旧勾选）、如实建与如实存（正文 trim 空则不落库、勾了附章挂不上就报 reason 绝不降级）、归档双向（按 `note.archived` 分岔的两枚共用一个位置）、可及性（「跳到原文」是 `<button>` 不是 `<div @click>`）。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 「挂不上就报 reason、绝不降级成速记」单独成一条 invariant + 两条失败规则（MUST 13 + FAIL 2）：这是本仓修「假控件」那一批里最反直觉的一条——降级成速记看起来「至少存下来了」，可用户会在「批注」那一档里找不到自己刚写的东西，比不建更糟；且**顺序钉死**（先判 `ok`、再落库），反过来写就是「用户以为挂了章，实际成了速记」。
+- 「归档是双向门」单独成一条 invariant（MUST 16 + FAIL 8）：旧实现只有归档一半（`unarchiveNote` 全仓零调用），点完那条笔记从所有列表消失且再也回不来——在作者眼里等同「软件删了他的东西」，那正是 Q 扫描总单 P0-8 的形状。
+- 「列表来源只有一处判定」单独成一条 invariant：归档视图由 store 给（`activeNotes` / `archivedNotes` 两份都取到手），组件不自己滤 `archived`；`.vue` 不进类型程序、本仓也没有 jsdom / @vue/test-utils，少挂一个 `v-model`、少调一个 store 动作 tsc 与 build 都不报，只有 `*-wiring.test.ts` 读源文件抓得住——这条同时作为 Constraint 落进规范。
+- 4 条关联边里指向 `use-book-store.spec.md`（跳转那一支走 `book.refOf` / `openDocTab` / `browse` 三个 store 真身 + `activeDocTab` 是批注目标的入参）、`ipc-channel-contract.spec.md`（笔记落盘走 `book:read-data` / `book:write-data` 的 `BookDataKey` 契约）与 `failures-must-be-visible.rule.md`（本组件的失败规则＝落盘失败上屏那一行、两种空态话术、挂不上时 reason 上屏）。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "apps/desktop/src/renderer/src/components/NotesPanel.vue"})`：coverage 25 / hits 22，新 spec 以 `reason:"file"` **排第 1**（其后是 document-pane / left-sidebar / search-panel 三份 spec、栈规则）。`get_document` 回读 `outgoing_relations` 四条齐（use-book-store spec / 通道契约 spec / 行数预算 rule / 失败可见 rule，全 `related`）。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次（94 行），其余全部 `unchanged`。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§九十 之后按双判据（≥600 行池）重排的下一格（`apps/desktop/src/renderer/src/components/NotesPanel.vue`，池里分数最高的一份，已有 spec）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
