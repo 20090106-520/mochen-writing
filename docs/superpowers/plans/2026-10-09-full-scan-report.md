@@ -6926,3 +6926,33 @@ equal []`）。
 
 **划掉**：§八十八 之后按双判据（≥600 行池）重排的第一格（`packages/contracts/src/provider.ts`，池里分数最高的一份，已有 spec）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第九十节：把 `SearchPanel.vue` 这份「全文搜索浮层」捕获成 spec（Archcore 第十二刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §八十九 之后按双判据（≥600 行池）往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/search-panel.spec.md`、4 条关联边与本段文字。
+
+**为什么下一个是它**：§八十九 落定池子口径之后，池里下一位就是 `apps/desktop/src/renderer/src/components/SearchPanel.vue`（611 行 / 近 90 天 5 次提交）——池中「行数 × 提交」仅次于 `provider.ts` 的一份（其后是 `NotesPanel.vue` 717 / 3、`OutlinePanel.vue` 697 / 3）。它是渲染层全文搜索的**唯一组件壳**：浮层开合、防抖检索、按文档分组的结果、↑↓/↵ 选择与跳转、搜索历史、全书替换那一行两步确认，全在这一层；也是本仓「浮层的 Esc 与焦点只经 `useModalFocus`、组合态只经 `imeOwnsKey`、替换只经 `runBookReplace`」三条纪律同时落地的地方。
+
+**不是转述注释，是读源码落的**：读全篇 611 行之外，另读了四处被判「抽出去」的下游真身——`stores/useSearchStore.ts`（检索真身：精确子串 / 整书零命中后的一字之差兜底 / 200 条上限 / 历史去重 20 条）、`utils/book-replace.ts`（`runBookReplace` 把 IPC 异常收成 `ok:false` 真结果 + `bookReplaceNotice` 四档如实分报）、`composables/useModalFocus.ts`（焦点进出与 Esc 的唯一接管点）、`utils/doc-checkup.ts` 的 `loadAllDocContents`；另扫了四份直接针对它的用例（`search-replace-wiring.test.ts` 四条、`modal-focus-wiring.test.ts`、`ime-guard-wiring.test.ts`、`dead-panel-entry.test.ts`）的标题与断言。规范里的 invariant 与失败规则就是从这些判据抄的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 4 条关联边（指回 use-book-store spec、通道契约 spec、行数预算 rule、失败可见 rule）。正文 19 条 MUST / 8 条失败规则 / 7 条 constraint+invariant，body 92 行（spec 限 120 行）。
+
+**取舍**：
+
+- 19 条 MUST 分成四组口径：单一真身（检索只经 store、替换只经 `runBookReplace`、通知话只经 `bookReplaceNotice`、Esc 与焦点只经 `useModalFocus`、组合态只经 `imeOwnsKey`）、两处键盘通路（结果列表与替换框各自的键盘处理都 MUST 先放行组合态）、如实分报（`fuzzy` 那一轮 MUST 显式打标签、空态按 `mode` 分两种话术）、两步确认（第一下举起、第二下动手、输入一变即撤）。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 「容错那一轮不给替换入口」单独成一条 invariant + 一条失败规则（第一条 MUST 13 + FAIL 4）：`mode === "exact"` 是唯一放行条件——照着「相似」去改盘上正文会把用户没找的那几个字一起换掉，那是「不做假控件」要拦的事；不给按钮也不留一句「点了没反应」的空控件。
+- 「两步确认」那一族（MUST 14 / 15 + FAIL 5）单独拆三处：这是全仓唯一一处「一次误点能把上千篇文稿翻一遍」的操作——虽然每篇改前都进改稿历史、还有指纹守卫兜着，但「能找回」不等于「该让它随随便便发生」；且 `localQuery` / `localReplacement` 一变就必须撤确认，否则第一下会替一份没确认过的输入背书。
+- 「Esc 与焦点只经 `useModalFocus`」单独成 invariant：真机量测（p536g）实测六处一模一样——焦点从不在层内、Esc 一次也收不掉（连挂在搜索框上的那处 `@keydown.esc` 也够不着，因为焦点压根没进过面板），所以那处被撤掉、统一交给 composable。规范把「不许再挂第二份」钉住。
+- 4 条关联边里指向 `use-book-store.spec.md`（跳转那一支走 `book.refOf` / `openDocTab` / `browse` 三个 store 真身）、`ipc-channel-contract.spec.md`（`book:replace-all` 的入参与 `BookReplaceResult` 回执形状）与 `failures-must-be-visible.rule.md`（本组件的失败规则＝两种空态话术、`skipped` 非空报 warning、IPC 抛错收成真结果）。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "apps/desktop/src/renderer/src/components/SearchPanel.vue"})`：coverage 24 / hits 21，新 spec 以 `reason:"file"` **排第 1**（其后是 document-pane / left-sidebar 两份 spec、栈规则）。`get_document` 回读 `outgoing_relations` 四条齐（use-book-store spec / 通道契约 spec / 行数预算 rule / 失败可见 rule，全 `related`）。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次（92 行），其余全部 `unchanged`。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§八十九 之后按双判据（≥600 行池）重排的下一格（`apps/desktop/src/renderer/src/components/SearchPanel.vue`，池里分数次高的一份，已有 spec）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
