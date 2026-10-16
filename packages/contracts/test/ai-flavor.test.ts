@@ -81,6 +81,21 @@ describe("ai-flavor · analyzeAiFlavor", () => {
     expect(short.entries.map((entry) => entry.term)).not.toContain(AI_FLAVOR_COGNITIVE_LABEL);
   });
 
+  it("认知转述也认隔了副词的开头：「他终于明白，」「她这才意识到，」（2026-10-16 加宽）", () => {
+    // 旧正则只认「代词 + 动词」紧挨着，把「他终于明白，」这类中间插了副词的写法漏掉了——
+    // 样章实测就漏了一处（AI 味报告 0 命中，稿子却带着这股腔）。加宽后这几类都得抓得住。
+    const a = analyzeFlavorWithRepeat("他终于明白，那三个词不是威胁。\n", 3);
+    expect(a.entries.find((entry) => entry.category === "cognitive")?.count).toBe(3);
+    const b = analyzeFlavorWithRepeat("她这才意识到，门一直没关。\n", 3);
+    expect(b.entries.find((entry) => entry.category === "cognitive")?.count).toBe(3);
+    // 代词后直接跟动词的旧写法照旧抓得住（加宽不是替换）。
+    const c = analyzeFlavorWithRepeat("他知道，这不是巧合。\n", 3);
+    expect(c.entries.find((entry) => entry.category === "cognitive")?.count).toBe(3);
+    // 反例：「他忽然想起」不是认知转述词表里的动词，不该被误伤。
+    const d = analyzeFlavorWithRepeat("他忽然想起白天那句闲话。\n", 3);
+    expect(d.entries.map((entry) => entry.term)).not.toContain(AI_FLAVOR_COGNITIVE_LABEL);
+  });
+
   it("密度按千字计；句长均值与波动要够 10 句才算，样本不足回 null 不编数", () => {
     const body = "他嘴角勾起一抹笑。".repeat(6); // 每句 9 字（含句号），共 6 句
     const report = analyzeAiFlavor([body]);

@@ -86,6 +86,26 @@ describe("defaultPromptFor · 拼装", () => {
     expect(text).toContain("副词能删就删");
     expect(text).toContain("别让连续几句一样长");
   });
+
+  it("结构级去味常驻（2026-10-16 融合技能库三条去味技能）", () => {
+    const text = defaultPromptFor({
+      title: "雾港",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context: NO_CONTEXT,
+      webSearchEnabled: false
+    });
+    // 这几条是从技能库「把 AI 腔一条条挑掉」「改 AI 味先判删」「别替读者下结论」里合出来的，
+    // 原先是「用户挂入才生效」的技能文本；现在折进常驻约束，正文每一轮都吃到。
+    expect(text).toContain("否定排比");
+    expect(text).toContain("不是A，是B");
+    expect(text).toContain("章末");
+    expect(text).toContain("伏笔式预告");
+    expect(text).toContain("给普通名词加戏");
+  });
 });
 
 describe("defaultPromptFor · 先计划后动手（2026-10-05 批次 4）", () => {
