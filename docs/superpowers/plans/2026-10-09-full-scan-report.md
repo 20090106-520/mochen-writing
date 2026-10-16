@@ -6744,3 +6744,34 @@ equal []`）。
 **划掉**：§七十九 热点表里 `apps/desktop/src/renderer/src/stores/useAgentStore.ts` 那一行（§八十二 之后的第一候选，已有 spec）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；
 本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第八十四节：把 `web-search.ts` 这份「免费联网搜索源链」捕获成 spec（Archcore 第六刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §八十三 未走完的热点表往下走（也是热点表最后一格）。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/web-search.spec.md`、3 条关联边与本段文字。
+
+**为什么下一个是它**：热点表里 `apps/desktop/src/main/web-search.ts`（796 行 / 近 90 天 15 次提交）是 §七十九 六份贴预算顶文件里**最后一份还没有文档的**。补上它，热点表即清零。它是主进程唯一一条「抓搜索页 HTML + 正则解析」的只读出网通路：三源链（DuckDuckGo → 必应 → 360）、共用归一、质量闸门、冷却退避、跨搜索判重、来源键回执，全在这一份。
+
+**不是转述注释，是读源码落的**：读全篇 796 行之外，另扫了下游真身——`agent-service.ts`（`webSearch(query,{fetchImpl:abortableFetch(fetch,signal)})`，P1-1 必须接当轮 AbortController）、`doc-tools-host.ts`（按 `WebSearchError.kind` 分流、非本错误换中文兜底）、`provider-fetch.ts` / `web-read.ts`（`WebFetchLike` 与同一套 fetch 纪律），并扫了四份用例（`web-search.test.ts` 等）的标题。规范里的 invariant 与失败规则就是从这些判据抄的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 3 条关联边（指回 agent-service spec、行数预算 rule、失败可见 rule）。正文 17 条 MUST / 10 条失败规则 / 11 条 constraint+invariant，body 约 87 行（spec 限 120 行）。
+
+**取舍**：
+
+- 17 条 MUST 分成四组口径：源链走法（按序试、冷却跳过、答上清零、empty 不进冷却、只有 network/unavailable 才进）、判重与回执（判重在源链**之后**、来源键编号而非序号、页脚不放举例键）、共用归一（`normalizeResults` 一份、剔空与非 `http(s)`、截断补省略号）、源自守（读 body 必须在源自己的 try 内、360 频控页认出、必应 coverage 闸门、360 噪音卡）。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 「三态失败必须分得开」与「源抛异常不许掐断整条链」各钉一条 invariant：前者是「合成一句就没法决定进不进冷却」的根因，后者是 2026-10-10 修的坑（一个源的异常会把后面的源整段跳过、冷却簿记也整段不记）。这两条正是本文件注释里写全了的真实事故。
+- 「读 body 必须在源的 try 内」单独成一条 failure rule：`AbortSignal.timeout` 管得到 `response.text()`，写在 catch 之外那一次超时就会**以抛异常的形式逃出源**，下游拿到裸 `AbortError`——源码注释里点名的 2026-10-10 修。
+- 「判重放在源链**之后**」也单独钉住：放里面的话，头一个源递回来的全是重复项就会直接短路，后面那个源根本没机会答，于是「这次没搜到新东西」会被误报成「搜索源用不了」。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "apps/desktop/src/main/web-search.ts"})`：coverage 18 / hits 16，新 spec 以 `reason:"file"` 排第 1。这条查询正是「改它之前先读什么」的那一次调用，落点是准的。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次，其余全部 `unchanged`。
+
+**⚠️ 修正 §七十九 的一条读数**：交接时以为「本会话 MCP 不可用、CLI 不在 PATH」，**实测推翻**：`archcore` CLI v0.12.0 已在 PATH 上（`…\AppData\Local\Programs\…`），只是插件的 `mcp__archcore__*` 工具本轮仍不可见（宿主在会话启动时读 MCP 配置）。于是本刀**照 §七十九 的路子**用 stdio 驱动 `archcore mcp` + JSON-RPC，把 3 条关联边真的建上了（脚本落 `%TEMP%`，用完即删，不进仓库）。所以本刀**不是**「没建边」，是照旧建了 3 条；下一轮重启会话即可走插件原生命令。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§七十九 热点表里 `apps/desktop/src/main/web-search.ts` 那一行（六份里最后一份，已补齐）——**至此六份热点表全部清零**。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。

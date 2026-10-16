@@ -91,6 +91,21 @@
       "source": "architecture/use-agent-store.spec.md",
       "target": "conventions/failures-must-be-visible.rule.md",
       "type": "related"
+    },
+    {
+      "source": "architecture/web-search.spec.md",
+      "target": "architecture/agent-service.spec.md",
+      "type": "related"
+    },
+    {
+      "source": "architecture/web-search.spec.md",
+      "target": "conventions/source-line-budget.rule.md",
+      "type": "related"
+    },
+    {
+      "source": "architecture/web-search.spec.md",
+      "target": "conventions/failures-must-be-visible.rule.md",
+      "type": "related"
     }
   ]
 }
