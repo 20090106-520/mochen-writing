@@ -7236,5 +7236,26 @@ equal []`）。
 
 **仍未动手**：README 顶格回填（§九十七 已裁定阻断），**需要用户拍板**——授权 `git push origin feat/plan3-interaction-and-assembly`，或明确「不推、继续按现规不入账」。另附本轮实测的第三条卡点：本机回读 CI 出处的三条路此刻**都不通**（匿名 REST API 404、`gh` CLI 未安装、浏览器子代理开 `github.com` 报 `ERR_CONNECTION_RESET` / `ERR_CONNECTION_TIMED_OUT`），故即便授权推送并让 CI 在 HEAD 跑出 run，那三个数（`files=… registered=… passed=…`）与 run 页 ID 仍需用户贴回，或等网络恢复后我再读。
 
+## 第一百零二节：用户授权推送后执行，被网络层阻断（2026-10-16）
+
+**来源**：用户「好的，执行吧」＝ §一百零一 结尾那条二选一里选「推」，即授权 `git push origin feat/plan3-interaction-and-assembly`。已按授权动手，**未成功**。
+
+**四次尝试与当场读数**：
+
+1. `git push origin feat/plan3-interaction-and-assembly` → `fatal: unable to access 'https://github.com/20090106-520/mochen-writing.git/': Recv failure: Connection was reset`（退出码 128）。
+2. `git ls-remote --heads origin` 复探 → `Failed to connect to github.com:443 after 21049 ms: Could not connect to server`。
+3. 裸 HTTPS 探测 `https://github.com` → `The operation has timed out`。
+4. 代理面：**没有**。`http.proxy` / `https.proxy` / `HTTPS_PROXY` / `HTTP_PROXY` 全空；本机常见代理端口 7890 / 7897 / 10809 / 10808 / 1080 / 8080 / 2080 逐个 `Test-NetConnection` **全部关闭**。
+
+**唯一还通的那条路，卡在凭据而不是网络上**：`github.com:22` 与 `ssh.github.com:443` **两个端点都连得上**（都回 `Permission denied (publickey)`——TCP 通了、是 key 没被 GitHub 认可）。本机有 `~/.ssh/id_ed25519`，但该公钥未登记到账号上；而登记它同样要能访问 GitHub 网页 → 死循环。故**不是凭据失效、不是 git 配置错、不是权限问题**，是 `github.com:443` 这组地址此刻在网络上不可达（会话中途还曾可达：早前匿名探 `api.github.com` 那一次返回过 404，说明是间歇性抽风而非永久封锁）。
+
+**取舍**：**不再重试推送**——连续重试只烧上下文、不改变结果。台账里唯一剩余的「README 顶格回填」，其外部链路（推送 → CI 在 HEAD 跑出 run → 读回 run 页三个数）**三节全部卡在网络层**，只能等网络侧恢复。
+
+**解封条件**（据本轮实测更新 §九十七 那两条）：① 本机到 `github.com:443` 恢复可达（或配好代理）后，我执行 `git push` 并读回；**或** ② 把 `~/.ssh/id_ed25519.pub` 登记到 GitHub 账号后我改走 SSH 推送；**或** ③ 用户在有网络的终端自行推送，并把 run 页的 `files=… registered=… passed=…` 与 run 页 ID 贴回，我据此整体回填 README。
+
+**测试数变动**：359 文件 4684 passed | 2 skipped → **不变**（无产品代码改动）。
+**门禁**：`pnpm verify` 全绿（退出码 0）。
+**仍未动手**：README 顶格回填——同上，等上述任一条解封条件满足。
+
 
 
