@@ -340,7 +340,11 @@ describe("技能那一处 · 两张表按目录名并成一行（不许各出一
     const markup = templateSource(PAGE);
     // 合成一枚就是把「已经安装」与「这一轮生效」混成同一个「已安装」，
     // 而那是两种不同的期待：用户常常要「盘上有，但这一轮别带」。
-    expect(tagAttributes(markup, "is-pin")).toHaveLength(1);
+    //
+    // 【为什么 is-pin 是 2 而不是 1】2026-10-17 起技能页顶上多了一条「推荐」条，
+    // 那里也有一颗「挂入」（点击走同一条真身，只是不带 row）。本条钉的是**卡片上两枚钮的区分**，
+    // 「装上/卸掉」仍只该出现在卡片上（1），「挂入」则卡片一颗 + 推荐条一颗 = 2。
+    expect(tagAttributes(markup, "is-pin")).toHaveLength(2);
     expect(tagAttributes(markup, "is-install")).toHaveLength(1);
     expect(markup).toContain('v-if="row.onDisk"');
     expect(markup).toContain('v-if="row.inMarket"');

@@ -21,6 +21,7 @@ import { usePluginStore } from "../stores/usePluginStore";
 import { useSkillMarketStore } from "../stores/useSkillMarketStore";
 import { useAgentStore, threadKeyFor } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
+import { activeStageOf } from "../utils/composer-context";
 import {
   INSTALLED_FILTER,
   PLUGIN_FILTERS,
@@ -62,6 +63,20 @@ const skillRows = computed(() =>
     marketBusy: (dirName) => market.isBusyOn(dirName),
     page: "skills"
   })
+);
+
+/** 推荐现场（2026-10-17）：阶段名 + 当前文稿类别 + 本线程输入框里正敲的字。
+    三项都现取——全在渲染层手里，不为推荐再打一次 IPC。 */
+const recommendations = computed(() =>
+  isSkills.value
+    ? browse.skillRecommendations({
+        library: agent.skills,
+        pinned: agent.skillPathsOf(threadKey.value),
+        stageName: activeStageOf(book.meta)?.name ?? "",
+        docKind: book.docs.find((one) => one.relPath === book.activeDocTab)?.kind ?? null,
+        instruction: agent.draftOf(threadKey.value)
+      })
+    : []
 );
 
 /** 回到对话。走 layout 真身——左栏「工作台」那枚钮、Esc 收起，都是同一条通路。 */
@@ -220,6 +235,34 @@ onMounted(() => {
           技能是一段提示词。装上就落在全局技能目录里、所有作品都能用；挂入只对当前这条线程生效，
           重启后清空。两者都只进这个应用，不写进书目录。
         </p>
+        <!-- 推荐条：得分的判定全在 stores/useExtensionBrowse 的 skillRecommendations，
+             模板只 v-for。**推荐不等于挂入**——点「挂入」才真正带进这一轮上下文（spec §11）。 -->
+        <section
+          v-if="recommendations.length > 0"
+          class="extensions-recommend"
+          aria-label="推荐技能"
+        >
+          <p class="extensions-recommend-head">
+            这一轮也许用得上（按当前阶段、文稿与你在输入框里敲的字排出来的）：
+            点「挂入」才会真正带进这一轮的上下文；不点就不带。
+          </p>
+          <ul class="extensions-recommend-list">
+            <li v-for="rec in recommendations" :key="rec.id" class="extensions-recommend-item">
+              <span class="extensions-recommend-title">
+                <strong>{{ rec.displayName }}</strong>
+                <span class="extensions-recommend-why">{{ rec.reasons.join("；") }}</span>
+              </span>
+              <button
+                class="extension-btn is-pin"
+                type="button"
+                :title="`加入「${threadKey}」这条线程的上下文`"
+                @click="agent.toggleSkillForThread(threadKey, rec.id)"
+              >
+                挂入
+              </button>
+            </li>
+          </ul>
+        </section>
         <p v-if="!agent.skillsListed && market.listed === null" class="extensions-empty">
           正在列技能…
         </p>

@@ -174,6 +174,56 @@
   list-style: none;
 }
 
+/* 推荐条（2026-10-17）：技能页顶上那条「这一轮也许用得上」。
+   与下面的网格分开画：推荐是**这一轮的现场**（跟着阶段 / 文稿 / 输入框走），
+   网格是**全库**（静止不动）——混成一格，用户会以为推荐那几个就是他全部技能。 */
+.extensions-recommend {
+  margin: 0 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--theme-line) 8%, var(--surface-raised));
+}
+
+.extensions-recommend-head {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.extensions-recommend-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.extensions-recommend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  min-width: 0;
+}
+
+.extensions-recommend-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.extensions-recommend-why {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
 .extension-card {
   display: flex;
   flex-direction: column;

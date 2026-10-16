@@ -1,12 +1,14 @@
 import { defineStore } from "pinia";
 import {
   MARKET_CATEGORIES,
+  SKILL_PATHS_MAX,
   SKILL_SOURCE_LABELS,
   type MarketCategory,
   type MarketEntry,
   type PluginRef,
   type SkillRef
 } from "@mochen/contracts";
+import { candidateOf, rankSkills, type SkillPick } from "../utils/skill-pick";
 
 /**
  * 插件/技能页的**浏览条件**与其派生行（2026-10-07 批次 5-㉛）。
@@ -133,6 +135,44 @@ export const useExtensionBrowseStore = defineStore("extensionBrowse", {
     hasConditions(state) {
       return (page: "plugins" | "skills"): boolean =>
         state.pages[page].query !== "" || state.pages[page].filter !== "全部";
+    },
+    /**
+     * 技能页顶上那条「推荐」的装配（2026-10-17，接 `utils/skill-pick` 的得分逻辑）。
+     *
+     * 【推荐 ≠ 挂入，这一层一个字都没越界】
+     * 它只产出一张排好序的建议清单；真正的挂入仍然是 `useAgentStore.toggleSkillForThread`
+     * 那一颗钮（spec §11「唯一让技能进入上下文的动作」没动）。所以这里不写任何线程态。
+     *
+     * 【为什么装配住这里而不是模板里】
+     * 与 `skillEntries` 同款口径（铁律 6）：候选切面的映射、去重、排序只有一份，
+     * 模板只 v-for。打分本体仍在 `skill-pick`，这里只负责把 `SkillRef[]` 递进去、把结果递出来——
+     * 字段名一旦对歪（比方说把 `stages` 当 `stage`），分数会静默变错，所以要有一条用例钉住映射。
+     *
+     * 场景三项（`stageName` / `docKind` / `instruction`）由页面现取后透传：
+     * 阶段名取自 `activeStageOf(book.meta)?.name`、文稿类取自当前活动文稿的 `kind`、
+     * 指令就是本线程输入框里正敲的字（`agent.draftOf`）。
+     */
+    skillRecommendations() {
+      return (input: {
+        /** 技能库那张表（盘上有得挂的那些）。 */
+        library: readonly SkillRef[];
+        /** 本线程已挂入的技能 id：不再重复推荐。 */
+        pinned: readonly string[];
+        /** 当前创作阶段名；没打开作品 / 没阶段传空串。 */
+        stageName: string;
+        /** 当前文稿 kind；没打开文稿传 null。 */
+        docKind: string | null;
+        /** 本线程输入框里正敲的指令原文。 */
+        instruction: string;
+        /** 取前几条，默认技能挂入上限（`SKILL_PATHS_MAX` = 12）。 */
+        limit?: number;
+      }): SkillPick[] =>
+        rankSkills(
+          input.library.map(candidateOf),
+          { stageName: input.stageName, docKind: input.docKind, instruction: input.instruction },
+          input.limit ?? SKILL_PATHS_MAX,
+          input.pinned
+        );
     }
   },
   actions: {

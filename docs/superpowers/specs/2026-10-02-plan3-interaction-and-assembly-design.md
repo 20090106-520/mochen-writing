@@ -432,6 +432,7 @@ frontmatter 解析复用 `fs-store/frontmatter.ts`。id 冲突时书内优先，
 - 挂入：`useAgentStore` 存 `skillPathsByThread: Record<threadKey, string[]>`（内存态，重启清空并在 UI 说明）；`StartTurnInput` 加 `skillPaths: string[]`（`z.array(z.string().min(1).max(300)).max(12)`，中文拒绝句）；`buildContextPack` 把它们渲染成 `kind: "skills"` 节，技能正文读不到 ⇒ 跳过并 emit 一条 `error`「有 N 个挂入技能读不到，已跳过」（总 spec §9：失败可见，不只进日志）。
 - UI：左栏加「技能库」入口（第五类文稿 `material` 的树不动，技能不是 `BookKind`）；技能行走浏览标签只读渲染，卡脚一个「加入当前上下文」按钮 + 已挂入标记。没有编写、删除、导入按钮。
 - 自动推荐得分（2026-10-17 追加，`apps/desktop/src/renderer/src/utils/skill-pick.ts`）：上面那条「挂入是**唯一**让技能进入上下文的动作」的口径**不因此改动一个字**——本节新增的是**推荐**，不是**挂入**。`rankSkills(candidates, scene, limit, pinned)` 是纯函数、无状态、零 IPC：拿三路正信号（技能 `stage` 命中当前阶段名 +40、`appliesTo` 命中当前文稿 kind +30、指令二元字命中技能标题/说明每词 +8 且封顶 24）打分，排除已挂入的、去掉 0 分、同分按 id 升序、按 `SKILL_PATHS_MAX`（12）取前 N。**推荐不越过用户批准**：它只产出一张排序清单，真正进上下文仍只有「加入当前上下文」钮这一条路（spec §10 第 4 条）。`stage`/`appliesTo` 按 contracts 的既有声明「只作提示、不作闸门」——只当正信号，不给未命中的轴扣分。
+- 自动推荐落点（2026-10-17 追加）：技能页顶上一条「推荐」条（`ExtensionsPage.vue`，`v-if` 有推荐才显形）。现场三项现取——阶段名 `activeStageOf(book.meta)?.name`、文稿类 `book.docs` 里当前活动文稿的 `kind`、指令 `agent.draftOf(threadKey)`——装配走 `useExtensionBrowseStore.skillRecommendations`（模板只 v-for）。每枚推荐摆出 `displayName` + 中文理由 + 一颗「挂入」；挂入仍只走 `toggleSkillForThread`，且**只在点击时**发生（无 watcher、无自动挂入）。
 
 ## 12. F-4 · 磁盘路径迁移（波 3）
 

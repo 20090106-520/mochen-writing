@@ -7397,3 +7397,24 @@ equal []`）。
 
 **门禁**：`pnpm verify` 全绿（退出码 0）；首跑两份新文件 prettier 红过一次，`prettier --write` 后复跑绿。
 
+## 第一百一十节：推荐条接进技能页 —— 推荐 ≠ 挂入（2026-10-17）
+
+**来源**：用户对 §一百零九 末尾那句「未做（把这张清单接到技能页 UI）」回了「好的，执行吧」——授权把得分清单接到界面。这是 §一百零九 明确留的那一条。
+
+**接在哪**：`components/ExtensionsPage.vue` 技能那一支的顶上，一条「推荐」条（`v-if` 有推荐才显形）。每枚推荐摆 `displayName` + 中文理由 + 一颗「挂入」。
+- 现场三项现取、不打额外 IPC：阶段名 `activeStageOf(book.meta)?.name`、文稿类 `book.docs` 里当前活动文稿的 `kind`、指令 `agent.draftOf(threadKey)`。
+- 装配走 `stores/useExtensionBrowse.skillRecommendations`（把 `SkillRef[]` 映射成候选再调 `rankSkills`）；模板只 v-for，不自己算分、不自己 sort（铁律 6）。
+- 样式 `styles/extensions.css` 新增 `.extensions-recommend*`：**与全库网格分开画**——推荐是「这一轮的现场」（跟着阶段 / 文稿 / 输入框走），网格是「全库」（静止不动），混成一格用户会以为推荐那几个就是他全部技能。
+
+**边界（本刀唯一要守的）**：推荐**不等于**挂入。挂入按钮走的仍是 `useAgentStore.toggleSkillForThread`（唯一真身），且**只在 `@click` 里**发生——接线用例专门断言 `script` 里一次都不出现 `toggleSkillForThread`（出现即意味着一处自动挂入的副作用，那越过了用户批准）。spec §11「唯一让技能进入上下文的动作」仍未动。
+
+**红先绿后**：先写 `useExtensionBrowse.recommend.test.ts`（5 条，首跑 `skillRecommendations is not a function` 转红），实现装配后转绿；接线契约另起 `extensions-recommend-wiring.test.ts`（5 条，走 `vue-source-reader` 剥注释读 .vue）。
+
+**连带改到的一条既有用例**：`extensions-page-wiring.test.ts` 那条「两枚钮」原钉 `is-pin` 全长 1；推荐条也有一颗「挂入」，所以改成 2（卡片一颗 + 推荐条一颗）并写明理由——「装上/卸掉」仍只该是 1（只在卡片上）。
+
+**未做**：真机冒烟（开着书、切到技能页看推荐随阶段 / 输入框变化）留待有 UI 环境时补。
+
+**测试数变动**：本刀加 2 文件 / 10 条用例，本机实数升至 **362 文件 / 4721 passed | 2 skipped（4723 条注册）**；README「## 门禁」节的数仍绑 `19c3065` 那次 CI run，不动它。
+
+**门禁**：`pnpm verify` 全绿（退出码 0）。
+
