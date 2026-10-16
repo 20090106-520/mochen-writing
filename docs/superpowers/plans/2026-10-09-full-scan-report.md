@@ -7257,5 +7257,29 @@ equal []`）。
 **门禁**：`pnpm verify` 全绿（退出码 0）。
 **仍未动手**：README 顶格回填——同上，等上述任一条解封条件满足。
 
+## 第一百零三节：README 顶格测试数回填 —— 授权推送 + CI 读回后整体换绑（2026-10-16）
+
+**来源**：用户直接贴入一枚 GitHub PAT（明文出现在会话里，已提醒撤销重生成）——即满足 §一百零二 解封条件①/③：具备可用凭据后的 HTTPS 推送。本刀据此把 §九十七 挂着的**最后一条**（README 顶格回填）落地。
+
+**网络与凭据（当场实测）**：`https://api.github.com/repos/20090106-520/mochen-writing` 用该 token 可读（`private=True`、`default_branch=feat/plan3-interaction-and-assembly`）——判定网络已恢复且 token 有效；用 `git push "https://x-access-token:$t@github.com/…/mochen-writing.git" feat/plan3-interaction-and-assembly` 推送，`72fc1bb..83f6eaa`、退出码 0（URL 式推送**不更新**本地 remote-tracking ref，故 `git status -sb` 仍报 ahead，与「是否真推上去了」无关）。
+
+**CI 在 HEAD 跑出并成功**：run 页 `38901875288`（`name=门禁 pnpm verify`、`status=completed`、`conclusion=success`、`head_sha=83f6eaa`）；job id `116975841112`（`name=格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试`）。
+
+**读回 CI 出处（关键成果）**：`check-runs/116975841112/annotations` 读到 `title=[CI 用例总数]`、`msg=[files=359 registered=4683 passed=4683 skipped=0 failures=0]`。
+
+**本机同树读数**：干净 `83f6eaa` 上 `corepack pnpm verify` 六段全绿、`VERIFY_EXIT=0`；`git status --porcelain` 跑前与跑后各读回一次都是 0 条；vitest 报 **359 文件 / 4684 passed | 2 skipped（4686 条注册）**。两侧账：`4683 = 4686 − 3`、`4684 + 2 = 4686`、`+3 − 2 = +1`，与门面现役算式同形。
+
+**取舍（按 §九十七 整体回填 README「## 门禁」节）**：① 顶格两格换绑到 `83f6eaa`——Linux 格 `359 文件 / 4683 用例`（run 页换 `38901875288`），Windows 格 `359 文件 / 4684 passed | 2 skipped（4686 条注册）`；② 出处段 quoted annotation 原文改 `files=359 registered=4683 passed=4683 skipped=0 failures=0`；③「文件数那一格两侧都是 359」；④ 四处同树声明点名的短哈希统一为 `83f6eaa`；⑤ 平台账等式改 `Linux 侧 4683 条注册 = 本机 4686 − 3`；⑥ 历史叙述（`2f0808e` / `1cb4a29` / `a953b12`）退成「上一版 / 再往前 / 更早」并保留。
+
+**同步改守卫（第九道 `EQUATIONS`）**：第 6 条（`从 4125 到 4130 差的 5 条 … 第十六道 5 条`）**摘掉 `ties`**——4130 那一格不再是顶格，且 `4130→4683` 那 553 条跨三十余提交、不属于任何门面守卫族，凑不出一条可自证的新差值等式。顶格两格仍由 `EQUATIONS` 第 1 条（`Linux 侧 = 本机 − 3`，对 linux/win 两格各一 `tie`）与第十二、十五道钉着，`ties` 这一层不因摘除而落空。
+
+**一处当场红（第十二道真拦下了本刀笔误）**：回填初稿在「顶格那两格如今是 `83f6eaa` … **两侧同树**读回的数」那句里顺手带上了 `2f0808e`（写作「在第六十一节换绑到 `2f0808e` 时被读掉」），同树声明对表闸当场读到 `83f6eaa` / `2f0808e` 两枚而红；把那一枚从句中摘掉后转绿。定向守卫五份（claims 7 / provenance 11 / composition 2 / platform-test-count 5 / ci-gate 6 = 31 条）全绿。
+
+**测试数变动**：359 文件 4684 passed | 2 skipped（4686 注册） → **不变**（README 与守卫注释改动不加用例；摘 `ties` 不减 `test(` 行数）。
+**门禁**：`pnpm verify` 全绿（退出码 0）。
+
+**仍未动手**：§九十五 三份贴顶文件（`DocumentPane.vue` / `useBookStore.ts` / `agent-service.ts`）复核后判「不共享状态」不成立、真撞顶时接受放置——台账至此除它以外无未收口项。
+**安全**：该 PAT 已在会话里明文出现，已提醒用户**撤销并重新生成**；本刀未把它写进任何文件、未改 `git config`。
+
 
 
