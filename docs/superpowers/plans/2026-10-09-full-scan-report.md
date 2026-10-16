@@ -6866,3 +6866,33 @@ equal []`）。
 
 **划掉**：§八十六 之后按双判据重排的第一格（`apps/desktop/src/main/index.ts`，渲染层两份壳清完之后行数 × 提交最高的一份，已有 spec）。
 **仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
+
+## 第八十八节：把 `layoutStore.ts` 这份「渲染层三栏布局态」捕获成 spec（Archcore 第十刀，2026-10-16）
+
+**来源**：用户一句「继续」，接 §八十七 之后按双判据（近 800 行预算 × 近 90 天提交次数）往下走。
+**本刀同样不碰产品代码**——只加一份 `.archcore/architecture/layout-store.spec.md`、3 条关联边与本段文字。
+
+**为什么下一个是它**：§八十七 落地 main-entry 之后，按双判据重排的下一格是 `apps/desktop/src/renderer/src/stores/layoutStore.ts`（636 行 / 近 90 天 9 次提交）——主进程侧唯一装配层清完之后，剩下的行数 × 提交最高的一份。它是渲染层三栏布局态的**唯一真身**：§八十四（web-search 被它调用面）、§八十五（DocumentPane 读开合与宽度）、§八十六（LeftSidebar 导航高亮与入口）三刀都挂在它这条轴上，前几刀反复写到「判定住 utils、行为住 store」，本刀就是那个 store 里最核心的一枚。
+
+**不是转述注释，是读源码落的**：读全篇 636 行之外，另读了五处被判「抽出去」的下游真身——`utils/rightPanePreferences.ts`（记忆形状、存储键、坏值退默认）、`utils/view-transition.ts`（在飞闸 `inFlight` / 减动效 / `nextTick` 四个坑）、`utils/panePointerCapture.ts`（拖拽捕获接口）、`utils/motion-preference.ts`（减动效宿主判据）、`stores/useOnboardingStore.ts`（引导信号桥）；另扫了三份直接针对它的用例（`layoutStore.test.ts` 二十四条、`dead-store-guard.test.ts` 两条、`dead-panel-entry.test.ts`）与 `view-transition-wiring.test.ts` 的标题。规范里的 invariant 与失败规则就是从这些判据抄的。
+
+**落了什么**：1 份 spec（`accepted`）＋ 3 条关联边（指回 use-book-store spec、行数预算 rule、失败可见 rule）。正文 22 条 MUST / 8 条失败规则 / 7 条 constraint+invariant，body 85 行（spec 限 120 行）。
+
+**取舍**：
+
+- 22 条 MUST 分成四组口径：单一真身（中栏只用一枚 `centerView`、宽度记忆只经 `rightPanePreferences`、过渡只经 `runViewTransition`、面板键只留模板读过的两枚）、口径统一（判窄不窄一律走 `layoutViewportWidth`、夹宽一律走 `clampPaneWidth`）、闸门纪律（自动折叠先查 `rightPaneManuallyToggled`、手动折叠才置位、两条闸门都不许自动策略置位）、双向分岔（空书档只收不展 / 空文稿档双向）。规范不重述真身，只钉**容易被后人改错**的那一面。
+- 「手动优先」这条在正文里占三处（MUST 10 / 12 / 13，加失败规则 8）：它是本 store 最常被踩的一条——自动策略若直接赋 `rightCollapsed` 或误置 `rightPaneManuallyToggled`，就会把「只收不展」和「手动交权」两条一起弄坏（`layoutStore.test.ts` 里「用户手动动过右栏就把闸门上锁」「用户亲手拖过 / 键盘调过左栏之后，窗口缩放不再替他改宽度」两条钉住）。
+- 「判窄不窄」单独成一条 invariant：真机实测 Electron 缩放下实际渲染 877px 而 `window.innerWidth` 报 1280，拿后者判会判反；`reconcilePaneWidths` 与 `maximumPaneWidth` 必须同走 `layoutViewportWidth` 这一份口径。
+- 「空文稿双向 / 空书只收不展」这一组分岔单独钉：开书可能只是来查资料，开文稿就是要写——所以空文稿档的 `setRightCollapsedByEmptyDoc` 有 `shouldExpand`、空书档的 `setRightCollapsedByEmptyBook` 没有（「打开作品不擅自推回来」）。
+- 3 条关联边里指向 `use-book-store.spec.md`（本 store 的「无作品收右栏」判据真身是那边的 `hasBook` getter，五个读点统一用）、`failures-must-be-visible.rule.md`（本文件的失败规则＝过渡拒绝 / localStorage 坏值 / 读不到 `--center-pane-min`）与行数预算 rule（636 行贴顶，纯函数已往外拆）。
+
+**当场复核的两件事**：
+
+- `search_documents({for_path: "apps/desktop/src/renderer/src/stores/layoutStore.ts"})`：coverage 22 / hits 20，新 spec 以 `reason:"file"` **排第 1**（其后是 project-stack rule、use-agent-store / use-book-store / document-pane 三份 spec）。`get_document` 回读 `outgoing_relations` 三条齐（use-book-store spec / 行数预算 rule / 失败可见 rule，全 `related`）。
+- 全 `.archcore/**/*.md` 跑 `prettier --write`——本刀新写的 spec 被格式化了一次（85 行），其余全部 `unchanged`。
+
+**没动的**：两处预存在脏文件（`workbench-cta-emphasis.test.ts` / `conversation-pane.css`）照旧没上车。
+**门禁**：只加 `.archcore/**` 与台账文字，源码 / 契约 / 样式一行未改。
+
+**划掉**：§八十七 之后按双判据重排的第一格（`apps/desktop/src/renderer/src/stores/layoutStore.ts`，主进程侧清完之后行数 × 提交最高的一份，已有 spec）。
+**仍等同用户一句话的**：重启会话以启用插件原生 `/archcore:*` 命令（需要用户操作）；本刀这份新 spec 用户尚未过目，读着不对就说，我改。
