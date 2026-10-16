@@ -7219,5 +7219,22 @@ equal []`）。
 
 **仍未动手**：README 顶格回填（§九十七 已裁定阻断，待授权推送）——这是台账里**唯一**还剩的一条，且卡在外部条件（授权推送 + 从 CI run 读回出处）上；其余条目本轮已全部收口。
 
+## 第一百零一节：全仓再扫 —— 行数预算与 Archcore 覆盖/引用完整性复核（2026-10-16）
+
+**来源**：用户第二次「继续」。上一轮已把台账里唯一剩下的一条（README 顶格回填）摊开成「待授权推送」，用户未落该决策。为既不擅自扩展台账外的工作、也不擅自 `push`（§九十七 已否决「未授权先推」），本刀改做一轮**台账内、不依赖外部条件**的全仓体检。
+
+**三处当场读数**：
+
+1. 行数预算闸 `node tools/check-source-line-budget.mjs` → 打印「行数预算通过（**705 份**，含 .mjs/.cjs）」，退出码 **0**。
+2. ≥600 行**非测试**源文件按官方口径重扫（ROOTS = `packages` / `apps/desktop/src` / `tools` / `apps/desktop/scripts`；行数取 `content.split("\n").length`）：仍为 **17 份**，顶在最前的仍是 `DocumentPane.vue` **800** / `useBookStore.ts` **800** / `agent-service.ts` **799**；逐份查 `.archcore` 语料（31 份文件）**全部命中，缺口 0**——与 §一百 的收口结论一致（`gen-scene-svgs.mjs` 664 按 entry-point 归档，不计空洞）。
+3. `.archcore` 引用完整性：19 条 `@apps/...` 形式的源码路径引用**悬空 0 处**；`.sync-state.json` 的 **62 条 `relations` 边**逐条解析**悬空 0 条**。
+
+**取舍**：这一刀只体检、不改任何仓库文件，故不立新 spec、不动门面。过程中暴露的唯一「新」东西是**体检脚本自己的两个洞**——测试排除正则应写成 `\.(test|spec)\.(ts|vue|mjs|cjs)$`（原先多要一段扩展名，于是把 `agent-service.test.ts` 之类当成了非测试源文件，虚报出一批假缺口），`.archcore` 语料要按「任意扩展名」收集（照行数闸的 `SOURCE_FILE` 正则只认 `.ts/.vue/.mjs/.cjs`，`.md` 一份都收不进来，于是 17 份全被判「缺 spec」）。两个洞修掉后重跑才得 0 缺口；脚本跑完即删，不入仓。
+
+**测试数变动**：359 文件 4684 passed | 2 skipped → **不变**（无产品代码改动）。
+**门禁**：`pnpm verify` 全绿（退出码 0）。
+
+**仍未动手**：README 顶格回填（§九十七 已裁定阻断），**需要用户拍板**——授权 `git push origin feat/plan3-interaction-and-assembly`，或明确「不推、继续按现规不入账」。另附本轮实测的第三条卡点：本机回读 CI 出处的三条路此刻**都不通**（匿名 REST API 404、`gh` CLI 未安装、浏览器子代理开 `github.com` 报 `ERR_CONNECTION_RESET` / `ERR_CONNECTION_TIMED_OUT`），故即便授权推送并让 CI 在 HEAD 跑出 run，那三个数（`files=… registered=… passed=…`）与 run 页 ID 仍需用户贴回，或等网络恢复后我再读。
+
 
 
