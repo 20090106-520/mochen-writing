@@ -7187,3 +7187,19 @@ equal []`）。
 
 **仍未动手**：README 顶格回填（§九十七 已裁定阻断，待授权推送）；§九十五 两份贴顶文件（`useBookStore.ts` 799 / `agent-service.ts` 798）复核后判「不共享状态」不成立、须另挑格子。
 
+## 第九十九节：补 WritingGoalPanel.vue 架构规范——Archcore ≥600 行池的漏格（2026-10-16）
+
+**来源**：用户「继续」。§九十六 收口时声称「Archcore ≥600 行池剩余两格（ExportDialog / CenterColumn）」已清空，但按现口径重扫发现**漏了一格**：`apps/desktop/src/renderer/src/components/WritingGoalPanel.vue`（621 行）全仓 `.archcore` **零命中**——既无 spec、也无任何文档提及。project memory 明写「所有核心模块必须配套对应的 Archcore 架构规范文档，填补架构覆盖空洞」，故补上。
+
+**取舍**：本刀**只补文档**，不动任何产品代码——621 行 < 800 上限，未撞行数闸；重读这一块也没发现真 bug（`saveError` 上屏、热力标签走日期、颜色走 token 三条都已在位）。按 §八十九–九十二 的既有格式与四条边口径落一份 `architecture/writing-goal-panel.spec.md`。
+
+**规范要点**：面板只读 `props.visible`（可见态真身是 `App.vue` 的 `goalPanelOpen` 本地 ref、快捷键取反）；焦点 / Esc 走 `useModalFocus` 一处；进度数字只读 store 的 `progressForDate` 一族、面板不自算；环色走 `ringStroke`、格色走 `heatFill` / `heatBorder`、星期 / 号数走 `goal-heat-labels`（按那一格自己的日期算）；时长目标未设时显示「未设目标」而非「0 / 0 分钟」；落盘失败由 `store.saveError` 上屏（failures-must-be-visible）。
+
+**关联边**（写进 `.archcore/.sync-state.json`，4 条）：→ `use-book-store.spec.md`、→ `notes-panel.spec.md`（同走 `useBookFileData` 的落盘失败可见这一族）、→ `conventions/source-line-budget.rule.md`、→ `conventions/failures-must-be-visible.rule.md`。
+
+**测试数变动**：359 文件 4684 passed | 2 skipped → **不变**（本刀纯文档，无新增用例；`.archcore` 不进 vitest）。
+**门禁**：`pnpm verify` 全绿（退出码 0）。
+
+**仍未动手**：README 顶格回填（§九十七 已裁定阻断，待授权推送）；§九十五 三份贴顶文件（`DocumentPane.vue` 800 / `useBookStore.ts` 800 / `agent-service.ts` 799）复核后判「不共享状态」不成立，§九十五 结论是「真撞顶时接受放置」；下一次若再要拆，候选是 `web-search.ts`（796）/ `useAgentStore.ts`（791）/ `LeftSidebar.vue`（789）。
+
+
