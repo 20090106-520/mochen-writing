@@ -140,6 +140,20 @@ describe("ai-flavor · analyzeAiFlavor", () => {
     expect(plain.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_CONTRAST_LABEL);
   });
 
+  it("升华对偶判据的召回边界：带主语的「不是X。他是Y」不抓（2026-10-16，§一百零八 实跑核过）", () => {
+    // 证据来自真实样章 scratch/flavor-probe/sample-before.md——那句
+    // 「老周不是来偷东西的。他是来灭灯的。」是教科书式的升华对偶，但判据要求转折落在
+    // 紧挨着「是」的位置上，中间插主语（他）就整条落空。
+    // 按 §一百零五 的取舍**不放宽**：放宽（允许中间插代词）会碰上正文里常态的合法构句
+    // 「不是A。他是B」，误伤面比召回收益大。这条钉住的是「边界是有意的」，不是「忘了抓」。
+    const boundary = analyzeFlavorWithRepeat("老周不是来偷东西的。他是来灭灯的。\n", 3);
+    expect(boundary.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_ANTITHESIS_LABEL);
+    // 它该抓的那一支确实抓得住，判据不是空的。
+    const hit = analyzeFlavorWithRepeat("他不是来偷东西的，是来灭灯的。\n", 3);
+    const entry = hit.entries.find((e) => e.term === AI_FLAVOR_ANTITHESIS_LABEL)!;
+    expect(entry.count).toBe(3);
+  });
+
   it("密度按千字计；句长均值与波动要够 10 句才算，样本不足回 null 不编数", () => {
     const body = "他嘴角勾起一抹笑。".repeat(6); // 每句 9 字（含句号），共 6 句
     const report = analyzeAiFlavor([body]);

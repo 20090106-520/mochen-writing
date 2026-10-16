@@ -107,6 +107,10 @@ describe("defaultPromptFor · 拼装", () => {
     expect(text).toContain("给普通名词加戏");
     // 2026-10-16 §一百零七：补 deslop 里没折进来的那一条（反差模板）。
     expect(text).toContain("反差模板");
+    // 2026-10-16 §一百零八：核对话技能（dialogue-voice）时补的两条未覆盖方法——
+    // 「给每人定一句他绝不会说的话」的忌讳法，与「别靠语气词凑区别」这条纠偏。
+    expect(text).toContain("他绝不会说");
+    expect(text).toContain("语气词");
   });
 });
 
