@@ -7323,5 +7323,21 @@ equal []`）。
 **门禁**：`pnpm verify` 全绿（退出码 0）。
 **与 §一百零四 的口径衔接**：本刀只把**扫描端与生成端重新对齐**，**不宣称朱雀降幅**——§一百零四已实测同一篇文本在朱雀读回 0% ↔ 52.45%，读数是噪声，不作 A/B 依据。
 
+## 第一百零六节：README 顶格门禁数据回填到 `19c3065`（2026-10-16）——台账最后一条挂账结清
+
+**来源**：§一百零三 把顶格回填到 `83f6eaa` 后留下的唯一挂账——本树没有 CI run，无法读回 annotation，按「不得编造未发生的 CI 数据」不动 README。本节把这笔挂账结清：外部条件（网络 + 凭据）已恢复，`git ls-remote origin` 退出码 0，`credential.helper=manager` 可直接推送。
+
+**做了什么**：
+- **推送**：本地领先 origin 46 个提交（`a96b9d6..19c3065`，含 §一百零四 `685bb9a`、§一百零五 `19c3065`）一次性推到 `feat/plan3-interaction-and-assembly`。
+- **读回 CI**：该次推送触发 run `38911652691`（`head_sha=19c3065`）成功，annotation 原文 `files=359 registered=4687 passed=4687 skipped=0 failures=0`（读通路与 §一百零三 同：REST `check-runs/<job>/annotations`）。
+- **两侧账**：本机 Windows 在同一棵树 `19c3065` 上 `pnpm verify` 全绿，实测 **359 文件 / 4688 passed | 2 skipped（4690 条注册）**；CI Linux 侧 4687 = 本机 4690 − 3，与门面现役算式 `+3 − 2 = +1` 同形。
+
+**README 改动（换绑，不改历史叙事的事实）**：现役树 `83f6eaa` → `19c3065`；顶格两格 `4683 / 4684 | 2（4686）` → `4687 / 4688 | 2（4690）`；quoted annotation 原文同步为 `registered=4687 passed=4687`；run 页 `38901875288` → `38911652691`；`83f6eaa`（4683）与 §一百零三 退成「上一版」叙事，`2f0808e`/`1cb4a29`/`a953b12` 依次后移。守卫注释（`readme-claims.test.mjs` 那条「第一百零三节把顶格换绑到…」）同步到 19c3065（4687）。
+
+**守卫**：五份门面守卫（`readme-claims` 7 / `readme-provenance` 11 / `readme-gate-composition` 2 / `platform-test-count` 5 / `ci-test-summary` 8）**33 道全绿**——同树短哈希同一枚、第九道等式、第十五道 quoted 与顶格对齐，均自洽。
+
+**门禁**：`pnpm verify` 全绿（退出码 0）。
+**口径**：README 那两个数**绑的是 CI 在 `19c3065` 上读回的真数**（run 页 `38911652691`），不是本机推算，更不是编的。
+
 
 
