@@ -338,3 +338,35 @@ describe("空选与复制：判定只许有一处", () => {
     expect(countNeedle(".export-no-selection", dialogCss)).toBe(1);
   });
 });
+
+/**
+ * 读不出来的正文本该看得见（`conventions/failures-must-be-visible.rule.md`）。
+ *
+ * 病灶：`loadDocsForExport` 以前只做「留 fulfilled、丢 rejected」这一步，
+ * 于是一篇章节的 `readDoc` 抛了，它就从组装集里**无声消失**——屏上既不报错、
+ * 也不提「少了一篇」，用户拿到的导出文件里那篇是空的，还以为书本来就这样。
+ * 这一族钉的是「有章节读不出来时屏上必须出现一句可见中文」。
+ */
+describe("读不出来的正文要看得见（失败必须可见）", () => {
+  it("loadDocsForExport 数得出 rejected 的篇数，并把它写进一句中文告警", () => {
+    expect(dialogScript).toContain('r.status === "rejected"');
+    // 把「真有 failed 才写告警」这层判定也钉住：只断言那两枚字面量的话，
+    // 删掉下面那个 if 块照样绿——告警就永远不出现（也就是原来的静默 bug）。
+    expect(dialogScript).toContain("failedCount > 0");
+    expect(dialogScript).toContain("篇章节正文没读出来");
+    expect(dialogScript).toContain("contentLoadError.value =");
+  });
+
+  it("模板渲染 contentLoadError，那条 class 在样式里真有规则（模板出现几次、样式几条）", () => {
+    expect(dialogTpl).toContain('v-if="contentLoadError"');
+    expect(dialogTpl).toContain('class="export-load-error"');
+    expect(ruleBlock(dialogCss, ".export-load-error")).not.toBe("");
+    expect(countNeedle('class="export-load-error"', dialogTpl)).toBe(1);
+    expect(countNeedle(".export-load-error", dialogCss)).toBe(1);
+  });
+
+  it("全都读得出来时告警要清空（不许把上一轮的失败态留在屏上）", () => {
+    // 数次数：两处赋空值——一次是「没有 rejected」的正常路，一次是早退/成功回填。
+    expect(dialogScript).toContain('contentLoadError.value = ""');
+  });
+});

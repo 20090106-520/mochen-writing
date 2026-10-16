@@ -7169,3 +7169,21 @@ equal []`）。
 **门禁**：`pnpm verify` 全绿（退出码 0）。
 
 **仍未动手**：同上（README 顶格待授权推送后再回填；§九十五 两份贴顶文件仍待办）。
+
+## 第九十八节：ExportDialog 静默丢弃读不出来的章节 —— 补可见告警（2026-10-16）
+
+**来源**：用户「好的，执行吧」——执行上一条末尾「仍未动手」里唯一可立即落地的一项：`ExportDialog.loadDocsForExport` 用 `Promise.allSettled` 只留 fulfilled、把读不出来的章节**无声丢掉**（与 `conventions/failures-must-be-visible.rule.md` 冲突）。
+
+**病灶**：`apps/desktop/src/renderer/src/components/ExportDialog.vue` 的 `loadDocsForExport` 只做「留 fulfilled、丢 rejected」。一篇章节的 `readDoc` 抛了，它就从组装集里消失——屏上既不报错、也不提「少了一篇」，用户拿到的导出文件里那篇是空的、还以为书本来就这么短。`.archcore/architecture/export-dialog.spec.md` 的 Failure Behavior 第 7 条当时**承认**了这处静默丢弃并登记为未落地。
+
+**取舍**：只留 fulfilled 这个策略本身不改（一篇坏了不该拖垮整次导出），改的是**让它看得见**——新增 `contentLoadError` 一格：`loadDocsForExport` 先清上一轮告警，再数出 rejected 的篇数，>0 时写入一句中文（「有 N 篇章节正文没读出来，本次导出将不含它们。」），模板用 `v-if="contentLoadError"` 在预览区渲染。
+
+**测试**：`export-dialog-wiring.test.ts` 新增 3 条（原 32 → 35）：① 数得出 rejected 篇数且真会写告警（钉住 `r.status === "rejected"` / `failedCount > 0` / 文案 / 赋值四处，光钉字面量的话删掉那个 `if` 块照样绿）；② 模板渲染 + class 在样式里真有规则（模板几条、样式几条）；③ 全都读得出来时告警清空。**变异实测**：Edit 删掉「写告警」那个 `if` 块 → 第 1 条转红，原样回退后转绿。
+
+**规范同步**：`export-dialog.spec.md` 的 Failure Behavior 第 7 条由「已知代价 / 改善方向」改为**已落地**（MUST 出现可见中文、MUST NOT 静默丢弃）；新增 Normative Behavior 第 18 条；Surface 补 `contentLoadError`；Invariant「失败必须看得见」由三条路改四条路；标题「三条出口」→「四条出口」。
+
+**测试数变动**：359 文件 4681 passed | 2 skipped（4683 注册） → **359 文件 4684 passed | 2 skipped（4686 注册）**（+3）。
+**门禁**：`pnpm verify` 全绿（退出码 0）。
+
+**仍未动手**：README 顶格回填（§九十七 已裁定阻断，待授权推送）；§九十五 两份贴顶文件（`useBookStore.ts` 799 / `agent-service.ts` 798）复核后判「不共享状态」不成立、须另挑格子。
+

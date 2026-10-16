@@ -16,7 +16,15 @@ import { decideCopy, shouldAssemble } from "../utils/export-clipboard";
 import type { DocRef } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 
-/** 批量加载文档内容，构造 ExportableDoc 供导出使用 */
+/** 有章节正文读不出来时的一句中文；空串 = 都读出来了。 */
+const contentLoadError = ref("");
+
+/**
+ * 批量加载文档内容，构造 ExportableDoc 供导出使用。
+ * 读不出来的那几篇**必须看得见**（`conventions/failures-must-be-visible.rule.md`）：
+ * `Promise.allSettled` 只留 fulfilled 本身是对的（一篇坏了不该拖垮整次导出），
+ * 但从前连「丢了几篇」都不提——用户拿到的那份文件里少了几篇、还以为书本来就这么短。
+ */
 async function loadDocsForExport(docs: DocRef[]): Promise<ExportableDoc[]> {
   const results = await Promise.allSettled(
     docs.map(async (doc) => {
@@ -29,6 +37,12 @@ async function loadDocsForExport(docs: DocRef[]): Promise<ExportableDoc[]> {
       } satisfies ExportableDoc;
     })
   );
+  // 先把上一轮的告警抹掉：本轮若没有读失败的，屏上不许还留着上一次那条。
+  contentLoadError.value = "";
+  const failedCount = results.filter((r) => r.status === "rejected").length;
+  if (failedCount > 0) {
+    contentLoadError.value = `有 ${failedCount} 篇章节正文没读出来，本次导出将不含它们。`;
+  }
   return results
     .filter((r): r is PromiseFulfilledResult<ExportableDoc> => r.status === "fulfilled")
     .map((r) => r.value);
@@ -389,6 +403,8 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
       </div>
       <!-- 组装失败要看得见：静默留一份空 preview，用户会以为「导出出来是空的」 -->
       <p v-if="assembleError" class="export-assemble-error">{{ assembleError }}</p>
+      <!-- 有的章节正文没读出来也要看得见：静默丢几篇，用户会以为书本来就这么短 -->
+      <p v-if="contentLoadError" class="export-load-error">{{ contentLoadError }}</p>
       <!-- 空选不摆全书预览（口径与下面那颗禁用钮一致了），所以要直说现在为什么是空的 -->
       <p v-if="selectedChapters.size === 0" class="export-no-selection">
         没勾选任何篇章——勾上要导出的章节才会有预览。
@@ -593,6 +609,15 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
   font-size: 0.785714rem;
   color: var(--danger, #d64545);
   background: var(--danger-soft, rgb(214 69 69 / 12%));
+  border-radius: 6px;
+}
+
+.export-load-error {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 0.785714rem;
+  color: var(--warning, #c28b35);
+  background: var(--warning-soft, rgb(194 139 53 / 12%));
   border-radius: 6px;
 }
 
