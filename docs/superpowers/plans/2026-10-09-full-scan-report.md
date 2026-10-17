@@ -8661,4 +8661,95 @@ Linux 那一格 **364 文件 / 4762 用例**，本机那一格 **364 文件 / 47
 它的 run 页 `39042721209`、作业 id `117425274680`，结论 success，annotation 原文与上面**逐字相同**
 （`files=364 registered=4762 passed=4762 skipped=0 failures=0`）——README 与守卫注释都是纯文档改动，用例数不动，两侧读数一字未变。
 
+## 第一百二十七节 · 输入卡 textarea 收掉全局焦点环（用户「这个框，不要」）
+
+用户上传一张截图，指令四个字（逐字）：「这个框，不要」。截图里是空工作台态的输入行——`/` 前缀 ＋ 占位文字
+「先在左栏打开作品，或在右上角设置里配好模型。」被一圈**方角青绿细框**框住，右上另有卡自己的 28px 圆角弧。
+
+### 一、根因：不是「没写」，是**特异性**
+
+- `styles.css:159-163` 有一条全局规则
+  `button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid color-mix(in srgb, var(--focus) 55%, transparent); outline-offset: 1px; }`，
+  特异性 **(0,1,1)**。
+- `styles/agent-pane.css` 卡片段里那句 `.composer-textarea { outline: none }` 是 **(0,1,0)** ⇒ **从来没生效过**。
+- 于是鼠标一点输入行，Chromium 就照全局那条给这个 textarea 画一圈 2px 环。
+
+### 二、取证（三层，互相独立）
+
+1. **裁量对齐**：用户截图 1658×109 device px，dpr 实测 1.5 ⇒ **1105 × 72.7 CSS px**；横向恰好等于输入卡整宽
+   `1106`（CDP 读回 `card=310,736.7,1106,153.3`），纵向正是卡顶往下 72.7px。
+2. **枚举探针**（`%TEMP%/mochen-cdp/probe4.mjs`，从 `.composer-wrap` 整棵子树逐个枚举「会画线」的元素）：
+   输入区内（`.composer-input-zone` / `.composer-prefix` / `.composer-textarea`）**一个都没有**；
+   卡本体是 `border: 0.666667px rgb(203,218,214)`、`radius: 28px`——太淡，不是截图里那圈青绿线。
+   ⇒ 排除「卡内另有元素画框」与「卡沿本身」，只剩**伪类态**没查。
+3. **真鼠标点击探针**（`probe6.mjs`，走 CDP `Input.dispatchMouseEvent` 点输入行中心）：点前 `:focus-visible` 不命中；
+   点后命中，实测 `outline: 2px solid color(srgb 0.145098 0.45098 0.431373 / 0.55)`、`outline-offset: 0.666667px`、
+   `border-radius: 0px`（**方角**）——与截图逐项吻合。按卡整宽同尺寸裁剪出的复刻图与用户截图**视觉一致**。
+
+### 三、改法
+
+`styles/agent-pane.css` 卡片段，在 `.composer-textarea::placeholder` 之后补一条**同带伪类**的规则
+`.composer-textarea:focus-visible { outline: none }`（(0,2,0) 压得回 (0,1,1)）。
+全局那条**留着**：对话框里的 textarea 是表单字段，Tab 到它不一定带光标，环是唯一的可见提示
+（`theme-runtime.css` 对 `.dialog-content textarea:focus` 也是同一口径）。这张卡不需要环——聚焦提示由
+`html[data-theme] .composer:focus-within .composer-input-surface` 那条**提亮卡沿**承担，光标本身就是最强的提示；
+口径与 `theme-runtime.css` 里 2026-10-10 那格「只提亮边框、不加光环」同一条。
+
+### 四、判据：先红后绿
+
+- `components/conversation-chain-wiring.test.ts` 的「输入卡装饰」describe 追加 **1 条**：
+  全局那条要还在（对话框表单字段靠它）＋ 本卡必须有一条 `.composer-textarea:focus-visible` 且块内 `outline: none`。
+- 先写失败用例：先跑 ⇒ 红（`ruleBlock` 抛「样式表里找不到规则 `.composer-textarea:focus-visible`」）；
+  实现后 ⇒ 该文件 **19 条**、与 `composer-card-wiring.test.ts` 合跑 **44 条**全绿。
+- 全仓 `corepack pnpm verify` ⇒ **364 文件 / 4764 passed | 2 skipped（4766 条注册）**、`VERIFY_EXIT=0`
+  （上一版 364 / 4763 | 2 skipped（4765 条注册），差值正好 = 新增的这 1 条）。
+
+### 五、真机复验（构建后实例 1440 / 右栏折叠，CDP）
+
+重建后重启实例、再跑同一枚 `probe6.mjs`：点击后 `:focus-visible` **仍命中**（`fv=true`），
+但 `outline` 读回 `2.66667px none rgb(16,48,47)`——**style 是 `none`，不再画环**；
+同尺寸裁剪图里那圈方框已消失，只剩卡自己的圆角细边。
+
+### 六、本节未收的口子（如实）
+
+- 这是**浏览器焦点指示**，本刀只把这一张卡收掉；其它 `textarea:focus-visible` 的面（对话框表单字段）**照旧保留**，是边界不是缺陷。
+- `%TEMP%/mochen-cdp/` 下的量测件（`probe*.mjs` 与几张裁剪图）是**仓外临时件**，跑完即删，未入仓。
+
+### 七、本节改动的落点
+
+| 文件 | 改动 |
+| --- | --- |
+| `styles/agent-pane.css` | 卡片段新增 `.composer-textarea:focus-visible { outline: none }` |
+| `components/conversation-chain-wiring.test.ts` | **追加 1 条**焦点环断言 |
+| `README.md` | 「## 门禁」节同批换绑（见第八节） |
+| `tools/readme-claims.test.mjs` | 回填链注释补「第一百二十七节再换到 `e6d4979`（4763）」，差值说明 632→633 条 |
+
+提交 `e6d4979 fix(composer): 输入卡 textarea 收掉全局焦点环`：2 files changed, **29 insertions(＋)**。
+
+### 八、补记（推送后回填）
+
+**【2026-10-17 推送后回填】** `e6d4979` 推上远端（`ad476f3..e6d4979`），那一枚 run 当场读回：
+
+- run 页 `39044488894`，`head_sha=e6d4979534aefc30e7815aa2bc2510a891782799`，`conclusion=success`。
+- 作业 id `117430401338`，作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试」，结论 success，
+  started `2026-10-17T15:18:57Z`、done `2026-10-17T15:21:31Z`。
+- CI 自己吐的那条 annotation 原文：`files=364 registered=4763 passed=4763 skipped=0 failures=0`。
+
+⇒ README「## 门禁」节同批换绑到 `e6d4979`，**九处一起动**（顶格两格、免责段里那两处同树说法与台账指引、
+历史链新增一条「上一版绑的是 `378a29f`（2026-10-17，run 页 `39041671036`，364 文件 / 4762 用例），第一百二十七节换绑」、
+quoted annotation 原文、`Linux 侧 4763 条注册 = 本机 4766 − 3` 那笔账、以及现役那一整段）。
+Linux 那一格 **364 文件 / 4763 用例**，本机那一格 **364 文件 / 4764 passed | 2 skipped（4766 条注册）**。
+等式三处自洽：`4763 + 3 = 4766`、`4764 + 2 = 4766`、本机 passed 比 Linux 多 1（`4764 − 4763 = 1`）。
+用例数从上一版的 4762 长到 4763，差的 **1 条**正是本节第四节那条断言（`git show e6d4979` 的
+`conversation-chain-wiring.test.ts` 里 `+  it(` 恰好 1 行）。
+
+本机那一格是**零脏项树上的复跑**：跑的是 `e6d4979` 自己（六段退出码全 0，末行 `VERIFY_EXIT=0`），
+`git status --porcelain` 跑前与跑后各读回一次、两边都是 0 条；`Test Files 364 passed (364)`、
+`Tests 4764 passed | 2 skipped (4766)`。换绑后的门面守卫另跑一次：`Test Files 5 passed (5)`
+（等式闸、quoted 原文闸、同树短哈希闸、条数对表闸、平台差值闸全绿）。
+
+⇒ 本节收口：截图里那一圈方框的来源**指到唯一一处**（全局 `textarea:focus-visible` 的焦点环），
+同带伪类收掉之后真机复验不再出现；未收的是「其它表单字段的环照旧保留」这条边界。
+
+
 
