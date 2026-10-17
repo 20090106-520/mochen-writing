@@ -151,17 +151,23 @@ function submit(): void {
              与 deepwrite 的 .composer-stack + .composer-reference-menu 同一形态（裁定 D4）。
              刻意不放进 .composer-toolbar-right：那是权限弹层的定位祖先，抢了它弹层就会跟着菜单跑。 -->
         <ComposerReferenceMenu />
-        <textarea
-          v-model="draft"
-          data-mochen-composer
-          class="composer-textarea"
-          rows="1"
-          :placeholder="
-            ready
-              ? '随心输入，输入 / 唤出命令，输入 @ 引用素材……'
-              : '先在左栏打开作品，或在右上角设置里配好模型。'
-          "
-        />
+        <!-- 2026-10-17 设计稿「用这个对话框」：输入行以装饰性 `/` 前缀起头（设计稿的 .prefix-char）。
+             它是纯装饰（aria-hidden），placeholder 与任何数据通路都不受影响；把它与 textarea
+             包进 `.composer-input-zone` 是为了照设计稿做「前缀 + 输入框并排一行」。 -->
+        <div class="composer-input-zone">
+          <span class="composer-prefix" aria-hidden="true">/</span>
+          <textarea
+            v-model="draft"
+            data-mochen-composer
+            class="composer-textarea"
+            rows="1"
+            :placeholder="
+              ready
+                ? '随心输入，输入 / 唤出命令，输入 @ 引用素材……'
+                : '先在左栏打开作品，或在右上角设置里配好模型。'
+            "
+          />
+        </div>
         <!-- 裁定 A：常态不占位；接近上限显计数，超限翻红 + 禁用发送 + 中文理由（Chromium 不给 disabled 弹 title，理由必须是看得见的文字）。 -->
         <div
           v-if="counter.over || counter.near"

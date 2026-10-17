@@ -279,11 +279,11 @@ describe("样式硬门禁 · #105 新增段零色值字面量", () => {
     expect(block).toContain("var(--neutral-solid-contrast)");
   });
 
-  it("#112 圆钮对齐 deepwrite 的原值（30×30 / 圆角 50% / disabled 0.42），但 disabled 不许画 pointer 手势", () => {
+  it("#112 圆钮的圆角 50% 与 disabled 0.42 保留；尺寸已按 2026-10-17 设计稿放大到 38×38，disabled 不许画 pointer 手势", () => {
     const pane = cardSection("agent-pane.css");
     const round = ruleBlock(pane, ".round-tool-button");
-    expect(round).toContain("width: 30px");
-    expect(round).toContain("height: 30px");
+    expect(round).toContain("width: 38px");
+    expect(round).toContain("height: 38px");
     expect(round).toContain("border-radius: 50%");
     expect(round).toContain("place-items: center");
     const off = ruleBlock(pane, ".round-tool-button:disabled");

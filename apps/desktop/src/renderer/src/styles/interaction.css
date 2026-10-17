@@ -161,11 +161,38 @@
 
 /* 输入区 chip 行的按下态（#101）：aria-pressed 由 composerChips 的 active 决定，
    样式只负责把它画出来——两枚真开关（思考 / 联网）才为真，入口型 chip 永远是假。
-   #112 起 chip 无边框，按下态只剩「上面 + 字色」两件事可画。 */
+   #112 起 chip 无边框，按下态只剩「上面 + 字色」两件事可画。
+   【2026-10-17 用户上传设计稿「用这个对话框」】按下态升级成设计稿那枚**激活胶囊**：
+   999px 圆角 + 一圈发光描边 + 顶沿高光，并按开的是哪一枚分流光晕色——深度走紫（--glow-deep）、
+   联网走蓝（--glow-net），与设计稿 .pill-deep / .pill-net 一一对应。
+   底色**仍用 `--selected`**（不照抄设计稿的半透明白）：那是本仓 `appearance-surface-ladder`
+   已登记、经对比度普查的状态档底，换成半透明会在暗色皮肤下失控；设计稿的签名（胶囊形状与光晕）全部保留。 */
 .composer-chip[aria-pressed="true"] {
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 80%, transparent);
   background: var(--selected);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--accent) 40%, transparent),
+    inset 0 1px 0 var(--glass-highlight);
   color: var(--text);
+  font-weight: 500;
   --text-faint: var(--text-on-state);
+}
+
+/* 深度那枚的紫光晕（设计稿 .pill-deep）。 */
+.composer-chip[data-chip="thinking"][aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--glow-deep) 90%, transparent);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--glow-deep) 45%, transparent),
+    inset 0 1px 0 var(--glass-highlight);
+}
+
+/* 联网那枚的蓝光晕（设计稿 .pill-net）。 */
+.composer-chip[data-chip="web-search"][aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--glow-net) 90%, transparent);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--glow-net) 45%, transparent),
+    inset 0 1px 0 var(--glass-highlight);
 }
 
 /* 工具 ▾ 浮层（#101）：与 / 面板同一套毛玻璃与层级，只读清单，没有任何可点掉的行。 */

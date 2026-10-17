@@ -136,7 +136,6 @@ html[data-theme] :where(.nav-row.is-active, .tree-row.is-selected, .view-tabs bu
 
 html[data-theme]
   :where(
-    .composer-input-surface,
     .workbench-card,
     .workbench-hero,
     .workbench-intro,
@@ -150,6 +149,23 @@ html[data-theme]
   ) {
   border-color: var(--theme-line);
   background: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+/* 输入卡那一层（2026-10-17 用户上传设计稿「用这个对话框」）：玻璃拟态。
+   它原先躺在上一条 `:where(...)` 组里拿一条**不透明底** `--surface-raised`——
+   那组的特异性与本条相同（都是「一个属性级 + 一个类型级」），但 `:where` 只赢在
+   **它自己写的那几条属性**上，于是卡里那条 `background: var(--editor)` 永远出不来，
+   玻璃（模糊 + 罩光 + 半透底色）也就永远显不出来。
+   ⇒ 移出之后另起这一条，玻璃三条照 `.left-sidebar`（46-52 行）的先例写在**同一条规则**里：
+     同选择器写两遍时后一条只赢在自己写的属性上，而 `ruleBlock` 守卫读的是第一条。
+   玻璃关掉时运行时给的是**不透明**底色与 `blur(0)`，所以这一层恒在。 */
+html[data-theme] .composer-input-surface {
+  border-color: var(--theme-line);
+  background: var(--surface-raised);
+  background-color: var(--skin-glass-card-fill);
+  background-image: var(--skin-glass-sheen, none);
+  backdrop-filter: blur(var(--skin-glass-blur, 0)) saturate(var(--skin-glass-saturate, 1));
   color: var(--text-primary);
 }
 

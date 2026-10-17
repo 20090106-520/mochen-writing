@@ -98,6 +98,13 @@
   --warning-soft: color-mix(in srgb, #c28b35 14%, transparent);
   --neutral-solid: #292c30;
   --neutral-solid-contrast: #ffffff;
+  /* 玻璃卡的三枚（2026-10-17 用户上传设计稿「玻璃拟态梦幻版 AI 输入框」）：设计稿给的就是
+     这三个名字——顶沿高光 `inset 0 1px 0 rgba(255,255,255,.7)`、深度激活光晕 `#9A7BFF`、
+     联网激活光晕 `#5AA8FF`。卡段（agent-pane.css / interaction.css 的 deepwrite-composer-card
+     段）有「零色值字面量」硬门禁，所以字面量只在这里落成 token，卡段一律 color-mix 消费。 */
+  --glass-highlight: color-mix(in srgb, #ffffff 55%, transparent);
+  --glow-deep: #9a7bff;
+  --glow-net: #5aa8ff;
   --shadow-color: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 16%, transparent);
   /* 高程三档（运行时 appearanceThemeRuntime 按明暗重算，这里是 JS 起来前的兜底）：
      卡片 sm、悬停 md、浮层 lg。颜色全部收在 --shadow-color 后面，换主题只改一个值。 */

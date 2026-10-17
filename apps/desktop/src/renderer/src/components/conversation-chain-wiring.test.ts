@@ -154,4 +154,70 @@ describe("输入卡装饰 · 2026-10-17 用户裁定「缺少一些东西」", (
     expect(ruleBlock(CARD, ".round-tool-button")).toContain("transition:");
     expect(CARD).toContain(".round-tool-button:focus-visible");
   });
+
+  // ===== 2026-10-17 用户上传设计稿（「玻璃拟态梦幻版 AI 输入框」）· 原话「用这个对话框」=====
+  // 只落地卡片本体：设计稿的极光背景 / 光斑 / 星点是演示页画布，归皮肤广场，不在这一刀。
+  // 尺寸与形状照设计稿逐字，颜色一律 token / color-mix（卡段零色值字面量硬门禁）。
+
+  it("设计稿：卡是 28px 大圆角的玻璃面，顶沿有一道高光，三层景深仍在", () => {
+    const surface = ruleBlock(CARD, ".composer-input-surface");
+    expect(surface, "设计稿的卡是 28px 圆角").toContain("border-radius: 28px");
+    expect(
+      surface,
+      "玻璃卡的顶沿高光（设计稿的 inset 0 1px 0 rgba(255,255,255,.7)）没落成 token 消费"
+    ).toContain("var(--glass-highlight)");
+    expect(shadowLayers(surface), "顶沿高光不许把三层景深挤掉").toBeGreaterThanOrEqual(3);
+  });
+
+  it("设计稿：工具条 64px 高，正文与工具条之间的发丝分隔线仍在", () => {
+    const bar = ruleBlock(CARD, ".composer-toolbar");
+    expect(bar, "设计稿工具条高 64px").toContain("min-height: 64px");
+    expect(bar, "分隔线不能丢").toContain("border-top:");
+  });
+
+  it("设计稿：发送键 46×46、两枚圆钮 38×38（照设计稿放大）", () => {
+    const send = ruleBlock(CARD, ".send-button");
+    expect(send, "设计稿的发送键是 46×46").toContain("width: 46px");
+    expect(send).toContain("height: 46px");
+    const round = ruleBlock(CARD, ".round-tool-button");
+    expect(round, "设计稿的加号 / 麦克风是 38×38").toContain("width: 38px");
+    expect(round).toContain("height: 38px");
+  });
+
+  it("设计稿：输入区以 `/` 前缀起头，排在 textarea 之前（模板层）", () => {
+    const m = templateSource("components/ComposerBox.vue");
+    expect(countNeedle('class="composer-prefix"', m), "`/` 前缀没挂，或挂了不止一处").toBe(1);
+    const prefixAt = m.indexOf('class="composer-prefix"');
+    const taAt = m.indexOf('class="composer-textarea"');
+    expect(taAt, '模板里找不到 class="composer-textarea"').toBeGreaterThan(-1);
+    expect(prefixAt, "`/` 前缀排在 textarea 之后——设计稿里它在输入行最左端").toBeLessThan(taAt);
+    expect(m, "前缀是纯装饰，必须 aria-hidden").toContain('aria-hidden="true"');
+  });
+
+  it("设计稿：玻璃落在主题层——surface 已移出不透明组，另起一条同特异性规则", () => {
+    const theme = styleSource("theme-runtime.css");
+    const block = ruleBlock(theme, "html[data-theme] .composer-input-surface");
+    expect(block, "玻璃底色走皮肤运行时 token").toContain("var(--skin-glass-card-fill)");
+    expect(block, "模糊要真的戴上").toContain("backdrop-filter");
+    expect(block).toContain("var(--skin-glass-sheen, none)");
+    // 反向钉：它不许再躺在那条不透明 `:where(...)` 组里（否则玻璃永远被压掉）。
+    expect(theme).not.toMatch(/:where\(\s*\.composer-input-surface/);
+  });
+
+  it("设计稿：激活 chip 是发光胶囊，深度紫 / 联网蓝各一枚光晕", () => {
+    const interaction = styleSource("interaction.css");
+    const on = ruleBlock(interaction, '.composer-chip[aria-pressed="true"]');
+    expect(on, "设计稿激活态是 999px 胶囊").toContain("border-radius: 999px");
+    expect(on).toContain("var(--glass-highlight)");
+    const deep = ruleBlock(
+      interaction,
+      '.composer-chip[data-chip="thinking"][aria-pressed="true"]'
+    );
+    expect(deep, "深度那一枚用 --glow-deep 的紫光晕").toContain("var(--glow-deep)");
+    const net = ruleBlock(
+      interaction,
+      '.composer-chip[data-chip="web-search"][aria-pressed="true"]'
+    );
+    expect(net, "联网那一枚用 --glow-net 的蓝光晕").toContain("var(--glow-net)");
+  });
 });

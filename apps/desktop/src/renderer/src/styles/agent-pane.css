@@ -968,13 +968,16 @@ html[data-platform="darwin"] .conversation-pane {
   flex-direction: column;
   overflow: visible;
   border: 1px solid var(--line);
-  border-radius: 21px;
+  border-radius: 28px;
   background: var(--editor);
   /* 【2026-10-17 用户裁定·装饰】从两层加到三层。原来那两层里有一层是 `0 1px 2px` 的贴沿硬边、
      另一层 `0 5px 18px` 直接糊到中景——中间缺一档，卡在屏上是「贴着一张纸」而不是「浮着」。
      现在是有序的三档：贴沿（负 spread 收得比卡小）→ 中景 → 远景（-20px spread 只留一圈淡影）。
-     三档 spread 全部为负，阴影不会从卡片两侧伸出去咬住相邻的正文。 */
+     三档 spread 全部为负，阴影不会从卡片两侧伸出去咬住相邻的正文。
+     【2026-10-17 设计稿「用这个对话框」】再叠一层**顶沿高光** `inset 0 1px 0`——玻璃面上沿
+     那道细亮线是设计稿玻璃卡最认得出的一笔（`--glass-highlight`，字面量收在 styles.css :root）。 */
   box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
     0 1px 1px color-mix(in srgb, var(--shadow-color) 38%, transparent),
     0 6px 16px -6px color-mix(in srgb, var(--shadow-color) 50%, transparent),
     0 18px 40px -20px color-mix(in srgb, var(--shadow-color) 46%, transparent);
@@ -988,12 +991,33 @@ html[data-platform="darwin"] .conversation-pane {
     0 22px 48px -22px color-mix(in srgb, var(--shadow-color) 52%, transparent);
 }
 
+/* 上方输入区（2026-10-17 设计稿）：`/` 前缀 + 透明 textarea 并排一行。 */
+.composer-input-zone {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 20px 22px 12px;
+  min-height: 88px;
+}
+
+/* 设计稿的 `/` 前缀：装饰用（模板里 aria-hidden），让这一行读起来像命令输入行。 */
+.composer-prefix {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-size: 1.375rem;
+  line-height: 30px;
+  font-weight: 500;
+  user-select: none;
+}
+
 .composer-textarea {
   display: block;
+  flex: 1 1 auto;
   width: 100%;
+  min-width: 0;
   min-height: 34px;
   max-height: 150px;
-  padding: 14px 17px 6px;
+  padding: 2px 0;
   border: 0;
   outline: none;
   resize: none;
@@ -1012,8 +1036,10 @@ html[data-platform="darwin"] .conversation-pane {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 5px 8px 8px;
+  /* 2026-10-17 设计稿：工具条 64px 高、gap 12、左右内边距 20。 */
+  min-height: 64px;
+  gap: 12px;
+  padding: 0 20px;
   /* 【2026-10-17 用户裁定·装饰】正文区与工具条之间补一条发丝线。
      此前卡里上下两段是同一种底色、也没有任何分隔，整块读成一张没有结构的白板
      ——用户那句「缺少一些东西」说的正是这一格。
@@ -1090,10 +1116,13 @@ html[data-platform="darwin"] .conversation-pane {
 .send-button {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  /* 2026-10-17 设计稿「用这个对话框」：发送键 46×46（原 30×30 照 deepwrite）。 */
+  width: 46px;
+  height: 46px;
   flex: 0 0 auto;
   border-radius: 50%;
+  /* 设计稿：实心键外面一圈淡描边 + 顶沿高光，让它从玻璃卡上「立」起来。 */
+  border: 1px solid color-mix(in srgb, var(--neutral-solid-contrast) 22%, transparent);
   background: var(--neutral-solid);
   color: var(--neutral-solid-contrast);
   cursor: pointer;
@@ -1101,7 +1130,9 @@ html[data-platform="darwin"] .conversation-pane {
      整张卡上最该有手感的那一枚反而是唯一没有过渡的。现在三档：悬停抬 1px + 把影子往外推，
      按下退回贴平，键盘走到它时给一圈 focus 环（`.composer-chip:focus-visible` 早就有环，
      这枚没有，是同一张卡里两套标准）。 */
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 45%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--neutral-solid-contrast) 18%, transparent),
+    0 4px 14px color-mix(in srgb, var(--shadow-color) 35%, transparent);
   transition:
     transform var(--dur-control) ease,
     box-shadow var(--dur-control) ease,
@@ -1136,11 +1167,21 @@ html[data-platform="darwin"] .conversation-pane {
 .round-tool-button {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  /* 2026-10-17 设计稿「用这个对话框」：加号与麦克风是 38×38 的玻璃圆钮（原 30×30 照 deepwrite）。 */
+  width: 38px;
+  height: 38px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: transparent;
+  /* 设计稿的玻璃圆面：淡底 + 一圈描边 + 顶沿高光（色值一律 token / color-mix）。
+     淡底取 `--text` 的 8% 而不是 `--hover`：`--hover` 是**深档**，拿它当底就得进
+     `appearance-surface-ladder` 的深档普查并连带压字色——这枚钮是**静态玻璃面**、
+     不是状态档底（悬停那一档另有 `.round-tool-button:hover` 一条，早就在普查表里）。
+     `--text` 自带的明暗方向在浅底/深底上都读得出：浅底压一点灰、深底提一点亮。 */
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 2px 8px color-mix(in srgb, var(--shadow-color) 20%, transparent);
   color: var(--text-soft);
   cursor: pointer;
   /* 【2026-10-17 装饰】补一条过渡与一圈 focus 环：`＋` 与麦克风是卡里出现最频繁的两枚，
