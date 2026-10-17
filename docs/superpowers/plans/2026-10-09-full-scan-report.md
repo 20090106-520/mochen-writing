@@ -7773,3 +7773,14 @@ annotation 当场读回为 `files=362 registered=4726 passed=4726 skipped=0 fail
 `:280` 挂件层与新素材仍卡 ImageGen 403 外部配额、`:284` Responses API 未支持、
 `ecosystem-scan.md:133` `.mochen/changes` 没有保留策略。
 
+**推送与 CI 读回**：提交 `37942e6`（`6cad725..37942e6`，`PUSH_EXIT=0`），通路与前三刀同一枚
+（`GIT_TERMINAL_PROMPT="1"` + `GCM_INTERACTIVE="Auto"`）。该次推送触发 run `38993570211`
+（`head_sha=37942e6`）`completed / success`，job `117280999013`（作业名「格式 + 6 枚 tsc + eslint +
+边界 + 行数预算 + 全量测试」）的 annotation 当场读回为
+`files=362 registered=4726 passed=4726 skipped=0 failures=0`——**与 README 现绑的 `4bc3973`
+（run 页 `38934635255`）读数一字未变**（4726 = 本机 4729 − 3、本机 passed 比 Linux 多 1，
+与门面现役算式同形）。所以 README「## 门禁」节**不动它**：本刀没挪动用例数。
+
+**这一段 CI 读数是推送后补记的**：本节正文已按上面的本机 verify 验过再推；补记这段本身只动 markdown，
+按同一套门禁重跑一次再提交，口径不变（也不做第二次读回避免无限套娃）。
+
