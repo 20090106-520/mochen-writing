@@ -8241,3 +8241,27 @@ Linux 那一格 **362 文件 / 4732 用例**，本机那一格 **362 文件 / 47
 本节点在提交前写成；**推送后的 CI 读回、README「## 门禁」节换绑**（本机注册数 4743，
 读数变了就得换绑，不能留旧读数）与**零脏项树上的本机复跑**，按第一百二十二节的同一形状补记在本节之后。
 
+**【2026-10-17 推送后回填】** `ecf1e70` 推上远端（`8bc12bf..ecf1e70`，本地 / 远端各 0 条），那一枚 run 当场读回：
+
+- run 页 `39026331201`，`head_sha=ecf1e70d74415d6b1c19c087de611fd432eee4e4`，`conclusion=success`。
+- 作业 id `117377930246`，作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试」，结论 success。
+- CI 自己吐的那条 annotation 原文：`files=363 registered=4740 passed=4740 skipped=0 failures=0`。
+
+读通路与上一节同一条：仓库已私有，**匿名 REST 一律 404**，这一读必须带凭据——本机用 `git credential fill`
+（`protocol=https` / `host=github.com`）取回 token，再走 REST `/actions/runs/<id>/jobs` →
+`/check-runs/<job_id>/annotations`；取 token 那一步会弹 GCM「Select an account」，由用户当场选账号后才读得回。
+
+⇒ README「## 门禁」节同批换绑到 `ecf1e70`，**五处一起动**（顶格两格、免责段那几处同树短哈希、
+quoted annotation 原文、`Linux 侧 4740 条注册 = 本机 4743 − 3` 那笔账、台账指引改指「一百二十三」）：
+Linux 那一格 **363 文件 / 4740 用例**，本机那一格 **363 文件 / 4741 passed | 2 skipped（4743 条注册）**。
+等式四处自洽：`4740 + 3 = 4743`、`4741 + 2 = 4743`、本机 passed 比 Linux 多 1（`4741 − 4740 = 1`）、
+两侧文件数同为 363。同批跟进的门面守卫注释：`tools/readme-claims.test.mjs` 那段回填链补
+「第一百二十三节再换到 `ecf1e70`（4740）」，同一段里那句差值说明由「`4130→4732` 那 602 条」改为「`4130→4740` 那 610 条」。
+
+本机那一格是**零脏项树上的复跑**：跑的是 `ecf1e70` 自己（六段退出码全 0，末行 `VERIFY_EXIT=0`），
+`git status --porcelain` 跑前与跑后各读回一次、两边都是 0 条，名单当场落盘为空；
+`Test Files 363 passed (363)`、`Tests 4741 passed | 2 skipped (4743)`。
+本刀那一批工具守卫（`tools` 三份门面守卫文件）另跑一次：`Test Files 17 passed (17)` / `Tests 177 passed (177)`，
+换绑后的 README 与注释链与各道门面守卫一致（等式闸、quoted 原文闸、平台差值闸、归属闸、条数对表闸全绿）。
+这一刀只动 markdown 与注释，仍按同一套门禁重跑一次再提交（形状与第一百二十一 / 一百二十二节一致）。
+
