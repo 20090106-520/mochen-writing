@@ -4,6 +4,7 @@ import {
   AI_FLAVOR_CATEGORY_LABELS,
   AI_FLAVOR_COGNITIVE_LABEL,
   AI_FLAVOR_CONTRAST_LABEL,
+  AI_FLAVOR_EMOTION_LABEL,
   AI_FLAVOR_TAILCLAUSE_LABEL,
   AI_FLAVOR_TERMS,
   aiFlavorGate,
@@ -41,6 +42,21 @@ describe("ai-flavor · 词库", () => {
     expect(list.split("、").length).toBe(
       AI_FLAVOR_TERMS.filter(({ category }) => category === "cliche" || category === "essay").length
     );
+  });
+
+  it("概括情绪与空泛环境套话进表（2026-10-18，与生成端叙事手法同一批）", () => {
+    // 生成端 NARRATIVE_CRAFT_INSTRUCTION 第 1 条「别给情绪命名」与第 3 条「禁空泛环境套话」，
+    // 扫描端此前无可对判据——这两组词接回去，写的时候拦一道、写完扫的同一份。
+    const terms = AI_FLAVOR_TERMS.map(({ term }) => term);
+    for (const word of ["五味杂陈", "心情复杂", "心如刀割", "夜色深沉", "寒风刺骨", "万籁俱寂"]) {
+      expect(terms).toContain(word);
+    }
+    // 它们是 cliche（阈值 2），照旧走 MIN_COUNT，不设专项阈值。
+    expect(AI_FLAVOR_TERMS.find(({ term }) => term === "五味杂陈")!.category).toBe("cliche");
+    expect(AI_FLAVOR_TERMS.find(({ term }) => term === "夜色深沉")!.category).toBe("cliche");
+    // 提示词点名单随之带上新词（两头同一份，不各抄）——生成端不许手抄第二份。
+    expect(aiFlavorPromptList()).toContain("五味杂陈");
+    expect(aiFlavorPromptList()).toContain("夜色深沉");
   });
 });
 
@@ -177,6 +193,40 @@ describe("ai-flavor · analyzeAiFlavor", () => {
     expect(empty.totalHits).toBe(0);
     expect(empty.perThousand).toBe(0);
     expect(empty.meanSentenceLength).toBeNull();
+  });
+});
+
+describe("ai-flavor · 情绪直陈句式（2026-10-18，与生成端叙事手法同一批）", () => {
+  it("「感到／涌起＋情绪词」按句式计，3 次起报，报固定名目、类别沿用议论腔", () => {
+    const a = analyzeFlavorWithRepeat("他感到一阵愤怒。\n", 3);
+    const entry = a.entries.find((e) => e.term === AI_FLAVOR_EMOTION_LABEL)!;
+    expect(entry.count).toBe(3);
+    expect(entry.category).toBe("essay");
+    expect(entry.first.line).toBe(1);
+    // 偶发一处是正常行文，不到 3 次不报（同认知转述）。
+    const once = analyzeFlavorWithRepeat("他感到一阵愤怒。\n", 1);
+    expect(once.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_EMOTION_LABEL);
+  });
+
+  it("认多种构式：涌起／泛起／充满 ＋ 情绪词", () => {
+    const b = analyzeFlavorWithRepeat("心中涌起一股酸楚。\n", 3);
+    expect(b.entries.find((e) => e.term === AI_FLAVOR_EMOTION_LABEL)?.count).toBe(3);
+    const c = analyzeFlavorWithRepeat("内心充满愧疚。\n", 3);
+    expect(c.entries.find((e) => e.term === AI_FLAVOR_EMOTION_LABEL)?.count).toBe(3);
+  });
+
+  it("反例：演出来的情绪不误伤（情绪词不带「感到／涌起」构式不报）", () => {
+    // 「他不安地攥紧了手」是演情绪，不是直陈；「他很愤怒」要读句子主语才判得准，留给人工判读。
+    const a = analyzeFlavorWithRepeat("他不安地攥紧了手。\n", 4);
+    expect(a.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_EMOTION_LABEL);
+    const b = analyzeFlavorWithRepeat("他很愤怒。\n", 4);
+    expect(b.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_EMOTION_LABEL);
+  });
+
+  it("退稿闸同批认这条（不抄第二份判据）", () => {
+    const text = ("他感到一阵愤怒。" + "船在雾里靠岸，缆绳松了。").repeat(8);
+    const verdict = aiFlavorGate(text);
+    expect(verdict.topTerms.join("、")).toContain(AI_FLAVOR_EMOTION_LABEL);
   });
 });
 

@@ -112,6 +112,30 @@ describe("defaultPromptFor · 拼装", () => {
     expect(text).toContain("他绝不会说");
     expect(text).toContain("语气词");
   });
+
+  it("叙事手法常驻（2026-10-18 补心理/动作/环境/换场/节奏）：用户点名「潦草、跳、没描写」的那五样", () => {
+    const text = defaultPromptFor({
+      title: "雾港",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context: NO_CONTEXT,
+      webSearchEnabled: false
+    });
+    // ① 心理靠演不靠说（给情绪命名即违规）
+    expect(text).toContain("别给情绪命名");
+    // ② 动作拆节拍
+    expect(text).toContain("拆成 2–4 个");
+    // ③ 环境映心情 + 点名禁空泛环境套话（与扫描端新词同批）
+    expect(text).toContain("夜色深沉");
+    expect(text).toContain("寒风刺骨");
+    // ④ 换场要有过渡锚
+    expect(text).toContain("过渡锚");
+    // ⑤ 快慢要分
+    expect(text).toContain("通篇一个速度");
+  });
 });
 
 describe("defaultPromptFor · 先计划后动手（2026-10-05 批次 4）", () => {

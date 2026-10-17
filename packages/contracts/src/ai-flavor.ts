@@ -13,6 +13,7 @@
  * - cognitive 认知转述——「他知道，……」「她明白，这不是……」句式，3 次起报；
  * - 结构级三类（复用 essay 类别、阈值另设）——不是A，是B 式升华对偶 3 次起报、章末总结体 1 次起报、
  *   「声音不大，却……」反差模板 2 次起报。
+ * - 情绪直陈（同上按句式计，2026-10-18）——「感到／涌起＋情绪词」3 次起报。
  *
  * 已知重叠：套话里含副词（「嘴角微微上扬」同时命中「微微」）会各计一次，
  * 是可接受的启发式误差——两处都值得作者看一眼。
@@ -69,6 +70,23 @@ export const AI_FLAVOR_TERMS: readonly AiFlavorTerm[] = [
   { term: "眸色微沉", category: "cliche" },
   { term: "眸光微动", category: "cliche" },
   { term: "不易察觉", category: "cliche" },
+  // ── 概括情绪（cliche，2026-10-18）：把人物的情绪直接命名出来，替代「演情绪」的懒写法 ——
+  { term: "百感交集", category: "cliche" },
+  { term: "五味杂陈", category: "cliche" },
+  { term: "心情复杂", category: "cliche" },
+  { term: "心潮澎湃", category: "cliche" },
+  { term: "思绪万千", category: "cliche" },
+  { term: "感慨万千", category: "cliche" },
+  { term: "心如刀割", category: "cliche" },
+  { term: "热泪盈眶", category: "cliche" },
+  // ── 空泛环境套话（cliche，2026-10-18）：写的是作者的心情，不是这个地方的样子 ——
+  { term: "夜色深沉", category: "cliche" },
+  { term: "夜色如墨", category: "cliche" },
+  { term: "寒风刺骨", category: "cliche" },
+  { term: "寒风凛冽", category: "cliche" },
+  { term: "灯火阑珊", category: "cliche" },
+  { term: "月光如水", category: "cliche" },
+  { term: "万籁俱寂", category: "cliche" },
   // ── 议论腔（essay）──
   { term: "众所周知", category: "essay" },
   { term: "值得注意的是", category: "essay" },
@@ -146,15 +164,32 @@ export const AI_FLAVOR_CONTRAST_PATTERN =
 export const AI_FLAVOR_CONTRAST_LABEL = "「声音不大，却……」反差模板";
 
 /**
- * 结构级三类的起报阈值：只对这几个模式的条目生效——升华对偶偶一用是修辞、3 次起才是机器味，
- * 章末总结体一章就一个结尾、出现 1 次已经是章末那股腔，反差模板翻两句就露馅、2 次起；
+ * 情绪直陈（2026-10-18，与生成端 `NARRATIVE_CRAFT_INSTRUCTION` 第 1 条同一批）：
+ * 「他感到一阵愤怒」「心中涌起一股酸楚」这类**给情绪命名**的写法——本该用身体反应、
+ * 动作、视线的落点演出来（生成端第 1 条「别给情绪命名」）。扫描端此前只有认知转述句式，
+ * 没有这条判据，写的时候拦一道、写完扫的却是另一份（同 §一百零五 的教训），本刀接回去。
+ *
+ * 只认「感到/涌起/… ＋ [程度·量词] ＋ 情绪词」这个**构式**，不是见到情绪词就报：
+ * 「他感到不安」是直陈、「不安地攥紧了手」不是；情绪词单独出现（「他很愤怒」）也不进——
+ * 那要读句子主语才判得准，留给体检人工判读。所以它是句式判据，不占词表项。
+ */
+export const AI_FLAVOR_EMOTION_PATTERN =
+  /(?:感到|觉出|生出|涌起|泛起|涌上|掠过|充满)(?:一阵|一股|一丝|一种|莫名|无比|十分|非常)?[^，。！？；\s]{0,4}(?:愤怒|悲伤|悲痛|凄凉|失落|绝望|恐惧|害怕|愧疚|委屈|惆怅|烦躁|激动|痛苦|不安|欣慰|酸楚|心酸|羞耻|孤独|无力)/g;
+/** 情绪直陈的显示名（同上，按句式计）。 */
+export const AI_FLAVOR_EMOTION_LABEL = "情绪直陈（感到／涌起＋情绪词）";
+
+/**
+ * 结构级三类与句式类（情绪直陈）的起报阈值：只对这几个模式的条目生效——升华对偶偶一用是修辞、
+ * 3 次起才是机器味，章末总结体一章就一个结尾、出现 1 次已经是章末那股腔，反差模板翻两句就露馅、
+ * 2 次起，情绪直陈同认知转述、反复用才是机器味、3 次起；
  * 其余条目照旧走 MIN_COUNT[category]。
  * 阈值只有体检（analyzeAiFlavor）用；退稿闸不计阈值，全量计入，但**名目与体检同一批**。
  */
 export const AI_FLAVOR_STRUCTURE_MIN_COUNT: Record<string, number> = {
   [AI_FLAVOR_ANTITHESIS_LABEL]: 3,
   [AI_FLAVOR_TAILCLAUSE_LABEL]: 1,
-  [AI_FLAVOR_CONTRAST_LABEL]: 2
+  [AI_FLAVOR_CONTRAST_LABEL]: 2,
+  [AI_FLAVOR_EMOTION_LABEL]: 3
 };
 
 export const AI_FLAVOR_CATEGORY_LABELS: Record<AiFlavorCategory, string> = {
@@ -290,6 +325,10 @@ export function analyzeAiFlavor(contents: string[]): AiFlavorReport {
       if (contrastHits !== null) {
         record(AI_FLAVOR_CONTRAST_LABEL, "essay", contrastHits.length, where);
       }
+      const emotionHits = line.match(AI_FLAVOR_EMOTION_PATTERN);
+      if (emotionHits !== null) {
+        record(AI_FLAVOR_EMOTION_LABEL, "essay", emotionHits.length, where);
+      }
     }
   }
 
@@ -356,7 +395,7 @@ export const AI_FLAVOR_GATE = {
 
 export interface AiFlavorGateVerdict {
   pass: boolean;
-  /** 重罪命中数（描写套话 + 议论腔 + 认知转述 + 结构级三类；副词不算——太常见，不是死罪）。 */
+  /** 重罪命中数（描写套话 + 议论腔 + 认知转述 + 结构级三类 + 情绪直陈；副词不算——太常见，不是死罪）。 */
   hits: number;
   perThousand: number;
   charCount: number;
@@ -377,7 +416,7 @@ export interface AiFlavorGateVerdict {
 
 /**
  * 对一篇（或一段）新增正文做退稿判定。与 analyzeAiFlavor 同一份判据
- * （AI_FLAVOR_TERMS + 认知转述/结构级正则），不抄第二份；不计入报告上限——闸要看全量。
+ * （AI_FLAVOR_TERMS + 认知转述/结构级/情绪直陈正则），不抄第二份；不计入报告上限——闸要看全量。
  * 短于 minChars 的文本直接放行：样本太少，密度失真。
  */
 export function aiFlavorGate(text: string): AiFlavorGateVerdict {
@@ -406,6 +445,8 @@ export function aiFlavorGate(text: string): AiFlavorGateVerdict {
   bump(AI_FLAVOR_TAILCLAUSE_LABEL, tail?.length ?? 0);
   const contrast = text.match(AI_FLAVOR_CONTRAST_PATTERN);
   bump(AI_FLAVOR_CONTRAST_LABEL, contrast?.length ?? 0);
+  const emotion = text.match(AI_FLAVOR_EMOTION_PATTERN);
+  bump(AI_FLAVOR_EMOTION_LABEL, emotion?.length ?? 0);
 
   const charCount = text.length;
   const hits = [...counts.values()].reduce((sum, n) => sum + n, 0);
