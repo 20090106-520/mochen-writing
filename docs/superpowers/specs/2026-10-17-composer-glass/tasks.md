@@ -42,9 +42,9 @@
   - [x] T8.2 CDP 量测（浅色）：surface 圆角 28px / 玻璃底 `rgba(228,240,236,.64)` + `blur(8px) saturate(1.08)` / 顶沿高光 `inset 0 1px 0 rgba(255,255,255,.55)` + 三层影 / zone 高 88 内边距 `20 22 12` / 工具条高 64 内边距 `0 20` gap 12 + 分隔线 / 发送键 46×46 / 圆钮 38×38 / `.composer-prefix` = `/`（aria-hidden）；截图目检通过
   - [x] T8.3 暗色：走应用自身「设置 → 外观 → 深色」切成真暗色后量测并截图 —— 玻璃底转 `rgb(28 51 48 / .64)`、两枚激活胶囊描边与光晕（紫 #9A7BFF / 蓝 #5AA8FF）清晰可辨、字色 `rgb(223,242,236)`、档底 `rgb(54,76,74)`；目检通过；已把外观与两枚 chip 复位为原状（浅色 / 均未按下）
 
-- [ ] T9 收口
-  - [ ] T9.1 `git commit` + `push`（feat 分支）
-  - [ ] T9.2 读真实 CI（私有仓走 Windows 凭据管理器取 token 调 REST）
-  - [ ] T9.3 README「## 门禁」节换绑真实读数 + `tools/readme-claims.test.mjs` 回填链注释
-  - [ ] T9.4 台账 `docs/superpowers/plans/2026-10-09-full-scan-report.md` 补记第一百二十六节
-  - [ ] T9.5 工作树干净、未收口项如实留档
+- [x] T9 收口
+  - [x] T9.1 `git commit` + `push`（feat 分支）—— `378a29f`（9 files / ＋417 −27），已推上 `feat/plan3-interaction-and-assembly`
+  - [x] T9.2 读真实 CI（私有仓走 Windows 凭据管理器取 token 调 REST）—— run `39041671036` / 作业 `117422253915`，`conclusion=success`，annotation `files=364 registered=4762 passed=4762 skipped=0 failures=0`；两处踩坑已记台账（`head_sha` 要完整 40 位、`CredentialBlob` 是 UTF-16LE）
+  - [x] T9.3 README「## 门禁」节换绑真实读数 + `tools/readme-claims.test.mjs` 回填链注释 —— 顶格两格 `378a29f`（Linux 364/4762，本机 364 文件 / 4763 passed | 2 skipped（4765 条注册）），同树短哈希、quoted annotation、`4762 + 3 = 4765` 那笔账、台账指引「一百二十六」共五处一起动；另就地更正历史链上一处过期节号（`a4bd8f7` 第一百二十五→第一百二十四节，原文与理由留档）
+  - [x] T9.4 台账 `docs/superpowers/plans/2026-10-09-full-scan-report.md` 补记第一百二十六节 —— 含根因（特异性压死玻璃）、改法、未搬的演示画布、真机双主题量测、先红后绿、圆钮淡底由 `--hover` 改 `--text` 8% 的更正、未收口子与落点表；docs 提交 `81d0c8c` 的 CI 读回（run `39042721209`，annotation 逐字相同）另提交 `2a870d0` 补记
+  - [x] T9.5 工作树干净、未收口项如实留档 —— `git status --porcelain` 0 条；未收口：皮肤广场辖域的演示画布、注入探针非真数据、`bodyWidth` 探针取不到（版心对齐由既有守卫覆盖、当场全绿）；临时件 `%TEMP%\mochen-cdp\gh-ci.ps1` 已删除
