@@ -7634,3 +7634,14 @@ annotation 当场读回为 `files=362 registered=4726 passed=4726 skipped=0 fail
 **仍另案等拍板的**：族里剩下的 `.link-btn:hover` 与暗色危险项；以及广场卡那 2/16 格
 （`2026-10-08-tertiary-contrast-report.md` §五 的 A/B/C）——这两件都**不在本刀**，不冒充已闭。
 
+**推送与 CI 读回**：提交 `8230df3`（`30dd0aa..8230df3`，`PUSH_EXIT=0`），通路与前两刀同一枚
+（`GIT_TERMINAL_PROMPT="1"` + `GCM_INTERACTIVE="Auto"`）。该次推送触发 run `38990841286`
+（`head_sha=8230df3`）`completed / success`，job `117272680179`（作业名「格式 + 6 枚 tsc + eslint +
+边界 + 行数预算 + 全量测试」）的 annotation 当场读回为
+`files=362 registered=4726 passed=4726 skipped=0 failures=0`——**与 README 现绑的 `4bc3973`
+（run 页 `38934635255`）读数一字未变**（4726 = 本机 4729 − 3、本机 passed 比 Linux 多 1，与门面现役算式同形）。
+所以 README「## 门禁」节**不动它**：本刀没挪动用例数，换绑等于拿同一组数把出处改小。
+
+**这一段 CI 读数是推送后补记的**：本节正文已按上面的本机 verify 验过再推；补记这段本身只动 markdown，
+按同一套门禁重跑一次再提交，口径不变（也不做第二次读回避免无限套娃）。
+
