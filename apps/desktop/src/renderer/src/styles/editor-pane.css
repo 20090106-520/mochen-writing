@@ -331,7 +331,11 @@ html[data-platform="darwin"] .editor-header {
 
 .format-button.is-active {
   background: var(--surface-selected);
-  color: var(--accent);
+  /* 字色是正文级：原先是 `color: var(--accent)`，accent 压在 selected 档上浅底 6/8 套不到
+     4.5（16 组实测最低 灯楼 · 晴昼 3.42）。2026-10-17 改回正文级（台账 §一百一十六，口径同
+     §七十五 那条 `.nav-row.is-active`）。选中态 = selected 那层底 + 正文级字色，未选中是
+     透明底 + `--text-secondary`，两级本来就分得开。判据见 composables/appearance-surface-ladder.test.ts。 */
+  color: var(--text-primary);
 }
 
 .format-button:disabled {

@@ -315,7 +315,11 @@ onMounted(() => microfocus());
 
 .find-toggle.is-active {
   background: var(--surface-selected, rgba(124, 92, 62, 0.14));
-  color: var(--accent, #7c5c3e);
+  /* 字色是正文级（口径同 `.format-button.is-active` 与台账 §七十五 那条 `.nav-row.is-active`）：
+     原先是 `color: var(--accent, #7c5c3e)`，accent 压在 selected 档上浅底 6/8 套不到 4.5
+     （16 组实测最低 3.42）。accent 只留在下面那圈边框上（非文本，按 3:1 线）。
+     判据见 composables/appearance-surface-ladder.test.ts。 */
+  color: var(--text-primary);
   border-color: color-mix(in srgb, var(--accent, #7c5c3e) 40%, transparent);
 }
 

@@ -228,11 +228,12 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
       /* `.format-button:disabled` 那两枚是**同一个元素**的失活态，不是后代，所以这里不需要 shadow。 */
       { needle: ".format-button:hover", primary: true },
       {
+        /* 这里原先是 `accent-as-text` 豁免：accent 当字色压在 selected 档上，浅底 6/8 套不到 4.5
+           （最低 灯楼 · 晴昼 3.42）。2026-10-17 按 §七十五 的口径修掉——字色改回正文级，
+           选中态靠「selected 那层底 + 正文级字色」与未选中（透明底 + 二次灰）拉开，
+           判据仍只有这一条（铁律 6：不立第二份）。 */
         needle: ".format-button.is-active",
-        exempt: {
-          kind: "accent-as-text",
-          why: "accent 当字色压在 selected 档：浅底 6/8 套不到 4.5（最低 灯楼·晴昼 3.42）。另一族病，本批只登记不动，见台账 §二十九"
-        }
+        primary: true
       },
       {
         needle: ".save-button:disabled",
@@ -348,11 +349,11 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
     sites: [
       { needle: ".find-toggle:hover", primary: true },
       {
+        /* 同 `.format-button.is-active`（见 styles/editor-pane.css 那一组）：原先是
+           `accent-as-text` 豁免，accent 当字色压在 selected 档上；2026-10-17 字色改回正文级，
+           accent 只留在边框上（非文本，按 3:1 线）。 */
         needle: ".find-toggle.is-active",
-        exempt: {
-          kind: "accent-as-text",
-          why: "查找层 Aa / .* 两枚开关的选中态用 accent 当字色压在 selected 档，同 accent 族，另案"
-        }
+        primary: true
       },
       { needle: ".find-nav-btn:hover", primary: true },
       { needle: ".find-nav-btn:active", primary: true },

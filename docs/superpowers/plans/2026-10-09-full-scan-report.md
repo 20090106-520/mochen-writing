@@ -278,7 +278,7 @@ MW7 `preventDefault()` 提到栈检查之前 → 2 红跨两层（行为层「�
 | `README.md:6401` | 点输入框时整张卡内侧亮一圈青色边框（不是新元素，是 `.composer-input-surface` 聚焦态） | 未修，属样式判定；用户曾报为「弹出正方形」 |
 | `README.md:6389` | 5-㊻ 最后一腿「真端点成功回一句」未验完，卡在必须先开一本书 | 未闭合。P1-1/P1-2/P1-3 都需要真开书 + 真端点才能验，建议与下面第八节第 2 波一起做 |
 | `README.md:6242` | 皮肤挂件层运行时与新素材进表卡在 ImageGen 403 配额 | **照旧成立**：2026-10-13 当场复探一次最小图，错误原样 `403 {"code":"112",…}`。外部配额，非代码问题。另注：台账那一行的**行号已漂一格**（盘上现在在 `docs/superpowers/plans/README.md:6243`，6242 是空行） |
-| `README.md:6244`（行号已失效：README 现在 95 行，照读找不到；留作**出处**不当入口） | 次要文字对比度仍差 0.1–0.4，要动的是表面阶梯 | **已闭，且病因那句作废**：数字（4.38 / 4.09）对，「要动阶梯」错——正文档对五档最低 7.60，阶梯没病；浅底要让灰字达标，深度上限 0.068（留量口径 0.048）挤不进 `hover` 0.085。改的是**用法**：新增 `--text-on-state`，77 处状态档底逐处写明字色或 shadow 本族灰字 token，判据 `appearance-surface-ladder.test.ts`。全文见第二十九节。**同族另登记一处未修**：accent 被当字色（浅底 `selected` 6/8 套 <4.5，最低 3.42），等用户拍板 |
+| `README.md:6244`（行号已失效：README 现在 95 行，照读找不到；留作**出处**不当入口） | 次要文字对比度仍差 0.1–0.4，要动的是表面阶梯 | **已闭，且病因那句作废**：数字（4.38 / 4.09）对，「要动阶梯」错——正文档对五档最低 7.60，阶梯没病；浅底要让灰字达标，深度上限 0.068（留量口径 0.048）挤不进 `hover` 0.085。改的是**用法**：新增 `--text-on-state`，77 处状态档底逐处写明字色或 shadow 本族灰字 token，判据 `appearance-surface-ladder.test.ts`。全文见第二十九节。**同族另登记一处未修**：accent 被当字色（浅底 `selected` 6/8 套 <4.5，最低 3.42），等用户拍板。**更正（2026-10-17）**：这一族里两枚「选中态开关」已闭（`.format-button.is-active` / `.find-toggle.is-active`，字色改回正文级、从豁免表撤出，入库见 §一百一十六），原文一字未删；族里另两处（`.link-btn:hover`、暗色那枚危险项）仍另案 |
 | `README.md:6247` | 窗口无 minWidth | **已闭（2026-10-13 就地更正）**：`apps/desktop/src/main/index.ts:198-199` 现为 `minWidth: 1000` / `minHeight: 700`，判据在 `apps/desktop/src/main/window-min-size.test.ts`（第 62 行那条还钉了「初值不许小于自己的地板」）；入库于 `b1fc79a`。台账 `README.md:6247` 那句「`main/index.ts` 没设 `minWidth`」照读已是假话，更正见第三十三节 |
 | `README.md:12` | Plan 2 遗留：`startListening` 丢弃了退订函数（无消费方）、UNBOUND 线程上的批准未做 | **两半都闭（2026-10-13 就地更正）**：① 退订句柄自 `2487695` 起存进 store 并由 `stopListening` 摘（`useAgentStore.ts:85` 字段、`:180` 幂等闸、`:197-199` 摘并置空），判据见本报告第十二/十三节；② 批准键不再是「线程键只修了 threads 表」——`agent-service.ts:120-126` 的 `ruleKey` 明写「这一串只是键的一半」，真正存储/命中一律过 `scopedApprovalKey(书根, …)`（单一真身 `book-scope.ts`），`autoSession` / `autoDocTool` 两张表随换书即清（`:158-161`），入库于 `b91680d`。unbound 线程在这一族里的现状是**禁用并给理由**（`utils/session-row-action.ts:43` + `UNBOUND_ROW_REASON`），不是「点了没反应」。 |
 | `README.md:787` | Responses API 未支持 | 未做 |
@@ -1786,6 +1786,9 @@ vitest **308 文件 / 4024 passed | 2 skipped（4026）**，`VERIFY_EXIT=0` 是�
 - 同族另四处登记在同一张普查表里（`.format-button.is-active`、`.find-toggle.is-active`、
   `.link-btn:hover`、`html[data-theme="dark"] .tree-node-action-menu-item.is-danger:hover`），
   理由各写了一行，豁免附带判据由守卫机器核（见下面 M7 那一类变异）。
+  **更正（2026-10-17）**：这四处里的前两处（`.format-button.is-active`、`.find-toggle.is-active`）
+  已按 §七十五 的口径修掉、从豁免表里撤出（见 §一百一十六）；后两处（`.link-btn:hover` 那枚
+  「链接本来就是 accent」的画法、`html[data-theme="dark"]` 那枚危险项）仍另案。原文一字未删。
 
 ### 五、变异自证（9 路，每路单独跑、跑完立即对称改回）
 
@@ -1846,6 +1849,9 @@ vitest **308 文件 / 4024 passed | 2 skipped（4026）**，`VERIFY_EXIT=0` 是�
    **（2026-10-13 这一条已就地了结，见第三十节：三格量到屏上且全过，第四格「侧栏 `kbd`」在 DOM 里根本没有渲染方——
    那一格从「欠目检」变成「待拍板的死规则」。）**
 2. **accent 当字色那一族**（本节点四）等用户拍板，不在本刀。
+   **（2026-10-17 就地更正）**：这一族已动两刀——§七十五 修掉 `.nav-row.is-active`，
+   §一百一十六 修掉两枚选中态开关（`.format-button.is-active` / `.find-toggle.is-active`）；
+   剩下 `.link-btn:hover` 与暗色那枚危险项仍另案等拍板。原文一字未删。
 3. **广场卡那 2/16 格**（`2026-10-08-tertiary-contrast-report.md` §五 的 A/B/C 三个选项）仍等一句话。
 4. 浅底第三级与次要**同值**（都 0.71），层级只靠字号与位置。要买回一档层级，正确入口是
    给每套皮肤自带一个第三级色值（皮肤契约加字段），不是回来拧这个系数——
@@ -7578,4 +7584,53 @@ annotation 当场读回为 `files=362 registered=4726 passed=4726 skipped=0 fail
 
 **这一段 CI 读数是推送后补记的**：本节的 `eb9be18` 已按上面的本机 verify 验过再推；补记这段本身只动 markdown，
 按同一套门禁重跑一次再提交，口径不变（README 两个数不受影响，也不做第二次读回避免无限套娃）。
+
+## 第一百一十六节：「accent 当字色」族里两枚选中态开关（第二刀，2026-10-17）
+
+**来源**：用户回「开始」——上文是我列的「还差什么功能 / 还有什么需要优化的」清单，第 1 条就是这一族。
+第三十节 §四 把整族登记成「等用户拍板」，§七十五 做了第一处（`.nav-row.is-active`）；本节收掉族里另外两枚
+**选中态开关**，它们与第一处**同形**——accent 当字色，压在 `--surface-selected` 上：
+
+| 处 | 文件 | 原声明 |
+| --- | --- | --- |
+| `.format-button.is-active` | `apps/desktop/src/renderer/src/styles/editor-pane.css:332-335` | `background: var(--surface-selected); color: var(--accent)` |
+| `.find-toggle.is-active` | `apps/desktop/src/renderer/src/components/FindReplacePanel.vue:316-320` | `background: var(--surface-selected, …); color: var(--accent, #7c5c3e)` |
+
+两处吃的都是 §四 那张 16 组表里 accent × `selected` 那一列：浅底 **6/8 套 <4.5，最低 3.42**（灯楼 · 晴昼）。
+
+**口径**：照 §七十五 那条走——**字色改回正文级**（`var(--text-primary)`），选中态靠「selected 那层底 +
+正文级字色」与未选中（透明底 + `--text-secondary` / `--text-tertiary`）拉开；accent 只留在**非文本**处
+（`.find-toggle.is-active` 那圈边框，按 3:1 线，原样不动）。不新增 token、不立第二份判据（铁律 6）——
+「正文级 × 五档 ≥ 7:1」那条数值律早把 `--text-primary` 压在 `selected` 上钉死了，换过去必然过线。
+
+**先写会红的用例**（本刀顺序，逐处红 → 绿，两次红都是「CSS 仍是 accent 那一版」时跑出来的，
+即本节的变异自证；§七十五 那次也是这么做的）：
+
+1. 普查表两行 `exempt: { kind: "accent-as-text" }` ⇒ `primary: true` ⇒ 红：
+
+       AssertionError: styles/editor-pane.css :: .format-button.is-active：
+       判词说要写明正文级字色，块里的 color 是 var(--accent): expected false to be true
+
+2. 改 `editor-pane.css` ⇒ 第一条绿、第二条随即红：
+
+       AssertionError: components/FindReplacePanel.vue :: .find-toggle.is-active：
+       判词说要写明正文级字色，块里的 color 是 var(--accent, #7c5c3e)
+
+3. 改 `FindReplacePanel.vue` ⇒ 该文件 **9 passed**。
+
+**改动文件**：`styles/editor-pane.css`（1 行实现 + 注释重写）、`components/FindReplacePanel.vue`（1 行实现 +
+注释重写）、`composables/appearance-surface-ladder.test.ts`（2 条判词）。豁免表里另两处**不动**且**不是忘**：
+`.link-btn:hover` 是「链接本来就是 accent」的画法、`html[data-theme="dark"] .tree-node-action-menu-item.is-danger:hover`
+是暗色危险项，两处都要产品拍板才动。
+
+**门禁**：`pnpm verify` 全绿（`VERIFY_EXIT=0`），六段（prettier / 6 枚 tsc / eslint / 包边界 / 行数预算 / vitest）全过，
+本机实测 **362 文件 / 4727 passed | 2 skipped（4729 条注册）**——与上一刀**同数**（本刀只改判词形状，不增删用例）。
+
+**就地更正三处**（一律**原文一字未删**，只在其后就地记清）：本节 §七 那张九行开口表 `:281` 那一行末尾的
+「同族另登记一处未修…等用户拍板」、第三十节 §四末那条「同族另四处登记在同一张普查表里」（`:1786`）、
+第二十九节第二目第 2 条「accent 当字色那一族…等用户拍板，不在本刀」（`:1848`）。
+
+**划掉**：第三十节 §四 第 2 条「accent 当字色那一族」里**两枚选中态开关**这一半。
+**仍另案等拍板的**：族里剩下的 `.link-btn:hover` 与暗色危险项；以及广场卡那 2/16 格
+（`2026-10-08-tertiary-contrast-report.md` §五 的 A/B/C）——这两件都**不在本刀**，不冒充已闭。
 
