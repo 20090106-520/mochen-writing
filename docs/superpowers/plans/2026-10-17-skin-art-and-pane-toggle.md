@@ -193,6 +193,73 @@
 
 ---
 
+### 波5（同日第四刀）｜再次换源：Unsplash 西方人像 → Pixiv 原创动漫插画 × 昼夜两版
+
+用户原话（逐字，本节即验收对象）：
+
+> 「我要的是中国的真人美女图片或动漫二次元图片做装扮不要外国的」
+
+拆成三条：
+- ① 上一刀换上的 **Unsplash 西方模特人像整体作废**（正落在「不要外国的」那一类里）；
+- ② 新素材必须是「**中国真人美女**」或「**动漫二次元**」二者之一；
+- ③ 上一刀那句「**不要自己创建图片**」继续作数（不自绘、不出图）。
+
+**为什么走动漫而不是中国真人**（本机可得性实测，如实）：
+
+| 目标 | 实测结果 |
+| --- | --- |
+| `images.unsplash.com` / `images.pexels.com` 图片直链 | CDN 可下 |
+| unsplash / pexels 的搜索页与 API | 401 / 403 / Anubis 拦截 |
+| WebFetch 抓 pixabay / unsplash / openverse | 全失败 |
+| api.openverse / commons.wikimedia / wallhaven / yande.re / gelbooru | 超时 / 403 |
+| **`safebooru.org` API ＋ 图片直链** | 200，本刀主力通路 |
+| `api.lolicon.app/setu/v2` ＋ `i.pixiv.re` | 可用，但连发即限流（403 / 429） |
+| Pinterest / 花瓣等中文站 | 连不上 |
+
+⇒ **中国真人照片在本机没有可用通路**，所以这一刀按用户给的第二条路走**动漫二次元**；
+且在动漫这条线里**只取 `original` 标签的原创插画**（不是任何游戏 / 番剧角色），把二次版权一并避开。
+
+**四张母图 → 八张落盘**（对应关系与索引号 / 作品号 / 画师表已落在 `docs/ATTRIBUTION.md`，此处不复制）：
+
+| 落盘（昼 / 夜） | Safebooru 索引 | Pixiv 作品 | 画师 |
+| --- | --- | --- | --- |
+| `shallow-hall-day` / `abyss-hall-night` | 3727591 | 94171738 | shuu_illust |
+| `book-boat-day` / `book-boat-night` | 3908098 | 80586108 | kenzo_093 |
+| `lamp-tower-day` / `lamp-tower-night` | 4000521 | 98260510 | sugi87 |
+| `ink-pool-day` / `ink-pool-night` | 3669783 | 76613221 | axleaki |
+
+落盘四步：居中裁到 3:2 → 缩到 1536×1024 → 昼夜两组色阶重映射 → JPEG q86（单张 226–504KB）。
+
+**本刀落的改动（沿用上一刀「只换笔，不换名」的路子）**
+- **id 一个都没动**（id 是写进用户盘 `theme.json` 的值，改名会让老盘整份退回默认）。
+- `appearanceSkins.ts`：出处常量 `PHOTO_ART_ORIGIN` / `PHOTO_ART_LICENSE` →
+  `ANIME_ART_ORIGIN = "动漫插画（Pixiv 原作）"` / `ANIME_ART_LICENSE = "未获再分发授权"`；
+  八条 `tagline` 按新画面重写（四对昼夜各写一句同景同人的昼 / 夜版）；
+  `APPEARANCE_ART_LABELS` 八档中文名**一个未改**（它们跟着配色走，与画面解耦）。
+- 三色配色（accent / background / foreground）**一字未动** ⇒ `appearance-theme-readability.test.ts` 不用动。
+- `appearance-skins.test.ts`：常量名与许可字面量跟着改、两处 `it` 标题改写
+  （**本刀自身不增用例**；本机注册数由上一版的 4734 涨到 **4735**，那 1 条出自**上一刀波4**
+  的窄轨宽度判据，不是这一刀加的）。
+- `check-scene-art.mjs`：**射程与判据一个字没动**（仍是八张 + `G1` 分层 / `G2` 不空），只换了里面的画
+  ——这正是那两条判据当初被改成「与主体、与来源无关」换来的收益。实测 **八张全过**
+  （`G1` 桶数 6～12、`G2` 跨度 56.7～218）＋ `PASS 反向用例：空渐变判红`，退出码 0。
+- 文档同批：`docs/ATTRIBUTION.md`（现况条目 ＋ `build-anime.ps1` 管线量尺条目）、
+  `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md`（§2 前 / §三 前 / §四 标题下 / 第 7 格 / 第 8 格 五处）、
+  `README.md`（皮肤广场段改写 ＋「现在还没有的」节如实写「未取得再分发授权」）、
+  `packages/contracts/src/appearance.ts`（枚举值未动，只补更正说明）。
+
+**本刀未收的口子（如实）**
+- 取图与落盘管线（`build-anime.ps1`）**只在仓外临时件里**，未入仓，要复跑得重写（与波2 / 第三刀同一条）。
+- **许可这一层比上一刀更弱**：Unsplash License 至少是「可商用、可修改、可再分发」的书面授权，
+  而这几张是画师发在 Pixiv 的原创作品，**没有拿到任何再分发授权** ⇒ 皮肤表照实写「未获再分发授权」，
+  风险由分发方自行评估（详见 `docs/ATTRIBUTION.md`）。
+- **可读文字**：原图本身不带水印，但目检发现两张带**可读文字**，**未抹除、原样保留**——
+  `ink-pool-*` 那张原作里有一块路牌（`holding_sign`），`lamp-tower-*` 那张街边有店铺招牌。
+  ⇒ 规格单 §2 第 5 条「不许有可读文字」在这两张上**没有完全满足**。
+- 「像不像动漫人物、好不好看」这一步仍是目检，**机器没管**（只有 `G1` / `G2` 两条像素判据）。
+
+---
+
 ## 三、门禁与收口
 
 - `corepack pnpm verify` → `VERIFY_EXIT=0`（prettier / 6 枚 tsc / eslint / 包边界 / 行数 / vitest）。

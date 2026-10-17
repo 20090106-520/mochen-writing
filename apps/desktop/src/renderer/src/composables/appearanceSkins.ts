@@ -155,7 +155,7 @@ export interface AppearanceSkin {
  * 【为什么曾经有两句「自有」】
  * 5-㊷ 之前素面配色也在广场里，那时「墨宸自有」分成两族：只有三色的出厂配色
  * 与带整窗画面的原创皮，出处各一句（`OWN_SKIN_ORIGIN` / 画面皮那一句）——
- * 后者 2026-10-17 起已换成 Unsplash 那句，见下面那条就地更正。
+ * 后者 2026-10-17 起已换成外站素材那一句（Unsplash 人像 → 动漫插画，见下面两条就地更正）。
  * 给「汐」系列用过同一句出处的后果是真机红过一次：那一族投影（`themePresets`）
  * 按出处字符串筛，两条带画的皮被投影了进去，10 条变 12 条。
  *
@@ -181,9 +181,23 @@ export interface AppearanceSkin {
        汐·昼阁 → 绯青·昼影    汐·夜阁 → 绯青·夜影
        书舟·昼渡 → 青瓷·昼镜   书舟·夜航 → 青瓷·夜镜
        灯楼·晴昼 → 晴窗·昼颜   灯楼·燃夜 → 晴窗·夜颜
-       墨潭·映日 → 暖砂·昼颜   墨潭·沉雾 → 暖砂·夜阑 */
-export const PHOTO_ART_ORIGIN = "Unsplash 人像";
-export const PHOTO_ART_LICENSE = "Unsplash License";
+       墨潭·映日 → 暖砂·昼颜   墨潭·沉雾 → 暖砂·夜阑
+
+   ⚠️【2026-10-17 第四刀就地更正：Unsplash 那一版只活了几小时】
+   用户紧接着补了一句，把上一刀的取材范围整个否掉：
+   「**我要的是中国的真人美女图片或动漫二次元图片做装扮不要外国的**」。
+   上一版那八张是 Unsplash 的西方模特人像，正好落在被否的那一类里。
+   ⇒ 中国真人照片在本机**没有可用的取材通路**（Unsplash / Pexels 的图片 CDN 通、
+     搜索页与 API 全被拦，WebFetch 也取不到），所以这一刀走**动漫二次元**：
+     四张 **`original` 标签的 Pixiv 插画**（原创插画，不是任何游戏 / 番剧的角色），
+     各出「昼 / 夜」两版 grade = 八张。
+   ⇒ 出处与许可两句因此再改一次：`PHOTO_ART_*` → `ANIME_ART_*`（就是下面这两句）。
+     四张的 Pixiv 作品号、画师、Safebooru 索引号，以及**这些图没有拿到「可再分发」授权**
+     这一层如实说明，全部落在 `docs/ATTRIBUTION.md` 的皮肤段，不在代码里复述。
+   ⇒ 上面第三刀整段（Unsplash 人像那一段）**原文保留**——它记的是那一版真实的过程。
+   ⇒ **id 照旧一个都没动**（理由见 `appearanceSkinVisual.ts` 的 `ART_FILES`）。 */
+export const ANIME_ART_ORIGIN = "动漫插画（Pixiv 原作）";
+export const ANIME_ART_LICENSE = "未获再分发授权";
 
 /**
  * 皮肤广场的全表：**只有带整窗画面的皮肤才进这里**。
@@ -221,14 +235,17 @@ export const appearanceSkins: AppearanceSkin[] = [
      两位鲸耳姑娘、以及「本仓自有」这条许可——记的是 5-㊵ 那一版**自绘画面**，**已过期**：
      这两张当天换成了 Unsplash 上的真人侧影人像（`.webp` → `.jpg`），
      鲸耳姑娘与海底阁子都不在了，出处与许可改走表头那两句。
-     原文保留，它记的是那一版当时真实的设计理由。 */
+     原文保留，它记的是那一版当时真实的设计理由。
+     （**第四刀又换了一次**：那两张现在是 Pixiv 的原创动漫插画，画面里又有一位姑娘，
+     出处与许可见表头 `ANIME_ART_*` 那两句。） */
 
   {
     id: "xi-day",
     label: "绯青 · 昼影",
-    tagline: "同一位姑娘的侧影：绯红与青绿两色光各占一侧。日间版把整幅提亮，画面偏淡紫。",
-    origin: PHOTO_ART_ORIGIN,
-    license: PHOTO_ART_LICENSE,
+    tagline:
+      "蓝裙姑娘踩着会发光的浅滩往灯走，天边压着一线落日。日间版把海面的鳞光提亮，整幅偏青蓝。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
     /* 浅色版 accent 取 #2A7699 而不是画里那块亮蓝（#2E7FA8）：
        它与白字只有 4.45:1，压在按钮上差一口气不到 4.5:1，
        而按钮上那行字的可读性是由计算说了算的（appearance-theme-readability.test.ts）。 */
@@ -244,9 +261,9 @@ export const appearanceSkins: AppearanceSkin[] = [
   {
     id: "xi-night",
     label: "绯青 · 夜影",
-    tagline: "同一位姑娘、同一套构图，夜版压深压冷，中间整片留给正文。",
-    origin: PHOTO_ART_ORIGIN,
-    license: PHOTO_ART_LICENSE,
+    tagline: "同一片会发光的浅滩、同一位姑娘，夜版把天与海一并压深，只剩脚下那层蓝光。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
     /* 「夜阁」的**浅色版底色本来就是深蓝**（那是一套画在夜里的皮肤）。
        所以画上面那层纱不能按当前是浅色还是深色模式给，要按这条皮肤自己的底色给——
        判据写在 `appearanceSkinVisual.ts` 的 `artVeil` 上，别再改回按 scheme 分支。 */
@@ -301,6 +318,9 @@ export const appearanceSkins: AppearanceSkin[] = [
      ⇒ 上面那些构图硬规则（中段暗区、上下 12% 不放关键元素、左右两缘叙事）是给场景画定的，
        对人像**范畴错误**——`check-scene-art.mjs` 已按这一批改写成与主体无关的两条判据。
      ⇒ 原文全部保留：每一段记的都是它自己那一版当时的真实过程，只是现在站的是第三条线。
+     ⚠️⚠️⚠️【2026-10-17 第四刀】这条线上又叠了第四次换源：Unsplash 的西方人像被用户否掉
+     （原话「不要外国的」），八张于是改成四张 **Pixiv 原创动漫插画 × 昼夜两版**，
+     出处与许可见表头 `ANIME_ART_*`。id、皮肤表、扩展名（`.jpg`）依旧一处未动。
      【backdrop 为什么不跟着画换档】
      画是**不透明整幅**，而 `.desktop-shell` 那条 `background-image` 的顺序是
      纱在上、画在中、backdrop 在下 ⇒ 除非画没加载出来，`nebula / ember / midnight`
@@ -317,9 +337,9 @@ export const appearanceSkins: AppearanceSkin[] = [
   {
     id: "voyage-day",
     label: "青瓷 · 昼镜",
-    tagline: "棕发姑娘一手贴在颊边。日间版把冷底烘上一层薄暖，右缘是虚化的背景。",
-    origin: PHOTO_ART_ORIGIN,
-    license: PHOTO_ART_LICENSE,
+    tagline: "少女裹着围巾走过开满樱花的坡道，整条街都浸在蓝调里。日间版把花枝与天空提亮。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
     light: { accent: "#256C86", background: "#EAF7FB", foreground: "#0F2E3E" },
     dark: { accent: "#5CC0DE", background: "#0B2233", foreground: "#D8EEF7" },
     backdrop: "aurora",
@@ -332,9 +352,9 @@ export const appearanceSkins: AppearanceSkin[] = [
   {
     id: "voyage-night",
     label: "青瓷 · 夜镜",
-    tagline: "同一位姑娘，夜版换成冷蓝、明暗一并收窄，整幅往下压深。",
-    origin: PHOTO_ART_ORIGIN,
-    license: PHOTO_ART_LICENSE,
+    tagline: "同一条樱花街，夜版压深压冷，花瓣上只留一层冷光。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
     /* 夜景套的浅色版底色本来就该是夜（这条规则来自「汐 · 夜阁」那次纠正）：
        判据在 appearance-theme-readability.test.ts 的 NIGHT_SCENE_IDS，别把它调亮。 */
     light: { accent: "#4C9DBA", background: "#0A2130", foreground: "#D9EDF6" },
@@ -349,9 +369,9 @@ export const appearanceSkins: AppearanceSkin[] = [
   {
     id: "lamp-day",
     label: "晴窗 · 昼颜",
-    tagline: "金发姑娘在阳光里笑。日间版把整幅提到暖白，背后那面石墙也跟着亮起来。",
-    origin: PHOTO_ART_ORIGIN,
-    license: PHOTO_ART_LICENSE,
+    tagline: "少女站在黄昏的码头边，落日、旧船与远处的电车全泡在暖橙里。日间版把暖调推到最亮。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
     light: { accent: "#9A6A1E", background: "#FAF4E6", foreground: "#2C2415" },
     dark: { accent: "#D9A64E", background: "#171208", foreground: "#F2E6CC" },
     backdrop: "aurora",
@@ -364,9 +384,9 @@ export const appearanceSkins: AppearanceSkin[] = [
   {
     id: "lamp-night",
     label: "晴窗 · 夜颜",
-    tagline: "同一张笑脸，夜版压成冷蓝——同一个午后走到天黑，只差这一层色。",
-    origin: PHOTO_ART_ORIGIN,
-    license: PHOTO_ART_LICENSE,
+    tagline: "同一座黄昏码头，夜版换成冷蓝，暖橙只留在天边那一线。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
     light: { accent: "#D9B072", background: "#16273F", foreground: "#E9E1CE" },
     dark: { accent: "#F0C578", background: "#0A1220", foreground: "#EDE4D2" },
     backdrop: "abyss",
@@ -379,9 +399,9 @@ export const appearanceSkins: AppearanceSkin[] = [
   {
     id: "pool-day",
     label: "暖砂 · 昼颜",
-    tagline: "石墙前的笑颜。日间版把砖石与肤色一并提亮，中间整片照旧留给正文。",
-    origin: PHOTO_ART_ORIGIN,
-    license: PHOTO_ART_LICENSE,
+    tagline: "少女握着长杖立在方格石道上，背后是一整片落日。日间版把天光与草地一并提亮。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
     light: { accent: "#25736E", background: "#EAF6F1", foreground: "#10302F" },
     dark: { accent: "#4FB3AA", background: "#0C2321", foreground: "#DFF2EC" },
     backdrop: "aurora",
@@ -394,9 +414,9 @@ export const appearanceSkins: AppearanceSkin[] = [
   {
     id: "pool-night",
     label: "暖砂 · 夜阑",
-    tagline: "同一位姑娘，夜版把石墙压成深褐，只留脸上一层光。",
-    origin: PHOTO_ART_ORIGIN,
-    license: PHOTO_ART_LICENSE,
+    tagline: "同一位姑娘，夜版把落日压成冷紫，方格石道也跟着沉下去。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
     light: { accent: "#54A7A2", background: "#0A1D22", foreground: "#D6EDE8" },
     dark: { accent: "#72D2CB", background: "#050E12", foreground: "#CFEAE4" },
     backdrop: "abyss",
@@ -532,7 +552,13 @@ export const APPEARANCE_GRID_LABELS: Record<AppearanceGrid, string> = {
  *  ⚠️【2026-10-17 就地更正】下面八档的**键一个没动**（那是存进用户盘上 theme JSON 的 id），
  *  值从「场景画的档名」改成了**画面里那位姑娘的档名**——八张图当天全换成
  *  Unsplash 的真人女性人像，再叫「深海夜阁」就是卡上写 A、屏幕上是 B。
- *  旧值保留在 `docs/ATTRIBUTION.md` 的皮肤段与皮肤表的旧名→新名对照里。 */
+ *  旧值保留在 `docs/ATTRIBUTION.md` 的皮肤段与皮肤表的旧名→新名对照里。
+ *
+ *  ⚠️【2026-10-17 第四刀】素材又换了一轮（Unsplash 人像 → Pixiv 原创动漫插画，
+ *  见上文两条就地更正）。**下面八档的值一个都没改**：它们现在是「绯青 / 青瓷 / 晴窗 /
+ *  暖砂」这四族**配色档名**加上「昼 / 夜」，与画面里具体是哪张插画**故意解耦**——
+ *  配色（`light` / `dark` 三色）本轮没动，档名跟着配色走，就不必每换一次画改一次名。
+ *  旧值仍留在 `docs/ATTRIBUTION.md` 的皮肤段里。 */
 export const APPEARANCE_ART_LABELS: Record<AppearanceArt, string> = {
   none: "无画面",
   "abyss-hall-night": "绯青夜影",

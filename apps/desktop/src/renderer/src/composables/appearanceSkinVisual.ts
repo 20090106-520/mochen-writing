@@ -422,7 +422,15 @@ const ART_FILES: Record<Exclude<AppearanceArt, "none">, string> = {
      ⇒ 顺带把一件事钉住：**id 是历史名，画面已经换过两轮**（矢量 → 自出位图 → 网上人像），
        所以 id 里的 `abyss-hall` / `book-boat` / `lamp-tower` / `ink-pool`
        与今天的画面**无关**，这是**故意的**：id 是存进用户盘上 theme JSON 的值，
-       改它会让老 JSON 对不上枚举、整份退回默认（`appearance-skins.test.ts` 钉着这条）。 */
+       改它会让老 JSON 对不上枚举、整份退回默认（`appearance-skins.test.ts` 钉着这条）。
+
+     ⚠️【2026-10-17 第四刀就地更正】第三刀那八张 Unsplash 人像**当天就被用户否掉了**
+     （原话「我要的是中国的真人美女图片或动漫二次元图片做装扮**不要外国的**」）。
+     ⇒ 八个文件再换一次：改成**四张 Pixiv 原创动漫插画 × 昼夜两版**（扩展名仍是 `.jpg`）。
+     ⇒ **这一处又一次是唯一改动点**：枚举 id、皮肤表的 `art` 值、所有调用方仍旧一处未动，
+       动的还是下面这八行路径——「路径只住在 ART_FILES」当天第三次兑现。
+     ⇒ 逐张出处（Pixiv 作品号 / 画师 / Safebooru 索引号）与「这些画并未取得再分发授权」
+       这一层如实说明，落在 `docs/ATTRIBUTION.md` 的皮肤段。 */
   "book-boat-night": "skins/book-boat-night.jpg",
   "book-boat-day": "skins/book-boat-day.jpg",
   "lamp-tower-night": "skins/lamp-tower-night.jpg",
