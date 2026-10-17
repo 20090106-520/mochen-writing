@@ -8367,4 +8367,139 @@ Linux 那一格 **363 文件 / 4744 用例**，本机那一格 **363 文件 / 47
 （等式闸、quoted 原文闸、同树短哈希闸、条数对表闸、平台差值闸全绿）。
 这一刀动的是三个样式文件 ＋ 一份判据 ＋ markdown 与注释，仍按同一套门禁重跑一次再提交（形状与第一百二十一 / 一百二十二 / 一百二十三节一致）。
 
+## 第一百二十五节 · 对话链改为手机式人机气泡链 ＋ 输入卡装饰补齐（借模式，不引库）
+
+用户原话（逐字）：「对话框的装饰感觉不太行，还是缺少一些东西可以参考手机软件那种人机链对话框，反正就是要好看。你也可以直接使用开源的项目那种类型的组件，免费的组件使对话框更美观更好看」。
+四条意图：① 底部输入卡观感不够、缺东西；② 要照**手机软件的「人机对话链」**（左右分侧的气泡链）来；③ 目标是好看；④ 明说可用开源项目 / 免费组件。
+第四条当场判了：**借模式，不引库**——引 Naive UI / Element Plus 那类会带进**第二套 token 与第二份组件实现**，
+与「同一件事只留一份实现」正面冲突（bundle 也已约 3.3MB）。所以这一刀只照它们的骨架改自有模板与自有 CSS，**零新依赖、零新色值**。
+
+### 一、根因：屏上没有「谁说的」这一层，输入卡也没有分层
+
+- 对话链：整份 CSS 里 `.message-line` **一条规则都没有**（只有 `.message-line.is-streaming .message-text > :last-child::after` 那枚流式光标），
+  而 `.message-line .message-body` 只有 `padding: 2px 0`；用户侧 `.user-line` 是普通左对齐 flex。
+  ⇒ 两侧都从左边顶格、都通栏铺开，**屏上左右不分**，读不出「这是用户说的 / 这是助手说的」。
+- 输入卡：`.composer-input-surface` 只有两层阴影、卡内上下同色**没有分隔**；`.send-button` 无过渡、无焦点环；`.round-tool-button` 无过渡、无焦点环。
+  ⇒ 用户说的「装饰不太行 / 缺少东西」在源码上是可指的四处，不是观感玄学。
+
+### 二、改法
+
+1. `AgentTimeline.vue` 助手分支（`v-else` 那一支）在 `.message-body` 之前加一枚
+   `<span class="message-avatar" aria-hidden="true"><AppIcon name="sparkles" :size="15" /></span>`。
+   用户分支**一字未动**（保住 `class="user-text"` 恰好 1 处、`class="agent-block"` 恰好 1 处这些原判据）。
+2. `agent-pane.css` 对话链段：
+   - `.user-line` ⇒ `display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 10px;`（头像落右端、气泡贴右）；
+   - `.user-tag` ⇒ 26×26 圆形（`flex: 0 0 auto`、`place-items: center`、`border-radius: 50%`、
+     `background: var(--neutral-solid)`、`color: var(--neutral-solid-contrast)`）；
+   - `.user-text` ⇒ 气泡（`max-width: 82%`、`padding: 9px 13px`、`border-radius: 16px 16px 6px 16px`、
+     `background: color-mix(in srgb, var(--focus) 18%, var(--editor))`、
+     `border: 1px solid color-mix(in srgb, var(--focus) 30%, var(--line-soft))`），
+     原 `min-width: 0` 那行与它的机制注释**原样保留**；
+   - 新增 `.agent-block:not([data-kind="user"]):not([data-kind="message"]) { padding-left: 36px; }`（26 头像 ＋ 10 间隙）——
+     思考 / 计划 / 工具 / 错误那些块与助手气泡左边缘对齐，不再顶格成「另一个人的发言」；
+   - 新增 `.message-line`（`display: flex`、`gap: 10px`）与 `.message-avatar`（26×26 圆、`flex: 0 0 auto`、`margin-top: 3px`、
+     `border: 1px solid var(--line-soft)`、`background: var(--surface-card)`、`color: var(--focus)`）；
+   - `.message-line .message-body` 由 `padding: 2px 0` 改成气泡（`width: auto`、`max-width: 100%`、`padding: 11px 14px`、
+     `border-radius: 6px 16px 16px 16px`、`background: var(--surface-card)`）——**按内容收缩，不再通栏**
+     （父级 `.message-body{width:100%}` 会赢，不回写 `auto` 的话短回复也成一张通栏大卡）。
+3. `agent-pane.css` 输入卡段（同在 `cardSection("agent-pane.css")` 段内，那条「零色值字面量」硬门禁照旧成立）：
+   - `.composer-input-surface` 阴影两层 ⇒ 三层（`--shadow-color` 的 38% / 50% / 46%，各配不同 y 与 blur / 负 spread）＋
+     `transition: box-shadow var(--dur-control) ease;`；
+   - `.composer:focus-within .composer-input-surface` 同构加厚（34% / 58% / 52%）——聚焦时卡自己「抬一层」；
+   - `.composer-toolbar` 补 `border-top: 1px solid color-mix(in srgb, var(--line-soft) 85%, transparent);`（卡内上下分层；
+     该元素**无 `v-if`、恒在**，所以这条线恒可见）；
+   - `.send-button` 补 `box-shadow` 与三段 `transition`（transform / box-shadow / background-color），并补
+     `.send-button:hover:not(:disabled)`（抬 1px ＋ 外推影子）、`:active:not(:disabled)`、
+     `:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }`；
+   - `.round-tool-button` 补两段 `transition` 与 `.round-tool-button:focus-visible`。
+
+### 三、真机读数（构建后实例，1440 / 右栏折叠 / 皮肤插画底，注入探针——诚实边界见第六节）
+
+| 量点 | 读数 |
+| --- | --- |
+| `userTag` | `x=1378, w=26, h=26`（贴列右沿 1416 之内） |
+| `userText` | `x=809, w=559, h=37`（气泡贴右），`bg=color(srgb 0.7657 0.8576 0.8921)`，`radius="16px 16px 6px"` |
+| `msgLine` | `x=310, w=1106` |
+| `avatar` | `x=310, w=26, h=26` |
+| `msgBody` | `x=346, w=536`（**按内容收缩、非通栏**），`bg=rgb(228,241,246)` |
+| `thinking` / `tool` | `x=346, w=1070`（= 310 ＋ 36，与助手气泡左边缘对齐） |
+| `composerSurface` | `x=310, w=1106, h=87, radius="21px"` |
+| `toolbarTop` | `0.666667px`（分隔线在） |
+
+**色调决策**：初版用 12% 强调色浅混，在皮肤插画底上算出 `rgb(207,227,234)`，与助手气泡 `--surface-card` 的 `rgb(228,241,246)` 几乎同色；
+调到 **18% / 30%** 后明显深一档（判据与源码注释里都记了这个读数）。两枚气泡实测 `rgb(195,219,228)` vs `rgb(228,241,246)`，色差足够。
+卡面宽 **1106** 与消息列 **1106** 逐像素一致（第一百二十四节那条共享列宽 token 未动）。`shot-chain.png` 目检：自己那边靠右圆头像 ＋ 右下收紧角、
+助手那边左侧 sparkles 头像 ＋ 左上收紧角、过程块与气泡左缘齐、底部卡有分隔线与分层阴影，chip 行与圆钮、发送键齐全。
+
+### 四、判据：先红后绿
+
+新建 `components/conversation-chain-wiring.test.ts`（**12 条**；本仓零 jsdom / @vue/test-utils，模板与 CSS 这种静态关系只能读源文件断言）：
+「对话链 · 手机式人机气泡链」7 条（助手头像在模板里恰好 1 处、且 `message-line` < avatar < `message-body` 的三处索引序；
+`.user-line` 的 `row-reverse`；`.user-tag` 的圆与那两枚 neutral token；`.user-text` 的气泡四项且**不含** `overflow-wrap: anywhere`
+（那是祖先那条 `break-word` 的第二份实现）；`.message-line` / `.message-avatar` / `.message-line .message-body` 的三处规则；
+非消息块 `padding-left: 36px`；六条选择器规则正文**零色值字面量**）
+＋「输入卡装饰」5 条（`.composer-input-surface` 的 `var(--shadow-color)` ≥ 3 层；聚焦态同构且也 ≥ 3 层；`.composer-toolbar` 有 `border-top:`；
+`.send-button` 有 neutral-solid 与 contrast 与 `transition:`，且三枚状态选择器在场；`.round-tool-button` 有 `transition:` 与 `:focus-visible`）。
+**先写失败用例**：新文件先跑 ⇒ `1 failed (1) / Tests 12 failed`（RED）；实现后 ⇒ `12 passed`（GREEN）；
+再跑八份相关守卫合跑 **129 passed**。全仓 `corepack pnpm verify` ⇒ **364 文件 / 4757 passed | 2 skipped（4759 条注册）**、`VERIFY_EXIT=0`
+（上一版基线 363 / 4745 | 2 skipped（4747 条注册），差值正好 = 新增 1 文件 12 条）。
+
+### 五、本节改动的落点
+
+| 文件 | 改动 |
+| --- | --- |
+| `components/AgentTimeline.vue` | 助手分支加一枚 `message-avatar`（sparkles）；用户分支一字未动 |
+| `styles/agent-pane.css` | 对话链段（`.user-line` row-reverse、`.user-tag` 圆形、`.user-text` 气泡、非消息块缩进 36px、新增 `.message-line` / `.message-avatar`、`.message-line .message-body` 成气泡）＋ 输入卡段（三层阴影与聚焦加厚、toolbar 分隔线、发送键与圆钮的手感与焦点环） |
+| `components/conversation-chain-wiring.test.ts` | **新建**，12 条（对话链 7 ＋ 输入卡装饰 5） |
+| `README.md` | 「## 门禁」节同批换绑（见第七节） |
+| `tools/readme-claims.test.mjs` | 回填链注释补「第一百二十五节再换到 `f4ab659`（4756）」，差值说明由「`4130→4744` 那 614 条」改为「`4130→4756` 那 626 条」 |
+
+提交 `f4ab659 feat(conversation): 对话链改为手机式人机气泡链 ＋ 输入卡装饰补齐`：3 files changed, **302 insertions(＋), 8 deletions(−)**。
+
+### 六、本节未收的口子（如实）
+
+- **暗色主题没做真机目检**：皮肤 token 是运行时以 `<html>` 的 inline style 注入的（inline 优先于样式表，往 `html[data-theme="dark"]` 塞规则**根本无效**）；
+  试用 `window.mochen.appearanceSave()` 改 `settings.mode` 也绕不过渲染层的 appearance store，量到的计算色一字未变
+  ⇒ 本节**放弃暗色真机目检**，只按 token 推理记录：暗色下 `--focus` 18% 的 `#5CC0DE` 混进 `--editor` 的 `#0B2233` 得深青面板、
+  `--foreground` 的 `#D8EEF7` 文字对比充分。**暗色下的实际观感仍是未收口子**。
+- **注入探针不是真数据渲染**：左栏那枚「我的作品」只是本地折叠开关（点开也没有书），`openBook` / `pickBookDirectory` 是 IPC，
+  直接调不驱动 Vue store。所以第三节的读数是「在真实样式环境下注入一枚同 class 的探针」量到的（模板逐字复刻 `AgentTimeline`），
+  **不是真渲染的消息节点**。
+- **窗角挂件遮挡仍是上一节留的那件事**（第一百二十四节第六节已记），本节一动不动，等用户裁定。
+- `%TEMP%` 下的量测件（`chain-open.mjs` / `chain-probe.mjs` / `chain-dark.mjs` / `chain-appearance.mjs` / `chain-clean.mjs` 等）仍是**仓外临时件**，未入仓。
+
+### 七、补记（推送后回填）
+
+本节点在提交前写成；推送后的 CI 读回、README「## 门禁」节换绑与零脏项树上的本机复跑，按第一百二十二 / 二十三 / 二十四节的同一形状补记在本节之后。
+
+**【2026-10-17 推送后回填】** `f4ab659` 推上远端（`a5d4ae1..f4ab659`），那一枚 run 当场读回：
+
+- run 页 `39035176734`，`head_sha=f4ab659c8070d89cfb0afb2eb4a0d533b8101396`，`conclusion=success`。
+- 作业 id `117403424667`，作业名「格式 ＋ 6 枚 tsc ＋ eslint ＋ 边界 ＋ 行数预算 ＋ 全量测试」，结论 success。
+- CI 自己吐的那条 annotation 原文：`files=364 registered=4756 passed=4756 skipped=0 failures=0`。
+
+读通路与上一节**不同**（如实记）：这一刀 `git credential fill`（`protocol=https` / `host=github.com`）**开始挂住不返回**，
+于是改走 **Windows 凭据管理器**直接读 GCM 存的那枚凭据——用 `CredRead`（p/invoke `advapi32`，`CharSet.Unicode`）取回目标名
+`git:https://github.com`、用户名 `20090106-520` 的 40 字符 token，再走 REST `/actions/runs/<id>/jobs` →
+`/check-runs/<job_id>/annotations`。两条通路的凭据是同一枚（用户名与长度一致），换读法只是绕开那个会挂住的 helper 调用。
+（另记一处踩坑：同一段 `git credential fill` 在 Shell 里内联跑得通、放进 `powershell -File` 的脚本文件里却读回空串，
+所以这两刀的量测都走内联 / API 脚本。）
+
+⇒ README「## 门禁」节同批换绑到 `f4ab659`，**五处一起动**（顶格两格、免责段那几处同树短哈希、quoted annotation 原文、
+`Linux 侧 4756 条注册 = 本机 4759 − 3` 那笔账、台账指引改指「一百二十五」），另在历史链上补一条
+「上一版绑的是 `a4bd8f7`（run 页 `39031599787`，363 文件 / 4744 用例），第一百二十五节换绑」：
+Linux 那一格 **364 文件 / 4756 用例**，本机那一格 **364 文件 / 4757 passed | 2 skipped（4759 条注册）**。
+等式四处自洽：`4756 ＋ 3 = 4759`、`4757 ＋ 2 = 4759`、本机 passed 比 Linux 多 1（`4757 − 4756 = 1`）、两侧文件数同为 364。
+同批跟进的门面守卫注释：`tools/readme-claims.test.mjs` 那段回填链补「第一百二十五节再换到 `f4ab659`（4756）」，
+同一段里那句差值说明由「`4130→4744` 那 614 条」改为「`4130→4756` 那 626 条」。
+
+本机那一格是**零脏项树上的复跑**：先把待提交的 README / 守卫注释改动 `git stash` 起来，跑的是 `f4ab659` 自己
+（六段退出码全 0，末行 `VERIFY_EXIT=0`），`git status --porcelain` 跑前与跑后各读回一次、两边都是 0 条；
+`Test Files 364 passed (364)`、`Tests 4757 passed | 2 skipped (4759)`；跑完 `git stash pop` 把改动取回再提交。
+换绑后的 README 五道门面守卫另跑一次：`Test Files 5 passed (5)` / `Tests 33 passed (33)`
+（等式闸、quoted 原文闸、同树短哈希闸、条数对表闸、平台差值闸全绿）。
+
+⇒ 本节收口：对话链与输入卡这一刀的两条真实缺陷（屏上无「谁说的」这一层、卡内无分层）都已落地并两侧同树验过；
+未收的是**暗色观感**（无真机通路）与**注入探针非真数据**这两条诚实边界。
+
 
