@@ -187,6 +187,12 @@
   justify-content: flex-end;
   gap: 4px;
   padding: 8px;
+  /* 定高（2026-10-17 波3）：此前这一块只有前景那两块内容撑高，实高约 75px，
+     一整幅 1536×1024 的横画塞进去只剩中间一横条（`cover` 还把两侧裁掉），
+     于是「广场上的皮肤读不出有画」。改成与画同比例 3:2，画面才是这一格的主体。
+     用比例而不是写死像素：卡片列宽是 `minmax(228px, 1fr)`，写死像素会让宽窗口下
+     卡片与预览块的比例脱钩。判据在 appearance-skin-plaza-wiring.test.ts（波3 那条）。 */
+  aspect-ratio: 3 / 2;
   border-radius: var(--skin-radius-sm);
   border: 1px solid currentColor;
   overflow: hidden;

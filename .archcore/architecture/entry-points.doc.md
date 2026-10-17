@@ -28,7 +28,8 @@ tags:
 - `tools/check-source-line-budget.mjs` — 单文件 800 行预算闸，`pnpm lint:budget`。
 - `tools/build-brand-icons.mjs` — 品牌图标构建。
 - `tools/ci-test-summary.mjs` — 把 CI 的测试数写成一条 check-run annotation。
-- `apps/desktop/scripts/gen-scene-svgs.mjs` — 皮肤场景画生成器，配 `scene-palettes.mjs` 配色表。
+- `apps/desktop/scripts/gen-scene-svgs.mjs` — **波2a** 那批矢量场景画的生成器，配 `scene-palettes.mjs` 配色表。
+  2026-10-17 起它产出的六个 `.svg` 已不再进皮肤广场（那六张换成了原创位图 `.webp`），脚本本体留档。
 - `apps/desktop/scripts/check-scene-art.mjs` — 三道像素闸 G1/G2/G3，`pnpm --filter @mochen/desktop check:scene-art`。
 
 ### Other

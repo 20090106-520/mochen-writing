@@ -18,10 +18,14 @@
   账在 `docs/superpowers/plans/README.md` 批次 5-㊹ 一节与提交 `ef46153`。
 - **插件与技能**：内置插件首次启动种到盘上，用户改过就永不覆盖；有技能市场与技能装载。
 - **皮肤广场 8 套**：`汐`（昼阁 / 夜阁）、`书舟`（昼渡 / 夜航）、`灯楼`（晴昼 / 燃夜）、`墨潭`（映日 / 沉雾），
-  每套都是带整窗画面的场景画，出厂配色不再单独充当皮肤。画由仓内生成器产出
-  （`apps/desktop/scripts/gen-scene-svgs.mjs` + 配色表 `apps/desktop/scripts/scene-palettes.mjs`），
-  质量由三道像素闸 G1/G2/G3 盯（`apps/desktop/scripts/check-scene-art.mjs`，跑
-  `pnpm --filter @mochen/desktop check:scene-art`；需先 build 并自起一台实例）。
+  每套都是带整窗画面的场景画，出厂配色不再单独充当皮肤。其中 6 张（书舟 / 灯楼 / 墨潭 的昼夜）
+  是墨宸原创位图（`.webp`，2026-10-17 换的笔）：原画由 `GenerateImage` 出，再走仓内管线落盘；
+  另 2 张（`汐`）是既有的人物立绘位图。质量由三道像素闸 G1/G2/G3 盯
+  （`apps/desktop/scripts/check-scene-art.mjs`，跑
+  `pnpm --filter @mochen/desktop check:scene-art`；需先 build 并自起一台实例；
+  **只管那 6 张场景画**——2 张人物立绘不在射程内，理由写在脚本头部）。
+  仓内还留着波2a 那批矢量画的生成器（`apps/desktop/scripts/gen-scene-svgs.mjs` + 配色表
+  `apps/desktop/scripts/scene-palettes.mjs`），它产出的六个 `.svg` 已不再进广场。
 - **中文输入法组合态**（IME）、**思考窗**（按发送到首字之间不再空窗）、**视图过渡与弹簧缓动**——
   这三件都是真机巡检量出来的缺口，不是先设计后实现的。
 

@@ -340,6 +340,11 @@ export type AppearanceGrid = z.infer<typeof AppearanceGridSchema>;
  * 具体对哪个文件由渲染层 `appearanceSkinVisual.ts` 的 `ART_FILES` 决定，
  * 而「枚举里的每一档都有文件躺在盘上」由 `appearance-skin-assets.test.ts` 读盘钉住。
  *
+ * 【2026-10-17 波2 更正】上面那句「波2a 这六张是**仓内自绘的矢量场景画**（SVG）」
+ * 已经过期：配额恢复、通路打通，六张已**逐张换成原创位图**（`.svg` → `.webp`）。
+ * 原文保留，因为它记的是那一批当时的真实做法（ImageGen 403、位图通路断着），
+ * 换成位图并不推翻那段理由。**这一层仍旧不管编码**——这条结论没变。
+ *
  * 【为什么是枚举而不是任意路径】
  * 路径要是任意的，等于把「渲染层允许加载什么」的决定权交给数据表——
  * 一条 `file://` 或远程 URL 就能从数据里长进 CSS。

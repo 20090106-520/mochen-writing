@@ -223,6 +223,67 @@ describe("5-㉝ · 左栏恒定，右栏不跟，这一处占中栏+右栏一整
   });
 });
 
+describe("2026-10-17 · 左栏收起后「出得来」：抓手恒在 shell 上（四页都在）", () => {
+  /**
+   * 真机取证（`.superpowers/tmp-app-probe.mjs`）：左栏在**非对话视图**收起后
+   * `hasExpandBtn=false`、`leftSidebar=null`——广场页 / 设置页 / 技能页都出不来，
+   * 唯一退路是 Ctrl+B（不可见）。
+   *
+   * 根因在落点：那枚「展开左侧栏」原先住在 `CenterColumn` 的头部，而 `CenterColumn`
+   * 只在 `centerView === 'chat'` 渲染；`SettingsPage` 与 `ExtensionsPage` 都不渲染它
+   * ⇒ 三页都没有入口。
+   *
+   * 改法：抓手搬出中栏、恒挂 shell，只读 `leftCollapsed`（与 `currentView` / `centerView` 无涉）。
+   */
+  it("App.vue：那枚抓手只读 leftCollapsed，且排在 v-else 之前", () => {
+    const app = templateSource("App.vue");
+    const tagAt = app.indexOf("<PaneEdgeToggle");
+    expect(tagAt, "App.vue 里找不到那枚展开抓手").toBeGreaterThan(-1);
+    const elseAt = app.indexOf("<template v-else>");
+    expect(elseAt, "模板里找不到 template v-else").toBeGreaterThan(-1);
+    // v-else 里面的东西在设置视图下整个不渲染——抓手排在里面就回到「只在某一页」。
+    expect(tagAt, "抓手必须排在 v-else 之前").toBeLessThan(elseAt);
+    const tag = app.slice(tagAt, app.indexOf("/>", tagAt) + 2);
+    expect(tag, "抓手不是按 leftCollapsed 显隐").toContain('v-if="leftCollapsed"');
+    // 带上 centerView / currentView 就又变成「只在某一页」——那正是这次要修的缺陷。
+    expect(tag, "抓手不该绑 centerView").not.toContain("centerView");
+    expect(tag, "抓手不该绑 currentView").not.toContain("currentView");
+  });
+
+  it("CenterColumn.vue：那枚「展开左侧栏」已撤，同一动作不留两份真身", () => {
+    const centerPath = "components/CenterColumn.vue";
+    const center = templateSource(centerPath);
+    expect(center).not.toContain("展开左侧栏");
+    // 撤了按钮，`leftCollapsed` prop 与 `toggleLeft` emit 就没有消费者了——留着是死接线。
+    const script = scriptSource(centerPath);
+    expect(script).not.toContain("toggleLeft");
+    expect(script).not.toContain("leftCollapsed");
+    // App.vue 那一侧也要跟着撤，否则传一个不存在的 prop、监听一个不存在的 emit。
+    const app = templateSource("App.vue");
+    expect(app).not.toContain("@toggle-left");
+    expect(app).not.toContain(":left-collapsed");
+  });
+
+  it("抓手是 shell 的绝对定位元素，落在左缘（与 .pane-resizer-left 同源）", () => {
+    const shell = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+    const block = ruleBlock(shell, ".pane-edge-toggle");
+    expect(block).toContain("position: absolute;");
+    expect(block).toContain("left: 0;");
+    // 窗口拖动区（`-webkit-app-region: drag`）会吃掉点击：不给 no-drag 这枚钮点不动。
+    expect(block, "抓手会盖住窗口拖动区").toContain("-webkit-app-region: no-drag;");
+  });
+
+  it("收起后左缘留一条窄轨，内容不落在抓手底下", () => {
+    const shell = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+    // 真机量过：收起时列宽若回到 0，内容就从 x=0 起画，而抓手占 0..31——
+    // 设置中心自带左导航的第一个字从 x=22 起，正好被切掉；对话页同样压住正文左缘。
+    expect(shell, "没有那条窄轨").toContain("--left-rail-width:");
+    const collapsed = ruleBlock(shell, ".desktop-shell.is-left-collapsed");
+    expect(collapsed).toContain("var(--left-rail-width)");
+    expect(collapsed, "列宽回到 0 会让抓手压在内容上").not.toMatch(/grid-template-columns:\s*0\b/);
+  });
+});
+
 describe("落在哪一处 · 取数全走 store", () => {
   it("模板不自己 listPlugins / listMarket / filter", () => {
     const script = scriptSource(PAGE);

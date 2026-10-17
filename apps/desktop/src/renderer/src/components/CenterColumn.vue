@@ -41,7 +41,12 @@ import {
   type ThreadView
 } from "../stores/useAgentStore";
 
-defineProps<{ leftCollapsed: boolean; rightCollapsed: boolean }>();
+/**
+ * `leftCollapsed` 与 `toggleLeft` 在 2026-10-17 一并退役：那枚「展开左侧栏」搬去了
+ * `PaneEdgeToggle`（恒挂 shell，四页都在），中栏这一支不再是它的落点。
+ * 撤了按钮还留着 prop 与 emit，就是本仓反复吃过的那种「零消费者的死接线」。
+ */
+defineProps<{ rightCollapsed: boolean }>();
 /**
  * 头部动作区（2026-10-07 用户裁定）：原先这里还挂着一枚「写作目标环」——圆圈里写着 0%，
  * 常年 0%（今天一个字没写时它是 0%，点开才是面板）。用户裁定不要它，于是整枚退役。
@@ -50,7 +55,7 @@ defineProps<{ leftCollapsed: boolean; rightCollapsed: boolean }>();
  * `<WritingGoalPanel>` 也仍挂在 App.vue。退役的只是那一枚常驻的圆环按钮与它的 openGoal 事件——
  * 留着一条没人 emit 的监听，就是本仓反复吃过的那种「零写者的死接线」。
  */
-const emit = defineEmits<{ toggleLeft: []; toggleRight: [] }>();
+const emit = defineEmits<{ toggleRight: [] }>();
 
 const book = useBookStore();
 const agent = useAgentStore();
@@ -305,15 +310,6 @@ onBeforeUnmount(() => {
   <main class="conversation-pane" aria-label="智能体对话">
     <header class="conversation-header">
       <div class="conversation-heading-start">
-        <button
-          v-if="leftCollapsed"
-          class="icon-button"
-          type="button"
-          aria-label="展开左侧栏"
-          @click="emit('toggleLeft')"
-        >
-          <AppIcon name="panel-left" :size="18" />
-        </button>
         <div>
           <strong>{{ agentLabel }}</strong>
           <!-- 无书时不渲染这一行：没有书就没有「主上下文」，写个「无」只是把

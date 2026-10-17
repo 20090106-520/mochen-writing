@@ -52,6 +52,11 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --left-pane-width: 286px;
+  /* 左栏收起后留在左缘的那条窄轨（2026-10-17）。它不是装饰：收起时列宽若仍是 0，
+     内容就从 x=0 起画，那枚「展开左侧栏」抓手会压在内容上——真机量过，设置中心
+     自带左导航的第一个字从 x=22 起，抓手占 0..31，正好切掉「偏好 / 关于」那几个组标题；
+     对话页也会压住正文左缘。留一条窄轨把内容推到轨右边，抓手住在轨里，两边都不碰。 */
+  --left-rail-width: 34px;
   --right-pane-width: clamp(410px, 34vw, 650px);
   --center-pane-min: 320px;
   --line: var(--theme-line, #dedfdf);
@@ -253,8 +258,56 @@ html[data-platform="darwin"] .desktop-shell {
   left: 0;
 }
 
+/* 左栏收起后左缘那枚竖条「展开左侧栏」（2026-10-17）。
+   它恒挂在 shell 上、只读 leftCollapsed，于是对话 / 插件·技能 / 皮肤广场 / 设置四页都在——
+   原先那枚住在 CenterColumn 头上，而 CenterColumn 只在 centerView === 'chat' 渲染，
+   非对话视图收起左栏后没有任何可见入口（真机实测 hasExpandBtn=false）。
+   落点与 .pane-resizer-left 同源：都是 shell 的绝对定位元素，贴着左缘，与兄弟的书写顺序无关。 */
+.pane-edge-toggle {
+  position: absolute;
+  z-index: 21;
+  top: 50%;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  padding: 14px 7px;
+  border: 1px solid var(--line-soft);
+  border-left: 0;
+  border-radius: 0 var(--skin-radius-md, 10px) var(--skin-radius-md, 10px) 0;
+  background: var(--surface-raised);
+  color: var(--text-soft);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+  -webkit-app-region: no-drag;
+}
+
+.pane-edge-toggle:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.pane-edge-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 45%, transparent);
+}
+
+.pane-edge-toggle-label {
+  /* 0.785714rem = 默认 14px 下的 11px。**不许写 11px**：写死像素的字号不随
+     `--ui-font-size` 缩放，`ui-font-scale-guard.test.ts` 当场红（本波第一次 verify 就是这么红的）。 */
+  font-size: 0.785714rem;
+  letter-spacing: 0.24em;
+  writing-mode: vertical-rl;
+}
+
 .desktop-shell.is-left-collapsed {
-  grid-template-columns: 0 minmax(var(--center-pane-min), 1fr) var(--right-pane-width);
+  grid-template-columns:
+    var(--left-rail-width) minmax(var(--center-pane-min), 1fr)
+    var(--right-pane-width);
 }
 
 .desktop-shell.is-right-collapsed {
@@ -264,7 +317,7 @@ html[data-platform="darwin"] .desktop-shell {
 }
 
 .desktop-shell.is-left-collapsed.is-right-collapsed {
-  grid-template-columns: 0 minmax(var(--center-pane-min), 1fr) 0;
+  grid-template-columns: var(--left-rail-width) minmax(var(--center-pane-min), 1fr) 0;
 }
 
 /* Task 113f 窄屏收窄（deepwrite styles.css 5071-5080 原值）。位置本身就是这条规则的一半：
@@ -298,7 +351,9 @@ html[data-platform="darwin"] .desktop-shell {
   }
 
   .desktop-shell.is-left-collapsed {
-    grid-template-columns: 0 minmax(var(--center-pane-min), 1fr) var(--right-pane-width);
+    grid-template-columns:
+      var(--left-rail-width) minmax(var(--center-pane-min), 1fr)
+      var(--right-pane-width);
   }
 
   .desktop-shell.is-right-collapsed {
@@ -308,7 +363,7 @@ html[data-platform="darwin"] .desktop-shell {
   }
 
   .desktop-shell.is-left-collapsed.is-right-collapsed {
-    grid-template-columns: 0 minmax(var(--center-pane-min), 1fr) 0;
+    grid-template-columns: var(--left-rail-width) minmax(var(--center-pane-min), 1fr) 0;
   }
 
   .message-list {

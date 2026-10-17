@@ -44,7 +44,23 @@ Apache License 2.0 的要求集中记录在本文件，许可证原文见仓库�
 - `abyss-hall-night.webp`、`shallow-hall-day.webp`：**墨宸自有的位图**（带人物立绘的那一族），
   由同名 jpg 只做**编码转换**得到——不裁切、不重绘、不另生成，遵循
   「用户提供的品牌图原样使用」那条既定规则。
-- `book-boat-{day,night}.svg`、`lamp-tower-{day,night}.svg`、`ink-pool-{day,night}.svg`：
+- `book-boat-{day,night}.webp`、`lamp-tower-{day,night}.webp`、`ink-pool-{day,night}.webp`：
+  **墨宸原创画面 / 本仓自有**（2026-10-17 波2 换的笔，出处两句写在皮肤表上）。
+  这六张由本仓自己出原画（`GenerateImage`，2560×1707），再逐张走五步——
+  去右下角「AI生成」水印 → grading 拉动态范围 → 降采样 1536×1024 → 编码 webp——
+  得到，无第三方素材、无外部字体、无可读文字与 logo，因此**不涉及任何许可义务**。
+  存在性 / 尺寸 / 比例 / 上限由 `appearance-skin-assets.test.ts` 读盘钉住；
+  构图硬规则由 `apps/desktop/scripts/check-scene-art.mjs` 的三道像素闸 G1/G2/G3 钉住。
+  逐张做法与三道闸读数见 `docs/superpowers/plans/2026-10-17-skin-art-and-pane-toggle.md` 波2。
+- 【2026-10-17 波2 就地更正】下面这段原文记的是**波2a 那批矢量**：那六个 `.svg` 文件
+  **已从 `public/skins/` 删除**，皮肤表也不再读它们（`appearanceSkinVisual.ts` 的 `ART_FILES`
+  六条扩展名改成了 `.webp`）。原文保留——它记的是那一批当时的真实做法与理由。
+  照读会读成假话的一处已在下面那段的本句上注明：那句「所以这六张 SVG 由脚本可复现」，
+  **主语的六个 SVG 已不存在**；而 `gen-scene-svgs.mjs` **本体仍在仓内**
+  （`apps/desktop/package.json` 的 `gen:scene-svgs` 脚本、`README.md`、
+  `tools/readme-claims.test.mjs`、`.archcore/architecture/entry-points.doc.md` 都还引它），
+  这一波只删了它**产出的六个 `.svg`**，没有删生成器。
+- 【原文照录】`book-boat-{day,night}.svg`、`lamp-tower-{day,night}.svg`、`ink-pool-{day,night}.svg`：
   **本仓库自绘**，由参数化脚本按 `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md` §2
   的构图硬规则生成，无第三方素材、无外部字体、无可读文字与 logo，因此**不涉及任何许可义务**。
   两点如实记下：

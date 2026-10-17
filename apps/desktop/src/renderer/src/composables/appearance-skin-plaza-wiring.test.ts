@@ -578,6 +578,20 @@ describe("视觉四层的消费 · 硬约束：背景与图案不落正文区", 
     );
   });
 
+  /* 波3（2026-10-17）真机量出来的缺口：预览块当年只有前景那两块内容撑高，实高约 75px。
+     一整幅 1536×1024 的横画塞进 75px 里只剩中间一横条，`cover` 又把两侧裁掉，
+     于是「广场上的皮肤读不出有画」——用户那句「这种不好看」有一半出在这一格。
+     ⇒ 定高走 `aspect-ratio: 3 / 2`，与规格单 §1 那张画的 1536×1024 同比例，
+       画面才成为这一格的主体。用比例而不是写死像素：卡片列宽是 `minmax(228px, 1fr)`，
+       写死像素会让宽窗口下的卡片与预览块比例脱钩。 */
+  it("预览块按画的 3:2 定高（不定高就被前景内容撑成约 75px 一条，画面读不出结构）", () => {
+    const skinCss = strippedStyleSource("skin-gallery.css");
+    expect(
+      ruleBlock(skinCss, ".skin-card-preview"),
+      "预览块没有定高 —— 又会退回「由前景那两块撑成一条窄带」"
+    ).toContain("aspect-ratio: 3 / 2");
+  });
+
   it("对话框那套靠 <html data-skin-surface> 挂着（只有它给出真值，其余是 none）", () => {
     const css = styleSource("theme-runtime.css");
     // 判据要钉在**真的那条规则**上：条件是 data 属性，

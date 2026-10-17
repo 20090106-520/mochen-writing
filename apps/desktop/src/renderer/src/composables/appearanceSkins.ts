@@ -254,6 +254,21 @@ export const appearanceSkins: AppearanceSkin[] = [
        画不出「蓝发鲸耳的汐」那种角色插画。所以名字里不再挂「汐」，
        等位图素材到手再出真正带人物的那一族。
 
+     【2026-10-17 波2 更正（同一批 id，换了笔）】
+     上面这段「改走矢量场景画」的账**已经过期**：配额恢复、出图通路打通，
+     这六张已**逐张换成原创位图**（`.svg` → `.webp`，id 与皮肤表一处未动）。
+     原文保留，因为它记的是那一批当时的真实原因（ImageGen 403、外部位图通路断着）。
+     位图这一版的做法与三道闸读数见
+     `docs/superpowers/plans/2026-10-17-skin-art-and-pane-toggle.md` 波2。
+     `gen-scene-svgs.mjs` 与 `check-scene-art.mjs` 的分工没变：前者是**源头**那道
+     （只服务波2a 那批矢量，已随 `.svg` 一并退役），后者是**终点**那道，与格式无关。
+     ⚠️ 【2026-10-17 波2 就地更正】上一行括号里那句「已随 `.svg` 一并退役」**不成立**：
+     `gen-scene-svgs.mjs` **本体仍在仓内**，且被 `apps/desktop/package.json` 的
+     `gen:scene-svgs` 脚本、`README.md`、`tools/readme-claims.test.mjs`、
+     `.archcore/architecture/entry-points.doc.md` 引用。真正退役的是它**产出的那六个 `.svg`**
+     （已从 `public/skins/` 删除，`ART_FILES` 也不再指向它们）。这一波的落点写的是
+     「删掉六个 `.svg`」，**生成器没删**——照 `docs/ATTRIBUTION.md` 那条同批更正读。
+
      【backdrop 为什么不跟着画换档】
      画是**不透明整幅**，而 `.desktop-shell` 那条 `background-image` 的顺序是
      纱在上、画在中、backdrop 在下 ⇒ 除非画没加载出来，`nebula / ember / midnight`

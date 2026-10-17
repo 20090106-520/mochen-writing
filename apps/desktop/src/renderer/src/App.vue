@@ -5,6 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import type { AppearanceColorScheme } from "@mochen/contracts";
 import LeftSidebar from "./components/LeftSidebar.vue";
+import PaneEdgeToggle from "./components/PaneEdgeToggle.vue";
 import CenterColumn from "./components/CenterColumn.vue";
 import DocumentPane from "./components/DocumentPane.vue";
 import SaveConflictDialog from "./components/SaveConflictDialog.vue";
@@ -404,6 +405,14 @@ function onTemplateApply(text: string): void {
       @keydown="layout.handleResizeKeydown('left', $event)"
     />
 
+    <!-- 左栏收起后左缘那枚竖条（2026-10-17）：**恒挂 shell、只读 leftCollapsed**，
+         与 currentView / centerView 都无涉 —— 于是对话 / 插件·技能 / 皮肤广场 / 设置四页都在。
+         原先那枚「展开左侧栏」住在 CenterColumn 头上，而 CenterColumn 只在
+         `centerView === 'chat'` 渲染（见下面 `<template v-else>` 里那一支）：
+         真机实测，广场页 / 设置页 / 技能页收起左栏后 `hasExpandBtn=false`，
+         没有任何可见入口，唯一退路是不可见的 Ctrl+B。放在 v-else **之前**就是为了修这个。 -->
+    <PaneEdgeToggle v-if="leftCollapsed" @toggle="layout.togglePane('left')" />
+
     <!-- 设置中心（5-㊱ 从「整页」改来）：占中栏 + 右栏两格，落点与插件/技能、皮肤广场同一款。 -->
     <SettingsPage v-if="currentView === 'settings'" />
 
@@ -423,11 +432,11 @@ function onTemplateApply(text: string): void {
            那说的是**几页各有自己的条件、互不相干**。
            这里三个条件读的是**同一个 centerView、且穷尽它的取值**，
            互斥由构造保证，与书写顺序无关。 -->
+      <!-- 「展开左侧栏」那一条已经搬到上面那枚 PaneEdgeToggle（2026-10-17）：
+           同一动作只留一份真身，中栏这一支不再接 toggleLeft。 -->
       <CenterColumn
         v-if="centerView === 'chat'"
-        :left-collapsed="leftCollapsed"
         :right-collapsed="rightCollapsed"
-        @toggle-left="layout.togglePane('left')"
         @toggle-right="layout.togglePane('right')"
       />
       <ExtensionsPage v-else-if="centerView === 'skills' || centerView === 'plugins'" />
