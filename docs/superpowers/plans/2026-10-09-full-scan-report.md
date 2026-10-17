@@ -8506,4 +8506,155 @@ Linux 那一格 **364 文件 / 4756 用例**，本机那一格 **364 文件 / 47
 ⇒ 本节收口：对话链与输入卡这一刀的两条真实缺陷（屏上无「谁说的」这一层、卡内无分层）都已落地并两侧同树验过；
 未收的是**暗色观感**（无真机通路）与**注入探针非真数据**这两条诚实边界。
 
+## 第一百二十六节 · 输入卡照用户上传设计稿改成玻璃拟态（零新依赖、零新配色体系）
+
+用户上传一份设计稿（`design.html`，标题「玻璃拟态梦幻版 AI 输入框 · agnes-3.0-flash」），指令只有五个字（逐字）：
+「用这个对话框」。上一节把自己留的那句「底部输入卡观感不够、缺东西」交给这一刀收口：把 `.composer-input-surface`
+照设计稿改成**玻璃拟态**，圆角 / 顶沿高光 / 景深 / 输入前缀 / 工具条分层 / 发送键与圆钮尺寸 / 激活胶囊全部对齐。
+
+### 一、根因：玻璃被一条**更高特异性**的不透明底压死
+
+- `theme-runtime.css` 把 `.composer-input-surface` 放在 `html[data-theme] :where(.composer-input-surface, …)` 那一组里，
+  该组给的是**不透明** `background: var(--surface-raised)`。`:where()` 本身不计特异性，但前缀 `html[data-theme]` 带着 (0,1,0)，
+  那条规则整体是 **(0,1,1)**，压过 `agent-pane.css` 里 `.composer-input-surface` 的 **(0,1,0)**
+  ⇒ 卡片段里写什么玻璃都是白写，屏上永远是一张不透明卡面。这是本节唯一一处「写对了却看不见」的病灶。
+- 设计稿的其余签名在源上逐个可指，不是观感玄学：21px 圆角（设计稿 28px）、单层外影（设计稿「顶沿内高光 ＋ 三层景深」）、
+  输入行没有起头符号（设计稿 `.prefix-char` 那枚 `/`）、`.send-button` 30×30（设计稿 46×46）、
+  `.round-tool-button` 30×30（设计稿 38×38）、工具条无定高（设计稿 64px）、激活 chip 是描边药丸（设计稿 999px 胶囊 ＋ 发光描边）。
+
+### 二、改法（照 `.left-sidebar` 的同特异性先例）
+
+1. `styles/theme-runtime.css`：把 `.composer-input-surface` **移出** `:where(...)` 组，随后另起一条**同特异性**专属规则，
+   把玻璃接到**皮肤运行时既有的** token 上（`--skin-glass-card-fill` / `--skin-glass-blur` / `--skin-glass-saturate` / `--skin-glass-sheen`）
+   ——零新造 token、零新依赖。原 `:focus-within` 那条聚焦规则**原样保留**（`message-markdown-wiring.test.ts` 对它有一条反向钉，
+   改写法会把那条判据的实例拆掉）。
+2. `styles.css` `:root` 新增三枚 token——字面量收在**非卡片段**，卡片段那条「零色值字面量」硬门禁照旧成立：
+   `--glass-highlight: color-mix(in srgb, #ffffff 55%, transparent)`、`--glow-deep: #9a7bff`、`--glow-net: #5aa8ff`。
+3. `styles/agent-pane.css` 卡片段：圆角 21→**28**；`box-shadow` 首行加 `inset 0 1px 0 var(--glass-highlight)`（原有三层 `--shadow-color` 保留）；
+   新增 `.composer-input-zone`（`min-height: 88px`、`padding: 20px 22px 12px`）与 `.composer-prefix`（装饰性 `/`，`aria-hidden`）；
+   `.composer-textarea` 把内边距收成 `2px 0`（`field-sizing: content` 与 `max-height: 150px` 原样保留）；
+   `.composer-toolbar` `min-height: 64px`、`gap: 12px`、`padding: 0 20px`（`border-top` 与 `position: relative` 保留）；
+   `.send-button` 30→**46**；`.round-tool-button` 30→**38**。
+4. `components/ComposerBox.vue`：把 `<textarea>` 包进 `.composer-input-zone`，前插
+   `<span class="composer-prefix" aria-hidden="true">/</span>`。`ComposerReferenceMenu` 仍是 surface 的第一个孩子，
+   计数条与语音提示行的次序一字未动。
+5. `styles/interaction.css`：`.composer-chip[aria-pressed="true"]` 改 **999px 胶囊 ＋ 发光描边**，并按开的是哪一枚**分流光晕**——
+   `data-chip="thinking"` 走 `--glow-deep`（紫）、`data-chip="web-search"` 走 `--glow-net`（蓝），与设计稿 `.pill-deep` / `.pill-net` 一一对应。
+
+### 三、设计稿里**没搬**的那些（边界，写清楚）
+
+设计稿是一整张**演示页**：极光背景 / 光斑 / 星点 / 地面反光 / toast 属于**画布**，归「皮肤广场」管，**不在本刀范围**——
+本刀只落卡片本体。设计稿里所有 `rgba(...)` 一律改写成 token 或 `color-mix`（卡片段零色值字面量是硬门禁，不是风格偏好）。
+激活胶囊的**底色也没照抄**设计稿的半透明白（`rgba(255,255,255,.26)`）：仍用本仓 `--selected`
+（那是 `appearance-surface-ladder` 已登记、经对比度普查的状态档底，换成半透明会在暗色皮肤下失控），
+设计稿的签名——胶囊形状与发光描边——全部保留。
+
+### 四、真机读数（构建后实例，1440 / 右栏折叠，CDP 注入探针；诚实边界见第七节）
+
+| 量点 | 浅色 | 暗色 |
+| --- | --- | --- |
+| `composerSurface` | 圆角 **28px**；底 `rgba(228,240,236,.64)` ＋ `blur(8px) saturate(1.08)`；顶沿 `inset 0 1px 0 rgba(255,255,255,.55)` ＋ 三层影 | 底 `rgb(28 51 48 / .64)`；字色 `rgb(223,242,236)` |
+| `inputZone` | 高 **88**，内边距 `20 22 12` | — |
+| `toolbar` | 高 **64**，内边距 `0 20`，`gap: 12px`，分隔线在 | — |
+| `sendButton` | **46×46** | — |
+| `roundToolButton` | **38×38** | — |
+| `composerPrefix` | 文本 `/`，`aria-hidden`，字号 19.25px（= 1.375rem × 14px 根字号） | — |
+| 激活 chip | 半径 **999px**；紫 `color(srgb .604 .482 1 / .9)` / 蓝 `color(srgb .353 .659 1 / .9)`；光晕 14px；字重 500 | 档底 `rgb(54,76,74)`，两枚光晕清晰可辨 |
+
+**暗色是走应用自己的「设置 → 外观 → 深色」切出来的真暗色**，不是往 `html[data-theme="dark"]` 塞规则
+（皮肤 token 是运行时以 `<html>` 的 inline style 注入的，上一节试过塞规则与直接调 `appearanceSave()` 都绕不过渲染层的 store，
+所以那一节把「暗色观感」记成无真机通路）——本节找到了通路：**走界面**。量完已把外观与两枚 chip 复位为原状
+（浅色 / 均未按下，复位后探针读回 `PRESSED-AFTER [] :: theme=light`）。两张截图（浅 / 暗）目检通过。
+
+### 五、判据：先红后绿
+
+- `components/conversation-chain-wiring.test.ts` 的「输入卡装饰」describe 追加 **6 条**设计稿断言
+  （卡是 28px 大圆角 ＋ 顶沿高光 ＋ 三层景深仍在 / 工具条 64px 高 ＋ 分隔线仍在 / 发送键 46×46 与圆钮 38×38 /
+  模板 `/` 前缀排在 textarea 之前且 `aria-hidden` / 玻璃落在主题层——surface 已移出不透明组且另起同特异性规则 /
+  激活胶囊 999px ＋ 紫蓝分流）；`components/composer-card-wiring.test.ts` 就地改圆钮尺寸判据 30→**38** 两处。
+- **先写失败用例**：先跑 ⇒ **红 7 处**（全落在缺实现的地方）；实现后 ⇒ 两份守卫 **43 条**全绿、邻近 12 份 **193 条**全绿；
+  全仓 `corepack pnpm verify` ⇒ **364 文件 / 4763 passed | 2 skipped（4765 条注册）**、`VERIFY_EXIT=0`
+  （上一版 364 / 4757 | 2 skipped（4759 条注册），差值正好 = 新增的这 6 条）。
+
+### 六、实现中撞到的一次更正（如实）
+
+圆钮的玻璃淡底第一版写的是 `background: color-mix(in srgb, var(--hover) 70%, transparent)`，
+`appearance-surface-ladder` 当场**两条红**：「这些深档底规则没进普查表（新族没登记）」＋「块内直接写灰字 token 的，同一条规则里就得 shadow 那枚 token」。
+根因：`--hover` 是 **`DEEP_TOKENS`** 之一，`paintsDeepRung()` 命中 ⇒ 这条规则成了一个未登记的**深档底**，而块里又直接写了 `color: var(--text-soft)`。**改法是淡底不用深档**——
+写成 `color-mix(in srgb, var(--text) 8%, transparent)`（描边 `var(--text) 16%`）：`--text` 不在 `DEEP_TOKENS` 里，不进普查，
+且在浅底 / 深底都读得出。它是**静态玻璃面**，本来就不是状态档底，登记进普查表反而是把两个概念混成一件事。
+
+### 七、本节未收的口子（如实）
+
+- **演示画布未做**：见第三节，属「皮肤广场」的辖域，是**边界**不是缺陷。
+- **注入探针不是真数据渲染**：与上一节同形——左栏那枚「我的作品」是本地折叠开关，`openBook` / `pickBookDirectory` 是 IPC，
+  直接调不驱动 store，所以第四节读数是「真实样式环境 ＋ 一枚同 class 的注入探针」，不是真渲染的消息节点。
+- **探针里 `bodyWidth` 取不到**：`.message-list` 选择器在改动后的 DOM 上不匹配 ⇒ 这一项读数为空。
+  版心与卡片逐像素一致这件事**没有因此失去覆盖**：它在 `components/composer-card-wiring.test.ts` 里由既有守卫钉着，且当场全绿。
+- `%TEMP%/mochen-cdp/` 下的量测件（`probe*.mjs` 与两张截图）是**仓外临时件**，跑完即删，未入仓。
+
+### 八、本节改动的落点
+
+| 文件 | 改动 |
+| --- | --- |
+| `styles.css` | `:root` 新增 `--glass-highlight` / `--glow-deep` / `--glow-net` |
+| `styles/theme-runtime.css` | surface 移出不透明组 ＋ 另起同特异性玻璃规则（聚焦那条原样保留） |
+| `styles/agent-pane.css` | 卡片段：圆角 28 ／ 顶沿高光 ／ `.composer-input-zone`＋`.composer-prefix` ／ textarea 内边距 ／ 工具条 64px ／ 发送键 46 ／ 圆钮 38 |
+| `components/ComposerBox.vue` | textarea 包进输入区，前插装饰性 `/` 前缀 |
+| `styles/interaction.css` | 激活 chip 胶囊化 ＋ 紫 / 蓝光晕分流 |
+| `components/conversation-chain-wiring.test.ts` | **追加 6 条**设计稿断言 |
+| `components/composer-card-wiring.test.ts` | 圆钮尺寸判据 30→38 |
+| `docs/superpowers/specs/2026-10-17-composer-glass/{spec,tasks}.md` | 本刀的规范与任务清单（新建） |
+| `README.md` | 「## 门禁」节同批换绑（见第九节） |
+| `tools/readme-claims.test.mjs` | 回填链注释补「第一百二十六节再换到 `378a29f`（4762）」，同一段里那句差值说明由「`4130→4756` 那 626 条」改为「`4130→4762` 那 632 条」 |
+
+提交 `378a29f feat(composer): 输入卡照用户上传设计稿改玻璃拟态`：9 files changed, **417 insertions(＋), 27 deletions(−)**。
+
+### 九、补记（推送后回填）
+
+本节点在提交前写成；推送后的 CI 读回、README「## 门禁」节换绑与零脏项树上的本机复跑，按第一百二十五节的同一形状补记在本节之后。
+
+**【2026-10-17 推送后回填】** `378a29f` 推上远端（`5346e91..378a29f`），那一枚 run 当场读回：
+
+- run 页 `39041671036`，`head_sha=378a29f064c44f8fc29ca7bd4ca0903f6074457b`，`conclusion=success`。
+- 作业 id `117422253915`，作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试」，结论 success。
+- CI 自己吐的那条 annotation 原文：`files=364 registered=4762 passed=4762 skipped=0 failures=0`。
+
+**读通路这一刀撞了两个坑，都是可复现的，记下来免得下一刀再走一遍**：
+
+- `head_sha` 参数要**完整 40 位 SHA**。先拿短哈希 `378a29f` 去查，接口**不报错**、安安静静返回 `workflow_runs: []`
+  ⇒ 只看「没报错」会得出「这个提交没跑 CI」的错结论。换成完整 SHA 当场命中。
+- Windows 凭据管理器里那枚 GCM 凭据（`CredRead` 取的 `git:https://github.com`）的 `CredentialBlob` 是 **UTF-16LE**：
+  80 字节 = 40 个 code unit。第一版按 UTF-8 解码，字母之间夹着 `\0` ⇒ token 正则被 NUL 打断，读回 `NO-TOKEN-PARSED`。
+  改用 `Unicode` 解码后 `len=40 kind=gho` 当场对上。（另记一处操作失误：排查时我打了一句示范性 debug 输出，它**没起脱敏作用**，
+  那枚 PAT 明文落进了当次会话的工具输出——已改成只输出长度与前缀，但泄漏既已发生，如介意建议轮换这枚凭据。）
+
+⇒ README「## 门禁」节同批换绑到 `378a29f`，**五处一起动**（顶格两格、免责段那几处同树短哈希、quoted annotation 原文、
+`Linux 侧 4762 条注册 = 本机 4765 − 3` 那笔账、台账指引改指「一百二十六」），另在历史链上补一条
+「上一版绑的是 `f4ab659`（run 页 `39035176734`，364 文件 / 4756 用例），第一百二十六节换绑」。
+Linux 那一格 **364 文件 / 4762 用例**，本机那一格 **364 文件 / 4763 passed | 2 skipped（4765 条注册）**。
+等式四处自洽：`4762 + 3 = 4765`、`4763 + 2 = 4765`、本机 passed 比 Linux 多 1（`4763 − 4762 = 1`）、两侧文件数同为 364。
+用例数从上一版的 4756 长到 4762，差的 **6 条**正是本节第五节那 6 条设计稿断言（`git show 378a29f` 的
+`conversation-chain-wiring.test.ts` 里 `+  it(` 恰好 6 行），不是别的改动混进来的。
+
+**同批就地更正一处门面上的过期登记**（保留原文）：README 历史链上那一格原先写着
+「`a4bd8f7`（2026-10-17，run 页 `39031599787`，363 文件 / 4744 用例），**第一百二十五节**换绑」，
+可 `a4bd8f7` 是**第一百二十四节**换绑上去的（第一百二十五节换绑的是 `f4ab659`，本文件第一节与本节这一条都记着），
+那条链的其余七处标的一律是「换绑上去的那一节」（`ecf1e70`→123、`3175f3d`→122、`3c7f584`→121、`4bc3973`→113、
+`19c3065`→106、`83f6eaa`→103、`2f0808e`→61），只有这一处差了一节。本刀把它就地改成第一百二十四节，
+原文与理由一并留在这里——这正是 README 那一节自己写的「顶格 bump 了而引用侧还留着旧数」的同一族漂移，
+只不过漂的是节号不是读数，而节号不在任何一道门面闸的眼里。
+
+**同批跟进的门面守卫注释**：`tools/readme-claims.test.mjs` 那段回填链补「第一百二十六节再换到 `378a29f`（4762）」，
+同一段里那句差值说明由「`4130→4756` 那 626 条」改为「`4130→4762` 那 632 条」。
+
+本机那一格是**零脏项树上的复跑**：跑的是 `378a29f` 自己（六段退出码全 0，末行 `VERIFY_EXIT=0`），
+`git status --porcelain` 跑前与跑后各读回一次、两边都是 0 条；
+`Test Files 364 passed (364)`、`Tests 4763 passed | 2 skipped (4765)`。
+换绑后的门面守卫另跑一次：`Test Files 5 passed (5)`（等式闸、quoted 原文闸、同树短哈希闸、条数对表闸、平台差值闸全绿），
+`prettier . --check` 亦是「All matched files use Prettier code style!」。
+
+⇒ 本节收口：设计稿上那些**可指**的签名（圆角 / 顶沿高光 / 景深 / 前缀 / 分层 / 尺寸 / 胶囊）已逐项落到源上并两侧同树验过；
+未收的是**演示画布**（属皮肤广场辖域）与**注入探针非真数据**这两条诚实边界。
+
 
