@@ -3969,9 +3969,11 @@ Create `docs/superpowers/plans/2026-10-02-plan3-wave1-report.md`，骨架如下�
 
 ## 未做 / 留底（如实）
 - `/stage` 在波 1 被 `GATED_COMMANDS` 滤掉，波 2 Task 18 删闸门并补 `profilesReady`。
+  **更正（2026-10-17）**：此条**已闭**，原文一字未删——门控确实已随六档案删除（`apps/desktop/src/renderer/src/utils/slash-commands.ts:55` 注释即记此句），`stage` 现按「需要已打开一本书」列出（同文件 `:57-60` 的 `NEEDS_BOOK`）。同名登记在 `2026-10-02-plan3-wave1-report.md` 的「未做 / 留底（如实）」一节也有，一并更正；收口见 `2026-10-09-full-scan-report.md` 第一百二十节。
 - `/permissions <档名>` 只到「反查 + 当场切档」，档位菜单的预选高亮仍未接真机验证。
 - `useHotkeys.ts` 的「≤40 行」目标：判定确已全在 `utils/hotkeys.ts`，薄壳因要派 13 个动作而超出（实际 __ 行）；波 2 若再涨就把 `dispatch` 收进 store action。
 - `App.vue` 不渲染 `currentView === "settings"` 视图，故 `Ctrl+,` 与 `/model` 走 CenterColumn 桥（波 2 若加独立设置视图需改桥）。
+  **更正（2026-10-17）**：此条**已闭**，原文一字未删——波 2 确实加了独立设置视图，`apps/desktop/src/renderer/src/App.vue:408` 现为 `<SettingsPage v-if="currentView === 'settings'" />`（5-㊱ 从「整页」改来，占中栏＋右栏两格），那句「不渲染 settings 视图」不再成立。同名登记在 `2026-10-02-plan3-wave1-report.md` 的「未做 / 留底（如实）」一节也有，一并更正；收口见 `2026-10-09-full-scan-report.md` 第一百二十节。
 - 本轮冒烟用过的模型密钥：**已提醒轮换**。
 ```
 

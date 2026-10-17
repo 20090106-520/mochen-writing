@@ -125,10 +125,13 @@ prettier：`All matched files use Prettier code style!`，日志内 `[warn]` 计
 ## 未做 / 留底（如实）
 
 - `/stage` 在波 1 被 `GATED_COMMANDS` 滤掉：真机 `/s` 过滤实测 `rows:["/status"]`（`stage` 不出现），面板与状态条都没这条路；波 2 Task 18 删闸门并补 `profilesReady`。
+  **更正（2026-10-17）**：此条**已闭**，原文一字未删——门控确实已随六档案删除（`apps/desktop/src/renderer/src/utils/slash-commands.ts:55` 注释即记此句），`stage` 现按「需要已打开一本书」列出（同文件 `:57-60` 的 `NEEDS_BOOK`）。同名登记在 `2026-10-02-plan3-interaction-and-assembly.md` 的「未做 / 留底（如实）」一节也有，一并更正；收口见 `2026-10-09-full-scan-report.md` 第一百二十节。
 - `/permissions <档名>` 只到"反查 + 当场切档"，档位菜单的预选高亮仍未接真机验证（`/permissions 随意改` 的反例已验）。
 - `/resume`、`/clear` 两条命令**真机一次都没跑**（只有单测）。回放通路是靠"关进程重开"证的，不是靠 `/resume` 证的。
 - `useHotkeys.ts` 的「≤40 行」目标：判定确已全在 `utils/hotkeys.ts`（+ `escape-policy` / `hotkey-focus` / `hotkey-decisions` / `hotkey-markers`），但薄壳要派 13 个动作，实际 **199 行**；波 2 若再涨就把 `dispatch` 收进 store action。
+  **更正（2026-10-17）**：这一格**真照旧**（薄壳仍超「≤40 行」目标），但那个数**过期了**，原文一字未删——`apps/desktop/src/renderer/src/composables/useHotkeys.ts` 现 **335 行**（`199` 早已不成立）。同名登记（数留空作 `__ 行`）在 `2026-10-02-plan3-interaction-and-assembly.md` 的「未做 / 留底（如实）」一节也有，一并更正；收口见第一百二十节。
 - `App.vue` 不渲染 `currentView === "settings"` 视图，故 `Ctrl+,` 与 `/model` 走 CenterColumn 桥（波 2 若加独立设置视图需改桥）。
+  **更正（2026-10-17）**：此条**已闭**，原文一字未删——波 2 确实加了独立设置视图，`apps/desktop/src/renderer/src/App.vue:408` 现为 `<SettingsPage v-if="currentView === 'settings'" />`（5-㊱ 从「整页」改来，占中栏＋右栏两格），那句「不渲染 settings 视图」不再成立。同名登记在 `2026-10-02-plan3-interaction-and-assembly.md` 的「未做 / 留底（如实）」一节也有，一并更正；收口见第一百二十节。
 - 真机撞出、本波**没修**的三条界面缺陷：① 设置浮层开着且 composer 聚焦时，Esc 不收回浮层（要靠别的操作关）；② 无书时头部档位标签仍 `disabled=false` 且文案捏造成「只读参考」（计划要求标签也禁用）；③ `stale` 不随回放存活（见上节）。另有一条已修：弹层 Esc 关闭通路（F-1，已提交）。
 - prefix 作用域的授权语义只有真机证据（14:52:22 / 14:52:43 两条 `accept-prefix` ⇒ 新卡自动 `written`），`autoDocTool` 的键构成没有专门的单测；波 2 档案进 `ruleKey` 前需先补。
 - 计划里 §16 第 4 项要求"三档各批准一条提案"：只读档（拒绝）与「可改当前章」（落盘 5 次）都跑到了；**「全开」档下只验了切档与"已拒绝不回来"，没有在那一档点过批准**。

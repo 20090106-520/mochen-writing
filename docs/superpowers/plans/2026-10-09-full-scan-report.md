@@ -7911,3 +7911,60 @@ hover 提示是下划线、字压在**没有状态档底**的地方，这条律�
 **这一段 CI 读数是推送后补记的**：本节正文已按上面的本机 verify 验过再推；补记这段本身只动 markdown，
 按同一套门禁重跑一次再提交，口径不变（也不做第二次读回避免无限套娃）。
 
+---
+
+## 第一百二十节 · 取证回读：四处已闭登记就地更正（三处孪生／过期数一并收）
+
+用户「还是取证吧」——对上一轮列出的高优先线索**逐条回读 HEAD**，不照记忆判。**核验那一步不落变更**；
+用户接一句「继续」＝把判定为「已闭」的过期登记**就地更正**。口径照 §一百一十七 / §一百一十九：原文一字未删，
+每处就地追加 `**更正（2026-10-17）**`，段内引「文件:行」；本刀向本台账追加本切。
+
+### 一、判定表（逐条回读 HEAD 的结论）
+
+| 线索 | 出处 | 判定 | 证据（HEAD 当场回读） |
+| --- | --- | --- | --- |
+| ① 联网开着把这一轮挂住「（待查）」 | `README.md:6450-6451` | **已闭**（过期登记） | 三层闸都在：`apps/desktop/src/main/provider-fetch.ts:24-25`（首字节 30s／空闲 60s 两只常量）、`:50`（`UpstreamHangError extends ProviderError`）、`:104-110`（到点先 `abort` 再 `reject`）；`apps/desktop/src/main/agent-service.ts:387-391`（联网工具接 `abortableFetch(fetch, signal)`）；`packages/agent-runtime/src/tool-loop.ts:239`／`:272`／`:295`（每轮开头、递流、catch 各查 `signal`）。本台账 `:277` 2026-10-13 已记闭；**同一 bullet 列表里青框那条早已带更正段，这条没有** ⇒ 一有一无即漂移 |
+| ② 广场卡那 2/16 格 A/B/C「等用户选路」 | `2026-10-08-tertiary-contrast-report.md` §五 ＋ 诚实账 | **已闭**（过期登记） | 用户点 **A**；本台账第七十七节（`:6455` 标题「…那 2/16 格，2026-10-15」、`:6480` 定 70%、`:6486-6498` 改 `styles/theme-runtime.css` ＋判据 `PLAZA_RELEASE_BODY`）；第一百一十七节判定表 `:7694`「已闭 — 用户点 A」。该报告**原先全文 0 处「更正／已闭」字样** |
+| ③ `/stage` 被 `GATED_COMMANDS` 滤掉 | `2026-10-02-plan3-interaction-and-assembly.md` 的「未做／留底」；孪生 `2026-10-02-plan3-wave1-report.md` 同节 | **已闭**（过期登记） | `apps/desktop/src/renderer/src/utils/slash-commands.ts:55` 注释「波 1 的 GATED_COMMANDS 曾把 stage 整条门控掉…那条门控已随六档案删除」；`:57-60` `NEEDS_BOOK` |
+| ④ `App.vue` 不渲染 settings 视图 | 同上装配文件同节；孪生 `wave1-report.md` 同节 | **已闭**（过期登记） | `apps/desktop/src/renderer/src/App.vue:408` 现为 `<SettingsPage v-if="currentView === 'settings'" />`（5-㊱ 从「整页」改来，占中栏＋右栏两格） |
+| ⑤ `useHotkeys.ts`「实际 **199 行**」 | `wave1-report.md:130`；同族在装配文件的「未做／留底」记 `实际 __ 行` | **真照旧**（薄壳仍超「≤40 行」目标），**但数过期** | `apps/desktop/src/renderer/src/composables/useHotkeys.ts` 现 **335 行**（`199`／`__` 都不成立） |
+| 弱候选：桌面 mojibake 目录 `渊???写作\`「是否清理」 | `README.md:1115` | **本刀不动**（无第二份文档回答过；`C:\Users\17863\Desktop` 盘面已无该目录） | — |
+
+**真照旧、本刀不动的（如实）**：`README.md:1115`（联网扫榜＝「不做」、`Responses API`＝「仍不做」）／
+`README.md:6440` 5-㊻「真端点成功回一句」／`tertiary-report:167` 挂件层（ImageGen 403 配额）／
+`ecosystem-scan.md:138-146` 死面板守卫（`components/dead-panel-entry.test.ts`、`components/overlay-chrome.test.ts`
+均在盘上）／装配文件「未做／留底」里的 `/permissions`（档位菜单预选高亮仍未真机验）／
+`skin-art-asset-spec.md:118-126`（7 条 `[ ]`，闸未开，合法）。
+
+**新问题（仅文档卫生，均不进仓）**：① 行号漂移——`provider-fetch.ts` 本台账 `:277` 记 `:23-24`，HEAD 实为
+`:24-25`（同批一样漂一格的还有 `:49`→`:50`、`:105`→`:104-110`、`tool-loop.ts` 那一支）；
+② `useHotkeys.ts` 数 199→335（见上）；③ `.superpowers/sdd` 里 4 支 `tmp-tert-*.mjs` 探针残留
+（git-ignored，按纪律不入仓）。
+
+### 二、改法与落点（原文一字未删，全部就地追加 `**更正（2026-10-17）**`）
+
+| 落点 | 追加的更正内容 |
+| --- | --- |
+| `plans/README.md:6453`（「联网开着…」那条 bullet 下） | ①：已闭——三层闸在 HEAD，引 `provider-fetch.ts:24-25`／`:50`／`:104-110`、`tool-loop.ts:239`／`:272`／`:295`、`agent-service.ts:387-391` |
+| `tertiary-contrast-report.md:136`（§五 末尾） | ②：已闭——用户点 A、真机定线 70%，并记「报告 A 括号里写的『降到 ~40%』方向是反的」 |
+| 同报告 `:179`（诚实账那条下） | ②：已闭——同口径，给落库处＋判据 |
+| `2026-10-02-plan3-interaction-and-assembly.md:3972`（`/stage` 行下） | ③：已闭——门控随六档案删除 |
+| 同装配文件 `:3976`（`App.vue` 行下） | ④：已闭——`App.vue:408` 现渲染 settings 视图 |
+| `2026-10-02-plan3-wave1-report.md:128`（`/stage` 孪生）＋ `:134`（`App.vue` 孪生） | ③④ 同内容，**一并更正**——只改一处＝造出同款「一有一无」漂移 |
+| `2026-10-02-plan3-wave1-report.md:132`（`useHotkeys`「199 行」） | ⑤：真照旧但数过期——现 **335 行** |
+
+**孪生对的交叉引用一律用「节名」而非行号**：同文件内插入会让行号漂一格，引行号等于自己制造下一次漂移
+（本刀即按此处理——③④⑤ 的孪生互引都写成「『未做／留底（如实）』一节」）。
+
+### 三、门禁
+
+`corepack pnpm verify` **`VERIFY_EXIT=0`**，六段全绿：prettier 全仓 `--check` → 6 枚 `tsc --noEmit`
+→ `eslint --max-warnings=0` → 包边界 → 行数预算 → `vitest run --maxWorkers=4`。vitest 回读
+**`Test Files 362 passed (362)` / `Tests 4727 passed | 2 skipped (4729)`**——与上一刀（§一百一十九）
+**一字未变**：本刀**没有增删用例**，只动 markdown（`docs/superpowers` 落在 `.prettierignore` 声明式豁免名单，
+判据 `tools/prettier-scope.test.mjs:74-79`），不进格式闸。
+
+### 四、推送与 CI 读回
+
+（推送后补记。）
+

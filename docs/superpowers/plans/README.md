@@ -6449,6 +6449,15 @@ A/B 在同一个实例上做（`tmp-w3-coverage2.mjs`，**11/11**）：用内联
 
 - **联网开着会把这一轮挂住**：同一端点同一句话，联网关掉几秒就回，开着挂 200 秒零响应零报错。
   隔离实验已做，责任锁定在「联网检索工具执行」那一路（待查）。
+
+  **更正（2026-10-17）**：这一条**已闭**，原文一字未删——上游看门狗后来补齐：首字节 30s / 空闲 60s
+  （`apps/desktop/src/main/provider-fetch.ts:24-25`），到点**先 `abort` 再 `reject`**（`:104-110`），
+  抛的 `UpstreamHangError` 继承 `ProviderError`（`:50`），于是那句人话不会被上层叠成「无法连接模型服务端」
+  （真机情形是连上了、它不回话）；工具循环侧每轮开头查 `signal`
+  （`packages/agent-runtime/src/tool-loop.ts:239`）、把 signal 递给流式（`:272`）、catch 里再查一次（`:295`），
+  「按了 Esc 当场停下」也一并成立；`apps/desktop/src/main/agent-service.ts:387-391` 让联网工具
+  （`webSearch` / `webRead`）接上本轮那只 `abortableFetch(fetch, signal)`。机制解释（P1-1 根因四条）见本文件
+  `:6683-6686`；台账收口见 `2026-10-09-full-scan-report.md:277`（2026-10-13 就地更正）与本节第一百二十节。
 - **点输入框时整张卡内侧亮起一圈青色边框**：这不是新弹出来的元素，是 `.composer-input-surface`
   的聚焦态（`theme-runtime.css` 上色、`agent-pane.css:785` 只改阴影）。
   前几版探针按「元素差集」查，全部量不到——现象是**样式变了而不是元素多了**。
