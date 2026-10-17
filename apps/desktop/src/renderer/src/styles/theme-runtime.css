@@ -172,8 +172,15 @@ html[data-theme]
 /* 下面这两条 .book-remove-warning / .catalog-resource-warning 的暗色告警覆写也一并删了：
     两个类同样无规则、无模板、无引用（删除作品确认条与资料告警改版后不留痕迹），覆盖不到元素。 */
 
+/* 暗色危险项：底是 danger 16% 混进 hover 档。**字色由本条自己写明**（2026-10-17，台账 §一百一十九）：
+   原先这里只覆写背景，字色落到**跨文件**基规则 `styles/left-nav.css:543-547` 的 `--danger-text`
+   （`styles.css:73` 是 `#8f3e37`，**没有暗色版**）——深红压在暗底上没人管，普查表也只能给它挂一枚
+   `accent-as-text` 豁免。按 §七十五 / §一百一十六 那条口径（字压状态档底 ⇒ 正文级；强调色只留
+   非文本处）改成正文级；危险身份由图标（`.is-danger > svg { color: var(--danger) }`，3:1 线）
+   与这行底色的 danger 色调承担，两处都不动。 */
 html[data-theme="dark"] .tree-node-action-menu-item.is-danger:hover {
   background: color-mix(in srgb, var(--danger) 16%, var(--surface-hover));
+  color: var(--text-primary);
 }
 
 /* 输入卡聚焦：**只把边框提亮一点，不加光环**（2026-10-10 改判）。

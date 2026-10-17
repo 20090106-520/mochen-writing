@@ -131,6 +131,10 @@ Claude 擅长细腻情感描写；DeepSeek 擅长悬疑推理与长逻辑；Kimi
 **仍在台账上的**：
 
 - `.mochen/changes` **没有保留策略**（历次改稿全留在盘上，没有淘汰/清理）
+  **更正（2026-10-17）**：这一条**已过期**，原文一字未删——保留策略在 **2026-10-06 批次 5-⑦** 就实做了：
+  每篇封顶 `CHANGE_KEEP_PER_DOC = 50` 份 **或** `CHANGE_KEEP_BYTES_PER_DOC = 32 MB`，越线从最旧的开始删
+  （判定 `planChangePruning` / 删除 `pruneChanges`，在 `packages/fs-store/src/changes.ts`），
+  全文见 `plans/README.md:850-925`；台账收口见 `2026-10-09-full-scan-report.md` 第一百一十九节。
 - **两处「渲染在、够不着」的死面板**（2026-10-06 批次 5-③ 修掉字数那一处）：
   App.vue 曾为导出与字数各挂一个本地 ref，而 layoutStore 里那份的 action 零调用方——
   两份状态、零个写者。**导出**在批次 5-② 真机上撞出来（EPUB 因此差点交付成够不着的功能），

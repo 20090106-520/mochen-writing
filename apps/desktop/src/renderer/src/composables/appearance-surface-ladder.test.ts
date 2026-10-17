@@ -323,11 +323,12 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
       { needle: ".brand-button:hover", primary: true },
       { needle: ".nav-row.is-active, .tree-row.is-selected", primary: true },
       {
+        /* 原先挂 `accent-as-text` 豁免，理由写「暗色下危险项的字色是 danger」。2026-10-17 改成自证
+           正文级（台账 §一百一十九）：字压状态档底 ⇒ 正文级（口径同 §七十五 / §一百一十六），
+           危险身份交给**非文本**——图标 `.is-danger > svg { color: var(--danger) }`
+           （`styles/left-nav.css:539-541`，按 3:1 线）与那条底色的 danger 色调。 */
         needle: ".tree-node-action-menu-item.is-danger:hover",
-        exempt: {
-          kind: "accent-as-text",
-          why: "暗色下危险项的字色是 danger，底是 danger 16% 混进 hover 档：同「强调色当字色」那一族，另案"
-        }
+        primary: true
       },
       /* 带完整前缀才唯一：`.view-tabs button.is-active` 这串在上面那条 `:where()` 里也出现一次。 */
       { needle: "html[data-theme] .view-tabs button.is-active", primary: true },
@@ -383,14 +384,11 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
     file: "components/ProjectSwitcher.vue",
     sites: [
       { needle: ".project-switcher-trigger:hover", inheritFrom: ".project-switcher-trigger" },
-      { needle: ".project-item:hover", shadow: ["--text-muted"] },
-      {
-        needle: ".link-btn:hover",
-        exempt: {
-          kind: "accent-as-text",
-          why: "链接型按钮的字色本来就是 accent（这是「链接」的画法），hover 时压在 hover 档上：同 accent 族，另案"
-        }
-      }
+      { needle: ".project-item:hover", shadow: ["--text-muted"] }
+      /* `.link-btn:hover` 那一条判词 2026-10-17 撤了（台账 §一百一十九）：本规则不再画状态档底
+         ——hover 提示改成下划线，与 components/ExportDialog.vue 那份**同名实现**对齐
+         （同名类两份 hover 画法就是铁律 6 说的漂移）。不画档底就不进这道普查，
+         那条 `exempt: accent-as-text` 也跟着撤掉，不再留一枚没人负责的豁免。 */
     ]
   }
 ];

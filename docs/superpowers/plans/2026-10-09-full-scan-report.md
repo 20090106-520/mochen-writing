@@ -275,14 +275,14 @@ MW7 `preventDefault()` 提到栈检查之前 → 2 红跨两层（行为层「�
 | 台账出处 | 事项 | 本次核对的现状 |
 | --- | --- | --- |
 | `README.md:6399` | 联网开着把整轮挂住 200 秒、零响应零报错，责任锁定「联网检索工具执行」那一路，标「待查」 | **已闭（2026-10-13 就地更正；本节这一行原本还写着「未修」，与第六节 `:105` 那句「已修」自相矛盾——同一份报告里两行打架，照读的人会照着后写的那行重做一遍看门狗）**：三层闸都在盘上——`apps/desktop/src/main/provider-fetch.ts:23-24` 首字节 30s / 流中空闲 60s 两只常量、`:49` `UpstreamHangError extends ProviderError`、`:105` 到点抛错；`agent-service.ts:392` `webSearch(query, {fetchImpl: abortableFetch(fetch, signal)})`（当年那句「没接 signal」已经不成立）；`packages/agent-runtime/src/tool-loop.ts:189`/`:217`/`:240`/`:318` 每轮与每次调用前查 `signal`。详见第三十三节。 |
-| `README.md:6401` | 点输入框时整张卡内侧亮一圈青色边框（不是新元素，是 `.composer-input-surface` 聚焦态） | 未修，属样式判定；用户曾报为「弹出正方形」 |
+| `README.md:6401` | 点输入框时整张卡内侧亮一圈青色边框（不是新元素，是 `.composer-input-surface` 聚焦态） | 未修，属样式判定；用户曾报为「弹出正方形」<br>**更正（2026-10-17）**：这一格**已闭**，原文一字未删——2026-10-10 第 3 波① 把 `theme-runtime.css` 里「输入卡与对话框输入框共用一句」的那条规则**拆成两条**（根因与改法见 `plans/README.md:6951-6970`）：输入卡只留 `border-color: color-mix(in srgb, var(--accent) 30%, var(--line))`、**不加光环**（现规则 `styles/theme-runtime.css:187-189`），对话框焦点环留着（`:193-196`）；真机 5/5——3px 光环不在、景深阴影 `5px 18px`→`7px 22px`、几何 `628×109` 不变（`plans/README.md:7042-7045`）。所以「未修 / 属样式判定 / 要的是目检不是代码」三句都不再成立。收口见第一百一十九节。 |
 | `README.md:6389` | 5-㊻ 最后一腿「真端点成功回一句」未验完，卡在必须先开一本书 | 未闭合。P1-1/P1-2/P1-3 都需要真开书 + 真端点才能验，建议与下面第八节第 2 波一起做 |
 | `README.md:6242` | 皮肤挂件层运行时与新素材进表卡在 ImageGen 403 配额 | **照旧成立**：2026-10-13 当场复探一次最小图，错误原样 `403 {"code":"112",…}`。外部配额，非代码问题。另注：台账那一行的**行号已漂一格**（盘上现在在 `docs/superpowers/plans/README.md:6243`，6242 是空行） |
-| `README.md:6244`（行号已失效：README 现在 95 行，照读找不到；留作**出处**不当入口） | 次要文字对比度仍差 0.1–0.4，要动的是表面阶梯 | **已闭，且病因那句作废**：数字（4.38 / 4.09）对，「要动阶梯」错——正文档对五档最低 7.60，阶梯没病；浅底要让灰字达标，深度上限 0.068（留量口径 0.048）挤不进 `hover` 0.085。改的是**用法**：新增 `--text-on-state`，77 处状态档底逐处写明字色或 shadow 本族灰字 token，判据 `appearance-surface-ladder.test.ts`。全文见第二十九节。**同族另登记一处未修**：accent 被当字色（浅底 `selected` 6/8 套 <4.5，最低 3.42），等用户拍板。**更正（2026-10-17）**：这一族里两枚「选中态开关」已闭（`.format-button.is-active` / `.find-toggle.is-active`，字色改回正文级、从豁免表撤出，入库见 §一百一十六），原文一字未删；族里另两处（`.link-btn:hover`、暗色那枚危险项）仍另案 |
+| `README.md:6244`（行号已失效：README 现在 95 行，照读找不到；留作**出处**不当入口） | 次要文字对比度仍差 0.1–0.4，要动的是表面阶梯 | **已闭，且病因那句作废**：数字（4.38 / 4.09）对，「要动阶梯」错——正文档对五档最低 7.60，阶梯没病；浅底要让灰字达标，深度上限 0.068（留量口径 0.048）挤不进 `hover` 0.085。改的是**用法**：新增 `--text-on-state`，77 处状态档底逐处写明字色或 shadow 本族灰字 token，判据 `appearance-surface-ladder.test.ts`。全文见第二十九节。**同族另登记一处未修**：accent 被当字色（浅底 `selected` 6/8 套 <4.5，最低 3.42），等用户拍板。**更正（2026-10-17）**：这一族里两枚「选中态开关」已闭（`.format-button.is-active` / `.find-toggle.is-active`，字色改回正文级、从豁免表撤出，入库见 §一百一十六），原文一字未删；族里另两处（`.link-btn:hover`、暗色那枚危险项）仍另案<br>**更正（2026-10-17 当日，第一百一十九节）**：这「另两处」也已闭——`.link-btn:hover` 撤掉豁免（hover 提示改下划线，与 `components/ExportDialog.vue` 那份同名实现对齐）、暗色危险项在本条主题层里自证 `color: var(--text-primary)`；普查表里四枚 `accent-as-text` 豁免**一枚不剩**。 |
 | `README.md:6247` | 窗口无 minWidth | **已闭（2026-10-13 就地更正）**：`apps/desktop/src/main/index.ts:198-199` 现为 `minWidth: 1000` / `minHeight: 700`，判据在 `apps/desktop/src/main/window-min-size.test.ts`（第 62 行那条还钉了「初值不许小于自己的地板」）；入库于 `b1fc79a`。台账 `README.md:6247` 那句「`main/index.ts` 没设 `minWidth`」照读已是假话，更正见第三十三节 |
 | `README.md:12` | Plan 2 遗留：`startListening` 丢弃了退订函数（无消费方）、UNBOUND 线程上的批准未做 | **两半都闭（2026-10-13 就地更正）**：① 退订句柄自 `2487695` 起存进 store 并由 `stopListening` 摘（`useAgentStore.ts:85` 字段、`:180` 幂等闸、`:197-199` 摘并置空），判据见本报告第十二/十三节；② 批准键不再是「线程键只修了 threads 表」——`agent-service.ts:120-126` 的 `ruleKey` 明写「这一串只是键的一半」，真正存储/命中一律过 `scopedApprovalKey(书根, …)`（单一真身 `book-scope.ts`），`autoSession` / `autoDocTool` 两张表随换书即清（`:158-161`），入库于 `b91680d`。unbound 线程在这一族里的现状是**禁用并给理由**（`utils/session-row-action.ts:43` + `UNBOUND_ROW_REASON`），不是「点了没反应」。 |
 | `README.md:787` | Responses API 未支持 | 未做 |
-| `README.md:3689` | 插件目录拉取（远程）未做 | 未做，且我认为**不该做**（P1-7 的远程代码执行面），建议明写在 spec 里当边界 |
+| `README.md:3689` | 插件目录拉取（远程）未做 | 未做，且我认为**不该做**（P1-7 的远程代码执行面），建议明写在 spec 里当边界<br>**更正（2026-10-17）**：后半句「建议明写在 spec 里当边界」**已落地**，原文一字未删——由第一百一十八节写进 `docs/superpowers/specs/2026-10-01-mochen-writing-workbench-design.md` 的首轮非目标清单（`:49-58`），按「**不做**」登记、留档两处原措辞；`market.ts` 头注释未动。 |
 
 > 【2026-10-13 逐条回读盘面，全文见第三十三节】这一张表当年是「照录台账 + 核现状」，九行里有 **4 行的现状已经过期**
 > （`:6399` 看门狗、`:6247` 窗口地板、`:12` 两半订阅与批准键），三行照旧（`:6401` 青框未目检、`:6242` 配额复探仍 403、
@@ -290,6 +290,11 @@ MW7 `preventDefault()` 提到栈检查之前 → 2 红跨两层（行为层「�
 > 而是因为**这张表会被当成待办清单读**：一行「未修」压在一个已经上了盘的 fix 上面，下一个人就会重做一遍看门狗。
 > 表头那批 `README.md:NNNN` 是**出处不是入口**（口径来自第二十九节第六目）：真身是 `docs/superpowers/plans/README.md`，
 > 门面 README 只有 102 行，照这个行数去翻必然找不到；本表刻意保留原始行号当出处，不逐条改写。
+>
+> **更正（2026-10-17，第一百一十九节）**：上面这段里「三行照旧」中的 `:6401` 那一行**已经不成立**——
+> 青框 2026-10-10 就已闭（见本表该格的就地更正与 `plans/README.md:6951-6970` / `:7042-7045`）。
+> 真正照旧的只剩 `:6242` 配额（ImageGen 403 外部配额）与 `:787`/`:3689` 那两格（Responses API 仍不做、
+> 插件目录已由第一百一十八节登记为 spec 边界）。原文一字未删。
 
 ## 八、建议的修法（第 1 波 → 第 1.5 波 → 第 2 波 → 第 3 波，按「先止血再加固」）
 
@@ -1852,6 +1857,9 @@ vitest **308 文件 / 4024 passed | 2 skipped（4026）**，`VERIFY_EXIT=0` 是�
    **（2026-10-17 就地更正）**：这一族已动两刀——§七十五 修掉 `.nav-row.is-active`，
    §一百一十六 修掉两枚选中态开关（`.format-button.is-active` / `.find-toggle.is-active`）；
    剩下 `.link-btn:hover` 与暗色那枚危险项仍另案等拍板。原文一字未删。
+   **（2026-10-17 第三处更正，第一百一十九节）**：这一族**已全闭**——最后两处本刀收掉
+   （`.link-btn:hover` 撤豁免、暗色危险项在本条主题层里自证正文级），普查表里四枚 `accent-as-text`
+   豁免**一枚不剩**。上面那句「仍另案等拍板」作废（原文一字未删）。
 3. **广场卡那 2/16 格**（`2026-10-08-tertiary-contrast-report.md` §五 的 A/B/C 三个选项）仍等一句话。
    **（2026-10-17 就地更正）**：这一格已闭——用户点的是 **A**，收在第七十七节（广场页放行档单列 70%：
    `styles/theme-runtime.css` 里那条 70% 规则，判据 `composables/appearance-skin-plaza-wiring.test.ts`
@@ -2114,7 +2122,7 @@ CSS 那层 2026-10-05 有守卫了，store 这层没有。口径：
 | 表里那一行 | 2026-10-13 盘上现状 | 结论 |
 | --- | --- | --- |
 | `:6399` 联网挂 200 秒零响应 | `provider-fetch.ts:23-24` 两只常量（首字节 30_000 / 流中空闲 60_000）、`:49` `UpstreamHangError extends ProviderError`、`:105` 到点抛错；`agent-service.ts:392` `abortableFetch(fetch, signal)`；`tool-loop.ts:189`/`:217`/`:240`/`:318` 每轮查 `signal` | **过期 → 就地更正为已闭**（入库 `b1fc79a` 那一波） |
-| `:6401` 点输入框亮一圈青框 | `agent-pane.css:787` `.composer:focus-within .composer-input-surface` 仍在场（台账写的是 `:785`，行号漂两行）、`theme-runtime.css:139`/`:180` 上色 | **照旧未修**，且属样式判定——要的是目检不是代码 |
+| `:6401` 点输入框亮一圈青框 | `agent-pane.css:787` `.composer:focus-within .composer-input-surface` 仍在场（台账写的是 `:785`，行号漂两行）、`theme-runtime.css:139`/`:180` 上色 | **照旧未修**，且属样式判定——要的是目检不是代码<br>**更正（2026-10-17）**：这一格**已闭**，原文一字未删——那次「照旧未修」读的 `theme-runtime.css:180` 上色，在 **2026-10-10（比这一读早三天）** 就被拆成两条了：输入卡只留很轻的边框提亮、**不加光环**（现规则 `styles/theme-runtime.css:187-189`），对话框焦点环留着（`:193-196`）；真机 5/5（`plans/README.md:7042-7045`）。「要的是目检不是代码」这句的目检那一半也已经在 2026-10-10 做过。收口见第一百一十九节。 |
 | `:6389` 真端点成功回一句未验完 | 本轮没有真端点跑通的任何读数；`:974` 那条「他 10-06 那枚真密钥在 dev 实例里解不开」仍未收口 | **照旧未闭合**，不动 |
 | `:6242` 挂件与新素材卡配额 | 当场复探一次最小图，错误原样 `403 {"code":"112", …}` | **照旧成立**；顺带记下行号漂到 `:6243` |
 | `:6244` 次要文字对比度 | 第二十九/三十节已闭并纠正过病因 | 上一轮已改，本轮不重复 |
@@ -7708,6 +7716,7 @@ annotation 当场读回为 `files=362 registered=4726 passed=4726 skipped=0 fail
 **（2026-10-17 当日收口）**：用户回「做」——本件已落地，见第一百一十八节。
 
 **仍另案等拍板的（照旧不猜）**：`accent 当字色` 族里剩下的 `.link-btn:hover` 与暗色危险项。
+**（2026-10-17 当日收口，第一百一十九节）**：用户回「剩下的全部」——这两处本刀落地，该族已无豁免。原文一字未删。
 
 ### 五、门禁
 
@@ -7737,6 +7746,12 @@ annotation 当场读回为 `files=362 registered=4726 passed=4726 skipped=0 fail
 `:279` 5-㊻「真端点成功回一句」未验完（须真开书 + 真端点）、`:278` 输入框整卡青框未目检、
 `:280` 挂件层与新素材仍卡 ImageGen 403 外部配额、`:284` Responses API 未支持、
 `ecosystem-scan.md:133` `.mochen/changes` 没有保留策略。
+**更正（2026-10-17 当日，第一百一十九节）**：上面这份「仍未收口」清单里 **4 条已闭或已定线**，原文一字未删——
+① `.link-btn:hover` 与暗色危险项两处 accent 画法本刀收掉；② `:278` 输入框整卡青框 **2026-10-10 就已闭**
+（真机 5/5，见 `plans/README.md:7042-7045`）；③ `ecosystem-scan.md:133` 那句「没有保留策略」**在批次 5-⑦ 就已实做**
+（`plans/README.md:850-925`，代码 `packages/fs-store/src/changes.ts` 等）；④ `:284` Responses API 按
+`plans/README.md:1215`「仍不做：本机到 OpenAI 不通，建了只能验协议层」登记为**已定线**（逆这条须用户重新拍板）。
+真正照旧的只剩 `:279` 5-㊻（须真开书 + 真端点）与 `:280` 挂件层（ImageGen 403 外部配额）。
 
 ## 第一百一十八节：把「远程插件目录拉取不做」明写进 spec 非目标段（2026-10-17）
 
@@ -7772,6 +7787,9 @@ annotation 当场读回为 `files=362 registered=4726 passed=4726 skipped=0 fail
 `:279` 5-㊻「真端点成功回一句」未验完、`:278` 输入框整卡青框未目检、
 `:280` 挂件层与新素材仍卡 ImageGen 403 外部配额、`:284` Responses API 未支持、
 `ecosystem-scan.md:133` `.mochen/changes` 没有保留策略。
+**更正（2026-10-17 当日，第一百一十九节）**：同上一节末尾那段——这份清单里 **4 条已闭或已定线**，
+原文一字未删：两处 accent 画法本刀收掉、青框 2026-10-10 就已闭、`.mochen/changes` 保留策略批次 5-⑦ 已实做、
+Responses API 已按「仍不做」定线。真正照旧的只有 `:279` 5-㊻ 与 `:280` 挂件层两条。
 
 **推送与 CI 读回**：提交 `37942e6`（`6cad725..37942e6`，`PUSH_EXIT=0`），通路与前三刀同一枚
 （`GIT_TERMINAL_PROMPT="1"` + `GCM_INTERACTIVE="Auto"`）。该次推送触发 run `38993570211`
@@ -7783,4 +7801,104 @@ annotation 当场读回为 `files=362 registered=4726 passed=4726 skipped=0 fail
 
 **这一段 CI 读数是推送后补记的**：本节正文已按上面的本机 verify 验过再推；补记这段本身只动 markdown，
 按同一套门禁重跑一次再提交，口径不变（也不做第二次读回避免无限套娃）。
+
+---
+
+## 第一百一十九节 · 「剩下的全部」收口：accent 那一族清零，两处过期登记就地更正
+
+用户回「剩下的全部」——指上一条回复末尾列的那批仍收口项。**判定的第一步不是动手，是当场回读盘面**：
+那批条目里有一半已经不是我记忆里的样子（有的早闭、有的已定线），照读会让人重做一遍。逐条如下。
+
+### 一、两处 `accent-as-text` 豁免：一族清零（本刀 A / B）
+
+§七十五 修掉 `.nav-row.is-active`、§一百一十六 修掉两枚选中态开关之后，普查表
+`appearance-surface-ladder.test.ts` 里还剩**两枚** `accent-as-text` 豁免；本刀把这两枚也收掉，
+**该族一枚不剩**。两处形状不同，改法不同：
+
+|  | 真身 | 原来为什么挂豁免 | 本刀怎么改 |
+| --- | --- | --- | --- |
+| A | `components/ProjectSwitcher.vue` `.link-btn:hover` | `exempt: accent-as-text`，理由「链接型按钮的字色本来就是 accent，hover 时压在 hover 档上：同 accent 族，另案」 | 该规则**不再画状态档底**——hover 提示改成下划线，`--hover-bg`（= `--surface-hover`）那一行撤掉 |
+| B | `styles/theme-runtime.css` `html[data-theme="dark"] .tree-node-action-menu-item.is-danger:hover` | 这条只覆写背景、**块里没有 color**，字色落到**跨文件**基规则 `styles/left-nav.css:543-547` 的 `--danger-text`（`styles.css:73` 是 `#8f3e37`，**没有暗色版**） | 本条**自己写明** `color: var(--text-primary)`，判词从 `exempt` 改成 `primary: true` |
+
+**A 为什么选「撤底改下划线」而不是「字色改回正文级」**：`.link-btn` 整枚控件就是「链接」，
+没有非文本部分可以承载 accent；把字色改回正文级，等于 hover 时链接变成普通文字。另一半理由是
+**铁律 6**：这枚类名在 `components/ExportDialog.vue:513-523` 里还有一份**同名实现**，那份的 hover
+本来就是「只加下划线」——同名类两份 hover 画法就是漂移，这里并回一份。字色 `--accent` 原样保留：
+hover 提示是下划线、字压在**没有状态档底**的地方，这条律不管它。
+
+**B 的改动范围**：只动暗色这一条。危险身份交给**非文本**——图标
+`.tree-node-action-menu-item.is-danger > svg { color: var(--danger) }`（`styles/left-nav.css:539-541`，
+按 3:1 线）与这行底色的 danger 色调；`left-nav.css:543-547`（浅色那条）与图标**都原样没碰**。
+口径与 §七十五 / §一百一十六 同一条：**字压状态档底 ⇒ 正文级；强调色只留非文本处**。
+
+**红先绿后（两处各走一遍）**：
+
+- A：先撤掉普查表里那条判词 ⇒ 跑 `appearance-surface-ladder.test.ts` ⇒ **红**，报的是那道反向断言
+  `这些深档底规则没进普查表（新族没登记）`（`components/ProjectSwitcher.vue :: .link-btn:hover`）——
+  这条红线正说明该块的档底确实在普查视野里；再把 `ProjectSwitcher.vue` 里那行 `background` 撤掉换成
+  `text-decoration: underline` ⇒ **绿**。
+- B：先把判词由 `exempt: { kind: "accent-as-text" }` 改成 `primary: true` ⇒ **红**
+  （`styles/theme-runtime.css :: .tree-node-action-menu-item.is-danger:hover`：判词说要写明正文级字色，
+  块里的 color 是「（没有）」）；再给 `theme-runtime.css:175-177` 补 `color: var(--text-primary)` ⇒ **绿**。
+
+改动面：**2 个源码文件**（`ProjectSwitcher.vue`、`theme-runtime.css`）+ **1 个判据文件**
+（`appearance-surface-ladder.test.ts`）；**没有新增用例**（只是把判词形状换了），所以用例数不动。
+两处规则处都留了就地注释，都指回本节。
+
+### 二、两件其实早闭的：就地更正（原文一字未删）
+
+回读盘面时撞出来的两件——**照台账读会让人各重做一遍**，所以就地记清：
+
+- **输入框整卡「青框」**：**2026-10-10 第 3 波① 就已闭**。`theme-runtime.css` 里原来那条把
+  `.composer:focus-within .composer-input-surface` 与 `.dialog-content textarea:focus` **写在同一句**的规则
+  被**拆成两条**：输入卡只留 `border-color: color-mix(in srgb, var(--accent) 30%, var(--line))`、**不加光环**
+  （现规则 `styles/theme-runtime.css:187-189`），对话框焦点环留着（`:193-196`）；由头是用户那句
+  「点一下对话框就弹出来，非常不好」。真机 5/5——3px 光环不在、景深阴影 `5px 18px`→`7px 22px`、
+  几何 `628×109` 不变（`plans/README.md:7042-7045`，根因与改法 `:6951-6970`）。
+  更正落点：本报告 `:278` 那一格、`:287-292` 那段「三行照旧」、§三十（第三十三节）表内 `:2116` 那一格；
+  `plans/README.md:6432-6434`（「同一天量到的另外两件事（未修）」那一小节）。
+  `:2116` 那次「照旧未修」是 **2026-10-13** 读的，它引的 `theme-runtime.css:139`/`:180` 上色在
+  **比它早三天的 2026-10-10** 就已经不在原位了——**读的时候是 HEAD，写的却是旧形状**。
+- **`.mochen/changes` 保留策略**：**批次 5-⑦（2026-10-06）就已实做**。每篇封顶
+  `CHANGE_KEEP_PER_DOC = 50` 份 **或** `CHANGE_KEEP_BYTES_PER_DOC = 32 MB`，任一条越线从最旧的开始删
+  （判定 `planChangePruning`、删除 `pruneChanges`，`packages/fs-store/src/changes.ts`；常量
+  `retention-defaults.ts`；接线 `writeDocFile` / `restoreChange` / 面板 `CHANGE_RETENTION_NOTE`）；
+  真机 58 次保存复验「目录数 == 份数、零空壳、第 50 次之后字节持平」（`plans/README.md:850-925`）。
+  更正落点：`plans/README.md:151-152`（「未做（产品决定）」那两行）、`plans/README.md` 两处
+  「后续批次 · 悬着的产品决定」（`:617` 与 `:796`，**同一个说法在文件里出现两次**，两处都就地更正）、
+  `plans/2026-10-05-ecosystem-scan.md:133`。
+  顺带记一笔**口径差**：原句写的是「若要，必须是**显式开关 + 二次确认**」，而实做的形状是**每篇封顶**
+  （上限另可调，见批次 5-⑧ 收的「改稿历史上限可调 + 手动清理」）——**不是**那条开关形。两处原措辞都留着。
+
+另有一处顺手更正（同属「照读会重做」那一类）：本报告 `:285` 那格
+`README.md:3689 插件目录拉取（远程）未做` 的后半句「建议明写在 spec 里当边界」在**第一百一十八节**
+就已经落地了，那一格补了更正。
+
+而**真照旧的**这几处本次没动（照旧成立）：`:279` 5-㊻「真端点成功回一句」、`:280` 挂件层与新素材。
+
+### 三、不做的两件 + 一条已定线（都记清理由，不冒充）
+
+- **5-㊻「真端点成功回一句」——外部条件，不做**：要真开书 + 真端点。真开书这一步卡在**原生文件夹
+  选择器**上，探针驱动不了（`plans/README.md:7081`「深度档的真端点那一腿同样卡在作品目录上」）；
+  仓内 `tools/mock-provider.mjs` 是**本地 SSE 桩**（`http://127.0.0.1:8787/v1`），它替不了「真端点」——
+  **不拿桩冒充已闭**（口径照 §一百一十六）。
+- **挂件层运行时 + 新素材进表——外部配额，不做**：素材本身还没就位，`plans/README.md:5977-5979`
+  已经定过口径「先加枚举再接运行时会在表里留下一个谁都不用的空档」；且 ImageGen 当场复探仍是
+  `403 {"code":"112"}`（配额），`plans/README.md:6259`。本刀不动。
+- **Responses API——已明写「仍不做」，不实现**：`plans/README.md:1215`「仍不做：本机到 OpenAI 不通，
+  建了只能验协议层」；`plans/README.md:793-794` / `:1095`；`components/ModelProfileDialog.vue:2-8`
+  已把「API 类型」改成只读说明的取舍；`plans/2026-10-05-ecosystem-scan.md:287-288`。
+  逆这条须**用户重新拍板**，本刀只在台账记清出处。
+
+### 四、门禁
+
+`corepack pnpm verify` **`VERIFY_EXIT=0`**，六段全绿：prettier 全仓 `--check` → 6 枚 `tsc --noEmit`
+→ `eslint --max-warnings=0` → 包边界 → 行数预算 → `vitest run --maxWorkers=4`。vitest 回读
+**`Test Files 362 passed (362)` / `Tests 4727 passed | 2 skipped (4729)`**——与上一刀（§一百一十八）
+一字未变：本刀**没有增删用例**，只换了判词形状与两处 CSS。markdown 改动在 `.prettierignore` 声明式豁免
+（`docs/superpowers`）范围内，不进格式闸。
+
+### 五、推送与 CI 读回
+
+（本节正文先按上面的本机 verify 定稿，推送与 CI 读数在提交后补记于下。）
 

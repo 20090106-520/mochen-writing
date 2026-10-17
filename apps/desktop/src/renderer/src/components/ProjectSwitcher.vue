@@ -237,8 +237,13 @@ function close(): void {
   border-radius: 4px;
 }
 
+/* hover 提示只加下划线，**不铺底**（2026-10-17，台账 §一百一十九）：
+   原先铺 `--hover-bg`（= `--surface-hover`），那是在**状态档底**上压 accent 字，
+   正是 §七十五 / §一百一十六 判掉的那一族形状。改下划线的另一半理由：同一枚类名
+   在 `components/ExportDialog.vue` 那份里本来就是「只加下划线」——同名类两份 hover
+   画法就是铁律 6 说的漂移，这里并回一份。 */
 .link-btn:hover {
-  background: var(--hover-bg, rgba(255, 255, 255, 0.06));
+  text-decoration: underline;
 }
 
 .project-switcher-backdrop {
