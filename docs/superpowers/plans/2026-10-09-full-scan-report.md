@@ -8110,8 +8110,13 @@ job `117328798021`（作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数�
 提交前在工作树**带本刀未提交改动**时跑过一遍 `corepack pnpm verify`：`VERIFY_EXIT=0`（prettier 全仓 `--check`
 → 6 枚 `tsc --noEmit` → `eslint --max-warnings=0` → 包边界 → 行数预算 → `vitest run`），
 vitest 回读 `Test Files 362 passed (362)` / `Tests 4733 passed | 2 skipped (4735)`。
-**零脏项树上的复跑、逐段退出码与 porcelain 前后读数见文末「补记」**（与第一百二十一节同一口径：
-那句话得跑在提交后的那棵树上才作数）。
+
+**提交后在零脏项树上又跑了一遍——本节的正式读数就是这一跑**：跑的是提交 `3175f3d` **自己**，
+`git status --porcelain` **跑前与跑后各读回 0 条**，整条链一次跑通、`VERIFY_EXIT=0`
+（六段依次为 prettier `--check` → 6 枚 `tsc --noEmit` → `eslint --max-warnings=0` → 包边界 → 行数预算 → `vitest run`，
+末段 `echo VERIFY_EXIT=0` 亲口打出），vitest 回读 `Test Files 362 passed (362)` /
+`Tests 4733 passed | 2 skipped (4735)`（vitest 自身 47.36s，整条 `pnpm verify` 约 86.7s）。
+⇒ 与第一百二十一节同一口径：那句话跑在**提交后的那棵树**上才作数。
 
 ### 五、本刀就地更正的过期登记（原文一字未删，逐处追加更正段）
 
@@ -8138,4 +8143,22 @@ vitest 回读 `Test Files 362 passed (362)` / `Tests 4733 passed | 2 skipped (47
 
 本节点在提交前写成；**推送后的 CI 读回、README「## 门禁」节换绑**（本机注册数 4734 → 4735，
 读数变了就得换绑，不能留旧读数）与**零脏项树上的本机复跑**，按第一百二十一节的同一形状补记在本节之后。
+
+**【2026-10-17 推送后回填】** `3175f3d` 推上远端（`44276de..3175f3d`，本地 / 远端各 0 条），那一枚 run 当场读回：
+
+- run 页 `39019317386`，`head_sha=3175f3d222e8bedb89425ebf8a9fe7eb8ae63561`，`conclusion=success`。
+- 作业 id `117357766774`，作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试」，结论 success。
+- CI 自己吐的那条 annotation 原文：`files=362 registered=4732 passed=4732 skipped=0 failures=0`。
+
+读通路如实记一笔：仓库已私有，**匿名 REST 一律 404**，这一读必须带凭据——本机用 `git credential fill`
+（`protocol=https` / `host=github.com`）取回 token，再走 REST `/actions/runs/<id>/jobs` →
+`/check-runs/<job_id>/annotations`；取 token 那一步会弹 GCM「Select an account」，由用户当场选账号后才读得回。
+
+⇒ README「## 门禁」节同批换绑到 `3175f3d`，**五处一起动**（顶格两格、免责段那几处同树短哈希、
+quoted annotation 原文、`Linux 侧 4732 条注册 = 本机 4735 − 3` 那笔账、台账指引改指「一百二十二」）：
+Linux 那一格 **362 文件 / 4732 用例**，本机那一格 **362 文件 / 4733 passed | 2 skipped（4735 条注册）**。
+等式四处自洽：`4732 + 3 = 4735`、`4733 + 2 = 4735`、本机 passed 比 Linux 多 1（`4733 − 4732 = 1`）、
+两侧文件数同为 362。同批跟进的门面守卫注释：`tools/readme-claims.test.mjs` 那段回填链补
+「第一百二十二节再换到 `3175f3d`（4732）」，同一段里那句差值说明由「`4130→4731` 那 601 条」改为「`4130→4732` 那 602 条」。
+这一刀只动 markdown 与注释，仍按同一套门禁重跑一次再提交（形状与第一百二十一节一致）。
 
