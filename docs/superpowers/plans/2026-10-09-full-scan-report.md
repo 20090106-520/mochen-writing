@@ -7966,5 +7966,14 @@ hover 提示是下划线、字压在**没有状态档底**的地方，这条律�
 
 ### 四、推送与 CI 读回
 
-（推送后补记。）
+提交 `12ca36b`（`563608e..12ca36b`，`PUSH_EXIT=0`），通路与前几刀同一枚
+（`GIT_TERMINAL_PROMPT="1"` + `GCM_INTERACTIVE="Auto"`；本次 GCM 弹了一只标题为「Select an account」的
+账号窗，等用户完成一次交互式授权后当场推上）。该次推送触发 run `39000546051`（`head_sha=12ca36b`）
+`completed / success`，job `117302343290`（作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试」）
+的 annotation 当场读回为 `files=362 registered=4726 passed=4726 skipped=0 failures=0`——**与 README 现绑的
+`4bc3973`（run 页 `38934635255`）读数一字未变**（4726 = 本机 4729 − 3、本机 passed 比 Linux 多 1，
+与门面现役算式同形）。所以 README「## 门禁」节**不动它**：本刀没挪动用例数。
+
+**这一段 CI 读数是推送后补记的**：本节正文已按上面的本机 verify 验过再推；补记这段本身只动 markdown，
+按同一套门禁重跑一次再提交，口径不变（也不做第二次读回避免无限套娃）。
 
