@@ -29,4 +29,4 @@
   - [x] T5.2 读真实 CI：run 页 `39047289819` / job `117438465262` / conclusion success / annotation `files=364 registered=4769 passed=4769 skipped=0 failures=0`（私有仓走 Windows 凭据管理器取 token 调 REST；`head_sha` 传完整 40 位）
   - [x] T5.3 README「## 门禁」节约 10 处换绑到 `15d6b0d` ＋ `tools/readme-claims.test.mjs` 回填链注释更新（同树声明闸红：免责段旧树 `e6d4979` 就地改掉后转绿）
   - [x] T5.4 台账 `docs/superpowers/plans/2026-10-09-full-scan-report.md` 补记第一百二十八节（七小节）
-  - [ ] T5.5 工作树干净、未收口项如实留档、清理仓外临时件 ＋ docs 提交 CI 读回回填台账
+  - [x] T5.5 工作树干净、未收口项如实留档、清理仓外临时件 ＋ docs 提交 `e295cc7` CI 读回（run `39048993747` / check-run `117443440186` / success / annotation 与 `15d6b0d` 逐字相同）回填台账第一百二十八节

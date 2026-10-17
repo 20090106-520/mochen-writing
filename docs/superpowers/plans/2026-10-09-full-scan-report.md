@@ -8872,7 +8872,20 @@ Linux 那一格 **364 文件 / 4769 用例**，本机那一格 **364 文件 / 47
 同一节里出现两枚哈希。按它给的清单就地改掉那处（连同它引的 run 页 ID 与台账节号），再跑即绿——
 这正是第五十六节起那几道门面闸存在的意义：只 bump 顶格、漏掉免责段，散文里就同时主张了两棵树。
 
-（docs 提交的 CI 读数见文末回填。）
+### 七、推送后回填（docs 提交 `e295cc7` 的 CI 读数）
+
+docs 提交 `e295cc741fa250af7c697edc77fb5b7361bc833c`（`docs(ledger): 第一百二十八节 ＋ README 门禁节换绑到 15d6b0d（4769）`，
+4 files changed, 140 insertions(+), 17 deletions(-)）推上 `feat/plan3-interaction-and-assembly`（`15d6b0d..e295cc7`）后，
+当场读回它触发的那枚 CI（私有仓走 Windows 凭据管理器取 token 调 REST，`head_sha` 传完整 40 位）：
+
+- run 页 `39048993747`（作业名「门禁 pnpm verify」），conclusion = `success`；
+- check-run `117443440186`，`head_sha` 读回就是 `e295cc741fa250af7c697edc77fb5b7361bc833c`，conclusion = `success`；
+- annotation `files=364 registered=4769 passed=4769 skipped=0 failures=0`。
+
+这一跑只是文档改动，不新增用例，所以四个数与本刀代码提交 `15d6b0d` 那枚（run `39047289819`）逐字相同；
+等式仍自洽：`4769 + 3 = 4772`（本机注册），`4770 + 2 = 4772`（本机 passed|skipped），`4770 − 4769 = 1`（本机比 Linux 多 1 条 passed）。
+
+本刀全部收口：代码/判据/spec 提交 `15d6b0d`、docs 提交换绑与补记 `e295cc7`，两枚 CI 均绿；工作树干净。
 
 
 
