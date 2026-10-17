@@ -7977,3 +7977,78 @@ hover 提示是下划线、字压在**没有状态档底**的地方，这条律�
 **这一段 CI 读数是推送后补记的**：本节正文已按上面的本机 verify 验过再推；补记这段本身只动 markdown，
 按同一套门禁重跑一次再提交，口径不变（也不做第二次读回避免无限套娃）。
 
+---
+
+## 第一百二十一节 · 皮肤画面换成六张原创位图 ＋ 左栏收起后补可见展开抓手（波1／波2／波3）
+
+用户两条指令（原话）：「还有那个皮肤，商城里的皮肤，一点都不好看，不精细不行你上网搜索图片，弄到这里面适配都行。
+你自己创建它，这种不好看，而且还有点问题。侧边栏也可以做成收缩的，就是跟旁边那个一样，点击可以收缩，然后出来」。
+拆成两件可验收的东西：**A｜画面要好看、要精细**（素材由墨宸自己产出）；**B｜左栏要能收起、还要能出来**
+（原缺陷：非对话视图收起后没有任何可见展开入口）。计划 `2026-10-17-skin-art-and-pane-toggle.md`、
+素材规格 `2026-10-08-skin-art-asset-spec.md`。
+
+**「上网搜图」不做**：规格单 §三 定的口径是「自绘 ＋ 自有图」，委托外绘须书面「可商用、可修改、可再分发」授权；
+搜索引擎里的图无此授权，进表即许可风险。⇒ 画面改由 `GenerateImage` 出原画再走管线。
+
+### 一、三波落点
+
+| 波 | 病灶 | 落点 |
+| --- | --- | --- |
+| 波1 左栏折叠出得来 | 非对话视图收起左栏后**没有任何可见展开入口** | 新建 `apps/desktop/src/renderer/src/components/PaneEdgeToggle.vue`，抓手恒挂 shell；`App.vue` 挂在 `<template v-else>` 之前；`CenterColumn.vue` 撤旧按钮；`styles.css` 新 token `--left-rail-width: 34px` 与 `.pane-edge-toggle*`；判据 `extensions-page-wiring.test.ts` |
+| 波2 六张矢量 → 六张原创位图 | 矢量场景画「不精细」 | 六张 `.webp`（`book-boat`／`lamp-tower`／`ink-pool` × 昼夜），走五步管线；六个 `.svg` 删除；`appearanceSkinVisual.ts` 的 `ART_FILES` 改 `.webp` |
+| 波3 卡片观感 | `.skin-card-preview` 只由前景那两块内容撑高（真机实高约 75px），一整幅横画塞进去只剩中间一条 | 改 `aspect-ratio: 3 / 2` 定高；判据 `appearance-skin-plaza-wiring.test.ts`（先红再实现） |
+
+真机目检（规格单 §4 第 6 条）：广场页 1120 与 1920 各截一次 ＋ 整窗预览两张，八张卡画面可辨、
+预览块实测比例 1.5（1120 下 234×156、1920 下 239×159）。
+
+### 二、五步管线与三道闸
+
+管线（实现留在仓外临时件里，按纪律**不入仓**）：原地柔化（`soften`）去水印 → 降采样 1536×1024 ＋ preBlur
+→ grading → 中段余弦压暗（掩膜 0.29W~0.70W）→ 两缘提锐 → webp `q=0.92`。成品 121／148／102／150／86／94 KB。
+台账记一条当场的认知：闸口量的是**解码后的有损 webp**，边缘能量比管线在画布上量到的低 ⇒ 源头要留余量
+（`q` 由 0.86 提到 0.92、`edgeAmt` 由 1.4 提到 1.8）。
+
+`node apps/desktop/scripts/check-scene-art.mjs` → **六张全过** ＋ `PASS 反向用例：空渐变判红`，退出码 0。
+闸口覆盖**收窄为六张场景画**：两张人物立绘（`abyss-hall-night`／`shallow-hall-day`）不进本闸，G2
+「两缘均值与中段均值差 ≥10」对它们是**范畴错误**（实测缘中差 −3.7／−4.0）⇒ 同批新增 `mimeFor`
+（webp／svg／png／jpg 白名单，其余当场抛）与二进制读。
+
+### 三、门禁（本机）
+
+`corepack pnpm verify` **`VERIFY_EXIT=0`**：prettier 全仓 `--check` → 6 枚 `tsc --noEmit` →
+`eslint --max-warnings=0` → 包边界 → 行数预算 → `vitest run`。vitest 回读
+**`Test Files 362 passed (362)` / `Tests 4732 passed | 2 skipped (4734)`**。跑前与跑后 `git status --porcelain`
+**各读回 0 条**（跑前把上一刀留下的临时探针 `skinart-*`／`tmp-*.mjs`／`*.log` 移出仓到 `%TEMP%`；`.superpowers/sdd`
+自带 `*` 的 `.gitignore`，本就不在 porcelain 名单里）。本刀**新增 5 条注册**（波1 4 条 ＋ 波3 1 条），
+由 `git show` 两枚树当场数得。
+
+### 四、推送与 CI 读回
+
+提交 `3c7f584`（`75848f4..3c7f584`，`PUSH_EXIT=0`），通路与前几刀同一枚（`GIT_TERMINAL_PROMPT="1"` ＋
+`GCM_INTERACTIVE="Auto"`）。该次推送触发 run `39009513560`（`head_sha=3c7f584`）`completed / success`，
+job `117328798021`（作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试」）的 annotation 当场读回为
+`files=362 registered=4731 passed=4731 skipped=0 failures=0`。**读数较上一刀变了（4726→4731）⇒ README「## 门禁」节
+本刀换绑**到 `3c7f584`：五处同批改（顶格两格、免责段短哈希、quoted annotation 原文、「Linux 侧 4731 条注册 =
+本机 4734 − 3」那笔账、台账指引改指「一百二十一」）；等式仍自洽（4731 = 本机 4734 − 3、本机 passed 比 Linux 多 1），
+门面守卫 17 份文件 177 条用例全绿。
+
+### 五、本刀就地更正的过期登记（原文一字未删，逐处追加更正段）
+
+| 落点 | 更正 |
+| --- | --- |
+| `2026-10-17-skin-art-and-pane-toggle.md` §三 | 原文把台账指向 `docs/superpowers/plans/README.md`，**实际台账是本文件**（`## 第一百X节` 编号，`plans/README.md` 的最后一个 `## ` 标题停在 2026-10-10 的「第 6 波」）⇒ 本节即第一百二十一节 |
+| 同 §三「README 门禁节读数未变则不动」 | 本波新增用例、读数由 4729 变 4734 ⇒ 该句不成立，必须换绑 |
+| plan 波2「FILES 换成**八张**」「**八张全过**」 | 实际落成**六张**（两张人物立绘不进闸） |
+| `appearanceSkins.ts:263`「已随 `.svg` 一并退役」 | 退役的是**那六个 `.svg`**；`gen-scene-svgs.mjs` 本体仍在仓内（`gen:scene-svgs` 脚本与若干文档仍引它） |
+| `docs/ATTRIBUTION.md` | 补六条 `.webp` 出处（墨宸原创画面／本仓自有）；原波2a 那段加就地更正前缀 |
+| `README.md` 皮肤广场条 | 改成实话：6 张墨宸原创位图 ＋ 2 张既有立绘位图；三道闸**只管那 6 张场景画** |
+| `.archcore/architecture/entry-points.doc.md:31-32` | `gen-scene-svgs.mjs` 条改成「波2a 那批矢量的生成器…2026-10-17 起它产出的六个 `.svg` 已不再进广场，脚本本体留档」 |
+
+`docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md` §4 九条逐条勾，并在标题下写明
+「勾是那一批过完留下的；换一批素材进表时这九格要重新逐条过，不要照勾」。其中条1 如实记：三张昼版亮部过了
+60% 灰（`book-boat-day` p98=237.9、`lamp-tower-day` 237.1、`ink-pool-day` 230.4），**这一格没有替它们算过**；
+条8 记闸口只管这六张，两张立绘不在闸里。
+
+**本刀未收的口子（如实）**：波2 的管线实现只存在于仓外临时件（已移出仓，未入仓），要复跑得重写；
+水印去除走的是「原地柔化」，与规格单 §2.5「不许可读文字／logo／水印」是靠目检 3 倍放大确认，无自动闸。
+
