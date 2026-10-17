@@ -16,8 +16,17 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { APPEARANCE_ARTS, type AppearanceArt } from "@mochen/contracts";
-import { APPEARANCE_ART_LABELS, appearanceSkins } from "./appearanceSkins";
+import {
+  APPEARANCE_ARTS,
+  APPEARANCE_ORNAMENTS,
+  type AppearanceArt,
+  type AppearanceOrnament
+} from "@mochen/contracts";
+import {
+  APPEARANCE_ART_LABELS,
+  APPEARANCE_ORNAMENT_LABELS,
+  appearanceSkins
+} from "./appearanceSkins";
 import { skinStyleVariables } from "./appearanceSkinVisual";
 
 /** 规格单 §1：单张不超过 900KB（每次开窗都要读它，太胖直接拖慢首屏）。 */
@@ -38,6 +47,9 @@ function artRelativePath(art: Exclude<AppearanceArt, "none">): string {
     surface: "round-none",
     grid: "none",
     art,
+    /* 挂件层（第六刀）：这一份量的是画面，挂件无关，给 `none`。
+       `ornament` 是必填字段，不给这里整个文件过不了 tsc。 */
+    ornament: "none",
     accent: "#2A7699",
     ink: "#123243",
     paper: "#E8F6FA",
@@ -251,6 +263,126 @@ describe("素材 · 每个画面档都得在盘上", () => {
         skin.art.endsWith(isDay ? "-day" : "-night"),
         `${skin.id} 用的是另一版的画（${skin.art}）—— 白天挂了夜里的图，等于昼夜串了`
       ).toBe(true);
+    }
+  });
+});
+
+/* ── 挂件层（2026-10-17 第六刀）────────────────────────────────────────────
+   与画面那一组**同构**（同样「读盘、量尺寸、钉没有死档」），但阈值不同：
+   挂件是**窗角一枚小件**，不是整窗画，所以不套 1440×960 与横幅那条线
+   （那两条是对 `cover` 铺满整窗说的，与一角小件无关）。
+
+   规格单 §二 原本写的是「512×512 带透明通道 PNG」——那是当时打算**自己出图**留下的。
+   用户 2026-10-17 把取材方式改成「从网上/开源导入」之后，导入来的是 Twemoji 的
+   **矢量**（CC-BY 4.0）。⇒ 规格那一行就地更正（原文保留），这一组量的是
+   「这一层真的有一枚能画出来的小件」，与文件是 SVG 还是 PNG 无关。 */
+function ornamentRelativePath(ornament: Exclude<AppearanceOrnament, "none">): string {
+  const token = skinStyleVariables({
+    backdrop: "aurora",
+    glass: "regions",
+    surface: "round-none",
+    grid: "none",
+    art: "none",
+    ornament,
+    accent: "#2A7699",
+    ink: "#123243",
+    paper: "#E8F6FA",
+    scheme: "light"
+  })["--skin-ornament-image"] as string;
+  const matched = /^url\("([^"]+)"\)$/.exec(token);
+  expect(matched, `${ornament} 的挂件 token 不是 url("…") 的形状：${token}`).not.toBeNull();
+  return matched?.[1] as string;
+}
+
+const ornamentsWithFiles = APPEARANCE_ORNAMENTS.filter(
+  (one): one is Exclude<AppearanceOrnament, "none"> => one !== "none"
+);
+
+describe("素材 · 挂件层：每个挂件档都得在盘上", () => {
+  it("皮肤表非空（空了下面每条遍历全绿而一条不测）", () => {
+    expect(appearanceSkins.length, "广场空了").toBeGreaterThan(0);
+  });
+
+  it("枚举里每一档（none 除外）都给一条 `skins/ornaments/<文件>`，且路径不许跑出 public 目录", () => {
+    for (const ornament of ornamentsWithFiles) {
+      const rel = ornamentRelativePath(ornament);
+      expect(
+        rel,
+        `${ornament} 的路径没落在 skins/ornaments/ 下 —— 那一路径就是从数据里长出来的`
+      ).toMatch(/^skins\/ornaments\/[\w.-]+$/);
+      expect(rel, `${ornament} 的路径想往外跑`).not.toContain("..");
+    }
+  });
+
+  it("每一条路径指向的文件真实存在、非空，且确实是一份 SVG", () => {
+    for (const ornament of ornamentsWithFiles) {
+      const rel = ornamentRelativePath(ornament);
+      const file = artAbsoluteFile(rel);
+      expect(existsSync(file), `${ornament} 的挂件在盘上不存在：${file}`).toBe(true);
+      const text = readFileSync(file, "utf8");
+      expect(text.length, `${ornament} 的挂件是空文件 —— 背景层会静默什么都不画`).toBeGreaterThan(
+        0
+      );
+      expect(text, `${ornament} 的挂件不是一份 SVG：${text.slice(0, 40)}`).toMatch(/^<svg[\s>]/);
+    }
+  });
+
+  it("挂件必须方正（一角小件不许被拉扁），且不许有文字 / 远程引用 / 脚本", () => {
+    for (const ornament of ornamentsWithFiles) {
+      const rel = ornamentRelativePath(ornament);
+      const text = readFileSync(artAbsoluteFile(rel), "utf8");
+      const size = svgSize(text);
+      expect(size, `${ornament} 的挂件量不出 viewBox —— 缩放比例就无从谈起`).not.toBeNull();
+      if (size) {
+        const ratio = size.width / size.height;
+        expect(
+          ratio,
+          `${ornament} 的挂件比例 ${size.width}×${size.height} 太瘦`
+        ).toBeGreaterThanOrEqual(0.8);
+        expect(
+          ratio,
+          `${ornament} 的挂件比例 ${size.width}×${size.height} 太扁`
+        ).toBeLessThanOrEqual(1.25);
+      }
+      expect(text, `${ornament} 的挂件里有 <text> —— 界面之上再叠一层假字`).not.toMatch(
+        /<text[\s>]/
+      );
+      expect(
+        text,
+        `${ornament} 的挂件里嵌了 <image> —— 那等于把远程图藏在「矢量」名义下`
+      ).not.toMatch(/<image[\s>]/);
+      expect(
+        text,
+        `${ornament} 的挂件里有指向远程的 href/src —— 每次开窗都会发一个请求`
+      ).not.toMatch(/(?:href|src)\s*=\s*"https?:\/\//i);
+      /* 素材是从外站导入的**矢量**，SVG 里能塞 <script> / onload ⇒ 那是一条
+         「素材长进运行时」的通路。画面那十六张是位图，天然没有这一层风险，
+         挂件是矢量，所以这一条只在挂件这一组钉。 */
+      expect(text, `${ornament} 的挂件里带了脚本 —— 素材不该带行为`).not.toMatch(
+        /<script[\s>]|\son\w+\s*=/i
+      );
+    }
+  });
+
+  it("每个挂件档都有中文档名，且没有一枚是没被任何皮肤用的死档", () => {
+    for (const ornament of ornamentsWithFiles) {
+      expect(APPEARANCE_ORNAMENT_LABELS[ornament], `${ornament} 没有中文档名`).toBeTruthy();
+      expect(
+        appearanceSkins.some((skin) => skin.ornament === ornament),
+        `${ornament} 在枚举与盘上都齐了，却没有一条皮肤在挂 —— 广场筛选条会多出一枚死档按钮`
+      ).toBe(true);
+    }
+  });
+
+  it("十六条的挂件两两不同（两套挂同一枚，卡脚那两行字又是一样的）", () => {
+    const ornaments = appearanceSkins.map((skin) => skin.ornament);
+    expect(new Set(ornaments).size, `十六条里有重复的挂件：${ornaments.join(" / ")}`).toBe(
+      appearanceSkins.length
+    );
+    for (const skin of appearanceSkins) {
+      expect(skin.ornament, `${skin.id} 没挂挂件 —— 广场的「有挂件」是这一层的入场条件`).not.toBe(
+        "none"
+      );
     }
   });
 });

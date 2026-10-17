@@ -43,10 +43,12 @@ import {
   APPEARANCE_GRID_LABELS,
   APPEARANCE_SURFACE_LABELS,
   ANIME_ART_ORIGIN,
+  APPEARANCE_ORNAMENT_LABELS,
   SKIN_ART_FILTERS,
   SKIN_BACKDROP_FILTERS,
   SKIN_GLASS_FILTERS,
   SKIN_GRID_FILTERS,
+  SKIN_ORNAMENT_FILTERS,
   SKIN_SURFACE_FILTERS,
   appearanceSkins,
   defaultAppearanceSkin,
@@ -62,44 +64,26 @@ import { typeScriptSource, scriptSource } from "../utils/vue-source-reader";
 
 const HEX = /^#[\da-f]{6}$/i;
 
-/* 守卫里另写一份这个字面量，**不从被测代码 import**。
-   从 appearanceSkins import 的话，它哪天把判定改成第三个值，守卫会跟着改然后继续全绿——
-   那不是守卫，是一个会跟着被测对象一起改的摆设（批次 5-㊱ 记过这一族）。
-   【2026-10-17 第三刀】值从「本仓自有」换成「Unsplash License」：
-   八张画面当天由自绘/自出换成了 Unsplash 上的真人女性人像，许可义务换了家。
-   【2026-10-17 第四刀】值再换成「未获再分发授权」：用户否掉了 Unsplash 那批西方人像
-   （原话「不要外国的」），八张改为四张 **Pixiv 原创动漫插画 × 昼夜两版**——
-   这些画**没有拿到任何再分发授权**，所以如实写「未获再分发授权」而不是含糊过去。
-   逐张的作品号 / 画师 / 索引号见 `docs/ATTRIBUTION.md` 的皮肤段。 */
-const ANIME_LICENSE_LITERAL = "未获再分发授权";
-/** 改编皮出处的固定前缀。**声明在这里，不从 appearanceSkins import**——
- *  出处那句将来可能再拆（2026-10-08 已经从一种自有皮拆到两种），
- *  而守卫要的判据是**形状**（带不带这个前缀），不是某一句具体的话。
- *  刻意不写「必须等于某一句」：那会把「多加一种自有皮」变成一次红。 */
-const ADAPTED_PREFIX = "改编自 ";
-
-/* 上游仓库的许可结论（批次 5-㊴ 逐个用 GitHub API 查过 LICENSE 原文）：
-     d-dev0101/open-sea-skin          MIT
-     RevolutionLA/dsh-dream-skin      MIT
-     ymh0000123/dsh-theme-endfield    MIT（仅代码；视觉语言版权归鹰角）
-     Ayase34/gal-view                 MIT
-     elysia395/dsh-wallpaper-engine   MIT */
-const ALLOWED_UPSTREAM_REPOS = [
-  "d-dev0101/open-sea-skin",
-  "RevolutionLA/dsh-dream-skin",
-  "ymh0000123/dsh-theme-endfield",
-  "Ayase34/gal-view",
-  "elysia395/dsh-wallpaper-engine"
-];
+/* ⚠️【2026-10-17 第五刀（挂件那批）就地更正】这一行下面原先还站着三样东西：
+   `ANIME_LICENSE_LITERAL`（画面皮的许可字面量）、`ADAPTED_PREFIX`（改编出处前缀）、
+   `ALLOWED_UPSTREAM_REPOS`（核实过许可的上游白名单）。
+   **它们整块搬去了 `appearance-skins-license.test.ts`** —— 这一批往本文件加了
+   「八套的质感三层两两不同」与「每一条都必须挂着一枚挂件」两条守卫之后，
+   本文件到了 872 行，**越过了 800 行的硬线**。拆的口子按「不共享状态」找：
+   那三条字面量在原文件里只被「出处与许可」那两段用到（12 处引用全在里头），
+   它们与本文件剩下的「四层取值 / 可读性 / 筛选档」互不相干，所以整块搬走。
+   **原文（三条常量与各自的理由）保留在新文件里**，这里不再复述。 */
 
 describe("皮肤表 · 形状", () => {
   /* 5-㊷：广场只收带画的皮肤，条数从 17 降到 2（汐·昼阁 / 汐·夜阁）。
      波2a（2026-10-08）按用户那句「然后再继续增加」加到 8：三系列 × 昼夜。
+     ⚠️【2026-10-17 第五刀就地更正】上面那句「加到 8」记的是那一版的射程；当天用户说
+     「图片装扮还有挂件其他东西都太少了」，又从网上导入四组插画 × 昼夜 ⇒ **现在是 16**。
      数字继续钉死——加一套就红一次，逼人回来看下面那条入场判据还成不成立，
      并且**顺手把素材守卫那份也认一遍**：新加的每一档都得有真文件在盘上
      （appearance-skin-assets.test.ts），不是把名字加进枚举就算有了画。 */
-  it("八条皮肤，id 与名字都不重", () => {
-    expect(appearanceSkins).toHaveLength(8);
+  it("十六条皮肤，id 与名字都不重", () => {
+    expect(appearanceSkins).toHaveLength(16);
     const ids = appearanceSkins.map((one) => one.id);
     const labels = appearanceSkins.map((one) => one.label);
     expect(new Set(ids).size).toBe(ids.length);
@@ -125,6 +109,21 @@ describe("皮肤表 · 形状", () => {
     }
     // 反向：**画面层的筛选档里也不许出现 none**——它一出现就说明表里混进了没画的皮。
     expect(SKIN_ART_FILTERS, "筛选档里出现了「无画面」").not.toContain("none");
+  });
+
+  /* 挂件层（2026-10-17 第六刀）：与画面那一条同形，是同一条入场理由的第二半——
+     用户说的两句「挂件太少了」与「全部不一样」，落到表上就是这两条。
+     挂件层的素材尺寸/路径真伪由 appearance-skin-assets.test.ts 量，这里只钉表本身。 */
+  it("每一条都必须挂着一枚挂件（ornament 不许为 none —— 与画面同一条入场条件）", () => {
+    for (const skin of appearanceSkins) {
+      expect(skin.ornament, `${skin.id} 没挂挂件，不该进皮肤广场`).not.toBe("none");
+      expect(
+        APPEARANCE_ORNAMENT_LABELS[skin.ornament],
+        `${skin.id} 的挂件档没有中文名`
+      ).toBeTruthy();
+    }
+    // 反向：挂件层的筛选档里也不许出现「无挂件」。
+    expect(SKIN_ORNAMENT_FILTERS, "筛选档里出现了「无挂件」").not.toContain("none");
   });
 
   it("表里的每条出处都是同一句（画面来自外站动漫插画；上游美术按裁定不进表）", () => {
@@ -167,6 +166,44 @@ describe("皮肤表 · 形状", () => {
       expect(APPEARANCE_SURFACES, `${skin.id} 的表面`).toContain(skin.surface);
       expect(APPEARANCE_GRIDS, `${skin.id} 的图案`).toContain(skin.grid);
     }
+  });
+
+  /* ── 2026-10-17 第五刀：八套不许「只换画」 ─────────────────────────────
+     用户看完第四刀那一版说：「你那个装扮就只换了图片，其他的没有更改。
+     我要的是全部不一样的，每一个装扮。」
+     取证属实：八套的 `glass` 全是 `regions`、`surface` 全是 `round-none`、
+     `grid` 全是 `none` —— 三层一个字没改，卡脚那五行标签里除了画面那一栏全同。
+
+     ⇒ 这一条钉的是最直白的那个判据：八套的（玻璃 × 表面 × 图案）三元组必须两两不同。
+       它一红，就是又有人把一套新皮的三层抄了邻居的。
+     【为什么只钉这三层，不连 backdrop 一起钉】
+     backdrop 压在**不透明整窗画**底下（`.desktop-shell` 的叠放顺序是纱 → 画 → 弥散光，
+     八张画都是不透的 JPEG），画正常加载时它一个像素都看不见。那条「上游档名只剩解析用」
+     的守卫把这条理由钉在原处。**拿看不见的差别凑「不一样」是假话**，
+     所以差异只做在这三层上——它们是换上之后真的会变的那三层。 */
+  it("十六套的质感三层（玻璃 × 表面 × 图案）两两不同 —— 不许只换画", () => {
+    expect(appearanceSkins.length, "皮肤表空了 —— 下面这条会全绿而一条不测").toBeGreaterThan(0);
+    const seen = new Map<string, string>();
+    for (const skin of appearanceSkins) {
+      const combo = `${skin.glass} / ${skin.surface} / ${skin.grid}`;
+      const owner = seen.get(combo);
+      expect(
+        owner,
+        `${skin.id} 的质感三层（${combo}）与 ${owner} 完全相同 —— 这一套只有画不一样`
+      ).toBeUndefined();
+      seen.set(combo, skin.id);
+    }
+    /* 三层各自也得铺开：只改一层、另两层抄邻居，等于换了个滤镜——
+       那正是用户连着否过两次的东西。三档是下限：枚举里玻璃 5 档、表面 4 档、图案 3 档，
+       八套铺到每层都 ≥3 是能做到的，做不到就说明又在抄邻居。 */
+    const glassValues = new Set(appearanceSkins.map((skin) => skin.glass));
+    const surfaceValues = new Set(appearanceSkins.map((skin) => skin.surface));
+    const gridValues = new Set(appearanceSkins.map((skin) => skin.grid));
+    expect(glassValues.size, `玻璃这一层只用了 ${glassValues.size} 档`).toBeGreaterThanOrEqual(3);
+    expect(surfaceValues.size, `表面这一层只用了 ${surfaceValues.size} 档`).toBeGreaterThanOrEqual(
+      3
+    );
+    expect(gridValues.size, `图案这一层只用了 ${gridValues.size} 档`).toBeGreaterThanOrEqual(3);
   });
 
   it("中文名表与 contracts 的枚举一一对应（加一档时两处都要改，少一处就红）", () => {
@@ -309,164 +346,49 @@ describe("上游层档名 · 现在只为「老 JSON 解析得动」而存在", 
     expect(result.success, JSON.stringify(result.error?.issues ?? [])).toBe(true);
   });
 
-  it("消费面只剩一条：除昼阁复用的 aurora，这些档名没有皮肤在用", () => {
+  /* ⚠️【2026-10-17 第五刀就地更正】上面那个 it 从「消费面只剩一条……」改成了下面这条。
+     原文保留在下面这段里，它记的是第四刀那一版皮肤表的**真实情况**：
+
+       it("消费面只剩一条：除昼阁复用的 aurora，这些档名没有皮肤在用") {
+         ...
+         expect(used).toEqual(["abyss","aurora","none","regions","round-none"]);
+         expect(defaultAppearanceSkin.backdrop).toBe("aurora");
+       }
+
+     第五刀之后那五条「没有皮肤在用」的断言**不再成立**：用户要求八套「全部不一样」，
+     于是 none / standard / strong / subtle / dialogue / plain / square / industrial / stage
+     全部由皮肤表在上屏时直接消费。**上一段「只为让老 JSON 解析得动而存在」的理由前半仍然成立**
+     （枚举与数值表不许删：删了老 JSON 整份退默认，那两条守卫在上面、不动），
+     只是「没有皮肤在用」这半句被这一刀改掉了 —— 两条守卫各改各的那一半。 */
+  it("这些档名现在真的上了屏：十六套的四层铺开在 contracts 的枚举上", () => {
     expect(appearanceSkins.length, "广场空了 —— 下面这几条会全绿而一条不测").toBeGreaterThan(0);
     const used = [
       ...new Set(
         appearanceSkins.flatMap((skin) => [skin.backdrop, skin.glass, skin.surface, skin.grid])
       )
     ].sort();
-    expect(used, "有皮肤用起了当年那些改编档名 —— 上面「只为解析而留」的说法要跟着改口").toEqual([
+    /* 逐条列出八套真正用到的层取值。**改动它就是一红**：这张清单与皮肤表是同一件事的两处写法，
+       红的位置就在这里，逼人回来看「八套是不是又互相抄了」（上面那条三元组守卫另钉一遍）。
+       【backdrop 为什么只有两个值】它压在整窗画底下、上屏时看不见 —— 第三刀那版留下的理由
+       仍成立，见上面「第五刀」那段注释。 */
+    expect(used, "十六套的层取值变了 —— 上面「上游档名只为解析而留」的口径要跟着改").toEqual([
       "abyss",
       "aurora",
+      "dialogue",
+      "industrial",
       "none",
+      "plain",
       "regions",
-      "round-none"
+      "round-none",
+      "square",
+      "stage",
+      "standard",
+      "strong",
+      "subtle"
     ]);
-    // aurora 是那五套搬来的档名，却活在昼阁身上：数值表不是纯粹的历史包袱，这条是它唯一的活消费。
+    // 三个「曾经没有皮肤在用」的档（none/regions/round-none）现在各有归宿；
+    // aurora 仍是出厂那套的背景层 —— 回落点不许换套（换套会让盘上老用户看到的与这里不符）。
     expect(defaultAppearanceSkin.backdrop).toBe("aurora");
-  });
-});
-
-describe("皮肤表 · 出处与许可", () => {
-  it("画面皮许可是「未获再分发授权」，改编皮是 MIT，且两类互斥且都有归属", () => {
-    /* 【为什么判据是「带不带改编前缀」而不是「等于某一句出处」】
-       原写法是 `skin.origin === "墨宸出厂配色"`，它把「自有皮」等同于**那一句**。
-       加上原创画面皮（出处是另一句）之后，那两条既不等于出厂那一句、
-       也不带改编前缀，于是被夹在中间——一条断言要求它们 `license === "MIT"`，
-       而它们的许可是「本仓自有」。红的位置离病因很远。
-
-       ⇒ 改成**结构判据**：带「改编自 」前缀的是改编皮，其余都是自有皮。
-         这样再加第几种自有皮都不用改守卫，而「两类互斥且都有归属」由下面两条守住。
-       ⚠️【2026-10-17 第三刀就地更正】上面那句「它们的许可是【本仓自有】」
-       与「其余都是自有皮」里的「自有」二字**已不成立**：画面当天换成 Unsplash 人像，
-       许可随之变成「Unsplash License」（就是下面那个 `PHOTO_LICENSE_LITERAL`）。
-       **判据的形状一个字没改**——它钉的一直是「带不带改编前缀」这个**结构**，
-       这正是当初把它写成结构判据的好处：换一次素材来源不用动判据。
-       → **第四刀又验了一次这句话**：素材从 Unsplash 人像换成 Pixiv 动漫插画、
-         许可字面量从「Unsplash License」换成「未获再分发授权」，判据仍然一个字没动。 */
-    let ownCount = 0;
-    let adaptedCount = 0;
-    for (const skin of appearanceSkins) {
-      if (skin.origin.startsWith(ADAPTED_PREFIX)) {
-        adaptedCount += 1;
-        expect(skin.license, `${skin.id} 是改编皮（出处「${skin.origin}」），许可却不是 MIT`).toBe(
-          "MIT"
-        );
-      } else {
-        ownCount += 1;
-        expect(
-          skin.license,
-          `${skin.id} 的出处「${skin.origin}」不带改编前缀，所以它是画面皮，许可必须是「${ANIME_LICENSE_LITERAL}」`
-        ).toBe(ANIME_LICENSE_LITERAL);
-      }
-    }
-    // 数字钉死：加皮肤时这里会红一次，逼着人回来看这一条判据还成不成立。
-    expect(ownCount, "广场上的画面皮应是四系列 × 昼夜共八条").toBe(8);
-    /* 5-㊷：五套改编皮从广场下架（它们没有整窗画面）。
-       **条目下架，数值与出处留在 `appearanceSkinVisual.ts`**，
-       所以下面那个「改编那五条的出处形状」describe 改成钉「形状判据仍然成立」，
-       而许可白名单 `ALLOWED_UPSTREAM_REPOS` 一条都不许删短。 */
-    expect(adaptedCount, "改编皮在 5-㊷ 已全部从广场下架，表里再出现就要重新核许可").toBe(0);
-  });
-});
-
-/* 改编皮出处的**形状判据**：`改编自 <owner>/<repo> 的 <那一套>`，三段各自由人核对过许可。
-   提成函数是因为 5-㊷ 之后表里一条改编皮都没有——
-   原来那个 `for (const skin of adapted)` 会退化成**空遍历**（全绿而一条不测），
-   所以下面拿合成用例把这条判据本身验一遍。 */
-function checkAdaptedOrigin(id: string, origin: string): void {
-  const PREFIX = ADAPTED_PREFIX;
-  const SEPARATOR = " 的 ";
-  expect(origin.startsWith(PREFIX), `${id} 缺少「${PREFIX}」前缀：${origin}`).toBe(true);
-  const rest = origin.slice(PREFIX.length);
-  const slash = rest.indexOf("/");
-  const owner = slash < 0 ? "" : rest.slice(0, slash);
-  const tail = slash < 0 ? "" : rest.slice(slash + 1);
-  const sep = tail.indexOf(SEPARATOR);
-  const repo = sep < 0 ? "" : tail.slice(0, sep);
-  const what = sep < 0 ? "" : tail.slice(sep + SEPARATOR.length);
-  expect(owner, `${id} 的 owner 段为空：${origin}`).toMatch(/^[\w-]+$/);
-  expect(repo, `${id} 的 repo 段为空：${origin}`).toMatch(/^[\w-]+$/);
-  expect(what.length, `${id} 缺少「的 <那一套>」：${origin}`).toBeGreaterThan(0);
-  // **仓库名必须在许可清单里**：写对了格式还不够，还要知道抄的是谁。
-  expect(
-    ALLOWED_UPSTREAM_REPOS,
-    `${id} 的出处指向 ${owner}/${repo}，不在核实过许可的上游清单里`
-  ).toContain(`${owner}/${repo}`);
-}
-
-describe("改编皮出处的形状判据 · 表里没有也要能被验", () => {
-  it("表里的改编皮（现在是零条）逐条走一遍判据", () => {
-    const adapted = appearanceSkins.filter((one) => one.origin.startsWith(ADAPTED_PREFIX));
-    // 条数在这里**不钉死**：上面那条 `adaptedCount === 0` 已经钉过一次，
-    // 这里再钉一遍就成了同一条判据的两份真相。
-    for (const skin of adapted) checkAdaptedOrigin(skin.id, skin.origin);
-  });
-
-  /**
-   * **反向用例：证明这条判据真的能红**（2026-10-08 记的口径）。
-   *
-   * 表里改编皮降到零条之后，`for` 循环不跑，这条守卫就成了摆设。
-   * 拿四种写法各喂一次，每种都必须被判红——四种全红才说明判据本身是活的，
-   * 而它「今天筛不出东西」只是数据的事实，不是它失效的借口。
-   */
-  it("四种不合规的出处写法都必须红", () => {
-    const bad = [
-      ["缺前缀", "ymh0000123/dsh-theme-endfield 的 纸墨色板"],
-      ["缺 owner 斜杠", "改编自 dsh-theme-endfield 的 纸墨色板"],
-      ["缺「的 <那一套>」", "改编自 ymh0000123/dsh-theme-endfield"],
-      ["上游不在许可清单里", "改编自 someOne/unknown-repo 的 某一套"]
-    ] as const;
-    for (const [why, origin] of bad) {
-      expect(() => checkAdaptedOrigin(why, origin), `${why}：这条写法本该被判红`).toThrow();
-    }
-    // 正向对照：合规的那一条不许被误判。
-    expect(() =>
-      checkAdaptedOrigin("正例", "改编自 ymh0000123/dsh-theme-endfield 的 纸墨色板与玻璃网格")
-    ).not.toThrow();
-  });
-
-  it("许可白名单一条都不许因为「改编皮全下架了」而删短", () => {
-    /* 这五个上游的**数值**仍然活在 `appearanceSkinVisual.ts` 里（老用户盘上存着
-       `glass: "standard"` 的，运行时照样要按上游值渲染），出处对账在
-       `appearance-skin-visual.test.ts`。清单一删短，将来重新搬一条就要重新查许可，
-       而「重新查」在实际执行里等于「没人查」。 */
-    expect(ALLOWED_UPSTREAM_REPOS).toHaveLength(5);
-    for (const repo of [
-      "d-dev0101/open-sea-skin",
-      "RevolutionLA/dsh-dream-skin",
-      "ymh0000123/dsh-theme-endfield",
-      "Ayase34/gal-view",
-      "elysia395/dsh-wallpaper-engine"
-    ]) {
-      expect(ALLOWED_UPSTREAM_REPOS, `${repo} 被删出了许可清单`).toContain(repo);
-    }
-  });
-
-  /* 许可这一条是**硬门槛**，但门槛的理由必须是真的。被暂缓的两个（核实过许可，不是没找到）：
-       Small-tailqwq/dsh-deep-whale   MIT 代码 + 美术 CC BY-NC-SA 禁商用
-       GGBond2424648901/deep-whale-day-night-theme  整仓 CC BY-NC-SA 4.0
-     **2026-10-08 更正**：本守卫原先的理由是「墨宸是能卖钱的写作软件」——
-     那是一句**我编的**前提，用户从没说过要商用，2026-10-08 明确否认过。
-     **同日裁定到了**（批次 5-㊷）：问的是「新皮肤的插画素材从哪来」，
-     用户选「全部自绘 + 我自己提供图」，没选「把那两套搬进来」。
-     ⇒ 这条守卫继续成立，而它现在的理由是**用户选过的那一条**，不是编出来的商用前提。 */
-  it("被排除的两个非商用仓库不许以任何形式出现在表里", () => {
-    const banned = ["dsh-deep-whale", "deep-whale-day-night-theme", "maid-atelier", "orca-link"];
-    for (const skin of appearanceSkins) {
-      for (const needle of banned) {
-        expect(
-          skin.origin.includes(needle),
-          `${skin.id} 的出处里出现了被排除的仓库 ${needle} —— 它的许可不允许进墨宸`
-        ).toBe(false);
-      }
-      expect(skin.license).not.toMatch(/CC BY|NonCommercial|CC0|GPL|AGPL/i);
-    }
-    // **空表也算验过**：上面那个 for 在 0 条皮肤时不跑，所以这里补一条有鉴别力的断言。
-    expect(appearanceSkins.length, "皮肤表空了 —— 上面那条排除判据没跑过任何一条").toBeGreaterThan(
-      0
-    );
   });
 });
 
@@ -726,11 +648,16 @@ describe("出厂默认 · 只能是广场里那套带画的皮肤", () => {
           first[scheme][key]
         );
       }
-      for (const key of ["backdrop", "glass", "surface", "grid", "art"] as const) {
+      /* 挂件层（2026-10-17 第六刀）：`ornament` 并进这份字段表。
+         不并进来的话，contracts 那份默认掉了、或皮肤表第一套换了挂件，这条守卫**照样全绿**
+         —— 那它就从「逐字段对照」退化成了「只对照我记得的那几个字段」。 */
+      for (const key of ["backdrop", "glass", "surface", "grid", "art", "ornament"] as const) {
         expect(theme[key], `${first.id} 的 ${key} 与皮肤表漂移了`).toBe(first[key]);
       }
       // 出厂默认自己也得带画——它正是「没有图片的不保留」那条裁定的落点。
       expect(theme.art, "出厂默认没有画面，等于又把素面留在了默认位上").not.toBe("none");
+      // 与画面同理：出厂默认也得挂着一枚挂件，不许是 `none`（那一档只服务老 JSON）。
+      expect(theme.ornament, "出厂默认没挂挂件，等于第六刀那一层在默认位上是空的").not.toBe("none");
     }
   });
 

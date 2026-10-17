@@ -19,6 +19,7 @@ import {
   APPEARANCE_BACKDROP_LABELS,
   APPEARANCE_GLASS_LABELS,
   APPEARANCE_GRID_LABELS,
+  APPEARANCE_ORNAMENT_LABELS,
   APPEARANCE_SURFACE_LABELS,
   appearanceSkins,
   defaultAppearanceSkin,
@@ -72,6 +73,7 @@ function previewStyle(skin: AppearanceSkin): Record<string, string> {
     surface: skin.surface,
     grid: skin.grid,
     art: skin.art,
+    ornament: skin.ornament,
     accent: tone.accent,
     ink: tone.foreground,
     paper: tone.background,
@@ -230,9 +232,13 @@ function backToChat(): void {
            `appearance-skin-plaza-wiring.test.ts` 里那三条逐句断言也才钉得住
            （它原先读的是整段原文，折点一挪就红，而红的原因是排版不是文案）。 -->
       <p class="skin-gallery-note">
-        广场只收带整窗画面的皮肤：一套 = 配色三色 + 视觉四层 + 一层画面。
+        广场只收带整窗画面的皮肤：一套 = 配色三色 + 视觉四层 + 一层画面 + 一枚挂件。
       </p>
       <p class="skin-gallery-note">视觉四层是背景 / 玻璃 / 表面 / 图案，浅色与深色一并应用。</p>
+      <p class="skin-gallery-note">
+        画面是盖满整窗的那张画，挂件是窗角那一枚小件——两样不是一回事，每套各有一份。
+      </p>
+      <p class="skin-gallery-note">十六套的四层与挂件两两不同，不只换画。</p>
       <p class="skin-gallery-note">上一批那五条改编自上游的开源换装插件（MIT），搬的都是参数。</p>
       <p class="skin-gallery-note">换上去读起来仍然只是「换了个色调」。</p>
       <p class="skin-gallery-note">
@@ -266,6 +272,7 @@ function backToChat(): void {
               <div class="skin-window-backdrop" />
               <div class="skin-window-art" />
               <div class="skin-window-grid" />
+              <div class="skin-window-ornament" />
               <div class="skin-window-nav" />
               <div class="skin-window-main">
                 <span class="skin-window-bar" :style="{ background: toneOf(skin).accent }" />
@@ -305,6 +312,7 @@ function backToChat(): void {
             <div class="skin-card-preview-backdrop" />
             <div class="skin-card-preview-art" />
             <div class="skin-card-preview-grid" />
+            <div class="skin-card-preview-ornament" />
             <div class="skin-card-preview-panel">
               <div class="skin-card-preview-row">
                 <span class="skin-card-dot" :style="{ background: toneOf(skin).accent }" />
@@ -343,6 +351,7 @@ function backToChat(): void {
               <span>{{ APPEARANCE_GLASS_LABELS[skin.glass] }}</span>
               <span>{{ APPEARANCE_SURFACE_LABELS[skin.surface] }}</span>
               <span>{{ APPEARANCE_GRID_LABELS[skin.grid] }}</span>
+              <span>{{ APPEARANCE_ORNAMENT_LABELS[skin.ornament] }}</span>
             </span>
             <button
               class="skin-btn"

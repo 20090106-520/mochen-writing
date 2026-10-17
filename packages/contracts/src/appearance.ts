@@ -372,10 +372,72 @@ export const APPEARANCE_ARTS = [
   "lamp-tower-night",
   "lamp-tower-day",
   "ink-pool-night",
-  "ink-pool-day"
+  "ink-pool-day",
+  /* ⚠️【2026-10-17 第五刀就地更正：画面从八档扩到十六档】
+     用户当天又说「图片装扮还有挂件其他东西都太少了」，于是从网上再导入
+     四组原创动漫插画（Safebooru `original` 标签）× 昼夜两版。
+     **枚举是这类「数据里长出来的 id」的唯一白名单**（见上面那段理由）：
+     加画面只能在枚举里加，不许把路径塞进数据表。 */
+  "firefly-river-night",
+  "firefly-river-day",
+  "torii-path-night",
+  "torii-path-day",
+  "valley-cabin-night",
+  "valley-cabin-day",
+  "sakura-stop-night",
+  "sakura-stop-day"
 ] as const;
 export const AppearanceArtSchema = z.enum(APPEARANCE_ARTS);
 export type AppearanceArt = z.infer<typeof AppearanceArtSchema>;
+
+/**
+ * 挂件层（2026-10-17 第六刀）：**一角的小件**，和 `art`（整窗画）不是同一层。
+ *
+ * 【为什么又要加一层】
+ * 用户看完第四刀那一版说：「你那个装扮就只换了图片，其他的没有更改。我要的是**全部不一样**的，
+ * 每一个装扮，而且里面**图片装扮还有挂件**其他东西都太少了。」
+ * ⇒ 「挂件」这层从 `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md` §二 立案起
+ *   就一直没兑现（当时的阻塞理由 ImageGen 403 已随用户裁定「从网上/开源导入」解除）。
+ *   这一刀把它从枚举到素材整条打通：枚举 → token → CSS 挂位 → 皮肤表条目 → 盘上文件，
+ *   **同一批一起进**（规格 §二 那条明文要求），不留「枚举有档、盘上没料」的空档。
+ *
+ * 【它与 `art` 的关系：并列，不是替代】
+ *   `art`    整窗铺满的那张画（`background-size: cover`），决定「这一窗看起来是哪一景」。
+ *   `ornament` 一角的一枚小件（`background-size: 定值`、`no-repeat`），决定「窗角挂的是什么」。
+ * ⇒ 两者可以同时存在：八套皮肤**每套都有画，也每套都有挂件**。
+ *
+ * 【枚举而不是任意路径】理由与 `art` 那条同一份：路径要是任意的，一条 `file://`
+ * 或远程 URL 就能从数据表长进 CSS；枚举让「这个 id 对应哪个文件」只有
+ * `appearanceSkinVisual.ts` 一处真身。
+ *
+ * 【素材出处与许可】八枚全部取自开源 emoji 项目 **Twemoji**（CC-BY 4.0，Twitter/X 开源、
+ * 后由社区接手维护），经 `fastly.jsdelivr.net` 导入为仓内 SVG。
+ * 逐枚的码位、来源仓库与许可义务记在 `docs/ATTRIBUTION.md` 的皮肤段，
+ * **不在这份契约里复述**（许可义务是文档的事，代码只认 id）。 */
+export const APPEARANCE_ORNAMENTS = [
+  "none",
+  "whale",
+  "scroll",
+  "ink-jar",
+  "candle",
+  "quill",
+  "bookmark",
+  "lantern",
+  "blossom",
+  /* ⚠️【2026-10-17 第五刀就地更正：挂件从八枚扩到十六枚】
+     用户说「挂件其他东西都太少了」，从 Twemoji（CC-BY 4.0）再导八枚。
+     八枚的码位与许可义务同样记在 `docs/ATTRIBUTION.md` 的皮肤段。 */
+  "book",
+  "brush",
+  "red-envelope",
+  "mahjong",
+  "oil-lamp",
+  "compass",
+  "teacup",
+  "maple"
+] as const;
+export const AppearanceOrnamentSchema = z.enum(APPEARANCE_ORNAMENTS);
+export type AppearanceOrnament = z.infer<typeof AppearanceOrnamentSchema>;
 
 /**
  * 出厂取「有画」。
@@ -405,6 +467,10 @@ export const DEFAULT_APPEARANCE_BACKDROP: AppearanceBackdrop = "aurora";
 export const DEFAULT_APPEARANCE_GLASS: AppearanceGlass = "regions";
 export const DEFAULT_APPEARANCE_SURFACE: AppearanceSurface = "round-none";
 export const DEFAULT_APPEARANCE_GRID: AppearanceGrid = "none";
+/* 挂件层的出厂值（2026-10-17 第六刀）。与上面这五条同源：取广场第一套皮肤的那一枚挂件。
+   老 JSON 缺这个字段时补出来的就是这一枚——用户 2026-10-08 那条裁定
+   「没有图片的不保留」之后，出厂位不可能再是 `none`。 */
+export const DEFAULT_APPEARANCE_ORNAMENT: AppearanceOrnament = "whale";
 
 /**
  * 出厂那套皮肤的 id。**与渲染层 `appearanceSkins[0].id` 必须一字不差**。
@@ -441,7 +507,8 @@ export const AppearanceThemeConfigSchema = z.object({
   glass: AppearanceGlassSchema.default(DEFAULT_APPEARANCE_GLASS),
   surface: AppearanceSurfaceSchema.default(DEFAULT_APPEARANCE_SURFACE),
   grid: AppearanceGridSchema.default(DEFAULT_APPEARANCE_GRID),
-  art: AppearanceArtSchema.default(DEFAULT_APPEARANCE_ART)
+  art: AppearanceArtSchema.default(DEFAULT_APPEARANCE_ART),
+  ornament: AppearanceOrnamentSchema.default(DEFAULT_APPEARANCE_ORNAMENT)
 });
 export type AppearanceThemeConfig = z.infer<typeof AppearanceThemeConfigSchema>;
 
@@ -490,7 +557,8 @@ export function createDefaultAppearanceTheme(scheme: AppearanceColorScheme): App
     glass: DEFAULT_APPEARANCE_GLASS,
     surface: DEFAULT_APPEARANCE_SURFACE,
     grid: DEFAULT_APPEARANCE_GRID,
-    art: DEFAULT_APPEARANCE_ART
+    art: DEFAULT_APPEARANCE_ART,
+    ornament: DEFAULT_APPEARANCE_ORNAMENT
   };
 }
 

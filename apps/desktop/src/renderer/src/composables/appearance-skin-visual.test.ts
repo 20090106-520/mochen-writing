@@ -28,7 +28,14 @@ import { skinStyleVariables } from "./appearanceSkinVisual";
  *  共享 helper 若也叫 vars，薄封装就变成**自己调自己**——
  *  运行上直接是 `RangeError: Maximum call stack size exceeded`（实测撞过）。 */
 function tokens(
-  layers: { backdrop?: string; glass?: string; surface?: string; grid?: string; art?: string },
+  layers: {
+    backdrop?: string;
+    glass?: string;
+    surface?: string;
+    grid?: string;
+    art?: string;
+    ornament?: string;
+  },
   scheme: "light" | "dark" = "dark"
 ) {
   return skinStyleVariables({
@@ -37,6 +44,10 @@ function tokens(
     surface: (layers.surface ?? "plain") as never,
     grid: (layers.grid ?? "none") as never,
     art: (layers.art ?? "none") as never,
+    /* 挂件层（2026-10-17 第六刀）：薄封装里补这一档，否则整个文件过不了 tsc
+       （`ornament` 是必填）。默认给 `none` —— 这个文件量的是四层与画面，
+       挂件自己有下面那个独立的 describe。 */
+    ornament: (layers.ornament ?? "none") as never,
     accent: scheme === "dark" ? "#5EACFF" : "#6B5D00",
     ink: scheme === "dark" ? "#F3F4F6" : "#101110",
     paper: scheme === "dark" ? "#17191C" : "#E8E8E2",
@@ -228,6 +239,8 @@ describe("运行时 · 玻璃层的数值来自上游，不是本仓自造的档
       surface: "plain",
       grid: "none",
       art: "none",
+      // 挂件层（第六刀）：这一组量的是玻璃，挂件给 none（字段必填，不给过不了 tsc）。
+      ornament: "none",
       accent: "#5EACFF",
       ink: "#F3F4F6",
       paper: "#17191C",
@@ -244,6 +257,7 @@ describe("运行时 · 玻璃层的数值来自上游，不是本仓自造的档
       surface: "plain",
       grid: "none",
       art: "none",
+      ornament: "none",
       accent: "#5EACFF",
       ink: "#F3F4F6",
       paper: "#17191C",
@@ -329,6 +343,7 @@ describe("运行时 · 表面与图案搬的是上游那几处", () => {
       surface: "plain",
       grid: "industrial",
       art: "none",
+      ornament: "none",
       accent: "#FFF500",
       ink: "#F5F5F0",
       paper: "#101110",

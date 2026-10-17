@@ -8162,3 +8162,82 @@ Linux 那一格 **362 文件 / 4732 用例**，本机那一格 **362 文件 / 47
 「第一百二十二节再换到 `3175f3d`（4732）」，同一段里那句差值说明由「`4130→4731` 那 601 条」改为「`4130→4732` 那 602 条」。
 这一刀只动 markdown 与注释，仍按同一套门禁重跑一次再提交（形状与第一百二十一节一致）。
 
+## 第一百二十三节 · 皮肤「全部不一样」＋ 素材扩容（同日前两刀之后的第五刀 / 第六刀）
+
+用户原话（逐字）：「**你那个装扮就只换了图片，其他的没有更改。我要的是全部不一样的，每一个装扮，
+而且里面图片装扮还有挂件其他东西都太少了。你都可以直接从网上搜索导入到这个里面，开源项目也行，不用自己创建**」。
+这一句同时否掉两样：① 第四刀那版的八套**在配色之外的质感上是个空壳**（`glass` 全 `regions`、
+`surface` 全 `round-none`、`grid` 全 `none`，读起来仍是「只换了一张画」）；② 素材量太少。
+落点账在计划 `2026-10-17-skin-variety-and-ornament.md`，本节只记结论、读数与**更正过的旧登记**。
+
+### 一、用户三句话各自落成了什么
+
+| 用户那句 | 落点 |
+| --- | --- |
+| 「只换了图片，其他的没有更改」 | 十六套的 `glass` / `surface` / `grid` **三层三元组两两不同**（各层铺满：5 / 4 / 3 档），既有八套就地拆开 |
+| 「图片装扮……太少了」 | 画面 8 → **16 张**（新增 4 组 Safebooru `original` 插画 × 昼夜，只加不换） |
+| 「挂件其他东西都太少了」 | 挂件 8 → **16 枚**；且此前运行时**根本没有挂件这一层**，本批一并打通 |
+| 「网上搜索导入……开源项目也行，不用自己创建」 | 挂件走开源 emoji 项目 **Twemoji**（CC-BY 4.0）、画面走 Safebooru，**一枚一幅都没有自绘** |
+
+### 二、挂件层（第六刀）：此前运行时没有这一层
+
+`ornament` 作为**与 `art` 并列的第五层**接进契约与运行时：枚举（`APPEARANCE_ORNAMENTS` + 中文名表）、
+`ORNAMENT_FILES` → `--skin-ornament-image` / `--skin-ornament-size`、`.desktop-shell` 的 `background-image`
+叠放顺序**挂件在最上、不被纱压**（挂件 → 纱 → 画 → 弥散光）落**右下角**（`right 28px bottom 28px`、`no-repeat`）、
+回落改走 `sanitizeEnum(candidate.ornament, …)`、筛选条加「挂件」一行、`preload` 夹具补必填字段。
+**每套一枚、枚枚不同**由守卫逐条钉住（`ornament !== "none"` 且集合去重等于条数）。
+
+### 三、画面扩容（第五刀）：只加不换，索引号是回填的
+
+新增四组母图 × 昼夜两版：`firefly-river-{day,night}` ← 7193792 / kate_avery；
+`torii-path-{day,night}` ← 7218130 / bamboo23091；`valley-cabin-{day,night}` ← 6662785 / philipp_urlich；
+`sakura-stop-{day,night}` ← 6305210 / tanamachi_yoshihiro（全是 Safebooru `original` + `no_humans` 风景画）。
+**旧八张的 id / 枚举 / 中文名一个字未动**（id 是写进用户盘 `theme.json` 的值，改名会让老盘整份退回默认）。
+**索引号是回填的**：这四张取图时只落了图、没留索引，本刀用**源文件的 MD5 反查 Safebooru `md5:` 接口**
+（`safebooru.org/index.php?page=dapi&s=post&q=index&tags=md5:<hash>`）把 id / 画师 / source 逐条回捞；
+候选第五条 `s-maple`（过曝被目检否决）落在 7221047 / esyil207，一并记下。
+管线仍是**仓外临时件**（`%TEMP%\mochen-skinart2\build-anime2.ps1`，PowerShell 5.1 ＋ `System.Drawing`，未入仓）。
+许可与第四刀同一口径——**未获再分发授权**（`ANIME_ART_LICENSE` 一字未改）。
+
+### 四、挂件素材：Twemoji（CC-BY 4.0），码位由哈希反查
+
+十六枚全部取自开源 emoji 项目 Twemoji（`jdecked/twemoji`，与上游**逐字节一致**，本仓无任何重绘），
+经 `fastly.jsdelivr.net` 导入为仓内矢量 SVG。**码位此前无处记录**（`appearance-skins` 的注释曾把码位指向
+`docs/ATTRIBUTION.md`，而那一节当时并不存在）⇒ 本批用**源文件 SHA-256 反查上游**
+（逐枚与 `twemoji@15.1.0/assets/svg/<码位>.svg` 相等）把码位补齐，并在 `docs/ATTRIBUTION.md`
+**新开一节**记下逐枚码位与 CC-BY 4.0 的署名义务。**一处按名字会扑空的**：`ink-jar` 档名是「墨水瓶」，
+实际取的是 Twemoji 的**双耳瓶** `U+1F3FA`，已就地记明。
+
+### 五、闸口读数（当场复跑）
+
+`node apps/desktop/scripts/check-scene-art.mjs`（连一台在跑、开着 `--remote-debugging-port=9234` 的实例）⇒
+**十六张全过**（`G1` 桶数 4～12、`G2` 跨度 32.9～232）＋ `PASS 反向用例：空渐变判红`，退出码 0。
+`valley-cabin-night` 的 `G1=4` **恰在阈值**、属临界通过，照实记（不抹平）。
+
+### 六、本刀就地更正的过期登记与两处硬约束
+
+| 落点 | 更正 |
+| --- | --- |
+| `appearanceSkins.ts` 樱站夜樱 light.accent | `#C2568A` 对白字只有 **4.21:1** ⇒ 调暗到 `#B24B78`（约 5.04:1）。方向与 `torii-path-night` **相反**（那条是黑字对 accent 不够、要**调亮**），两处不能照抄同一招 |
+| `appearance-skins.test.ts` | 加到 872 行**越过 800 行硬线** ⇒ 按「不共享状态」把**出处与许可**那一段拆成新文件 `appearance-skins-license.test.ts`，原文保留、逐条就地更正 |
+| `appearance-skins-license.test.ts` 条数断言 | 「四系列 × 昼夜共八条」记的是第四刀那版射程 ⇒ 就地更正为「八系列 × 昼夜共十六条」 |
+| `SkinGalleryPage.vue` 广场说明 | 「八套的四层与挂件两两不同」⇒ 十六套 |
+| `README.md` 皮肤广场一段 | 八套 → 十六套、八张 → 十六张；素材出处由「Pixiv 原创插画」改为「Safebooru 的 `original` 原创插画」（新增四张画师原作发在 Pixiv / X / ArtStation，不是清一色 Pixiv） |
+| `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md` §二 | 规格单原写挂件走 `512×512 透明 PNG` / 四枚候选（`whale-tassel` 等）⇒ 四枚**一枚未用**、改走**矢量 SVG**、扩到十六枚；「还没接进代码」那句已不成立。原文保留，追加一则更正段 |
+| `docs/ATTRIBUTION.md` | 画面段追加第五刀扩容条；**新开**「皮肤窗角挂件」一节（码位 + CC-BY 4.0 义务） |
+
+### 七、本刀未收的口子（如实）
+
+- 取图与落盘管线（本刀那份 `build-anime2.ps1`）**只在仓外临时件里**，未入仓，要复跑得重写。
+- 新增四张**经 contact sheet 逐张目检未见可读文字与 logo**；这一条与第四刀不同（第四刀那批有两张带可读文字）。
+- **真机目检（广场卡片与整窗两档）本刀未重截**：本刀真实的目检件是管线产出的 contact sheet
+  （5 候选 × 昼夜一次过眼，弃掉过曝的 `s-maple`）与像素闸逐张读数。⇒ 那一格记「未做」，不当作已验证。
+- 「像不像动漫 / 好不好看」仍是目检，**机器没管**（只有 `G1` / `G2` 两条像素判据）。
+- **许可分两类**：画面十六张仍是「未获再分发授权」；挂件十六枚是 **CC-BY 4.0**（**允许再分发、要求署名**），
+  署名清单在 `docs/ATTRIBUTION.md`。两类性质不同，别混成一句。
+
+### 八、补记（推送后回填）
+
+本节点在提交前写成；**推送后的 CI 读回、README「## 门禁」节换绑**（本机注册数 4743，
+读数变了就得换绑，不能留旧读数）与**零脏项树上的本机复跑**，按第一百二十二节的同一形状补记在本节之后。
+

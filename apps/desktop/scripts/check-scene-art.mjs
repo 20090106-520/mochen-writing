@@ -11,6 +11,8 @@
 // 【量的是哪八张】四组 × 昼夜，`abyss-hall-night` / `shallow-hall-day` /
 // `book-boat-*` / `lamp-tower-*` / `ink-pool-*` —— **全部八张，一张不落**。
 // 原先这里写的是「三个系列 × 昼夜（六张）」，且把汐那两张按「人物立绘族」排除在外。
+// ⚠️【2026-10-17 第五刀就地更正】这句「八张」已被上面 FILES 那段取代：覆盖现在是
+// **八组 × 昼夜＝十六张**（新增四组网上导入的动漫插画）。原文保留，它记的是那一版射程。
 //
 // ⚠️【2026-10-17 第三刀就地更正：判据改成两条，覆盖扩到八张】
 // 上面那句「量的是哪六张」以及「汐那两张不在覆盖里」记的是**场景画 / 立绘族**那一版，
@@ -110,7 +112,21 @@ const FILES = [
   "lamp-tower-night.jpg",
   "lamp-tower-day.jpg",
   "ink-pool-night.jpg",
-  "ink-pool-day.jpg"
+  "ink-pool-day.jpg",
+  /* ⚠️【2026-10-17 第五刀就地更正：覆盖从八张扩到十六张】
+     上面那八张记的是「四组 × 昼夜」那一版。用户当天说「图片装扮还有挂件太少了」，
+     于是从网上又导入四张原创动漫插画（Safebooru `original` 标签），各出昼夜两版：
+     `firefly-river-*` / `torii-path-*` / `valley-cabin-*` / `sakura-stop-*`。
+     **判据一个字没动**（G1 分层桶数 / G2 全局不空，本来就与主体、与素材来源无关）——
+     这正是当初把它们改成「与主体无关」的收益：加图不必连量尺一起改。 */
+  "firefly-river-night.jpg",
+  "firefly-river-day.jpg",
+  "torii-path-night.jpg",
+  "torii-path-day.jpg",
+  "valley-cabin-night.jpg",
+  "valley-cabin-day.jpg",
+  "sakura-stop-night.jpg",
+  "sakura-stop-day.jpg"
 ];
 const TW = 320;
 const TH = 180;
@@ -208,7 +224,7 @@ for (const file of FILES) {
   );
 }
 await sleep(120);
-console.log(bad === 0 ? "八张全过" : "有 " + bad + " 张不合格");
+console.log(bad === 0 ? "十六张全过" : "有 " + bad + " 张不合格");
 
 /**
  * 反向用例：一张**只有底色渐变、没有主体**的对照图必须判红。

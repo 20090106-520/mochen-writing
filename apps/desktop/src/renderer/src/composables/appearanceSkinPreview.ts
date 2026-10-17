@@ -36,7 +36,11 @@ export function patchSettingsWithSkin(
     glass: skin.glass,
     surface: skin.surface,
     grid: skin.grid,
-    art: skin.art
+    art: skin.art,
+    /* 挂件层（2026-10-17 第六刀）。**必须并进这一份 `visual`**：
+       预览是「把整套皮肤刷到 <html> 上」，漏了这一层就会出现
+       「预览里窗角什么都没有、换上之后才冒出来」——正是这份函数要消灭的那种漂移。 */
+    ornament: skin.ornament
   };
   return {
     ...settings,

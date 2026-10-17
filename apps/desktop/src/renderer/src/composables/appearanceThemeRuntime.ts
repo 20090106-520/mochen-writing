@@ -7,6 +7,7 @@ import {
   APPEARANCE_FONT_SIZE_LIMITS,
   APPEARANCE_GLASSES,
   APPEARANCE_GRIDS,
+  APPEARANCE_ORNAMENTS,
   APPEARANCE_SURFACES,
   createDefaultAppearanceTheme,
   resolveAppearanceEditorFontStack,
@@ -114,7 +115,8 @@ export function sanitizeAppearanceTheme(
     glass: sanitizeEnum(candidate.glass, APPEARANCE_GLASSES, fallback.glass),
     surface: sanitizeEnum(candidate.surface, APPEARANCE_SURFACES, fallback.surface),
     grid: sanitizeEnum(candidate.grid, APPEARANCE_GRIDS, fallback.grid),
-    art: sanitizeEnum(candidate.art, APPEARANCE_ARTS, fallback.art)
+    art: sanitizeEnum(candidate.art, APPEARANCE_ARTS, fallback.art),
+    ornament: sanitizeEnum(candidate.ornament, APPEARANCE_ORNAMENTS, fallback.ornament)
   };
 }
 
@@ -334,6 +336,8 @@ export function applyAppearanceThemeToDocument(input: {
     "--skin-backdrop",
     "--skin-art-image",
     "--skin-art-veil",
+    "--skin-ornament-image",
+    "--skin-ornament-size",
     "--skin-glass-blur",
     "--skin-glass-alpha",
     "--skin-glass-saturate",
@@ -361,6 +365,7 @@ export function applyAppearanceThemeToDocument(input: {
     surface: theme.surface,
     grid: theme.grid,
     art: theme.art,
+    ornament: theme.ornament,
     accent: theme.accent,
     ink: theme.foreground,
     paper: theme.background,

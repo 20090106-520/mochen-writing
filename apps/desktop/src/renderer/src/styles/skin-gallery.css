@@ -233,6 +233,21 @@
   pointer-events: none;
 }
 
+/* 挂件层（2026-10-17 第六刀）：窗角那一枚小件。
+   **排在 grid 之后**（DOM 里最后一块叠层）⇒ 画在最上面，与 theme-runtime.css 那边
+   「挂件 → 纱 → 画 → 弥散光」是同一件事的两处写法：那边是同一条 background-image 里挂件排第一，
+   这里是兄弟节点里挂件排最后。两处都指向同一句：挂件压在最上，因为它不在正文底下。
+   `contain` 而不是 `cover`：挂件是**一枚完整的小件**，裁掉一半就不是挂件了。 */
+.skin-card-preview-ornament {
+  position: absolute;
+  inset: 0;
+  background-image: var(--skin-ornament-image, none);
+  background-size: 30%;
+  background-position: right 6px bottom 6px;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
 /* 前景那块：玻璃 + 圆角 + 对话框底，都落在这里——
    与真正应用时 CSS 挂在 shell/面板上的位置一致。 */
 .skin-card-preview-panel {
@@ -504,7 +519,7 @@
 }
 
 /* 三块叠层都绝对定位铺满，**DOM 里谁写在后面谁画在上面**：
-   backdrop（弥散光）→ art（整窗插画）→ grid（图案）。
+   backdrop（弥散光）→ art（整窗插画）→ grid（图案）→ ornament（挂件，第六刀）。
    这与 theme-runtime.css 那条 `.desktop-shell` 的顺序一致——
    那边是同一属性里多值的顺序（纱→画→光），这里是兄弟节点的顺序，两条都是「画在弥散光之上」。
    顺序错了不会报错，只会得到「整窗一片浅色，而 DOM 六层俱全」（5-㊷ 真机撞过的那次）。
@@ -515,7 +530,7 @@
    于是「grid 层没消费 --skin-grid-image」这种真缺陷反而读成红在别处（本轮实测撞过）。
    `:where()` 里每一枚后面都是逗号，各自那条才查得到；顺带它的特异性是 0，
    不会盖住下面各层自己的 border-radius。 */
-:where(.skin-window-backdrop, .skin-window-art, .skin-window-grid) {
+:where(.skin-window-backdrop, .skin-window-art, .skin-window-grid, .skin-window-ornament) {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -536,6 +551,16 @@
 .skin-window-grid {
   background-image: var(--skin-grid-image);
   background-blend-mode: var(--skin-grid-blend);
+}
+
+/* 挂件层（第六刀）：与 theme-runtime.css 那条 `.desktop-shell` 同一挂位（右下内缩）。
+   这里按模型自己的宽度取 26%，不是 `--skin-ornament-size`——那一条是 vmin，
+   在只有 300px 宽的模型里会大得压住三栏。 */
+.skin-window-ornament {
+  background-image: var(--skin-ornament-image, none);
+  background-size: 26%;
+  background-position: right 6px bottom 6px;
+  background-repeat: no-repeat;
 }
 
 /* 三块面板都 `position: relative`：叠层是绝对定位的，

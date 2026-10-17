@@ -92,11 +92,13 @@ import {
   APPEARANCE_BACKDROPS,
   APPEARANCE_GLASSES,
   APPEARANCE_GRIDS,
+  APPEARANCE_ORNAMENTS,
   APPEARANCE_SURFACES,
   type AppearanceArt,
   type AppearanceBackdrop,
   type AppearanceGlass,
   type AppearanceGrid,
+  type AppearanceOrnament,
   type AppearanceSurface
 } from "@mochen/contracts";
 /* 2026-10-08 第二刀：`appearanceTones.ts`（十套素面配色底版）整份删除，
@@ -143,6 +145,16 @@ export interface AppearanceSkin {
    * 第二次还专门说了「给去除」。
    */
   art: AppearanceArt;
+  /**
+   * 窗角那一枚挂件（2026-10-17 第六刀）。**与 `art` 并列，不是替代**：
+   * `art` 是盖满整窗的那张画，这一枚是挂在窗角的小件。
+   *
+   * 【为什么八套每套都要有】用户当天说「图片装扮还有挂件其他东西都太少了」。
+   * ⇒ 与 `art` 同一口径：它是**这套皮肤的一部分**，不允许留空（`none` 只留给老 JSON 解析）。
+   *   守卫逐条钉 `ornament !== "none"`。
+   * ⇒ 八枚**互不相同**：挂件也是「八套要全部不一样」的一部分，
+   *   两套挂同一枚，卡脚那两行标签就又是一样的字。 */
+  ornament: AppearanceOrnament;
 }
 
 /* ── 五层的取值表 ────────────────────────────────────────────────────────
@@ -255,7 +267,8 @@ export const appearanceSkins: AppearanceSkin[] = [
     glass: "regions",
     surface: "round-none",
     grid: "none",
-    art: "shallow-hall-day"
+    art: "shallow-hall-day",
+    ornament: "whale"
   },
 
   {
@@ -270,10 +283,11 @@ export const appearanceSkins: AppearanceSkin[] = [
     light: { accent: "#4FA8C4", background: "#0B1A26", foreground: "#DCEEF5" },
     dark: { accent: "#5FD3EE", background: "#060F18", foreground: "#D6ECF5" },
     backdrop: "abyss",
-    glass: "regions",
-    surface: "round-none",
-    grid: "none",
-    art: "abyss-hall-night"
+    glass: "strong",
+    surface: "dialogue",
+    grid: "stage",
+    art: "abyss-hall-night",
+    ornament: "lantern"
   },
 
   /* ── 波2a：三系列 × 昼夜（2026-10-08，素材通路断位图之后的矢量自绘） ─────
@@ -328,6 +342,26 @@ export const appearanceSkins: AppearanceSkin[] = [
      **不为了让 contracts 每一档都有皮肤在用而分散铺**——
      拿看不见的差别当理由是假的，而 `appearance-skins.test.ts` 那条
      「这些上游档名没有皮肤在用」的断言也因此继续成立，不用为了加皮肤而改口。
+     ⚠️【2026-10-17 第五刀就地更正】上面那句「那条断言也因此继续成立」**已经不成立**——
+     见下面这一刀。**background 那两个值仍按「昼 aurora / 夜 abyss」给，一条没动**，
+     理由（画是不透的、backdrop 看不见）也不动。
+
+     【2026-10-17 第五刀：八套必须「全部不一样」，不只换画】
+     用户看完第四刀那一版说：**「你那个装扮就只换了图片，其他的没有更改。
+     我要的是全部不一样的，每一个装扮。」**
+     取证属实：这一批八套的三层**互相抄成了一个值**——
+     `glass` 全是 `regions`、`surface` 全是 `round-none`、`grid` 全是 `none`。
+     卡脚那五行标签里，除了画面那一栏，八张卡长得一模一样。
+     ⇒ 这一刀把**看得见的三层逐套拆开**（三层全是 CSS 质地，上屏就变样）：
+        玻璃 5 档全用上（none / subtle / standard / strong / regions）、
+        表面 4 档全用上（plain / square / round-none / dialogue）、
+        图案 3 档全用上（none / industrial / stage），八套的**三元组两两不同**。
+        判据是 `appearance-skins.test.ts` 那条「八套的质感三层两两不同 —— 不许只换画」。
+     ⇒ **backdrop 仍是两个值，这一刀没碰**：它压在整窗画底下看不见（理由见上一段），
+        拿它凑差异是假话。上面那句「这些上游档名没有皮肤在用」的老口径随之作废——
+        现在是「这些档名由皮肤表在上屏时真的用起来了」，两条守卫各改各的那一半。
+     ⇒ 三色仍是各套自己那三色（这一刀一个字没动）：颜色本来就是八套互不相同的，
+        「只换了图片」说的不是颜色，是那三层。
 
      【为什么三色按画自己的底色定，而不是挑好看的颜色】
      每条皮肤的 `light/dark` 底色与对应那张画的 `top/mid/bottom` 同源
@@ -343,10 +377,11 @@ export const appearanceSkins: AppearanceSkin[] = [
     light: { accent: "#256C86", background: "#EAF7FB", foreground: "#0F2E3E" },
     dark: { accent: "#5CC0DE", background: "#0B2233", foreground: "#D8EEF7" },
     backdrop: "aurora",
-    glass: "regions",
-    surface: "round-none",
-    grid: "none",
-    art: "book-boat-day"
+    glass: "subtle",
+    surface: "plain",
+    grid: "industrial",
+    art: "book-boat-day",
+    ornament: "blossom"
   },
 
   {
@@ -360,10 +395,11 @@ export const appearanceSkins: AppearanceSkin[] = [
     light: { accent: "#4C9DBA", background: "#0A2130", foreground: "#D9EDF6" },
     dark: { accent: "#63CDE8", background: "#060F18", foreground: "#D2E9F4" },
     backdrop: "abyss",
-    glass: "regions",
-    surface: "round-none",
-    grid: "none",
-    art: "book-boat-night"
+    glass: "standard",
+    surface: "square",
+    grid: "stage",
+    art: "book-boat-night",
+    ornament: "bookmark"
   },
 
   {
@@ -375,10 +411,11 @@ export const appearanceSkins: AppearanceSkin[] = [
     light: { accent: "#9A6A1E", background: "#FAF4E6", foreground: "#2C2415" },
     dark: { accent: "#D9A64E", background: "#171208", foreground: "#F2E6CC" },
     backdrop: "aurora",
-    glass: "regions",
+    glass: "none",
     surface: "round-none",
-    grid: "none",
-    art: "lamp-tower-day"
+    grid: "industrial",
+    art: "lamp-tower-day",
+    ornament: "quill"
   },
 
   {
@@ -390,10 +427,11 @@ export const appearanceSkins: AppearanceSkin[] = [
     light: { accent: "#D9B072", background: "#16273F", foreground: "#E9E1CE" },
     dark: { accent: "#F0C578", background: "#0A1220", foreground: "#EDE4D2" },
     backdrop: "abyss",
-    glass: "regions",
-    surface: "round-none",
+    glass: "standard",
+    surface: "dialogue",
     grid: "none",
-    art: "lamp-tower-night"
+    art: "lamp-tower-night",
+    ornament: "candle"
   },
 
   {
@@ -405,10 +443,11 @@ export const appearanceSkins: AppearanceSkin[] = [
     light: { accent: "#25736E", background: "#EAF6F1", foreground: "#10302F" },
     dark: { accent: "#4FB3AA", background: "#0C2321", foreground: "#DFF2EC" },
     backdrop: "aurora",
-    glass: "regions",
-    surface: "round-none",
-    grid: "none",
-    art: "ink-pool-day"
+    glass: "subtle",
+    surface: "plain",
+    grid: "stage",
+    art: "ink-pool-day",
+    ornament: "scroll"
   },
 
   {
@@ -421,9 +460,155 @@ export const appearanceSkins: AppearanceSkin[] = [
     dark: { accent: "#72D2CB", background: "#050E12", foreground: "#CFEAE4" },
     backdrop: "abyss",
     glass: "regions",
+    surface: "square",
+    grid: "industrial",
+    art: "ink-pool-night",
+    ornament: "ink-jar"
+  },
+
+  /* ── 【2026-10-17 第五刀：再添四族 × 昼夜，八套变十六套】 ──────────────────
+     用户看完第四刀那一版说：**「你那个装扮就只换了图片，其他的没有更改。
+     我要的是全部不一样的，每一个装扮，而且里面**图片装扮还有挂件其他东西都太少了**。
+     你都可以直接从网上搜索导入到这个里面，开源项目也行，不用自己创建」**
+     ⇒ 这一刀一次做两件事：
+       ① 八套的**看得见的三层逐套拆开**（见上面「第五刀」那段与三元组守卫）；
+       ② **从网上再导入四组原创动漫插画**（Safebooru `original` 标签）× 昼夜两版，
+          再补八枚 Twemoji 挂件 —— 直接答那句「图片装扮与挂件都太少了」。
+     ⇒ 素材取材许可与逐张出处落在 `docs/ATTRIBUTION.md` 的皮肤段（与第四刀那四张同一口径：
+       **未获再分发授权**，如实写明）。管线为仓外临时的
+       `build-anime2.ps1`（居中裁 3:2 → 1536×1024 → 昼/夜两版 grade），
+       与第四刀那批同一套做法；像素闸 `check-scene-art.mjs` 的覆盖同步扩到十六张。
+     ⇒ 三色按各自那张画的底色定（与画同源），`backdrop` 仍按「昼 aurora / 夜 abyss」，
+       判据不变。 */
+
+  {
+    id: "firefly-river-day",
+    label: "萤川 · 昼草",
+    tagline: "一条穿过夏草地的溪流，萤火还在草叶间浮着。日间版把草色与水面一并提亮。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
+    light: { accent: "#2E7A5A", background: "#ECF7F0", foreground: "#103528" },
+    dark: { accent: "#5AC08E", background: "#0A2018", foreground: "#D9F0E4" },
+    backdrop: "aurora",
+    glass: "regions",
+    surface: "round-none",
+    grid: "stage",
+    art: "firefly-river-day",
+    ornament: "compass"
+  },
+
+  {
+    id: "firefly-river-night",
+    label: "萤川 · 夜萤",
+    tagline: "同一条溪流，夜版压成墨绿，萤火一粒粒亮起来，是这幅画真正的主角。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
+    light: { accent: "#3E9B78", background: "#08221B", foreground: "#D3EFE3" },
+    dark: { accent: "#6FD9A6", background: "#04140F", foreground: "#CFEEDF" },
+    backdrop: "abyss",
+    glass: "subtle",
+    surface: "dialogue",
+    grid: "industrial",
+    art: "firefly-river-night",
+    ornament: "oil-lamp"
+  },
+
+  {
+    id: "torii-path-day",
+    label: "朱径 · 昼鸟",
+    tagline: "石阶穿过竹林，一路立着朱红的鸟居。日间版把竹叶的青与鸟居的红一起推到最亮。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
+    light: { accent: "#A63B22", background: "#FBF1EC", foreground: "#38201A" },
+    dark: { accent: "#E0785A", background: "#20110C", foreground: "#F3DDD4" },
+    backdrop: "aurora",
+    glass: "none",
+    surface: "plain",
+    grid: "stage",
+    art: "torii-path-day",
+    ornament: "maple"
+  },
+
+  {
+    id: "torii-path-night",
+    label: "朱径 · 夜灯",
+    tagline: "同一段石阶，夜版把竹林沉进靛色，石灯笼的暖光一格一格亮下来。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
+    light: { accent: "#CE7559", background: "#1E100C", foreground: "#EFD9D1" },
+    dark: { accent: "#E88A6B", background: "#120A07", foreground: "#F0DCD4" },
+    backdrop: "abyss",
+    glass: "strong",
+    surface: "square",
+    grid: "industrial",
+    art: "torii-path-night",
+    ornament: "red-envelope"
+  },
+
+  {
+    id: "valley-cabin-day",
+    label: "幽谷 · 昼光",
+    tagline: "一线天光劈进深谷，瀑布挂在对面的崖上，谷底散着几间小屋。日间版把光柱提亮。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
+    light: { accent: "#4C7A3A", background: "#F1F6EA", foreground: "#1E2A14" },
+    dark: { accent: "#8FBF6A", background: "#111A0C", foreground: "#E4EFD9" },
+    backdrop: "aurora",
+    glass: "standard",
+    surface: "plain",
+    grid: "industrial",
+    art: "valley-cabin-day",
+    ornament: "teacup"
+  },
+
+  {
+    id: "valley-cabin-night",
+    label: "幽谷 · 夜岚",
+    tagline: "同一座深谷，夜版整片沉进墨绿，只剩瀑布那一道白气还认得出谷的形状。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
+    light: { accent: "#6E9C58", background: "#131C0F", foreground: "#DEE9D3" },
+    dark: { accent: "#9BD177", background: "#0A1006", foreground: "#E0EDD5" },
+    backdrop: "abyss",
+    glass: "regions",
+    surface: "dialogue",
+    grid: "stage",
+    art: "valley-cabin-night",
+    ornament: "book"
+  },
+
+  {
+    id: "sakura-stop-day",
+    label: "樱站 · 昼樱",
+    tagline: "旧站台边的樱花开到最盛，电车正停在你面前。日间版把花瓣与天光一起洗亮。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
+    light: { accent: "#A63E6E", background: "#FDF2F7", foreground: "#3B1E2C" },
+    dark: { accent: "#E48BB4", background: "#26121C", foreground: "#F7DDE9" },
+    backdrop: "aurora",
+    glass: "subtle",
+    surface: "square",
+    grid: "industrial",
+    art: "sakura-stop-day",
+    ornament: "brush"
+  },
+
+  {
+    id: "sakura-stop-night",
+    label: "樱站 · 夜樱",
+    tagline: "同一个站台，夜版把樱色收进路灯的暖圈里，花瓣落下来像雪。",
+    origin: ANIME_ART_ORIGIN,
+    license: ANIME_ART_LICENSE,
+    /* ⚠️【2026-10-17 第六刀就地更正】accent 由 `#C2568A` 调到 `#B24B78`：白字对 `#C2568A` 只有 4.21:1、
+       够不着按钮字那条 4.5:1 的线；调暗后约 5.04:1，对底色仍有约 3.59:1（`torii-path-night` 那条方向相反：要调亮）。 */
+    light: { accent: "#B24B78", background: "#20121A", foreground: "#F5DCE8" },
+    dark: { accent: "#EE9FC5", background: "#120809", foreground: "#F7E1EC" },
+    backdrop: "abyss",
+    glass: "strong",
     surface: "round-none",
     grid: "none",
-    art: "ink-pool-night"
+    art: "sakura-stop-night",
+    ornament: "mahjong"
   }
 ];
 
@@ -509,6 +694,12 @@ export const SKIN_ART_FILTERS: readonly AppearanceArt[] = usedValues(
   APPEARANCE_ARTS,
   (skin) => skin.art
 );
+/** 挂件层这一维（2026-10-17 第六刀）。与画面层同一口径：表里不许出现 `ornament: "none"`，
+ *  所以这张表里要冒出 `none`，就等于表写错了（守卫逐条钉 `ornament !== "none"`）。 */
+export const SKIN_ORNAMENT_FILTERS: readonly AppearanceOrnament[] = usedValues(
+  APPEARANCE_ORNAMENTS,
+  (skin) => skin.ornament
+);
 
 /* ── 中文档名 ────────────────────────────────────────────────────────────
    筛选按钮上摆的是这几个词。**真身在这一份**，皮肤广场的模板只 v-for 引用，
@@ -568,5 +759,40 @@ export const APPEARANCE_ART_LABELS: Record<AppearanceArt, string> = {
   "lamp-tower-night": "晴窗夜颜",
   "lamp-tower-day": "晴窗昼颜",
   "ink-pool-night": "暖砂夜阑",
-  "ink-pool-day": "暖砂昼颜"
+  "ink-pool-day": "暖砂昼颜",
+  /* ⚠️【2026-10-17 第五刀就地更正：画面档名从八档扩到十六档】
+     新增八档沿用「配色族 + 昼夜」的命名法（与画面里具体是哪张插画解耦，见上面那段理由）。 */
+  "firefly-river-night": "萤川夜萤",
+  "firefly-river-day": "萤川昼草",
+  "torii-path-night": "朱径夜灯",
+  "torii-path-day": "朱径昼鸟",
+  "valley-cabin-night": "幽谷夜岚",
+  "valley-cabin-day": "幽谷昼光",
+  "sakura-stop-night": "樱站夜樱",
+  "sakura-stop-day": "樱站昼樱"
+};
+
+/** 挂件层的中文档名（2026-10-17 第六刀）。`none` 那一档写「无挂件」——
+ *  它只服务老 JSON，广场里不会出现（八套每套都有挂件，守卫逐条钉）。
+ *  档名按**小件的物名**给（卷轴 / 墨瓶 / 宫灯……），与画面档名那种「配色 + 昼夜」的命名法不同：
+ *  挂件本身就是一件实物，不需要再挂到配色族下。 */
+export const APPEARANCE_ORNAMENT_LABELS: Record<AppearanceOrnament, string> = {
+  none: "无挂件",
+  whale: "鲸",
+  scroll: "卷轴",
+  "ink-jar": "墨罐",
+  candle: "烛台",
+  quill: "羽毛笔",
+  bookmark: "书签",
+  lantern: "宫灯",
+  blossom: "花枝",
+  /* ⚠️【2026-10-17 第五刀就地更正：档名从八枚扩到十六枚】，命名口径不变。 */
+  book: "摊书",
+  brush: "画笔",
+  "red-envelope": "红包",
+  mahjong: "麻将",
+  "oil-lamp": "油灯",
+  compass: "罗盘",
+  teacup: "茶盏",
+  maple: "枫叶"
 };

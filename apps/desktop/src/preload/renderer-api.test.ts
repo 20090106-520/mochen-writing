@@ -139,7 +139,8 @@ describe("createRendererApi", () => {
         glass: "none",
         surface: "plain",
         grid: "none",
-        art: "none"
+        art: "none",
+        ornament: "none"
       },
       dark: {
         preset: "codex",
@@ -154,7 +155,8 @@ describe("createRendererApi", () => {
         glass: "none",
         surface: "plain",
         grid: "none",
-        art: "none"
+        art: "none",
+        ornament: "none"
       },
       uiFontFamily: "system",
       editorFontFamily: "song"

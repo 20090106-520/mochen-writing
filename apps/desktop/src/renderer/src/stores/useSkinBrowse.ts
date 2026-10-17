@@ -4,6 +4,7 @@ import type {
   AppearanceBackdrop,
   AppearanceGlass,
   AppearanceGrid,
+  AppearanceOrnament,
   AppearanceSurface
 } from "@mochen/contracts";
 import {
@@ -11,11 +12,13 @@ import {
   APPEARANCE_BACKDROP_LABELS,
   APPEARANCE_GLASS_LABELS,
   APPEARANCE_GRID_LABELS,
+  APPEARANCE_ORNAMENT_LABELS,
   APPEARANCE_SURFACE_LABELS,
   SKIN_ART_FILTERS,
   SKIN_BACKDROP_FILTERS,
   SKIN_GLASS_FILTERS,
   SKIN_GRID_FILTERS,
+  SKIN_ORNAMENT_FILTERS,
   SKIN_SURFACE_FILTERS,
   appearanceSkins,
   type AppearanceSkin
@@ -54,14 +57,25 @@ export interface SkinBrowseConditions {
   surface: AppearanceSurface | "";
   grid: AppearanceGrid | "";
   art: AppearanceArt | "";
+  /** 挂件层这一维（2026-10-17 第六刀）。与画面同款：空串 = 全部。 */
+  ornament: AppearanceOrnament | "";
 }
 
 function emptyConditions(): SkinBrowseConditions {
-  return { draft: "", query: "", backdrop: "", glass: "", surface: "", grid: "", art: "" };
+  return {
+    draft: "",
+    query: "",
+    backdrop: "",
+    glass: "",
+    surface: "",
+    grid: "",
+    art: "",
+    ornament: ""
+  };
 }
 
 export interface SkinFilterRow {
-  key: "backdrop" | "glass" | "surface" | "grid" | "art";
+  key: "backdrop" | "glass" | "surface" | "grid" | "art" | "ornament";
   label: string;
   /** 那一维的全部取值（外加「全部」）。模板只 v-for 它。 */
   values: readonly string[];
@@ -120,10 +134,13 @@ export const useSkinBrowseStore = defineStore("skinBrowse", {
         c.glass !== "" ||
         c.surface !== "" ||
         c.grid !== "" ||
-        c.art !== ""
+        c.art !== "" ||
+        c.ornament !== ""
       );
     },
-    /** 五行筛选的形状。真身在 filters getter，模板只 v-for。
+    /** 六行筛选的形状。真身在 filters getter，模板只 v-for。
+     *  ⚠️【2026-10-17 第六刀就地更正】上面原写「五行」——第五行是挂件层补上的，
+     *  四层 + 画面 + 挂件共六行。**原文「五行」保留在这一句里**，它记的是第五刀那版。
      *  `values` 用的是 `SKIN_*_FILTERS`（**从皮肤表派生**的在用小集合），
      *  `labels` 用的是全量中文名表——档名要一直查得到，
      *  因为老 JSON 里可能存着一档广场不卖的合法值。 */
@@ -164,6 +181,15 @@ export const useSkinBrowseStore = defineStore("skinBrowse", {
           values: [ALL_SKIN_FILTER, ...SKIN_ART_FILTERS],
           labels: { [ALL_SKIN_FILTER]: ALL_SKIN_FILTER, ...APPEARANCE_ART_LABELS },
           current: c.art || ALL_SKIN_FILTER
+        },
+        /* 挂件行（2026-10-17 第六刀）。排在画面之后——
+           它是**这套皮肤的最后一件**：先看是哪一景，再看窗角挂的是什么。 */
+        {
+          key: "ornament",
+          label: "挂件",
+          values: [ALL_SKIN_FILTER, ...SKIN_ORNAMENT_FILTERS],
+          labels: { [ALL_SKIN_FILTER]: ALL_SKIN_FILTER, ...APPEARANCE_ORNAMENT_LABELS },
+          current: c.ornament || ALL_SKIN_FILTER
         }
       ];
     }
@@ -246,6 +272,7 @@ export const useSkinBrowseStore = defineStore("skinBrowse", {
           (c.surface === "" || skin.surface === c.surface) &&
           (c.grid === "" || skin.grid === c.grid) &&
           (c.art === "" || skin.art === c.art) &&
+          (c.ornament === "" || skin.ornament === c.ornament) &&
           this.matches([skin.label, skin.tagline, skin.origin, skin.id])
       );
     }

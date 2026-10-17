@@ -33,6 +33,7 @@ import type {
   AppearanceBackdrop,
   AppearanceGlass,
   AppearanceGrid,
+  AppearanceOrnament,
   AppearanceSurface,
   AppearanceColorScheme
 } from "@mochen/contracts";
@@ -436,7 +437,20 @@ const ART_FILES: Record<Exclude<AppearanceArt, "none">, string> = {
   "lamp-tower-night": "skins/lamp-tower-night.jpg",
   "lamp-tower-day": "skins/lamp-tower-day.jpg",
   "ink-pool-night": "skins/ink-pool-night.jpg",
-  "ink-pool-day": "skins/ink-pool-day.jpg"
+  "ink-pool-day": "skins/ink-pool-day.jpg",
+  /* ⚠️【2026-10-17 第五刀就地更正：画面从八张扩到十六张】
+     下面八行是当天从网上再导入的四组原创动漫插画（Safebooru `original` 标签）× 昼夜两版。
+     逐张出处与「未获再分发授权」这一层如实说明落在 `docs/ATTRIBUTION.md` 的皮肤段。
+     **「路径只住在 ART_FILES」这句第四次兑现**：枚举、皮肤表的 `art` 值、调用方一处未动，
+     新增的只有这八行路径。 */
+  "firefly-river-night": "skins/firefly-river-night.jpg",
+  "firefly-river-day": "skins/firefly-river-day.jpg",
+  "torii-path-night": "skins/torii-path-night.jpg",
+  "torii-path-day": "skins/torii-path-day.jpg",
+  "valley-cabin-night": "skins/valley-cabin-night.jpg",
+  "valley-cabin-day": "skins/valley-cabin-day.jpg",
+  "sakura-stop-night": "skins/sakura-stop-night.jpg",
+  "sakura-stop-day": "skins/sakura-stop-day.jpg"
 };
 
 /**
@@ -461,6 +475,62 @@ function artImage(art: AppearanceArt): string {
   const base = typeof document === "undefined" ? undefined : document.baseURI;
   return `url("${base ? new URL(rel, base).href : rel}")`;
 }
+
+/**
+ * 挂件层（2026-10-17 第六刀）：**窗角的一枚小件**，与整窗画并列。
+ *
+ * 【它与 art 的分工】
+ *   `--skin-art-image`    盖满整窗（cover），决定「这一窗是哪一景」。
+ *   `--skin-ornament-image` 一角一枚、**按定值尺寸 `no-repeat`**（`--skin-ornament-size`），
+ *                          决定「窗角挂的是什么」。
+ * ⇒ 两者叠在 `.desktop-shell` 同一条 `background-image` 上：挂件在最上，
+ *   下面才是纱、画、弥散光。挂件排最上是因为纱是「压住画保证正文读得清」的，
+ *   而挂件不在正文底下、不需要被压。
+ *
+ * 【为什么是 SVG 不是 PNG】`docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md`
+ * §二 原先写的是「512×512 带透明通道 PNG」——那是当时打算**自己出图**（ImageGen）留下的规格。
+ * 用户 2026-10-17 把取材方式改成「从网上/开源导入」之后，导入来的是 Twemoji 的**矢量**
+ * （CC-BY 4.0），矢量缩放到任何尺寸都不糊，比位图更适合「一枚挂件挂在不同分辨率的窗角」。
+ * ⇒ 规格那一行随之就地更正（原文保留）。**枚举、token、挂位、皮肤表条目这四件事都没变**，
+ *   变的只有盘上文件的编码——这正是「路径只住在 ORNAMENT_FILES 一处」的好处。
+ *
+ * 【路径为什么写死在这里】理由与 `ART_FILES` 同一份：皮肤表里写的是 id，不是路径。
+ * 八枚全部由 `fastly.jsdelivr.net` 从开源 emoji 项目 **Twemoji** 导入，
+ * 逐枚码位与许可义务记在 `docs/ATTRIBUTION.md` 的皮肤段。
+ */
+const ORNAMENT_FILES: Record<Exclude<AppearanceOrnament, "none">, string> = {
+  whale: "skins/ornaments/whale.svg",
+  scroll: "skins/ornaments/scroll.svg",
+  "ink-jar": "skins/ornaments/ink-jar.svg",
+  candle: "skins/ornaments/candle.svg",
+  quill: "skins/ornaments/quill.svg",
+  bookmark: "skins/ornaments/bookmark.svg",
+  lantern: "skins/ornaments/lantern.svg",
+  blossom: "skins/ornaments/blossom.svg",
+  /* ⚠️【2026-10-17 第五刀就地更正：八枚扩到十六枚】再导的八枚同样出自 Twemoji
+     （CC-BY 4.0），码位与许可义务记在 `docs/ATTRIBUTION.md` 的皮肤段。 */
+  book: "skins/ornaments/book.svg",
+  brush: "skins/ornaments/brush.svg",
+  "red-envelope": "skins/ornaments/red-envelope.svg",
+  mahjong: "skins/ornaments/mahjong.svg",
+  "oil-lamp": "skins/ornaments/oil-lamp.svg",
+  compass: "skins/ornaments/compass.svg",
+  teacup: "skins/ornaments/teacup.svg",
+  maple: "skins/ornaments/maple.svg"
+};
+
+/** 挂件的 CSS 值。与 `artImage` 同一口径：**必须是绝对 URL**（相对路径会被解析到
+ *  产物 CSS 所在目录而 404，CSS 对加载失败的背景图当透明处理 ⇒ 零报错、什么都没画）。
+ *  `none` 这一档必须给 `none` 而不是空串（空串会让整条 `background-image` 语法不成立）。 */
+function ornamentImage(ornament: AppearanceOrnament): string {
+  if (ornament === "none") return "none";
+  const rel = ORNAMENT_FILES[ornament];
+  const base = typeof document === "undefined" ? undefined : document.baseURI;
+  return `url("${base ? new URL(rel, base).href : rel}")`;
+}
+
+/** 挂件的显示尺寸。一角一枚小件，别大到压住内容：取视口短的 18%、上限 184px。 */
+const ORNAMENT_SIZE = "min(18vmin, 184px)";
 
 /**
  * 画上面那层纱。
@@ -489,6 +559,11 @@ export function skinStyleVariables(input: {
    * 那正是这一层要解决的那个症状本身，所以宁可编译期红，也不给它默认。
    */
   art: AppearanceArt;
+  /**
+   * 挂件层（2026-10-17 第六刀）。**同样必填、不给默认**——理由与 `art` 那条一样：
+   * 退错了的后果是「一套挂了挂件的皮肤悄悄什么都不挂」，而那正是这一层要解决的症状。
+   */
+  ornament: AppearanceOrnament;
   /** 该套皮肤的强调色——玻璃角落光与对话框压边要用它。 */
   accent: string;
   /** 纹理/图案底色。卡片预览里传皮肤自己的前景色（让图案长在那个色系上）。 */
@@ -534,6 +609,8 @@ export function skinStyleVariables(input: {
     "--skin-backdrop": isDark ? glow.dark : glow.light,
     "--skin-art-image": artImage(input.art),
     "--skin-art-veil": artVeil(input.art, input.paper),
+    "--skin-ornament-image": ornamentImage(input.ornament),
+    "--skin-ornament-size": ORNAMENT_SIZE,
     "--skin-glass-blur": glass.blur,
     "--skin-glass-alpha": glass.alpha,
     "--skin-glass-saturate": glass.saturate,

@@ -41,6 +41,35 @@ Apache License 2.0 的要求集中记录在本文件，许可证原文见仓库�
 
 ## 皮肤整窗画面（`art` 层，`public/skins/`）
 
+- 【2026-10-17 画面扩容｜**本节现况**，下面各段记的都是更早的批次】用户看完第四刀那版说
+  「你那个装扮就只换了图片，其他的没有更改。我要的是全部不一样的，每一个装扮，
+  而且里面图片装扮还有挂件其他东西都太少了。你都可以直接从网上搜索导入到这个里面，
+  开源项目也行，不用自己创建」⇒ 画面从 8 张扩到 **16 张**，皮肤从 8 套扩到 **16 套**，
+  且 16 套的（背景 / 玻璃 / 表面 / 图案）三层**逐套两两不同**——不再「只换画」。
+  **新增的四组**（Safebooru `original` + `no_humans` 标签，全是风景 / 建筑插画，
+  不是任何游戏 / 番剧角色），对应关系：
+
+  | 落盘文件（昼 / 夜）         | Safebooru 索引 | 画师                | 原作地址（source）                                       | 原图      |
+  | --------------------------- | -------------- | ------------------- | -------------------------------------------------------- | --------- |
+  | `firefly-river-{day,night}` | 7193792        | kate_avery          | `x.com/tagsalegirl/status/1527383672197771264`           | 2048×1468 |
+  | `torii-path-{day,night}`    | 7218130        | bamboo23091         | `x.com/bamboo23091/status/2108523586927595926`           | 2315×1780 |
+  | `valley-cabin-{day,night}`  | 6662785        | philipp_urlich      | `artstation.com/artwork/lVn5dz`                          | 3000×1500 |
+  | `sakura-stop-{day,night}`   | 6305210        | tanamachi_yoshihiro | `twitter.com/0zolvUt2323nYuS/status/1938109245687554269` | 4096×2973 |
+
+  **索引号是回填的**：这四张取图时只落了图、没留索引，本刀用**源文件 MD5 反查 Safebooru
+  `md5:` 接口**（`safebooru.org/index.php?page=dapi&s=post&q=index&tags=md5:<hash>`）
+  把 id / 画师 / source 逐条回捞出来；候选里的第五条 `s-maple`（过曝被目检否决）
+  同样落在 `7221047` / `esyil207`，一并记下以备复查。
+  管线仍是**仓外临时件**（`mochen-skinart2/build-anime2.ps1`，PowerShell 5.1 ＋ `System.Drawing`，
+  **未入仓**）：居中裁 3:2 → 1536×1024 → 昼 / 夜两组色阶重映射 → JPEG q86；
+  昼版 `dayHi` 逐张 0.88~~0.97，夜版与第四刀同（`outLo=0.00, outHi=0.70`）。
+  十六张随后在 `check-scene-art.mjs` 上**全过**（G1 桶数 4~~12、G2 跨度 32.9~232，反向用例仍判红）。
+  **许可：仍未获再分发授权**——与第四刀那四张同一口径，皮肤表的 `license` 照写
+  「未获再分发授权」（常量 `ANIME_ART_LICENSE`），本仓**不声称已取得授权**。
+  **一处与第四刀不同，如实记下**：第四刀那四张的原作里可能有可读文字（路牌 / 招牌，见下面各段），
+  本轮新增的四张经 contact sheet **逐张目检未见可读文字与 logo**（都是纯风景 / 建筑插画）。
+
+- （下面这段「第四刀｜本节现况」已被上一段取代，**原文照录**。）
 - 【2026-10-17 第四刀｜**本节现况**，下面各段记的都是更早的批次】`public/skins/` 此刻仍是
   **八张 `.jpg`**（文件名与上一版一字不差），但**内容换成了动漫二次元**。依据是用户把上一版
   整个否掉的那句：「**我要的是中国的真人美女图片或动漫二次元图片做装扮不要外国的**」
@@ -156,6 +185,33 @@ Apache License 2.0 的要求集中记录在本文件，许可证原文见仓库�
   与 `git ls-files apps/desktop/scripts` 的实测不符——属"数据变了、解释还在"那一族。）
   ② 这一批走矢量是因为图像生成通路返回 403、外部位图未到位，
   **不是**「矢量就够用了」——带人物立绘的那一族仍等位图素材。
+
+## 皮肤窗角挂件（`ornament` 层，`public/skins/ornaments/`）
+
+- 【2026-10-17 挂件扩容｜本节现况】窗角那枚挂件从 8 枚扩到 **16 枚**，全部取自开源 emoji 项目
+  **Twemoji**（[jdecked/twemoji](https://github.com/jdecked/twemoji)，**CC-BY 4.0**；
+  原由 Twitter/X 开源，后交社区维护），经 `fastly.jsdelivr.net` 导入为**仓内矢量 SVG**
+  （上游路径 `assets/svg/<码位>.svg`，与上游**逐字节一致**——本仓未做任何重绘或改写）。
+  **许可义务**：CC-BY 4.0 要求署名 ⇒ 下表即署名清单；对外发行时须随产品附
+  `CC-BY 4.0` 的署名与许可原文链接。逐枚码位：
+
+  | 挂件档名   | 码位    | 挂件档名       | 码位    |
+  | ---------- | ------- | -------------- | ------- |
+  | `whale`    | U+1F40B | `book`         | U+1F4D6 |
+  | `scroll`   | U+1F4DC | `brush`        | U+1F58C |
+  | `ink-jar`  | U+1F3FA | `red-envelope` | U+1F9E7 |
+  | `candle`   | U+1F56F | `mahjong`      | U+1F004 |
+  | `quill`    | U+1FAB6 | `oil-lamp`     | U+1FA94 |
+  | `bookmark` | U+1F516 | `compass`      | U+1F9ED |
+  | `lantern`  | U+1F3EE | `teacup`       | U+1F375 |
+  | `blossom`  | U+1F338 | `maple`        | U+1F342 |
+
+  码位由**源文件 SHA-256 反查上游**得到（逐枚与 `twemoji@15.1.0/assets/svg/<码位>.svg`
+  逐字节相等）。**一处按名字会扑空的**：`ink-jar` 档名是「墨水瓶」，实际取的是 Twemoji 的
+  **双耳瓶** `U+1F3FA`（同形状最接近的一枚），下一批来人别按名字去找。
+  存在性 / 无脚本 / 无远程 href / 每个档名都有中文名且无死档，由
+  `appearance-skin-assets.test.ts` 读盘钉住；挂位（窗角 `right 28px bottom 28px`、
+  `--skin-ornament-size: min(18vmin, 184px)`、`no-repeat`）在 `appearanceSkinVisual.ts`。
 
 ## 其他第三方库（npm 依赖）
 

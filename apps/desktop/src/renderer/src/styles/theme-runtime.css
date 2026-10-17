@@ -309,12 +309,25 @@ html[data-theme] .desktop-shell {
      linear-gradient 底色，画放它底下就永远看不见（真机撞过：
      整窗一片浅色，而 DOM 上 backgroundImage 六层俱全、控制台零报错）。
      `background-size` 按同一个顺序给：前两条 cover，第三条 auto ——
-     backdrop 自己会展开成四层，这三个值循环下去正好都是 auto。 */
+     backdrop 自己会展开成四层，这三个值循环下去正好都是 auto。
+
+   ── 挂件层（2026-10-17 第六刀）：整条叠放顺序扩成 **挂件 → 纱 → 画 → 弥散光** ──
+   用户当天说「图片装扮还有挂件其他东西都太少了」，于是补上这一层。它**排在最上面**：
+   纱是「压住画、保证正文读得清」的那一层，而挂件挂在窗角、不在正文底下，
+   压它没有意义（压了只会让挂件发灰）。挂件是 `no-repeat` 的定值小件，
+   所以它自己一格 `background-size` / `background-position`，不与 cover 那两条混。
+   挂位取**右下角内缩 28px**：那是三栏里唯一一块不压正文、也不压输入卡的空处。 */
   background-image:
+    var(--skin-ornament-image, none),
     linear-gradient(var(--skin-art-veil, transparent), var(--skin-art-veil, transparent)),
     var(--skin-art-image, none), var(--skin-backdrop, none);
-  background-size: cover, cover, auto;
-  background-position: center, center, center;
+  background-size: var(--skin-ornament-size, 0), cover, cover, auto;
+  background-position:
+    right 28px bottom 28px,
+    center,
+    center,
+    center;
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat;
   background-attachment: fixed;
 }
 
