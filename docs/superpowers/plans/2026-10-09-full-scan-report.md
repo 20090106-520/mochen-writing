@@ -8755,5 +8755,124 @@ Linux 那一格 **364 文件 / 4763 用例**，本机那一格 **364 文件 / 47
 它的 run 页 `39045565852`、作业 id `117433474106`，结论 success，annotation 原文与上面**逐字相同**
 （`files=364 registered=4763 passed=4763 skipped=0 failures=0`）——README 与守卫注释都是纯文档改动，用例数不动，两侧读数一字未变。
 
+## 第一百二十八节 · 补叙事手法常驻段 ＋ 扫描端对齐（治「AI 味、潦草、跳跃、缺心理·动作·环境」）
+
+用户逐字指令：
+
+> 「继续优化，我这个软件写作小说质量不行，AI味道太大，文笔太潦草，跳跃太大了，没有心理描写，动作描写，
+> 以环境弄表示心情，还有其他写作手法和真人。审核通过率太低，人机味太重，无法审核，无法上架，小说被判DA。
+> 小说减少AI味道，让它变得更像真人写作。解决这个问题」
+
+### 一、病因：五样「展开方式」一处没提过
+
+既有三段各管一头——`AI_FLAVOR_INSTRUCTION`（词与句）、`DE_AI_FLAVOR_STRUCTURE_INSTRUCTION`（结构级机器味）、
+`QUALITY_INSTRUCTION`（五感、具体名词、对话节拍、角色声音、续写衔接）。回读 `prompt-assembly.ts` 后确认：
+用户点名的五样——**心理怎么演、动作怎么拆、环境怎么映心情、场怎么接、快慢怎么分**——生成端一处没提；
+扫描端（`packages/contracts/src/ai-flavor.ts`）也没有一条能对上的判据。模型写出来自然是一笔带过、
+情绪靠命名、换场靠硬切。
+
+### 二、改法（生成端说什么，扫描端就得能扫什么）
+
+1. **生成端** `apps/desktop/src/main/prompt-assembly.ts`：新增常驻常量 `NARRATIVE_CRAFT_INSTRUCTION`
+   （五条：① 心理靠演不靠说、② 动作拆节拍、③ 环境映心情写具体的物、④ 换场要有过渡锚、⑤ 快慢要分），
+   在装配数组里**紧接 `QUALITY_INSTRUCTION` 之后**注入——去味三段 → 细腻度 → 叙事手法 → 动态段。
+2. **扫描端** `packages/contracts/src/ai-flavor.ts`：
+   - 词表新增 **15 条 `cliche`**：概括情绪 8（`百感交集` / `五味杂陈` / `心情复杂` / `心潮澎湃` / `思绪万千` /
+     `感慨万千` / `心如刀割` / `热泪盈眶`）＋ 空泛环境套话 7（`夜色深沉` / `夜色如墨` / `寒风刺骨` /
+     `寒风凛冽` / `灯火阑珊` / `月光如水` / `万籁俱寂`）；
+   - 新增句式正则 `AI_FLAVOR_EMOTION_PATTERN` ＋ `AI_FLAVOR_EMOTION_LABEL`（显示名「情绪直陈（感到／涌起＋情绪词）」），
+     阈值走 `AI_FLAVOR_STRUCTURE_MIN_COUNT` 给 **3**（同认知转述：反复用才是机器味）；只认
+     「感到／觉出／生出／涌起／泛起／涌上／掠过／充满 ＋ [程度·量词] ＋ 情绪词」这个**构式**，
+     不是见到情绪词就报——情绪词单独出现（「他很愤怒」）要读句子主语才判得准，留给人工；
+   - `analyzeAiFlavor` 与 `aiFlavorGate` 各加一处 `match`（体检计阈值、退稿闸全量计入），
+     `hits` 口径扩为「描写套话＋议论腔＋认知转述＋结构级三类＋情绪直陈」。
+3. **不硬上正则**（§一百零五 既定取舍）：场景过渡、动作是否拆了节拍、明喻密度要读整章上下文才判得准——
+   只进生成端常驻，扫描端不设判据，理由写在第六节。
+
+### 三、判据：先红后绿
+
+- `apps/desktop/src/main/agent-service-prompt.test.ts` 的 `defaultPromptFor · 拼装` 追加 **1 条**
+  （五样手法语在常驻提示，含点名禁「夜色深沉」）。
+- `packages/contracts/test/ai-flavor.test.ts` 追加 **1 条**词表断言 ＋ 新 describe「情绪直陈句式」**4 条**
+  （3 次起报／多种构式／反例不误伤／退稿闸同批认）。
+- 先跑 ⇒ 两文件 **5 条红**（提示词缺段、词表缺 6 词、`AI_FLAVOR_EMOTION_LABEL` 未定义）；
+  实现后 ⇒ 两文件全绿；连邻近守卫（`doc-tools-host.test.ts` 退稿闸 6 组、`doc-checkup.test.ts`）
+  **4 文件 / 137 条**全绿。
+
+### 四、门禁（本机）
+
+- 代码树 `15d6b0d`（提交前 `git status --porcelain` 为 0 条）：`corepack pnpm verify` 六道闸全过、
+  末行 `VERIFY_EXIT=0`，**364 文件 / 4770 passed | 2 skipped（4772 条注册）**
+  （上一版 364 / 4764 | 2 skipped（4766 注册），差值 **＋6** = 本刀新增的 6 条用例）。
+- 换绑那一刀（README「## 门禁」节 ＋ `tools/readme-claims.test.mjs` 回填链注释）之后再逐段复跑一次，
+  退出码与逐段时刻如下：
+
+| 段 | 退出码 | 秒 |
+| --- | --- | --- |
+| 1 prettier | 0 | 13.2 |
+| 2a tsc contracts | 0 | 3.4 |
+| 2b tsc fs-store | 0 | 3.3 |
+| 2c tsc agent-runtime | 0 | 3.3 |
+| 2d tsc plugin-kernel | 0 | 2.3 |
+| 2e tsc node | 0 | 4.8 |
+| 2f tsc web | 0 | 7.1 |
+| 3 eslint | 0 | 12.9 |
+| 4 boundary | 0 | 1.1 |
+| 5 budget | 0 | 1.1 |
+| 6 vitest | 0 | 46.5（`364 passed` ／ `4770 passed | 2 skipped (4772)`，duration 43.56s） |
+
+⇒ 六道闸（tsc 段含 6 个类型程序）退出码全 0；换绑只动文档与注释，用例数一字未变。
+
+### 五、本节改动的落点
+
+| 文件 | 改动 |
+| --- | --- |
+| `apps/desktop/src/main/prompt-assembly.ts` | 新增 `NARRATIVE_CRAFT_INSTRUCTION`，装配数组接 `QUALITY_INSTRUCTION` 之后 |
+| `apps/desktop/src/main/agent-service-prompt.test.ts` | **追加 1 条**叙事手法断言 |
+| `packages/contracts/src/ai-flavor.ts` | 新增 15 条 `cliche` ＋ `AI_FLAVOR_EMOTION_PATTERN`/`_LABEL` ＋ 阈值 3 ＋ 体检／退稿闸各一处 `match` |
+| `packages/contracts/test/ai-flavor.test.ts` | **追加 1 条**词表断言 ＋ **新 describe 4 条**情绪直陈句式 |
+| `docs/superpowers/specs/2026-10-18-human-craft/` | 本刀的 spec ＋ tasks |
+| `README.md` | 「## 门禁」节同批换绑（见第七节） |
+| `tools/readme-claims.test.mjs` | 回填链注释补「第一百二十八节再换到 `15d6b0d`（4769）」，差值说明 633→639 条 |
+
+提交 `15d6b0d feat(agent): 补叙事手法常驻段（心理/动作/环境/换场/节奏）＋ 扫描端对齐`：
+**6 files changed, 290 insertions(＋)、5 deletions(−)**。
+
+### 六、本节未收的口子（如实）
+
+- **场景过渡、动作是否拆了节拍、明喻密度、否定排比／破折号甩结论**：要读整章上下文才判得准，
+  按 §一百零五 既定取舍**不上正则**，只进生成端常驻，归体检人工判读。
+- 平台审核（番茄／起点等）的**过审率本仓无法度量**：本刀治的是生成端手法与自检口径，
+  「更像真人」的效果只能由作者目检，**不以任何外部检测器（朱雀等）读数作结论**——
+  项目记忆：外部 AI 检测器对千字级文学文本的读数抖动，不可作为优化效果的可靠评估依据。
+- `agent-profile.ts` 的 `lead-writer` 档案提示词仍是一句「按大纲起稿本章正文」，
+  本刀靠**常驻段**覆盖全部档案，不动单个档案。
+- `%TEMP%/mochen-cdp/` 下的量测件（`ci-read.ps1`、`gates.ps1`）是**仓外临时件**，跑完即删，未入仓。
+
+### 七、补记（推送后回填）
+
+**【2026-10-17 推送后回填】** `15d6b0d` 推上远端（`d6f6295..15d6b0d`），那一枚 run 当场读回：
+
+- run 页 `39047289819`，`head_sha=15d6b0d6daaf84def1f3f58bb62a1444594c4b99`，`conclusion=success`。
+- 作业 id `117438465262`，作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试」，结论 success，
+  started `2026-10-17T15:57:11Z`、done `2026-10-17T15:59:59Z`。
+- CI 自己吐的那条 annotation 原文：`files=364 registered=4769 passed=4769 skipped=0 failures=0`。
+
+⇒ README「## 门禁」节同批换绑到 `15d6b0d`（顶格两格、免责段那处同树说法及其 run 页 ID 与台账指引、
+历史链新增一条「上一版绑的是 `e6d4979`（2026-10-17，run 页 `39044488894`，364 文件 / 4763 用例），第一百二十八节换绑」、
+quoted annotation 原文、`Linux 侧 4769 条注册 = 本机 4772 − 3` 那笔账、以及现役那一整段）。
+Linux 那一格 **364 文件 / 4769 用例**，本机那一格 **364 文件 / 4770 passed | 2 skipped（4772 条注册）**。
+等式三处自洽：`4769 + 3 = 4772`、`4770 + 2 = 4772`、本机 passed 比 Linux 多 1（`4770 − 4769 = 1`）。
+用例数从上一版的 4763 长到 4769，差的 **6 条**正是第三节那批断言（prompt 1 条 ＋ 词表 1 条 ＋ 情绪直陈 4 条）。
+
+#### 换绑时抓到的一发（同树声明闸当场红）
+
+第一次逐段复跑时 `tools/readme-claims.test.mjs` 那条「门面上每一处同树声明点名的必须是同一枚短哈希」
+**当场红**：免责段（README「测试数没有单一事实源…」那一段）里还留着旧树 `e6d4979`，而顶格已换到 `15d6b0d`，
+同一节里出现两枚哈希。按它给的清单就地改掉那处（连同它引的 run 页 ID 与台账节号），再跑即绿——
+这正是第五十六节起那几道门面闸存在的意义：只 bump 顶格、漏掉免责段，散文里就同时主张了两棵树。
+
+（docs 提交的 CI 读数见文末回填。）
+
 
 
