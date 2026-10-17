@@ -6219,6 +6219,15 @@ A/B 在同一个实例上做（`tmp-w3-coverage2.mjs`，**11/11**）：用内联
 ② 次要文字压在 `--surface-hover` / `--surface-selected` 上，0.71 仍只有 **4.38 / 4.09**——
 病因在表面阶梯一层比一层深，要修得动阶梯或让 hover 换字色，那是全站列表的事。
 
+**更正（2026-10-17）**：这两处**都已闭环**，原文一字未删，就地记清（免得照读的人重做一遍）——
+① 第三级文字已定线：`TERTIARY_TEXT_MIX = { light: 0.71, dark: 0.62 }`
+（`apps/desktop/src/renderer/src/composables/appearanceThemeRuntime.ts:302`，推导同文件 `:262-302`），
+判据 `appearance-skins.test.ts:555`「广场每一条 × 深浅两版：第三级文字对页底与卡面 ≥ 4.5:1（AA 正文级）」；
+全文见 `2026-10-08-tertiary-contrast-report.md` §一。② 「要动的是表面阶梯」这句**病因作废**——
+正文档对五档最低 7.60，阶梯没病，改的是**用法**：状态档一出现，那块子树里的灰字升到
+`--text-on-state`（浅 0.78 / 深 0.80），判据 `appearance-surface-ladder.test.ts`（77 处深档底 /
+19 个文件的普查表）；全文见 `2026-10-09-full-scan-report.md` 第二十九节。本刀收口见同报告第一百一十七节。
+
 **顺手记下的一条通路事实（差点拿旧包读出新结论）**：这个 CDP 实例加载的是
 `apps/desktop/out/renderer/index.html`（**构建产物**，不是 vite dev）。改了
 `appearanceThemeRuntime.ts` 之后第一次复量仍读到旧色，而探针那句「已经不是旧系数那一档」
@@ -6251,6 +6260,12 @@ A/B 在同一个实例上做（`tmp-w3-coverage2.mjs`，**11/11**）：用内联
   素材规格单已交付在 `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md`。
 - **次要文字的两处后续**（上面那节写明的）：`--text-tertiary` 要不要按正文定线；
   次要文字在 `--surface-hover` / `--surface-selected` 上还差 0.1～0.4，要动的是表面阶梯。
+  **更正（2026-10-17）**：这两处已闭，原文一字未删，就地记清——① 第三级文字已定线
+  （`TERTIARY_TEXT_MIX` 浅 0.71 / 深 0.62，`appearanceThemeRuntime.ts:302`；判据
+  `appearance-skins.test.ts:555`），见 `2026-10-08-tertiary-contrast-report.md` §一；
+  ② 「要动的是表面阶梯」那句**病因作废**，改的是用法（状态档子树升 `--text-on-state`，
+  判据 `appearance-surface-ladder.test.ts`），见 `2026-10-09-full-scan-report.md` 第二十九节。
+  逐条回读见同报告第一百一十七节。
 - **窗口能拖到 1000 地板以下**（`main/index.ts` 没设 `minWidth`），地板以下是裁掉而非可滚——
   本仓既有取舍，未在本轮顺手改。
   **更正（2026-10-17）**：这一条已闭，原文一字未删，就地记清——`main/index.ts:198-199` 现有
@@ -6258,6 +6273,11 @@ A/B 在同一个实例上做（`tmp-w3-coverage2.mjs`，**11/11**）：用内联
   （那条还钉了「初值不许小于自己的地板」）；本文件 `:6729`（P2-9 那一行）记的就是它。
   逐条回读见 `2026-10-09-full-scan-report.md` 第三十三节第二目那张九行表。
 - **提交树单独是否全绿未证**：工作区里另有 5-㊶ 那 185 行未提交改动，本轮门禁是在混合树上跑的。
+  **更正（2026-10-17）**：这一条已闭，原文一字未删，就地记清——那一轮的「混合树」前提不再成立
+  （本刀开工前 `git status --porcelain` 回读 **0 条**、本地＝远端），且 CI **本来就只检出提交内容**：
+  `8230df3` 那次 run `38990841286`（`head_sha=8230df3`）读回 `completed / success`，
+  job 的 annotation 是 `files=362 registered=4726 passed=4726 skipped=0 failures=0`——
+  那就是「提交树单独」在跑，且全绿。逐条回读见 `2026-10-09-full-scan-report.md` 第一百一十七节。
 
 ## 批次 5-㊺：不能切换模型 —— 点名单里任何一行，屏幕上什么都不发生（2026-10-09）
 
