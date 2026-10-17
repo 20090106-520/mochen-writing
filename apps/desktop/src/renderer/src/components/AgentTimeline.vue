@@ -179,6 +179,15 @@ function openSource(url: string): void {
       </p>
 
       <div v-else class="message-line" :class="{ 'is-streaming': block.streaming }">
+        <!-- 【2026-10-17 用户裁定·对话链】助手侧的人头像（用户原话：「参考手机软件那种人机链对话框」）。
+             此前这一行**只有正文**，而 `.message-line` 在样式里连一条规则都没有——
+             agent 的话与自己的话在屏上没有一刻左右之分，两栏都从左边顶格开始，读起来是两份文档不是一条链。
+             头像用品牌那一枚 sparkles（不是 bot）：它是「墨宸 · 主笔」的位子，不只是一个机器人。
+             `aria-hidden` 是必须的：它不承载信息（这一侧是谁由上下文与栏头那枚 agentLabel 说），
+             让它进可读树只会给读屏用户多播一个无名图形。 -->
+        <span class="message-avatar" aria-hidden="true"
+          ><AppIcon name="sparkles" :size="15"
+        /></span>
         <div class="message-body">
           <div class="message-content message-markdown">
             <!--

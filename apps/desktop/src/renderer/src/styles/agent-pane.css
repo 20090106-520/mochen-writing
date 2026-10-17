@@ -34,22 +34,62 @@ html[data-platform="darwin"] .conversation-pane {
   overflow-wrap: break-word;
 }
 
+/* 【2026-10-17 用户裁定·对话链】助手那一侧的**过程块**（思考摘要 / 计划 / 工具卡 / 用量 /
+   打断 / 报错）缩进到正文气泡的左边缘上。36 = 头像 26 + 间隙 10（与 `.message-line` 那两个数
+   同源：改那两处必须一起改这里）。不缩的话它们从 x=0 顶格开始，
+   而助手的正文裹在气泡里从 36px 开始——同一条链上两种左边距，读起来像另一个人的发言。
+   排除 user（它靠右）与 message（它自己那行有头像，左边缘已经在 36 上）。 */
+.agent-block:not([data-kind="user"]):not([data-kind="message"]) {
+  padding-left: 36px;
+}
+
+/* 【2026-10-17 用户裁定·对话链】自己的话靠右：头像在右端、气泡贴着它。
+   用户原话「参考手机软件那种人机链对话框」——原来这一行是 `display: flex` 的普通左对齐行，
+   于是自己的话与助手的话都从左边开始，屏上没有「谁说的」这一层。
+   **只改这一条规则、不动模板**：`row-reverse` 把主轴起点挪到右边（flex 的起点跟着换边），
+   DOM 里的顺序仍是 `.user-tag` 在前——类名与元素顺序一个没动，
+   所以原有那几条「模板里 class="user-text" 只许一处」的判据照旧成立（见 extreme-content-overflow.test.ts）。 */
 .user-line {
   display: flex;
+  flex-direction: row-reverse;
   align-items: flex-start;
   gap: 10px;
 }
 
+/* 那枚「你」原先是一条 999px 的小胶囊（`padding: 2px 8px`），与气泡并排时像第二个标签。
+   聊天链上它是一个圆头像：钉成 26×26、文字居中、去掉左右内边距。
+   底色/字色仍是原来那一对 solid/contrast（暗色皮肤下它俩成对翻转，换别的色会糊成一块）。 */
 .user-tag {
   flex: 0 0 auto;
-  padding: 2px 8px;
-  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
   background: var(--neutral-solid);
   color: var(--neutral-solid-contrast);
-  font-size: 0.857143rem;
+  font-size: 0.75rem;
+  line-height: 1;
 }
 
 .user-text {
+  /* 【2026-10-17】气泡本体：底色取强调色的一档浅混（18%），描边取同一色的一档（30%）——
+     两档都从 `--focus` 现调，不新造颜色变量（卡片段那条「零色值字面量」的纪律在这里同样成立）。
+     **18% 不是随手写的**：真机（皮肤插画底）量到 12% 那一档算出 rgb(207,227,234)，
+     而对面助手气泡的 `--surface-card` 在这套皮肤下是 rgb(228,241,246)——
+     两枚气泡几乎同色，链上「谁说的」又糊回一层。18% 之后自己的那一枚明显深一档，
+     同时仍是浅底，正文的 `--text` 压在上面照样够对比。
+     圆角 16/16/6/16：右下那一角收紧 6px 对着头像，是聊天链上「这句话出自这一侧」的那道口。
+     `max-width: 82%` 是把长问句收成气泡（不写就是通栏）；余下的 18% 不是留白，
+     是气泡与左侧助手那一列之间的气口，没了它两侧的气泡会撞上。 */
+  max-width: 82%;
+  margin: 0;
+  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--focus) 30%, var(--line-soft));
+  border-radius: 16px 16px 6px 16px;
+  background: color-mix(in srgb, var(--focus) 18%, var(--editor));
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 34%, transparent);
   color: var(--text);
   font-weight: 500;
   white-space: pre-wrap;
@@ -468,8 +508,47 @@ html[data-platform="darwin"] .conversation-pane {
   transform: rotate(90deg);
 }
 
+/* 【2026-10-17 用户裁定·对话链】助手那一行：最左一枚小圆头像 + 右边一张气泡。
+   这一条此前**根本不存在**（`.message-line` 在整份样式里没有任何规则），
+   所以助手的话与自己的话在屏上没有一刻左右之分——两栏都从左边顶格开始。
+   头像 26×26 与 `.user-tag` 同口径（两条要一起改），`flex: 0 0 auto` 是必需项：
+   少了它，长正文会把这个圆压成椭圆（它是这一行的 flex item，默认会被收缩）。
+   `margin-top: 3px` 把头像与正文首行的视觉中线对齐（正文 line-height 1.85）。 */
+.message-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.message-avatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 3px;
+  border: 1px solid var(--line-soft);
+  border-radius: 50%;
+  background: var(--surface-card);
+  color: var(--focus);
+}
+
+/* 正文裹成气泡（2026-10-17）。**宽度必须是 auto**：祖上有一条 `.message-body{width:100%}`
+   （conversation-pane.css），照它算的话每一条助手消息都拉满整列——短回复也变成一张通栏大卡，
+   看上去与自己的那枚气泡不是同一种东西。
+   `width: auto` 让这一格按内容收缩，长文自然撑到上限；`max-width: 100%` 的那个 100%
+   已经是「行宽 − 头像 26 − 间隙 10」（flex 先给不缩的头像留出份）。
+   圆角 6/16/16/16：左上那一角收紧对着头像，与右侧气泡的右下收紧是同一道口的两面。
+   底色用 `--surface-card`（它在 styles.css 的 :root 有兜底，暗色皮肤下由主题层重定义），
+   不追 `--surface-muted`：后者只在运行时注入，没注入时这一格会静默变透明。 */
 .message-line .message-body {
-  padding: 2px 0;
+  width: auto;
+  max-width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px 16px 16px 16px;
+  background: var(--surface-card);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 30%, transparent);
 }
 
 .message-text {
@@ -891,15 +970,22 @@ html[data-platform="darwin"] .conversation-pane {
   border: 1px solid var(--line);
   border-radius: 21px;
   background: var(--editor);
+  /* 【2026-10-17 用户裁定·装饰】从两层加到三层。原来那两层里有一层是 `0 1px 2px` 的贴沿硬边、
+     另一层 `0 5px 18px` 直接糊到中景——中间缺一档，卡在屏上是「贴着一张纸」而不是「浮着」。
+     现在是有序的三档：贴沿（负 spread 收得比卡小）→ 中景 → 远景（-20px spread 只留一圈淡影）。
+     三档 spread 全部为负，阴影不会从卡片两侧伸出去咬住相邻的正文。 */
   box-shadow:
-    0 5px 18px color-mix(in srgb, var(--shadow-color) 45%, transparent),
-    0 1px 2px color-mix(in srgb, var(--shadow-color) 32%, transparent);
+    0 1px 1px color-mix(in srgb, var(--shadow-color) 38%, transparent),
+    0 6px 16px -6px color-mix(in srgb, var(--shadow-color) 50%, transparent),
+    0 18px 40px -20px color-mix(in srgb, var(--shadow-color) 46%, transparent);
+  transition: box-shadow var(--dur-control) ease;
 }
 
 .composer:focus-within .composer-input-surface {
   box-shadow:
-    0 7px 22px color-mix(in srgb, var(--shadow-color) 55%, transparent),
-    0 1px 2px color-mix(in srgb, var(--shadow-color) 26%, transparent);
+    0 1px 1px color-mix(in srgb, var(--shadow-color) 34%, transparent),
+    0 8px 20px -6px color-mix(in srgb, var(--shadow-color) 58%, transparent),
+    0 22px 48px -22px color-mix(in srgb, var(--shadow-color) 52%, transparent);
 }
 
 .composer-textarea {
@@ -928,6 +1014,12 @@ html[data-platform="darwin"] .conversation-pane {
   justify-content: space-between;
   gap: 8px;
   padding: 5px 8px 8px;
+  /* 【2026-10-17 用户裁定·装饰】正文区与工具条之间补一条发丝线。
+     此前卡里上下两段是同一种底色、也没有任何分隔，整块读成一张没有结构的白板
+     ——用户那句「缺少一些东西」说的正是这一格。
+     用 `--line-soft` 再压到 85% 而不是 `--line`：这条线是**卡内的**分区，
+     不能比卡沿（`.composer-input-surface` 的 border 用 `--line`）还重，否则卡看起来像被切成两半。 */
+  border-top: 1px solid color-mix(in srgb, var(--line-soft) 85%, transparent);
 }
 
 .composer-toolbar-left {
@@ -1005,6 +1097,31 @@ html[data-platform="darwin"] .conversation-pane {
   background: var(--neutral-solid);
   color: var(--neutral-solid-contrast);
   cursor: pointer;
+  /* 【2026-10-17 装饰】这枚键此前是「一块贴平的实心圆」：按下去与悬停同一张脸，
+     整张卡上最该有手感的那一枚反而是唯一没有过渡的。现在三档：悬停抬 1px + 把影子往外推，
+     按下退回贴平，键盘走到它时给一圈 focus 环（`.composer-chip:focus-visible` 早就有环，
+     这枚没有，是同一张卡里两套标准）。 */
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 45%, transparent);
+  transition:
+    transform var(--dur-control) ease,
+    box-shadow var(--dur-control) ease,
+    background-color var(--dur-control) ease;
+}
+
+.send-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--neutral-solid) 88%, var(--editor));
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--neutral-solid) 55%, transparent);
+  transform: translateY(-1px);
+}
+
+.send-button:active:not(:disabled) {
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 40%, transparent);
+  transform: translateY(0);
+}
+
+.send-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .send-button:disabled {
@@ -1026,6 +1143,17 @@ html[data-platform="darwin"] .conversation-pane {
   background: transparent;
   color: var(--text-soft);
   cursor: pointer;
+  /* 【2026-10-17 装饰】补一条过渡与一圈 focus 环：`＋` 与麦克风是卡里出现最频繁的两枚，
+     原来悬停是「瞬间换色」，键盘走到它们时也没有任何焦点可见性
+     （`.composer-chip:focus-visible` 在 interaction.css 里早就有环——同一张卡里两套标准）。 */
+  transition:
+    background-color var(--dur-control) ease,
+    color var(--dur-control) ease;
+}
+
+.round-tool-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .round-tool-button:hover:not(:disabled) {
