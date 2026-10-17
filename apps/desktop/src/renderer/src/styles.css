@@ -64,6 +64,16 @@
   --left-rail-width: 32px;
   --right-pane-width: clamp(410px, 34vw, 650px);
   --center-pane-min: 320px;
+  /* 中栏的正文列宽。**一个数两处读**：`.message-list` 的版心（conversation-pane.css）、
+     输入卡的宽（`agent-pane.css` 的 `.composer-wrap` 两侧内边距帽）。两处必须是同一个数——
+     输入卡与它上面的正文本来就对齐着，分头写会漂，而漂开的一刻不会有任何东西报错。
+     【2026-10-17 用户裁定，原值 760px】760 那档在 1440 窗口（右栏折叠、wrap 量到 1154）下
+     两侧各留 197px 死区，而卡里那条 chip 行按 760 算账要 774.3 ⇒ 缺 14.3px 全砸在模型名上，
+     于是同一屏里「一大片空的」与「挤成省略号」同时出现（用户截图原话见
+     `composer-card-wiring.test.ts` 那一段描述）。升到 1120：常见窗口下死区归零，
+     左端五枚整条显示；更宽的屏幕上仍有一道帽，免得输入卡被拉成一条。
+     判据钉「卡与消息列读同一个变量、且这一档 ≥1080」（composer-card-wiring.test.ts）。 */
+  --conversation-column-width: 1120px;
   --line: var(--theme-line, #dedfdf);
   --line-soft: var(--theme-line-soft, #e9e9e7);
   --text: var(--text-primary, #202226);

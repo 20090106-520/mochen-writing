@@ -503,8 +503,21 @@ html[data-platform="darwin"] .conversation-header {
   color: var(--neutral-solid-contrast);
 }
 
+/* 正文版心 = 中栏列宽，读共享 token（`styles.css` 的 :root，一数两处）。
+   【2026-10-17 用户裁定，原文保留】这里原先是 `width: min(760px, calc(100% - 48px))`。
+   760 与输入卡那个帽是**同一个数**（两处都写着 760px），输入卡就照它对齐——
+   所以那两个数必须一起动：把卡放宽而正文不动，卡会比它上面的正文宽出一截。
+   一起升到 1120 之后，1440 窗口（右栏折叠、wrap 1154/1178）下卡与正文仍然同宽、
+   两侧死区归零；`calc(100% - 48px)` 那条窄窗兜底原样留着。
+   【2026-10-17 同日第二处：这条 48px 与卡那侧兜底必须成对】卡侧内边距的兜底原先是 18px，
+   于是 1440 上卡算出 1118、这条算出 min(1120, 1154 − 48) = 1106，每侧错开 6px——
+   两条读着同一个变量却各自加减不同的数，照样漂。卡侧已改成每侧 24px（= 这条的 24px/侧），
+   两条公式逐档恒等：容器 ≥ token + 48 时都是 token，更窄时都是 容器 − 48。
+   真机复验：1440 / 右栏折叠下卡面 1106、注入量到的正文 1106（逐档同宽）。
+   判据在 `composer-card-wiring.test.ts`（两条读同一个变量、这条的每侧留白 = 卡侧兜底、
+   且这一档 ≥1080）。 */
 .message-list {
-  width: min(760px, calc(100% - 48px));
+  width: min(var(--conversation-column-width), calc(100% - 48px));
   margin: 0 auto;
   padding: 34px 0 72px;
 }

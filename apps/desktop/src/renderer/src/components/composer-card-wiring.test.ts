@@ -331,3 +331,64 @@ describe("权限档弹层真身挂到卡右端（#105 目标形态 2：更多 + 
     expect(pane).toContain(".composer-toolbar-right .permission-menu");
   });
 });
+
+/**
+ * 2026-10-17 用户裁定（真机截图：「还有这么多大的位置，为什么会成这样？挤在一块被遮挡，不显示全部了」）。
+ *
+ * 病因是**卡宽不跟着栏宽走**：`.composer-wrap` 原先写
+ * `padding: 10px max(18px, calc((100% - 760px) / 2)) 12px`——把卡硬截到 760px。
+ * 1440 窗口、右栏折叠（本机默认：`wrap` 量到 1154）时，那条内边距算出 197px，
+ * 于是**卡左右各空出 197px 死区**；而卡里那条 chip 行按 760 的容器算账，
+ * 左端五枚自然宽 448.3 ＋ 右端 301 ＋ 卡内边距 17 ＋ 间隙 8 = 774.3 ⇒ **缺 14.3px**，
+ * 缺额全按 `flex-shrink: 100` 砸在模型名上（真机读数：label 得 58px、内容要 77px）。
+ * 「同一屏里一大片空的」与「挤出省略号」是同一个根因的两种表象，不是两个毛病。
+ *
+ * 修法不是把 760 换成一个新的写死数，而是**把这一个数收成 token**：
+ * 卡（`.composer-wrap` 的两侧内边距帽）与消息列（`.message-list` 的版心宽）读同一个变量。
+ * 这两条在本次编辑之前就是同一个数（都写着 760px）——分头写两个数会漂，
+ * 而漂开的那一刻不会有任何东西报错，只会让输入卡和它上面的正文对不齐。
+ *
+ * 下限 1080 不是估的：1440 窗口右栏折叠时栏宽 1154/1178，卡宽取到这一档
+ * 才既装得下上面那 774.3（模型名整条显示，不再出省略号），
+ * 又不会在常见窗口下再留出成片死空（杀过的对照组见 agent-pane.css 那条规则上的注释）。
+ */
+describe("输入卡版心 · 与消息列共用同一个列宽 token（2026-10-17 用户裁定）", () => {
+  const columnToken = (): number => {
+    const m = /--conversation-column-width:\s*(\d+)px/.exec(vueSource("styles.css"));
+    expect(m, "styles.css 的 :root 里必须定义 --conversation-column-width").not.toBeNull();
+    return Number(m?.[1]);
+  };
+
+  it("卡宽不再写死：.composer-wrap 的两侧内边距帽走 --conversation-column-width", () => {
+    const body = ruleBlock(styleSource("agent-pane.css"), ".composer-wrap");
+    expect(body).toContain("var(--conversation-column-width)");
+    expect(body).not.toContain("760px");
+  });
+
+  it("消息列与卡同宽：.message-list 的版心宽读同一个变量（两条要一起动，否则卡会比正文宽出一截）", () => {
+    const body = ruleBlock(styleSource("conversation-pane.css"), ".message-list");
+    expect(body).toContain("min(var(--conversation-column-width)");
+    expect(body).not.toContain("760px");
+  });
+
+  it("这一档够宽：760 那档装不下左端五枚（缺 14.3px 全砸在模型名上），1080 起才有一整行不出省略号的余量", () => {
+    expect(columnToken()).toBeGreaterThanOrEqual(1080);
+  });
+
+  it("两条的兜底成对：卡侧每侧留白 ×2 = 正文版心的整体留白", () => {
+    // 【为什么单开这一道】上面三条只钉到「两条读同一个变量」——读得到同一个变量、
+    // 却各自加减不同的数，照样漂。真机构建（1440 / 右栏折叠 / 容器 1154 / token 1120）量到的正是这一形：
+    // 卡侧兜底 18px ⇒ 卡面 1154 − 36 = 1118；正文那条 48px ⇒ min(1120, 1154 − 48) = 1106。
+    // 两个值都"对"，但卡比它上面的正文每侧宽 6px，而屏幕上一句报错都没有。
+    const card = ruleBlock(styleSource("agent-pane.css"), ".composer-wrap");
+    const list = ruleBlock(styleSource("conversation-pane.css"), ".message-list");
+    const floor = Number(/max\((\d+)px/.exec(card)?.[1]);
+    const gutter = Number(/calc\(100% - (\d+)px\)/.exec(list)?.[1]);
+    expect(floor, ".composer-wrap 那条 max() 兜底读不到").toBeGreaterThan(0);
+    expect(gutter, ".message-list 那条 calc(100% - …px) 兜底读不到").toBeGreaterThan(0);
+    expect(
+      floor * 2,
+      `卡侧每侧 ${floor}px 而正文整体留 ${gutter}px——容器落在 token 与 token + ${gutter} 之间时两条各减不同的数，卡与正文就会错开`
+    ).toBe(gutter);
+  });
+});
