@@ -7716,3 +7716,24 @@ annotation 当场读回为 `files=362 registered=4726 passed=4726 skipped=0 fail
 （判据 `tools/prettier-scope.test.mjs:74-79`），故它们不进格式闸、也不影响上面那组数。
 口径写清：本节正文写于门禁之后，但它只在豁免名单内，门禁覆盖的源码面与本刀落盘集合相同。
 
+### 六、推送与 CI 读回
+
+提交 `a888a6a`（`6fb7b52..a888a6a`，`PUSH_EXIT=0`），通路与前两刀同一枚
+（`GIT_TERMINAL_PROMPT="1"` + `GCM_INTERACTIVE="Auto"`）。该次推送触发 run `38992712332`
+（`head_sha=a888a6a`）`completed / success`，job `117278374876`（作业名「格式 + 6 枚 tsc + eslint +
+边界 + 行数预算 + 全量测试」）的 annotation 当场读回为
+`files=362 registered=4726 passed=4726 skipped=0 failures=0`——**与 README 现绑的 `4bc3973`
+（run 页 `38934635255`）读数一字未变**（4726 = 本机 4729 − 3、本机 passed 比 Linux 多 1，
+与门面现役算式同形）。所以 README「## 门禁」节**不动它**：本刀没挪动用例数，换绑等于拿同一组数把出处改小。
+
+**这一段 CI 读数是推送后补记的**：本节正文已按上面的本机 verify 验过再推；补记这段本身只动 markdown，
+按同一套门禁重跑一次再提交，口径不变（也不做第二次读回避免无限套娃）。
+
+**划掉**：`plans/README.md`「还没做完的」小节里那三条过期话（第三级文字定线 / hover 灰字病因此前作废 /
+提交树单独全绿），以及本台账第二十九节第八目第 3 条与第一百一十六节「仍另案」那半句——本刀闭。
+**仍未收口的（照直写，不含本刀）**：第七节九行表 `README.md:3696` 那行（插件目录拉取该不该做，
+等用户一句话）、`.link-btn:hover` 与暗色危险项两处 accent 画法（等拍板）、
+`:279` 5-㊻「真端点成功回一句」未验完（须真开书 + 真端点）、`:278` 输入框整卡青框未目检、
+`:280` 挂件层与新素材仍卡 ImageGen 403 外部配额、`:284` Responses API 未支持、
+`ecosystem-scan.md:133` `.mochen/changes` 没有保留策略。
+
