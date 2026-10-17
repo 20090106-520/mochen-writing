@@ -360,8 +360,8 @@ describe("运行时 · 画面层", () => {
   it("两个画档各给一张自己的图，且路径是渲染层根的相对路径", () => {
     const night = tokens({ art: "abyss-hall-night" })["--skin-art-image"]!;
     const day = tokens({ art: "shallow-hall-day" })["--skin-art-image"]!;
-    expect(night).toContain('url("skins/abyss-hall-night.webp")');
-    expect(day).toContain('url("skins/shallow-hall-day.webp")');
+    expect(night).toContain('url("skins/abyss-hall-night.jpg")');
+    expect(day).toContain('url("skins/shallow-hall-day.jpg")');
     // 不许出现绝对路径 / file:// / 远程域名：路径是数据能碰到的唯一出口，
     // 枚举就是把它关在「只有这三档」里。带画的东西跑远程 URL 等于每次开窗发一个请求。
     for (const value of [night, day]) {

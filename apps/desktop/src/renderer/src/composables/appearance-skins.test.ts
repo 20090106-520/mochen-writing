@@ -42,7 +42,7 @@ import {
   APPEARANCE_GLASS_LABELS,
   APPEARANCE_GRID_LABELS,
   APPEARANCE_SURFACE_LABELS,
-  OWN_ART_ORIGIN,
+  PHOTO_ART_ORIGIN,
   SKIN_ART_FILTERS,
   SKIN_BACKDROP_FILTERS,
   SKIN_GLASS_FILTERS,
@@ -62,10 +62,12 @@ import { typeScriptSource, scriptSource } from "../utils/vue-source-reader";
 
 const HEX = /^#[\da-f]{6}$/i;
 
-/* 守卫里另写一份这两个字面量，**不从被测代码 import**。
+/* 守卫里另写一份这个字面量，**不从被测代码 import**。
    从 appearanceSkins import 的话，它哪天把判定改成第三个值，守卫会跟着改然后继续全绿——
-   那不是守卫，是一个会跟着被测对象一起改的摆设（批次 5-㊱ 记过这一族）。 */
-const OWN_LICENSE_LITERAL = "本仓自有";
+   那不是守卫，是一个会跟着被测对象一起改的摆设（批次 5-㊱ 记过这一族）。
+   【2026-10-17 第三刀】值从「本仓自有」换成「Unsplash License」：
+   八张画面当天由自绘/自出换成了 Unsplash 上的真人女性人像，许可义务换了家。 */
+const PHOTO_LICENSE_LITERAL = "Unsplash License";
 /** 改编皮出处的固定前缀。**声明在这里，不从 appearanceSkins import**——
  *  出处那句将来可能再拆（2026-10-08 已经从一种自有皮拆到两种），
  *  而守卫要的判据是**形状**（带不带这个前缀），不是某一句具体的话。
@@ -121,14 +123,22 @@ describe("皮肤表 · 形状", () => {
     expect(SKIN_ART_FILTERS, "筛选档里出现了「无画面」").not.toContain("none");
   });
 
-  it("表里的每条都是本仓自有素材（上游美术按裁定不进表）", () => {
+  it("表里的每条出处都是同一句（画面来自 Unsplash 人像；上游美术按裁定不进表）", () => {
     /* 5-㊷ 用户裁定的素材来源是「全部自绘 + 我自己提供图」，**没有选**「把鲸鱼娘那两套
        上游美术搬进来」。所以带画的皮全部是自有素材，出处只有 `OWN_ART_ORIGIN` 一句。
        这条与下面那条「被排除的非商用仓库不许出现」是一对：
        一句钉「只能是谁」，一句钉「绝对不能是谁」。
-       若将来裁定改了、允许搬某一上游，这两条要**一起**改，不许只改短下面那条名单。 */
+       若将来裁定改了、允许搬某一上游，这两条要**一起**改，不许只改短下面那条名单。
+
+       ⚠️【2026-10-17 第三刀就地更正】上面那句「全部自绘」**已被用户自己推翻**：
+       他当天要求「不要自己创建图片，从网上寻找好看的真人美女图片／动漫图做装扮」，
+       ⇒ 八张全部换成 Unsplash 的真人女性人像，那句出处因此从 `墨宸原创画面`
+         换成 `Unsplash 人像`（常量同批改名 `PHOTO_ART_ORIGIN`）。
+       这条守卫**形状没变**（仍旧钉「表里只有一句出处」），变的只是那一句是什么——
+       而「哪四张照片、哪条许可、模特授权怎么算」逐条记在 `docs/ATTRIBUTION.md`，
+       不住在这条守卫里（许可义务是文档的事，不是断言的事）。 */
     for (const skin of appearanceSkins) {
-      expect(skin.origin, `${skin.id} 的出处不是自有素材`).toBe(OWN_ART_ORIGIN);
+      expect(skin.origin, `${skin.id} 的出处不是那一句画面出处`).toBe(PHOTO_ART_ORIGIN);
     }
   });
 
@@ -313,7 +323,7 @@ describe("上游层档名 · 现在只为「老 JSON 解析得动」而存在", 
 });
 
 describe("皮肤表 · 出处与许可", () => {
-  it("自有皮许可是「本仓自有」，改编皮是 MIT，且两类互斥且都有归属", () => {
+  it("画面皮许可是「Unsplash License」，改编皮是 MIT，且两类互斥且都有归属", () => {
     /* 【为什么判据是「带不带改编前缀」而不是「等于某一句出处」】
        原写法是 `skin.origin === "墨宸出厂配色"`，它把「自有皮」等同于**那一句**。
        加上原创画面皮（出处是另一句）之后，那两条既不等于出厂那一句、
@@ -321,7 +331,12 @@ describe("皮肤表 · 出处与许可", () => {
        而它们的许可是「本仓自有」。红的位置离病因很远。
 
        ⇒ 改成**结构判据**：带「改编自 」前缀的是改编皮，其余都是自有皮。
-         这样再加第几种自有皮都不用改守卫，而「两类互斥且都有归属」由下面两条守住。 */
+         这样再加第几种自有皮都不用改守卫，而「两类互斥且都有归属」由下面两条守住。
+       ⚠️【2026-10-17 第三刀就地更正】上面那句「它们的许可是【本仓自有】」
+       与「其余都是自有皮」里的「自有」二字**已不成立**：画面当天换成 Unsplash 人像，
+       许可随之变成「Unsplash License」（就是下面那个 `PHOTO_LICENSE_LITERAL`）。
+       **判据的形状一个字没改**——它钉的一直是「带不带改编前缀」这个**结构**，
+       这正是当初把它写成结构判据的好处：换一次素材来源不用动判据。 */
     let ownCount = 0;
     let adaptedCount = 0;
     for (const skin of appearanceSkins) {
@@ -334,12 +349,12 @@ describe("皮肤表 · 出处与许可", () => {
         ownCount += 1;
         expect(
           skin.license,
-          `${skin.id} 的出处「${skin.origin}」不带改编前缀，所以它是自有皮，许可必须是「${OWN_LICENSE_LITERAL}」`
-        ).toBe(OWN_LICENSE_LITERAL);
+          `${skin.id} 的出处「${skin.origin}」不带改编前缀，所以它是画面皮，许可必须是「${PHOTO_LICENSE_LITERAL}」`
+        ).toBe(PHOTO_LICENSE_LITERAL);
       }
     }
     // 数字钉死：加皮肤时这里会红一次，逼着人回来看这一条判据还成不成立。
-    expect(ownCount, "广场上的自有画面皮应是四系列 × 昼夜共八条").toBe(8);
+    expect(ownCount, "广场上的画面皮应是四系列 × 昼夜共八条").toBe(8);
     /* 5-㊷：五套改编皮从广场下架（它们没有整窗画面）。
        **条目下架，数值与出处留在 `appearanceSkinVisual.ts`**，
        所以下面那个「改编那五条的出处形状」describe 改成钉「形状判据仍然成立」，

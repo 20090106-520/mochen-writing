@@ -1,4 +1,4 @@
-// 场景画的**像素级**可读性复核（2026-10-08 波2a 建 · 2026-10-17 波2 起量的是原创位图）
+// 人像画的**像素级**可读性复核（2026-10-08 波2a 建 · 2026-10-17 第三刀起量的是网上人像）
 //
 // 【为什么生成器里那道 palette 自检不够】
 // 生成器算的是「调色板上那几个色值的亮度差」，是设计期的**代理指标**：
@@ -8,26 +8,32 @@
 // 生成器那道门保留（它能拦住「三层山压成同一层亮度」这种源头问题），
 // **这道才是终点的门**。
 //
-// 【量的是哪六张】三个系列 × 昼夜（`book-boat-*` / `lamp-tower-*` / `ink-pool-*`）。
-// 2026-10-17 波2 起这六张的盘上格式由 SVG 换成 **人工出图 + 脚本管线的原创位图**（webp），
-// 但这道门**与格式无关**：矢量位图都画进 canvas 之后量同一批像素（规格单 §4 第 8 条）。
-// `abyss-hall-night.webp` / `shallow-hall-day.webp` **不在**这道门的覆盖里——它们是
-// **人物立绘族**（两位姑娘分守左右），G2 那条「两缘带与中段带的均值差 ≥10」对它们
-// 是范畴错误（立绘族的画意恰恰在把中段留得比两缘**更亮**，实测缘中差 −3.7/−4.0）。
-// 它们由 `appearance-skin-assets.test.ts` 管（存在/尺寸/比例/体积/昼夜成对）。
+// 【量的是哪八张】四组 × 昼夜，`abyss-hall-night` / `shallow-hall-day` /
+// `book-boat-*` / `lamp-tower-*` / `ink-pool-*` —— **全部八张，一张不落**。
+// 原先这里写的是「三个系列 × 昼夜（六张）」，且把汐那两张按「人物立绘族」排除在外。
 //
-// 【三条判据，都可量，都在 320×180 的缩略图上算】
-//   G1 明度分层：把亮度按 22 点一档分桶（22 点是 v2 的间隔阈值），
-//      要求**至少 4 个桶各占 ≥2% 面积**——对应「远景/中景/主体/前景」四层拉得开。
-//   G2 两缘有主体：左缘带与右缘带各自的 p90−p10 亮度跨度 ≥ 18，
-//      且与中段带的均值差 ≥ 10（只有一片渐变是造不出跨度的）。
-//   G3 中段保持安静：中段带的横向相邻像素平均亮度差 ≤ 4（正文要落在这里），
-//      且两缘带的该值 ≥ 中段的 2 倍（信息确实在边缘，不在中间）。
-// 三条里任何一条不过就抛错，不允许「看着还行」。
+// ⚠️【2026-10-17 第三刀就地更正：判据改成两条，覆盖扩到八张】
+// 上面那句「量的是哪六张」以及「汐那两张不在覆盖里」记的是**场景画 / 立绘族**那一版，
+// 已过期：用户当天要求「不要自己创建图片，从网上寻找好看的真人美女图片／动漫图做装扮」，
+// 八张于是全部换成 Unsplash 的真人女性人像（`.webp` → `.jpg`）。
+// ⇒ 覆盖从六张扩到**八张**：汐那两张如今也是人像，「立绘族」这个类别不存在了。
+// ⇒ 那三条判据里的 **G2「两缘有主体」与 G3「中段保持安静」对人像是范畴错误**：
+//   人像的主体（脸）本来就在画面中间，G2 会要求中段比两缘**暗**、G3 会要求中段
+//   横向相邻亮度差 ≤4 且两缘 ≥ 中段的 2 倍——一张脸摆在中间，这两条必然判红。
+//   硬留它们等于「为了让闸变绿去把人的脸挪开」，那是让闸改需求，不是让画过闸。
+// ⇒ 所以改成**与主体无关**的两条：
+//   G1 明度分层：亮度按 22 点一档分桶（22 点是 v2 的间隔阈值），要求
+//      **至少 4 个桶各占 ≥2% 面积**——一张真照片的直方图天然铺得开，
+//      一片纯色或平滑渐变铺不开（反向用例量的正是后者）。
+//   G2 不空：**全图** p90−p10 的亮度跨度 ≥ 18——整幅不是一张平涂。
+//   两缘 / 中段 / 边缘能量那三段统计**仍照量、仍打出来**，只是不再当判据：
+//   它们还是有用的观测量（这张人像的构图偏在哪一边，看它们比看判据快）。
+//
+// 【格式仍然无关】矢量与位图都画进 canvas 之后量同一批像素（规格单 §4 第 8 条）。
 //
 // 【不落盘、不污染】只在页面里建一张离屏 canvas；跑完不留在 DOM 里。
 //
-// 【怎么跑】这道门要一个**真的浏览器**来解码（webp 与 svg 都是），所以它连一台正在跑、
+// 【怎么跑】这道门要一个**真的浏览器**来解码（jpg 与 svg 都是），所以它连一台正在跑、
 // 开了远程调试端口的实例（默认 9234，可用 `CDP_PORT` 改）：
 //   1. `corepack pnpm --dir apps/desktop build`
 //   2. `apps/desktop/node_modules/.bin/electron apps/desktop/out/main/index.js --remote-debugging-port=9234 --user-data-dir=<临时目录>`
@@ -91,12 +97,14 @@ async function connect() {
 
 const SKIN_DIR = path.join(__dirname, "..", "src", "renderer", "public", "skins");
 const FILES = [
-  "book-boat-night.webp",
-  "book-boat-day.webp",
-  "lamp-tower-night.webp",
-  "lamp-tower-day.webp",
-  "ink-pool-night.webp",
-  "ink-pool-day.webp"
+  "abyss-hall-night.jpg",
+  "shallow-hall-day.jpg",
+  "book-boat-night.jpg",
+  "book-boat-day.jpg",
+  "lamp-tower-night.jpg",
+  "lamp-tower-day.jpg",
+  "ink-pool-night.jpg",
+  "ink-pool-day.jpg"
 ];
 const TW = 320;
 const TH = 180;
@@ -139,8 +147,8 @@ function measureExpr(mime, b64) {
     "var occ=bucket.map(function(c,i){return {b:i,share:+(c/L.length*100).toFixed(1)};}).filter(function(x){return x.share>=2;});" +
     "var band=function(x0,x1){var v=[];var e=0;var n=0;for(var y=Math.floor(H*0.12);y<Math.floor(H*0.88);y++){for(var x=x0;x<x1-1;x++){var l=L[y*W+x];v.push(l);var dl=Math.abs(L[y*W+x+1]-l);e+=dl;n++;}}var m=v.reduce(function(a,c){return a+c;},0)/v.length;var sd=pct(v,0.9)-pct(v,0.1);return {mean:+m.toFixed(1),span:+sd.toFixed(1),edge:+(e/n).toFixed(2)};};" +
     "var left=band(0,Math.floor(W*0.27));var mid=band(Math.floor(W*0.29),Math.floor(W*0.70));var right=band(Math.floor(W*0.73),W);" +
-    "var all=Array.prototype.slice.call(L);var lo=pct(all,0.02);var hi=pct(all,0.98);" +
-    "res(JSON.stringify({w:W,h:H,buckets:occ,left:left,mid:mid,right:right,p2:+lo.toFixed(1),p98:+hi.toFixed(1)}));};" +
+    "var all=Array.prototype.slice.call(L);var lo=pct(all,0.02);var hi=pct(all,0.98);var g10=pct(all,0.1);var g90=pct(all,0.9);" +
+    "res(JSON.stringify({w:W,h:H,buckets:occ,left:left,mid:mid,right:right,p2:+lo.toFixed(1),p98:+hi.toFixed(1),span:+(g90-g10).toFixed(1)}));};" +
     "img.src='data:" +
     mime +
     ";base64,'+b64;})})()"
@@ -158,13 +166,8 @@ for (const file of FILES) {
     continue;
   }
   const g1 = r.buckets.length >= 4;
-  const g2 =
-    r.left.span >= 18 &&
-    r.right.span >= 18 &&
-    Math.abs(r.left.mean - r.mid.mean) >= 10 &&
-    Math.abs(r.right.mean - r.mid.mean) >= 10;
-  const g3 = r.mid.edge <= 4 && r.left.edge >= r.mid.edge * 2 && r.right.edge >= r.mid.edge * 2;
-  const ok = g1 && g2 && g3;
+  const g2 = r.span >= 18;
+  const ok = g1 && g2;
   if (!ok) bad++;
   console.log(
     (ok ? "PASS " : "FAIL ") +
@@ -172,7 +175,16 @@ for (const file of FILES) {
       " G1分层=" +
       r.buckets.length +
       (g1 ? "✓" : "✗") +
-      " G2缘跨=" +
+      " G2不空=" +
+      r.span +
+      (g2 ? "✓" : "✗") +
+      " | p2..p98=" +
+      r.p2 +
+      ".." +
+      r.p98 +
+      " 桶=" +
+      r.buckets.map((x) => x.b + ":" + x.share).join(",") +
+      " ⟨观察项：缘跨=" +
       r.left.span +
       "/" +
       r.right.span +
@@ -180,29 +192,25 @@ for (const file of FILES) {
       (r.left.mean - r.mid.mean).toFixed(1) +
       "/" +
       (r.right.mean - r.mid.mean).toFixed(1) +
-      (g2 ? "✓" : "✗") +
-      " G3静=" +
+      " 中段边缘=" +
       r.mid.edge +
-      " 缘动=" +
+      " 两缘边缘=" +
       r.left.edge +
       "/" +
       r.right.edge +
-      (g3 ? "✓" : "✗") +
-      " | p2..p98=" +
-      r.p2 +
-      ".." +
-      r.p98 +
-      " 桶=" +
-      r.buckets.map((x) => x.b + ":" + x.share).join(",")
+      "⟩"
   );
 }
 await sleep(120);
-console.log(bad === 0 ? "六张全过" : "有 " + bad + " 张不合格");
+console.log(bad === 0 ? "八张全过" : "有 " + bad + " 张不合格");
 
 /**
  * 反向用例：一张**只有底色渐变、没有主体**的对照图必须判红。
- * 没有这一步，「六张全过」可能只是因为判据根本不成立（永远绿）。
+ * 没有这一步，「八张全过」可能只是因为判据根本不成立（永远绿）。
  * 这条对照就是 v1 夜版在缩略图上的真实样子——一片没有东西的渐变。
+ * 【2026-10-17 第三刀】它现在判红的位置是 **G1**：那片渐变的亮度全挤在头两个桶里，
+ * 桶数到不了 4（G2 的全局跨度反而过得去，所以真正咬住它的是分层那一条）。
+ * 这也正是留着这条对照的理由：它证明 G1 不是一条永远为真的空话。
  */
 const blank =
   "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 2560 1440' width='2560' height='1440'>" +
@@ -213,19 +221,17 @@ const blank =
 const ctrl = JSON.parse(
   await cdp.evaluate(measureExpr("image/svg+xml", Buffer.from(blank, "utf8").toString("base64")))
 );
-const ctrlPass = ctrl.buckets.length >= 4 && ctrl.left.span >= 18 && ctrl.right.span >= 18;
+const ctrlPass = ctrl.buckets.length >= 4 && ctrl.span >= 18;
 console.log(
   (ctrlPass
     ? "FAIL 反向用例：空渐变竟然判过了，说明判据没牙齿 | "
     : "PASS 反向用例：空渐变判红 | ") +
     JSON.stringify(ctrl.buckets) +
+    " 全局跨度=" +
+    ctrl.span +
     " 缘跨=" +
     ctrl.left.span +
     "/" +
-    ctrl.right.span +
-    " 缘中差=" +
-    (ctrl.left.mean - ctrl.mid.mean).toFixed(1) +
-    "/" +
-    (ctrl.right.mean - ctrl.mid.mean).toFixed(1)
+    ctrl.right.span
 );
 process.exit(bad === 0 && !ctrlPass ? 0 : 1);

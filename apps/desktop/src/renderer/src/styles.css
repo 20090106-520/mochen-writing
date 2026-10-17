@@ -55,8 +55,13 @@
   /* 左栏收起后留在左缘的那条窄轨（2026-10-17）。它不是装饰：收起时列宽若仍是 0，
      内容就从 x=0 起画，那枚「展开左侧栏」抓手会压在内容上——真机量过，设置中心
      自带左导航的第一个字从 x=22 起，抓手占 0..31，正好切掉「偏好 / 关于」那几个组标题；
-     对话页也会压住正文左缘。留一条窄轨把内容推到轨右边，抓手住在轨里，两边都不碰。 */
-  --left-rail-width: 34px;
+     对话页也会压住正文左缘。留一条窄轨把内容推到轨右边，抓手住在轨里，两边都不碰。
+     【2026-10-17 同日改纯图标后的第二句话】轨宽**等于**那枚图标钮的边长——即 `.icon-button`
+     的 32px（观感全借它，见下面 `.pane-edge-toggle` 那块）。原来 34px 配的是竖排文字竖条
+     （真机量到 31×122），文字一撤，多出来的宽度就只是一条没有东西住的空白带：
+     「两边收缩的比例不对」里左半边那一半说的就是它。判据钉「轨宽必须等于图标钮边长」
+     （`extensions-page-wiring.test.ts`），改一处另一处就红。 */
+  --left-rail-width: 32px;
   --right-pane-width: clamp(410px, 34vw, 650px);
   --center-pane-min: 320px;
   --line: var(--theme-line, #dedfdf);
@@ -258,50 +263,23 @@ html[data-platform="darwin"] .desktop-shell {
   left: 0;
 }
 
-/* 左栏收起后左缘那枚竖条「展开左侧栏」（2026-10-17）。
+/* 左栏收起后左缘那枚图标钮「展开左侧栏」（2026-10-17）。
    它恒挂在 shell 上、只读 leftCollapsed，于是对话 / 插件·技能 / 皮肤广场 / 设置四页都在——
    原先那枚住在 CenterColumn 头上，而 CenterColumn 只在 centerView === 'chat' 渲染，
    非对话视图收起左栏后没有任何可见入口（真机实测 hasExpandBtn=false）。
-   落点与 .pane-resizer-left 同源：都是 shell 的绝对定位元素，贴着左缘，与兄弟的书写顺序无关。 */
+   落点与 .pane-resizer-left 同源：都是 shell 的绝对定位元素，贴着左缘，与兄弟的书写顺序无关。
+   【2026-10-17 同日】它不再是一枚自己画的竖条，而是纯图标钮：上面那三条维度的写法
+   （flex 竖排、padding、border、圆角、底色、hover、focus-visible）整段撤掉，观感全借
+   `conversation-pane.css` 的 `.icon-button`——左栏自己那枚「收起左侧栏」用的就是它。
+   本块从此只写**落点**：写宽高 / 居中 / 圆角 / 底色就是同一族控件第二份实现（铁律 6），
+   判据 `extensions-page-wiring.test.ts` 会当场红。 */
 .pane-edge-toggle {
   position: absolute;
   z-index: 21;
   top: 50%;
   left: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-  padding: 14px 7px;
-  border: 1px solid var(--line-soft);
-  border-left: 0;
-  border-radius: 0 var(--skin-radius-md, 10px) var(--skin-radius-md, 10px) 0;
-  background: var(--surface-raised);
-  color: var(--text-soft);
-  cursor: pointer;
   transform: translateY(-50%);
-  transition:
-    color 120ms ease,
-    background-color 120ms ease;
   -webkit-app-region: no-drag;
-}
-
-.pane-edge-toggle:hover {
-  background: var(--hover);
-  color: var(--text-primary);
-}
-
-.pane-edge-toggle:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 45%, transparent);
-}
-
-.pane-edge-toggle-label {
-  /* 0.785714rem = 默认 14px 下的 11px。**不许写 11px**：写死像素的字号不随
-     `--ui-font-size` 缩放，`ui-font-scale-guard.test.ts` 当场红（本波第一次 verify 就是这么红的）。 */
-  font-size: 0.785714rem;
-  letter-spacing: 0.24em;
-  writing-mode: vertical-rl;
 }
 
 .desktop-shell.is-left-collapsed {

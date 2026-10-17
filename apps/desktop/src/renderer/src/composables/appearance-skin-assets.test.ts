@@ -93,6 +93,11 @@ function svgSize(text: string): { width: number; height: number } | null {
  * 尺寸是签名后那 14+14 位）、`VP8X`（扩展头，24 位画布宽高）。
  * 认不出来就返回 null，让那条「量不出尺寸」的断言指名道姓地红——
  * 而不是悄悄跳过一条本该有尺寸的位图。
+ *
+ * ⚠️【2026-10-17 第三刀】盘上**已经一张 WebP 都没有了**（八张全换成 `.jpg`），
+ * 所以这一支现在只在「有人把某张换回 webp」时才会走到。
+ * **故意留着不删**：上面那条扩展名白名单仍然认 webp，删了这个读法，
+ * 那一档就变成「白名单放行、却量不出尺寸」的沉默洞。
  */
 function webpSize(buffer: Buffer): { width: number; height: number } | null {
   if (buffer.length < 30) return null;

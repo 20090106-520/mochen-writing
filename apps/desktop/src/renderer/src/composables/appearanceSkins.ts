@@ -154,7 +154,8 @@ export interface AppearanceSkin {
  *
  * 【为什么曾经有两句「自有」】
  * 5-㊷ 之前素面配色也在广场里，那时「墨宸自有」分成两族：只有三色的出厂配色
- * 与带整窗画面的原创皮，出处各一句（`OWN_SKIN_ORIGIN` / `OWN_ART_ORIGIN`）。
+ * 与带整窗画面的原创皮，出处各一句（`OWN_SKIN_ORIGIN` / 画面皮那一句）——
+ * 后者 2026-10-17 起已换成 Unsplash 那句，见下面那条就地更正。
  * 给「汐」系列用过同一句出处的后果是真机红过一次：那一族投影（`themePresets`）
  * 按出处字符串筛，两条带画的皮被投影了进去，10 条变 12 条。
  *
@@ -163,8 +164,26 @@ export interface AppearanceSkin {
  * 直接钉在表上——将来往里加第二种归属（例如又搬一条上游）时，
  * 要同时改这条守卫，而不是悄悄多出一句没人对照的字符串。
  */
-export const OWN_ART_ORIGIN = "墨宸原创画面";
-export const OWN_ART_LICENSE = "本仓自有";
+/* ⚠️【2026-10-17 第三刀：出处与许可两句就地更正】
+   上面那一整段（含「墨宸**原创画面**」这个提法）说的是「自绘 + 自有图」那一版的口径。
+   用户同日把它推翻了，原话：「在上面还有皮肤，你可以给它删掉，从网上寻找一点好看的
+   真人美女图片做，或者动漫的做装扮不要自己创建图片。」
+   ⇒ 八张画面**全部换成 Unsplash 上的真人女性人像**（四张照片 × 昼夜两个 grade，
+     管线脚本见 `docs/ATTRIBUTION.md` 的皮肤段），自绘与自出的原画一张不留。
+   ⇒ 于是这两句换成了下面这两句。**原文保留在上面**——它记的是 5-㊷ 那一版
+     「自制素材、不引第三方」的真实理由，那一条如今被用户自己改掉了。
+   ⇒ `origin` 这一句**不能省掉照片本身**：卡面上写「Unsplash 人像」，而具体是哪四张、
+     哪一条许可、模特授权的事怎么算，逐条记在 `docs/ATTRIBUTION.md`（许可义务不住在代码里）。
+   ⇒ 名字也随画面改了（本表的 `label` 与下面 `APPEARANCE_ART_LABELS`）：画面已经是人了，
+     再叫「书舟 · 昼渡」就正是「卡上写 A、屏幕上是 B」。**id 一个字没动**——
+     它是存进用户盘上 theme JSON 里的（理由见 `appearanceSkinVisual.ts` 的 `ART_FILES` 注释）。
+   ⇒ 旧名 → 新名对照（别处按老名记下的读数，按这张表读）：
+       汐·昼阁 → 绯青·昼影    汐·夜阁 → 绯青·夜影
+       书舟·昼渡 → 青瓷·昼镜   书舟·夜航 → 青瓷·夜镜
+       灯楼·晴昼 → 晴窗·昼颜   灯楼·燃夜 → 晴窗·夜颜
+       墨潭·映日 → 暖砂·昼颜   墨潭·沉雾 → 暖砂·夜阑 */
+export const PHOTO_ART_ORIGIN = "Unsplash 人像";
+export const PHOTO_ART_LICENSE = "Unsplash License";
 
 /**
  * 皮肤广场的全表：**只有带整窗画面的皮肤才进这里**。
@@ -197,14 +216,19 @@ export const appearanceSkins: AppearanceSkin[] = [
 
      【许可：本仓自有】
      画是原创设计，不搬任何上游的美术，
-     所以 `origin` 走自家那一句、`license` 写「本仓自有」。 */
+     所以 `origin` 走自家那一句、`license` 写「本仓自有」。
+     ⚠️【2026-10-17 就地更正】以上整段——含「深渊 × 鲸鱼 × 深海写作阁」的概念、
+     两位鲸耳姑娘、以及「本仓自有」这条许可——记的是 5-㊵ 那一版**自绘画面**，**已过期**：
+     这两张当天换成了 Unsplash 上的真人侧影人像（`.webp` → `.jpg`），
+     鲸耳姑娘与海底阁子都不在了，出处与许可改走表头那两句。
+     原文保留，它记的是那一版当时真实的设计理由。 */
 
   {
     id: "xi-day",
-    label: "汐 · 昼阁",
-    tagline: "浅海透光的同一间阁子。与夜阁同一套构图，白天看着像晒着太阳的书房。",
-    origin: OWN_ART_ORIGIN,
-    license: OWN_ART_LICENSE,
+    label: "绯青 · 昼影",
+    tagline: "同一位姑娘的侧影：绯红与青绿两色光各占一侧。日间版把整幅提亮，画面偏淡紫。",
+    origin: PHOTO_ART_ORIGIN,
+    license: PHOTO_ART_LICENSE,
     /* 浅色版 accent 取 #2A7699 而不是画里那块亮蓝（#2E7FA8）：
        它与白字只有 4.45:1，压在按钮上差一口气不到 4.5:1，
        而按钮上那行字的可读性是由计算说了算的（appearance-theme-readability.test.ts）。 */
@@ -219,10 +243,10 @@ export const appearanceSkins: AppearanceSkin[] = [
 
   {
     id: "xi-night",
-    label: "汐 · 夜阁",
-    tagline: "深蓝压暗的海底藏书阁。两位鲸耳姑娘守着稿子，中间整片留给正文。",
-    origin: OWN_ART_ORIGIN,
-    license: OWN_ART_LICENSE,
+    label: "绯青 · 夜影",
+    tagline: "同一位姑娘、同一套构图，夜版压深压冷，中间整片留给正文。",
+    origin: PHOTO_ART_ORIGIN,
+    license: PHOTO_ART_LICENSE,
     /* 「夜阁」的**浅色版底色本来就是深蓝**（那是一套画在夜里的皮肤）。
        所以画上面那层纱不能按当前是浅色还是深色模式给，要按这条皮肤自己的底色给——
        判据写在 `appearanceSkinVisual.ts` 的 `artVeil` 上，别再改回按 scheme 分支。 */
@@ -268,7 +292,15 @@ export const appearanceSkins: AppearanceSkin[] = [
      `.archcore/architecture/entry-points.doc.md` 引用。真正退役的是它**产出的那六个 `.svg`**
      （已从 `public/skins/` 删除，`ART_FILES` 也不再指向它们）。这一波的落点写的是
      「删掉六个 `.svg`」，**生成器没删**——照 `docs/ATTRIBUTION.md` 那条同批更正读。
-
+     ⚠️⚠️【2026-10-17 第三刀就地更正】以上整段（波2a 与波2）记的是「矢量→自出位图」那条线，
+     而这条线当天又被**反向**推翻了一次：用户要求「不要自己创建图片，从网上找真人美女图片
+     或动漫图做装扮」，于是这六张 `.webp` 连同 5-㊵ 那两张**全部换成 Unsplash 的真人女性人像**，
+     扩展名改为 `.jpg`，`id` 与皮肤表一处未动。
+     ⇒ 波2a 的矢量与波2 的自出位图**现在一张都不在用**（`gen-scene-svgs.mjs` 的本体仍在仓内、
+       仍被 README 与 package.json 引用，只是它的产出不再进 `public/skins/`）。
+     ⇒ 上面那些构图硬规则（中段暗区、上下 12% 不放关键元素、左右两缘叙事）是给场景画定的，
+       对人像**范畴错误**——`check-scene-art.mjs` 已按这一批改写成与主体无关的两条判据。
+     ⇒ 原文全部保留：每一段记的都是它自己那一版当时的真实过程，只是现在站的是第三条线。
      【backdrop 为什么不跟着画换档】
      画是**不透明整幅**，而 `.desktop-shell` 那条 `background-image` 的顺序是
      纱在上、画在中、backdrop 在下 ⇒ 除非画没加载出来，`nebula / ember / midnight`
@@ -284,10 +316,10 @@ export const appearanceSkins: AppearanceSkin[] = [
 
   {
     id: "voyage-day",
-    label: "书舟 · 昼渡",
-    tagline: "浅海里一叶装满稿纸的小舟，船头挂着灯。左侧是鲸背，中间整片留给正文。",
-    origin: OWN_ART_ORIGIN,
-    license: OWN_ART_LICENSE,
+    label: "青瓷 · 昼镜",
+    tagline: "棕发姑娘一手贴在颊边。日间版把冷底烘上一层薄暖，右缘是虚化的背景。",
+    origin: PHOTO_ART_ORIGIN,
+    license: PHOTO_ART_LICENSE,
     light: { accent: "#256C86", background: "#EAF7FB", foreground: "#0F2E3E" },
     dark: { accent: "#5CC0DE", background: "#0B2233", foreground: "#D8EEF7" },
     backdrop: "aurora",
@@ -299,10 +331,10 @@ export const appearanceSkins: AppearanceSkin[] = [
 
   {
     id: "voyage-night",
-    label: "书舟 · 夜航",
-    tagline: "同一叶舟，夜里只靠船头那盏灯。鲸的剪影退到左边，中段是空旷的水。",
-    origin: OWN_ART_ORIGIN,
-    license: OWN_ART_LICENSE,
+    label: "青瓷 · 夜镜",
+    tagline: "同一位姑娘，夜版换成冷蓝、明暗一并收窄，整幅往下压深。",
+    origin: PHOTO_ART_ORIGIN,
+    license: PHOTO_ART_LICENSE,
     /* 夜景套的浅色版底色本来就该是夜（这条规则来自「汐 · 夜阁」那次纠正）：
        判据在 appearance-theme-readability.test.ts 的 NIGHT_SCENE_IDS，别把它调亮。 */
     light: { accent: "#4C9DBA", background: "#0A2130", foreground: "#D9EDF6" },
@@ -316,10 +348,10 @@ export const appearanceSkins: AppearanceSkin[] = [
 
   {
     id: "lamp-day",
-    label: "灯楼 · 晴昼",
-    tagline: "灯塔里的螺旋书架晒着白天的光。书格在左，摊开的稿纸与墨瓶在右下，中段留空。",
-    origin: OWN_ART_ORIGIN,
-    license: OWN_ART_LICENSE,
+    label: "晴窗 · 昼颜",
+    tagline: "金发姑娘在阳光里笑。日间版把整幅提到暖白，背后那面石墙也跟着亮起来。",
+    origin: PHOTO_ART_ORIGIN,
+    license: PHOTO_ART_LICENSE,
     light: { accent: "#9A6A1E", background: "#FAF4E6", foreground: "#2C2415" },
     dark: { accent: "#D9A64E", background: "#171208", foreground: "#F2E6CC" },
     backdrop: "aurora",
@@ -331,10 +363,10 @@ export const appearanceSkins: AppearanceSkin[] = [
 
   {
     id: "lamp-night",
-    label: "灯楼 · 燃夜",
-    tagline: "同一座楼，只剩灯束斜着穿下来。左缘一层层书格退远，稿纸压在灯下的角落里。",
-    origin: OWN_ART_ORIGIN,
-    license: OWN_ART_LICENSE,
+    label: "晴窗 · 夜颜",
+    tagline: "同一张笑脸，夜版压成冷蓝——同一个午后走到天黑，只差这一层色。",
+    origin: PHOTO_ART_ORIGIN,
+    license: PHOTO_ART_LICENSE,
     light: { accent: "#D9B072", background: "#16273F", foreground: "#E9E1CE" },
     dark: { accent: "#F0C578", background: "#0A1220", foreground: "#EDE4D2" },
     backdrop: "abyss",
@@ -346,10 +378,10 @@ export const appearanceSkins: AppearanceSkin[] = [
 
   {
     id: "pool-day",
-    label: "墨潭 · 映日",
-    tagline: "山间书亭晒着天光，潭面把光映成一段不成句的白。亭在左，雾在右，潭心留给正文。",
-    origin: OWN_ART_ORIGIN,
-    license: OWN_ART_LICENSE,
+    label: "暖砂 · 昼颜",
+    tagline: "石墙前的笑颜。日间版把砖石与肤色一并提亮，中间整片照旧留给正文。",
+    origin: PHOTO_ART_ORIGIN,
+    license: PHOTO_ART_LICENSE,
     light: { accent: "#25736E", background: "#EAF6F1", foreground: "#10302F" },
     dark: { accent: "#4FB3AA", background: "#0C2321", foreground: "#DFF2EC" },
     backdrop: "aurora",
@@ -361,10 +393,10 @@ export const appearanceSkins: AppearanceSkin[] = [
 
   {
     id: "pool-night",
-    label: "墨潭 · 沉雾",
-    tagline: "同一口潭起了夜雾。岸线只剩两道边，水纹在左右两角，中间整片是沉下去的墨色。",
-    origin: OWN_ART_ORIGIN,
-    license: OWN_ART_LICENSE,
+    label: "暖砂 · 夜阑",
+    tagline: "同一位姑娘，夜版把石墙压成深褐，只留脸上一层光。",
+    origin: PHOTO_ART_ORIGIN,
+    license: PHOTO_ART_LICENSE,
     light: { accent: "#54A7A2", background: "#0A1D22", foreground: "#D6EDE8" },
     dark: { accent: "#72D2CB", background: "#050E12", foreground: "#CFEAE4" },
     backdrop: "abyss",
@@ -495,15 +527,20 @@ export const APPEARANCE_GRID_LABELS: Record<AppearanceGrid, string> = {
 };
 
 /** 画面层的中文档名。`none` 这一档写「无画面」而不是「无插画」——
- *  它挡掉的是**整窗背景位图**，而 backdrop 那层 CSS 弥散光不受它影响。 */
+ *  它挡掉的是**整窗背景位图**，而 backdrop 那层 CSS 弥散光不受它影响。
+ *
+ *  ⚠️【2026-10-17 就地更正】下面八档的**键一个没动**（那是存进用户盘上 theme JSON 的 id），
+ *  值从「场景画的档名」改成了**画面里那位姑娘的档名**——八张图当天全换成
+ *  Unsplash 的真人女性人像，再叫「深海夜阁」就是卡上写 A、屏幕上是 B。
+ *  旧值保留在 `docs/ATTRIBUTION.md` 的皮肤段与皮肤表的旧名→新名对照里。 */
 export const APPEARANCE_ART_LABELS: Record<AppearanceArt, string> = {
   none: "无画面",
-  "abyss-hall-night": "深海夜阁",
-  "shallow-hall-day": "浅海昼阁",
-  "book-boat-night": "书舟夜航",
-  "book-boat-day": "书舟昼渡",
-  "lamp-tower-night": "灯楼燃夜",
-  "lamp-tower-day": "灯楼晴昼",
-  "ink-pool-night": "墨潭沉雾",
-  "ink-pool-day": "墨潭映日"
+  "abyss-hall-night": "绯青夜影",
+  "shallow-hall-day": "绯青昼影",
+  "book-boat-night": "青瓷夜镜",
+  "book-boat-day": "青瓷昼镜",
+  "lamp-tower-night": "晴窗夜颜",
+  "lamp-tower-day": "晴窗昼颜",
+  "ink-pool-night": "暖砂夜阑",
+  "ink-pool-day": "暖砂昼颜"
 };

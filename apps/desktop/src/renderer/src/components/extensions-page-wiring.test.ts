@@ -282,6 +282,33 @@ describe("2026-10-17 · 左栏收起后「出得来」：抓手恒在 shell 上�
     expect(collapsed).toContain("var(--left-rail-width)");
     expect(collapsed, "列宽回到 0 会让抓手压在内容上").not.toMatch(/grid-template-columns:\s*0\b/);
   });
+
+  it("抓手是纯图标件：与左栏那枚「收起左侧栏」同款，不再挂竖排文字", () => {
+    /* 用户 2026-10-17：「两边收缩的比例不对都说了，就不要显示展开侧边栏了，
+       就和旁边的那个一样，点一下就行了」。
+       改前那枚是**竖排文字竖条**——真机量到 31×122，而旁族图标钮是 32×32：
+       「比例不对」有一半就出在这里（另外那半在下面那条轨宽）。 */
+    const markup = templateSource("components/PaneEdgeToggle.vue");
+    expect(markup, "抓手还挂着竖排文字那一条").not.toContain("pane-edge-toggle-label");
+    expect(markup, "竖排写法不许回来").not.toContain("writing-mode");
+    expect(markup, "抓手不是纯图标件（没借旁族那枚的样式）").toContain(
+      'class="icon-button pane-edge-toggle"'
+    );
+    const shell = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+    // 定位块里只许有落点：观感若在这里再写一遍（width/居中/圆角/底色），
+    // 那就是同一族控件第二份实现——改一处忘另一处时界面上看不出来。
+    const block = ruleBlock(shell, ".pane-edge-toggle");
+    expect(block, "定位块里混进了观感").not.toMatch(/writing-mode|width:|height:|border-radius:/);
+    /* 轨宽必须**等于**那枚图标钮的边长：留一条比钮还宽的底，就是「收起后左缘多出
+       一条没有东西住的空白带」。两处值一改一漏，这条当场红。 */
+    const iconSide = /width:\s*(\d+)px;/.exec(
+      ruleBlock(styleSource("conversation-pane.css"), ".icon-button")
+    )?.[1];
+    expect(iconSide, "读不出 .icon-button 的边长").toBeTruthy();
+    expect(shell, `窄轨宽度必须等于图标钮边长（${iconSide}px）`).toContain(
+      `--left-rail-width: ${iconSide}px;`
+    );
+  });
 });
 
 describe("落在哪一处 · 取数全走 store", () => {

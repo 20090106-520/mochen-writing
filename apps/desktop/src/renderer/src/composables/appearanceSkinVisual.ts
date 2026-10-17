@@ -401,8 +401,8 @@ const glassSheen = (accent: string, cornerAlpha: number): string =>
  * 由 electron-vite 原样拷到产物根的 `skins/`。
  */
 const ART_FILES: Record<Exclude<AppearanceArt, "none">, string> = {
-  "abyss-hall-night": "skins/abyss-hall-night.webp",
-  "shallow-hall-day": "skins/shallow-hall-day.webp",
+  "abyss-hall-night": "skins/abyss-hall-night.jpg",
+  "shallow-hall-day": "skins/shallow-hall-day.jpg",
   /* 波2a（2026-10-08）这六张先是**仓内自绘的矢量场景画**——当时的位图通路断着：
      ImageGen 三次复测 403（配额）。矢量的内容、暗区、昼夜同构图仍照
      `docs/superpowers/specs/2026-10-08-skin-art-asset-spec.md` 的硬规则走，
@@ -411,13 +411,24 @@ const ART_FILES: Record<Exclude<AppearanceArt, "none">, string> = {
      换的只有扩展名，**枚举 id、皮肤表、路径位置一处未动**——
      这正是「路径只住在 ART_FILES 这一处」换来的解耦。
      出图画法的每一张五步（出图 → 去右下角水印 → grading → 降采样 1536×1024 → 编码 webp）
-     与三道像素闸的读数，见 `docs/superpowers/plans/2026-10-17-skin-art-and-pane-toggle.md`。 */
-  "book-boat-night": "skins/book-boat-night.webp",
-  "book-boat-day": "skins/book-boat-day.webp",
-  "lamp-tower-night": "skins/lamp-tower-night.webp",
-  "lamp-tower-day": "skins/lamp-tower-day.webp",
-  "ink-pool-night": "skins/ink-pool-night.webp",
-  "ink-pool-day": "skins/ink-pool-day.webp"
+     与三道像素闸的读数，见 `docs/superpowers/plans/2026-10-17-skin-art-and-pane-toggle.md`。
+
+     ⚠️【2026-10-17 第三刀就地更正】上面这段的「原创位图」**只活了几小时**：
+     用户当天要求「不要自己创建图片，从网上寻找好看的真人美女图片／动漫图做装扮」，
+     ⇒ 八个文件（汐那两张 + 这六张）**全部换成 Unsplash 的真人女性人像**，
+       扩展名 `.webp` → `.jpg`，出处与许可改走皮肤表那两句 + `docs/ATTRIBUTION.md`。
+     ⇒ 又一次「只改这一处」：枚举 id、皮肤表的 `art` 值、所有调用方**一处未动**，
+       动的只有下面这八行路径——「路径只住在 ART_FILES」这句当天第二次兑现。
+     ⇒ 顺带把一件事钉住：**id 是历史名，画面已经换过两轮**（矢量 → 自出位图 → 网上人像），
+       所以 id 里的 `abyss-hall` / `book-boat` / `lamp-tower` / `ink-pool`
+       与今天的画面**无关**，这是**故意的**：id 是存进用户盘上 theme JSON 的值，
+       改它会让老 JSON 对不上枚举、整份退回默认（`appearance-skins.test.ts` 钉着这条）。 */
+  "book-boat-night": "skins/book-boat-night.jpg",
+  "book-boat-day": "skins/book-boat-day.jpg",
+  "lamp-tower-night": "skins/lamp-tower-night.jpg",
+  "lamp-tower-day": "skins/lamp-tower-day.jpg",
+  "ink-pool-night": "skins/ink-pool-night.jpg",
+  "ink-pool-day": "skins/ink-pool-day.jpg"
 };
 
 /**
