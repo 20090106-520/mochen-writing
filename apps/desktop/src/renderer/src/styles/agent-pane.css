@@ -1031,6 +1031,19 @@ html[data-platform="darwin"] .conversation-pane {
   color: var(--text-faint);
 }
 
+/* 【2026-10-17 用户裁定「这个框，不要」】上面那条 `.composer-textarea { outline: none }`
+   从来没生效过：全局 `styles.css` 有一条 `textarea:focus-visible { outline: 2px solid … }`，
+   它多一个伪类，特异性 (0,1,1) 压过本段的 (0,1,0)。于是**鼠标一点输入行**，Chromium 就
+   照全局那条在这个 textarea 上画一圈方框（真机读数：2px、方角、offset 1px、
+   `color-mix(in srgb, var(--focus) 55%, transparent)`）——用户截图上框住占位文字的那圈青绿方框就是它。
+   要压回去只能收在**同一级**（也带伪类）。这张卡不需要环：聚焦提示由
+   `html[data-theme] .composer:focus-within .composer-input-surface` 那条提亮卡沿承担，
+   光标本身就是最强的提示——与 theme-runtime.css 那格「只提亮边框、不加光环」同一条口径。
+   全局那条留着：对话框里的 textarea 是表单字段，Tab 到它不一定带光标，环是唯一的可见提示。 */
+.composer-textarea:focus-visible {
+  outline: none;
+}
+
 .composer-toolbar {
   position: relative;
   display: flex;

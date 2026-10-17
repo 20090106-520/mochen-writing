@@ -220,4 +220,20 @@ describe("输入卡装饰 · 2026-10-17 用户裁定「缺少一些东西」", (
     );
     expect(net, "联网那一枚用 --glow-net 的蓝光晕").toContain("var(--glow-net)");
   });
+
+  // ===== 2026-10-17 用户上传截图（框住占位文字的那圈青绿方框）· 原话「这个框，不要」=====
+  // 病灶是**特异性**，不是「没写」：全局 `styles.css` 那条 `textarea:focus-visible`（0,1,1）压过
+  // 卡段的 `.composer-textarea { outline: none }`（0,1,0），所以那句 outline: none 从来没生效过——
+  // 鼠标一点输入行，Chromium 就照全局那条给 textarea 画一圈 2px 方框（真机读数：方角、offset 1px、
+  // color-mix(--focus 55%)，正是用户截图上那一圈）。收在**同一级**（也带伪类）才压得回去。
+  it("输入框自己不画焦点环：点一下不许在卡里弹出一圈方框", () => {
+    expect(
+      styleSource("../styles.css"),
+      "全局那条 textarea 焦点环是对话框表单字段的，它得留着（对话框字段没有光标，环是唯一提示）"
+    ).toContain("textarea:focus-visible");
+    expect(
+      ruleBlock(CARD, ".composer-textarea:focus-visible"),
+      "本卡没在自己的这一级把环收掉：光写 `.composer-textarea { outline: none }` 压不住全局那条伪类规则，点一下输入行就会弹出一圈方框"
+    ).toContain("outline: none");
+  });
 });
