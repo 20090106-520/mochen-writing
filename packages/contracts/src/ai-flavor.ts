@@ -11,7 +11,8 @@
  * - essay     议论腔——「众所周知」「与此同时」这类报告腔，小说里出现 1 次就报；
  * - adverb    副词滥用——「缓缓」「微微」不是错词，堆多了才是机器味，5 次起报；
  * - cognitive 认知转述——「他知道，……」「她明白，这不是……」句式，3 次起报；
- * - 结构级三类（复用 essay 类别、阈值另设）——不是A，是B 式升华对偶 3 次起报、章末总结体 1 次起报、
+ * - 结构级三类（复用 essay 类别、阈值另设）——不是A，是B 式升华对偶 2 次起报（2026-10-18 收紧：
+ *   = 生成端写明的上限「一章最多一处」＋1，**此条同时进退稿闸**）、章末总结体 1 次起报、
  *   「声音不大，却……」反差模板 2 次起报。
  * - 情绪直陈（同上按句式计，2026-10-18）——「感到／涌起＋情绪词」3 次起报。
  *
@@ -180,17 +181,31 @@ export const AI_FLAVOR_EMOTION_LABEL = "情绪直陈（感到／涌起＋情绪�
 
 /**
  * 结构级三类与句式类（情绪直陈）的起报阈值：只对这几个模式的条目生效——升华对偶偶一用是修辞、
- * 3 次起才是机器味，章末总结体一章就一个结尾、出现 1 次已经是章末那股腔，反差模板翻两句就露馅、
- * 2 次起，情绪直陈同认知转述、反复用才是机器味、3 次起；
+ * 2 次起才是机器味（2026-10-18 由 3 收到 2：这条起报线就是生成端 ③ 写明的上限「一章最多一处」＋1，
+ * 也是退稿闸判退的那枚数字，见 AI_FLAVOR_STRUCTURE_GATED_LABELS），章末总结体一章就一个结尾、
+ * 出现 1 次已经是章末那股腔，反差模板翻两句就露馅、2 次起，情绪直陈同认知转述、反复用才是机器味、3 次起；
  * 其余条目照旧走 MIN_COUNT[category]。
- * 阈值只有体检（analyzeAiFlavor）用；退稿闸不计阈值，全量计入，但**名目与体检同一批**。
+ *
+ * 阈值照旧只有体检（analyzeAiFlavor）用——**除了进闸清单里的那几条**（它们是同一枚数字两处用：
+ * 体检顺着它起报、退稿闸照着它判退）；其余条目退稿闸不计阈值、全量计入，名目与体检同一批。
  */
 export const AI_FLAVOR_STRUCTURE_MIN_COUNT: Record<string, number> = {
-  [AI_FLAVOR_ANTITHESIS_LABEL]: 3,
+  [AI_FLAVOR_ANTITHESIS_LABEL]: 2,
   [AI_FLAVOR_TAILCLAUSE_LABEL]: 1,
   [AI_FLAVOR_CONTRAST_LABEL]: 2,
   [AI_FLAVOR_EMOTION_LABEL]: 3
 };
+
+/**
+ * 这些结构级条目**除了体检起报，还要进退稿闸**（数字从 AI_FLAVOR_STRUCTURE_MIN_COUNT 现取，不另抄）。
+ *
+ * 为什么只此一条：生成端 ③ 把「不是A，是B」式对偶写成了**明写的数值上限**（「一章最多一处」）——
+ * 超过上限就是没照约束写，退回重写天经地义。⑥章末四禁、⑨反差模板、情绪直陈**不进闸**：
+ * 它们的起报线是给**体检报告**看的（「人生就是这样」落在对话里是正常句），而闸的理念是
+ * 「宁可放过轻度，不可拦住正常文——闸是质量下限，不是文风警察」。将来若在生成端也给它们写死
+ * 数值上限，再把名字移进来，别的什么都不用改。
+ */
+export const AI_FLAVOR_STRUCTURE_GATED_LABELS: readonly string[] = [AI_FLAVOR_ANTITHESIS_LABEL];
 
 export const AI_FLAVOR_CATEGORY_LABELS: Record<AiFlavorCategory, string> = {
   cliche: "描写套话",
@@ -412,12 +427,22 @@ export interface AiFlavorGateVerdict {
    * 三条拦稿理由（词 / 起手 / 长短）各拦各的，谁也替不了谁。
    */
   flatRhythm: SentenceRhythm | null;
+  /**
+   * 撞了**结构上限**的条目名目（2026-10-18）：一章里某个句式用过了生成端写明的上限——目前只有
+   * 「不是A，是B 式升华对偶」（`AI_FLAVOR_STRUCTURE_GATED_LABELS`，上限 = 起报线 2，即一章最多一处）。
+   * 与 startRepeat / flatRhythm 同一路数：一条独立拦稿理由自成一个字段，退稿信与用例都看得见病根。
+   */
+  structureOver: string[];
 }
 
 /**
  * 对一篇（或一段）新增正文做退稿判定。与 analyzeAiFlavor 同一份判据
  * （AI_FLAVOR_TERMS + 认知转述/结构级/情绪直陈正则），不抄第二份；不计入报告上限——闸要看全量。
  * 短于 minChars 的文本直接放行：样本太少，密度失真。
+ *
+ * 结构上限（2026-10-18）：`AI_FLAVOR_STRUCTURE_GATED_LABELS` 里那几条，撞到自己的起报线就判退——
+ * 那是生成端写明数值上限的句式（一章最多一处），超上限就是没照约束写。名单里没有的条目
+ * （章末体/反差/情绪直陈）照旧只报不拦，理由见那张表的注释。
  */
 export function aiFlavorGate(text: string): AiFlavorGateVerdict {
   const counts = new Map<string, number>();
@@ -455,16 +480,34 @@ export function aiFlavorGate(text: string): AiFlavorGateVerdict {
     .sort((x, y) => y[1] - x[1])
     .slice(0, 5)
     .map(([term, n]) => `${term} ×${n}`);
-  // 三条独立的拦稿理由：短文本一律放行（样本太少都失真）；
-  // 长文本三条里任意一条爆了就拦——词干净、起手轮换但句句等长的稿子同样是机器稿。
-  const startRepeat = charCount < AI_FLAVOR_GATE.minChars ? null : sentenceStartRepeat(text);
-  const flatRhythm = charCount < AI_FLAVOR_GATE.minChars ? null : sentenceRhythmOf(text);
+  // 四条独立的拦稿理由：短文本一律放行（样本太少都失真）；
+  // 长文本四条里任意一条爆了就拦——词干净、起手轮换但句句等长的稿子同样是机器稿，
+  // 撞了结构上限的那一条更是没照生成端约束写。
+  const short = charCount < AI_FLAVOR_GATE.minChars;
+  const startRepeat = short ? null : sentenceStartRepeat(text);
+  const flatRhythm = short ? null : sentenceRhythmOf(text);
   const flat =
     flatRhythm !== null && flatRhythm.spread < AI_FLAVOR_GATE.maxSpread ? flatRhythm : null;
+  // 结构上限（2026-10-18）：进闸清单里那几条撞到自己的起报线就退一行——数字从同一张表现取，不另抄。
+  const structureOver = short
+    ? []
+    : Object.entries(AI_FLAVOR_STRUCTURE_MIN_COUNT)
+        .filter(([label]) => AI_FLAVOR_STRUCTURE_GATED_LABELS.includes(label))
+        .filter(([label, cap]) => (counts.get(label) ?? 0) >= cap)
+        .map(([label]) => label);
   const wordPass = hits < AI_FLAVOR_GATE.minHits || perThousand < AI_FLAVOR_GATE.perThousand;
   const pass =
-    charCount < AI_FLAVOR_GATE.minChars || (wordPass && startRepeat === null && flat === null);
-  return { pass, hits, perThousand, charCount, topTerms, startRepeat, flatRhythm: flat };
+    short || (wordPass && startRepeat === null && flat === null && structureOver.length === 0);
+  return {
+    pass,
+    hits,
+    perThousand,
+    charCount,
+    topTerms,
+    startRepeat,
+    flatRhythm: flat,
+    structureOver
+  };
 }
 
 /* ────────────────────────── 句式开头重复检测（2026-10-10 五段） ────────────────────────── */

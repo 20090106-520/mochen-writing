@@ -5,6 +5,8 @@ import {
   AI_FLAVOR_COGNITIVE_LABEL,
   AI_FLAVOR_CONTRAST_LABEL,
   AI_FLAVOR_EMOTION_LABEL,
+  AI_FLAVOR_GATE,
+  AI_FLAVOR_STRUCTURE_GATED_LABELS,
   AI_FLAVOR_TAILCLAUSE_LABEL,
   AI_FLAVOR_TERMS,
   aiFlavorGate,
@@ -115,7 +117,7 @@ describe("ai-flavor · analyzeAiFlavor", () => {
     expect(d.entries.map((entry) => entry.term)).not.toContain(AI_FLAVOR_COGNITIVE_LABEL);
   });
 
-  it("结构级两类：『不是A，是B 式升华对偶』3 次起报，「章末总结体」1 次起报（2026-10-16，与生成端同一批）", () => {
+  it("结构级两类：『不是A，是B 式升华对偶』2 次起报（一章最多一处），「章末总结体」1 次起报（2026-10-16／10-18）", () => {
     // 生成端 DE_AI_FLAVOR_STRUCTURE_INSTRUCTION 写了「禁不是A，是B 式升华对偶」与「章末四禁」，
     // 扫描端此前没有对应判据——写的时候拦一道、写完扫的却是另一份。这两条把它接回来。
     const antithesis = analyzeFlavorWithRepeat("他不是来偷东西的，是来灭灯的。\n", 3);
@@ -126,9 +128,12 @@ describe("ai-flavor · analyzeAiFlavor", () => {
     // 类别沿用「议论腔」（替读者下结论的同一族毛病），显示名自成一目。
     expect(antithesisEntry.category).toBe("essay");
     expect(antithesisEntry.first.line).toBe(1);
-    // 阈值不跟 essay 的 1 次走：偶一用是修辞，3 次起才是机器味。
-    const short = analyzeFlavorWithRepeat("他不是来偷东西的，是来灭灯的。\n", 2);
-    expect(short.entries.map((entry) => entry.term)).not.toContain(AI_FLAVOR_ANTITHESIS_LABEL);
+    // 阈值不跟 essay 的 1 次走，也不跟旧版「3 次」走（2026-10-18 收紧）：起报线 = 生成端 ③
+    // 写明的上限（一章最多一处）＋1。偶一用是修辞，放行；第 2 处就是机器味。
+    const one = analyzeFlavorWithRepeat("他不是来偷东西的，是来灭灯的。\n", 1);
+    expect(one.entries.map((entry) => entry.term)).not.toContain(AI_FLAVOR_ANTITHESIS_LABEL);
+    const two = analyzeFlavorWithRepeat("他不是来偷东西的，是来灭灯的。\n", 2);
+    expect(two.entries.find((entry) => entry.term === AI_FLAVOR_ANTITHESIS_LABEL)?.count).toBe(2);
 
     // 章末总结体：一章一个结尾，出现 1 次就已经是章末那股腔。
     const tail = analyzeAiFlavor(["他关上门。这一夜，注定无人入眠。\n"]);
@@ -235,6 +240,22 @@ function analyzeFlavorWithRepeat(line: string, n: number) {
   return analyzeAiFlavor([Array.from({ length: n }, () => line).join("")]);
 }
 
+/**
+ * 干净铺底（15 句 / 206 字，过 `AI_FLAVOR_GATE.minChars`）：句首逐句轮换、句长错落、零词命中。
+ * 结构上限类的用例得先有一条「密度/句首/句长三条老理由都不成立」的底稿，
+ * 才能证明那一发是**新那条**拦的，不是老三条顺手拦下来的。
+ */
+const CLEAN_FILLER =
+  "山醒了。溪水涨了，哗哗地漫过河滩上的青石，一路往下游赶。" +
+  "月出来了。风停了，吹得檐下那串干辣椒打着转。" +
+  "雪落在蓑衣上，积了薄薄一层。屋檐下挂着两串干辣椒。" +
+  "狗在门边卧着。灶膛里的火星噼啪响了两声又暗下去。" +
+  "灯芯挑亮了。夜还很长，长得像一条没有尽头的河。" +
+  "窗纸透进一线凉气。井台上的水桶结了一层薄冰。" +
+  "墙根下堆着去年的柴，一直码到齐腰高。" +
+  "门后的蓑衣还滴着水，滴在青石板上，一声一声。" +
+  "檐角挂着的铜铃被风碰了一下，又没了动静。";
+
 describe("ai-flavor · aiFlavorGate 自动退稿闸", () => {
   it("重度超标拦下：pass=false，topTerms 按次数排序给前 5", () => {
     const heavy = "他嘴角勾起，眼底闪过一丝复杂的情绪。他知道，这不是巧合。".repeat(15);
@@ -303,6 +324,33 @@ describe("ai-flavor · aiFlavorGate 自动退稿闸", () => {
     const text = ("他声音不大，却压住了整个屋子。" + "船在雾里靠岸，缆绳松了。").repeat(8);
     const verdict = aiFlavorGate(text);
     expect(verdict.topTerms.join("、")).toContain(AI_FLAVOR_CONTRAST_LABEL);
+  });
+
+  it("对偶一章最多一处：1 处放行，第 2 处退稿（2026-10-18 收紧，兜住生成端 ③ 的上限）", () => {
+    // 底稿是干净 200+ 字（见 CLEAN_FILLER）——这一发只可能是结构上限拦的。
+    const once = aiFlavorGate(CLEAN_FILLER + "他不是来偷东西的，是来灭灯的。");
+    expect(once.structureOver).toEqual([]);
+    expect(once.pass).toBe(true);
+
+    const twice = aiFlavorGate(
+      CLEAN_FILLER + "他不是来偷东西的，是来灭灯的。这船不是来送货的，是来接人的。"
+    );
+    expect(twice.structureOver).toEqual([AI_FLAVOR_ANTITHESIS_LABEL]);
+    expect(twice.pass).toBe(false);
+    // 证明是结构上限拦的，不是老三条：重罪数不到密度闸门槛，句首轮换、句长错落都正常。
+    expect(twice.hits).toBeLessThan(AI_FLAVOR_GATE.minHits);
+    expect(twice.startRepeat).toBeNull();
+    expect(twice.flatRhythm).toBeNull();
+  });
+
+  it("结构上限只咬生成端写明数值上限的那一条：章末体 1 处仍放行（闸不越界当文风警察）", () => {
+    // 章末体的体检起报线是 1（一章一个结尾就会出现那股腔），但那条线是给报告看的：
+    // 搬进闸会把「人生就是这样」这类正常对话句也退稿。所以它只报不拦——进闸清单只此一条。
+    expect(AI_FLAVOR_STRUCTURE_GATED_LABELS).toEqual([AI_FLAVOR_ANTITHESIS_LABEL]);
+    const verdict = aiFlavorGate(CLEAN_FILLER + "他关上门。这一夜，注定无人入眠。");
+    expect(verdict.topTerms.join("、")).toContain(AI_FLAVOR_TAILCLAUSE_LABEL);
+    expect(verdict.structureOver).toEqual([]);
+    expect(verdict.pass).toBe(true);
   });
 });
 

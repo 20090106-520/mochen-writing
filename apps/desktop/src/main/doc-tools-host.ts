@@ -132,6 +132,12 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
     lastBlockedContent = text;
     blockedStreak += 1;
     const top = verdict.topTerms.length > 0 ? `重灾区：${verdict.topTerms.join("、")}。` : "";
+    // 结构上限条（2026-10-18）：撞了生成端写明的上限（「不是A，是B」对偶一章最多一处）就直说到底——
+    // 只写「AI 味超标」模型会当成熟度问题去稀释，改不到点子上（真机那轮它自以为只用了一处）。
+    const overCap =
+      verdict.structureOver.length === 0
+        ? ""
+        : ` 句式超限：${verdict.structureOver.join("、")}——这条句式一章最多一处，多出来的删掉，或换个写法把同一个意思说清楚。`;
     // 句式节奏条（五段）：词干净但「十句九句他开头」同样要拦，退稿信把节奏病灶点名。
     const rhythm =
       verdict.startRepeat === null
@@ -159,6 +165,7 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
         text: sentence(
           `这份稿子被自动退稿：AI 味超标（每千字 ${verdict.perThousand} 处，共 ${verdict.hits} 处）。` +
             top +
+            overCap +
             rhythm +
             flatLine +
             again +

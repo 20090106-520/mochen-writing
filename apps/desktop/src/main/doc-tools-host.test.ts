@@ -642,6 +642,18 @@ describe("AI 味自动退稿闸（2026-10-10 二段）", () => {
     expect(collected).toEqual([]);
   });
 
+  it("撞了句式上限（一章两处对偶）→ 退稿信点破「句式超限」（2026-10-18 收紧）", async () => {
+    mode = "full-access";
+    // 生成端 ③ 写的是「一章最多一处」，退稿闸按同一枚数字判退；信里要把这条规则说到底——
+    // 只说「AI 味超标」模型会当成熟度问题去稀释（真机那轮它自以为只用了一处）。
+    const content = HEAVY + "他不是来偷东西的，是来灭灯的。这船不是来送货的，是来接人的。";
+    const out = await host().call("write_doc", { doc: CHAPTER, content, why: "新章" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("句式超限");
+    expect(out.text).toContain("一章最多一处");
+    expect(collected).toEqual([]);
+  });
+
   it("轻度正文照常出提案：闸是质量下限，不是文风警察", async () => {
     mode = "full-access";
     // 长短句错落的正常叙述（六段起「句长过匀」是独立拦稿理由，
