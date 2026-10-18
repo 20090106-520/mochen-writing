@@ -138,6 +138,17 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
       verdict.structureOver.length === 0
         ? ""
         : ` 句式超限：${verdict.structureOver.join("、")}——这条句式一章最多一处，多出来的删掉，或换个写法把同一个意思说清楚。`;
+    // 复读条（2026-10-18）：同一句原样写三遍以上是机器在原地打转（真机取证里那份 3201 行、
+    // 3199 行同句的产物就是这病）。只列前 2 处，多的用「等 N 处」带过——信是给模型看的改法，不是数据倾倒。
+    const repeat =
+      verdict.repeatOver.length === 0
+        ? ""
+        : ` 复读：${verdict.repeatOver
+            .slice(0, 2)
+            .map((row) => `「${row.sentence}」×${row.count}`)
+            .join("、")}${
+            verdict.repeatOver.length > 2 ? ` 等 ${verdict.repeatOver.length} 处` : ""
+          }——同一句话原样重复是机器打转，改成别的写法，或把重复的那几段合成一处。`;
     // 句式节奏条（五段）：词干净但「十句九句他开头」同样要拦，退稿信把节奏病灶点名。
     const rhythm =
       verdict.startRepeat === null
@@ -166,6 +177,7 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
           `这份稿子被自动退稿：AI 味超标（每千字 ${verdict.perThousand} 处，共 ${verdict.hits} 处）。` +
             top +
             overCap +
+            repeat +
             rhythm +
             flatLine +
             again +

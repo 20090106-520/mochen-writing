@@ -2,7 +2,8 @@
  * 书稿体检（2026-10-10，2026-10-11 扩到八类）：一次扫描全书，八类报告——
  * ① 术语疑似：一字之差的高频词对（林潮生/林潮升）。
  * ② 标点硬伤：连续重复的句读（。。、，，）与夹在汉字间的半角标点。
- * ③ 重复句：≥12 字的完全相同句子出现 ≥2 次（自己抄自己的桥段）。
+ * ③ 重复句：≥12 字的完全相同句子出现 ≥2 次（自己抄自己的桥段）——统计真身在
+ *    @mochen/contracts 的 repeatedSentences（退稿闸的复读理由吃同一份，2026-10-18 下沉）。
  * ④ 角色出场：角色卡上的人在哪些章节出现、最近一次是哪章（失踪人口排查）。
  * ⑤ AI 味扫描：词库级判定「一眼机器味」的写法（判定真身住 @mochen/contracts，
  *    与 AI 智能体提示词的文风硬约束同吃一份词表——写的时候拦一道，写完扫的是同一批词）。
@@ -18,10 +19,13 @@
  */
 export { analyzeAiFlavor } from "@mochen/contracts";
 import {
+  AI_FLAVOR_REPEAT,
   isWithinEdits,
   dialogueBalance,
   dialogueVerdict,
-  splitFrontmatter
+  repeatedSentences,
+  splitFrontmatter,
+  type RepeatedSentence
 } from "@mochen/contracts";
 import type { BookDoc } from "../types/book-doc";
 
@@ -201,47 +205,25 @@ export function findPunctuationIssues(contents: string[]): PunctuationIssue[] {
 
 /* ────────────────────────── ③ 重复句 ────────────────────────── */
 
-/** 比这短的重复多半是「他说」「点了点头」类的正常口头禅，不值得报。 */
-export const DUPLICATE_SENTENCE_MIN_CHARS = 12;
+/**
+ * 比这短的重复多半是「他说」「点了点头」类的正常口头禅，不值得报。
+ * 数字真身在 contracts（`AI_FLAVOR_REPEAT.minChars`）——退稿闸那条复读理由吃的是同一枚。
+ */
+export const DUPLICATE_SENTENCE_MIN_CHARS = AI_FLAVOR_REPEAT.minChars;
 export const DUPLICATE_SENTENCE_LIMIT = 30;
 
-export interface DuplicateSentence {
-  sentence: string;
-  count: number;
-  /** 出现在哪些篇（contents 下标去重）。 */
-  docIndexes: number[];
-}
+/** 重复句的展示行——结构真身复用 contracts 的 `RepeatedSentence`，不另留一份。 */
+export type DuplicateSentence = RepeatedSentence;
 
+/**
+ * 巡检面板「③ 重复句」：**统计真身在 contracts**（`repeatedSentences`，2026-10-18 下沉），
+ * 这里只负责封顶——退稿闸的第五条理由吃的是同一份切句与计数，不再各抄一遍。
+ */
 export function findDuplicateSentences(
   contents: string[],
-  minChars = DUPLICATE_SENTENCE_MIN_CHARS
+  minChars: number = DUPLICATE_SENTENCE_MIN_CHARS
 ): DuplicateSentence[] {
-  const counts = new Map<string, number>();
-  const docSet = new Map<string, Set<number>>();
-  for (const [docIndex, content] of contents.entries()) {
-    for (const line of content.split("\n")) {
-      // 按句末标点切开（含省略号）；lookbehind 让标点留在句尾。
-      for (const raw of line.split(/(?<=[。！？…；])/)) {
-        const sentence = raw.trim();
-        if (sentence.length < minChars) continue;
-        counts.set(sentence, (counts.get(sentence) ?? 0) + 1);
-        const docs = docSet.get(sentence) ?? new Set<number>();
-        docs.add(docIndex);
-        docSet.set(sentence, docs);
-      }
-    }
-  }
-  const dupes: DuplicateSentence[] = [];
-  for (const [sentence, count] of counts) {
-    if (count < 2) continue;
-    dupes.push({
-      sentence,
-      count,
-      docIndexes: [...(docSet.get(sentence) ?? [])].sort((x, y) => x - y)
-    });
-  }
-  dupes.sort((x, y) => y.count - x.count);
-  return dupes.slice(0, DUPLICATE_SENTENCE_LIMIT);
+  return repeatedSentences(contents, minChars).slice(0, DUPLICATE_SENTENCE_LIMIT);
 }
 
 /* ────────────────────────── ④ 角色出场 ────────────────────────── */

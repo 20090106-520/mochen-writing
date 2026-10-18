@@ -15,6 +15,9 @@
  *   = 生成端写明的上限「一章最多一处」＋1，**此条同时进退稿闸**）、章末总结体 1 次起报、
  *   「声音不大，却……」反差模板 2 次起报。
  * - 情绪直陈（同上按句式计，2026-10-18）——「感到／涌起＋情绪词」3 次起报。
+ * - 复读（2026-10-18）——同一句（≥12 字）原样重复。体检「③ 重复句」与退稿闸第五条理由同吃
+ *   `repeatedSentences()`（真身在本文件）；退稿闸的判退线是 3 次（= 生成端 ⑩ 写明的上限
+ *   「一章最多两次」＋1），两次留作有意复沓的余地。
  *
  * 已知重叠：套话里含副词（「嘴角微微上扬」同时命中「微微」）会各计一次，
  * 是可接受的启发式误差——两处都值得作者看一眼。
@@ -389,6 +392,58 @@ export function aiFlavorPromptList(): string {
     .join("、");
 }
 
+/* ────────────────────────── 复读句（2026-10-18） ────────────────────────── */
+
+/**
+ * 复读判定的两枚数字（生成端 ⑩ 与扫描端同吃这一份，不各抄）：
+ * - minChars     最小句长——短于此的重复多半是「他点了点头」这类口头禅，不值得报；
+ * - gateMinCount 退稿闸判退的次数——生成端 ⑩ 写明的上限是「一章最多两次」，判退线 = 上限＋1。
+ *   **两次留作有意复沓的余地**（叠句、回环、呼应是文学手法），三次以上才是机器在原地打转。
+ */
+export const AI_FLAVOR_REPEAT = { minChars: 12, gateMinCount: 3 } as const;
+
+export interface RepeatedSentence {
+  sentence: string;
+  count: number;
+  /** 出现在哪些篇（contents 下标去重、升序）。单篇调用（退稿闸传 `[text]`）恒为 [0]。 */
+  docIndexes: number[];
+}
+
+/**
+ * 重复句统计的**唯一实现**：同一句（≥ minChars 字）出现 ≥2 次即入表，按次数降序。
+ *
+ * 两个吃它的人必须同吃这一份：巡检面板「③ 重复句」（`doc-checkup` 的 `findDuplicateSentences`
+ * 改为委托它）与退稿闸第五条理由（`aiFlavorGate` 传 `[text]`）。切句复用私有 `sentencesOf()`——
+ * 与句长节奏同一套 lookbehind 口径，不另开一份。
+ */
+export function repeatedSentences(
+  contents: string[],
+  minChars: number = AI_FLAVOR_REPEAT.minChars
+): RepeatedSentence[] {
+  const counts = new Map<string, number>();
+  const docSet = new Map<string, Set<number>>();
+  for (const [docIndex, content] of contents.entries()) {
+    for (const sentence of sentencesOf(content)) {
+      if (sentence.length < minChars) continue;
+      counts.set(sentence, (counts.get(sentence) ?? 0) + 1);
+      const docs = docSet.get(sentence) ?? new Set<number>();
+      docs.add(docIndex);
+      docSet.set(sentence, docs);
+    }
+  }
+  const rows: RepeatedSentence[] = [];
+  for (const [sentence, count] of counts) {
+    if (count < 2) continue;
+    rows.push({
+      sentence,
+      count,
+      docIndexes: [...(docSet.get(sentence) ?? [])].sort((x, y) => x - y)
+    });
+  }
+  rows.sort((x, y) => y.count - x.count);
+  return rows;
+}
+
 /* ────────────────────────── 自动退稿闸（2026-10-10 二段） ────────────────────────── */
 
 /**
@@ -433,6 +488,12 @@ export interface AiFlavorGateVerdict {
    * 与 startRepeat / flatRhythm 同一路数：一条独立拦稿理由自成一个字段，退稿信与用例都看得见病根。
    */
   structureOver: string[];
+  /**
+   * 复读句（2026-10-18）：同一句原样出现 ≥ gateMinCount（3）次——「A B A B…」交替打转的
+   * 句首占比约 0.5，逃得过 startRepeat；两句长短相近的也逃得过 flatRhythm。这条管的是
+   * 「同一句话反复写」这第三种机器节奏，与另外三条独立成拦稿理由。
+   */
+  repeatOver: RepeatedSentence[];
 }
 
 /**
@@ -443,6 +504,9 @@ export interface AiFlavorGateVerdict {
  * 结构上限（2026-10-18）：`AI_FLAVOR_STRUCTURE_GATED_LABELS` 里那几条，撞到自己的起报线就判退——
  * 那是生成端写明数值上限的句式（一章最多一处），超上限就是没照约束写。名单里没有的条目
  * （章末体/反差/情绪直陈）照旧只报不拦，理由见那张表的注释。
+ *
+ * 复读（2026-10-18）：同一句原样写 ≥ `AI_FLAVOR_REPEAT.gateMinCount`（3）次判退——生成端 ⑩
+ * 写明的上限是「一章最多两次」。两次放行：有意复沓是文学手法，打转才拦。
  */
 export function aiFlavorGate(text: string): AiFlavorGateVerdict {
   const counts = new Map<string, number>();
@@ -480,9 +544,9 @@ export function aiFlavorGate(text: string): AiFlavorGateVerdict {
     .sort((x, y) => y[1] - x[1])
     .slice(0, 5)
     .map(([term, n]) => `${term} ×${n}`);
-  // 四条独立的拦稿理由：短文本一律放行（样本太少都失真）；
-  // 长文本四条里任意一条爆了就拦——词干净、起手轮换但句句等长的稿子同样是机器稿，
-  // 撞了结构上限的那一条更是没照生成端约束写。
+  // 五条独立的拦稿理由：短文本一律放行（样本太少都失真）；
+  // 长文本五条里任意一条爆了就拦——词干净、起手轮换但句句等长的稿子同样是机器稿，
+  // 撞了结构上限的那一条更是没照生成端约束写，同一句原样摊三遍则是原地打转。
   const short = charCount < AI_FLAVOR_GATE.minChars;
   const startRepeat = short ? null : sentenceStartRepeat(text);
   const flatRhythm = short ? null : sentenceRhythmOf(text);
@@ -495,9 +559,19 @@ export function aiFlavorGate(text: string): AiFlavorGateVerdict {
         .filter(([label]) => AI_FLAVOR_STRUCTURE_GATED_LABELS.includes(label))
         .filter(([label, cap]) => (counts.get(label) ?? 0) >= cap)
         .map(([label]) => label);
+  // 复读条（2026-10-18）：同一句原样写三遍以上——判退线 3 次从 AI_FLAVOR_REPEAT 现取（不另抄），
+  // 两次放行留作有意复沓。单篇调用，docIndexes 恒为 [0]。
+  const repeatOver = short
+    ? []
+    : repeatedSentences([text]).filter((row) => row.count >= AI_FLAVOR_REPEAT.gateMinCount);
   const wordPass = hits < AI_FLAVOR_GATE.minHits || perThousand < AI_FLAVOR_GATE.perThousand;
   const pass =
-    short || (wordPass && startRepeat === null && flat === null && structureOver.length === 0);
+    short ||
+    (wordPass &&
+      startRepeat === null &&
+      flat === null &&
+      structureOver.length === 0 &&
+      repeatOver.length === 0);
   return {
     pass,
     hits,
@@ -506,7 +580,8 @@ export function aiFlavorGate(text: string): AiFlavorGateVerdict {
     topTerms,
     startRepeat,
     flatRhythm: flat,
-    structureOver
+    structureOver,
+    repeatOver
   };
 }
 

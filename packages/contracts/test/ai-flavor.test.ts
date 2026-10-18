@@ -6,10 +6,12 @@ import {
   AI_FLAVOR_CONTRAST_LABEL,
   AI_FLAVOR_EMOTION_LABEL,
   AI_FLAVOR_GATE,
+  AI_FLAVOR_REPEAT,
   AI_FLAVOR_STRUCTURE_GATED_LABELS,
   AI_FLAVOR_TAILCLAUSE_LABEL,
   AI_FLAVOR_TERMS,
   aiFlavorGate,
+  repeatedSentences,
   textSimilarity,
   sentenceStartRepeat,
   sentenceRhythmOf,
@@ -287,22 +289,47 @@ describe("ai-flavor · aiFlavorGate 自动退稿闸", () => {
   });
 
   it("副词不算重罪：只堆副词不拦（与体检口径分工）", () => {
-    // 样本开头字必须轮换（五段起「开头复读」是独立拦稿理由），
-    // 句长也必须错落（六段起「句长过匀」是另一条独立理由）——
-    // 旧样本五句一组循环复读，零词命中也会被两条节奏条拦下，那不是本用例要测的事。
+    // 样本开头字必须轮换（五段起「开头复读」是独立拦稿理由），句长也必须错落
+    // （六段起「句长过匀」是另一条独立理由），句子还必须句句不同（2026-10-18 起「复读」
+    // 又是一条独立理由）——三条老样本都踩过：旧版「五句一循环 ×6 遍」零词命中也会被节奏条拦下，
+    // 那不是本用例要测的事（本用例只测「副词不进重罪」）。
     const adverbsOnly = [
-      "他缓缓地走。",
-      "路静静延伸，一直延伸到看不见的地方。",
-      "她淡淡应了一声，不禁皱眉。",
-      "灯微微晃动，悄然熄了。",
-      "茶不由得凉透了。"
-    ]
-      .join("")
-      .repeat(6);
+      "山缓缓退进雾里。",
+      "路尽头静静立着块界石，字迹被风雨磨平了，谁也认不出上面刻的是哪一年立的。",
+      "灯微微晃着。",
+      "茶凉了，他不由得又添了一勺热水，端起来抿了一口，又放下。",
+      "他默默把锄头靠在墙角。",
+      "她把针线收进木匣，深深叹了口气，把匣子推到桌角。",
+      "风穿过篱笆。",
+      "雨下了半夜，檐下的水缸渐渐满了，水面浮着几片被打落的叶子。",
+      "霜落在瓦上。",
+      "雪静静地压在柴垛上，压出一道弯弯的弧，像谁搁在那里的白毡。",
+      "桥下的水缓缓流着。",
+      "船不由得偏向岸边，橹声乱了，船夫把篙伸进水里撑了撑。",
+      "井台的石板结了冰，滑得很。",
+      "墙根堆着柴。",
+      "门后挂着的蓑衣还滴着水，滴答滴答，滴在青石板上，一声一声。",
+      "窗纸透进一线凉气。",
+      "檐角的铜铃被风碰了一下，又没了动静。",
+      "灶膛里的火星噼啪响了两声。",
+      "锅里的粥咕嘟作响，冒着白气。",
+      "狗卧在门边。",
+      "鸡叫了头遍，天边还是一片灰。",
+      "夜很长，长得像一条没有尽头的河，一直流到天亮。",
+      "月出来了。",
+      "星子稀稀落落，像是没挂稳。",
+      "云压得很低。",
+      "江水静静地涨上来，漫过石阶，又退回去一点，来回几趟。",
+      "石板路上积了水。",
+      "竹林里的风一停，整片林子就静了。",
+      "松针落了一地，踩上去软软的。",
+      "藤蔓爬满了半面墙，把窗子遮去一角。"
+    ].join("");
     const verdict = aiFlavorGate(adverbsOnly);
     expect(verdict.hits).toBe(0);
     expect(verdict.startRepeat).toBeNull();
     expect(verdict.flatRhythm).toBeNull();
+    expect(verdict.repeatOver).toEqual([]);
     expect(verdict.pass).toBe(true);
   });
 
@@ -457,5 +484,66 @@ describe("ai-flavor · sentenceStartRepeat（句式开头复读）", () => {
     // 只有 4 句叙述：不到 minSentences。
     expect(sentenceStartRepeat("他走。他停。他回头。他笑了。他坐下。他等。")).toBeNull();
     expect(sentenceStartRepeat("")).toBeNull();
+  });
+});
+
+describe("ai-flavor · repeatedSentences ＋ 复读闸（2026-10-18）", () => {
+  // 真机取证里那份 3201 行、3199 行同句的产物，就是这一条要收的病：
+  // 「林潮生沿着码头往深处走，咸雾一层层漫上来，灯影在水里碎成金箔。」原样写了三千遍。
+  const REPEAT_LINE = "林潮生沿着码头往深处走，咸雾一层层漫上来，灯影在水里碎成金箔。";
+  const OTHER_LINE = "船在雾里靠了岸，缆绳松开又绷紧，甲板上全是湿的。";
+
+  it("同一句出现 ≥2 次入表，带次数与篇序；短句重复与孤句不入", () => {
+    const rows = repeatedSentences([
+      `${REPEAT_LINE}别的句子。\n`,
+      `${REPEAT_LINE}${REPEAT_LINE}\n`
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ sentence: REPEAT_LINE, count: 3, docIndexes: [0, 1] });
+    // 短句重复（「他点了点头」级口头禅）与只出现一次的长句都不入表。
+    expect(repeatedSentences(["他点了点头，笑了笑。\n他点了点头，笑了笑。\n"])).toHaveLength(0);
+    expect(repeatedSentences([`${REPEAT_LINE}\n`])).toHaveLength(0);
+  });
+
+  it("按次数降序；minChars 可下调（巡检面板与退稿闸同吃这一份切句）", () => {
+    const rows = repeatedSentences([
+      `${REPEAT_LINE}${REPEAT_LINE}${REPEAT_LINE}${OTHER_LINE}${OTHER_LINE}\n`,
+      `${REPEAT_LINE}${OTHER_LINE}\n`
+    ]);
+    expect(rows.map((row) => row.count)).toEqual([4, 3]);
+    // 默认 12 字以下的短句不收；下调阈值才收。
+    const short = "他笑了。他笑了。";
+    expect(repeatedSentences([short])).toHaveLength(0);
+    expect(repeatedSentences([short], 4).map((row) => row.count)).toEqual([2]);
+  });
+
+  it("退稿闸第五条独立理由：同一句原样写三遍 → 拦（干净铺底证明是新条拦的）", () => {
+    const three = aiFlavorGate(CLEAN_FILLER + REPEAT_LINE + REPEAT_LINE + REPEAT_LINE);
+    expect(three.repeatOver.map((row) => row.sentence)).toEqual([REPEAT_LINE]);
+    expect(three.repeatOver[0]!.count).toBe(3);
+    expect(three.pass).toBe(false);
+    // 证明是复读条拦的，不是老四条：重罪数不到密度门槛，句首轮换、句长错落、无结构超限。
+    expect(three.hits).toBeLessThan(AI_FLAVOR_GATE.minHits);
+    expect(three.startRepeat).toBeNull();
+    expect(three.flatRhythm).toBeNull();
+    expect(three.structureOver).toEqual([]);
+  });
+
+  it("有意复沓的余地：同一句两次放行（判退线 3 次 = 生成端上限 2 ＋1）", () => {
+    const twice = aiFlavorGate(CLEAN_FILLER + REPEAT_LINE + REPEAT_LINE);
+    expect(twice.repeatOver).toEqual([]);
+    expect(twice.pass).toBe(true);
+    expect(AI_FLAVOR_REPEAT.gateMinCount).toBe(3);
+  });
+
+  it("两种句式 A B 交替打转（句首占比约 0.5 逃逸 startRepeat）→ 复读条照样拦", () => {
+    // 洞 1 的回归：各句开头字轮换、长短也错落，老四条全不成立，只有「同一句反复出现」看得出来。
+    const a = "船在雾里慢慢地靠了岸，缆绳松开又绷紧。";
+    const b = "灯影在水面碎成一片一片的金箔，风把咸腥气送过来。";
+    const verdict = aiFlavorGate(CLEAN_FILLER + [a, b, a, b, a, b].join(""));
+    expect(verdict.repeatOver.map((row) => row.count)).toEqual([3, 3]);
+    expect(verdict.pass).toBe(false);
+    expect(verdict.startRepeat).toBeNull();
+    expect(verdict.flatRhythm).toBeNull();
   });
 });

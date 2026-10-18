@@ -654,6 +654,28 @@ describe("AI 味自动退稿闸（2026-10-10 二段）", () => {
     expect(collected).toEqual([]);
   });
 
+  it("同一句原样写三遍 → 退稿信点破「复读」（2026-10-18）", async () => {
+    mode = "full-access";
+    // 真机取证里那份 3201 行、3199 行同句的产物就是这病——模型打转，把同一句原样写了三千遍。
+    // 铺底是干净稿（词零命中、句首轮换、句长错落），挂上三遍同句必须由复读条拦下。
+    const clean =
+      "他推开院门，把锄头靠在墙边。灶间的火苗窜起来，锅里的粥咕嘟作响。天黑了。" +
+      "风从篱笆的缺口灌进来，吹得那串干辣椒打着转，像谁在数一串旧年的念珠。" +
+      "他把碗摆上桌。粥还烫。隔壁的狗叫了两声，又安静下去。" +
+      "她忽然想起白天在集市上听见的那句闲话——城南的渡口要封了，官船三日不发。" +
+      "夜里的更声远远传来。他睡了。";
+    const line = "林潮生沿着码头往深处走，咸雾一层层漫上来，灯影在水里碎成金箔。";
+    const out = await host().call("write_doc", {
+      doc: CHAPTER,
+      content: clean + line + line + line,
+      why: "新章"
+    });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("复读");
+    expect(out.text).toContain(`「${line}」×3`);
+    expect(collected).toEqual([]);
+  });
+
   it("轻度正文照常出提案：闸是质量下限，不是文风警察", async () => {
     mode = "full-access";
     // 长短句错落的正常叙述（六段起「句长过匀」是独立拦稿理由，
