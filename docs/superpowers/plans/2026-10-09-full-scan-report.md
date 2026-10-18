@@ -8887,5 +8887,143 @@ docs 提交 `e295cc741fa250af7c697edc77fb5b7361bc833c`（`docs(ledger): 第一�
 
 本刀全部收口：代码/判据/spec 提交 `15d6b0d`、docs 提交换绑与补记 `e295cc7`，两枚 CI 均绿；工作树干净。
 
+## 第一百二十九节 · 收紧「不是A，是B」对偶（一章最多一处，超了退回重写）
+
+用户逐字指令（承上一节末尾助手提的那个可选建议，由这两个字确认落地）：
+
+> 「开始」
+
+上一节末尾助手原话：「真机输出里唯一被点名的「不是A，是B」句用了 3 处（模型自己以为只用 1 处）。
+要不要我下一刀把这个句式的退稿阈值也收紧（同类句式一章 ≤1，超了退回重」——本节即那一刀。
+
+### 一、病因：生成端写明了上限，扫描端两处都对不上
+
+唯一证据是上一节的真机读数（那轮生成走的是应用自身通路：CDP 连运行实例、`--remote-debugging-port=9222`，
+`window.mochen.startTurn`，模型 `agnes-3.0-flash`、stageId `draft`、`docRelPath chapters/01-雾从海面升起来.md`、
+`thinkingLevel low`）：正文 644 字、体检 `totalHits 3 / 4.66 每千字`，
+**唯一被点名的写法是「不是A，是B 式升华对偶 ×3」**；模型自己的推理里写着「对偶只用了一处」——
+它以为守住了约束，而退稿闸 `pass=true` 放行了。（那份正文是仓外临时件 `scratch/flavor-probe/generated.md`，
+scratch/ 在 `.gitignore` 第 13 行、跑完即删，未入仓。）
+
+三处口径对不上（§一百零五 的教训：生成端说什么，扫描端就得能扫什么）：
+
+| 端 | 改动前 | 后果 |
+| --- | --- | --- |
+| 生成端 `DE_AI_FLAVOR_STRUCTURE_INSTRUCTION` ③ | 已写明「禁『不是A，是B』式升华对偶，**一章最多一处**」 | 模型没照做也没东西兜底 |
+| 体检 `analyzeAiFlavor` | `AI_FLAVOR_STRUCTURE_MIN_COUNT[对偶]` **= 3**——1 处不报、2 处也不报，第 3 处才报 | 起报线比生成端的上限宽了两处 |
+| 退稿闸 `aiFlavorGate` | **完全不看结构级条目**，只有「词命中密度 / 句首复读 / 句长过匀」三条理由 | 一章 3 处对偶照样过闸 |
+
+### 二、改法
+
+1. **扫描端** `packages/contracts/src/ai-flavor.ts`：
+   - `AI_FLAVOR_STRUCTURE_MIN_COUNT[AI_FLAVOR_ANTITHESIS_LABEL]`：**3 → 2**。这条起报线即生成端 ③
+     写明的上限（一章最多一处）**＋1**——1 处放行（修辞），第 2 处即报、即退。
+   - 新增 `AI_FLAVOR_STRUCTURE_GATED_LABELS`（= `[AI_FLAVOR_ANTITHESIS_LABEL]`）：
+     「**同时进退稿闸**的结构级条目」名单，数字从同一张 `AI_FLAVOR_STRUCTURE_MIN_COUNT` 现取，
+     不另抄第二份（锁定前提第 6 条）。
+   - `AiFlavorGateVerdict` 新增字段 `structureOver: string[]`——与既有的 `startRepeat` / `flatRhythm` 同一路数：
+     **一条独立拦稿理由自成一个字段**，退稿信与用例都看得见病根。
+   - `aiFlavorGate` 算出 `structureOver` 并入 `pass`（顺手把 `charCount < minChars` 提成 `short` 一枚）。
+     结构上限**只在长文本上算**（短于 `minChars` 一律放行，与老三条同一条口径）。
+   - 文件头「四类口径」、`AI_FLAVOR_STRUCTURE_MIN_COUNT` 与 `aiFlavorGate` 的注释同步更正：
+     「阈值只有体检用」这句对**进闸的那几条**不再成立，改为如实描述。
+2. **闸只收一条，是刻意的**（既定取舍，写进注释与用例）：闸的理念是「宁可放过轻度、不可拦住正常文」，
+   而章末体起报线 1、反差 2、情绪直陈 3 是**体检口径**——把「人生就是这样」这类正常对话句也交给闸，
+   等于把闸变成文风警察。所以名单里只有生成端**写死了数值上限**的那一条。
+3. **退稿信** `apps/desktop/src/main/doc-tools-host.ts`：`verdict.structureOver` 非空时补一句
+   「句式超限：…——这条句式一章最多一处，多出来的删掉，或换个写法把同一个意思说清楚。」
+   理由是信开头那句「AI 味超标（每千字 X 处，共 2 处）」在结构退稿时会串味（2 处远不到密度闸门槛），
+   模型容易当成熟度问题去稀释——真机那轮它**自以为只用了一处**。信里的 `topTerms`（重灾区）照旧保留。
+4. **不动的**：生成端 ③ 原文一字不改（本刀是让扫描端追上它）、`AI_FLAVOR_TERMS`、
+   其余四条句式正则、`sentenceStartRepeat` / `sentenceRhythmOf` / `textSimilarity`、
+   `AI_FLAVOR_GATE` 的四个阈值、防死循环（原样重交放行）、「换汤不换药」点破、连续退稿升级——**一字不动**。
+
+### 三、判据：先红后绿
+
+- `packages/contracts/test/ai-flavor.test.ts`：改既有「结构级两类」条（3 次起报 → **2 次起报**，
+  1 次不报、2 次报）＋ 新增 2 条（「对偶一章最多一处：1 处放行 / 第 2 处退稿，且证明是结构上限拦的
+  ——`hits < minHits`、`startRepeat` 与 `flatRhythm` 都是 `null`」；「进闸清单只此一条：章末体 1 处仍放行」）。
+  新增的干净铺底是 `CLEAN_FILLER`（15 句 / 206 字，句首逐句轮换、句长错落、零词命中，过 `minChars`）。
+- `apps/desktop/src/main/doc-tools-host.test.ts`：退稿闸那组追加 1 条（`HEAVY + 两处对偶` → `ok=false`
+  且信中含「句式超限」「一章最多一处」）。
+- 先跑 ⇒ `ai-flavor.test.ts` **3 failed | 29 passed（32 条注册）**（三发红：2 次起报未被报、
+  `structureOver` 未实现、进闸清单未定义）；实现后 ⇒ **32 passed**；邻近守卫 `doc-tools-host.test.ts` **56 passed**。
+
+### 四、门禁（本机）
+
+- 代码树 `4b48d4b`：`corepack pnpm verify` 六道闸全过、末行 `VERIFY_EXIT=0`，
+  **364 文件 / 4773 passed | 2 skipped（4775 条注册）**
+  （上一版 364 / 4770 | 2 skipped（4772 注册），差值 **＋3** = 本刀新增的 3 条用例）。
+- 换绑那一刀（README「## 门禁」节 ＋ `tools/readme-claims.test.mjs` 回填链注释）之后再逐段复跑一次，
+  退出码与逐段时刻如下（这一跑跑在**带换绑改动的那棵树**上，用例数不变）：
+
+| 段 | 退出码 | 秒 |
+| --- | --- | --- |
+| 1 prettier | 0 | 12.3 |
+| 2a tsc contracts | 0 | 2.4 |
+| 2b tsc fs-store | 0 | 2.3 |
+| 2c tsc agent-runtime | 0 | 2.4 |
+| 2d tsc plugin-kernel | 0 | 1.5 |
+| 2e tsc node | 0 | 3.7 |
+| 2f tsc web | 0 | 5.8 |
+| 3 eslint | 0 | 11.8 |
+| 4 boundary | 0 | 0.7 |
+| 5 budget | 0 | 0.6 |
+| 6 vitest | 0 | 45.4（`364 passed` ／ `4773 passed | 2 skipped (4775)`，duration 43.29s） |
+
+⇒ 六道闸（tsc 段含 6 个类型程序）退出码全 0。
+
+### 五、本节改动的落点
+
+| 文件 | 改动 |
+| --- | --- |
+| `packages/contracts/src/ai-flavor.ts` | 阈值 3 → 2 ＋ 新增 `AI_FLAVOR_STRUCTURE_GATED_LABELS` ＋ `structureOver` 字段 ＋ 闸内一条新理由 ＋ 四处注释更正 |
+| `packages/contracts/test/ai-flavor.test.ts` | 改 1 条 ＋ **新增 2 条** ＋ 铺底常量 `CLEAN_FILLER` |
+| `apps/desktop/src/main/doc-tools-host.ts` | 退稿信新增「句式超限」一句（`structureOver` 非空时） |
+| `apps/desktop/src/main/doc-tools-host.test.ts` | **追加 1 条**（两处对偶 → 信含「句式超限」） |
+| `docs/superpowers/specs/2026-10-18-antithesis-cap/` | 本刀的 spec ＋ tasks |
+| `README.md` | 「## 门禁」节同批换绑（见第七节） |
+| `tools/readme-claims.test.mjs` | 回填链注释补「第一百二十九节再换到 `4b48d4b`（4772）」，差值说明 639→642 条 |
+
+提交 `4b48d4b feat(quality): 收紧「不是A，是B」对偶——一章最多一处，超了退回重写`：
+**6 files changed, 251 insertions(＋)、15 deletions(−)**。
+
+### 六、本节未收的口子（如实）
+
+- **未做真机复验**：本刀的效果落在「闸会不会拦」上，而跑在 9222 上的那个实例（PID 4232）是**旧构建**，
+  真机复验得先 `corepack pnpm build` 再重启用 `--remote-debugging-port`；且闸是**退稿**（不是改写），
+  要在真机里看到它，得让模型真写出一章 2 处对偶才触发——那一发由 3 条新用例 ＋ 邻近 56 条钉住，
+  所以本节只报判据与门禁，**不编造真机读数**。
+- **章末体／反差模板／情绪直陈仍不进闸**（第二节第 2 条那笔取舍）。若将来要收，得先在生成端把它们
+  也写成明写的数值上限，再把名字移进 `AI_FLAVOR_STRUCTURE_GATED_LABELS`。
+- **「不是X。他是Y」带主语的变体仍不抓**（§一百零八 既定的召回边界，本刀不放宽）：放宽会误伤
+  常态合法构句，收益不抵票据。
+- 平台审核（番茄／起点等）的**过审率本仓无法度量**：效果只能由作者目检，
+  不以任何外部检测器（朱雀等）读数作结论（项目记忆：外部检测器对千字级文学文本的读数抖动）。
+- `%TEMP%/mochen-ci-read/` 下的量测件（`ci-read.ps1`、`gates.ps1`）是**仓外临时件**，跑完即删，未入仓。
+
+### 七、补记（推送后回填）
+
+**【2026-10-18 推送后回填】** `4b48d4b` 推上远端（`5ff82b3..4b48d4b`），那一枚 run 当场读回：
+
+- run 页 `39086130914`（作业名「门禁 pnpm verify」），`head_sha` 读回就是
+  `4b48d4bd6eeaf64d7fd693bd4e1500924f7ccff2`，`conclusion = success`。
+- check-run `117552974687`，作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试」，结论 success，
+  started `2026-10-18T01:20:35Z`、done `2026-10-18T01:23:21Z`。
+- CI 自己吐的那条 annotation 原文：`files=364 registered=4772 passed=4772 skipped=0 failures=0`。
+
+⇒ README「## 门禁」节同批换绑到 `4b48d4b`：顶格两格（Linux **364 文件 / 4772 用例**、本机
+**364 文件 / 4773 passed | 2 skipped（4775 条注册）**）、历史链新增一条「上一版绑的是 `15d6b0d`
+（2026-10-17，run 页 `39047289819`，364 文件 / 4769 用例），第一百二十九节换绑」、
+quoted annotation 原文、`Linux 侧 4772 条注册 = 本机 4775 − 3` 那笔账、
+免责段那处同树说法（连同它引的 run 页 ID `39086130914` 与台账指引）、以及现役那一整段
+（「第一百二十九节（2026-10-18）换绑的这一格两侧都是当场读的…」，原现役段退成「上一版（第一百二十八节…）」）。
+`tools/readme-claims.test.mjs` 的回填链注释同批补一条并改正差值说明（4130→**4772** 那 **642** 条）。
+
+等式三处自洽：`4772 + 3 = 4775`（Linux 注册 + 平台多注册 3 = 本机注册）、
+`4773 + 2 = 4775`（本机 passed + skipped = 本机注册）、`4773 − 4772 = 1`（本机 passed 比 Linux 多 1）。
+用例数从上一版的 4769 长到 4772，差的 **3 条**正是第三节那批断言（ai-flavor 2 条 ＋ doc-tools-host 1 条）。
+
+
 
 
