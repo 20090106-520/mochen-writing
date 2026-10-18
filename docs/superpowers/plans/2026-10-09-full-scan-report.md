@@ -9024,6 +9024,19 @@ quoted annotation 原文、`Linux 侧 4772 条注册 = 本机 4775 − 3` 那笔
 `4773 + 2 = 4775`（本机 passed + skipped = 本机注册）、`4773 − 4772 = 1`（本机 passed 比 Linux 多 1）。
 用例数从上一版的 4769 长到 4772，差的 **3 条**正是第三节那批断言（ai-flavor 2 条 ＋ doc-tools-host 1 条）。
 
+**【2026-10-18 docs 提交后再回填】** `ad6d0ef` 推上远端（`4b48d4b..ad6d0ef`），那一枚 run 当场读回：
+
+- run 页 `39087221864`（作业名「门禁 pnpm verify」），`head_sha` 读回就是
+  `ad6d0ef90320aedd108580a229992e20d33cb81b`，`conclusion = success`。
+- check-run `117556212608`，作业名「格式 + 6 枚 tsc + eslint + 边界 + 行数预算 + 全量测试」，结论 success，
+  started `2026-10-18T01:38:30Z`、done `2026-10-18T01:41:15Z`。
+- CI 自己吐的那条 annotation 原文：`files=364 registered=4772 passed=4772 skipped=0 failures=0`。
+
+⇒ 这一枚只动文档（README 门禁节、`tools/readme-claims.test.mjs` 回填链注释、本节），
+**用例数因此与 `4b48d4b` 持平**（两侧同为 364 文件 / 4772），README 那两格无需再换绑；
+提交前在本地对同一棵树跑过 `corepack pnpm verify`（364 文件 / 4773 passed | 2 skipped（4775 条注册），
+`VERIFY_EXIT=0`），门面四份守卫（claims／provenance／gate-composition／platform-test-count）与同树短哈希闸全绿。
+
 
 
 

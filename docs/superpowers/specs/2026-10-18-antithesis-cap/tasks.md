@@ -23,9 +23,11 @@
   - [x] T3.3 全仓 `corepack pnpm verify` 全绿：364 文件 / **4773 passed | 2 skipped（4775 条注册）**、`VERIFY_EXIT=0`
     （上一版 364 / 4770 | 2 skipped（4772 注册），差值 ＋3 = 本刀新增 3 条用例）
 
-- [ ] T4 收口
-  - [ ] T4.1 代码/判据/spec 提交并推送 `feat/plan3-interaction-and-assembly`
-  - [ ] T4.2 读真实 CI（run / check-run / annotation 逐字记下）
-  - [ ] T4.3 README「## 门禁」节换绑到新短哈希 ＋ `tools/readme-claims.test.mjs` 回填链注释同步
-  - [ ] T4.4 台账补记新一节（含「换绑时抓到的一发」位）
-  - [ ] T4.5 工作树干净、未收口项如实留档、清理仓外临时件 ＋ docs 提交 CI 读回回填台账
+- [x] T4 收口
+  - [x] T4.1 代码/判据/spec 提交并推送 `feat/plan3-interaction-and-assembly`（`4b48d4b`，`5ff82b3..4b48d4b`）
+  - [x] T4.2 读真实 CI：run 页 `39086130914`、check-run `117552974687`、
+    annotation `files=364 registered=4772 passed=4772 skipped=0 failures=0`
+  - [x] T4.3 README「## 门禁」节换绑到 `4b48d4b` ＋ `tools/readme-claims.test.mjs` 回填链注释同步（`ad6d0ef`）
+  - [x] T4.4 台账补记第一百二十九节（含「七、补记」两段：代码提交与 docs 提交各一枚 run）
+  - [x] T4.5 工作树干净、未收口项如实留档、清理仓外临时件 `%TEMP%/mochen-ci-read/`
+    ＋ docs 提交 `ad6d0ef` 的 CI 读回（run 页 `39087221864`、check-run `117556212608`）回填台账
