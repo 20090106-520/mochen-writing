@@ -136,6 +136,34 @@ describe("defaultPromptFor · 拼装", () => {
     // ⑤ 快慢要分
     expect(text).toContain("通篇一个速度");
   });
+
+  it("人性化创作常驻（2026-10-18 二段）：片段内容／语言表达／逻辑思维／细节把控四个正向维度", () => {
+    const text = defaultPromptFor({
+      title: "雾港",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context: NO_CONTEXT,
+      webSearchEnabled: false
+    });
+    // 这一段非加不可的理由：前四段九成是**禁止清单**（别写什么），管得住下限、提不了上限；
+    // 而用户点名的四个维度里「片段内容」与「逻辑思维」**一条都没覆盖**——
+    // 模型于是在这两处现原形：场次没有事件只有氛围、人物的决定没有来路、事件靠「然后」串。
+    expect(text).toContain("人性化创作");
+    // ① 逻辑思维：动机要推得出来、上一场的结果要带进下一场
+    expect(text).toContain("他此刻想要什么、怕什么");
+    expect(text).toContain("上一场的结果");
+    // ② 片段内容：动笔前先定这一场的「那件事」，并禁概述式推进
+    expect(text).toContain("每场戏都要有事发生");
+    expect(text).toContain("概述式推进");
+    // ③ 细节把控：与 QUALITY 的「写具体」分工不同——那条管写什么，这条管**留哪些、删哪些**
+    expect(text).toContain("细节选得准、留得少");
+    // ④ 语言表达（正向）：长短跟着情绪走，且允许毛边（真人写的有平句有笨句）
+    expect(text).toContain("句子跟着情绪走");
+    expect(text).toContain("毛边");
+  });
 });
 
 describe("defaultPromptFor · 先计划后动手（2026-10-05 批次 4）", () => {
