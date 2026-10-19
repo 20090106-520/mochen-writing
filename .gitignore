@@ -36,3 +36,8 @@ nul
 shot-*.png
 mochen-*.png
 release-e2e/
+
+# ---- 2026-10-19 补上的忽略（P0-③ 收口时让 `git status` 继续只反映真改动）----
+# `.trae-html-share-packages/` —— 工具生成的「HTML 分享包」zip（把仓内报告投递到分享板用），
+# 可再生产、不属于项目内容，本体留在盘上不动，只是不跟着代码走（既例见上面那几条工具目录）。
+.trae-html-share-packages/

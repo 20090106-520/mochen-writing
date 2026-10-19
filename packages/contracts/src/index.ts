@@ -16,6 +16,7 @@ export * from "./search-match.js";
 export * from "./text-replace.js";
 export * from "./ai-flavor.js";
 export * from "./dialogue.js";
+export * from "./style-profile.js";
 export * from "./volume-outline.js";
 export * from "./export.js";
 export * from "./import.js";

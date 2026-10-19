@@ -471,6 +471,74 @@ describe("细腻度段 + 本书套话回流（2026-10-10 三段：给 AI 的写�
   });
 });
 
+describe("本书腔调摘要（2026-10-19 六段 · P0-③ 作者风格档案下沉）", () => {
+  const build = (context: Parameters<typeof defaultPromptFor>[0]["context"]) =>
+    defaultPromptFor({
+      title: "雾港",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context,
+      webSearchEnabled: false
+    });
+  /**
+   * 够量的已完稿正文：每段 28 个非空白字（含一对破折号、一句对白），24 段 = 672 字。
+   * 用的是**半角引号外的全角**，与出厂主笔的实际产出无关——这里守的是「量得出来就报」。
+   */
+  const TALK = "他把碗放下，手在桌沿停了停——她没抬头。「你先回去。」她说。";
+  const chapter = (text: string) => ({
+    kind: "chapter" as const,
+    relPath: "chapters/01.md",
+    title: "开局",
+    text,
+    chars: text.length,
+    active: true
+  });
+
+  it("已完稿正文够量 ⇒ 四维摘要进提示词（句长／标点脾气／对白占比／段末收法）", () => {
+    const text = build({ items: [chapter(TALK.repeat(24))], chars: 672, approxTokens: 672 });
+    expect(text).toContain("本书腔调摘要");
+    expect(text).toContain("标点脾气");
+    expect(text).toContain("对白约占");
+    expect(text).toContain("收在台词上");
+  });
+
+  it("摘要明说「这只是这本书的习惯」并以硬约束为上限（不给模型免死金牌）", () => {
+    const text = build({ items: [chapter(TALK.repeat(24))], chars: 672, approxTokens: 672 });
+    // 技能原文的纪律：手册只描述这本书自己的句子，不许变成「优秀小说的写法」。
+    expect(text).toContain("不是「优秀小说该有的样子」");
+    // 与文风硬约束冲突时硬约束优先——否则模型会拿「本书习惯」当借口去写禁句式。
+    expect(text).toContain("硬约束优先");
+    // 量不出来的两维如实说不报（叙述距离／冲突戏写情绪还是动作），不硬凑一个数。
+    expect(text).toContain("这两样读不出来");
+  });
+
+  it("落在对话写法那段之后（同样是「本书现场」类动态段，与另三段并列）", () => {
+    const text = build({ items: [chapter(TALK.repeat(24))], chars: 672, approxTokens: 672 });
+    expect(text.indexOf("本书腔调摘要")).toBeGreaterThan(text.indexOf("对话写法要求"));
+  });
+
+  it("样本不足 ⇒ 不注入（开书之前没有样本可拆）；只有非 chapter 条目 ⇒ 也不注入", () => {
+    expect(build(NO_CONTEXT)).not.toContain("本书腔调摘要");
+    // 一章才写了两句：样本太少，立不出手册。
+    expect(build({ items: [chapter(TALK)], chars: 28, approxTokens: 28 })).not.toContain(
+      "本书腔调摘要"
+    );
+    // 人物卡写得再长也不是这本书的正文腔调——只数 kind === "chapter" 的条目。
+    const card = {
+      kind: "character" as const,
+      relPath: "characters/陈砚.md",
+      title: "陈砚",
+      text: TALK.repeat(24),
+      chars: 672,
+      active: false
+    };
+    expect(build({ items: [card], chars: 672, approxTokens: 672 })).not.toContain("本书腔调摘要");
+  });
+});
+
 describe("对话占比反馈（2026-10-10 五段：让模型知道本章是话痨还是闷罐）", () => {
   const build = (context: Parameters<typeof defaultPromptFor>[0]["context"]) =>
     defaultPromptFor({

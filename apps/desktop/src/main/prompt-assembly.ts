@@ -7,6 +7,7 @@ import {
   analyzeAiFlavor,
   dialogueBalance,
   dialogueVerdict,
+  styleProfileOf,
   type AgentProfile,
   type DocRef
 } from "@mochen/contracts";
@@ -322,6 +323,53 @@ export function dialogueBalanceSentence(assembled: AssembledContext): string {
 }
 
 /**
+ * 本书腔调摘要（2026-10-19 六段 · P0-③）：把技能库《给这本书立一本文风手册》
+ * （`skill-catalog-style.ts` / `style-handbook`）的六维拆法里**量得出来的四维**
+ * ——句子长度、标点脾气、对白与叙述比例、每段的收法——从已完稿正文现量出来喂给这一轮。
+ *
+ * 为什么值得下沉：技能原文治的是长篇最常见的退化——「每一章都在写好，于是每一章都不像前面那些章」。
+ * 但那份手册此前只是「用户手动挂进技能栏才生效」的技能，默认那一轮模型根本看不见它。
+ * 与另三段动态段的分工：`bookFlavorSentence` 管「避开书里用滥的写法」（向下拉）、
+ * `openingsSentence` 管「开头换进法」（防流水线）、`dialogueBalanceSentence` 只在这章过密／全叙述时出声；
+ * 这一段报的是**这本书自己的常态**，叮嘱保持（防漂移）——常态不吭声的三段管不着「这一章和前二十章不像」。
+ *
+ * 两条纪律必须写进段里，缺哪条都会反噬：
+ * ① 手册只描述这本书自己的句子，**不许变成「优秀小说的写法」**（技能原文的纪律）；
+ * ② 与上面那六段文风硬约束冲突时**硬约束优先**——否则模型会拿「本书习惯」当免死金牌去写禁句式。
+ * 量不出来的两维（叙述距离、冲突戏写情绪还是动作）如实说「本段不报」，不硬凑一个数（§一百零五 取舍）。
+ * 样本不足（非空白不足 500 字）返回空串：开书之前没有样本可拆，不注入空段。
+ */
+export function styleProfileSentence(assembled: AssembledContext): string {
+  const profile = styleProfileOf(
+    assembled.items.filter((item) => item.kind === "chapter").map((item) => item.text)
+  );
+  if (profile === null) return "";
+  const parts: string[] = [];
+  if (profile.rhythm !== null)
+    parts.push(
+      `句子平均 ${profile.rhythm.mean} 字、句长波动 ${profile.rhythm.spread}` +
+        "（0.9 上下算有起伏，0.3 以下偏匀）"
+    );
+  parts.push(
+    `标点脾气：每千字约 ${profile.punctuation.dash} 处破折号、` +
+      `${profile.punctuation.semicolon} 处分号、${profile.punctuation.ellipsis} 处省略号`
+  );
+  parts.push(`对白约占 ${Math.round(profile.dialogueRatio * 100)}%（引号内字数占正文）`);
+  if (profile.endsOnQuote.total > 0) {
+    const { count, total } = profile.endsOnQuote;
+    parts.push(`收在台词上的段落 ${count}/${total} 段（约 ${Math.round((count / total) * 100)}%）`);
+  }
+  return (
+    "本书腔调摘要（从已完稿正文实测；这是这本书自己的习惯，不是「优秀小说该有的样子」）：" +
+    parts.join("；") +
+    "。写新内容时保持同一腔调——句长别忽然整齐、标点别忽然换一套、对白比例别大幅偏离；" +
+    "写完拿这几条对一遍，对不上的先分清是「这一章不适合这条（那就算一次例外）」还是「跑偏了」。" +
+    "与上面的文风硬约束冲突时硬约束优先：那是下限，这条只是这本书自己的习惯。" +
+    "叙述距离、冲突戏写情绪还是写动作，这两样读不出来，本段不报——按前文自己的写法来。"
+  );
+}
+
+/**
  * 档案的写入范围说成一句人话（spec §5.1 约束 3：写入范围是**上限**，不是授权）。
  *
  * 为什么这句必须在这里而不是 agent-service：它和上面两段一样，是「排成一段人读的话」，
@@ -349,6 +397,8 @@ export function defaultPromptFor(context: PromptContext): string {
   const bookFlavor = bookFlavorSentence(context.context);
   const openingHint = openingsSentence(context.context.openings ?? []);
   const dialogueHint = dialogueBalanceSentence(context.context);
+  // 本书腔调摘要（六段 · P0-③）：把《文风手册》六维里量得出来的四维报给模型，防「写着写着不像自己」。
+  const styleProfile = styleProfileSentence(context.context);
   return [
     "你是墨宸 AI 的写作智能体，在用户本地的一本书上工作，能直接操控这本书的资料库。",
     // 档案先说：人设与写入范围上限都出自它（spec §5.1）。
@@ -384,6 +434,9 @@ export function defaultPromptFor(context: PromptContext): string {
     ...(openingHint === "" ? [] : [openingHint]),
     // 对话占比反馈（五段）：过话痨或过闷都点一句，让模型自己找补节拍。常态不加。
     ...(dialogueHint === "" ? [] : [dialogueHint]),
+    // 本书腔调摘要（六段 · P0-③）：这本书自己的常态读数（句长/标点/对白/段末收法），
+    // 叮嘱保持同一腔调。样本不足不加——与三段「本书现场」动态段并列。
+    ...(styleProfile === "" ? [] : [styleProfile]),
     // 联网段跟着开关走：关掉时这枚工具根本不出站，留着这段就是教模型调一枚不存在的工具。
     ...(context.webSearchEnabled ? [WEB_SEARCH_INSTRUCTION] : []),
     "改动已有文稿用 propose_patch（给 doc/anchor/replace/why），整篇新建或重写用 write_doc。",
