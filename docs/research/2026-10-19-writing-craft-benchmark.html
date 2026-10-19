@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>深渊写作 · 人味写作体系横向对比评估（2026-10-19）</title>
+    <style>
+      :root {
+        --ink: #1c1a17;
+        --ink-2: #4a453d;
+        --ink-3: #7b7367;
+        --bg: #fbfaf7;
+        --rule: #e2ded5;
+        --rule-2: #cfc9bc;
+        --flag: #a5561b;
+        --keep: #2f6b46;
+        --add: #1f5d8a;
+        --tune: #8a6d1f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Noto Serif SC", "Songti SC", "SimSun", Georgia, serif;
+        line-height: 1.75;
+        font-size: 16px;
+      }
+      .page {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 56px 32px 96px;
+      }
+      header {
+        border-bottom: 2px solid var(--ink);
+        padding-bottom: 20px;
+        margin-bottom: 40px;
+      }
+      .kicker {
+        font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+      }
+      h1 {
+        font-size: 32px;
+        line-height: 1.3;
+        margin: 10px 0 8px;
+        font-weight: 700;
+      }
+      .sub {
+        color: var(--ink-2);
+        font-size: 15px;
+        margin: 0;
+      }
+      h2 {
+        font-size: 21px;
+        margin: 52px 0 14px;
+        padding-top: 14px;
+        border-top: 1px solid var(--rule-2);
+        font-weight: 700;
+      }
+      h3 {
+        font-size: 17px;
+        margin: 30px 0 8px;
+        color: var(--ink);
+      }
+      p {
+        margin: 10px 0;
+      }
+      .lede {
+        color: var(--ink-2);
+      }
+      ol,
+      ul {
+        padding-left: 22px;
+        margin: 10px 0;
+      }
+      li {
+        margin: 6px 0;
+      }
+      code,
+      .mono {
+        font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+        font-size: 13px;
+        background: #f0ede6;
+        padding: 1px 5px;
+        border-radius: 3px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0 8px;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--rule);
+      }
+      th {
+        background: #f3f0e9;
+        font-weight: 700;
+        color: var(--ink-2);
+        border-bottom: 1px solid var(--rule-2);
+      }
+      td.num,
+      th.num {
+        text-align: right;
+        font-family: ui-monospace, Consolas, monospace;
+        font-size: 13px;
+      }
+      tbody tr:hover {
+        background: #f7f5f0;
+      }
+      caption {
+        caption-side: top;
+        text-align: left;
+        font-size: 13px;
+        color: var(--ink-3);
+        padding-bottom: 6px;
+      }
+      .verdict {
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .v-keep {
+        color: var(--keep);
+      }
+      .v-tune {
+        color: var(--tune);
+      }
+      .v-add {
+        color: var(--add);
+      }
+      .v-none {
+        color: var(--ink-3);
+      }
+      .gap-lg {
+        color: var(--flag);
+        font-weight: 700;
+      }
+      .gap-md {
+        color: var(--tune);
+      }
+      .gap-sm {
+        color: var(--ink-3);
+      }
+      .findings {
+        display: grid;
+        gap: 0;
+        margin: 24px 0 8px;
+        border-top: 1px solid var(--ink);
+      }
+      .finding {
+        display: grid;
+        grid-template-columns: 44px 1fr;
+        gap: 14px;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--rule);
+      }
+      .finding .n {
+        font-family: ui-monospace, Consolas, monospace;
+        font-size: 26px;
+        line-height: 1;
+        color: var(--ink-3);
+        padding-top: 4px;
+      }
+      .finding h3 {
+        margin: 0 0 4px;
+        font-size: 16px;
+      }
+      .finding p {
+        margin: 4px 0 0;
+        font-size: 14px;
+        color: var(--ink-2);
+      }
+      .note {
+        margin: 18px 0;
+        padding: 12px 16px;
+        border-left: 3px solid var(--rule-2);
+        background: #f5f2eb;
+        font-size: 14px;
+        color: var(--ink-2);
+      }
+      .warn {
+        border-left-color: var(--flag);
+      }
+      .src {
+        font-size: 12.5px;
+        color: var(--ink-3);
+      }
+      .src a {
+        color: var(--ink-2);
+        text-decoration: underline;
+        text-decoration-color: var(--rule-2);
+      }
+      .prio {
+        display: grid;
+        grid-template-columns: 60px 1fr;
+        gap: 12px;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--rule);
+      }
+      .prio .tag {
+        font-family: ui-monospace, Consolas, monospace;
+        font-weight: 700;
+      }
+      .p0 {
+        color: var(--flag);
+      }
+      .p1 {
+        color: var(--tune);
+      }
+      .p2 {
+        color: var(--ink-3);
+      }
+      footer {
+        margin-top: 64px;
+        padding-top: 18px;
+        border-top: 1px solid var(--rule-2);
+        font-size: 13px;
+        color: var(--ink-3);
+      }
+      @media (max-width: 720px) {
+        .page {
+          padding: 32px 18px 64px;
+        }
+        h1 {
+          font-size: 25px;
+        }
+        table {
+          font-size: 12.5px;
+        }
+        th,
+        td {
+          padding: 6px 7px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <div class="kicker">横向对比评估 · 只读盘点 + 外部调研</div>
+        <h1>深渊写作 · 人味写作体系横向对比评估</h1>
+        <p class="sub">
+          评估对象：写作方法 · 功能 · 人类写作手法 · 字眼算法 · 自研框架 —— 现状是否需要修改<br />
+          口径：以本仓代码与台账为「现状」，与外部开源实现、学术证据、平台公开政策逐项对照<br />
+          日期：2026-10-19 ｜ 结论不含任何效果实测读数
+        </p>
+      </header>
+
+      <h2>核心结论</h2>
+      <div class="findings">
+        <div class="finding">
+          <div class="n">1</div>
+          <div>
+            <h3>自研框架的骨架合格，不需要推翻</h3>
+            <p>
+              「生成端常驻段 ↔ 扫描端判据单一真身 ↔ 退稿闸只收写死上限的条目」这套架构，
+              与外部同行（oh-story deslop 的三层诊断 + blocking/advisory 分级）同向且更克制。
+              要改的是<strong>校准方式</strong>与<strong>判据之外的杠杆</strong>，不是分层本身。
+            </p>
+          </div>
+        </div>
+        <div class="finding">
+          <div class="n">2</div>
+          <div>
+            <h3>最大风险：本仓判据与平台判据不同源</h3>
+            <p>
+              本仓是「词表 + 启发式阈值」，平台与检测器是「统计特征 + 分类模型」。 本仓自己的四稿
+              A/B 已经实测到这一点：<strong>词表命中 0/0 的四份稿</strong>， 外部读数仍从 0% 走到
+              100%。因此「继续往词表里加套话词」边际收益最低。
+            </p>
+          </div>
+        </div>
+        <div class="finding">
+          <div class="n">3</div>
+          <div>
+            <h3>三个最高价值的补口，本仓目前一个都没有</h3>
+            <p>
+              ① 阈值改由真人语料分位校准（上游已有先例与数字）； ② 一次生成多稿 +
+              用本仓判据择优（本仓已有 <span class="mono">startTurn</span> 通路，改动量小）； ③
+              把技能库已有的《文风手册》真正接进生成端（零新依赖）。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <h2>一、本仓现状盘点</h2>
+      <p class="lede">读的是盘上代码与台账，不是文档描述。以下七层即「自研框架」的全貌。</p>
+      <table>
+        <caption>
+          表 1 · 人味写作体系七层落点
+        </caption>
+        <thead>
+          <tr>
+            <th>层</th>
+            <th>落点</th>
+            <th>内容</th>
+            <th class="num">规模</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>生成端常驻</td>
+            <td><span class="mono">apps/desktop/src/main/prompt-assembly.ts</span></td>
+            <td>
+              6 段常驻（词句去味 / 结构去味 / 细腻度 / 叙事手法 / 人性化创作 / 对话写法）＋ 3
+              段动态（本书套话回流 / 开头防套路 / 对话占比）
+            </td>
+            <td class="num">393 行</td>
+          </tr>
+          <tr>
+            <td>扫描端判据</td>
+            <td><span class="mono">packages/contracts/src/ai-flavor.ts</span></td>
+            <td>
+              词表 86 条（cliche 57 / essay 18 / adverb 11）＋ 6 枚句式正则＋ 4 枚统计函数（复读 /
+              句首复读 / 句长节奏 / 相似度）
+            </td>
+            <td class="num">728 行</td>
+          </tr>
+          <tr>
+            <td>拦截端</td>
+            <td><span class="mono">apps/desktop/src/main/doc-tools-host.ts</span></td>
+            <td>退稿闸 5 条独立理由：词命中 / 句首复读 / 句长过匀 / 结构上限 / 复读句</td>
+            <td class="num">491 行</td>
+          </tr>
+          <tr>
+            <td>书稿体检</td>
+            <td><span class="mono">renderer/src/utils/doc-checkup.ts</span></td>
+            <td>
+              ①术语疑似 ②标点硬伤 ③重复句 ④角色出场 ⑤AI 味扫描 ⑥对话占比 ⑦角色腔调漂移 ⑧高频词榜
+            </td>
+            <td class="num">568 行</td>
+          </tr>
+          <tr>
+            <td>对话口径</td>
+            <td><span class="mono">packages/contracts/src/dialogue.ts</span></td>
+            <td>
+              占比判读（&gt;0.65 话太密 / &lt;0.03 全叙述 / &lt;500 字不判），生成端与体检同吃
+            </td>
+            <td class="num">71 行</td>
+          </tr>
+          <tr>
+            <td>技能库</td>
+            <td><span class="mono">apps/desktop/src/main/skill-catalog*.ts</span></td>
+            <td>5 类 24 条：构思 4 / 结构 6 / 文风 5 / 校对 5 / 资料 4</td>
+            <td class="num">5 文件</td>
+          </tr>
+          <tr>
+            <td>智能体档案</td>
+            <td><span class="mono">packages/contracts/src/agent-profile.ts</span></td>
+            <td>6 枚（世界 / 总编 / 角色 / 主笔 / 续写 / 审稿），每枚配上下文范围与写入上限</td>
+            <td class="num">305 行</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>1.2 阈值台账（这是「字眼算法」的真身）</h3>
+      <table>
+        <caption>
+          表 2 · 全部起报线与拦截线及其依据性质
+        </caption>
+        <thead>
+          <tr>
+            <th>判据</th>
+            <th class="num">起报线</th>
+            <th>进退稿闸</th>
+            <th>依据性质</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>描写套话 cliche</td>
+            <td class="num">2 次</td>
+            <td class="v-none">否</td>
+            <td>经验值（无外部语料校准）</td>
+          </tr>
+          <tr>
+            <td>议论腔 essay</td>
+            <td class="num">1 次</td>
+            <td class="v-none">否</td>
+            <td>经验值</td>
+          </tr>
+          <tr>
+            <td>副词滥用 adverb</td>
+            <td class="num">5 次</td>
+            <td class="v-none">否</td>
+            <td>经验值（副词非错词，方向合理）</td>
+          </tr>
+          <tr>
+            <td>认知转述句式</td>
+            <td class="num">3 次</td>
+            <td class="v-none">否</td>
+            <td>经验值</td>
+          </tr>
+          <tr>
+            <td>「不是A，是B」对偶</td>
+            <td class="num">2 次</td>
+            <td class="v-keep">是</td>
+            <td>生成端写死上限「一章最多一处」＋1</td>
+          </tr>
+          <tr>
+            <td>章末总结体</td>
+            <td class="num">1 次</td>
+            <td class="v-none">否</td>
+            <td>经验值</td>
+          </tr>
+          <tr>
+            <td>「声音不大，却」反差模板</td>
+            <td class="num">2 次</td>
+            <td class="v-none">否</td>
+            <td>上游 deslop 自称「AI 指纹」</td>
+          </tr>
+          <tr>
+            <td>情绪直陈（感到／涌起＋情绪词）</td>
+            <td class="num">3 次</td>
+            <td class="v-none">否</td>
+            <td>经验值</td>
+          </tr>
+          <tr>
+            <td>对话标签「××说」</td>
+            <td class="num">4 次</td>
+            <td class="v-keep">是</td>
+            <td>生成端写死上限「一章最多三处」＋1；四稿 A/B 方向证据</td>
+          </tr>
+          <tr>
+            <td>复读句（≥12 字原样重复）</td>
+            <td class="num">3 次</td>
+            <td class="v-keep">是</td>
+            <td>生成端写明上限「一章最多两次」＋1</td>
+          </tr>
+          <tr>
+            <td>句首复读占比</td>
+            <td class="num">≥0.6</td>
+            <td class="v-keep">是</td>
+            <td>经验值（0.5 为正常交替，已避让）</td>
+          </tr>
+          <tr>
+            <td>句长波动 spread</td>
+            <td class="num">&lt;0.3</td>
+            <td class="v-keep">是</td>
+            <td>经验值（体检 0.5 为「偏均匀」）</td>
+          </tr>
+          <tr>
+            <td>闸总门槛</td>
+            <td class="num">≥5 命中 且 ≥5/千字</td>
+            <td class="v-keep">是</td>
+            <td>经验值（短于 200 字直接放行）</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note warn">
+        <strong>这一表最要紧的一列是最后一列。</strong>
+        13 条线里只有 3 条有「生成端写死上限」作依据，其余 10 条全是经验值——
+        没有一个数字来自真人语料分布，也没有一条标注过误报率。 上游 oh-story 的 deslop
+        恰恰把这件事做成了工程：用七猫 5584 章 / 黑岩 3983 篇真人文本按每千字校准，
+        把否定对偶的阈值从 1.0 提到 1.5，误报率从 5.57% 降到 1.46%。
+      </div>
+
+      <h2>二、横向对比矩阵</h2>
+      <p class="lede">
+        十二个维度逐项对照。<strong>差距</strong>列判的是「与外部最优做法的距离」，不是「本仓做错了」。
+      </p>
+      <table>
+        <caption>
+          表 3 · 十二维度对比与裁定
+        </caption>
+        <thead>
+          <tr>
+            <th style="width: 14%">维度</th>
+            <th style="width: 26%">本仓做法</th>
+            <th style="width: 34%">外部做法（来源见第四节）</th>
+            <th style="width: 9%">差距</th>
+            <th style="width: 17%">裁定</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>① 判据校准</td>
+            <td>13 条阈值全部经验值，无误报率记录</td>
+            <td>真人语料 per-kilo 校准 + 逐条量化误报（oh-story deslop）</td>
+            <td class="gap-lg">大</td>
+            <td class="verdict v-tune">微调（P0）</td>
+          </tr>
+          <tr>
+            <td>② 判据分层</td>
+            <td>四类并列，无阻断/建议分级</td>
+            <td>blocking / advisory 两级处置（oh-story check-ai-patterns.js，20+ 类）</td>
+            <td class="gap-md">中</td>
+            <td class="verdict v-tune">微调（P2）</td>
+          </tr>
+          <tr>
+            <td>③ 诊断层次</td>
+            <td>手法叮嘱（生成端）＋ 句式正则（扫描端）</td>
+            <td>三层诊断：表达层 / 用笔层（详略·删除测试）/ 故事层（因果·信息时序）</td>
+            <td class="gap-md">中</td>
+            <td class="verdict v-tune">微调（P1）</td>
+          </tr>
+          <tr>
+            <td>④ 生成策略</td>
+            <td>单稿生成，一次定稿</td>
+            <td>best-of-N 采样 + 重排（ModeX / SynDec / SemEval 2026）</td>
+            <td class="gap-lg">大</td>
+            <td class="verdict v-add">新增（P0）</td>
+          </tr>
+          <tr>
+            <td>⑤ 解码控制</td>
+            <td>无（只靠提示词）</td>
+            <td>logit bias / 风格 log-prob 注入 / 奖励引导解码</td>
+            <td class="gap-lg">大</td>
+            <td class="verdict v-add">新增（P2，受供应商接口约束）</td>
+          </tr>
+          <tr>
+            <td>⑥ 风格指纹</td>
+            <td>开头防套路 + 本书套话回流（词级，只看命中词）</td>
+            <td>六维风格档案（句长 / 标点脾气 / 叙述距离 / 对话比 / 段收法 / 硬碰硬处理）</td>
+            <td class="gap-md">中</td>
+            <td class="verdict v-add">新增（P0，零新依赖）</td>
+          </tr>
+          <tr>
+            <td>⑦ 量化指标</td>
+            <td>句长波动、命中/千字</td>
+            <td>困惑度 / 突发度 / 交叉困惑度（Binoculars）</td>
+            <td class="gap-md">中</td>
+            <td class="verdict v-add">新增（P1，可用 n-gram 代理）</td>
+          </tr>
+          <tr>
+            <td>⑧ 退化检测</td>
+            <td>复读句（抓「打转」）</td>
+            <td>退化专项：电报体 / 短碎句 / 虚词扫光（oh-story check-degeneration.js）</td>
+            <td class="gap-md">中</td>
+            <td class="verdict v-add">新增（P1）</td>
+          </tr>
+          <tr>
+            <td>⑨ 破折号判据</td>
+            <td>生成端限制「一章两三处」，扫描端不设</td>
+            <td>RUC 中文实验：破折号占比 AI 0.58% vs 人类 0.85%，<strong>差异不显著</strong></td>
+            <td class="gap-sm">认知</td>
+            <td class="verdict v-keep">保留（生成端克制合理；勿升为强判据）</td>
+          </tr>
+          <tr>
+            <td>⑩ 修辞密度</td>
+            <td>生成端给明喻上限（一章≤3），无扫描判据</td>
+            <td>RUC 数据：对偶 4.0 vs 0.67、排比 1.5、比喻 4.96（AI 显著更高）</td>
+            <td class="gap-sm">小</td>
+            <td class="verdict v-tune">微调（P2，可补密度判据）</td>
+          </tr>
+          <tr>
+            <td>⑪ 阈值伸缩</td>
+            <td>绝对数（「一章最多三处」不随章长变）</td>
+            <td>按每千字（per-kilo）——长篇短篇同口径</td>
+            <td class="gap-sm">小</td>
+            <td class="verdict v-tune">微调（P1）</td>
+          </tr>
+          <tr>
+            <td>⑫ 平台对齐</td>
+            <td>明确「过审率本仓无法度量」，不采信外部检测器读数</td>
+            <td>平台侧：番茄 &lt;20% 不计入、≥40% 拒稿；起点/阅文 AI 文下架；晋江分级限用</td>
+            <td class="gap-sm">—</td>
+            <td class="verdict v-keep">保留（诚实口径，勿为过审造假）</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>三、逐项评估：要不要改</h2>
+
+      <h3>3.1 保留 · 不动（3 项）</h3>
+      <ul>
+        <li>
+          <strong>六段常驻的分工与单一真身纪律。</strong
+          >「生成端说什么、扫描端就能扫什么」「同一件事不留第二份实现」
+          「不能机器判的不硬上正则」这三条，与外部最优实现（oh-story 的诊断权与改写授权分离、
+          blocking/advisory 分级）同向，且本仓更克制。
+        </li>
+        <li>
+          <strong>退稿闸的五条独立理由。</strong>词命中 / 起手 / 长短 / 结构上限 / 复读各拦各的，
+          互不代言——这正是外部实现常缺的一层（多把判据揉成一个总分）。
+        </li>
+        <li>
+          <strong>「不把外部检测器读数当结论」。</strong>已被外部证据支持：改写反而更易被检出
+          （arXiv 2610.03110），主流检测器自身也已弃用困惑度+突发度 （GPTZero 2023
+          秋起改深度学习）。本仓这条纪律是对的，应写得更显眼。
+        </li>
+      </ul>
+
+      <h3>3.2 微调 · 改现有（5 项，按价值排序）</h3>
+      <ol>
+        <li>
+          <strong>阈值改用真人语料分位校准（P0）。</strong>
+          做法：取本仓已有真机产物与真机语料（若有）作对照集，逐条统计命中分布， 把 2 / 1 / 5 / 3
+          这四枚经验值换成「真人分位 + 误报率」； 并在每个常量处标注「依据 = 某语料某分位 / 误报
+          x%」。上游已有可复制的流程与数字。
+          <br /><span class="src"
+            >风险提示：偏严的阈值会误退大量真人网文——Liang 等研究显示检测器对正式人类文本误报率高达
+            61.3%。</span
+          >
+        </li>
+        <li>
+          <strong>结构上限从绝对数改为每千字（P1）。</strong>
+          现状「一章最多三处对话标签」在长章上会误伤、在短章上过松。上游统一按 per-kilo。
+          <span class="src"
+            >本仓台账 §一百三十 自己已留了这条口子：「若真机发现长章被误伤，再按每千字重估」。</span
+          >
+        </li>
+        <li>
+          <strong>补「用笔层」的处置动作（P1）。</strong>
+          生成端已有「动作拆节拍」等叮嘱，但缺「详略三测（删除 / 压缩 / 展开）」与
+          「章末最后一拍」这两条上游成法——技能库已有对应文本，接常驻即可。
+        </li>
+        <li>
+          <strong>判据分 blocking / advisory 两级（P2）。</strong>
+          现状只有「进闸 / 不进闸」二元。外部把 20+ 类判据分两档处置，
+          可减少「闸是文风警察」的误伤面，也给体检报告更好的优先级。
+        </li>
+        <li>
+          <strong>补修辞密度扫描判据（P2）。</strong>
+          对偶 / 排比 / 比喻的密度在中文上有实测支撑（AI 显著高于人类），
+          比「破折号」这类被证伪的表层特征可靠。
+        </li>
+      </ol>
+
+      <h3>3.3 新增 · 本仓空缺（4 项，按价值排序）</h3>
+      <ol>
+        <li>
+          <strong>多稿采样 + 本仓判据优选（P0）。</strong>
+          同一场戏一次生成 N 稿，用本仓已有判据（spread / 起手 / 复读 / 命中）+
+          可选的外部方向读数择优。 依据：本仓四稿 A/B 已证明「单点改动（对话）→ 读数 59%→100%」， 而
+          best-of-N 正是把这种「撞对一次」变成稳定机制的办法。
+          <span class="src"
+            >通路现成：<span class="mono">window.mochen.startTurn</span>，无需新依赖。</span
+          >
+        </li>
+        <li>
+          <strong>作者本人风格档案接进生成端（P0）。</strong>
+          技能库已有《给这本书立一本文风手册》（六维拆法），但当前只是「挂入才生效」的用户技能，
+          默认那一轮模型看不见。把它下沉成动态段：从本书已完稿章节里现抽六维摘要注入。
+          <span class="src"
+            >这是外部前沿（风格指纹注入 / 模仿作者旧稿）中最容易低成本落地的一条。</span
+          >
+        </li>
+        <li>
+          <strong>量化指标层（P1）。</strong>
+          本仓无模型概率，可用代理指标：字符级 n-gram 困惑度、句长突发度、词多样性（type-token
+          ratio）。
+          用途只有一个——<strong>作为「改稿前后哪版更活」的相对比较</strong>，不作绝对判据。
+        </li>
+        <li>
+          <strong>退化专项检测（P1）。</strong>
+          补「电报体 / 短碎句 / 虚词被扫光」这一类：删得过狠会写出另一种机器味，
+          本仓目前只有「复读」一条退化判据。
+        </li>
+      </ol>
+
+      <div class="note warn">
+        <strong>不建议做的两件事。</strong>
+        ① 继续扩词表：本仓四稿实测已显示词表命中 0 与检测器读数 0% 可以并存， 删词对平台判 DA
+        的直接作用无证据支持； ②
+        为「过审」而伪造原创度或对抗式改写：改写会提高词汇多样性、反而更易被分类模型识别（arXiv
+        2610.03110）， 且与平台合规要求（AI 内容标识）相冲突。
+      </div>
+
+      <h2>四、优先建议</h2>
+      <div class="prio">
+        <div class="tag p0">P0</div>
+        <div>
+          <strong>三件事，都零新依赖、都在本仓既有结构上做。</strong>
+          ① 阈值真人语料校准（把 10 条经验值变成有依据的值 + 标注误报率）； ② 多稿采样 +
+          判据优选（复用 startTurn 通路）； ③ 作者风格档案下沉为动态段（复用技能库已有的六维拆法）。
+        </div>
+      </div>
+      <div class="prio">
+        <div class="tag p1">P1</div>
+        <div>
+          ④ 结构上限改 per-kilo；⑤ 补用笔层（详略三测 / 章末最后一拍）； ⑥ 量化指标代理层（n-gram
+          困惑度 / 突发度 / 词多样性）； ⑦ 退化专项（电报体 / 短碎句）。
+        </div>
+      </div>
+      <div class="prio">
+        <div class="tag p2">P2</div>
+        <div>
+          ⑧ 判据分 blocking / advisory；⑨ 补修辞密度扫描判据； ⑩ 解码控制（logit bias
+          等，取决于供应商是否开放该参数）。
+        </div>
+      </div>
+
+      <h2>五、局限与未证实</h2>
+      <ul>
+        <li>
+          <strong>平台算法不公开。</strong>番茄 / 起点 /
+          晋江的具体检测算法与阈值均未公开，本报告只能到「机制层面」（AI 检测 + 人工编辑 + 低质模型
+          + 合规标识四层叠加）为止。
+        </li>
+        <li>
+          <strong>朱雀读数未证实。</strong>「140 万样本、准确率
+          &gt;92%」来自第三方转述，未见腾讯官方技术文档；「困惑度+突发度」描述来自用户博客。本仓既有纪律（不采信）因此是恰当的。
+        </li>
+        <li>
+          <strong>本报告未做任何实测。</strong>全部为代码盘点 + 外部资料对照 +
+          逻辑推理，不包含改稿前后的读数对比，也不预测任何改造的收益幅度。
+        </li>
+        <li>
+          <strong>部分上游项目未能核实。</strong>YuppyChen/novelist-test
+          被本仓记为「风格拆书流程」，但该仓库署名 skill
+          实为叙事分析透镜；LikC1606/deep-research-skill
+          未检索到同名仓库。这两条来源可靠性存疑，涉及它们的既有技能文本建议复核出处。
+        </li>
+        <li>
+          <strong>「自研框架」的口径。</strong>本报告按「分层提示词装配 + 扫描判据体系 + 技能库 +
+          档案」这一整体理解；若你指的另有具体所指（如某个独立模块），结论需按该模块重新核对。
+        </li>
+      </ul>
+
+      <h2>六、来源</h2>
+      <h3>本仓（代码与台账）</h3>
+      <ul class="src">
+        <li>
+          <span class="mono">apps/desktop/src/main/prompt-assembly.ts</span> — 6 段常驻 + 3
+          段动态的真身
+        </li>
+        <li>
+          <span class="mono">packages/contracts/src/ai-flavor.ts</span> — 词表 86 条 / 6 正则 / 4
+          统计 / 退稿闸
+        </li>
+        <li>
+          <span class="mono">packages/contracts/src/dialogue.ts</span>、<span class="mono"
+            >agent-profile.ts</span
+          >
+        </li>
+        <li>
+          <span class="mono">apps/desktop/src/renderer/src/utils/doc-checkup.ts</span> — 体检八类
+        </li>
+        <li><span class="mono">apps/desktop/src/main/skill-catalog-*.ts</span> — 5 类 24 条</li>
+        <li>
+          <span class="mono">docs/superpowers/plans/2026-10-09-full-scan-report.md</span>
+          §一百零四～§一百三十一 — 四稿 A/B 与判据收口记录
+        </li>
+        <li>
+          <span class="mono">docs/superpowers/specs/2026-10-18-human-craft/spec.md</span>、<span
+            class="mono"
+            >2026-10-19-dialogue-human/spec.md</span
+          >
+        </li>
+      </ul>
+      <h3>外部</h3>
+      <ul class="src">
+        <li>
+          oh-story-claudecode · story-deslop（三层诊断 / 真人语料校准 / check-ai-patterns.js）—
+          <a
+            href="https://raw.githubusercontent.com/zenstory-ai/oh-story-claudecode/HEAD/skills/story-deslop/SKILL.md"
+            >SKILL.md</a
+          >、<a
+            href="https://raw.githubusercontent.com/zenstory-ai/oh-story-claudecode/HEAD/skills/story-deslop/references/banned-words.md"
+            >banned-words.md</a
+          >
+        </li>
+        <li>
+          PenglongHuang/chinese-novelist-skill（展示而非讲述）—
+          <a
+            href="https://raw.githubusercontent.com/PenglongHuang/chinese-novelist-skill/master/SKILL.md"
+            >SKILL.md</a
+          >
+        </li>
+        <li>
+          stop-slop（40+ 禁用短语 / 9 条结构反模式 / 5 维评分）—
+          <a href="https://github.com/hardikpandya/stop-slop">GitHub</a>
+        </li>
+        <li>
+          humanize（九大人味杠杆 / 50+ 论文）—
+          <a href="https://harshaneel.github.io/humanize/">项目页</a>
+        </li>
+        <li>
+          remove-ai-flavor（50 模式 / 81 替换词 / P0–P4 处方）—
+          <a href="https://skillhub.cloud.tencent.com/skills/user_d9089697/remove-ai-flavor"
+            >SkillHub</a
+          >
+        </li>
+        <li>
+          困惑度与突发度（GPTZero 官方，且声明已弃用）—
+          <a href="https://gptzero.me/news/perplexity-and-burstiness-what-is-it/">gptzero.me</a>
+        </li>
+        <li>
+          DetectGPT 概率曲率 —
+          <a href="https://arxiv.org/abs/2301.11305">arXiv 2301.11305</a>；Fast-DetectGPT —
+          <a href="https://arxiv.org/html/2310.05130v2">arXiv 2310.05130</a>
+        </li>
+        <li>
+          Pangram 技术报告（支持中文）—
+          <a href="https://arxiv.org/pdf/2402.14873">arXiv 2402.14873</a>
+        </li>
+        <li>
+          LLM 偏好生僻词（PNAS 2025）—
+          <a href="https://www.pnas.org/doi/10.1073/pnas.2422455122">pnas.org</a>
+        </li>
+        <li>
+          中文 AI 文本特征实测（对偶 4.0 vs 0.67；破折号差异不显著）—
+          <a href="http://news.qq.com/rain/a/20250924A01QWG00">RUC 新闻坊实验</a>
+        </li>
+        <li>
+          番茄 AI 含量处置与整治公告 —
+          <a href="https://fanqienovel.com/writer/zone/article/7602950185735438398">番茄公告</a>；<a
+            href="http://www.chinanews.com.cn/cul/2026/03-09/10584016.shtml"
+            >中新网</a
+          >
+        </li>
+        <li>
+          起点/阅文 AI 文处置 — <a href="https://m.jiemian.com/article/14946731.html">界面新闻</a>
+        </li>
+        <li>
+          改写反而更易被检出 / 人类文本误报 76.3% —
+          <a href="https://arxiv.org/html/2610.03110v1">arXiv 2610.03110</a>
+        </li>
+        <li>
+          检测器误判 TOEFL 人类作文 61.3% —
+          <a href="https://arxiv.org/abs/2304.02819">arXiv 2304.02819</a>
+        </li>
+        <li>
+          best-of-N 重排 — <a href="https://arxiv.org/html/2601.02535">ModeX 2601.02535</a>、<a
+            href="https://arxiv.org/html/2505.12821"
+            >SynDec 2505.12821</a
+          >
+        </li>
+        <li>
+          风格注入与引导解码 — <a href="https://arxiv.org/html/2601.16224v1">2601.16224</a>、<a
+            href="https://arxiv.org/html/2410.24201"
+            >LingGen 2410.24201</a
+          >、<a href="https://arxiv.org/abs/2505.00038">HyPerAlign 2505.00038</a>
+        </li>
+        <li>
+          检测器脆弱性与对抗攻击 —
+          <a href="https://arxiv.org/html/2405.07940v1">RAID 2405.07940</a>、<a
+            href="https://arxiv.org/html/2506.07001v2/"
+            >Adversarial Paraphrasing</a
+          >
+        </li>
+      </ul>
+
+      <footer>
+        本报告为只读盘点与外部对照，未修改任何源代码，未运行任何实测。
+        全部「差距」判定为设计层判断，不含效果读数；外部检测器与平台读数按本仓既有纪律不作结论依据。
+      </footer>
+    </div>
+  </body>
+</html>
