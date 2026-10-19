@@ -4,6 +4,8 @@ import {
   type ConnectionDraft,
   type ContextPreviewQuery,
   type DecideInput,
+  type DiscardDraftsInput,
+  type PickDraftInput,
   type ProfileDraft,
   type ProviderView,
   type StartTurnInput
@@ -78,6 +80,15 @@ function stubService(seen: unknown[]): AgentService {
     async decide(input: DecideInput) {
       seen.push(input);
       return { ok: false, reason: "not-pending", message: "" };
+    },
+    async pickDraft(input: PickDraftInput) {
+      // 整个 input 一起记：只记 draftSetId 的话，handler 把 index 悄悄丢掉照样绿。
+      seen.push(["pickDraft", input]);
+      return { ok: true as const };
+    },
+    async discardDrafts(input: DiscardDraftsInput) {
+      seen.push(["discardDrafts", input]);
+      return { ok: true as const };
     },
     diffOf(proposalId: string) {
       seen.push(proposalId);
@@ -177,13 +188,15 @@ function stubLister(seen: unknown[]): ModelLister {
 }
 
 describe("registerAgentIpc", () => {
-  it("注册七条 agent 通道，一条都不漏也不多余", () => {
+  it("注册九条 agent 通道，一条都不漏也不多余", () => {
     const { order, handle } = registry();
     registerAgentIpc(handle, stubService([]));
     expect(order).toEqual([
       IPC_CHANNELS.agentStartTurn,
       IPC_CHANNELS.agentInterrupt,
       IPC_CHANNELS.agentDecide,
+      IPC_CHANNELS.agentPickDraft,
+      IPC_CHANNELS.agentDiscardDrafts,
       IPC_CHANNELS.agentDiff,
       IPC_CHANNELS.agentLoadSession,
       IPC_CHANNELS.agentListSessions,
@@ -202,7 +215,8 @@ describe("registerAgentIpc", () => {
       userText: "改紧",
       thinkingLevel: "off",
       webSearchEnabled: false,
-      skillPaths: []
+      skillPaths: [],
+      sampleCount: 1
     };
     expect(await fire(fns, IPC_CHANNELS.agentStartTurn, startTurnInput)).toEqual({ turnId: "t1" });
     expect(await fire(fns, IPC_CHANNELS.agentInterrupt, "t1")).toBe(true);
@@ -212,6 +226,10 @@ describe("registerAgentIpc", () => {
       reason: "not-pending",
       message: ""
     });
+    const pickInput: PickDraftInput = { draftSetId: "set-1", index: 1 };
+    expect(await fire(fns, IPC_CHANNELS.agentPickDraft, pickInput)).toEqual({ ok: true });
+    const discardInput: DiscardDraftsInput = { draftSetId: "set-1" };
+    expect(await fire(fns, IPC_CHANNELS.agentDiscardDrafts, discardInput)).toEqual({ ok: true });
     expect(await fire(fns, IPC_CHANNELS.agentDiff, "p1")).toBe("diff:p1");
     expect(await fire(fns, IPC_CHANNELS.agentLoadSession, "chapters/01.md")).toEqual({
       found: false,
@@ -223,6 +241,8 @@ describe("registerAgentIpc", () => {
       startTurnInput,
       "t1",
       decideInput,
+      ["pickDraft", pickInput],
+      ["discardDrafts", discardInput],
       "p1",
       ["chapters/01.md", null],
       "list-sessions"

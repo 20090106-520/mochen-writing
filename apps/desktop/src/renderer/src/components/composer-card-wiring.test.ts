@@ -46,6 +46,7 @@ function chipInput(over: Partial<Parameters<typeof composerChips>[0]> = {}) {
     thinkingLevel: "off" as const,
     thinkingWire: "standard" as const,
     webSearchEnabled: false,
+    sampleCount: 1 as const,
     modelLabel: "mochen-mock",
     baseURL: "http://127.0.0.1:8787/v1",
     ...over
@@ -169,11 +170,12 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     expect(sendTag).toContain("v-else");
   });
 
-  it("slot 是 .ts 表的新字段：左=运行配置五枚，右=工作模式与权限（#112 定栏，批次 4 扩右端）", () => {
+  it("slot 是 .ts 表的新字段：左=运行配置六枚，右=工作模式与权限（#112 定栏，批次 4 扩右端）", () => {
     const want: Record<string, ComposerChipSlot> = {
       model: "left",
       thinking: "left",
       "web-search": "left",
+      draft: "left",
       tools: "left",
       palette: "left",
       "work-mode": "right",
@@ -185,6 +187,7 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
       ["model", want.model],
       ["thinking", want.thinking],
       ["web-search", want["web-search"]],
+      ["draft", want.draft],
       ["tools", want.tools],
       ["palette", want.palette],
       ["work-mode", want["work-mode"]],

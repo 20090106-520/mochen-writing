@@ -146,7 +146,8 @@ function turn(userText: string): StartTurnInput {
     userText,
     thinkingLevel: "off",
     webSearchEnabled: false,
-    skillPaths: []
+    skillPaths: [],
+    sampleCount: 1
   };
 }
 

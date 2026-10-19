@@ -1,4 +1,5 @@
 import {
+  DRAFT_SAMPLE_COUNTS,
   THINKING_LEVELS,
   THINKING_LEVEL_LABELS,
   THINKING_WIRE_FIELD,
@@ -8,6 +9,7 @@ import {
   WORK_MODE_LABELS,
   codePointLength,
   thinkingWireValueOf,
+  type DraftSampleCount,
   type PermissionMode,
   type ThinkingLevel,
   type ThinkingWire,
@@ -18,12 +20,12 @@ import { permissionChipView } from "./permission-chip";
 import { toolRoster } from "./tool-roster";
 
 export type ComposerChipId =
-  "permission" | "work-mode" | "thinking" | "web-search" | "tools" | "model" | "palette";
+  "permission" | "work-mode" | "thinking" | "web-search" | "draft" | "tools" | "model" | "palette";
 
 /**
  * chip 住在卡内 toolbar 的哪一端（#105 对齐 deepwrite 的左右分栏）。
  * 分栏是决策不是样式：它是这张决策表的字段，模板只按它过滤（铁律 6，模板里不许出现第二份顺序表）。
- * #112 照参考图定栏：左端=这一轮怎么跑（模型 / 思考等级 / 联网 / 工具清单 / 命令），
+ * #112 照参考图定栏：左端=这一轮怎么跑（模型 / 思考等级 / 联网 / 多稿 / 工具清单 / 命令），
  * 右端=权限档（它挨着发送键，与 deepwrite 的 composer-actions 同一位置）。
  */
 export type ComposerChipSlot = "left" | "right";
@@ -51,6 +53,7 @@ export type ComposerChipEvent =
   | "toggle-work-mode"
   | "cycle-thinking"
   | "toggle-web-search"
+  | "cycle-draft-sample"
   | "open-tool-roster"
   | "open-model-select"
   | "open-palette";
@@ -65,6 +68,7 @@ export const CHIP_EMIT: Record<ComposerChipId, ComposerChipEvent> = {
   "work-mode": "toggle-work-mode",
   thinking: "cycle-thinking",
   "web-search": "toggle-web-search",
+  draft: "cycle-draft-sample",
   tools: "open-tool-roster",
   model: "open-model-select",
   palette: "open-palette"
@@ -173,6 +177,34 @@ function webSearchChip(enabled: boolean): ComposerChipView {
 }
 
 /**
+ * 多稿 chip（P0-②，2026-10-19）。
+ *
+ * 三档（关 / ×2 / ×3）的文案与 title 只在这一处判定，模板与 store 都只读结果（铁律 6）。
+ * title 必须报出**真的发出去的那个字段名与值**：出站请求带的是 `sampleCount`，
+ * 且档数与循环次序都从 contracts 的 `DRAFT_SAMPLE_COUNTS` 现拼——手抄一份「关 → ×2 → ×3」，
+ * 将来契约加一档就会留下一句说谎的提示。
+ * doc 还欠着一句实话：开着的时候 token 成本是单稿的 N 倍，这是用户按下去之前就该知道的代价。
+ * `active` 取「> 1」：关是常态，按下态只在真的要多跑生成时亮。
+ */
+function draftChip(sampleCount: DraftSampleCount): ComposerChipView {
+  const label = (count: DraftSampleCount): string => (count === 1 ? "多稿关" : `多稿 ×${count}`);
+  const cycle = `${DRAFT_SAMPLE_COUNTS.map((count) => (count === 1 ? "关" : `×${count}`)).join(" → ")} → 关`;
+  return {
+    id: "draft",
+    text: label(sampleCount),
+    disabled: false,
+    title:
+      sampleCount === 1
+        ? `本轮出站请求带 sampleCount=1：一轮只跑一次生成，与不开这枚开关时一字不差。点击按 ${cycle} 循环。`
+        : `本轮出站请求带 sampleCount=${sampleCount}：一轮里静默跑 ${sampleCount} 次生成，再把这几稿一起摆给你挑一稿落盘，token 成本是单稿的 ${sampleCount} 倍。点击按 ${cycle} 循环。`,
+    active: sampleCount > 1,
+    slot: "left",
+    icon: "copy",
+    caret: false
+  };
+}
+
+/**
  * 模型 chip 是一枚**入口**，不是开关：点开走 `provider:list-models` 拉 `{baseURL}/models` 的候选名单。
  * 恒 `disabled:false`——能不能拉名单只取决于地址，与有没有开书无关，禁用只会造出一枚摆设；
  * 恒 `active:false`——弹层是瞬态而非按下态，`aria-pressed` 用它只会撒谎。
@@ -215,6 +247,8 @@ export function composerChips(input: {
   /** 启用中那条连接把「深度」在线上叫什么；chip 的提示要报真实出站值（2026-10-09 批次 5-㊻）。 */
   thinkingWire: ThinkingWire;
   webSearchEnabled: boolean;
+  /** 多稿档（P0-②）：1 = 关；chip 的文案与 title 由它驱动（三档文案的判定只在本文件那一处）。 */
+  sampleCount: DraftSampleCount;
   modelLabel: string;
   baseURL: string;
 }): ComposerChipView[] {
@@ -222,12 +256,13 @@ export function composerChips(input: {
   const permission = permissionChipView(input);
   // 清单跟着联网开关走：关掉那一轮 `web_search` 不出站，枚数也就从 6 变 5（不是手抄的两份数）。
   const roster = toolRoster(input.webSearchEnabled);
-  // 数组序 = 左端从左到右的渲染序（#112 照参考图）：模型 → 思考等级 → 联网 → 工具清单 → / 命令，
+  // 数组序 = 左端从左到右的渲染序（#112 照参考图）：模型 → 思考等级 → 联网 → 多稿 → 工具清单 → / 命令，
   // 权限档单独落在右端（它挨着发送键，与 deepwrite 的 composer-actions 同一位置）。
   return [
     modelChip({ modelLabel: input.modelLabel, baseURL: input.baseURL }),
     thinkingChip(input.thinkingLevel, input.thinkingWire),
     webSearchChip(input.webSearchEnabled),
+    draftChip(input.sampleCount),
     {
       id: "tools",
       text: "工具",

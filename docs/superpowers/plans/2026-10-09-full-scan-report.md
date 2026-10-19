@@ -9265,6 +9265,92 @@ quoted annotation 原文、`Linux 侧 4772 条注册 = 本机 4775 − 3` 那笔
 - **本刀之前停着的一份未提交交付物**：调研报告 HTML（上一条任务的产物）已按 prettier 格式化后**单独提交**；
   报告分享包 `.trae-html-share-packages/`（工具产物，可再生）按既例进 `.gitignore`，不进仓库。
 
+## 第一百三十三节 · P0-② 每轮显式多稿采样 ＋ 本仓判据择优（不推送）
+
+> 承外部调研报告 `docs/research/2026-10-19-writing-craft-benchmark.html` 的 P0 三条，按 **③ → ② → ①** 逐条落地。
+> 本节是第二条（②），承接 §一百三十二（③）。规范与任务清单：`docs/superpowers/specs/2026-10-19-multi-sample/`。
+
+### 一、这一节要收的是什么
+
+「这一轮写得不好」目前只有一个出口：重发。重发会**覆盖**上一稿的手感，用户看不到「原来那一版还好些」。
+本节给输入区加一枚「多稿择优」开关（`sampleCount`）：**开着一轮里静默跑 N 次生成**（默认关、档位 2 / 3、上限 3），
+把 N 稿一起摆到中栏让**用户挑一稿落盘**。两句口径由用户当场裁定，原话写进 spec：
+
+1. **采样落点 = 每轮显式多稿**（不是「后台偷偷多跑」）：开关就在输入区，稿数与 token 成本一起报给用户。
+2. **落选稿处置 = N 稿都留着让用户挑**：**不自动择优落盘**。机器只负责把 N 稿**排个序**，挑哪一稿是人决定的。
+
+### 二、打分只有序、没有总分（本节的中心裁定）
+
+`rankDrafts` 只回**一份排序**，不回一个「总分」：分数一旦出现，界面就忍不住把它显示成「81.5 分」，
+而四条判据（复读句数 / 词命中数 / 句首复读 / 句长波动）量纲根本不同，加权求和是个假精确。
+排序用**六级键**（`packages/contracts/src/draft-rank.ts` 的 `compareReadings`），逐级比较、同级按入参序稳定：
+
+1. `repeatOverCount` 升序（同一句原样打转越少越前）；
+2. `hits` 升序（AI 味词命中越少越前）；
+3. `pass` 真在前（过闸的稿排在不过闸的稿前面）；
+4. `startRepeat === null` 在前（没测出句首复读的排在有复读的前面）；
+5. `flatRhythm`：**null 排最后**（算不出的不可比），两者都有值时 **`spread` 降序**；
+6. `index` 升序（前五级全平时按生成序，保证稳定）。
+
+**第 5 级的方向是一处裁定，与 spec 初稿的字面相反**：spec 原文写「spread 升序」，但同句的括注写的是
+「波动越大越不像机器」——按**用意**取降序（句长波动大的更像人手写），理由写进模块注释。字面与用意矛盾时按用意，
+这是本节唯一一处「改 spec」之处，特此留档。
+
+### 三、改法（精确到文件）
+
+1. `packages/contracts/src/draft-rank.ts`（**新，135 行**）：档位与判据读数的**单一真身**。
+   `DRAFT_SAMPLE_COUNTS = [1,2,3] as const`、`DRAFT_SAMPLE_COUNT_REJECT`、`draftSampleCountSchema`（zod union）、
+   `DraftReading`、`readDraft`（把一份正文喂既有的 `aiFlavorGate`，`repeatOverCount = verdict.repeatOver.length`）、
+   `draftTextOf`、`rankDrafts`。**判据不新写**：全部复用 `ai-flavor.ts` 那份 `aiFlavorGate`（铁律 6）。
+2. `packages/contracts/src/agent-event.ts`（**378 行**）：`startTurnInputSchema` 增必填 `sampleCount`；
+   `AgentOutbound` 增变体 `candidates`（`draftSetId` + `DraftCandidate[]`，**不落盘**）；
+   新增 `pickDraftInputSchema` / `discardDraftsInputSchema` / `DraftSetResult` / `DRAFT_SET_FAIL_MESSAGES`
+   （`gone` / `no-book` / `busy` 三句中文，拒稿口径与既有同源）。
+3. `packages/contracts/src/ipc.ts`（**788 行**）：`IPC_CHANNELS` 增 `agentPickDraft` / `agentDiscardDrafts`；
+   `RendererApi` 增对应两枚方法。
+4. `apps/desktop/src/main/multi-sample.ts`（**新，253 行**）：采样编排整体拆出（照 `agent-session-read.ts` 的形，
+   依赖全由 `agent-service.ts` 注入——`runningTurns` / `draftSets` / `registerProposal` / `publish` / `drain`
+   全借那一层的真身，**不新增第二份写盘或安全判据**）。`runSilent` 串行跑 N 稿、失败稿如实计数（全失败 ⇒ notice +
+   `turn-end failed`）、成功稿喂 `rankDrafts` 排好序发 `candidates`；`pickDraft` 按集里存的原始事件**回放**落盘
+   （user-message 用集里存的 `userText` 合成，只补该稿的 `message`，提案补一条 `proposal` 事件并走 `registerProposal`）；
+   `discardDrafts` 零事件零写盘。
+5. `apps/desktop/src/main/turn-context.ts`（**新，134 行**）：`agent-service.ts` 撞 800 行预算后，把「按档案算该装哪些篇 /
+   读挂入技能 / 解析档案」三件套整体搬出（同 `agent-session-read.ts` 拆法，只依赖 `book` 与 `readSkill`）。
+   `agent-service.ts` 由 **865 行回落到 775 行**。
+6. `apps/desktop/src/main/agent-service.ts`（**775 行**）：`pickDraft` / `discardDrafts` 接线 + `startTurn` 按
+   `sampleCount > 1` 分叉（单稿走原路，逐拍序列逐字不变）；`clearBookScoped` 增 `draftSets.clear()`。
+7. `apps/desktop/src/main/agent-ipc.ts` / `apps/desktop/src/main/ipc-guard.ts`（**737 行**）：两条通道进 `handleTrusted`、
+   进 `IPC_ARG_SHAPES`、`IPC_DENY_REPLIES` 按 `DraftSetResult` 失败档回 `gone`（否则 `refuse` 抛错会让渲染层 await 悬死）。
+8. 渲染层：`utils/composer-chips.ts`（**329 行**，三档文案 + title 报出真的 `sampleCount` 与 N 倍成本，
+   档数与循环次序从 `DRAFT_SAMPLE_COUNTS` 现拼）、新 `utils/draft-candidates.ts`（**123 行**，读数拼句 / 按钮 /
+   回执的单一真身）、新 `components/DraftCandidates.vue`（**138 行**，第 0 位标「推荐」）、
+   `utils/agent-thread.ts` 的 `malformedPush` 增 `candidates` 形状闸、`stores/useAgentStore.ts`（**798 行**，
+   `sampleCount` 默认 1、`draftSets`、`cycleDraftSample`、`pickDraft` / `discardDrafts`，并顺手抽出
+   23 行的 `utils/agent-requests.ts` 取数薄壳）。
+
+### 四、纪律与门禁
+
+1. **先红后绿**：契约与主进程用例先跑红（没有 `rankDrafts` / 没有 `sampleCount`），补齐实现后转绿。
+2. 本刀新增用例：`draft-rank.test.ts` **12**、`draft-turn.test.ts` **11**、`agent-service.multi-sample.test.ts` **6**、
+   `draft-candidates.test.ts` **15**、`useAgentStore.drafts.test.ts` **11**，另扩展 `composer-chips` / `agent-thread` /
+   `agent-ipc` / `renderer-api` 等既有文件。
+3. 全仓 `corepack pnpm verify`：**371 文件 / 4879 passed | 2 skipped**，`VERIFY_EXIT=0`
+   （较 §一百三十二 的 366 / 4817 多 5 文件、62 条用例 = 本刀新增）。
+4. 行数预算：`useAgentStore.ts` **798**、`agent-service.ts` **775**、`ipc-guard.ts` **737**（单文件 800 行硬约束内）。
+5. **不推送**（用户叫停，沿用 §一百三十／一百三十一／一百三十二）：README 门禁节不换绑、CI 不读。
+
+### 五、本节收不掉的口子（如实）
+
+- **多稿档不跨重启记忆**：`sampleCount` 每次启动回到「关」。它按下的是一轮 N 倍 token 成本，与「联网」「深度」
+  两枚持久偏好刻意不同——代价要每次当场确认，不替用户记着。
+- **落盘不自动批准**：挑一稿只是把稿**写进会话**（事件重放），提案仍要用户批准才落盘（`accept-once` 等既有口径不变）。
+  多稿不改变审批模型。
+- **丢增量是刻意的**：采样期的 reasoning / tool-call / delta 只发给那一稿的捕获器，**不流进中栏**——
+  一轮里 N 份半截流式输出叠在时间线上读不成话。落盘时才把该稿的 `message` 补发一次。
+- **机器只排序、不择优**：真正的「哪一稿好」仍靠人眼；`rankDrafts` 只保证**同一批判据下**的顺序稳定可复现。
+- **效果只能真机目检**：静默多跑的耗时与 token 实数、面板在窄栏的排版，靠作者在真机上按一轮看。
+- **阈值仍未做真人语料校准**：这是 P0-① 的事，判据只是把既有 `aiFlavorGate` 换个用法，阈值一个没动。
+
 
 
 

@@ -6,17 +6,18 @@ import {
   UNBOUND,
   decideInputSchema,
   firstIssueMessage,
-  resolveProfile,
   startTurnInputSchema,
   workModeOf,
   type AgentEvent,
   type AgentOutbound,
-  type AgentProfile,
   type ContextPreview,
   type ContextPreviewQuery,
   type DecideInput,
   type DecisionResult,
+  type DiscardDraftsInput,
+  type DraftSetResult,
   type EditProposal,
+  type PickDraftInput,
   type ProposalDecision,
   type SessionListItem,
   type SessionLoadResult,
@@ -25,7 +26,6 @@ import {
 import {
   appendAgentEvent,
   applyPatch,
-  assembleContext,
   checkWritePermission,
   createSession,
   estimateTokens,
@@ -38,16 +38,14 @@ import {
   readSession,
   renderContextBlock,
   runTurn,
-  selectBudgetDocPaths,
   streamChat,
   unifiedDiff,
   UPSTREAM_WINDOW_TOKENS,
-  type AssembledContext,
   type ChatMessage,
   type ProviderFetch,
   type ToolHost
 } from "@mochen/agent-runtime";
-import { makeFingerprint, readDocFile } from "@mochen/fs-store";
+import { makeFingerprint } from "@mochen/fs-store";
 import type { BookService, BookSnapshot } from "./book-service.js";
 import type { ProviderSettings } from "./provider-settings.js";
 import { createBookScope, scopedApprovalKey } from "./book-scope.js";
@@ -55,6 +53,11 @@ import { readForApproval } from "./approval-read.js";
 import { createDocToolHost } from "./doc-tools-host.js";
 // 会话的只读回程（回放与全书总览）住在 agent-session-read.ts：它不跑 turn、不碰提案，与服务编排不共享状态。
 import { listBookSessions, loadSavedSession } from "./agent-session-read.js";
+// 多稿采样的编排住在 multi-sample.ts（同 agent-session-read.ts 的拆法：为 800 行预算拆出去，
+// 依赖全由这里注入——跑一稿的入口、registerProposal、runningTurns、draftSets 都借这一层的真身）。
+import { createMultiSample, type CapturedDraftSet, type TurnCapture } from "./multi-sample.js";
+// 装配三件套（该装哪些篇 / 读挂入技能 / 解析档案）住在 turn-context.ts（同 agent-session-read.ts 的拆法）。
+import { createTurnContext } from "./turn-context.js";
 import { webSearch } from "./web-search.js";
 import { webRead } from "./web-read.js";
 // 打断与出网时限的接线住在 provider-fetch.ts：这一层只负责把「这一轮那只 signal」递进去。
@@ -71,12 +74,8 @@ const MAX_TOOL_ROUNDS = 4;
 const THREAD_BUSY_REASON =
   "这条对话线程上一轮还在生成，不能同时跑两轮。请等它答完，或先按 Esc 打断当前这一轮。";
 
-/** 挂入的技能在装配层的形状：正文已经读好，relPath 是 `${source}:${dirName}`（与 SkillRef.id 同形）。 */
-export interface PinnedSkill {
-  relPath: string;
-  title: string;
-  text: string;
-}
+// 挂入技能的装配层形状（PinnedSkill）随装配三件套搬进了 turn-context.ts，这里原样转出旧公开面。
+export type { PinnedSkill } from "./turn-context.js";
 
 export interface AgentServiceDeps {
   book: BookService;
@@ -102,6 +101,13 @@ export interface AgentService {
   interrupt(turnId: string): Promise<boolean>;
   hasRunningTurn(): boolean; // 有没有任意一条线程正在跑一轮（channel-trust sensitive 档判据，真身在下面 runningTurns）
   decide(input: DecideInput): Promise<DecisionResult>;
+  /**
+   * 选定多稿采样里的某一稿落盘（P0-②）。集只在内存里、且由这里按原始捕获回放落盘——
+   * 渲染层只递句柄与稿序号，递不回正文。同一集只能落一次：第二次回 `gone`。
+   */
+  pickDraft(input: PickDraftInput): Promise<DraftSetResult>;
+  /** 丢弃整集候选：一个字都不落盘。 */
+  discardDrafts(input: DiscardDraftsInput): Promise<DraftSetResult>;
   diffOf(proposalId: string): string;
   /** 只读回放：读这条线程落盘的 JSONL；no-book/no-session 返回 found:false，首行坏/超长抛中文。 */
   loadSession(threadKey: string, sessionId?: string): Promise<SessionLoadResult>;
@@ -134,6 +140,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
   // 同一条线程当前在跑的那一轮（threadKey -> turnId，P2-7）：键用归一后的 threadKey（与 threads、
   // publish 同一把），值带 turnId 是让 finally 只摘自己那一轮——替别人删锁是另一类事故。
   const runningTurns = new Map<string, string>();
+  // 多稿采样的候选集（P0-②）：只在内存里——稿子一个字都没落盘，用户挑了才落。值里存的是
+  // 「这一稿当初捕获到什么」（message 事件 + 提案 + 原话），落盘时照原样回放。
+  const draftSets = new Map<string, CapturedDraftSet>();
   // §6 的 a / p 两态：a 键在会话线程，p 键在「文档::工具」——两者都只存**并入书根之后**的键
   // （`scopedApprovalKey`，单一真身在 book-scope.ts），所以 A 书的授权不会命中 B 书的撞名文稿。
   // Plan 3 引入 AgentProfile 后把 autoSession 的本地那一半换成 profileId（spec §5.1 约束 1）。
@@ -167,94 +176,15 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     diffs.clear();
     autoSession.clear();
     autoDocTool.clear();
+    // 候选集也在其列（P0-②）：换书 / 关书后旧集必须取不到——否则用户在新书里点「用这一稿」，
+    // 会拿旧书那一稿的提案往新书里落（虽然指纹闸多半会拦下，但那是碰运气，不是判据）。
+    draftSets.clear();
   }
   const bookScope = createBookScope(currentRoot, clearBookScoped);
 
-  /**
-   * 读出这一轮要装配进上下文的那些正文（spec §5）。读盘在这里（不在 agent-runtime：
-   * 那份是纯函数），读不到的文档静默跳过。2026-10-15 按预算读：`selectBudgetDocPaths` 按
-   * `profile.context` 算「会被装的篇」清单，只读这些——1000 章主笔档案从 1004 次
-   * readDocFile 降到个位数。openings 不再读全文（scan 顺路带 `DocRef.opening`）。预算判据
-   * 与 assembleContext 同源、住 agent-runtime 一份；不变量「预算 ⊇ 实装」钉在 context.test.ts。
-   */
-  async function assembleFor(
-    book: BookSnapshot,
-    docRelPath: string | null,
-    profile: AgentProfile,
-    pinned: readonly string[],
-    skills: readonly PinnedSkill[] = []
-  ): Promise<AssembledContext> {
-    const budget = selectBudgetDocPaths({
-      scope: profile.context,
-      docs: book.docs,
-      activeDocRelPath: docRelPath,
-      pinned,
-      chapterOrder: book.meta.chapterOrder
-    });
-    const contents: Record<string, string> = {};
-    await Promise.all(
-      budget.map(async (relPath) => {
-        try {
-          contents[relPath] = (await readDocFile(book.root, relPath)).content;
-        } catch {
-          // 读不到就当这条不存在：宁可少装一条，也不让整轮对话起不来
-        }
-      })
-    );
-    return assembleContext({
-      profile,
-      activeDocRelPath: docRelPath,
-      docs: book.docs,
-      contents,
-      pinned: [...pinned, ...skills.map((skill) => skill.relPath)],
-      pinnedExtra: skills.map((skill) => ({
-        relPath: skill.relPath,
-        title: skill.title,
-        text: skill.text
-      })),
-      chapterOrder: book.meta.chapterOrder
-    });
-  }
-
-  /**
-   * 把渲染层传来的 `skillPaths` 读成正文（spec §11）。
-   * 读不到的**不静默**：回一句「有 N 个挂入技能读不到，已跳过」，调用方把它发成 error 事件。
-   * 一条都读不到时返回 null，让调用方发那句中文而不是一条空数组。
-   */
-  async function readPinnedSkills(
-    skillPaths: readonly string[]
-  ): Promise<{ skills: PinnedSkill[]; missing: number }> {
-    if (skillPaths.length === 0) return { skills: [], missing: 0 };
-    // 读取通路没接上 ⇒ 全部算读不到。**不**当成「没挂技能」悄悄放过：
-    // 那会让装配处漏接 readSkill 变成一条「用户挂了技能但模型没看见」的死链路。
-    if (deps.readSkill === undefined) return { skills: [], missing: skillPaths.length };
-    const settled = await Promise.all(
-      skillPaths.map(async (relPath) => {
-        try {
-          const got = await deps.readSkill!(relPath);
-          return { ok: true as const, relPath, title: got.title, text: got.text };
-        } catch {
-          return { ok: false as const, relPath };
-        }
-      })
-    );
-    const skills: PinnedSkill[] = [];
-    let missing = 0;
-    for (const one of settled) {
-      if (one.ok) skills.push({ relPath: one.relPath, title: one.title, text: one.text });
-      else missing += 1;
-    }
-    return { skills, missing };
-  }
-
-  /** 这一轮用哪枚档案：书级 activeProfile 优先，其余由 contracts 的四级解析兜。 */
-  function profileOf(book: BookSnapshot, stageId: string): AgentProfile {
-    return resolveProfile({
-      activeProfile: book.meta.activeProfile ?? null,
-      stages: book.meta.stages,
-      activeStage: stageId
-    });
-  }
+  // 装配三件套（按档案算该装哪些篇 / 读挂入技能正文 / 解析这一轮用哪枚档案）住在 turn-context.ts：
+  // 为 800 行预算拆出去，依赖只有 `book` 与 `readSkill` 两项，不跑 turn、不共享状态。
+  const turnContext = createTurnContext({ book: deps.book, readSkill: deps.readSkill });
 
   async function drain(): Promise<void> {
     for (let attempt = 0; attempt < 64; attempt += 1) {
@@ -366,12 +296,21 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     autos = autos.then(() => applyDecision(proposal.id, decision, "", true));
   }
 
+  /**
+   * 一轮的工具宿主。`onProposal` 可注入（P0-②）：多稿采样时那一稿的提案只进它自己的收藏夹
+   * （不 registerProposal、不发卡、不自动批准），**不传就是既有行为**——单稿那条路的
+   * 提案登记一字不变，这就是「不开开关行为一字不变」在装配处的落点。
+   */
   function buildHost(
     turnId: string,
     threadKey: string,
     docRelPath: string | null,
-    signal: AbortSignal
+    signal: AbortSignal,
+    onProposal?: ((proposal: EditProposal, baseline: string) => void) | undefined
   ): ToolHost {
+    const register =
+      onProposal ??
+      ((proposal, baseline) => registerProposal(turnId, threadKey, proposal, baseline));
     const base = createDocToolHost({
       root: () => deps.book.current()?.root ?? null,
       docs: () => deps.book.current()?.docs ?? [],
@@ -381,7 +320,7 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         // 没开书时没有 meta：那一轮本来也写不了盘，工作模式按直接动手兜（同档位的既有兜法）。
         workMode: workModeOf(deps.book.current()?.meta ?? {})
       }),
-      onProposal: (proposal, baseline) => registerProposal(turnId, threadKey, proposal, baseline),
+      onProposal: register,
       newId: deps.newId,
       now: deps.isoNow,
       // P1-1 的②：联网工具必须接上**这一轮**那只 AbortController。web-search/web-read 各自把
@@ -540,6 +479,22 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     };
   }
 
+  // 多稿采样的编排实例（P0-②）：依赖全借这一层的真身——`runningTurns` / `draftSets` 是同一张表，
+  // `registerProposal` 是同一份写盘通路，`bookScope.sync()` 与其它方法同口径（先归位再判书）。
+  // 跑一稿的入口由 startTurn 现传（那一轮的装配结果只在那一轮里有效）。
+  const multiSample = createMultiSample({
+    emit: deps.emit,
+    newId: deps.newId,
+    isoNow: deps.isoNow,
+    syncBookScope: () => bookScope.sync(),
+    currentRoot,
+    runningTurns,
+    draftSets,
+    publish,
+    registerProposal,
+    drain
+  });
+
   return {
     async startTurn(input: StartTurnInput): Promise<{ turnId: string }> {
       // 渲染层可控输入进服务边界的校验，与 decide 同层：换 preload 也换不掉这一层。
@@ -606,14 +561,14 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         if (folded.notice !== "") emitOnly(threadKey, turnId, folded.notice);
         const fullHistory: ChatMessage[] = folded.kept;
         // 档案与上下文包（spec §5 / §5.1）：换档案只换提示词与上下文构造器，不换这条线程。
-        const profile = profileOf(current, input.stageId);
-        const { skills, missing } = await readPinnedSkills(input.skillPaths);
+        const profile = turnContext.profileOf(current, input.stageId);
+        const { skills, missing } = await turnContext.readPinnedSkills(input.skillPaths);
         if (missing > 0) {
           // 走 emitOnly：它会落一条 type:"error" 的 AgentEvent（外层信封仍是 event）。
           // 挂入技能读不到不是致命错误，但必须让用户看见——总 spec §9「失败可见，不只进日志」。
           emitOnly(threadKey, turnId, `有 ${missing} 个挂入技能读不到，已跳过。`);
         }
-        const assembled = await assembleFor(current, docRelPath, profile, [], skills);
+        const assembled = await turnContext.assembleFor(current, docRelPath, profile, [], skills);
         // 老书没有工作模式这一格 ⇒ 直接动手。解析只走 workModeOf 一处（铁律 6）。
         const workMode = workModeOf(current.meta);
         const context: PromptContext = {
@@ -643,30 +598,48 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         // 不新造事件类型；句子由 historyNotice 组，数字只有 fitted 那一份。
         const notice = historyNotice(fitted);
         if (notice !== "") emitOnly(threadKey, turnId, notice);
-        const outcome = await runTurn(
-          {
-            stream: (req) => streamChat({ ...req, fetchImpl: deps.fetchImpl }),
-            host: buildHost(turnId, threadKey, docRelPath, controller.signal),
-            emit: (event) => publish(threadKey, event),
-            emitDelta: (deltaKind, text) =>
-              deps.emit({ type: "delta", turnId, threadKey, deltaKind, text }),
-            newId: deps.newId,
-            now: deps.isoNow,
-            signal: controller.signal,
-            maxToolRounds: MAX_TOOL_ROUNDS,
-            // config 自带头形态（MiMo 那类端点只认 api-key，批次 5-⑤）：整个递下去。
-            provider: { ...config, apiKey }
-          },
-          {
-            turnId,
-            threadKey,
-            systemPrompt: systemPromptText,
-            history: fitted.kept,
-            userText: input.userText,
-            thinkingLevel: input.thinkingLevel,
-            webSearchEnabled: input.webSearchEnabled
-          }
-        );
+        // 一轮的执行体：单稿（默认路）与多稿采样共用同一份装配结果，只换三个「出口」。
+        const runOnce = (capture: TurnCapture) =>
+          runTurn(
+            {
+              stream: (req) => streamChat({ ...req, fetchImpl: deps.fetchImpl }),
+              host: buildHost(turnId, threadKey, docRelPath, controller.signal, capture.onProposal),
+              emit: capture.emit,
+              emitDelta: capture.emitDelta,
+              newId: deps.newId,
+              now: deps.isoNow,
+              signal: controller.signal,
+              maxToolRounds: MAX_TOOL_ROUNDS,
+              // config 自带头形态（MiMo 那类端点只认 api-key，批次 5-⑤）：整个递下去。
+              provider: { ...config, apiKey }
+            },
+            {
+              turnId,
+              threadKey,
+              systemPrompt: systemPromptText,
+              history: fitted.kept,
+              userText: input.userText,
+              thinkingLevel: input.thinkingLevel,
+              webSearchEnabled: input.webSearchEnabled
+            }
+          );
+        // 多稿（P0-②）：静默跑 N 稿、由 multi-sample 摆候选（采样期零 publish、零落盘），
+        // 只回一句收尾。单稿：还是原来那条路——出口指向既有 publish / delta 通路，一个字节都不多。
+        const outcome =
+          input.sampleCount > 1
+            ? await multiSample.runSilent({
+                turnId,
+                threadKey,
+                userText: input.userText,
+                count: input.sampleCount,
+                run: runOnce
+              })
+            : await runOnce({
+                emit: (event) => publish(threadKey, event),
+                emitDelta: (deltaKind, text) =>
+                  deps.emit({ type: "delta", turnId, threadKey, deltaKind, text }),
+                onProposal: undefined
+              });
         deps.emit({
           type: "turn-end",
           turnId,
@@ -713,6 +686,10 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
       return result;
     },
 
+    pickDraft: (input: PickDraftInput): Promise<DraftSetResult> => multiSample.pickDraft(input),
+    discardDrafts: (input: DiscardDraftsInput): Promise<DraftSetResult> =>
+      multiSample.discardDrafts(input),
+
     diffOf(proposalId: string): string {
       bookScope.sync();
       return diffs.get(proposalId) ?? "";
@@ -747,9 +724,15 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
           // 没开书＝没历史：给全零而不是省略，面板不必再猜 undefined 的含义。
           history: historyStatFor(null)
         };
-      const profile = profileOf(current, query.profileId ?? current.meta.activeStage);
-      const { skills } = await readPinnedSkills(query.pinned ?? []);
-      const assembled = await assembleFor(current, query.docRelPath, profile, [], skills);
+      const profile = turnContext.profileOf(current, query.profileId ?? current.meta.activeStage);
+      const { skills } = await turnContext.readPinnedSkills(query.pinned ?? []);
+      const assembled = await turnContext.assembleFor(
+        current,
+        query.docRelPath,
+        profile,
+        [],
+        skills
+      );
       // P1-3：占用条必须把历史这一格算进去——不报历史，剩余预算就是假的（面板上的「还能塞」骗人）。
       // 数字只有 `historyStatFor` 那一份判据：这里再手搓一遍字段映射，就是第二套口径（铁律 6）。
       let historyStat = historyStatFor(null);

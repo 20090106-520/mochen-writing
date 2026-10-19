@@ -53,6 +53,10 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     startTurn: (input: StartTurnInput) => invoke(IPC_CHANNELS.agentStartTurn, input),
     interruptTurn: (turnId) => invoke(IPC_CHANNELS.agentInterrupt, turnId),
     decideProposal: (input: DecideInput) => invoke(IPC_CHANNELS.agentDecide, input),
+    // 多稿采样的两条收尾（P0-②）：只递句柄与稿序号——候选正文与落盘全在主进程，
+    // 渲染层连一个字的正文都递不回去（理由见 contracts/ipc.ts 的 `agentPickDraft` 那段）。
+    pickDraft: (input) => invoke(IPC_CHANNELS.agentPickDraft, input),
+    discardDrafts: (input) => invoke(IPC_CHANNELS.agentDiscardDrafts, input),
     proposalDiff: (proposalId) => invoke(IPC_CHANNELS.agentDiff, proposalId),
     loadSession: (threadKey, sessionId) =>
       invoke(IPC_CHANNELS.agentLoadSession, threadKey, sessionId),

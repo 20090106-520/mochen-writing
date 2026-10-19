@@ -18,6 +18,7 @@ function input(over: Partial<Parameters<typeof composerChips>[0]> = {}) {
     thinkingLevel: "off" as const,
     thinkingWire: "standard" as const,
     webSearchEnabled: false,
+    sampleCount: 1 as const,
     modelLabel: "mochen-mock",
     baseURL: "http://127.0.0.1:8787/v1",
     ...over
@@ -33,14 +34,15 @@ const CHIP_ORDER = [
   "model",
   "thinking",
   "web-search",
+  "draft",
   "tools",
   "palette",
   "work-mode",
   "permission"
 ];
 
-describe("composer-chips · 六枚真开关/入口，排队不做按钮（F-D + #101 + #104）", () => {
-  it("id 顺序逐字钉死：model/thinking/web-search/tools/palette/permission（第三枚排队按钮不许长出来）", () => {
+describe("composer-chips · 八枚真开关/入口，排队不做按钮（F-D + #101 + #104）", () => {
+  it("id 顺序逐字钉死：model/thinking/web-search/draft/tools/palette/permission（排队按钮不许长出来）", () => {
     expect(composerChips(input()).map((c) => c.id)).toEqual(CHIP_ORDER);
   });
 
@@ -191,7 +193,7 @@ describe("composer-chips · 联网搜索与工具清单", () => {
 
   it("入口 chip 永不 disabled——它们只看请求形状与本机配置，不依赖是否开书", () => {
     const chips = composerChips(input({ hasBook: false, mode: null }));
-    for (const id of ["thinking", "web-search", "tools", "model"])
+    for (const id of ["thinking", "web-search", "draft", "tools", "model"])
       expect(chips.find((c) => c.id === id)?.disabled).toBe(false);
   });
 
@@ -255,10 +257,11 @@ describe("composer-chips · #112 撤销合并口径，两枚控件各说各的",
     expect(chip("thinking", { thinkingLevel: "high" })?.text).toBe("深度");
   });
 
-  it("每枚 chip 有自己的图标：模型=立方体、思考=脑、联网=地球、工具=清单、命令=火花、档位=按档而变", () => {
+  it("每枚 chip 有自己的图标：模型=立方体、思考=脑、联网=地球、多稿=复制、工具=清单、命令=火花、档位=按档而变", () => {
     expect(chip("model")?.icon).toBe("model");
     expect(chip("thinking")?.icon).toBe("brain");
     expect(chip("web-search")?.icon).toBe("globe");
+    expect(chip("draft")?.icon).toBe("copy");
     expect(chip("tools")?.icon).toBe("list");
     expect(chip("palette")?.icon).toBe("sparkles");
     expect(chip("permission")?.icon).toBe("user");
@@ -267,10 +270,10 @@ describe("composer-chips · #112 撤销合并口径，两枚控件各说各的",
     expect(chip("permission", { hasBook: false, mode: null })?.icon).toBe("folder");
   });
 
-  it("只有打开弹层的入口带下拉三角：真开关（思考循环 / 联网开关 / 工作模式）没有「更多」可展开", () => {
+  it("只有打开弹层的入口带下拉三角：真开关（思考循环 / 联网开关 / 多稿循环 / 工作模式）没有「更多」可展开", () => {
     for (const id of ["model", "tools", "palette", "permission"])
       expect(chip(id)?.caret, `${id} 是入口，该带三角`).toBe(true);
-    for (const id of ["thinking", "web-search", "work-mode"])
+    for (const id of ["thinking", "web-search", "draft", "work-mode"])
       expect(chip(id)?.caret, `${id} 是开关，不该带三角`).toBe(false);
   });
 
@@ -280,15 +283,16 @@ describe("composer-chips · #112 撤销合并口径，两枚控件各说各的",
     const chips = composerChips(input());
     const left = chips.filter((c) => c.slot === "left").map((c) => c.id);
     const right = chips.filter((c) => c.slot === "right").map((c) => c.id);
-    expect(left).toEqual(["model", "thinking", "web-search", "tools", "palette"]);
+    expect(left).toEqual(["model", "thinking", "web-search", "draft", "tools", "palette"]);
     expect(right).toEqual(["work-mode", "permission"]);
   });
 });
 
 describe("composer-chips · CHIP_EMIT 与 ComposerChipId 同集", () => {
-  it("七枚 chip 各有唯一事件名，漏一键就会发出 undefined 事件长成死按钮", () => {
+  it("八枚 chip 各有唯一事件名，漏一键就会发出 undefined 事件长成死按钮", () => {
     // 键集必须与 ComposerChipId 完全一致：这枚「按了没反应的 chip」正是红线。
     expect(Object.keys(CHIP_EMIT).sort()).toEqual([
+      "draft",
       "model",
       "palette",
       "permission",
@@ -297,17 +301,47 @@ describe("composer-chips · CHIP_EMIT 与 ComposerChipId 同集", () => {
       "web-search",
       "work-mode"
     ]);
-    expect(new Set(Object.values(CHIP_EMIT)).size).toBe(7);
+    expect(new Set(Object.values(CHIP_EMIT)).size).toBe(8);
     expect(CHIP_EMIT.permission).toBe("open-permission-menu");
     expect(CHIP_EMIT.palette).toBe("open-palette");
     expect(CHIP_EMIT.thinking).toBe("cycle-thinking");
     expect(CHIP_EMIT["web-search"]).toBe("toggle-web-search");
+    expect(CHIP_EMIT.draft).toBe("cycle-draft-sample");
     expect(CHIP_EMIT.tools).toBe("open-tool-roster");
     expect(CHIP_EMIT.model).toBe("open-model-select");
   });
 
-  it("六枚 chip 的 id 都能在 CHIP_EMIT 里取到事件名（穷尽性运行时钉）", () => {
+  it("八枚 chip 的 id 都能在 CHIP_EMIT 里取到事件名（穷尽性运行时钉）", () => {
     for (const c of composerChips(input())) expect(CHIP_EMIT[c.id]).toBeTypeOf("string");
+  });
+});
+
+describe("composer-chips · 多稿档（P0-②）", () => {
+  it("三档文案：关 / ×2 / ×3（档与量各说各的话，不把两件事挤成一串）", () => {
+    expect(chip("draft", { sampleCount: 1 })?.text).toBe("多稿关");
+    expect(chip("draft", { sampleCount: 2 })?.text).toBe("多稿 ×2");
+    expect(chip("draft", { sampleCount: 3 })?.text).toBe("多稿 ×3");
+  });
+
+  it("active 只在多稿真开着（>1）时为真：关是常态，按下态不许骗人", () => {
+    expect(chip("draft", { sampleCount: 1 })?.active).toBe(false);
+    expect(chip("draft", { sampleCount: 2 })?.active).toBe(true);
+    expect(chip("draft", { sampleCount: 3 })?.active).toBe(true);
+  });
+
+  // 报不出出站字段名的控件不进 UI：title 必须报出真的发出去的那个字段名与值。
+  it("title 逐字报出 sampleCount 与真实值，并把 N 倍 token 成本说在前面", () => {
+    expect(chip("draft", { sampleCount: 1 })?.title).toContain("sampleCount=1");
+    expect(chip("draft", { sampleCount: 1 })?.title).toContain("一次生成");
+    expect(chip("draft", { sampleCount: 2 })?.title).toContain("sampleCount=2");
+    expect(chip("draft", { sampleCount: 2 })?.title).toContain("2 倍");
+    expect(chip("draft", { sampleCount: 3 })?.title).toContain("sampleCount=3");
+    expect(chip("draft", { sampleCount: 3 })?.title).toContain("3 倍");
+  });
+
+  it("循环次序从 DRAFT_SAMPLE_COUNTS 现拼：三档报的是同一句「关 → ×2 → ×3 → 关」", () => {
+    for (const count of [1, 2, 3] as const)
+      expect(chip("draft", { sampleCount: count })?.title).toContain("关 → ×2 → ×3 → 关");
   });
 });
 

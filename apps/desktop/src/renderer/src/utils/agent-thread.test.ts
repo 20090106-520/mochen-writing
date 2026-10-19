@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentEvent } from "@mochen/contracts";
-import { composeStatusReport, newThread, plainList } from "./agent-thread";
+import { composeStatusReport, malformedPush, newThread, plainList } from "./agent-thread";
 
 /**
  * `plainList` 的判据就是**结构化克隆过得去**。
@@ -101,5 +101,31 @@ describe("composeStatusReport · 用量行（2026-10-15）", () => {
       factsWith([{ id: "u1", ts: TS, turnId: "t1", type: "user-message", text: "写" }])
     );
     expect(report).toContain("用量：还没有上游回报过（本会话 1 轮都没报）。");
+  });
+});
+
+/**
+ * 形状闸门对候选集的判定（P0-②）。preload 的 `onAgentEvent` 只做 `payload as AgentOutbound`，
+ * 运行时一字未校验，所以 `candidates` 缺了列表 / 句柄都会在下游被当成一条正常的推送归约掉——
+ * 前者会让面板长出一格没有稿的空面板，后者会让「用这一稿」按钮发出一个指不到集的句柄。
+ * 这里钉的是：两种畸形各自报出**看得懂的那句中文**，形状齐了才放行。
+ */
+describe("malformedPush · 候选集形状（P0-②）", () => {
+  const base = { type: "candidates", threadKey: "chapters/01-a.md", turnId: "t1" };
+
+  it("缺 draftSetId（或空串）⇒ 报「缺集标识」，挡在归约之外", () => {
+    expect(malformedPush({ ...base, drafts: [] })).toBe("候选集缺少集标识");
+    expect(malformedPush({ ...base, draftSetId: "", drafts: [] })).toBe("候选集缺少集标识");
+  });
+
+  it("drafts 不是数组（或整格缺了）⇒ 报「缺稿件列表」", () => {
+    expect(malformedPush({ ...base, draftSetId: "s1", drafts: "不是数组" })).toBe(
+      "候选集缺少稿件列表"
+    );
+    expect(malformedPush({ ...base, draftSetId: "s1" })).toBe("候选集缺少稿件列表");
+  });
+
+  it("形状齐了 ⇒ 空串（可安全归约）；空数组也算齐——形状闸门只管形状，不管跑出了几稿", () => {
+    expect(malformedPush({ ...base, draftSetId: "s1", drafts: [] })).toBe("");
   });
 });

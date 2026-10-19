@@ -12,6 +12,7 @@ import AppIcon from "./AppIcon.vue";
 import AgentTimeline from "./AgentTimeline.vue";
 import ProposalCard from "./ProposalCard.vue";
 import ComposerBox from "./ComposerBox.vue";
+import DraftCandidates from "./DraftCandidates.vue";
 import ToolRoster from "./ToolRoster.vue";
 import ModelSelect from "./ModelSelect.vue";
 import BookWorkbench from "./BookWorkbench.vue";
@@ -80,6 +81,8 @@ const EMPTY_TAIL = { reasoning: "", message: "" };
 
 const threadKey = computed(() => threadKeyFor(book.activeDocTab));
 const thread = computed<ThreadView | undefined>(() => agent.threads[threadKey.value]);
+/** 本线程的多稿候选集（P0-②）：没有就是 undefined（面板不显形）。换轮 / 选稿 / 丢稿都会在 store 里清掉它。 */
+const draftSet = computed(() => agent.draftSets[threadKey.value]);
 const items = computed(() => thread.value?.items ?? EMPTY_ITEMS);
 const tail = computed(() => thread.value?.streaming ?? EMPTY_TAIL);
 const running = computed(() => thread.value?.running ?? false);
@@ -411,6 +414,16 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <!-- 多稿候选面板（P0-②）：贴在中栏转录区与输入区之间——它说的是「刚刚这一轮跑出来的几稿」，
+         属于转录区那一段内容，不该被挤到状态栏下面（状态栏贴着输入卡，还兼顾挑完之后的回执）。 -->
+    <DraftCandidates
+      v-if="draftSet"
+      :drafts="draftSet.drafts"
+      :draft-set-id="draftSet.draftSetId"
+      @pick="(index) => void agent.pickDraft(index)"
+      @discard="void agent.discardDrafts()"
+    />
+
     <div class="agent-statusbar">
       <span class="status-line">{{ statusLine }}</span>
       <span v-if="book.notice" class="status-note">{{ book.notice }}</span>
@@ -430,6 +443,7 @@ onBeforeUnmount(() => {
       :thinking-level="agent.thinkingLevel"
       :thinking-wire="provider.activeThinkingWire"
       :web-search-enabled="agent.webSearchEnabled"
+      :sample-count="agent.sampleCount"
       :model-label="provider.modelLabel"
       :base-url="provider.activeBaseURL"
       @update:model-value="agent.setDraft(threadKey, $event)"
@@ -440,6 +454,7 @@ onBeforeUnmount(() => {
       @toggle-work-mode="void book.toggleWorkMode()"
       @cycle-thinking="agent.cycleThinking()"
       @toggle-web-search="agent.toggleWebSearch()"
+      @cycle-draft-sample="agent.cycleDraftSample()"
       @open-tool-roster="rosterOpen = true"
       @open-model-select="openModelSelect"
       @open-palette="referenceMenu.summon('/')"

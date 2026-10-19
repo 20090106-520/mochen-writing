@@ -238,7 +238,8 @@ describe("useAgentStore", () => {
       userText: "写点啥",
       thinkingLevel: "off",
       webSearchEnabled: false,
-      skillPaths: []
+      skillPaths: [],
+      sampleCount: 1
     });
     await openChapter();
     store().send("改这一章");
@@ -252,7 +253,8 @@ describe("useAgentStore", () => {
       userText: "改这一章",
       thinkingLevel: "off",
       webSearchEnabled: false,
-      skillPaths: []
+      skillPaths: [],
+      sampleCount: 1
     });
     expect(threadKeyFor(null)).toBe(UNBOUND);
     expect(threadKeyFor(CH)).toBe(CH);
@@ -547,7 +549,8 @@ describe("useAgentStore", () => {
       // 没开书也照样发得出这一轮，两枚每轮开关仍是默认关档 —— 字段一个都不缺。
       thinkingLevel: "off",
       webSearchEnabled: false,
-      skillPaths: []
+      skillPaths: [],
+      sampleCount: 1
     });
     expect(threadKeyFor(null)).toBe(UNBOUND);
   });

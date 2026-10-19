@@ -88,7 +88,8 @@ function turn(userText: string, webSearchEnabled: boolean): StartTurnInput {
     userText,
     thinkingLevel: "off",
     webSearchEnabled,
-    skillPaths: []
+    skillPaths: [],
+    sampleCount: 1
   };
 }
 

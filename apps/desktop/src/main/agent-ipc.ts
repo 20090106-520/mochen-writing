@@ -5,7 +5,9 @@ import {
   type ConnectionDraft,
   type ContextPreviewQuery,
   type DecideInput,
+  type DiscardDraftsInput,
   type ModelListQuery,
+  type PickDraftInput,
   type ProfileDraft,
   type StartTurnInput,
   type VerifyResult
@@ -21,7 +23,7 @@ import { handleTrusted } from "./ipc-guard.js";
 /** electron 的 ipcMain.handle 的窄形状：装配处传进来，测试处传注册表。 */
 type Handler = (channel: string, fn: (...args: unknown[]) => unknown) => void;
 
-/** 只注册 IPC_CHANNELS 白名单里那七条 agent 通道，一条不多一条不少。 */
+/** 只注册 IPC_CHANNELS 白名单里那九条 agent 通道，一条不多一条不少。 */
 export function registerAgentIpc(handle: Handler, service: AgentService): void {
   handleTrusted(handle, IPC_CHANNELS.agentStartTurn, (_event, input) =>
     service.startTurn(input as StartTurnInput)
@@ -31,6 +33,13 @@ export function registerAgentIpc(handle: Handler, service: AgentService): void {
   );
   handleTrusted(handle, IPC_CHANNELS.agentDecide, (_event, input) =>
     service.decide(input as DecideInput)
+  );
+  // 多稿择优（P0-②）：只递候选集句柄与稿序号，正文一律取主进程存的那一份事件，渲染层递不进字。
+  handleTrusted(handle, IPC_CHANNELS.agentPickDraft, (_event, input) =>
+    service.pickDraft(input as PickDraftInput)
+  );
+  handleTrusted(handle, IPC_CHANNELS.agentDiscardDrafts, (_event, input) =>
+    service.discardDrafts(input as DiscardDraftsInput)
   );
   handleTrusted(handle, IPC_CHANNELS.agentDiff, (_event, proposalId) =>
     service.diffOf(proposalId as string)

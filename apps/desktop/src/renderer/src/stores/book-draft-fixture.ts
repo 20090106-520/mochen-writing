@@ -189,7 +189,10 @@ export function createBookApi(): BookApiFixture {
     webdavVerify: offLimits("webdavVerify"),
     webdavPush: offLimits("webdavPush"),
     webdavList: offLimits("webdavList"),
-    webdavPull: offLimits("webdavPull")
+    webdavPull: offLimits("webdavPull"),
+    // 多稿两枚（P0-②）：这份夹具测的是书稿读写，选稿丢稿该越界当场喊出来。
+    pickDraft: offLimits("pickDraft"),
+    discardDrafts: offLimits("discardDrafts")
   } satisfies RendererApi;
 
   return {

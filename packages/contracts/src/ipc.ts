@@ -3,6 +3,9 @@ import type {
   AgentOutbound,
   DecideInput,
   DecisionResult,
+  DiscardDraftsInput,
+  DraftSetResult,
+  PickDraftInput,
   SessionListItem,
   SessionLoadResult,
   StartTurnInput
@@ -58,6 +61,19 @@ export const IPC_CHANNELS = {
   agentStartTurn: "agent:start-turn",
   agentInterrupt: "agent:interrupt",
   agentDecide: "agent:decide",
+  /**
+   * 多稿采样的两条收尾动作（P0-②，2026-10-19）：选用某一稿 / 丢弃整集。
+   *
+   * 【为什么落盘要单开一条通道】候选稿**只在主进程内存里**（静默采样期间一个字都没落盘），
+   * 渲染层手里只有预览文本。让它把选中的正文递回来再写盘，就是把「盘上写什么字」
+   * 交给渲染层决定——那是第二种写盘通路。这一条只递句柄与稿序号，
+   * 正文由主进程按集里存的原始事件（消息 + 提案）经**既有** `registerProposal` 全链路落盘。
+   *
+   * 【丢弃为什么不复用这条】丢弃是一个字都不写，成败判定与落盘那一条完全不同
+   * （落盘要占线程、要发事件、要过指纹闸），合成一条只会让两边都说不清。
+   */
+  agentPickDraft: "agent:pick-draft",
+  agentDiscardDrafts: "agent:discard-drafts",
   agentEvent: "agent:event",
   agentDiff: "agent:diff",
   providerGet: "provider:get",
@@ -514,6 +530,14 @@ export interface RendererApi {
   startTurn(input: StartTurnInput): Promise<{ turnId: string }>;
   interruptTurn(turnId: string): Promise<boolean>;
   decideProposal(input: DecideInput): Promise<DecisionResult>;
+  /**
+   * 选定多稿采样里的某一稿并落盘（P0-②）。只递句柄与稿序号——正文由主进程按集里存的
+   * 原始事件经既有提案全链路落盘，渲染层递不回正文（见 `agentPickDraft` 通道那段注释）。
+   * 同一集只能落一次：第二次回 `gone`。
+   */
+  pickDraft(input: PickDraftInput): Promise<DraftSetResult>;
+  /** 丢弃整集候选：一个字都不落盘，只把集删掉。 */
+  discardDrafts(input: DiscardDraftsInput): Promise<DraftSetResult>;
   /** 提案的统一 diff 文本；主进程算好，渲染层不 import agent-runtime（见 Task 1 的 agentDiff 说明）。 */
   proposalDiff(proposalId: string): Promise<string>;
   /**

@@ -239,7 +239,8 @@ describe("agentService 边界拒绝与线程归一", () => {
       userText: "写".repeat(20001),
       thinkingLevel: "off",
       webSearchEnabled: false,
-      skillPaths: []
+      skillPaths: [],
+      sampleCount: 1
     };
     expect(await rejectMessage(service.startTurn(input))).toContain("过长");
     expect(writes).toEqual([]);
@@ -257,7 +258,8 @@ describe("agentService 边界拒绝与线程归一", () => {
         userText: "写点什么",
         thinkingLevel: "off",
         webSearchEnabled: false,
-        skillPaths: []
+        skillPaths: [],
+        sampleCount: 1
       })
     );
     expect(message).toContain("不能为空");
@@ -284,7 +286,8 @@ describe("agentService 边界拒绝与线程归一", () => {
           userText: "写点什么",
           thinkingLevel: "off",
           webSearchEnabled: false,
-          skillPaths: []
+          skillPaths: [],
+          sampleCount: 1
         })
       );
       expect(message).toContain("两者不能同时给");
@@ -305,7 +308,8 @@ describe("agentService 边界拒绝与线程归一", () => {
         userText: "随便聊聊",
         thinkingLevel: "off",
         webSearchEnabled: false,
-        skillPaths: []
+        skillPaths: [],
+        sampleCount: 1
       })
     ).resolves.toBeDefined();
     expect(turnStartThreadKeys(outbound)).toEqual(["unbound"]);
@@ -326,7 +330,8 @@ describe("agentService 边界拒绝与线程归一", () => {
         userText: "随便聊聊",
         thinkingLevel: "off",
         webSearchEnabled: false,
-        skillPaths: []
+        skillPaths: [],
+        sampleCount: 1
       })
     ).resolves.toBeDefined();
     const rel = await findLatestSession(root, CHAPTER);
@@ -347,7 +352,8 @@ describe("agentService 边界拒绝与线程归一", () => {
         userText: "随便聊聊",
         thinkingLevel: "off",
         webSearchEnabled: false,
-        skillPaths: []
+        skillPaths: [],
+        sampleCount: 1
       })
     ).resolves.toBeDefined();
     expect(turnStartThreadKeys(outbound)).toEqual(["unbound"]);
@@ -368,7 +374,8 @@ describe("agentService 边界拒绝与线程归一", () => {
       userText: "改紧一点",
       thinkingLevel: "off",
       webSearchEnabled: false,
-      skillPaths: []
+      skillPaths: [],
+      sampleCount: 1
     });
     const id = proposalIdsOf(outbound)[0] ?? "";
     if (id === "") throw new Error("夹具必须先出提案，否则走不到写盘那一步");
@@ -413,7 +420,8 @@ describe("agentService 边界拒绝与线程归一", () => {
       userText: "改紧一点",
       thinkingLevel: "high",
       webSearchEnabled: true,
-      skillPaths: []
+      skillPaths: [],
+      sampleCount: 1
     });
     const request = requests[0];
     if (request === undefined) throw new Error("请求必须发出");
@@ -441,7 +449,8 @@ describe("agentService 边界拒绝与线程归一", () => {
       userText: "改紧一点",
       thinkingLevel: "off",
       webSearchEnabled: false,
-      skillPaths: []
+      skillPaths: [],
+      sampleCount: 1
     });
     const body = JSON.parse(requests[0]?.body ?? "{}") as Record<string, unknown>;
     // 「关」的实现是不发字段，不是发 "off"：严格校验的端点会 400，这条钉住差别。
@@ -466,7 +475,8 @@ describe("挂入技能（spec §11）", () => {
     userText: "照技能改",
     thinkingLevel: "off",
     webSearchEnabled: false,
-    skillPaths
+    skillPaths,
+    sampleCount: 1
   });
 
   it("挂入的技能正文真的进了这一轮发出去的系统提示", async () => {

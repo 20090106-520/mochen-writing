@@ -7,6 +7,8 @@ import {
   type AgentOutbound,
   type DecideInput,
   type DecisionResult,
+  type DraftCandidate,
+  type DraftSampleCount,
   type ProposalDecision,
   type SessionListItem,
   type SessionLoadResult,
@@ -21,17 +23,23 @@ import {
   CLEAR_VIEW_SENTENCE,
   EMPTY_STREAM,
   ProposalView,
-  QUEUED_FULL_NOTICE,
-  QUEUED_MAX,
   ThreadView,
   UNBOUND,
+  cardsCountOf,
   composeStatusReport,
+  decisionViewPatch,
+  enqueueText,
   malformedPush,
   newThread,
+  pendingCountOf,
   plainList,
+  purgeThreadProposals,
   reasonOf,
+  runningSeconds,
   threadKeyFor
 } from "../utils/agent-thread";
+import { DRAFT_DISCARD_DONE, nextDraftSampleCount, resolveDraft } from "../utils/draft-candidates";
+import { readRemote } from "../utils/agent-requests";
 import { replayProposalStatuses } from "../utils/timeline";
 import { matchPermissionMode, type SlashCommand } from "../utils/slash-commands";
 import { stageLabelOf, matchStageName } from "../utils/composer-context";
@@ -98,16 +106,18 @@ export const useAgentStore = defineStore("agent", {
     thinkingLevel: initialThinkingLevel(thinkingPreferenceStorage()),
     webSearchEnabled: loadWebSearchDefault(webSearchPreferenceStorage()),
     /** 「记住思考档」开关（设置页那枚）：默认关 = 原行为，切档不留痕。 */
-    thinkingRemembered: loadThinkingRemember(thinkingPreferenceStorage())
+    thinkingRemembered: loadThinkingRemember(thinkingPreferenceStorage()),
+    /** 多稿档（P0-②）：1=关；**刻意不跨重启记忆**——它是 N 倍 token 成本的开关，每次启动回到关，与「联网/深度」两枚持久偏好是两条规矩。 */
+    sampleCount: 1 as DraftSampleCount,
+    /** 多稿候选集（P0-②）：键是 threadKey；值里那几稿已由主进程按 rankDrafts 排好序，换轮/选稿/丢稿都会清掉它。 */
+    draftSets: {} as Record<string, { draftSetId: string; drafts: DraftCandidate[] }>
   }),
 
   getters: {
     pendingOf:
       (state) =>
       (threadKey: string): number =>
-        Object.values(state.proposals).filter(
-          (view) => view.proposal.threadKey === threadKey && view.status === "pending"
-        ).length
+        pendingCountOf(state.proposals, threadKey)
   },
 
   actions: {
@@ -175,6 +185,11 @@ export const useAgentStore = defineStore("agent", {
       if (storage !== null) saveWebSearchDefault(storage, this.webSearchEnabled);
     },
 
+    /** 多稿档循环（P0-②）：关 → ×2 → ×3 → 关；次序从 contracts 的 DRAFT_SAMPLE_COUNTS 现拼，不留第二份档位表。 */
+    cycleDraftSample(): void {
+      this.sampleCount = nextDraftSampleCount(this.sampleCount);
+    },
+
     /** 中栏唯一的订阅入口：装配处挂载时调一次，重复调用不叠加监听。 */
     startListening(): void {
       if (this.agentEventOff !== null) return;
@@ -218,6 +233,8 @@ export const useAgentStore = defineStore("agent", {
         thread.lastError = "";
         thread.endedAs = "";
         this.seconds = 0;
+        // 换轮即作废（P0-②）：上一轮的候选集在这一刻过期，留着它会让「挑一稿」落进新轮的地盘。
+        delete this.draftSets[outbound.threadKey];
         return;
       }
       // Important 2：迟到的旧轮推送一律忽略。判据是**本轮推送的 turnId 必须等于当前轮的 turnId**，
@@ -230,6 +247,12 @@ export const useAgentStore = defineStore("agent", {
       // 用户在流式输出中按 Esc 之后，屏幕上会凭空多出一段没人写过的字。
       // turn-end 自身到达时 turnId 仍等于本轮，过得了这道门，收束逻辑照常走。
       if (thread.turnId !== outbound.turnId) return;
+      // 多稿候选集（P0-②）：N 稿都只是**等着你挑**的暂存态，一个字都不落盘；换轮即作废（上面 turn-start 清）。
+      if (outbound.type === "candidates") {
+        const { threadKey, draftSetId, drafts } = outbound;
+        this.draftSets[threadKey] = { draftSetId, drafts };
+        return;
+      }
       if (outbound.type === "delta") {
         thread.streaming[outbound.deltaKind] += outbound.text;
         return;
@@ -344,13 +367,12 @@ export const useAgentStore = defineStore("agent", {
     async loadDiff(proposalId: string): Promise<void> {
       const view = this.proposals[proposalId];
       if (!view) return;
-      try {
-        view.diff = await window.mochen.proposalDiff(proposalId);
-      } catch (err) {
-        const reason = reasonOf(err);
-        view.diff = "";
-        this.notice = `提案差异取回失败：${reason}`;
-      }
+      const read = await readRemote(
+        () => window.mochen.proposalDiff(proposalId),
+        "提案差异取回失败"
+      );
+      view.diff = read.ok ? read.value : "";
+      if (!read.ok) this.notice = read.notice;
     },
 
     /**
@@ -371,19 +393,10 @@ export const useAgentStore = defineStore("agent", {
         return;
       }
       const view = this.proposals[proposalId];
-      if (result.ok || !view) return;
-      if (result.reason === "stale") view.status = "stale";
-      if (result.reason === "cancelled") view.status = "cancelled";
-      if (result.reason === "denied") {
-        view.status = "rejected";
-        view.message = guidance;
-      }
-      if (
-        result.reason === "permission-denied" ||
-        result.reason === "io" ||
-        result.reason === "not-pending"
-      )
-        view.message = result.message;
+      const patch = decisionViewPatch(result, guidance);
+      if (!view || patch === null) return;
+      if (patch.status !== undefined) view.status = patch.status;
+      if (patch.message !== undefined) view.message = patch.message;
     },
 
     /** 裁定 m1：startTurn 被边界拒绝时单句中文进 notice 与该线程 lastError，绝不静默、绝不留悬空 promise。 */
@@ -400,6 +413,8 @@ export const useAgentStore = defineStore("agent", {
         // 每轮开关的当下值：字段是必填的，主进程边界缺一个就整轮拒收（不静默按 off 发）。
         thinkingLevel: this.thinkingLevel,
         webSearchEnabled: this.webSearchEnabled,
+        // 多稿档（P0-②）：必填字段，开着时主进程一轮静默跑 N 次生成再把 N 稿一起推回来。
+        sampleCount: this.sampleCount,
         // 本线程显式挂入的技能（spec §11）：只传 id，正文由主进程按同一套读取守卫取。
         // 摊一份再递 —— 见 utils/agent-thread.ts 的 plainList，那段记着为什么这条路不通过一次。
         skillPaths: plainList(this.skillPathsOf(threadKeyFor(book.activeDocTab)))
@@ -426,17 +441,25 @@ export const useAgentStore = defineStore("agent", {
       });
     },
 
-    /** 运行中按 Tab：把 composer 文本 trim 后入队，不发 IPC；满 5 条拒收并写中文（spec §5.1）。 */
+    /** 运行中按 Tab：判定在 enqueueText（一处实现），这里只负责「被拒时写一句中文」。 */
     queueText(threadKey: string, text: string): boolean {
-      const thread = this.viewOf(threadKey);
-      const value = text.trim();
-      if (value === "") return false;
-      if (thread.queued.length >= QUEUED_MAX) {
-        this.notice = QUEUED_FULL_NOTICE;
-        return false;
-      }
-      thread.queued.push(value);
-      return true;
+      const { ok, notice } = enqueueText(this.viewOf(threadKey), text);
+      if (notice !== "") this.notice = notice;
+      return ok;
+    },
+
+    /** 「用这一稿」（P0-②）：index 是候选集里的位次（0 = 主进程按 rankDrafts 排在推荐位的那一稿）。 */
+    async pickDraft(index: number): Promise<void> {
+      const key = threadKeyFor(useBookStore().activeDocTab);
+      const notice = await resolveDraft(this.draftSets, key, index, "");
+      if (notice !== "") this.notice = notice;
+    },
+
+    /** 「丢弃全部」（P0-②）：不落盘，一个字的稿都不进盘；成功回一句实话（文案在 utils/draft-candidates.ts）。 */
+    async discardDrafts(): Promise<void> {
+      const key = threadKeyFor(useBookStore().activeDocTab);
+      const notice = await resolveDraft(this.draftSets, key, null, DRAFT_DISCARD_DONE);
+      if (notice !== "") this.notice = notice;
     },
 
     /** 裁定 m1：打断的拒绝同样写成中文并返回 false，调用位（Esc/按钮）不需要再包 try。 */
@@ -521,11 +544,9 @@ export const useAgentStore = defineStore("agent", {
 
     /** 面板打开时的取数：失败只写 notice、不清空已显示的行——把「读不到」伪装成「没有历史」比报错更坏。 */
     async refreshSessions(): Promise<void> {
-      try {
-        this.sessions = await window.mochen.listSessions();
-      } catch (err) {
-        this.notice = `历史对话没有读回来：${reasonOf(err)}`;
-      }
+      const read = await readRemote(() => window.mochen.listSessions(), "历史对话没有读回来");
+      if (read.ok) this.sessions = read.value;
+      else this.notice = read.notice;
     },
 
     /**
@@ -533,12 +554,11 @@ export const useAgentStore = defineStore("agent", {
      * 与 refreshSessions 同一策略——读不到就还摆着上一次读到的，不装作「一个技能都没有」。
      */
     async refreshSkills(): Promise<void> {
-      try {
-        this.skills = await window.mochen.listSkills();
+      const read = await readRemote(() => window.mochen.listSkills(), "技能库没有列出来");
+      if (read.ok) {
+        this.skills = read.value;
         this.skillsListed = true;
-      } catch (err) {
-        this.notice = `技能库没有列出来：${reasonOf(err)}`;
-      }
+      } else this.notice = read.notice;
     },
 
     /** 读一份技能正文（只读）。读不到时把主进程那句中文原样摆出来，不留一张空卡。 */
@@ -618,9 +638,7 @@ export const useAgentStore = defineStore("agent", {
       thread.lastError = "";
       thread.endedAs = "";
       thread.sessionId = "";
-      for (const id of Object.keys(this.proposals)) {
-        if (this.proposals[id]?.proposal.threadKey === threadKey) delete this.proposals[id];
-      }
+      purgeThreadProposals(this.proposals, threadKey);
     },
 
     /** 点面板一行 = 切到那条会话接着聊。与 `/resume` 的分别是「最近那条」对「指名的那条」：主进程 loadSession 收到 sessionId 会把这一条线程的写入目标改过去，下一轮就续在它后面。 */
@@ -686,9 +704,7 @@ export const useAgentStore = defineStore("agent", {
           this.notice = composeStatusReport({
             threadKey,
             thread: this.threads[threadKey],
-            cards: Object.values(this.proposals).filter(
-              (view) => view.proposal.threadKey === threadKey
-            ).length,
+            cards: cardsCountOf(this.proposals, threadKey),
             pending: this.pendingOf(threadKey),
             hasBook: book.hasBook,
             permissionMode: book.meta?.permissionMode ?? null,
@@ -766,9 +782,7 @@ export const useAgentStore = defineStore("agent", {
      */
     clearThreadView(threadKey: string): void {
       const thread = this.viewOf(threadKey);
-      const pendingCards = Object.values(this.proposals).filter(
-        (view) => view.proposal.threadKey === threadKey && view.status === "pending"
-      ).length;
+      const pendingCards = pendingCountOf(this.proposals, threadKey);
       thread.hydrated = true;
       this.resetThreadView(threadKey);
       this.notice =
@@ -778,13 +792,7 @@ export const useAgentStore = defineStore("agent", {
     },
 
     tick(): void {
-      const running = Object.values(this.threads).filter((thread) => thread.running);
-      if (running.length === 0) {
-        this.seconds = 0;
-        return;
-      }
-      const earliest = Math.min(...running.map((thread) => thread.startedAt));
-      this.seconds = Math.max(0, Math.floor((Date.now() - earliest) / 1000));
+      this.seconds = runningSeconds(this.threads);
     }
   }
 });

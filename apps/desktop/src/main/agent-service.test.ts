@@ -55,7 +55,8 @@ function turn(
     userText,
     thinkingLevel: "off",
     webSearchEnabled,
-    skillPaths: []
+    skillPaths: [],
+    sampleCount: 1
   };
 }
 
@@ -778,7 +779,8 @@ describe("agentService 全链", () => {
         userText: "写点什么",
         thinkingLevel: "off",
         webSearchEnabled: false,
-        skillPaths: []
+        skillPaths: [],
+        sampleCount: 1
       })
     ).rejects.toThrow(/创作阶段标识不能为空/);
     service.dispose();

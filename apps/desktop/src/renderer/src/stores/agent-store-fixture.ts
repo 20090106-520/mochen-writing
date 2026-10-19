@@ -9,9 +9,12 @@ import type {
   ContextPreviewQuery,
   DecideInput,
   DecisionResult,
+  DiscardDraftsInput,
   DocWriteResult,
+  DraftSetResult,
   EditProposal,
   ModelListResult,
+  PickDraftInput,
   ProviderSaveResult,
   ProviderView,
   RendererApi,
@@ -158,6 +161,17 @@ export const decideProposal = vi.fn(async (input: DecideInput) => {
   return nextDecision;
 });
 export const proposalDiff = vi.fn(async (id: string) => `diff:${id}`);
+/**
+ * 多稿两枚（P0-②）：默认都回成功。要测失败支的用例改它们的返回；
+ * 要钉「有没有真的发出去」查它们的调用。签名走 vi.fn 的泛型参数——
+ * 本仓 eslint 没配 argsIgnorePattern，给桩写个用不上的形参会被 no-unused-vars 判错。
+ */
+export const pickDraft = vi.fn<(input: PickDraftInput) => Promise<DraftSetResult>>(async () => ({
+  ok: true
+}));
+export const discardDrafts = vi.fn<(input: DiscardDraftsInput) => Promise<DraftSetResult>>(
+  async () => ({ ok: true })
+);
 export const readDoc = vi.fn(async (relPath: string) => ({
   relPath,
   content: "正文\n夜色沉下去\n",
@@ -222,6 +236,8 @@ export const api = {
   interruptTurn,
   decideProposal,
   proposalDiff,
+  pickDraft,
+  discardDrafts,
   loadSession,
   listSessions,
   contextPreview,
@@ -428,6 +444,10 @@ export function setupAgentFixture(): void {
     // 每个用例都从桩的默认实现起步：`mockImplementation` / `mockResolvedValue` 会跨用例留着（本夹具不 clearMocks），
     // 不在这里复位，上一个用例塞的实现就决定了这一个用例读回什么——顺序一改结果就变，红得毫无道理。
     loadSession.mockImplementation(async () => sessionResult);
+    pickDraft.mockImplementation(async () => ({ ok: true }));
+    discardDrafts.mockImplementation(async () => ({ ok: true }));
+    pickDraft.mockClear();
+    discardDrafts.mockClear();
     listSessions.mockImplementation(async () => []);
     listSkills.mockImplementation(async () => []);
     readSkill.mockImplementation(async (_source: string, relPath: string) => ({

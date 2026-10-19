@@ -15,7 +15,13 @@
      这里不含业务判断，一切交给 store；输入值本身也由 store 持有（F-A 前置）。 -->
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { PermissionMode, ThinkingLevel, ThinkingWire, WorkMode } from "@mochen/contracts";
+import type {
+  DraftSampleCount,
+  PermissionMode,
+  ThinkingLevel,
+  ThinkingWire,
+  WorkMode
+} from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import ComposerContextBar from "./ComposerContextBar.vue";
 import ComposerReferenceMenu from "./ComposerReferenceMenu.vue";
@@ -45,6 +51,8 @@ const props = defineProps<{
   /** 启用中那条连接把「深度」在线上叫什么（Agnes 那类端点叫 xhigh）；只影响 chip 的提示。 */
   thinkingWire: ThinkingWire;
   webSearchEnabled: boolean;
+  /** 多稿档（P0-②）：1 = 关。chip 的文案与 title 判定全在 composerChips 那一处，这里只收值。 */
+  sampleCount: DraftSampleCount;
   modelLabel: string;
   // prop 名必须是 `baseUrl` 而不是 `baseURL`：模板里的 kebab 绑定 `:base-url` 被 Vue camelize 成 `baseUrl`，
   // 声明成 `baseURL` 时它根本收不到值（真机实测：chip 的 title 拼出 `undefined/models`）。
@@ -60,6 +68,7 @@ const emit = defineEmits<{
   "toggle-work-mode": [];
   "cycle-thinking": [];
   "toggle-web-search": [];
+  "cycle-draft-sample": [];
   "open-tool-roster": [];
   "open-model-select": [anchor: HTMLElement];
   "open-palette": [];
@@ -86,7 +95,7 @@ const draft = computed({
   set: (value: string) => emit("update:modelValue", value)
 });
 
-// F-D chip 行：六枚真开关/入口，判定全部下沉 composerChips（权限侧内部只调 permissionChipView 一次）。
+// F-D chip 行：八枚真开关/入口，判定全部下沉 composerChips（权限侧内部只调 permissionChipView 一次）。
 const chips = computed(() =>
   composerChips({
     hasBook: props.hasBook,
@@ -96,6 +105,7 @@ const chips = computed(() =>
     thinkingLevel: props.thinkingLevel,
     thinkingWire: props.thinkingWire,
     webSearchEnabled: props.webSearchEnabled,
+    sampleCount: props.sampleCount,
     modelLabel: props.modelLabel,
     baseURL: props.baseUrl
   })
@@ -118,8 +128,8 @@ const voice = useVoiceInput({
 
 // 模板不做判定、不出现第二份事件字面量（T9-4③）。CHIP_EMIT 映射表住在 composer-chips.ts：
 // 本仓 verify 用裸 tsc，`.vue` 不进类型程序，穷尽性关卡只有落在 `.ts` 才咬得住（定义处注释有 WHY 与变异实测）。
-// 模型 chip 是唯一的例外分支：它是七枚里唯一一枚要把**自己**交出去的（下拉浮层要拿它当锚点），
-// 所以载荷在那一条上补；其余六枚仍原样走表，窄化后 `CHIP_EMIT[id]` 的类型也不再含它。
+// 模型 chip 是唯一的例外分支：它是八枚里唯一一枚要把**自己**交出去的（下拉浮层要拿它当锚点），
+// 所以载荷在那一条上补；其余七枚仍原样走表，窄化后 `CHIP_EMIT[id]` 的类型也不再含它。
 function onChipClick(id: ComposerChipId): void {
   if (id === "model") {
     // 元素还没挂上就什么都不做：宁可不弹，也不弹一个没有锚点的浮层。

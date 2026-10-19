@@ -220,6 +220,13 @@ const api = {
   },
   webdavPull: async () => {
     throw new Error("不该拉 WebDAV 远程备份");
+  },
+  // 多稿两枚（P0-②）：这份夹具测的是连接配置，选稿丢稿一个都不该被调到——越界当场喊出来。
+  pickDraft: async () => {
+    throw new Error("不该在这条用例里选稿");
+  },
+  discardDrafts: async () => {
+    throw new Error("不该在这条用例里丢稿");
   }
 } satisfies RendererApi;
 

@@ -16,6 +16,7 @@ import {
   type AgentDeltaKind,
   type AgentEvent,
   type AgentEventType,
+  type DecisionResult,
   type EditProposal,
   type PermissionMode,
   type ProposalStatus,
@@ -97,6 +98,18 @@ export function reasonOf(err: unknown): string {
 }
 
 /**
+ * 运行中 Tab 入队的**唯一判定**（spec §5.1）：空字与满额都拒收，受理时就地 push。
+ * 搬出来只为一件事：store 里那个 action 只剩「写 notice / 回布尔」两行接线。
+ */
+export function enqueueText(thread: ThreadView, text: string): { ok: boolean; notice: string } {
+  const value = text.trim();
+  if (value === "") return { ok: false, notice: "" };
+  if (thread.queued.length >= QUEUED_MAX) return { ok: false, notice: QUEUED_FULL_NOTICE };
+  thread.queued.push(value);
+  return { ok: true, notice: "" };
+}
+
+/**
  * 递出网之前，把 store state 里的数组摊成**普通数组**（2026-10-07 批次 5-㉖ 真机撞出来的）。
  *
  * 【症状】挂入技能之后发任何一轮都起不来，报 `An object could not be cloned.`
@@ -137,7 +150,7 @@ export function absorbConflictNotice(hasUnsavedEdits: boolean): string {
  * 所以主进程之外的一切（含被改写的推送通道）都可能在渲染层露出畸形形状。
  * 这里补齐形状闸门：返回空串表示可安全归约，否则返回中文原因，调用处忽略并留痕。
  * 闸门只挡「会让中栏掉线/污染线程」的字段：threadKey、turnId、type、event 载荷、
- * deltaKind、delta text、turn-end status；其余字段缺失只会退化成空文案，不致命。
+ * deltaKind、delta text、turn-end status、candidates 的 draftSetId / drafts；其余字段缺失只会退化成空文案，不致命。
  */
 export function malformedPush(raw: unknown): string {
   if (typeof raw !== "object" || raw === null) return "推送不是一个对象";
@@ -168,9 +181,32 @@ export function malformedPush(raw: unknown): string {
         return `无法识别的收尾状态：${String(status)}`;
       return "";
     }
+    // 候选集（P0-②）：缺了列表就没得挑，缺了句柄就没法回执——两者都直接挡在归约之外。
+    case "candidates": {
+      if (typeof value.draftSetId !== "string" || value.draftSetId === "")
+        return "候选集缺少集标识";
+      if (!Array.isArray(value.drafts)) return "候选集缺少稿件列表";
+      return "";
+    }
     default:
       return `未知推送类型：${String(value.type)}`;
   }
+}
+
+/**
+ * 审批回执 → 卡片终态（纯映射）：`decide` 的返回值与卡上的 status / message 是同一件事的两种面孔，
+ * 口径只留这一份。`message` 缺省表示「这条支路不改卡片上那句话」，不是「清空它」。
+ * 成功（ok）回 null：终态由随后的 `written` 事件落，这里一个字都不许抢着写。
+ */
+export function decisionViewPatch(
+  result: DecisionResult,
+  guidance: string
+): { status?: ProposalStatus; message?: string } | null {
+  if (result.ok) return null;
+  if (result.reason === "stale") return { status: "stale" };
+  if (result.reason === "cancelled") return { status: "cancelled" };
+  if (result.reason === "denied") return { status: "rejected", message: guidance };
+  return { message: result.message };
 }
 
 /** 状态行文案（spec §7 的运行态、§6.3 的打断残留、§9 第 4 行的中断原因、§5.1 的排队数）。 */
@@ -194,6 +230,14 @@ export function composeStatusLine(
   }
   if (pending > 0) return `${pending} 条待审`;
   return "就绪";
+}
+
+/** 运行秒数的唯一算法：从所有在跑线程里**最早**那次 startedAt 起算，无在跑则归零（`tick()` 每秒调一次）。 */
+export function runningSeconds(threads: Record<string, ThreadView>): number {
+  const running = Object.values(threads).filter((thread) => thread.running);
+  if (running.length === 0) return 0;
+  const earliest = Math.min(...running.map((thread) => thread.startedAt));
+  return Math.max(0, Math.floor((Date.now() - earliest) / 1000));
 }
 
 /** `/clear` 的确认文案（spec §6 定稿整句）：真实的边界就是「只动渲染层」，一个字都不许夸张。 */
@@ -255,4 +299,26 @@ export function composeStatusReport(facts: StatusFacts): string {
     ended
   ];
   return `状态 · ${parts.join(" · ")}`;
+}
+
+/** 某条线程的待审张数：状态行、清视图、状态报告都数这一份，口径只留一处。 */
+export function pendingCountOf(proposals: Record<string, ProposalView>, threadKey: string): number {
+  return Object.values(proposals).filter(
+    (view) => view.proposal.threadKey === threadKey && view.status === "pending"
+  ).length;
+}
+
+/** 某条线程的卡片总张数（清视图与状态报告共用；含待审与已决，不是只数待审）。 */
+export function cardsCountOf(proposals: Record<string, ProposalView>, threadKey: string): number {
+  return Object.values(proposals).filter((view) => view.proposal.threadKey === threadKey).length;
+}
+
+/** 抹掉某条线程的全部提案（`/clear` 与换线程共用）：只删名下条目，别条线程一张不动。 */
+export function purgeThreadProposals(
+  proposals: Record<string, ProposalView>,
+  threadKey: string
+): void {
+  for (const id of Object.keys(proposals)) {
+    if (proposals[id]?.proposal.threadKey === threadKey) delete proposals[id];
+  }
 }

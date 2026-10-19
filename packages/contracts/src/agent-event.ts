@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { DraftReading } from "./draft-rank.js";
+import { draftSampleCountSchema } from "./draft-rank.js";
 import { editProposalSchema, PROPOSAL_DECISIONS } from "./patch.js";
 import { thinkingLevelSchema } from "./per-run.js";
 import { skillPathsSchema } from "./skill.js";
@@ -169,7 +171,41 @@ export type AgentOutbound =
       threadKey: string;
       status: TurnEndStatus;
       message: string;
+    }
+  /**
+   * 多稿采样收尾时把 N 稿摆给用户的那一枚（P0-②，2026-10-19）。
+   *
+   * 【为什么是一枚**仅在途**载荷而不是事件】它不是这一轮发生过的「事实」，而是
+   * 「接下来等着你选」的**暂存态**：稿子还在主进程内存里，一个字都没落盘、也不进模型历史。
+   * 所以它不进 `AGENT_EVENT_TYPES`（那张表是**要落盘**的事件名册），
+   * 也不进 `agentEventSchema`——它是 `AgentOutbound` 的一个变体，只走推送通道。
+   *
+   * 【渲染层必须认得它】`utils/agent-thread.ts` 的 `malformedPush` 拦陌生推送类型，
+   * 少一个 `case "candidates"` 就会当场报「未知推送类型」——候选面板一个字都显示不出来。
+   *
+   * 【落选稿的去处】`drafts` 全量摆出来（含每稿的读数），用户点一稿才走落盘，
+   * 点「丢弃」则连集一起删——不自动择优落盘是用户裁定。
+   */
+  | {
+      type: "candidates";
+      turnId: string;
+      threadKey: string;
+      draftSetId: string;
+      drafts: DraftCandidate[];
     };
+
+/**
+ * 一稿候选：`text` 是该稿的**新增正文**（该轮 `message` 正文 + 该轮提案的 `replace` 文本，
+ * `\n\n` 相接），`reading` 是本仓 AI 味判据跑出来的读数（见 `contracts/draft-rank.ts`）。
+ *
+ * `text` 是给人看的预览，落盘与否由 `pickDraft` 按集里存的**原始事件**回放，不靠这段文本再解析一次。
+ */
+export interface DraftCandidate {
+  /** 第几次生成（0 起算）；与 `reading.index` 同一个数。 */
+  index: number;
+  text: string;
+  reading: DraftReading;
+}
 
 /**
  * userText 的上限。同一个数被三处用：这里的拒绝句、输入区的 `n/20000` 计数条、
@@ -208,7 +244,13 @@ export const startTurnInputSchema = z
      * 本轮显式挂入的技能（spec §11）。必填、无默认值：与两枚每轮开关同一条理由——
      * 缺字段就是渲染层忘了传，在边界上炸中文，比悄悄按「没挂技能」发出去好查得多。
      */
-    skillPaths: skillPathsSchema
+    skillPaths: skillPathsSchema,
+    /**
+     * 本轮的采样稿数（P0-②）：1 = 关（行为一字不变），2 / 3 = 一轮里静默跑几稿。
+     * **必填、无默认值**：与上两枚每轮开关同一条理由——缺字段就是渲染层忘了传，
+     * 在边界上炸中文，比悄悄按「关」发出去好查得多。
+     */
+    sampleCount: draftSampleCountSchema
   })
   .superRefine((value, ctx) => {
     if (value.threadKey.trim() === "" && value.docRelPath !== null)
@@ -235,6 +277,43 @@ export const decideInputSchema = z
       });
   });
 export type DecideInput = z.infer<typeof decideInputSchema>;
+
+/**
+ * 选用某一稿的入参（P0-②）。`draftSetId` 是那一轮候选集的句柄，`index` 是第几稿（0 起算）。
+ *
+ * 只递这两个——**不许递正文**：落盘走的是集里存的原始事件（消息 + 提案），
+ * 让渲染层再把正文递回来就等于把「盘上写什么字」交给渲染层决定，那是第二种写盘通路。
+ */
+export const pickDraftInputSchema = z.object({
+  draftSetId: z.string({ error: "候选集标识不能为空" }).min(1, "候选集标识不能为空"),
+  index: z.number({ error: "稿序号必须是整数" }).int("稿序号必须是整数").min(0, "稿序号不能是负数")
+});
+export type PickDraftInput = z.infer<typeof pickDraftInputSchema>;
+
+/** 丢弃整集候选的入参（P0-②）：只递句柄，一个字节都不落盘。 */
+export const discardDraftsInputSchema = z.object({
+  draftSetId: z.string({ error: "候选集标识不能为空" }).min(1, "候选集标识不能为空")
+});
+export type DiscardDraftsInput = z.infer<typeof discardDraftsInputSchema>;
+
+/**
+ * 三条失败理由各配一句中文（**单一真身在这里**，渲染层照抄不得）。
+ *
+ * 为什么要分开说：三件事用户该做的完全不同——
+ * `gone` 是这集已经作废（换过书、或同一集已被选/丢过），只能重发一轮；
+ * `no-book` 是没开书，去打开一本书；`busy` 是这条线程上还有一轮在跑，等它收尾再点。
+ * 压成一句「操作失败」会让人对着一个不知道该干什么的提示反复试。
+ */
+export const DRAFT_SET_FAIL_MESSAGES: Record<"gone" | "no-book" | "busy", string> = {
+  gone: "这几稿已经不在了（可能已被选用、丢弃，或者中途换过书），重新发一轮吧。",
+  "no-book": "还没打开作品目录，这一稿落不到任何地方。",
+  busy: "这条线程上还有一轮在跑，等它结束再来选这一稿。"
+};
+export type DraftSetFailReason = keyof typeof DRAFT_SET_FAIL_MESSAGES;
+
+/** 选用 / 丢弃的回执：成功只说成了，失败带三档理由与对应中文。 */
+export type DraftSetResult =
+  { ok: true } | { ok: false; reason: DraftSetFailReason; message: string };
 
 export type DecisionResult =
   | {

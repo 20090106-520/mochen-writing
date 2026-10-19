@@ -24,7 +24,9 @@ const base = {
   // 下面那些「缺某一个必被拒」的用例才测的是它自己点名的那一个字段。
   thinkingLevel: "off",
   webSearchEnabled: false,
-  skillPaths: [] as string[]
+  skillPaths: [] as string[],
+  // P0-② 的采样档同样是每轮必填、无默认值（缺字段就该炸中文），base 里带上。
+  sampleCount: 1
 };
 
 describe("thinkingLevelSchema", () => {

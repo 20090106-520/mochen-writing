@@ -44,7 +44,8 @@ describe("createRendererApi", () => {
       userText: "改",
       thinkingLevel: "off",
       webSearchEnabled: false,
-      skillPaths: []
+      skillPaths: [],
+      sampleCount: 1
     });
     await api.interruptTurn("t1");
     await api.decideProposal({ proposalId: "p1", decision: "cancel", guidance: "" });
@@ -98,7 +99,8 @@ describe("createRendererApi", () => {
       userText: "改紧一点",
       thinkingLevel: "off",
       webSearchEnabled: false,
-      skillPaths: []
+      skillPaths: [],
+      sampleCount: 1
     };
     const decideInput: DecideInput = { proposalId: "p-1", decision: "cancel", guidance: "" };
     // 导出那组：三个实参逐个留位。EPUB 的 bytes 走主进程，这层只证明「原样出网、顺序不乱」。
@@ -179,6 +181,10 @@ describe("createRendererApi", () => {
     await api.startTurn(startInput);
     await api.interruptTurn("t-1");
     await api.decideProposal(decideInput);
+    // 多稿两枚（P0-②）：只递**候选集句柄 + 稿序号**，一个字的候选正文都不往回递——
+    // 落盘写什么字由主进程按集里存的事件决定（多递一个正文参数，下面的实参点名当场红）。
+    await api.pickDraft({ draftSetId: "set-1", index: 0 });
+    await api.discardDrafts({ draftSetId: "set-1" });
     await api.proposalDiff("p-1");
     await api.loadSession("chapters/01-开局.md");
     await api.notify("title", "body");
@@ -259,7 +265,7 @@ describe("createRendererApi", () => {
     await api.webdavList();
     await api.webdavPull("book-2026-10-15-12-00-00");
 
-    expect(calls.length).toBe(63);
+    expect(calls.length).toBe(65);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -276,6 +282,9 @@ describe("createRendererApi", () => {
       "agent:start-turn",
       "agent:interrupt",
       "agent:decide",
+      // 多稿两枚（P0-②）。同样不许从 IPC_CHANNELS 派生，理由同上。
+      "agent:pick-draft",
+      "agent:discard-drafts",
       "agent:diff",
       "agent:load-session",
       "app:notify",
@@ -356,6 +365,9 @@ describe("createRendererApi", () => {
       [startInput],
       ["t-1"],
       [decideInput],
+      // 多稿两枚的实参：选稿递句柄 + 稿序号，丢稿只递句柄——**正文一个字节都不出渲染层**。
+      [{ draftSetId: "set-1", index: 0 }],
+      [{ draftSetId: "set-1" }],
       ["p-1"],
       // 没指名的那一趟也把第二实参的位置留出来（值是 undefined）：preload 里偷偷丢掉 sessionId，
       // 这条断言就会红——面板点第几条却读回最近那条，是只有码流层才抓得到的错。
@@ -444,6 +456,9 @@ describe("createRendererApi", () => {
       "decideProposal",
       // 逐行对比（2026-10-13）：改稿历史那一扇进这份点名册，与另外几枚改稿通道同一规矩。
       "diffChange",
+      // 多稿两枚（P0-②）：选稿要把某一稿真的写进盘，丢稿是那集的收尾——
+      // 进这份点名册的理由与别的改稿通道一致：少一枚面板点不到，多一枚就是多开的口子。
+      "discardDrafts",
       // 技能市场三枚（2026-10-07 批次 5-㉖）。装/卸是**往用户磁盘写**的两枚通道，
       // 和其它改稿通道一样进这份点名册：少一枚面板调不到，多一枚就是多开的口子。
       "importTxtCommit",
@@ -470,6 +485,7 @@ describe("createRendererApi", () => {
       "openProviderKeyPage",
       "openWebSource",
       "pickBookDirectory",
+      "pickDraft",
       "profileEnable",
       "profileRemove",
       "profileUpsert",

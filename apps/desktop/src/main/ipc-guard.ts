@@ -395,6 +395,10 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
     optionalTextRule({ maxLength: MAX_ID_CHARS, label: "会话 id" })
   ],
   [IPC_CHANNELS.agentContextPreview]: [objectRule("上下文预览的询问")],
+  // 多稿择优（P0-②）：两条都收对象入参（集句柄 + 稿序号 / 只集句柄）。
+  // 集在不在、稿序号指得到谁，判定住在 multi-sample 的取集那一步，这里再抄一遍就是第二份判据。
+  [IPC_CHANNELS.agentPickDraft]: [objectRule("要选的那一稿")],
+  [IPC_CHANNELS.agentDiscardDrafts]: [objectRule("要丢弃的那一集")],
 
   [IPC_CHANNELS.providerSave]: [objectRule("这条连接草稿")],
   [IPC_CHANNELS.providerConnectionRemove]: [id("要删的连接")],
@@ -582,7 +586,16 @@ const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
   [IPC_CHANNELS.webdavVerify]: webdavDenyIo,
   [IPC_CHANNELS.webdavPush]: webdavDenyIo,
   [IPC_CHANNELS.webdavList]: webdavDenyIo,
-  [IPC_CHANNELS.webdavPull]: webdavDenyIo
+  [IPC_CHANNELS.webdavPull]: webdavDenyIo,
+  // 多稿择优（P0-②）被挡时照 DraftSetResult 的失败档回话：调用点 await 后按 result.ok 分支，
+  // 抛错会让「用这一稿 / 丢掉这几稿」那颗按钮悬死在 await 上。`message` 已如实报出被挡的原因，
+  // `reason` 取 gone（＝这几稿作废，重发一轮）是最贴近的失败档。
+  [IPC_CHANNELS.agentPickDraft]: (info) => ({ ok: false, reason: "gone", message: info.message }),
+  [IPC_CHANNELS.agentDiscardDrafts]: (info) => ({
+    ok: false,
+    reason: "gone",
+    message: info.message
+  })
 };
 
 /**
