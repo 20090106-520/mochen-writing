@@ -602,3 +602,55 @@ describe("ai-flavor · repeatedSentences ＋ 复读闸（2026-10-18）", () => {
     expect(verdict.flatRhythm).toBeNull();
   });
 });
+
+describe("ai-flavor · 对话标签的引号覆盖面（2026-10-19 真机复验暴露的召回裂缝）", () => {
+  // 真机复验拿到的那章正文用半角直引号 `"`（66 个）、`「」『』` 一个没有——旧判据
+  // （`AI_FLAVOR_DIALOGUE_TAG_PATTERN` 第 1 支只认 `」』` 收尾）对真实正文**召回为 0**：
+  // 是判据匹配不到，不是模型真避开。本组按真机实证补上引号覆盖面。
+  //
+  // 半角 `"` 开闭同形，**不能裸并进收尾类**：`"他说过不会来。"` 里第一个 `"` 是**开**引号，
+  // 裸并会把引号内的转述误判成标签。故按**行内奇偶**归一（`"` 奇 → `“` 开、偶 → `”` 闭），
+  // 正则再收弯引号 `“”`；归一与正则只此一份，analyzeAiFlavor / aiFlavorGate 共用。
+
+  it("半角直引号：闭引号后的「××说」计得到（一处不报、4 处起报）", () => {
+    const line = '"喝吧。"他说。\n';
+    const four = analyzeFlavorWithRepeat(line, 4);
+    expect(four.entries.find((e) => e.term === AI_FLAVOR_DIALOGUE_TAG_LABEL)?.count).toBe(4);
+    // 归一是逐行做的：第 1 个 `"` → `“`、第 2 个 → `”`，`”他说` 才落进第 1 支。
+    const one = analyzeFlavorWithRepeat(line, 1);
+    expect(one.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_DIALOGUE_TAG_LABEL);
+  });
+
+  it('开引号内的转述不误报：`"他说过不会来。"` 一处都不算（奇偶归一正是为挡这一刀）', () => {
+    const line = '"他说过不会来。"\n';
+    const report = analyzeFlavorWithRepeat(line, 5);
+    expect(report.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_DIALOGUE_TAG_LABEL);
+  });
+
+  it("弯引号 `“”` 同计（旧判据只认 `」』`，弯引号正文同样整条落空）", () => {
+    const line = "“喝吧。”他说。\n";
+    const four = analyzeFlavorWithRepeat(line, 4);
+    expect(four.entries.find((e) => e.term === AI_FLAVOR_DIALOGUE_TAG_LABEL)?.count).toBe(4);
+  });
+
+  it('半角直引号的另一种贴身构式照样计：说：后紧跟 `"`（`他说："你先喝。"`）', () => {
+    const line = '他说："你先喝。"\n';
+    const four = analyzeFlavorWithRepeat(line, 4);
+    expect(four.entries.find((e) => e.term === AI_FLAVOR_DIALOGUE_TAG_LABEL)?.count).toBe(4);
+  });
+
+  it("退稿闸同口径（同一枚数字）：半角直引号一行 3 处放行，第 4 处退稿", () => {
+    const threeTags = '"喝吧。"她说。"你不喝？"他说道。"随你。"她说。';
+    const three = aiFlavorGate(CLEAN_FILLER + threeTags);
+    expect(three.structureOver).toEqual([]);
+    expect(three.pass).toBe(true);
+    const four = aiFlavorGate(CLEAN_FILLER + threeTags + '"我去添壶水。"她说。');
+    expect(four.structureOver).toEqual([AI_FLAVOR_DIALOGUE_TAG_LABEL]);
+    expect(four.pass).toBe(false);
+    // 证明是新条拦的，不是老四条：重罪数不到密度门槛，句首轮换、句长错落、无复读。
+    expect(four.hits).toBeLessThan(AI_FLAVOR_GATE.minHits);
+    expect(four.startRepeat).toBeNull();
+    expect(four.flatRhythm).toBeNull();
+    expect(four.repeatOver).toEqual([]);
+  });
+});

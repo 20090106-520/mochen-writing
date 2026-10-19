@@ -133,3 +133,93 @@
   同一口径（都是绝对数）。若真机发现长章被误伤，再按「每千字」重估。
 - **效果无法在本仓度量**：「更像人写的」只能由作者真机生成一章后目检；
   平台过审率本仓量不了；外部检测器读数不作结论依据。
+  —— 这一条由 §六 真机复验**部分收口**（跑得通、标签计数与退稿闸读数可核），
+  但「平台过审率」与「外部检测器点数」仍**留档不度量**（同上两条口径）。
+
+## 六、真机复验（本轮「继续」的落点 · 2026-10-19）
+
+### 1) 要收的是什么
+
+§五留的两条未收口里，「效果只能靠真机目检」这一条本轮补上：**用重建后的出厂常驻提示词，
+在真实 Electron 应用里（CDP 驱动 `window.mochen.startTurn`）生成一章正文**，
+核两件事——① 生成端新段真的进了这一轮的请求上下文（行为上体现为正文风格）；
+② 扫描端对话标签判据在真机写入时真的跑了、且与生成端上限（3）对齐。产出（正文全文 ＋ 读数）交给用户。
+
+> 与 §一那张 A/B 表同一通路、同一参数（`agnes-3.0-flash` / `stageId draft` / `thinkingLevel low` / 联网关），
+> 区别只在：这次用的是**仓里重建后的出厂文案**，不是临时改的那版。复验产出只作方向参照，不作结论依据。
+
+### 2) 前置（本轮已核实，非待办）
+
+- `corepack pnpm build` 已跑通（exit 0），`apps/desktop/out/main/index.js` 时间戳已从 10-18 12:36 更新到 **10-19 16:19**。
+- 真机已启动：`apps/desktop` 下 `corepack pnpm exec electron . --remote-debugging-port=9377`；
+  `GET http://127.0.0.1:9377/json/list` 已列到 `page` target（title `墨宸 AI`，URL 指向 `out/renderer/index.html`）。
+- 数据面：`%APPDATA%\mochen-ai\config.json` 有可用连接（custom / `https://apihub.agnes-ai.com/v1` / bearer），
+  启用档 `agnes-3.0-flash`；密钥库 `secrets/` 就位；到该主机 443 连通。
+
+### 3) 驱动脚本（仓外，不污染仓库）
+
+落点：`C:\Users\17863\AppData\Local\Temp\mochen-live\drive.mjs`（纯 Node，用全局 `WebSocket`／`fetch`）。
+一条 `Runtime.evaluate` ＋ `awaitPromise:true`，`returnByValue:true`，把整轮跑完，返回 JSON。
+
+流程（全部走 `window.mochen.*`，签名与形状均已核对）：
+
+1. `createBook({ directory: "<Temp>\mochen-live\book-<ts>", title: "雾港的账" })`——新书必须建在空目录。
+2. `createDoc("chapters/第一章.md", "第一章")`——`createBookSkeleton` 只建目录，不建文稿。
+3. `onAgentEvent(handler)`：`payload.type==="event"` 且 `event.type==="proposal"` →
+   `decideProposal({ proposalId: event.proposal.id, decision: "accept-session", guidance: "" })`；
+   同时记下每条 `tool-call` 的 `resultText`（退稿信若出现会在这里）；收 `payload.type==="turn-end"` 则结束。
+4. `startTurn({ threadKey:"chapters/第一章.md", docRelPath:"chapters/第一章.md", stageId:"draft", userText:<premise>,
+   thinkingLevel:"low", webSearchEnabled:false, skillPaths:[] })`。
+5. 等 `turn-end`（上限 300s，超时如实报 `timeout`，不重试刷屏）。
+6. `readDoc("chapters/第一章.md")` → `{ content, fingerprint }`。
+
+`userText`（《雾港的账》第一章，约 1200–1500 字，只写正文；给足闲话／改口的余地）：
+> 写《雾港的账》第一章，约 1200–1500 字。雾港是临海小城，船行、盐帮、账房挤在码头后的窄街里。
+> 主角陈砚是义兴船行的账房先生，替东家管了十几年账。这一章写一场戏：陈砚在账房核对旧账，
+> 发现约三百两银子去向不明、账面上被拆成七八笔零碎采买；来催账的船行二东家周敬堂（人称周把头）找上门。
+> 就写这两个人在账房里这场对峙——陈砚拿账册说话，周敬堂不认，从客气到发僵，最后谁也没把话挑明，
+> 账册合上，戏收在这里。只写正文，不要标题、不要分节说明；人物说话要有生活气。
+
+### 4) 读数（口径与真身对齐，不另造）
+
+- **对话标签命中**：驱动脚本内嵌**与 `AI_FLAVOR_DIALOGUE_TAG_PATTERN` 逐字相同**的正则统计正文命中数。
+  判读：≤3 为生成端上限内；≥4 为撞扫描端起报线（真机上若触闸，正文会是**重写后**的版本，
+  `tool-call.resultText` 里会留下退稿信，据实分报）。
+- **退稿闸是否触发**：不在脚本里重算——闸跑在应用内（`doc-tools-host` 的 `flavorGate`），
+  脚本只如实记录 `tool-call` 回执里有没有退稿信、以及 `proposal`／`written` 事件序列。
+- **正向三口径**（闲话跑题／说错改口／段落非句句收在台词上）：正则判不出，交**作者目检**（§一.三端落点已定此取舍）。
+
+### 5) 验收
+
+1. 真机生成成功：拿到非空正文（`content` 长度 > 0），并如实记录 `turn-end.status`。
+2. 标签读数与生成端对齐：正文贴引号「说／说道」命中 ≤3；若触闸重写，重写稿同样 ≤3。
+3. 读数如实：脚本读数、事件序列、退稿信有无**照原样**呈现，不编造（项目记忆：门禁数据不得编造）。
+4. 仓外临时件收口：脚本与新建书目录在 `Temp\mochen-live\` 下；收口时按需保留正文样本、其余清理。
+5. **不推送**（用户叫停，沿用 §五）。
+
+### 6) 若复验暴露问题
+
+回到生成端／扫描端排查：仍遵 **先红后绿**（先补失败判据）与 **不推送**；
+若属「上限 3 是绝对数、长章被误伤」，按 §五那条「每千字重估」处理。
+
+## 七、真机复验与随之修掉的召回裂缝（2026-10-19 收口 · T7）
+
+§六 的复验跑通了（读数如实照录在台账
+`plans/2026-10-09-full-scan-report.md` 的 §一百三十一）：`corepack pnpm build` 重建出厂文案后，
+CDP 驱动真机生成《雾港的账》第一章 **1554 字 / 43 段**，`turn-end` = `done`，
+一次 `write_doc` 提案自动 `accept-session` 后写入，**退稿闸未触发**。
+
+复验同时暴露一处**召回裂缝**：盘上正文用**半角直引号 `"`（66 个）**、`「」『』` **0 个**，
+而 `AI_FLAVOR_DIALOGUE_TAG_PATTERN` 第 1 支只认 `」』` 收尾 → 对出厂主笔的实际产出**召回为 0**
+（是判据匹配不到，不是模型真避开）。据此补了 T7.7：
+
+- `AI_FLAVOR_DIALOGUE_TAG_PATTERN` 收尾类加弯引号 `”`、开引号类加 `“`（保留 `"`），排除类加 `“”`；
+- 新增模块内私有的 `normalizeDialogueQuotes()`：按**行内奇偶**把半角 `"` 交替归一成 `“`／`”`
+  ——开闭同形若裸扩，会把 `"他说过不会来。"` 这类**开引号**语句误判成标签；
+- 两处（`analyzeAiFlavor` 逐行、`aiFlavorGate` 整段）同吃这一份归一与同一份正则（单一真身）。
+
+修后**同一章**读数：旧判据 0 → 新判据 1（`”他说`），仍在生成端上限 3 以内。
+
+验收（先红后绿）：新增 5 条用例，回退源码后 **3 条失败**；恢复后两测试文件 **104 passed**；
+全仓 `corepack pnpm verify` → `VERIFY_EXIT=0`（364 文件 / 4791 passed | 2 skipped）。
+**本刀仍不推送**（沿用 §五）。

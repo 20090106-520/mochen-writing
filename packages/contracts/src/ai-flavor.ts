@@ -15,7 +15,8 @@
  *   = 生成端写明的上限「一章最多一处」＋1，**此条同时进退稿闸**）、章末总结体 1 次起报、
  *   「声音不大，却……」反差模板 2 次起报。
  * - 情绪直陈（同上按句式计，2026-10-18）——「感到／涌起＋情绪词」3 次起报。
- * - 对话标签（2026-10-19）——贴着引号的「××说／说道」（「『喝吧。』她说。」／「他说：『…』」）。
+ * - 对话标签（2026-10-19）——贴着引号的「××说／说道」（「『喝吧。』她说。」／「他说：『…』」）；
+ *   引号型含全角 `「」`、半角 `"` 与弯引号 `“”`，半角直引号先按行内奇偶归一，见该常量注释。
  *   生成端 `HUMAN_DIALOGUE_INSTRUCTION` 第 1 条写明「一章最多三处」：起报线 = 上限＋1 = 4，
  *   **此条同时进退稿闸**（同升华对偶，数字只住 AI_FLAVOR_STRUCTURE_MIN_COUNT 一处）。
  * - 复读（2026-10-18）——同一句（≥12 字）原样重复。体检「③ 重复句」与退稿闸第五条理由同吃
@@ -196,15 +197,44 @@ export const AI_FLAVOR_EMOTION_LABEL = "情绪直陈（感到／涌起＋情绪�
  * 只认**两种贴身构式**，宁可少报不误伤：
  *  - 引号收尾后紧跟 ≤4 字的「说／说道」：`「……」他说。`；
  *  - 「说／说道」后紧跟冒号与引号：`他说：「……」`。
- * 刻意不收单独的 `说`（「说明／说话／虽说／听说」命中面太大），也不收半角直引号——
- * `"他说过不会来。"` 里那个引号是**开**引号，会把引号内的转述误判成标签。
+ * 刻意不收单独的 `说`（「说明／说话／虽说／听说」命中面太大）。
  * `问／答／道`「××问」这类标签、以及不带引号的 `他说，……` 同样不抓（同 §一百零五 取舍，
  * 放宽会把「他这么一说，」这类常态合法构句一并咬进来）。
+ *
+ * 引号口径（2026-10-19 真机复验补 · T7.7）：出厂主笔实际产出的正文用的是**半角直引号 `"`**
+ * （真机那章 66 个 `"`、`「」『』` 零个），旧判据只认 `」』` 收尾，对真实正文**召回为 0**——
+ * 是判据匹配不到，不是模型真避开。半角 `"` 开闭同形，**不能裸并进收尾类**：
+ * `"他说过不会来。"` 里第一个 `"` 是**开**引号，裸并会把引号内的转述误判成标签。
+ * 故先走 `normalizeDialogueQuotes`（按**行内奇偶**把 `"` 归一成弯引号：
+ * 第 1、3、5…个 → `“` 开、第 2、4、6…个 → `”` 闭），本正则再收弯引号 `“”`——
+ * 开引号内的 `“他说` 落空、闭引号后的 `”他说` 命中。
  */
 export const AI_FLAVOR_DIALOGUE_TAG_PATTERN =
-  /(?:[」』][^\n「『」』]{0,4}(?:说|说道))|(?:(?:说|说道)[：:]\s*[「『"])/g;
+  /(?:[」』”][^\n「『」』“”]{0,4}(?:说|说道))|(?:(?:说|说道)[：:]\s*[「『“"])/g;
 /** 对话标签的显示名（同上，按句式计）。 */
 export const AI_FLAVOR_DIALOGUE_TAG_LABEL = "对话标签（「××说」）";
+
+/**
+ * 对话标签判据的半角引号归一化（2026-10-19 · T7.7，与 `AI_FLAVOR_DIALOGUE_TAG_PATTERN` 同一批）：
+ * 出厂主笔产出的正文用半角 `"`，开闭同形——直接并进收尾类会把开引号后的内容
+ * （`"他说过不会来。"`）误判成标签。这里按**行**把 `"` 依出现次序交替写成
+ * `“`（第 1、3、5…个）／`”`（第 2、4、6…个），让正则得以沿用弯引号判据。
+ * 弯引号 `“”` 与全角 `「」『』` 原样通过、不改动；按行计数是因为正文的对话引号都在一行内开合。
+ * 归一与正则只此一份——体检（analyzeAiFlavor）与退稿闸（aiFlavorGate）共用，不各抄。
+ */
+function normalizeDialogueQuotes(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => {
+      let open = true;
+      return line.replace(/"/g, () => {
+        const quote = open ? "“" : "”";
+        open = !open;
+        return quote;
+      });
+    })
+    .join("\n");
+}
 
 /**
  * 结构级三类与句式类（情绪直陈／对话标签）的起报阈值：只对这几个模式的条目生效——升华对偶偶一用是修辞、
@@ -377,7 +407,9 @@ export function analyzeAiFlavor(contents: string[]): AiFlavorReport {
       if (emotionHits !== null) {
         record(AI_FLAVOR_EMOTION_LABEL, "essay", emotionHits.length, where);
       }
-      const dialogueTagHits = line.match(AI_FLAVOR_DIALOGUE_TAG_PATTERN);
+      // 半角直引号开闭同形：按行内奇偶归一成弯引号，再跑同一份正则（见 normalizeDialogueQuotes）。
+      const dialogueLine = normalizeDialogueQuotes(line);
+      const dialogueTagHits = dialogueLine.match(AI_FLAVOR_DIALOGUE_TAG_PATTERN);
       if (dialogueTagHits !== null) {
         record(AI_FLAVOR_DIALOGUE_TAG_LABEL, "essay", dialogueTagHits.length, where);
       }
@@ -571,7 +603,9 @@ export function aiFlavorGate(text: string): AiFlavorGateVerdict {
   bump(AI_FLAVOR_CONTRAST_LABEL, contrast?.length ?? 0);
   const emotion = text.match(AI_FLAVOR_EMOTION_PATTERN);
   bump(AI_FLAVOR_EMOTION_LABEL, emotion?.length ?? 0);
-  const dialogueTag = text.match(AI_FLAVOR_DIALOGUE_TAG_PATTERN);
+  // 半角直引号开闭同形：按行内奇偶归一成弯引号，再跑同一份正则（与体检同一份真身）。
+  const dialogueSource = normalizeDialogueQuotes(text);
+  const dialogueTag = dialogueSource.match(AI_FLAVOR_DIALOGUE_TAG_PATTERN);
   bump(AI_FLAVOR_DIALOGUE_TAG_LABEL, dialogueTag?.length ?? 0);
 
   const charCount = text.length;

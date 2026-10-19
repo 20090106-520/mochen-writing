@@ -31,3 +31,18 @@
   - [x] T6.1 commit（不 push）
   - [x] T6.2 台账 `docs/superpowers/plans/2026-10-09-full-scan-report.md` 补记第一百三十节
   - [x] T6.3 工作树干净、仓外临时件清零；README 门禁节 / CI **有意不动**（理由见 spec 第五节）
+
+- [x] T7 真机复验（spec §六 · 本轮「继续」的落点）
+  - [x] T7.1 重建出厂文案：`corepack pnpm build`（exit 0），`out/main/index.js` 时间戳更新到 10-19 16:19
+  - [x] T7.2 起真机：`electron . --remote-debugging-port=9377`，CDP `page` target 可达
+  - [x] T7.3 仓外写 CDP 驱动 `Temp\mochen-live\drive.mjs`（一条 Runtime.evaluate 跑完整轮）
+  - [x] T7.4 驱动生成《雾港的账》第一章（proposal 自动 accept-session，收 turn-end，readDoc 取正文）
+    - 结果：turn-end `done`，`chapters/第一章.md` 1554 字 / 43 段，一次 write_doc 提案 accept-session 后写入，**退稿闸未触发**
+  - [x] T7.5 读数：内嵌与 `AI_FLAVOR_DIALOGUE_TAG_PATTERN` 逐字相同的正则统计标签命中；如实记录退稿闸有无触发
+    - 结果：严格正则命中 0；**但核实发现正文用半角直引号 `"`（66 个）、无 `「」『』`**，
+      故第 1 支（`」』` 收尾）对出厂主笔实际产出**召回为 0**——是判据匹配不到，不是模型真避开。
+      放宽引号型后能抓到 `"他说` / `"你上回说` / `"我没说` 3 处。
+  - [x] T7.6 把正文全文与读数交给用户；收口仓外临时件（**不推送**）
+  - [x] T7.7 排查并修：扫描端对话标签判据覆盖出厂主笔的引号型（半角 `"` ＋ 弯引号 `“”`），消除召回裂缝（先红后绿，不推送）
+    - 约束：半角 `"` 开／闭同形，直接并入第 1 支会把「`。"他说过…`」这类**开引号**语句误判为标签
+      （原注释已点明此风险）——须用**引号奇偶判定**（`"` 前已出现的 `"` 计数为奇 = 闭引号）才收，不裸扩。
