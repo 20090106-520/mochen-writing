@@ -8,7 +8,13 @@ import type {
   PatchMode,
   ProposalSource
 } from "@mochen/contracts";
-import { fuzzyEligible, fuzzyFindInLine, aiFlavorGate, textSimilarity } from "@mochen/contracts";
+import {
+  fuzzyEligible,
+  fuzzyFindInLine,
+  aiFlavorGate,
+  AI_FLAVOR_STRUCTURE_MIN_COUNT,
+  textSimilarity
+} from "@mochen/contracts";
 import {
   applyPatch,
   checkWritePermission,
@@ -22,6 +28,15 @@ import { WebReadError, webReadReceipt, type WebReadOutcome } from "./web-read.js
 
 /** read_doc 的回执上限：超过就截断，防整本长文灌进模型上下文。边界是 >，恰好 6000 不截。 */
 export const READ_TRUNCATE_AT = 6000;
+
+/**
+ * 结构上限那枚「一章最多 N 处」的数字：起报线 −1（起报线 = 生成端写明的上限＋1，见
+ * `AI_FLAVOR_STRUCTURE_MIN_COUNT`）。退稿信要跟生成端说**同一枚数**，不在这里另抄一个数字——
+ * 往后名单里再加句式，这封信自动跟着走。
+ */
+function capOf(label: string): number {
+  return (AI_FLAVOR_STRUCTURE_MIN_COUNT[label] ?? 0) - 1;
+}
 
 export interface DocToolHostDeps {
   root(): string | null;
@@ -132,12 +147,17 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
     lastBlockedContent = text;
     blockedStreak += 1;
     const top = verdict.topTerms.length > 0 ? `重灾区：${verdict.topTerms.join("、")}。` : "";
-    // 结构上限条（2026-10-18）：撞了生成端写明的上限（「不是A，是B」对偶一章最多一处）就直说到底——
-    // 只写「AI 味超标」模型会当成熟度问题去稀释，改不到点子上（真机那轮它自以为只用了一处）。
+    // 结构上限条（2026-10-18／10-19）：撞了生成端写明的上限就直说到底——只写「AI 味超标」
+    // 模型会当成熟度问题去稀释，改不到点子上（真机那轮它自以为只用了一处）。
+    // 上限按 label 现取（= 起报线 −1，数字仍只住 AI_FLAVOR_STRUCTURE_MIN_COUNT 那一张表）：
+    // 原句写死「一章最多一处」只对偶成立，名单里从此有两条、上限各不相同，措辞必须跟着 label 走。
+    const overCaps = verdict.structureOver.map(
+      (label) => `${label}（一章最多 ${capOf(label)} 处）`
+    );
     const overCap =
       verdict.structureOver.length === 0
         ? ""
-        : ` 句式超限：${verdict.structureOver.join("、")}——这条句式一章最多一处，多出来的删掉，或换个写法把同一个意思说清楚。`;
+        : ` 句式超限：${overCaps.join("、")}——这类写法这一章用超了生成端写明的上限，多出来的删掉，或换个写法把同一个意思说清楚。`;
     // 复读条（2026-10-18）：同一句原样写三遍以上是机器在原地打转（真机取证里那份 3201 行、
     // 3199 行同句的产物就是这病）。只列前 2 处，多的用「等 N 处」带过——信是给模型看的改法，不是数据倾倒。
     const repeat =

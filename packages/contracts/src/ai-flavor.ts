@@ -15,6 +15,9 @@
  *   = 生成端写明的上限「一章最多一处」＋1，**此条同时进退稿闸**）、章末总结体 1 次起报、
  *   「声音不大，却……」反差模板 2 次起报。
  * - 情绪直陈（同上按句式计，2026-10-18）——「感到／涌起＋情绪词」3 次起报。
+ * - 对话标签（2026-10-19）——贴着引号的「××说／说道」（「『喝吧。』她说。」／「他说：『…』」）。
+ *   生成端 `HUMAN_DIALOGUE_INSTRUCTION` 第 1 条写明「一章最多三处」：起报线 = 上限＋1 = 4，
+ *   **此条同时进退稿闸**（同升华对偶，数字只住 AI_FLAVOR_STRUCTURE_MIN_COUNT 一处）。
  * - 复读（2026-10-18）——同一句（≥12 字）原样重复。体检「③ 重复句」与退稿闸第五条理由同吃
  *   `repeatedSentences()`（真身在本文件）；退稿闸的判退线是 3 次（= 生成端 ⑩ 写明的上限
  *   「一章最多两次」＋1），两次留作有意复沓的余地。
@@ -183,10 +186,33 @@ export const AI_FLAVOR_EMOTION_PATTERN =
 export const AI_FLAVOR_EMOTION_LABEL = "情绪直陈（感到／涌起＋情绪词）";
 
 /**
- * 结构级三类与句式类（情绪直陈）的起报阈值：只对这几个模式的条目生效——升华对偶偶一用是修辞、
+ * 对话标签（2026-10-19，与生成端 `HUMAN_DIALOGUE_INSTRUCTION` 第 1 条同一批）：
+ * 贴着引号出现的「××说／说道」——「『喝吧。』她说。」「他说：『你先喝。』」。
+ *
+ * 四稿实测把这条从 10+ 处压到 3 处、外部检测器判的人工创作特征就从 59% 拉到 100%
+ * （读数是方向参照、不作结论依据），生成端因此写死上限「一章最多三处」；扫描端补这条接回去，
+ * 写的时候拦一道、写完扫的是同一份。
+ *
+ * 只认**两种贴身构式**，宁可少报不误伤：
+ *  - 引号收尾后紧跟 ≤4 字的「说／说道」：`「……」他说。`；
+ *  - 「说／说道」后紧跟冒号与引号：`他说：「……」`。
+ * 刻意不收单独的 `说`（「说明／说话／虽说／听说」命中面太大），也不收半角直引号——
+ * `"他说过不会来。"` 里那个引号是**开**引号，会把引号内的转述误判成标签。
+ * `问／答／道`「××问」这类标签、以及不带引号的 `他说，……` 同样不抓（同 §一百零五 取舍，
+ * 放宽会把「他这么一说，」这类常态合法构句一并咬进来）。
+ */
+export const AI_FLAVOR_DIALOGUE_TAG_PATTERN =
+  /(?:[」』][^\n「『」』]{0,4}(?:说|说道))|(?:(?:说|说道)[：:]\s*[「『"])/g;
+/** 对话标签的显示名（同上，按句式计）。 */
+export const AI_FLAVOR_DIALOGUE_TAG_LABEL = "对话标签（「××说」）";
+
+/**
+ * 结构级三类与句式类（情绪直陈／对话标签）的起报阈值：只对这几个模式的条目生效——升华对偶偶一用是修辞、
  * 2 次起才是机器味（2026-10-18 由 3 收到 2：这条起报线就是生成端 ③ 写明的上限「一章最多一处」＋1，
  * 也是退稿闸判退的那枚数字，见 AI_FLAVOR_STRUCTURE_GATED_LABELS），章末总结体一章就一个结尾、
- * 出现 1 次已经是章末那股腔，反差模板翻两句就露馅、2 次起，情绪直陈同认知转述、反复用才是机器味、3 次起；
+ * 出现 1 次已经是章末那股腔，反差模板翻两句就露馅、2 次起，情绪直陈同认知转述、反复用才是机器味、3 次起，
+ * 对话标签 4 次起（2026-10-19：= 生成端 `HUMAN_DIALOGUE_INSTRUCTION` 第 1 条写明的上限
+ * 「一章最多三处」＋1，同样进退稿闸）；
  * 其余条目照旧走 MIN_COUNT[category]。
  *
  * 阈值照旧只有体检（analyzeAiFlavor）用——**除了进闸清单里的那几条**（它们是同一枚数字两处用：
@@ -196,19 +222,23 @@ export const AI_FLAVOR_STRUCTURE_MIN_COUNT: Record<string, number> = {
   [AI_FLAVOR_ANTITHESIS_LABEL]: 2,
   [AI_FLAVOR_TAILCLAUSE_LABEL]: 1,
   [AI_FLAVOR_CONTRAST_LABEL]: 2,
-  [AI_FLAVOR_EMOTION_LABEL]: 3
+  [AI_FLAVOR_EMOTION_LABEL]: 3,
+  [AI_FLAVOR_DIALOGUE_TAG_LABEL]: 4
 };
 
 /**
  * 这些结构级条目**除了体检起报，还要进退稿闸**（数字从 AI_FLAVOR_STRUCTURE_MIN_COUNT 现取，不另抄）。
  *
- * 为什么只此一条：生成端 ③ 把「不是A，是B」式对偶写成了**明写的数值上限**（「一章最多一处」）——
- * 超过上限就是没照约束写，退回重写天经地义。⑥章末四禁、⑨反差模板、情绪直陈**不进闸**：
- * 它们的起报线是给**体检报告**看的（「人生就是这样」落在对话里是正常句），而闸的理念是
- * 「宁可放过轻度，不可拦住正常文——闸是质量下限，不是文风警察」。将来若在生成端也给它们写死
- * 数值上限，再把名字移进来，别的什么都不用改。
+ * 为什么只这几条：生成端把它们的上限写成了**明写的数值**——③「不是A，是B」对偶「一章最多一处」、
+ * `HUMAN_DIALOGUE_INSTRUCTION` 第 1 条对话标签「一章最多三处」——超过上限就是没照约束写，退回重写天经地义。
+ * ⑥章末四禁、⑨反差模板、情绪直陈**不进闸**：它们的起报线是给**体检报告**看的
+ * （「人生就是这样」落在对话里是正常句），而闸的理念是「宁可放过轻度，不可拦住正常文——闸是质量下限，
+ * 不是文风警察」。将来若在生成端也给它们写死数值上限，再把名字移进来，别的什么都不用改。
  */
-export const AI_FLAVOR_STRUCTURE_GATED_LABELS: readonly string[] = [AI_FLAVOR_ANTITHESIS_LABEL];
+export const AI_FLAVOR_STRUCTURE_GATED_LABELS: readonly string[] = [
+  AI_FLAVOR_ANTITHESIS_LABEL,
+  AI_FLAVOR_DIALOGUE_TAG_LABEL
+];
 
 export const AI_FLAVOR_CATEGORY_LABELS: Record<AiFlavorCategory, string> = {
   cliche: "描写套话",
@@ -347,6 +377,10 @@ export function analyzeAiFlavor(contents: string[]): AiFlavorReport {
       if (emotionHits !== null) {
         record(AI_FLAVOR_EMOTION_LABEL, "essay", emotionHits.length, where);
       }
+      const dialogueTagHits = line.match(AI_FLAVOR_DIALOGUE_TAG_PATTERN);
+      if (dialogueTagHits !== null) {
+        record(AI_FLAVOR_DIALOGUE_TAG_LABEL, "essay", dialogueTagHits.length, where);
+      }
     }
   }
 
@@ -483,8 +517,9 @@ export interface AiFlavorGateVerdict {
    */
   flatRhythm: SentenceRhythm | null;
   /**
-   * 撞了**结构上限**的条目名目（2026-10-18）：一章里某个句式用过了生成端写明的上限——目前只有
-   * 「不是A，是B 式升华对偶」（`AI_FLAVOR_STRUCTURE_GATED_LABELS`，上限 = 起报线 2，即一章最多一处）。
+   * 撞了**结构上限**的条目名目（2026-10-18）：一章里某个句式用过了生成端写明的上限——目前是
+   * 「不是A，是B 式升华对偶」（`AI_FLAVOR_STRUCTURE_GATED_LABELS`，上限 = 起报线 2，即一章最多一处）
+   * 与「对话标签（「××说」）」（2026-10-19 加入，上限 = 起报线 4，即一章最多三处）。
    * 与 startRepeat / flatRhythm 同一路数：一条独立拦稿理由自成一个字段，退稿信与用例都看得见病根。
    */
   structureOver: string[];
@@ -502,8 +537,8 @@ export interface AiFlavorGateVerdict {
  * 短于 minChars 的文本直接放行：样本太少，密度失真。
  *
  * 结构上限（2026-10-18）：`AI_FLAVOR_STRUCTURE_GATED_LABELS` 里那几条，撞到自己的起报线就判退——
- * 那是生成端写明数值上限的句式（一章最多一处），超上限就是没照约束写。名单里没有的条目
- * （章末体/反差/情绪直陈）照旧只报不拦，理由见那张表的注释。
+ * 那是生成端写明数值上限的句式（对偶一章最多一处、对话标签一章最多三处），超上限就是没照约束写。
+ * 名单里没有的条目（章末体/反差/情绪直陈）照旧只报不拦，理由见那张表的注释。
  *
  * 复读（2026-10-18）：同一句原样写 ≥ `AI_FLAVOR_REPEAT.gateMinCount`（3）次判退——生成端 ⑩
  * 写明的上限是「一章最多两次」。两次放行：有意复沓是文学手法，打转才拦。
@@ -536,6 +571,8 @@ export function aiFlavorGate(text: string): AiFlavorGateVerdict {
   bump(AI_FLAVOR_CONTRAST_LABEL, contrast?.length ?? 0);
   const emotion = text.match(AI_FLAVOR_EMOTION_PATTERN);
   bump(AI_FLAVOR_EMOTION_LABEL, emotion?.length ?? 0);
+  const dialogueTag = text.match(AI_FLAVOR_DIALOGUE_TAG_PATTERN);
+  bump(AI_FLAVOR_DIALOGUE_TAG_LABEL, dialogueTag?.length ?? 0);
 
   const charCount = text.length;
   const hits = [...counts.values()].reduce((sum, n) => sum + n, 0);

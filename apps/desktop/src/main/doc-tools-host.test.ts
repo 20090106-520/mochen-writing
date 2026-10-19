@@ -646,11 +646,26 @@ describe("AI 味自动退稿闸（2026-10-10 二段）", () => {
     mode = "full-access";
     // 生成端 ③ 写的是「一章最多一处」，退稿闸按同一枚数字判退；信里要把这条规则说到底——
     // 只说「AI 味超标」模型会当成熟度问题去稀释（真机那轮它自以为只用了一处）。
+    // 2026-10-19：进闸清单加了对话标签（上限三处），信里那句不再写死「一处」，改成按 label 现取。
     const content = HEAVY + "他不是来偷东西的，是来灭灯的。这船不是来送货的，是来接人的。";
     const out = await host().call("write_doc", { doc: CHAPTER, content, why: "新章" });
     expect(out.ok).toBe(false);
     expect(out.text).toContain("句式超限");
-    expect(out.text).toContain("一章最多一处");
+    expect(out.text).toContain("一章最多 1 处");
+    expect(collected).toEqual([]);
+  });
+
+  it("对话标签用超（一章第 4 处「××说」）→ 退稿信照样点破，并给这条自己的上限（2026-10-19）", async () => {
+    mode = "full-access";
+    // 生成端对话写法第 1 条写死「一章最多三处」，退稿闸按同一枚数字判退（第 4 处触发）。
+    // 信里要把这条规则说到底——只说「AI 味超标」，模型改不到点子上。
+    const content =
+      HEAVY + "「喝吧。」她说。「你不喝？」他说道。「随你。」她说。「我去添壶水。」她说。";
+    const out = await host().call("write_doc", { doc: CHAPTER, content, why: "新章" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("句式超限");
+    expect(out.text).toContain("对话标签（「××说」）");
+    expect(out.text).toContain("一章最多 3 处");
     expect(collected).toEqual([]);
   });
 

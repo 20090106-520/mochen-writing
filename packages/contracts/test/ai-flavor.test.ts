@@ -4,6 +4,7 @@ import {
   AI_FLAVOR_CATEGORY_LABELS,
   AI_FLAVOR_COGNITIVE_LABEL,
   AI_FLAVOR_CONTRAST_LABEL,
+  AI_FLAVOR_DIALOGUE_TAG_LABEL,
   AI_FLAVOR_EMOTION_LABEL,
   AI_FLAVOR_GATE,
   AI_FLAVOR_REPEAT,
@@ -258,6 +259,56 @@ const CLEAN_FILLER =
   "门后的蓑衣还滴着水，滴在青石板上，一声一声。" +
   "檐角挂着的铜铃被风碰了一下，又没了动静。";
 
+describe("ai-flavor · 对话标签句式（2026-10-19，与生成端对话写法同一批）", () => {
+  // 四稿实测：把贴着引号的「××说」从 10+ 处压到 3 处，外部检测器的人工创作特征就从 59% 拉到 100%。
+  // 生成端因此写死上限「一章最多三处」；这条判据与退稿闸同吃同一枚数字（起报线 = 上限＋1 = 4）。
+
+  it("贴着引号的「××说／说道」按句式计，4 次起报（上限三处＋1），报固定名目、类别沿用议论腔", () => {
+    const entry = analyzeFlavorWithRepeat("「喝吧。」她说。\n", 4).entries.find(
+      (e) => e.term === AI_FLAVOR_DIALOGUE_TAG_LABEL
+    )!;
+    expect(entry.count).toBe(4);
+    expect(entry.category).toBe("essay");
+    expect(entry.first.line).toBe(1);
+    // 上限之内（3 处）不报——那是生成端写明的合法额度。
+    const three = analyzeFlavorWithRepeat("「喝吧。」她说。\n", 3);
+    expect(three.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_DIALOGUE_TAG_LABEL);
+  });
+
+  it("另一种贴身构式：说：后紧跟引号（他说：「……」）照样计", () => {
+    const b = analyzeFlavorWithRepeat("他说：「你先喝。」\n", 4);
+    expect(b.entries.find((e) => e.term === AI_FLAVOR_DIALOGUE_TAG_LABEL)?.count).toBe(4);
+  });
+
+  it("召回边界（有意留的）：不贴引号的「说」一概不抓——说明／他这么一说／听说", () => {
+    // 放宽到「任意 ××说」会把正文里常态的合法构句连同「他这么一说，」一起咬进来，
+    // 误伤面比召回收益大（同 §一百零五 取舍）。这条钉的是「边界是有意的」，不是「忘了抓」。
+    for (const line of [
+      "他说明了来意，然后转身走了。\n",
+      "他这么一说，满屋人都笑了。\n",
+      "听说城南的渡口要封了。\n"
+    ]) {
+      const report = analyzeFlavorWithRepeat(line, 5);
+      expect(report.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_DIALOGUE_TAG_LABEL);
+    }
+  });
+
+  it("退稿闸同批认这条并进闸：一行 3 处放行，第 4 处退稿（干净铺底证明是新条拦的）", () => {
+    const threeTags = "「喝吧。」她说。「你不喝？」他说道。「随你。」她说。";
+    const three = aiFlavorGate(CLEAN_FILLER + threeTags);
+    expect(three.structureOver).toEqual([]);
+    expect(three.pass).toBe(true);
+    const four = aiFlavorGate(CLEAN_FILLER + threeTags + "「我去添壶水。」她说。");
+    expect(four.structureOver).toEqual([AI_FLAVOR_DIALOGUE_TAG_LABEL]);
+    expect(four.pass).toBe(false);
+    // 证明是结构上限拦的，不是老四条：重罪数不到密度门槛，句首轮换、句长错落、无复读。
+    expect(four.hits).toBeLessThan(AI_FLAVOR_GATE.minHits);
+    expect(four.startRepeat).toBeNull();
+    expect(four.flatRhythm).toBeNull();
+    expect(four.repeatOver).toEqual([]);
+  });
+});
+
 describe("ai-flavor · aiFlavorGate 自动退稿闸", () => {
   it("重度超标拦下：pass=false，topTerms 按次数排序给前 5", () => {
     const heavy = "他嘴角勾起，眼底闪过一丝复杂的情绪。他知道，这不是巧合。".repeat(15);
@@ -370,10 +421,14 @@ describe("ai-flavor · aiFlavorGate 自动退稿闸", () => {
     expect(twice.flatRhythm).toBeNull();
   });
 
-  it("结构上限只咬生成端写明数值上限的那一条：章末体 1 处仍放行（闸不越界当文风警察）", () => {
+  it("结构上限只咬生成端写明数值上限的那几条：章末体 1 处仍放行（闸不越界当文风警察）", () => {
     // 章末体的体检起报线是 1（一章一个结尾就会出现那股腔），但那条线是给报告看的：
-    // 搬进闸会把「人生就是这样」这类正常对话句也退稿。所以它只报不拦——进闸清单只此一条。
-    expect(AI_FLAVOR_STRUCTURE_GATED_LABELS).toEqual([AI_FLAVOR_ANTITHESIS_LABEL]);
+    // 搬进闸会把「人生就是这样」这类正常对话句也退稿。所以它只报不拦——进闸清单只有
+    // 生成端写死数值上限的那两条（对偶「一章最多一处」、对话标签「一章最多三处」）。
+    expect(AI_FLAVOR_STRUCTURE_GATED_LABELS).toEqual([
+      AI_FLAVOR_ANTITHESIS_LABEL,
+      AI_FLAVOR_DIALOGUE_TAG_LABEL
+    ]);
     const verdict = aiFlavorGate(CLEAN_FILLER + "他关上门。这一夜，注定无人入眠。");
     expect(verdict.topTerms.join("、")).toContain(AI_FLAVOR_TAILCLAUSE_LABEL);
     expect(verdict.structureOver).toEqual([]);

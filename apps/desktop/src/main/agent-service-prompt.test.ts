@@ -164,6 +164,33 @@ describe("defaultPromptFor · 拼装", () => {
     expect(text).toContain("句子跟着情绪走");
     expect(text).toContain("毛边");
   });
+
+  it("对话写法常驻（2026-10-19 三段）：四稿实测把人工创作特征从 59% 拉到 100% 的那三条", () => {
+    const text = defaultPromptFor({
+      title: "雾港",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context: NO_CONTEXT,
+      webSearchEnabled: false
+    });
+    // 同一故事同一场戏连跑四稿，四稿比三稿只多了这三条改动，外部检测器的人工创作特征就从
+    // 59.15% 跳到 100%——但此前它们只写在临时改的那版文案里，**一条都没落进仓**，
+    // 重开应用用默认文案跑，模型根本看不到。这一段是把它们变成常驻。
+    expect(text).toContain("对话写法要求");
+    // ① 贴引号的「××说」写死上限（扫描端同一枚数字、退稿闸判退线 = 上限＋1）
+    expect(text).toContain("一章最多三处");
+    // ② 对话要有闲话与跑题
+    expect(text).toContain("闲话");
+    // ③ 允许说错／说重／改口
+    expect(text).toContain("改口");
+    // ④ 段落长度打散、不许每段都收在台词上
+    expect(text).toContain("不许每段都收在台词上");
+    // 落点在人性化创作那段之后：排在它后面，不抢已有五段的次序。
+    expect(text.indexOf("对话写法要求")).toBeGreaterThan(text.indexOf("人性化创作"));
+  });
 });
 
 describe("defaultPromptFor · 先计划后动手（2026-10-05 批次 4）", () => {
