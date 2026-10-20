@@ -191,6 +191,31 @@ describe("defaultPromptFor · 拼装", () => {
     // 落点在人性化创作那段之后：排在它后面，不抢已有五段的次序。
     expect(text.indexOf("对话写法要求")).toBeGreaterThan(text.indexOf("人性化创作"));
   });
+
+  it("用笔处置常驻（2026-10-20）：报告称「技能库已有对应文本、接常驻即可」，实测前提不成立，本段是新写两条成法", () => {
+    const text = defaultPromptFor({
+      title: "雾港",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context: NO_CONTEXT,
+      webSearchEnabled: false
+    });
+    // ① 详略三测（删／压／展）——对每一段跑一遍的**处置动作**，不是 NARRATIVE_CRAFT ⑤ 那种感受层面的
+    //    「快慢」；与技能库 deslop-structure 的「删除优先」＋「电报体自检」同源（技能挂入才生效，这里折成常驻）。
+    expect(text).toContain("详略三测");
+    expect(text).toContain("删的是废话");
+    expect(text).toContain("电报体");
+    // ② 章末最后一拍（正向）——与 DE_AI_FLAVOR_STRUCTURE 第 ⑥ 条「章末四禁」（负向）互补：
+    //    四禁管不许怎么写，这一条管该落在哪、该动什么。
+    expect(text).toContain("章末最后一拍");
+    expect(text).toContain("不在章尾开新线");
+    expect(text).toContain("让处境、关系或读者的悬念动一下");
+    // 落点在对话写法那段之后：排在它后面，不抢已有六段的次序。
+    expect(text.indexOf("用笔处置")).toBeGreaterThan(text.indexOf("对话写法要求"));
+  });
 });
 
 describe("defaultPromptFor · 先计划后动手（2026-10-05 批次 4）", () => {
