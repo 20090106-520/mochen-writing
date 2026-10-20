@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { degenerationOf, vitalityOf } from "@mochen/contracts";
 import {
   DUPLICATE_SENTENCE_LIMIT,
   PUNCTUATION_ISSUE_LIMIT,
   TERM_SUSPECT_LIMIT,
   chapterDialogueRows,
+  chapterReadoutRows,
   findDuplicateSentences,
   findPunctuationIssues,
   findTermVariants,
@@ -311,5 +313,60 @@ describe("topPhrases：高频词口头禅榜（第八类）", () => {
   it("空书返回空榜", () => {
     expect(topPhrases([])).toHaveLength(0);
     expect(topPhrases([""])).toHaveLength(0);
+  });
+});
+
+describe("chapterReadoutRows：逐章活性／退化读数（第九节）", () => {
+  /** ≥10 句（句级读数才出数）、长短交错（突发度非平凡）。 */
+  const mixed = Array.from({ length: 12 }, (_, i) =>
+    i % 3 === 0 ? "他走。" : "他慢慢地走过来了，又停了一下。"
+  ).join("\n");
+  /** 3 句——不足 `SENTENCE_SPREAD_MIN_SENTENCES`，三枚句级读数应当算不出。 */
+  const tooShort = "他走。\n她笑。\n天黑了。";
+
+  it("行序＝章序（不排序）；四枚读数逐位等于真身读数，字数＝正文长度", () => {
+    // 故意把「短句占比更高」的那章放在后面：若按读数排序，行序会翻——本用例就红。
+    const rows = chapterReadoutRows([
+      { docIndex: 0, content: mixed },
+      { docIndex: 1, content: tooShort }
+    ]);
+    expect(rows.map((row) => row.docIndex)).toEqual([0, 1]);
+    for (const [idx, row] of rows.entries()) {
+      const content = idx === 0 ? mixed : tooShort;
+      expect(row.charCount).toBe(content.length);
+      expect(row.burstiness).toBe(vitalityOf(content).burstiness);
+      expect(row.particlePerThousand).toBe(degenerationOf(content).particlePerThousand);
+      expect(row.shortSentenceRatio).toBe(degenerationOf(content).shortSentenceRatio);
+      expect(row.meanSentenceLength).toBe(degenerationOf(content).meanSentenceLength);
+    }
+  });
+
+  it("刻意排除随长度偏高的熵与字多样性——行里不许有这两个读数", () => {
+    const row = chapterReadoutRows([{ docIndex: 0, content: mixed }])[0]!;
+    expect(row).not.toHaveProperty("ngramEntropy");
+    expect(row).not.toHaveProperty("diversity");
+    expect(Object.keys(row).sort()).toEqual([
+      "burstiness",
+      "charCount",
+      "docIndex",
+      "meanSentenceLength",
+      "particlePerThousand",
+      "shortSentenceRatio"
+    ]);
+  });
+
+  it("不足 10 句的短章：三枚句级读数为 null、虚词密度照出；空文本全 null；空入参空表", () => {
+    const [shortRow] = chapterReadoutRows([{ docIndex: 0, content: tooShort }]);
+    expect(shortRow).toMatchObject({
+      burstiness: null,
+      shortSentenceRatio: null,
+      meanSentenceLength: null
+    });
+    expect(shortRow!.particlePerThousand).toBe(degenerationOf(tooShort).particlePerThousand);
+
+    const [emptyRow] = chapterReadoutRows([{ docIndex: 0, content: "" }]);
+    expect(emptyRow).toMatchObject({ charCount: 0, particlePerThousand: null });
+
+    expect(chapterReadoutRows([])).toHaveLength(0);
   });
 });

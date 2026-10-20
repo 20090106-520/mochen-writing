@@ -34,6 +34,7 @@ import {
 import {
   analyzeAiFlavor,
   chapterDialogueRows,
+  chapterReadoutRows,
   findDuplicateSentences,
   findPunctuationIssues,
   findTermVariants,
@@ -42,6 +43,7 @@ import {
   topPhrases,
   trackCharacterAppearances,
   type ChapterDialogueRow,
+  type ChapterReadoutRow,
   type CharacterAppearance,
   type DuplicateSentence,
   type PhraseRow,
@@ -77,6 +79,8 @@ const dialogueRows = ref<ChapterDialogueRow[]>([]);
 const driftRows = ref<VoiceDriftSuspect[]>([]);
 /** 高频词口头禅榜（第八类）：信息榜不是判线，照出你自己的用词习惯。 */
 const phraseRows = ref<PhraseRow[]>([]);
+/** 逐章活性／退化读数（2026-10-20）：纯读数表，不判定、不排序（真身住 contracts）。 */
+const chapterReadouts = ref<ChapterReadoutRow[]>([]);
 /** 有问题的篇（标点/重复句按 docIndex 报），映射回篇名给表格用。 */
 const checkupDocs = ref<BookDoc[]>([]);
 
@@ -93,6 +97,7 @@ watch(
     dialogueRows.value = [];
     driftRows.value = [];
     phraseRows.value = [];
+    chapterReadouts.value = [];
     checkupDocs.value = [];
     if (book.docs.length === 0) return;
     termsScanning.value = true;
@@ -114,6 +119,7 @@ watch(
           }))
           .filter((entry) => entry.kind === "chapter");
         dialogueRows.value = chapterDialogueRows(chapterEntries);
+        chapterReadouts.value = chapterReadoutRows(chapterEntries);
         const characterNames = book.docs
           .filter((doc) => doc.kind === "character")
           .map((doc) => doc.title);
@@ -457,6 +463,42 @@ function openCharacterCard(name: string): void {
       <p class="stats-note">
         这一类不是「疑似」判定，是面镜子：语法常用词已滤掉，剩下的都是内容词——
         「瞬间」「当即」「目光」这类你自己的习惯用词高频到扎眼时，改不改由你。
+      </p>
+
+      <p class="stats-section-head">逐章活性／退化读数（{{ chapterReadouts.length }}）</p>
+      <table v-if="chapterReadouts.length > 0" class="stats-table">
+        <thead>
+          <tr>
+            <th scope="col">章</th>
+            <th scope="col" class="num">字数</th>
+            <th scope="col" class="num">句长突发度</th>
+            <th scope="col" class="num">虚词密度</th>
+            <th scope="col" class="num">短句占比</th>
+            <th scope="col" class="num">平均句长</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="row in chapterReadouts"
+            :key="row.docIndex"
+            class="is-openable"
+            :title="`点开《${docLabel(row.docIndex)}》查看`"
+            @click="openCheckupDoc(row.docIndex)"
+          >
+            <td>{{ docLabel(row.docIndex) }}</td>
+            <td class="num">{{ row.charCount }}</td>
+            <td class="num">{{ row.burstiness ?? "—" }}</td>
+            <td class="num">{{ row.particlePerThousand ?? "—" }}</td>
+            <td class="num">{{ row.shortSentenceRatio ?? "—" }}</td>
+            <td class="num">{{ row.meanSentenceLength ?? "—" }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="stats-note">这本书还没有章节，逐章读数无从算起。</p>
+      <p class="stats-note">
+        这一节**只摆数、不作判据**：突发度越大越错落、虚词密度越低越像被删平、短句占比越高越像电报体——
+        改不改由你看着数拍板。熵与字多样性**不上这张表**：它们随字数变长而偏高，逐章并排是拿不同长度的章比长短，会误读成「长章更活」。
+        「—」是样本太短算不出（不足 10 句），不是没有。
       </p>
 
       <p class="stats-note">

@@ -13,6 +13,9 @@
  *    人物不塌房的第一道启发式防线。
  * ⑧ 高频词口头禅榜：全书双字组合 TOP 榜——不是「疑似」判定，是给你自己看的镜子：
  *    「瞬间」「当即」「目光」用了多少次，一目了然（判线交给你）。
+ * ⑨ 逐章活性／退化读数（2026-10-20）：前八类之外的一张**纯读数表**——逐章摆出尺度无关的
+ *    活性／退化四枚读数（突发度／虚词密度／短句占比／平均句长），**不判定、不排序、不设线**
+ *    （真身住 contracts 的 text-vitality / text-degeneration，这里只挑长度可比的那几枚）。
  *
  * 全部是启发式判定：报「疑似」，最终判断永远交给人。零依赖——
  * 编辑距离复用 @mochen/contracts 的 isWithinEdits（与检索容错同一份真身，不抄第二份）。
@@ -25,6 +28,8 @@ import {
   dialogueVerdict,
   repeatedSentences,
   splitFrontmatter,
+  degenerationOf,
+  vitalityOf,
   type RepeatedSentence
 } from "@mochen/contracts";
 import type { BookDoc } from "../types/book-doc";
@@ -541,6 +546,60 @@ export function topPhrases(contents: string[]): PhraseRow[] {
     }))
     .sort((a, b) => b.count - a.count || a.phrase.localeCompare(b.phrase, "zh"));
   return rows.slice(0, PHRASE_LIMIT);
+}
+
+/* ────────────────────────── ⑨ 逐章活性／退化读数（2026-10-20） ────────────────────────── */
+
+/**
+ * 一章的活性／退化读数行——**只有数，没有判读**（照 §一百三十五／§一百三十九 的「只摆数」范式）。
+ * 判定真身在 contracts：活性三枚住 `text-vitality.ts`，退化三枚住 `text-degeneration.ts`，
+ * 这里只挑出**长度可比的那几枚**摆出来，不重算一枚公式。
+ */
+export interface ChapterReadoutRow {
+  docIndex: number;
+  /** 本章字数——**参照列**，不是判线：它让读者看得见「为什么这一格是 `—`」。 */
+  charCount: number;
+  /** 活性·句长突发度（尺度无关，越大越错落）；不足句数为 null。 */
+  burstiness: number | null;
+  /** 退化·虚词密度（每千字，越低越像被削平）；无字为 null。 */
+  particlePerThousand: number | null;
+  /** 退化·短句占比（比例，越高越像电报体）；不足句数为 null。 */
+  shortSentenceRatio: number | null;
+  /** 退化·平均句长（字，取自 `sentenceRhythmOf` 的真身）；不足句数为 null。 */
+  meanSentenceLength: number | null;
+}
+
+/**
+ * 逐章取活性／退化读数，**按章序原样返回**。
+ *
+ * 【为什么只上这四枚、把熵与字多样性挡在门外】`ngramEntropy`（字符 n-gram 熵）与
+ * `diversity`（字多样性）都**随文本变长而偏高**（样本越多，罕见 n-gram／字越容易被采到，
+ * 见 §一百三十五 写进 `text-vitality.ts` 的固有偏差）。多稿面板是「同一篇稿的不同版本」，
+ * 字数接近，相对比较站得住；而**逐章并排是拿不同长度的章比长短**——长章天然熵高、短章天然
+ * 字多样性低，把它们摆上这张表就是误用（读者会读成「长章更活」）。所以只收四枚**尺度无关／
+ * 密度／比例／均值**的读数：`burstiness` / `particlePerThousand` / `shortSentenceRatio` /
+ * `meanSentenceLength`。`charCount` 只当参照列，不参与判读。
+ *
+ * 【为什么不排序、不封顶】排序即排行（把「最碎／最平」的顶到最前），那是机器判定，本刀不做；
+ * 既有按序返回的先例是 `trackCharacterAppearances`（角色出场表，全量不封顶）。本表不排序，
+ * 封顶就成了**凭空砍掉书的后半截章**，所以不设上限，也不导出 `CHAPTER_READOUT_LIMIT`
+ * （没有消费者，导出即死代码）。
+ */
+export function chapterReadoutRows(
+  chapters: { docIndex: number; content: string }[]
+): ChapterReadoutRow[] {
+  return chapters.map(({ docIndex, content }) => {
+    const vitality = vitalityOf(content);
+    const degeneration = degenerationOf(content);
+    return {
+      docIndex,
+      charCount: vitality.charCount,
+      burstiness: vitality.burstiness,
+      particlePerThousand: degeneration.particlePerThousand,
+      shortSentenceRatio: degeneration.shortSentenceRatio,
+      meanSentenceLength: degeneration.meanSentenceLength
+    };
+  });
 }
 
 /* ────────────────────────── 全文批量读取 ────────────────────────── */
