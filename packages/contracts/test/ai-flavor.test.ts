@@ -8,6 +8,7 @@ import {
   AI_FLAVOR_EMOTION_LABEL,
   AI_FLAVOR_GATE,
   AI_FLAVOR_REPEAT,
+  AI_FLAVOR_SIMILE_LABEL,
   AI_FLAVOR_STRUCTURE_GATED_LABELS,
   AI_FLAVOR_TAILCLAUSE_LABEL,
   AI_FLAVOR_TERMS,
@@ -253,7 +254,7 @@ const CLEAN_FILLER =
   "月出来了。风停了，吹得檐下那串干辣椒打着转。" +
   "雪落在蓑衣上，积了薄薄一层。屋檐下挂着两串干辣椒。" +
   "狗在门边卧着。灶膛里的火星噼啪响了两声又暗下去。" +
-  "灯芯挑亮了。夜还很长，长得像一条没有尽头的河。" +
+  "灯芯挑亮了。夜还很长，长得漫过一道又一道山梁。" +
   "窗纸透进一线凉气。井台上的水桶结了一层薄冰。" +
   "墙根下堆着去年的柴，一直码到齐腰高。" +
   "门后的蓑衣还滴着水，滴在青石板上，一声一声。" +
@@ -309,6 +310,69 @@ describe("ai-flavor · 对话标签句式（2026-10-19，与生成端对话写�
   });
 });
 
+describe("ai-flavor · 明喻句式（2026-10-20，与生成端结构级去味 ④ 同一批）", () => {
+  // 生成端 DE_AI_FLAVOR_STRUCTURE_INSTRUCTION 第 ④ 条**已经写死数值上限**「明喻（像／仿佛／好像／
+  // 宛如）一章别超过三处」，扫描端此前一条明喻判据都没有——写的时候拦一道、写完扫的却是另一份，
+  // 这条不变量被拉开（§一百二十九 的前瞻note 正是在等这种情形）。本组把同一份真身补回来：
+  // 起报线 = 生成端 ④ 的上限「三处」＋1 = 4，与退稿闸同吃这一枚数字（进闸清单由 2 条变 3 条）。
+
+  it("四种标记按句式计，4 次起报（上限三处＋1），报固定名目、类别沿用议论腔、首遇能定位", () => {
+    const entry = analyzeFlavorWithRepeat("他的眼神里像是有什么碎了。\n", 4).entries.find(
+      (e) => e.term === AI_FLAVOR_SIMILE_LABEL
+    )!;
+    expect(entry.count).toBe(4);
+    expect(entry.category).toBe("essay");
+    expect(entry.first).toEqual({ docIndex: 0, line: 1, text: "他的眼神里像是有什么碎了。" });
+    // 上限之内（3 处）不报——那是生成端 ④ 写明的合法额度。
+    const three = analyzeFlavorWithRepeat("他的眼神里像是有什么碎了。\n", 3);
+    expect(three.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_SIMILE_LABEL);
+  });
+
+  it("四枚标记都认：像／仿佛／好像／宛如 各一处，凑够 4 处即报（「好像」不被拆成两处）", () => {
+    const report = analyzeAiFlavor([
+      "她的眼睛像一潭深水。\n仿佛有人推开了门。\n他好像听见了脚步声。\n炉火宛如一条沉睡的河。\n"
+    ]);
+    const entry = report.entries.find((e) => e.term === AI_FLAVOR_SIMILE_LABEL)!;
+    expect(entry.count).toBe(4);
+  });
+
+  it("召回边界（有意留的）：成词里的「像」一概不抓——图像／录像／肖像／偶像／不像／像话／像样／像素", () => {
+    // 裸「像」用前后排除类挡掉成词干扰（两字标记「仿佛／好像／宛如」无歧义）。这条钉的是
+    // 「边界是有意的」，不是「忘了抓」——每个成词各摊 4 遍，若被误抓早过了起报线。
+    for (const line of [
+      "墙上挂着一张模糊的图像。",
+      "监控的录像里出现过他。",
+      "墙上那张肖像画得很旧了。",
+      "他小时候的偶像是隔壁的木匠。",
+      "他安静得一点不像从前。",
+      "这种话说出来实在不像话。",
+      "这屋子连件像样的家具都没有。",
+      "老照片的像素低得看不清人脸。"
+    ]) {
+      const report = analyzeFlavorWithRepeat(`${line}\n`, 4);
+      expect(report.entries.map((e) => e.term)).not.toContain(AI_FLAVOR_SIMILE_LABEL);
+    }
+    // 判据不是空的：同一批文案里换一个真明喻，4 处就该报（钉住「不是把「像」全关了」）。
+    const hit = analyzeFlavorWithRepeat("这屋子安静得像一口井。\n", 4);
+    expect(hit.entries.map((e) => e.term)).toContain(AI_FLAVOR_SIMILE_LABEL);
+  });
+
+  it("退稿闸同批认这条并进闸：3 处放行，第 4 处退稿（零明喻铺底证明是新条拦的）", () => {
+    const threeSimiles = "她的眼睛像一潭深水。仿佛有人推开了门。炉火宛如一条沉睡的河。";
+    const three = aiFlavorGate(CLEAN_FILLER + threeSimiles);
+    expect(three.structureOver).toEqual([]);
+    expect(three.pass).toBe(true);
+    const four = aiFlavorGate(CLEAN_FILLER + threeSimiles + "他好像听见了脚步声。");
+    expect(four.structureOver).toEqual([AI_FLAVOR_SIMILE_LABEL]);
+    expect(four.pass).toBe(false);
+    // 证明是结构上限拦的，不是老四条：重罪数不到密度门槛，句首轮换、句长错落、无复读。
+    expect(four.hits).toBeLessThan(AI_FLAVOR_GATE.minHits);
+    expect(four.startRepeat).toBeNull();
+    expect(four.flatRhythm).toBeNull();
+    expect(four.repeatOver).toEqual([]);
+  });
+});
+
 describe("ai-flavor · aiFlavorGate 自动退稿闸", () => {
   it("重度超标拦下：pass=false，topTerms 按次数排序给前 5", () => {
     const heavy = "他嘴角勾起，眼底闪过一丝复杂的情绪。他知道，这不是巧合。".repeat(15);
@@ -354,7 +418,7 @@ describe("ai-flavor · aiFlavorGate 自动退稿闸", () => {
       "风穿过篱笆。",
       "雨下了半夜，檐下的水缸渐渐满了，水面浮着几片被打落的叶子。",
       "霜落在瓦上。",
-      "雪静静地压在柴垛上，压出一道弯弯的弧，像谁搁在那里的白毡。",
+      "雪静静地压在柴垛上，压出一道弯弯的弧，就那么搁在那儿。",
       "桥下的水缓缓流着。",
       "船不由得偏向岸边，橹声乱了，船夫把篙伸进水里撑了撑。",
       "井台的石板结了冰，滑得很。",
@@ -366,9 +430,9 @@ describe("ai-flavor · aiFlavorGate 自动退稿闸", () => {
       "锅里的粥咕嘟作响，冒着白气。",
       "狗卧在门边。",
       "鸡叫了头遍，天边还是一片灰。",
-      "夜很长，长得像一条没有尽头的河，一直流到天亮。",
+      "夜很长，长得望不到尽头，一直流到天亮。",
       "月出来了。",
-      "星子稀稀落落，像是没挂稳。",
+      "星子稀稀落落，一颗也没挂稳。",
       "云压得很低。",
       "江水静静地涨上来，漫过石阶，又退回去一点，来回几趟。",
       "石板路上积了水。",
@@ -424,10 +488,12 @@ describe("ai-flavor · aiFlavorGate 自动退稿闸", () => {
   it("结构上限只咬生成端写明数值上限的那几条：章末体 1 处仍放行（闸不越界当文风警察）", () => {
     // 章末体的体检起报线是 1（一章一个结尾就会出现那股腔），但那条线是给报告看的：
     // 搬进闸会把「人生就是这样」这类正常对话句也退稿。所以它只报不拦——进闸清单只有
-    // 生成端写死数值上限的那两条（对偶「一章最多一处」、对话标签「一章最多三处」）。
+    // 生成端写死数值上限的那三条（对偶「一章最多一处」、对话标签「一章最多三处」、
+    // 明喻「一章别超过三处」）。
     expect(AI_FLAVOR_STRUCTURE_GATED_LABELS).toEqual([
       AI_FLAVOR_ANTITHESIS_LABEL,
-      AI_FLAVOR_DIALOGUE_TAG_LABEL
+      AI_FLAVOR_DIALOGUE_TAG_LABEL,
+      AI_FLAVOR_SIMILE_LABEL
     ]);
     const verdict = aiFlavorGate(CLEAN_FILLER + "他关上门。这一夜，注定无人入眠。");
     expect(verdict.topTerms.join("、")).toContain(AI_FLAVOR_TAILCLAUSE_LABEL);

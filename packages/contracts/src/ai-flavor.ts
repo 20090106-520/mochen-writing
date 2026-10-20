@@ -19,6 +19,8 @@
  *   引号型含全角 `「」`、半角 `"` 与弯引号 `“”`，半角直引号先按行内奇偶归一，见该常量注释。
  *   生成端 `HUMAN_DIALOGUE_INSTRUCTION` 第 1 条写明「一章最多三处」：起报线 = 上限＋1 = 4，
  *   **此条同时进退稿闸**（同升华对偶，数字只住 AI_FLAVOR_STRUCTURE_MIN_COUNT 一处）。
+ * - 明喻（2026-10-20）——「像／仿佛／好像／宛如」四枚标记按句式计，4 次起报（= 生成端结构级去味 ④
+ *   写明的上限「一章别超过三处」＋1）；裸「像」前后排除成词（图像·不像·像话…），**此条同时进退稿闸**。
  * - 复读（2026-10-18）——同一句（≥12 字）原样重复。体检「③ 重复句」与退稿闸第五条理由同吃
  *   `repeatedSentences()`（真身在本文件）；退稿闸的判退线是 3 次（= 生成端 ⑩ 写明的上限
  *   「一章最多两次」＋1），两次留作有意复沓的余地。
@@ -215,6 +217,25 @@ export const AI_FLAVOR_DIALOGUE_TAG_PATTERN =
 export const AI_FLAVOR_DIALOGUE_TAG_LABEL = "对话标签（「××说」）";
 
 /**
+ * 明喻密度（2026-10-20，与生成端结构级去味 ④ 同一批）：
+ * 生成端 `DE_AI_FLAVOR_STRUCTURE_INSTRUCTION` 第 ④ 条**已经写死数值上限**——
+ * 「明喻（像／仿佛／好像／宛如）一章别超过三处」；扫描端此前一条明喻判据都没有，写的时候拦一道、
+ * 写完扫的却是另一份，这条不变量被拉开（§一百二十九 的前瞻note 正是在等这种情形）。
+ * 本刀补一条真身（不是新编阈值）：起报线 = 生成端 ④ 的上限三处 ＋ 1 = 4，与退稿闸同吃这一枚数字。
+ *
+ * 标记集合与生成端 ④ 同源（像／仿佛／好像／宛如 四枚），**宁可少报不误伤**：
+ * 两字标记「仿佛／好像／宛如」无歧义（排在前、先吃「好像」，其内层的「像」不再二次命中）；
+ * 裸「像」用前后排除类挡掉成词——前一字落在「图／录／影／肖／偶／想／好／不」（图像·录像·影像·
+ * 肖像·偶像·想像·好像·不像），或后一字落在「话／样／素／片」（像话·像样·像素·像片）时不抓。
+ * 刻意留的召回边界：`像是`／`更像是` 这类明喻构式仍会命中（生成端 ④ 点名的坏例正是
+ * 「眼神里像是有什么碎了」），不额外放宽。
+ */
+export const AI_FLAVOR_SIMILE_PATTERN =
+  /(?:仿佛|好像|宛如|(?<![图录影肖偶想好不])像(?![话样素片]))/g;
+/** 明喻的显示名（同上，按句式计）。 */
+export const AI_FLAVOR_SIMILE_LABEL = "明喻（像／仿佛／好像／宛如）";
+
+/**
  * 对话标签判据的半角引号归一化（2026-10-19 · T7.7，与 `AI_FLAVOR_DIALOGUE_TAG_PATTERN` 同一批）：
  * 出厂主笔产出的正文用半角 `"`，开闭同形——直接并进收尾类会把开引号后的内容
  * （`"他说过不会来。"`）误判成标签。这里按**行**把 `"` 依出现次序交替写成
@@ -245,7 +266,8 @@ export function normalizeDialogueQuotes(text: string): string {
  * 也是退稿闸判退的那枚数字，见 AI_FLAVOR_STRUCTURE_GATED_LABELS），章末总结体一章就一个结尾、
  * 出现 1 次已经是章末那股腔，反差模板翻两句就露馅、2 次起，情绪直陈同认知转述、反复用才是机器味、3 次起，
  * 对话标签 4 次起（2026-10-19：= 生成端 `HUMAN_DIALOGUE_INSTRUCTION` 第 1 条写明的上限
- * 「一章最多三处」＋1，同样进退稿闸）；
+ * 「一章最多三处」＋1，同样进退稿闸）、明喻 4 次起（2026-10-20：= 生成端结构级去味 ④ 写明的上限
+ * 「一章别超过三处」＋1，同样进退稿闸）；
  * 其余条目照旧走 AI_FLAVOR_MIN_COUNT[category]。
  *
  * 阈值照旧只有体检（analyzeAiFlavor）用——**除了进闸清单里的那几条**（它们是同一枚数字两处用：
@@ -256,21 +278,24 @@ export const AI_FLAVOR_STRUCTURE_MIN_COUNT: Record<string, number> = {
   [AI_FLAVOR_TAILCLAUSE_LABEL]: 1,
   [AI_FLAVOR_CONTRAST_LABEL]: 2,
   [AI_FLAVOR_EMOTION_LABEL]: 3,
-  [AI_FLAVOR_DIALOGUE_TAG_LABEL]: 4
+  [AI_FLAVOR_DIALOGUE_TAG_LABEL]: 4,
+  [AI_FLAVOR_SIMILE_LABEL]: 4
 };
 
 /**
  * 这些结构级条目**除了体检起报，还要进退稿闸**（数字从 AI_FLAVOR_STRUCTURE_MIN_COUNT 现取，不另抄）。
  *
  * 为什么只这几条：生成端把它们的上限写成了**明写的数值**——③「不是A，是B」对偶「一章最多一处」、
- * `HUMAN_DIALOGUE_INSTRUCTION` 第 1 条对话标签「一章最多三处」——超过上限就是没照约束写，退回重写天经地义。
+ * `HUMAN_DIALOGUE_INSTRUCTION` 第 1 条对话标签「一章最多三处」、结构级去味 ④ 明喻「一章别超过三处」
+ * ——超过上限就是没照约束写，退回重写天经地义。
  * ⑥章末四禁、⑨反差模板、情绪直陈**不进闸**：它们的起报线是给**体检报告**看的
  * （「人生就是这样」落在对话里是正常句），而闸的理念是「宁可放过轻度，不可拦住正常文——闸是质量下限，
  * 不是文风警察」。将来若在生成端也给它们写死数值上限，再把名字移进来，别的什么都不用改。
  */
 export const AI_FLAVOR_STRUCTURE_GATED_LABELS: readonly string[] = [
   AI_FLAVOR_ANTITHESIS_LABEL,
-  AI_FLAVOR_DIALOGUE_TAG_LABEL
+  AI_FLAVOR_DIALOGUE_TAG_LABEL,
+  AI_FLAVOR_SIMILE_LABEL
 ];
 
 export const AI_FLAVOR_CATEGORY_LABELS: Record<AiFlavorCategory, string> = {
@@ -422,6 +447,10 @@ export function analyzeAiFlavor(contents: string[]): AiFlavorReport {
       if (dialogueTagHits !== null) {
         record(AI_FLAVOR_DIALOGUE_TAG_LABEL, "essay", dialogueTagHits.length, where);
       }
+      const simileHits = line.match(AI_FLAVOR_SIMILE_PATTERN);
+      if (simileHits !== null) {
+        record(AI_FLAVOR_SIMILE_LABEL, "essay", simileHits.length, where);
+      }
     }
   }
 
@@ -560,7 +589,8 @@ export interface AiFlavorGateVerdict {
   /**
    * 撞了**结构上限**的条目名目（2026-10-18）：一章里某个句式用过了生成端写明的上限——目前是
    * 「不是A，是B 式升华对偶」（`AI_FLAVOR_STRUCTURE_GATED_LABELS`，上限 = 起报线 2，即一章最多一处）
-   * 与「对话标签（「××说」）」（2026-10-19 加入，上限 = 起报线 4，即一章最多三处）。
+   * 与「对话标签（「××说」）」（2026-10-19 加入，上限 = 起报线 4，即一章最多三处）、
+   * 明喻（像／仿佛／好像／宛如）（2026-10-20 加入，上限 = 起报线 4，即一章最多三处）。
    * 与 startRepeat / flatRhythm 同一路数：一条独立拦稿理由自成一个字段，退稿信与用例都看得见病根。
    */
   structureOver: string[];
@@ -616,6 +646,8 @@ export function aiFlavorGate(text: string): AiFlavorGateVerdict {
   const dialogueSource = normalizeDialogueQuotes(text);
   const dialogueTag = dialogueSource.match(AI_FLAVOR_DIALOGUE_TAG_PATTERN);
   bump(AI_FLAVOR_DIALOGUE_TAG_LABEL, dialogueTag?.length ?? 0);
+  const simile = text.match(AI_FLAVOR_SIMILE_PATTERN);
+  bump(AI_FLAVOR_SIMILE_LABEL, simile?.length ?? 0);
 
   const charCount = text.length;
   const hits = [...counts.values()].reduce((sum, n) => sum + n, 0);

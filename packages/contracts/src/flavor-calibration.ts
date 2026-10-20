@@ -7,7 +7,7 @@
  * 数「一篇里每个条目命中几次」、算「样本分位」、算「现行阈值的误报率」。
  * 真人语料到齐那天，把它丢进 `packages/contracts/corpus/`，一条命令就出表，本文件一个字不用改。
  *
- * 【词表与正则只此一份】条目、五个句式正则与标签、现行阈值、对话引号归一**全部 import 自
+ * 【词表与正则只此一份】条目、六个句式正则与标签、现行阈值、对话引号归一**全部 import 自
  * `ai-flavor.js`**——校准侧要是另抄一份词表或正则，两边迟早走岔（铁律 6）。
  * 计数口径也与 `aiFlavorGate` 完全同套：词走整篇 indexOf 循环、句式标签走同一份正则
  * （对话标签先经 `normalizeDialogueQuotes` 按行归一）。副词也照数——校准要看它的分布。
@@ -35,6 +35,8 @@ import {
   AI_FLAVOR_EMOTION_LABEL,
   AI_FLAVOR_EMOTION_PATTERN,
   AI_FLAVOR_MIN_COUNT,
+  AI_FLAVOR_SIMILE_LABEL,
+  AI_FLAVOR_SIMILE_PATTERN,
   AI_FLAVOR_TAILCLAUSE_LABEL,
   AI_FLAVOR_TAILCLAUSE_PATTERN,
   AI_FLAVOR_TERMS,
@@ -53,8 +55,8 @@ export interface FlavorTermSample {
 
 /**
  * 句式标签 → 类别（照 `ai-flavor.js` 的既有映射，不另立一份）：
- * cognitive 标签归 `cognitive`；antithesis / tail / contrast / emotion 四个标签归 `essay`。
- * 对话标签（第五个）单独处理——它的输入要先过 `normalizeDialogueQuotes`。
+ * cognitive 标签归 `cognitive`；antithesis / tail / contrast / emotion / simile 五个标签归 `essay`。
+ * 对话标签单独处理——它的输入要先过 `normalizeDialogueQuotes`（明喻直接跑正则，不需归一）。
  */
 const PATTERN_SAMPLES: readonly {
   label: string;
@@ -65,7 +67,8 @@ const PATTERN_SAMPLES: readonly {
   { label: AI_FLAVOR_ANTITHESIS_LABEL, category: "essay", pattern: AI_FLAVOR_ANTITHESIS_PATTERN },
   { label: AI_FLAVOR_TAILCLAUSE_LABEL, category: "essay", pattern: AI_FLAVOR_TAILCLAUSE_PATTERN },
   { label: AI_FLAVOR_CONTRAST_LABEL, category: "essay", pattern: AI_FLAVOR_CONTRAST_PATTERN },
-  { label: AI_FLAVOR_EMOTION_LABEL, category: "essay", pattern: AI_FLAVOR_EMOTION_PATTERN }
+  { label: AI_FLAVOR_EMOTION_LABEL, category: "essay", pattern: AI_FLAVOR_EMOTION_PATTERN },
+  { label: AI_FLAVOR_SIMILE_LABEL, category: "essay", pattern: AI_FLAVOR_SIMILE_PATTERN }
 ];
 
 /** 词表项的整篇 indexOf 循环——与 `aiFlavorGate` 逐字同套（含副词，校准要看它）。 */

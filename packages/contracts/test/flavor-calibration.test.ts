@@ -5,7 +5,12 @@
  * 否则等真语料到位那天出的是错表。这里拿构造语料逐段钉死。
  */
 import { describe, expect, it } from "vitest";
-import { AI_FLAVOR_COGNITIVE_LABEL, AI_FLAVOR_MIN_COUNT, aiFlavorGate } from "../src/ai-flavor.js";
+import {
+  AI_FLAVOR_COGNITIVE_LABEL,
+  AI_FLAVOR_MIN_COUNT,
+  AI_FLAVOR_SIMILE_LABEL,
+  aiFlavorGate
+} from "../src/ai-flavor.js";
 import {
   FLAVOR_CORPUS_GAP,
   calibrateFlavor,
@@ -31,7 +36,10 @@ const CORPUS: readonly string[] = [
 const STRUCTURE_DOC =
   "不是他不想去，是他去不了。\n声音不大，却让人心头发紧。\n人生就是这样，谁也逃不过。\n";
 
-const INVARIANT_TEXTS: readonly string[] = [...CORPUS, STRUCTURE_DOC];
+/** 明喻也进不变量（2026-10-20）：扫描端与校准侧同吃一枚正则，两边不各抄（铁律 6）。 */
+const SIMILE_DOC = "她的眼睛像一潭深水。\n炉火宛如一条沉睡的河。\n";
+
+const INVARIANT_TEXTS: readonly string[] = [...CORPUS, STRUCTURE_DOC, SIMILE_DOC];
 
 function rowOf(rows: readonly CategoryCalibration[], category: CategoryCalibration["category"]) {
   const row = rows.find((item) => item.category === category);
@@ -102,6 +110,19 @@ describe("flavor-calibration · flavorTermSamples", () => {
     );
     expect(dialogueSamples.map((sample) => sample.docIndex)).toEqual([1, 2]);
     expect(dialogueSamples.every((sample) => sample.category === "essay")).toBe(true);
+  });
+
+  it("明喻经同一份正则计入 essay（2026-10-20，与 gate 同吃一枚数字）", () => {
+    const simileSamples = flavorTermSamples([SIMILE_DOC]).filter(
+      (sample) => sample.label === AI_FLAVOR_SIMILE_LABEL
+    );
+    expect(simileSamples).toHaveLength(1);
+    expect(simileSamples[0]).toMatchObject({
+      docIndex: 0,
+      label: AI_FLAVOR_SIMILE_LABEL,
+      category: "essay",
+      count: 2
+    });
   });
 });
 
