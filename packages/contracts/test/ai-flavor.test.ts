@@ -56,7 +56,7 @@ describe("ai-flavor · 词库", () => {
     for (const word of ["五味杂陈", "心情复杂", "心如刀割", "夜色深沉", "寒风刺骨", "万籁俱寂"]) {
       expect(terms).toContain(word);
     }
-    // 它们是 cliche（阈值 2），照旧走 MIN_COUNT，不设专项阈值。
+    // 它们是 cliche（阈值 2），照旧走 AI_FLAVOR_MIN_COUNT，不设专项阈值。
     expect(AI_FLAVOR_TERMS.find(({ term }) => term === "五味杂陈")!.category).toBe("cliche");
     expect(AI_FLAVOR_TERMS.find(({ term }) => term === "夜色深沉")!.category).toBe("cliche");
     // 提示词点名单随之带上新词（两头同一份，不各抄）——生成端不许手抄第二份。

@@ -221,8 +221,11 @@ export const AI_FLAVOR_DIALOGUE_TAG_LABEL = "对话标签（「××说」）";
  * `“`（第 1、3、5…个）／`”`（第 2、4、6…个），让正则得以沿用弯引号判据。
  * 弯引号 `“”` 与全角 `「」『』` 原样通过、不改动；按行计数是因为正文的对话引号都在一行内开合。
  * 归一与正则只此一份——体检（analyzeAiFlavor）与退稿闸（aiFlavorGate）共用，不各抄。
+ *
+ * **导出**（2026-10-20，阈值真人语料校准 P0-①）：校准侧（`flavor-calibration.js`）数对话标签
+ * 要复用同一份归一，不许另写一份（铁律 6）。
  */
-function normalizeDialogueQuotes(text: string): string {
+export function normalizeDialogueQuotes(text: string): string {
   return text
     .split("\n")
     .map((line) => {
@@ -243,7 +246,7 @@ function normalizeDialogueQuotes(text: string): string {
  * 出现 1 次已经是章末那股腔，反差模板翻两句就露馅、2 次起，情绪直陈同认知转述、反复用才是机器味、3 次起，
  * 对话标签 4 次起（2026-10-19：= 生成端 `HUMAN_DIALOGUE_INSTRUCTION` 第 1 条写明的上限
  * 「一章最多三处」＋1，同样进退稿闸）；
- * 其余条目照旧走 MIN_COUNT[category]。
+ * 其余条目照旧走 AI_FLAVOR_MIN_COUNT[category]。
  *
  * 阈值照旧只有体检（analyzeAiFlavor）用——**除了进闸清单里的那几条**（它们是同一枚数字两处用：
  * 体检顺着它起报、退稿闸照着它判退）；其余条目退稿闸不计阈值、全量计入，名目与体检同一批。
@@ -277,8 +280,14 @@ export const AI_FLAVOR_CATEGORY_LABELS: Record<AiFlavorCategory, string> = {
   cognitive: "认知转述"
 };
 
-/** 各类起报阈值：不到阈值的词不算嫌疑——孤例多半是正常行文，刷屏的是词表不是报告。 */
-const MIN_COUNT: Record<AiFlavorCategory, number> = {
+/**
+ * 各类起报阈值：不到阈值的词不算嫌疑——孤例多半是正常行文，刷屏的是词表不是报告。
+ *
+ * **导出**（2026-10-20，阈值真人语料校准 P0-①）：校准侧（`flavor-calibration.js`）要读
+ * 「现行阈值落在哪儿」，这一份就是它的**单一真身**——现取，不另抄一份数字。
+ * 数值本身这一刀一个不动（全仓无真人语料，改了就是编数）。
+ */
+export const AI_FLAVOR_MIN_COUNT: Record<AiFlavorCategory, number> = {
   cliche: 2,
   essay: 1,
   adverb: 5,
@@ -419,8 +428,8 @@ export function analyzeAiFlavor(contents: string[]): AiFlavorReport {
   const entries: AiFlavorEntry[] = [];
   for (const [term, count] of counts) {
     const category = categories.get(term) ?? "cliche";
-    // 阈值走结构级专项表：这两类结构味的起报线不跟 essay 的 1 次走；其余照旧 MIN_COUNT。
-    const threshold = AI_FLAVOR_STRUCTURE_MIN_COUNT[term] ?? MIN_COUNT[category];
+    // 阈值走结构级专项表：这两类结构味的起报线不跟 essay 的 1 次走；其余照旧 AI_FLAVOR_MIN_COUNT。
+    const threshold = AI_FLAVOR_STRUCTURE_MIN_COUNT[term] ?? AI_FLAVOR_MIN_COUNT[category];
     if (count < threshold) continue;
     entries.push({
       term,
