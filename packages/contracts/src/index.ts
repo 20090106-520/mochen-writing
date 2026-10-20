@@ -17,6 +17,7 @@ export * from "./text-replace.js";
 export * from "./ai-flavor.js";
 export * from "./flavor-calibration.js";
 export * from "./draft-rank.js";
+export * from "./text-vitality.js";
 export * from "./dialogue.js";
 export * from "./style-profile.js";
 export * from "./volume-outline.js";

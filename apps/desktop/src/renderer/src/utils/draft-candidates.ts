@@ -15,7 +15,8 @@ import {
   type DraftCandidate,
   type DraftReading,
   type DraftSampleCount,
-  type DraftSetResult
+  type DraftSetResult,
+  vitalityOf
 } from "@mochen/contracts";
 import { reasonOf } from "./agent-thread";
 
@@ -76,6 +77,31 @@ export function draftReadingLine(reading: DraftReading): string {
 
 /** 面板标题：摆的是「还没落盘」的东西，标题必须把这一点说在前面。 */
 export const DRAFT_PANEL_TITLE = "这一轮跑出了几稿，挑一稿落盘——没挑的就丢在这里。";
+
+/**
+ * 活性读数（P1-⑥）的提示句：面板摆出一排数，最怕被当成第二条判退线。
+ * 所以这里把三件事点名说清——① 三枚都**越大越像人写的**；② **熵与多样性随字数变化**，
+ * 两稿字数差得多时这两项别硬比；③ 它**不是判据**，闸里一个字都不看它。
+ */
+export const DRAFT_VITALITY_NOTE =
+  "活性读数是代理指标，只作相对参考：三项都越大越像人写的，但字串熵与字多样性会随字数变化——两稿字数差得多时这两项别硬比。它不是判据，闸里一个字都不看它。";
+
+/** 三枚活性读数全算不出来时的那句话（短文：说不出来就说不出来，不硬报 0）。 */
+export const DRAFT_VITALITY_UNKNOWN = "活性算不出来（这段太短）";
+
+/**
+ * 一稿的活性读数 → 一行中文。三枚各出一句，**算不出的那枚整个不出现**（同 `draftReadingLine`
+ * 的口径，不留「未触发 / 无」这类空话）；三枚全算不出时给一句实话。
+ * 数字全部现取自 contracts 的 `vitalityOf`——判定、阈值、聚合一概不在这层（活性只作相对参考）。
+ */
+export function draftVitalityLine(text: string): string {
+  const { ngramEntropy, burstiness, diversity } = vitalityOf(text);
+  const parts: string[] = [];
+  if (ngramEntropy !== null) parts.push(`字串熵 ${ngramEntropy} bits/字`);
+  if (burstiness !== null) parts.push(`句长突发度 ${burstiness}`);
+  if (diversity !== null) parts.push(`字多样性 ${diversity}`);
+  return parts.length === 0 ? DRAFT_VITALITY_UNKNOWN : `活性：${parts.join(" · ")}`;
+}
 
 /** 排名最前那一稿的徽标。排名来自 contracts 的 rankDrafts，面板只标位次，不再自己算一份推荐度。 */
 export const DRAFT_RECOMMENDED_LABEL = "推荐";

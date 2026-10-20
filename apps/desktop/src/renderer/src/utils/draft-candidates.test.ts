@@ -12,10 +12,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DraftReading } from "@mochen/contracts";
 import {
   DRAFT_PREVIEW_MAX,
+  DRAFT_VITALITY_NOTE,
   draftHeadline,
   draftOrdinal,
   draftPreview,
   draftReadingLine,
+  draftVitalityLine,
   nextDraftSampleCount,
   resolveDraft,
   type DraftSetState
@@ -158,5 +160,42 @@ describe("resolveDraft · 成败判定与清集", () => {
     });
     expect(await resolveDraft(sets, KEY, 0, "")).toBe("");
     expect(called).toBe(0);
+  });
+});
+
+/**
+ * 活性读数行（P1-⑥）：三枚代理指标各出一句，**算不出的那项整个不出现**——与读数行同一条口径。
+ * 这里钉的第二件事是提示句本身：它必须把「不是判据」与长度偏差两句话说到，
+ * 否则面板摆出一排数就容易被当成第二条判退线。
+ */
+describe("draftVitalityLine · 活性读数拼句", () => {
+  /** 十句、长短交替：三项都算得出来（2 字 / 10 字的句子轮着来）。 */
+  const LONG_ENOUGH = Array.from({ length: 10 }, (_, i) =>
+    i % 2 === 0 ? "他走。" : "他慢慢地走过来了。"
+  ).join("\n");
+
+  it("三项齐 ⇒ 三句用「 · 」相接，行首点明这是活性读数", () => {
+    const line = draftVitalityLine(LONG_ENOUGH);
+    expect(line.startsWith("活性：")).toBe(true);
+    expect(line.split(" · ").length).toBe(3);
+    expect(line).toContain("字串熵");
+    expect(line).toContain("句长突发度");
+    expect(line).toContain("字多样性");
+  });
+
+  it("突发度算不出（不足十句）⇒ 那半句整个不出现，其余两项照出", () => {
+    const line = draftVitalityLine("他一走。");
+    expect(line).not.toContain("句长突发度");
+    expect(line).toContain("字串熵");
+    expect(line).toContain("字多样性");
+  });
+
+  it("三枚全算不出 ⇒ 一句诚实的话，不硬报 0", () => {
+    expect(draftVitalityLine("")).toBe("活性算不出来（这段太短）");
+  });
+
+  it("提示句把「不是判据」与长度偏差都说到了", () => {
+    expect(DRAFT_VITALITY_NOTE).toContain("不是判据");
+    expect(DRAFT_VITALITY_NOTE).toContain("字数");
   });
 });

@@ -9,9 +9,11 @@ import {
   DRAFT_PANEL_TITLE,
   DRAFT_PICK_LABEL,
   DRAFT_RECOMMENDED_LABEL,
+  DRAFT_VITALITY_NOTE,
   draftHeadline,
   draftPreview,
-  draftReadingLine
+  draftReadingLine,
+  draftVitalityLine
 } from "../utils/draft-candidates";
 
 // draftSetId 只落成面板的标识（data-draft-set），不作挑稿入参——挑稿只递位次（正文一个字都不往回递）。
@@ -22,6 +24,7 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
 <template>
   <section class="draft-candidates" :data-draft-set="draftSetId" aria-label="多稿候选">
     <p class="draft-candidates-title">{{ DRAFT_PANEL_TITLE }}</p>
+    <p class="draft-candidates-vitality-note">{{ DRAFT_VITALITY_NOTE }}</p>
     <ul class="draft-candidate-list">
       <li v-for="(candidate, position) in drafts" :key="candidate.index" class="draft-candidate">
         <div class="draft-candidate-head">
@@ -34,6 +37,7 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
         </div>
         <p class="draft-candidate-text">{{ draftPreview(candidate.text) }}</p>
         <p class="draft-candidate-reading">{{ draftReadingLine(candidate.reading) }}</p>
+        <p class="draft-candidate-vitality">{{ draftVitalityLine(candidate.text) }}</p>
         <button class="draft-candidate-pick" type="button" @click="emit('pick', candidate.index)">
           {{ DRAFT_PICK_LABEL }}
         </button>
@@ -61,6 +65,13 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
   margin-bottom: 8px;
   color: var(--text-soft);
   font-size: 0.75rem;
+}
+
+.draft-candidates-vitality-note {
+  margin-bottom: 8px;
+  color: var(--text-faint);
+  font-size: 0.6875rem;
+  line-height: 1.5;
 }
 
 .draft-candidate-list {
@@ -110,6 +121,12 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
 }
 
 .draft-candidate-reading {
+  margin-bottom: 8px;
+  color: var(--text-faint);
+  font-size: 0.6875rem;
+}
+
+.draft-candidate-vitality {
   margin-bottom: 8px;
   color: var(--text-faint);
   font-size: 0.6875rem;
