@@ -12,6 +12,7 @@
 
 import {
   DRAFT_SAMPLE_COUNTS,
+  degenerationOf,
   type DraftCandidate,
   type DraftReading,
   type DraftSampleCount,
@@ -101,6 +102,32 @@ export function draftVitalityLine(text: string): string {
   if (burstiness !== null) parts.push(`句长突发度 ${burstiness}`);
   if (diversity !== null) parts.push(`字多样性 ${diversity}`);
   return parts.length === 0 ? DRAFT_VITALITY_UNKNOWN : `活性：${parts.join(" · ")}`;
+}
+
+/**
+ * 退化读数（P1-⑦）的提示句：与活性读数同一层「只摆数不作判据」，但**方向相反**——
+ * 活性是越大越像人写的，退化是**虚词越少、句子越短越像被削平**（改稿删过头也会出机器味）。
+ * 必须说清三件事：① 方向（这三项是「低了好」而不是「高了好」）；② 虚词清单是启发式的；
+ * ③ **不是判据**，闸里一个字都不看它。
+ */
+export const DRAFT_DEGENERATION_NOTE =
+  "退化读数是另一组代理指标，方向与活性相反：虚词密度越低、短句越多、平均句长越短，越像改稿时被削平（删过头也会出机器味）。虚词清单是启发式的，换个清单读数会变。它不是判据，闸里一个字都不看它。";
+
+/** 三枚退化读数全算不出来时的那句话（短文：说不出来就说不出来，不硬报 0）。 */
+export const DRAFT_DEGENERATION_UNKNOWN = "退化算不出来（这段太短）";
+
+/**
+ * 一稿的退化读数 → 一行中文。三枚各出一句，**算不出的那枚整个不出现**（同 `draftVitalityLine`
+ * 的口径，不留「未触发 / 无」这类空话）；三枚全算不出时给一句实话。
+ * 数字全部现取自 contracts 的 `degenerationOf`——判定、阈值、聚合一概不在这层。
+ */
+export function draftDegenerationLine(text: string): string {
+  const { particlePerThousand, shortSentenceRatio, meanSentenceLength } = degenerationOf(text);
+  const parts: string[] = [];
+  if (particlePerThousand !== null) parts.push(`虚词密度 ${particlePerThousand}/千字`);
+  if (shortSentenceRatio !== null) parts.push(`短句占比 ${shortSentenceRatio}`);
+  if (meanSentenceLength !== null) parts.push(`平均句长 ${meanSentenceLength} 字`);
+  return parts.length === 0 ? DRAFT_DEGENERATION_UNKNOWN : `退化：${parts.join(" · ")}`;
 }
 
 /** 排名最前那一稿的徽标。排名来自 contracts 的 rankDrafts，面板只标位次，不再自己算一份推荐度。 */

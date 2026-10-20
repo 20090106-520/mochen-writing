@@ -5,11 +5,13 @@
 <script setup lang="ts">
 import type { DraftCandidate } from "@mochen/contracts";
 import {
+  DRAFT_DEGENERATION_NOTE,
   DRAFT_DISCARD_LABEL,
   DRAFT_PANEL_TITLE,
   DRAFT_PICK_LABEL,
   DRAFT_RECOMMENDED_LABEL,
   DRAFT_VITALITY_NOTE,
+  draftDegenerationLine,
   draftHeadline,
   draftPreview,
   draftReadingLine,
@@ -25,6 +27,7 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
   <section class="draft-candidates" :data-draft-set="draftSetId" aria-label="多稿候选">
     <p class="draft-candidates-title">{{ DRAFT_PANEL_TITLE }}</p>
     <p class="draft-candidates-vitality-note">{{ DRAFT_VITALITY_NOTE }}</p>
+    <p class="draft-candidates-degeneration-note">{{ DRAFT_DEGENERATION_NOTE }}</p>
     <ul class="draft-candidate-list">
       <li v-for="(candidate, position) in drafts" :key="candidate.index" class="draft-candidate">
         <div class="draft-candidate-head">
@@ -38,6 +41,7 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
         <p class="draft-candidate-text">{{ draftPreview(candidate.text) }}</p>
         <p class="draft-candidate-reading">{{ draftReadingLine(candidate.reading) }}</p>
         <p class="draft-candidate-vitality">{{ draftVitalityLine(candidate.text) }}</p>
+        <p class="draft-candidate-degeneration">{{ draftDegenerationLine(candidate.text) }}</p>
         <button class="draft-candidate-pick" type="button" @click="emit('pick', candidate.index)">
           {{ DRAFT_PICK_LABEL }}
         </button>
@@ -68,6 +72,13 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
 }
 
 .draft-candidates-vitality-note {
+  margin-bottom: 8px;
+  color: var(--text-faint);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
+
+.draft-candidates-degeneration-note {
   margin-bottom: 8px;
   color: var(--text-faint);
   font-size: 0.6875rem;
@@ -127,6 +138,12 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
 }
 
 .draft-candidate-vitality {
+  margin-bottom: 8px;
+  color: var(--text-faint);
+  font-size: 0.6875rem;
+}
+
+.draft-candidate-degeneration {
   margin-bottom: 8px;
   color: var(--text-faint);
   font-size: 0.6875rem;

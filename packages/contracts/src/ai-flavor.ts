@@ -394,8 +394,12 @@ export function sentenceRhythmOf(text: string): SentenceRhythm | null {
   };
 }
 
-/** 单句切分：句末标点留句尾（与重复句同一套 lookbehind 口径）。 */
-function sentencesOf(content: string): string[] {
+/**
+ * 单句切分：句末标点留句尾（与重复句同一套 lookbehind 口径）。
+ * **导出**（2026-10-20 P1-⑦）：退化读数要按句长统计短句占比——切句与句长统计只住这一处（铁律 6），
+ * 下游（如 `text-degeneration.ts`）复用它，不许各自再切一遍。
+ */
+export function sentencesOf(content: string): string[] {
   const out: string[] = [];
   for (const line of content.split("\n")) {
     for (const raw of line.split(/(?<=[。！？…；])/)) {

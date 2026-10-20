@@ -9690,6 +9690,71 @@ quoted annotation 原文、`Linux 侧 4772 条注册 = 本机 4775 − 3` 那笔
 - **P0-①／P1 ④／P1 ⑦ 三项仍空着**：全部要真人语料分位，仍受 §一百三十四 的语料缺口牵制；
   P2 ⑩（解码控制）受供应商接口约束，本仓落不了。
 
+## 第一百三十九节 · P1-⑦ 退化专项零阈值代理读数（塌平量，不推送）
+
+> §一百三十八（P2-⑧）收口后，外部报告 `docs/research/2026-10-19-writing-craft-benchmark.html`
+> 的 P1 价值序只剩 ④（结构上限改每千字）与 ⑦（退化专项：电报体／短碎句／虚词扫光），P0-① 阈值校准
+> 也还空着。§一百三十六 曾把这些一律判为「受真人语料缺口牵制、动不了」。本节**推翻其中对 ⑦ 的判断**：
+> ⑦ 的判据确实要语料，但 ⑦ 的**读数**不要——照 §一百三十五 已立的**零阈值代理读数**范式即可落。
+> 规范与任务清单：`docs/superpowers/specs/2026-10-20-text-degeneration/`。
+
+### 一、为什么这一刀能落（推翻 §一百三十六 对 ⑦ 的「阻塞」判断）
+
+§一百三十六 记的原话是「⑦ 的判据同样要阈值，受语料缺口牵制」——**那条判断只在「⑦ 要做成退稿闸」时成立**。
+本仓在 §一百三十五 已经立了另一条范式：**代理读数层**——**只报数、不设线、不进任何判定**
+（活性那三枚就是这么落的）。⑦ 的三枚正好是**同一个方向的反面**：
+
+- §一百三十五 量的是「**写太匀**」（熵低／突发度低／多样性低 ⇒ 机器味）；
+- ⑦ 量的是「**删过头**」（虚词被扫光、句子全砍短 ⇒ 另一种机器味）。本仓此前对「删过头」只有「复读」一条，
+  ⑦ 正好把这块补上。
+
+三枚读数**一个数字都不用编**：虚词密度＝每千字占比、短句占比＝比例、平均句长直接取既有真身。
+所以本节落地；「⑦ 的**判据**仍阻塞」如实留在第四节。
+
+### 二、本节落了什么
+
+1. `packages/contracts/src/text-degeneration.ts`（**新，126 行**）：
+   - `DEGENERATION_PARTICLE_CHARS`——**26 枚单字虚词**（结构助词／体貌助词 7「的・地・得・了・着・过・所」
+     ＋ 常用介词 11「在・把・被・给・跟・对・向・从・为・于・由」＋ 常用连词 8「与・和・及・并・或・而・但・却」）；
+   - `DEGENERATION_SHORT_SENTENCE_MAX_CHARS = 4`——「短句」的**刻度**（是量尺参数，**不是判线**）；
+   - `DegenerationReading`＝{ charCount, particlePerThousand, shortSentenceRatio, meanSentenceLength }；
+   - `particlePerThousand`（虚词命中 ÷ 字数 × 1000，2 位小数，无字 → null）、
+     `shortSentenceRatio`（短句 ÷ 句数，不足 10 句 → null）、
+     `degenerationOf(text)` 一次算齐（`meanSentenceLength` 取 `sentenceRhythmOf(t)?.mean`）。
+2. `packages/contracts/src/ai-flavor.ts`（改）：把私有 `sentencesOf` **提升为导出**——
+   短句占比要按句长统计，**切句只能住一处**（铁律 6，同 §一百三十五 反推突发度的理由）；
+   既有 `sentenceRhythmOf` 行为一字不改。
+3. `packages/contracts/src/index.ts`（改）：`./text-vitality.js` 之后转出 `./text-degeneration.js`。
+4. `apps/desktop/src/renderer/src/utils/draft-candidates.ts`（改，176 行）：
+   增 `draftDegenerationLine(text)` ＋ 提示句 `DRAFT_DEGENERATION_NOTE` ＋ `DRAFT_DEGENERATION_UNKNOWN`；
+   import 增 `degenerationOf`。
+5. `apps/desktop/src/renderer/src/components/DraftCandidates.vue`（改，172 行）：
+   每稿在活性读数行下加一行**退化读数**、面板加一句提示。
+6. **`rankDrafts` 排序键、store、IPC 通道、mock 夹具一概不动**（本刀不新增通道／方法）。
+
+### 三、纪律与门禁
+
+1. **用例与实现一并落盘**（首次运行即绿，红态未单独捕捉，如实记）；用**变异测试**补证边界确实被咬住，
+   两处均精确命中并已还原：
+   - ① 清空虚词清单（`for (const char of [] as string[])`）→ **1 failed | 7 passed**（「虚词密度 250／千字」用例红）；
+   - ② 短句刻度 4 → 5 → **1 failed | 30 passed**（短句占比刻度边界用例红）。
+2. **新增用例 12 条**：契约 8 条（`text-degeneration.test.ts`）＋ 渲染层 4 条（`draft-candidates.test.ts`）。
+3. 全仓 `corepack pnpm verify` 一次过，**375 文件 / 4938 passed | 2 skipped**，`VERIFY_EXIT=0`
+   （较 §一百三十八 的 4926 passed 多 12 条 = 本刀新增，另多 1 个测试文件）。
+4. **不推送**（用户叫停，沿用前几节）：README 门禁节不换绑、CI 不读。
+
+### 四、本节收不掉的口子（如实）
+
+- **⑦ 的「判据」仍阻塞**：本仓没有「电报体／短碎句判退线」，这三枚读数也**没接进退稿闸或体检起报**
+  ——定判线要真人语料分位，仍受 §一百三十四 的语料缺口牵制。本节落的是**读数，不是判据**。
+- **虚词清单是本仓自划的启发式**：26 枚单字没有外部语料核对，换一批字读数就变（这正是「代理」的含义，
+  已写进面板提示句）；**「短句 ≤4 字」刻度同样自定**（报告只说「短碎句」，未给刻度）。
+- **清单不收副词与系词**：程度副词（很／太／更）、系词（是）、存在动词（有）在删改中**不会被系统性扫掉**，
+  收进来只会把读数搅浑，故不进清单——这条边界是取舍，不是遗漏。
+- **无跨稿对比器**（同 §一百三十五）：面板只把数摆出来供人相对着看，不做「更碎／更平」的机器判定；
+  读数方向与活性相反（低了好），提示句必须把方向说清，否则一排数容易被当成「高了好」。
+- **P0-① 正文／P1-④／P1-⑦判据三项仍空着**：全部要真人语料分位；P2-⑩（解码控制）受供应商接口约束。
+
 
 
 

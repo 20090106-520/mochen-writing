@@ -11,8 +11,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DraftReading } from "@mochen/contracts";
 import {
+  DRAFT_DEGENERATION_NOTE,
   DRAFT_PREVIEW_MAX,
   DRAFT_VITALITY_NOTE,
+  draftDegenerationLine,
   draftHeadline,
   draftOrdinal,
   draftPreview,
@@ -197,5 +199,40 @@ describe("draftVitalityLine · 活性读数拼句", () => {
   it("提示句把「不是判据」与长度偏差都说到了", () => {
     expect(DRAFT_VITALITY_NOTE).toContain("不是判据");
     expect(DRAFT_VITALITY_NOTE).toContain("字数");
+  });
+});
+
+/**
+ * 退化读数行（P1-⑦）：与活性读数同一层（只摆数、不作判据），但**方向相反**——
+ * 虚词越少、句子越短越像被削平。这里钉两件事：拼句口径同活性（算不出的那枚不出现），
+ * 以及提示句必须把「方向」与「不是判据」都说到（否则一排数容易被当成「高了好」）。
+ */
+describe("draftDegenerationLine · 退化读数拼句", () => {
+  /** 十句、长短交替：三枚都算得出来（虚词密度 250/千字、短句占比 0.5、平均句长 6 字）。 */
+  const LONG_ENOUGH = "他走。他慢慢地走过来了。".repeat(5);
+
+  it("三枚齐 ⇒ 三句用「 · 」相接，行首点明这是退化读数", () => {
+    const line = draftDegenerationLine(LONG_ENOUGH);
+    expect(line.startsWith("退化：")).toBe(true);
+    expect(line.split(" · ").length).toBe(3);
+    expect(line).toContain("虚词密度");
+    expect(line).toContain("短句占比");
+    expect(line).toContain("平均句长");
+  });
+
+  it("句级两枚算不出（不足十句）⇒ 那两句整个不出现，虚词密度照出", () => {
+    const line = draftDegenerationLine("他走。");
+    expect(line).not.toContain("短句占比");
+    expect(line).not.toContain("平均句长");
+    expect(line).toContain("虚词密度");
+  });
+
+  it("三枚全算不出 ⇒ 一句诚实的话，不硬报 0", () => {
+    expect(draftDegenerationLine("")).toBe("退化算不出来（这段太短）");
+  });
+
+  it("提示句把「方向相反」与「不是判据」都说到", () => {
+    expect(DRAFT_DEGENERATION_NOTE).toContain("不是判据");
+    expect(DRAFT_DEGENERATION_NOTE).toContain("削平");
   });
 });
