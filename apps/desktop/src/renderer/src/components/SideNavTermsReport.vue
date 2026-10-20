@@ -17,16 +17,18 @@
      八类检查的判定仍在 utils/doc-checkup 与 contracts，本组件只做「逐篇拉全文 → 各算一遍 → 摆出来」；
      展示名仍读 contracts 里的 *_LABELS，界面不另抄一份。拆的是文件，不是判定。 -->
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useBookStore } from "../stores/useBookStore";
 import { useAgentStore } from "../stores/useAgentStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { threadKeyFor } from "../stores/useAgentStore";
 import {
   AI_FLAVOR_CATEGORY_LABELS,
+  AI_FLAVOR_TIER_LABELS,
   DIALOGUE_VERDICT_LABELS,
   type AiFlavorCategory,
   type AiFlavorReport,
+  type AiFlavorTier,
   type DialogueVerdict
 } from "@mochen/contracts";
 import {
@@ -151,6 +153,25 @@ function docLabel(docIndex: number): string {
 function aiFlavorLabel(category: AiFlavorCategory): string {
   return AI_FLAVOR_CATEGORY_LABELS[category];
 }
+
+/** AI 味处置档位的中文展示名（labels 真身住 contracts，界面不另抄一份）。 */
+function aiTierLabel(tier: AiFlavorTier): string {
+  return AI_FLAVOR_TIER_LABELS[tier];
+}
+
+/**
+ * AI 味条目的展示顺序（2026-10-20 P2-⑧）：阻断档（单独可退稿）排在前面，同档保持契约原序。
+ * 只在界面排——契约的 order 仍按次数降序，「本书套话回流」取前 5 那两处注入不受影响。
+ */
+const aiEntries = computed(() => {
+  const entries = aiReport.value?.entries ?? [];
+  return [...entries].sort((x, y) => (x.tier === y.tier ? 0 : x.tier === "blocking" ? -1 : 1));
+});
+
+/** 阻断档条数（单独可退稿的条目），给表头一句话说清「这份报告里哪几条真的会拦稿」。 */
+const aiBlockingCount = computed(
+  () => aiEntries.value.filter((entry) => entry.tier === "blocking").length
+);
 
 /** 对话占比判读的中文展示名（labels 真身住 contracts，界面不另抄一份）。 */
 function dialogueLabel(verdict: DialogueVerdict): string {
@@ -310,18 +331,20 @@ function openCharacterCard(name: string): void {
 
       <p class="stats-section-head">
         AI 味扫描（{{ aiReport?.entries.length ?? 0 }}）· 每千字 {{ aiReport?.perThousand ?? 0 }} 处
+        · 阻断档 {{ aiBlockingCount }} 条（单独可退稿，已排在前面）
       </p>
       <table v-if="aiReport !== null && aiReport.entries.length > 0" class="stats-table">
         <thead>
           <tr>
             <th scope="col">写法</th>
             <th scope="col">类型</th>
+            <th scope="col">档位</th>
             <th scope="col" class="num">次数</th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="entry in aiReport.entries"
+            v-for="entry in aiEntries"
             :key="entry.term"
             class="is-openable"
             :title="`点开《${docLabel(entry.first.docIndex)}》查看`"
@@ -329,6 +352,7 @@ function openCharacterCard(name: string): void {
           >
             <td>{{ entry.term }}</td>
             <td>{{ aiFlavorLabel(entry.category) }}</td>
+            <td>{{ aiTierLabel(entry.tier) }}</td>
             <td class="num">{{ entry.count }}</td>
           </tr>
         </tbody>

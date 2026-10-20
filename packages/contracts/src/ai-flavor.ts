@@ -298,6 +298,27 @@ export const AI_FLAVOR_STRUCTURE_GATED_LABELS: readonly string[] = [
   AI_FLAVOR_SIMILE_LABEL
 ];
 
+/* ────────────────────────── 判据两档（2026-10-20，P2-⑧） ────────────────────────── */
+
+/**
+ * 判据的两档处置（外部调研报告 P2-⑧「判据分 blocking / advisory 两级」）。本仓本来就是两档、
+ * 只是一直没把这事说出来：进闸清单里那几条（生成端写明数值上限的结构级条目）单独一条爆了就退稿，
+ * 其余条目只进体检报告报数、不单独退稿。本刀把二元显式化，给体检报告的 AI 味表加优先级——行为一字不改。
+ * blocking＝单独可退稿（＝`AI_FLAVOR_STRUCTURE_GATED_LABELS`）；advisory＝只报数，要跟别的命中一起攒够总量线才拦。
+ */
+export type AiFlavorTier = "blocking" | "advisory";
+
+/** 档位的展示名（界面与报告不另抄一份）。 */
+export const AI_FLAVOR_TIER_LABELS: Record<AiFlavorTier, string> = {
+  blocking: "阻断（单独可退稿）",
+  advisory: "建议（只报不拦）"
+};
+
+/** 条目 → 档位：**派生自 `AI_FLAVOR_STRUCTURE_GATED_LABELS`**（不另存一份「会进闸的名单」，铁律 6）。 */
+export function aiFlavorTierOf(label: string): AiFlavorTier {
+  return AI_FLAVOR_STRUCTURE_GATED_LABELS.includes(label) ? "blocking" : "advisory";
+}
+
 export const AI_FLAVOR_CATEGORY_LABELS: Record<AiFlavorCategory, string> = {
   cliche: "描写套话",
   essay: "议论腔",
@@ -326,6 +347,8 @@ export interface AiFlavorEntry {
   term: string;
   category: AiFlavorCategory;
   count: number;
+  /** 处置档位（2026-10-20，P2-⑧）：阻断档＝单独可退稿，建议档＝只报不拦。真身见 `aiFlavorTierOf`。 */
+  tier: AiFlavorTier;
   /** 全书第一次出现的位置——体检条目点击直达用（contents 下标 + 1 起算行号）。 */
   first: { docIndex: number; line: number; text: string };
 }
@@ -464,6 +487,8 @@ export function analyzeAiFlavor(contents: string[]): AiFlavorReport {
       term,
       category,
       count,
+      // 档位与退稿闸同源：真身是 AI_FLAVOR_STRUCTURE_GATED_LABELS（见 aiFlavorTierOf）。
+      tier: aiFlavorTierOf(term),
       first: firsts.get(term) ?? { docIndex: 0, line: 0, text: "" }
     });
   }

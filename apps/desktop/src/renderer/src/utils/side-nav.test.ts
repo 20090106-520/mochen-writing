@@ -160,12 +160,14 @@ describe("styleCheckPrompt · 文风检查的动态预填（2026-10-10 去AI味�
         term: "嘴角勾起",
         category: "cliche",
         count: 3,
+        tier: "advisory",
         first: { docIndex: 0, line: 1, text: "他嘴角勾起。" }
       },
       {
         term: "不禁",
         category: "adverb",
         count: 5,
+        tier: "advisory",
         first: { docIndex: 0, line: 2, text: "他不禁一愣。" }
       }
     ],

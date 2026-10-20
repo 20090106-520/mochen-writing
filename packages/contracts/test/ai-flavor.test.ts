@@ -12,7 +12,9 @@ import {
   AI_FLAVOR_STRUCTURE_GATED_LABELS,
   AI_FLAVOR_TAILCLAUSE_LABEL,
   AI_FLAVOR_TERMS,
+  AI_FLAVOR_TIER_LABELS,
   aiFlavorGate,
+  aiFlavorTierOf,
   repeatedSentences,
   textSimilarity,
   sentenceStartRepeat,
@@ -718,5 +720,52 @@ describe("ai-flavor · 对话标签的引号覆盖面（2026-10-19 真机复验�
     expect(four.startRepeat).toBeNull();
     expect(four.flatRhythm).toBeNull();
     expect(four.repeatOver).toEqual([]);
+  });
+});
+
+describe("ai-flavor · 判据两档（阻断／建议，2026-10-20 P2-⑧）", () => {
+  // 本仓本来就是两档（进闸清单里的几条单独可退稿、其余只报），本组钉住「档位派生自进闸清单」
+  // 这条单一真身不变量——往清单里加／减条目，档位自动跟着走，别处不许再存一份名单。
+  it("档位真身派生自进闸清单：三枚进闸标签落阻断档，其余一律建议档", () => {
+    expect(AI_FLAVOR_STRUCTURE_GATED_LABELS.length).toBeGreaterThan(0);
+    for (const label of AI_FLAVOR_STRUCTURE_GATED_LABELS) {
+      expect(aiFlavorTierOf(label)).toBe("blocking");
+    }
+    // 词表项与只报不拦的句式（认知转述 / 章末 / 反差 / 情绪直陈）都是建议档。
+    expect(aiFlavorTierOf("嘴角勾起")).toBe("advisory");
+    expect(aiFlavorTierOf(AI_FLAVOR_COGNITIVE_LABEL)).toBe("advisory");
+    expect(aiFlavorTierOf(AI_FLAVOR_TAILCLAUSE_LABEL)).toBe("advisory");
+    expect(aiFlavorTierOf(AI_FLAVOR_CONTRAST_LABEL)).toBe("advisory");
+    expect(aiFlavorTierOf(AI_FLAVOR_EMOTION_LABEL)).toBe("advisory");
+  });
+
+  it("两档各有展示名（界面不另抄一份）", () => {
+    expect(AI_FLAVOR_TIER_LABELS.blocking).toContain("阻断");
+    expect(AI_FLAVOR_TIER_LABELS.advisory).toContain("建议");
+  });
+
+  it("体检条目带档位：明喻条目是阻断档、套话条目是建议档", () => {
+    const gated = analyzeFlavorWithRepeat("他的眼神里像是有什么碎了。\n", 4);
+    expect(gated.entries.find((e) => e.term === AI_FLAVOR_SIMILE_LABEL)?.tier).toBe("blocking");
+
+    const plain = analyzeFlavorWithRepeat("他嘴角勾起一抹笑。\n", 2);
+    expect(plain.entries.find((e) => e.term === "嘴角勾起")?.tier).toBe("advisory");
+  });
+
+  it("同吃一张表：体检报「阻断」的条目，退稿闸也认它单独可退；建议档不进退稿闸", () => {
+    // 明喻 4 处：体检条目阻断档 ＋ 闸的 structureOver 点名同一条（数字与名单同源）。
+    const simileText = CLEAN_FILLER + "他的眼神里像是有什么碎了。".repeat(4);
+    const simileReport = analyzeAiFlavor([simileText]);
+    const simileEntry = simileReport.entries.find((e) => e.term === AI_FLAVOR_SIMILE_LABEL)!;
+    expect(simileEntry.tier).toBe("blocking");
+    expect(aiFlavorGate(simileText).structureOver).toEqual([AI_FLAVOR_SIMILE_LABEL]);
+
+    // 情绪直陈 3 处：体检条目建议档，闸的 structureOver 为空（这条只报不拦）。
+    const emotionText = CLEAN_FILLER + "他感到一阵愤怒。".repeat(3);
+    const emotionEntry = analyzeAiFlavor([emotionText]).entries.find(
+      (e) => e.term === AI_FLAVOR_EMOTION_LABEL
+    )!;
+    expect(emotionEntry.tier).toBe("advisory");
+    expect(aiFlavorGate(emotionText).structureOver).toEqual([]);
   });
 });
