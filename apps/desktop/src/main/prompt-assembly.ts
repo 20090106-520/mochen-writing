@@ -420,6 +420,19 @@ export const BOOK_SAMPLE_CHARS = 40;
 export const BOOK_SAMPLE_MIN_SENTENCES = 3;
 
 /**
+ * 「句首」的**定义**：剥掉前置标点／引号后的前 2 个实字（2026-10-21 句首趋同自查）。
+ * 2 字是因为中文句首两字已能看出主语／副词起头（「他没」「她站」「忽然」）；换刻度读数会变，
+ * 所以刻度写死在这里、不许下游各抄一份——它不是判据。
+ */
+export const SENTENCE_OPENING_CHARS = 2;
+
+/** 「用滥」的**结构性定义**：出现 ≥2 次才叫重复（同 `openingsSentence`「两章起」、体检术语「≥2 次才报」）。 */
+export const SENTENCE_OPENING_MIN_COUNT = 2;
+
+/** 展示额度（与 `bookFlavorSentence` 的 top 5 同数，只为不刷屏；不是判据）。 */
+export const SENTENCE_OPENING_TOP = 5;
+
+/**
  * 本书原句样本（七段／八段，2026-10-20）。
  *
  * 【病因是用户的原话】「主要的就是更像人类文比更好更细腻更流畅，**不要用通用的模板，也不要用模板**」。
@@ -529,6 +542,45 @@ export function dialogueSampleSentence(assembled: AssembledContext): string {
 }
 
 /**
+ * 句首趋同自查（2026-10-21）：把这本书**句子的开头**数一遍，点名用滥的那几个。
+ *
+ * 【为什么单开一段】`openingsSentence` 只数**章**的开头（每章第一句），`bookFlavorSentence` 数的是
+ * **词**（词库命中）；「每句都从同一个主语或同一个副词起头」这两种都管不到——它不靠词表，靠节律，
+ * 却是中文 AI 文最显眼、读者最先感觉到的机器味（连着三句「他没…」「她站…」，读到第三句就出戏）。
+ *
+ * 【口径】只取**已完稿**正文（`finishedChaptersText`，当前章半截草稿不算——同 §一百四十一）；
+ * 切句走 `sentencesOf`（不另切一遍）；句首＝**剥掉前置标点／引号后的前 `SENTENCE_OPENING_CHARS` 个实字**
+ * （`sentencesOf` 把「」留在句子里，不剥就会数出「「你」这类带引号的串）；≥`SENTENCE_OPENING_MIN_COUNT`
+ * 次才算「用滥」（结构性定义，不是质量阈值），按次数降序、同数按字符序，最多 `SENTENCE_OPENING_TOP` 条。
+ *
+ * 【只摆不判】不进任何闸、不进体检、不新增扫描判据——没有「重复率多少算病」的判据（那要语料分位）。
+ */
+function openingOf(sentence: string): string {
+  const content = sentence.replace(/^[\p{P}\p{S}\s]+/u, "");
+  return [...content].slice(0, SENTENCE_OPENING_CHARS).join("");
+}
+
+export function sentenceOpeningSentence(assembled: AssembledContext): string {
+  const counts = new Map<string, number>();
+  for (const sentence of sentencesOf(finishedChaptersText(assembled))) {
+    const opening = openingOf(sentence);
+    if (opening === "") continue;
+    counts.set(opening, (counts.get(opening) ?? 0) + 1);
+  }
+  const top = [...counts.entries()]
+    .filter(([, count]) => count >= SENTENCE_OPENING_MIN_COUNT)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh"))
+    .slice(0, SENTENCE_OPENING_TOP);
+  if (top.length === 0) return "";
+  return (
+    "本书句首提醒（扫描自这本书已完稿的正文，括号内是出现次数）：下面这几个句子开头在书里已经用多了——" +
+    top.map(([opening, count]) => `「${opening}」（${count} 次）`).join("、") +
+    "。新写的句子换个起法：从动作起、从一件具体物件起、从声音起、从别人的话起，" +
+    "别总拿同一个主语或同一个副词开路；连着几句同一个起头，读者读到第三句就出戏了。"
+  );
+}
+
+/**
  * 档案的写入范围说成一句人话（spec §5.1 约束 3：写入范围是**上限**，不是授权）。
  *
  * 为什么这句必须在这里而不是 agent-service：它和上面两段一样，是「排成一段人读的话」，
@@ -562,6 +614,9 @@ export function defaultPromptFor(context: PromptContext): string {
   // 对白（三枚）各一段，取自已完稿正文（不含当前章）。没样本（不足三句 / 开书第一轮）不加。
   const voiceSample = voiceSampleSentence(context.context);
   const dialogueSample = dialogueSampleSentence(context.context);
+  // 句首趋同自查（九段，2026-10-21）：这本书句子开头用滥了哪几个——补 openingsSentence 只数章首、
+  // bookFlavorSentence 只数词的那一层（节律层）。没有重复项就不加。
+  const openingRepeat = sentenceOpeningSentence(context.context);
   return [
     "你是墨宸 AI 的写作智能体，在用户本地的一本书上工作，能直接操控这本书的资料库。",
     // 档案先说：人设与写入范围上限都出自它（spec §5.1）。
@@ -607,6 +662,8 @@ export function defaultPromptFor(context: PromptContext): string {
     // 让「正面样本」出自这本书自己，而不是本仓自造的通用例句。没样本就不加这段。
     ...(voiceSample === "" ? [] : [voiceSample]),
     ...(dialogueSample === "" ? [] : [dialogueSample]),
+    // 句首趋同自查（九段，2026-10-21）：点这本书用滥的句子开头，叮嘱换起法。没有重复项不加。
+    ...(openingRepeat === "" ? [] : [openingRepeat]),
     // 联网段跟着开关走：关掉时这枚工具根本不出站，留着这段就是教模型调一枚不存在的工具。
     ...(context.webSearchEnabled ? [WEB_SEARCH_INSTRUCTION] : []),
     "改动已有文稿用 propose_patch（给 doc/anchor/replace/why），整篇新建或重写用 write_doc。",
