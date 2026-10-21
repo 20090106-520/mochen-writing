@@ -433,6 +433,24 @@ export const SENTENCE_OPENING_MIN_COUNT = 2;
 export const SENTENCE_OPENING_TOP = 5;
 
 /**
+ * 感官五通道的单字清单（2026-10-21 感官通道读数）。
+ *
+ * 【为什么是单字、为什么五通道互不重叠】单字计数是**代理读数**（同 text-vitality 的代理口径）：
+ * 不切词、不引依赖；一旦两条通道共用同一个字（如「颤」「抖」），同一处细节会被各算一次，读数就偏了。
+ * 清单写死在这里是**定义**，不是判据——换一批字读数就变，不许下游各抄一份。
+ *
+ * 【已知偏差，不掩盖】「色」也会命中「脸色」「神色」（其实仍偏视觉）、「干」会命中「干活」；
+ * 这是代理指标的固有粗糙，不为此加词性判断（那要分词，本仓零依赖）。
+ */
+export const SENSE_CHANNEL_TERMS: readonly { channel: string; chars: readonly string[] }[] = [
+  { channel: "视觉", chars: [..."看望见盯瞥瞧亮暗光影色"] },
+  { channel: "听觉", chars: [..."听响声静喊叫吼嗓嚷嗡"] },
+  { channel: "触觉", chars: [..."冷热烫凉湿干硬软滑痛疼痒麻"] },
+  { channel: "嗅觉", chars: [..."香臭腥霉馊烟"] },
+  { channel: "体内感", chars: [..."喘汗抖晕饿渴累乏颤"] }
+];
+
+/**
  * 本书原句样本（七段／八段，2026-10-20）。
  *
  * 【病因是用户的原话】「主要的就是更像人类文比更好更细腻更流畅，**不要用通用的模板，也不要用模板**」。
@@ -581,6 +599,48 @@ export function sentenceOpeningSentence(assembled: AssembledContext): string {
 }
 
 /**
+ * 感官通道读数（2026-10-21）：这本书的五种感觉各写了多少——「细腻」最具体的一层。
+ *
+ * 【为什么值得报】AI 写场景几乎只有画面（看见／光亮／脸色），人写场景会闻到、摸到、疼到。
+ * 既有动态段没有一处管感官（词表、章首、对白比、腔调四维、原句、句首都不是这一层）。
+ *
+ * 【口径】只取**已完稿**正文（同 §一百四十一／一百四十二）；分母是同一份正文的字数（含标点），
+ * 逐通道用 `SENSE_CHANNEL_TERMS` 数单字命中，÷字数×1000（1 位小数）——密度是尺度无关量，
+ * 章有长短也能横着读。**五枚恒定全列**（零命中也写 0.0），不排序、不捏总分（那要先编权重）。
+ *
+ * 【只摆不判】没有「嗅觉密度低于多少算病」的判据（要真人语料分位），所以不进体检、不进闸。
+ * 叮嘱也刻意留分寸：「一处就够」——本仓要的是该闻到的那一拍闻到，不是每段都撒调料。
+ */
+function channelPerThousand(text: string, chars: readonly string[]): number {
+  let hits = 0;
+  for (const char of chars) {
+    let from = 0;
+    for (;;) {
+      const at = text.indexOf(char, from);
+      if (at === -1) break;
+      hits += 1;
+      from = at + char.length;
+    }
+  }
+  return Math.round((hits / text.length) * 1000 * 10) / 10;
+}
+
+export function senseChannelSentence(assembled: AssembledContext): string {
+  const text = finishedChaptersText(assembled);
+  if (text.length === 0) return "";
+  const readings = SENSE_CHANNEL_TERMS.map(
+    ({ channel, chars }) => `${channel} ${channelPerThousand(text, chars).toFixed(1)}`
+  );
+  return (
+    "本书感官通道读数（扫描自这本书已完稿的正文，每千字命中次数）：" +
+    readings.join("、") +
+    "。这本书平时偏哪一路，就在哪一路保持它自己的密度（别忽然大段铺感觉）；" +
+    "「感官落点」那条照旧执行（每场戏至少两种非视觉感官），" +
+    "但也别为了凑数把每段都撒上调料——只在真正该让读者闻到、摸到、疼到的那一拍写。"
+  );
+}
+
+/**
  * 档案的写入范围说成一句人话（spec §5.1 约束 3：写入范围是**上限**，不是授权）。
  *
  * 为什么这句必须在这里而不是 agent-service：它和上面两段一样，是「排成一段人读的话」，
@@ -617,6 +677,8 @@ export function defaultPromptFor(context: PromptContext): string {
   // 句首趋同自查（九段，2026-10-21）：这本书句子开头用滥了哪几个——补 openingsSentence 只数章首、
   // bookFlavorSentence 只数词的那一层（节律层）。没有重复项就不加。
   const openingRepeat = sentenceOpeningSentence(context.context);
+  // 感官通道读数（十段，2026-10-21）：这本书偏「看」还是也写闻到／摸到／疼到——细腻层的读数。
+  const senseChannels = senseChannelSentence(context.context);
   return [
     "你是墨宸 AI 的写作智能体，在用户本地的一本书上工作，能直接操控这本书的资料库。",
     // 档案先说：人设与写入范围上限都出自它（spec §5.1）。
@@ -664,6 +726,8 @@ export function defaultPromptFor(context: PromptContext): string {
     ...(dialogueSample === "" ? [] : [dialogueSample]),
     // 句首趋同自查（九段，2026-10-21）：点这本书用滥的句子开头，叮嘱换起法。没有重复项不加。
     ...(openingRepeat === "" ? [] : [openingRepeat]),
+    // 感官通道读数（十段，2026-10-21）：五枚密度全列，叮嘱「别只给画面、一处就够」。空正文不加。
+    ...(senseChannels === "" ? [] : [senseChannels]),
     // 联网段跟着开关走：关掉时这枚工具根本不出站，留着这段就是教模型调一枚不存在的工具。
     ...(context.webSearchEnabled ? [WEB_SEARCH_INSTRUCTION] : []),
     "改动已有文稿用 propose_patch（给 doc/anchor/replace/why），整篇新建或重写用 write_doc。",
