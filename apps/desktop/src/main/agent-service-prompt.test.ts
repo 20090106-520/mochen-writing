@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AGENT_PROFILES, defaultProfile, findProfile, type DocRef } from "@mochen/contracts";
 import { renderContextBlock } from "@mochen/agent-runtime";
 import {
+  BOOK_SAMPLE_CHARS,
   defaultPromptFor,
   PLAN_MODE_INSTRUCTION,
   WEB_SEARCH_INSTRUCTION,
@@ -616,5 +617,110 @@ describe("对话占比反馈（2026-10-10 五段：让模型知道本章是话�
     // 太短不判定：哪怕全是引号。
     const tiny = mk("「行。」「不走？」「走。」");
     expect(build({ items: [tiny], chars: 12, approxTokens: 12 })).not.toContain("对话占比提醒");
+  });
+});
+
+describe("本书原句样本（2026-10-20 七段／八段：把通用范例句换成本书自己的句子）", () => {
+  const build = (context: Parameters<typeof defaultPromptFor>[0]["context"]) =>
+    defaultPromptFor({
+      title: "雾港",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context,
+      webSearchEnabled: false
+    });
+
+  /** 一条已完稿的章节正文（`active` 默认 false = 已收笔）。 */
+  const finished = (text: string, active = false) => ({
+    kind: "chapter" as const,
+    relPath: "chapters/01.md",
+    title: "开局",
+    text,
+    chars: text.length,
+    active
+  });
+  const withItems = (...items: ReturnType<typeof finished>[]) => {
+    const chars = items.reduce((sum, one) => sum + one.chars, 0);
+    return { items, chars, approxTokens: chars };
+  };
+
+  // 三句叙述：2 字 / 13 字 / 34 字——首／中／尾三枚位置一眼可算。
+  // 刻意**不按句长排**（中→长→短）：按出现序取首尾的实现会当场红。
+  const SHORT = "不。";
+  const MID = "这是一条不长不短的中位句。";
+  const LONG = "这是一条明显写得比较长、铺得很开、带着破折号与逗号一路写下去的长句。";
+  const NARRATION = [MID, LONG, SHORT].join("\n");
+  // 三句对白（「」式，各自一行）：切句后 3 字 / 12 字 / 28 字；同样刻意不按句长排。
+  const D_SHORT = "「走。」";
+  const D_MID = "「你先回去，我在这儿等。」";
+  const D_LONG = "「这印不是他贪的，是我亲手交出去的，你要问就一问问到底。」";
+  const DIALOGUE = [D_MID, D_LONG, D_SHORT].join("\n");
+
+  it("已完稿正文够量 ⇒ 三枚原句＝句长的首／中／尾，「N 字」与切句口径同源", () => {
+    // 夹具自检：三枚字数是手算的，先钉住夹具没走样。
+    expect([SHORT.length, MID.length, LONG.length]).toEqual([2, 13, 34]);
+    const text = build(withItems(finished(NARRATION)));
+    expect(text).toContain("本书语感样本");
+    expect(text).toContain(`最短的一句（2 字）：「${SHORT}」`);
+    expect(text).toContain(`中位的一句（13 字）：「${MID}」`);
+    expect(text).toContain(`最长的一句（34 字）：「${LONG}」`);
+    // 段里要把七段静态里的自造例句**降级为示意**——这就是用户「不要用通用模板」的落点。
+    expect(text).toContain("只是示意");
+    expect(text).toContain("硬约束优先");
+    // 落点在最后一段静态（用笔处置）之后。
+    expect(text.indexOf("本书语感样本")).toBeGreaterThan(text.indexOf("用笔处置"));
+  });
+
+  it("当前章是半截草稿 ⇒ 不进样本；非 chapter 条目与空上下文同样不注入", () => {
+    expect(build(withItems(finished(NARRATION, true)))).not.toContain("本书语感样本");
+    expect(build(NO_CONTEXT)).not.toContain("本书语感样本");
+    // 人物卡写得再长也不是这本书的正文腔调——只数 kind === "chapter" 的条目。
+    const card = {
+      kind: "character" as const,
+      relPath: "characters/陈砚.md",
+      title: "陈砚",
+      text: NARRATION,
+      chars: NARRATION.length,
+      active: false
+    };
+    expect(
+      build({ items: [card], chars: NARRATION.length, approxTokens: NARRATION.length })
+    ).not.toContain("本书语感样本");
+  });
+
+  it("已完稿不足三句 ⇒ 不注入（摆不出首／中／尾三枚位置就是没有样本）", () => {
+    expect(build(withItems(finished([SHORT, MID].join("\n"))))).not.toContain("本书语感样本");
+  });
+
+  it("单枚超展示额度 ⇒ 截断带「…」，原句不整句进提示词", () => {
+    const over =
+      "这一条故意写得比展示额度还长，长到必须在提示词里截断，否则就会把整章倒进来，那就不是样本而是正文倾倒。";
+    expect(over.length).toBeGreaterThan(BOOK_SAMPLE_CHARS);
+    const text = build(withItems(finished([MID, over, SHORT].join("\n"))));
+    expect(text).toContain(`最长的一句（${over.length} 字）：`);
+    expect(text).toContain(`${over.slice(0, BOOK_SAMPLE_CHARS)}…`);
+    expect(text).not.toContain(over);
+  });
+
+  it("对白样本：只摘引号里的句子，孤引号碎片（1 字）绝不进样本", () => {
+    const text = build(withItems(finished(DIALOGUE)));
+    expect(text).toContain("本书对白样本");
+    expect(text).toContain("最短的一句（3 字）");
+    expect(text).toContain("中位的一句（12 字）");
+    expect(text).toContain("最长的一句（28 字）");
+    // `」` 式切句会把收尾的引号甩成后一句（`」` 单独一句，长 1）——那是碎片，不是样本。
+    expect(text).not.toContain("的一句（1 字）");
+    // 全是对白的正文 ⇒ 语感样本（叙述句）一句都没有：两段的正面样本不重叠。
+    expect(text).not.toContain("本书语感样本");
+  });
+
+  it("没有对白句 ⇒ 对白段不注入；只有两句对白（不足三枚）也不注入", () => {
+    const narration = build(withItems(finished(NARRATION)));
+    expect(narration).toContain("本书语感样本");
+    expect(narration).not.toContain("本书对白样本");
+    expect(build(withItems(finished([D_SHORT, D_MID].join("\n"))))).not.toContain("本书对白样本");
   });
 });

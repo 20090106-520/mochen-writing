@@ -7,6 +7,7 @@ import {
   analyzeAiFlavor,
   dialogueBalance,
   dialogueVerdict,
+  sentencesOf,
   styleProfileOf,
   type AgentProfile,
   type DocRef
@@ -406,6 +407,127 @@ export function styleProfileSentence(assembled: AssembledContext): string {
   );
 }
 
+/* ────────────────── 本书原句样本（2026-10-20 七段／八段 · 把通用范例句换成本书自己的句子） ────────────────── */
+
+/**
+ * 每枚样本的**展示额度**：截断只为「别把整章倒进提示词」。
+ * 这是展示额度（与 `CHAPTER_OPENING_CHARS = 24`、`PRIOR_CHAPTER_TAIL_CHARS = 400` 同类），**不是判据**——
+ * 换个额度读数就变，所以额度写死在这里、不许下游各抄一份。
+ */
+export const BOOK_SAMPLE_CHARS = 40;
+
+/** 摆得出「首／中／尾」三枚位置的**结构性下限**：不足三句就是没有样本可摆，不硬凑（不是质量线）。 */
+export const BOOK_SAMPLE_MIN_SENTENCES = 3;
+
+/**
+ * 本书原句样本（七段／八段，2026-10-20）。
+ *
+ * 【病因是用户的原话】「主要的就是更像人类文比更好更细腻更流畅，**不要用通用的模板，也不要用模板**」。
+ * 把生成端常驻段逐个摊开数过之后确认：那七段里给的**例子全是本仓自造的通用句**——
+ * 「她把茶杯推过去。『喝吧。』」「他把碗放下。手在桌沿停了停。」「他进屋，先去关窗」「搪瓷缸」。
+ * 模型手上能照的正面样例只有这些，写出来自然是**本仓的示范腔**，不是这本书的腔。
+ * 四个动态段里，三个是「避开／别写重」（向下拉）、一个是「保持读数」（防漂移）——
+ * **没有一处把这本书自己写得好的句子摆给模型看**。这一刀补的就是这一格。
+ *
+ * 【本刀只做一件事】从**本书已完稿正文**里**原样摘出**这本书自己的句子摆给这一轮：
+ * `voiceSampleSentence` 报叙述句的下沿／中沿／上沿，`dialogueSampleSentence` 报对白句的同样三枚。
+ * 两段里都明说「前面各段里给的例子只是示意，真要照的是这几条本书原句」——把范例句降级为示意。
+ *
+ * 【为什么不改那七段】它们是**方法与纪律**（禁什么、用什么替代），且几处数值上限与扫描端
+ * `AI_FLAVOR_STRUCTURE_MIN_COUNT`、退稿闸同吃一枚数字。动它们就是动判据口径，要重跑阈值校准。
+ *
+ * 【抽取口径（两个段共用一份实现）】
+ * - 只取**已完稿**的正文：`kind === "chapter" && active === false`。当前章是**半截草稿**，
+ *   拿它当范本只会把上一轮的毛病抄进这一轮（那是放大，不是校准）。
+ * - 切句走 `sentencesOf`（与句长节奏、复读、退稿闸同一条 lookbehind 口径，铁律 6，不另切一遍）。
+ * - 三枚是**数据算出来的位置**：按句长排序取首／中／尾——**没有一个自定阈值**（§一百三十四：不编数）。
+ * - 单一消费者是提示词装配，所以两段产出的都是**给人读的一段话**，不做判定、不进任何闸。
+ */
+
+/**
+ * 「一条可展示的样本句」的定义：**至少含一个非标点非符号的字符**。
+ * 「」式对白在 `sentencesOf` 的口径里（句末标点留在句尾）会把收尾的 `」` 甩成后一句——
+ * 竖着写的书里于是会切出只由一个 `」` 组成的碎片（长度 1）。拿它当「最短的一句」摆给模型，
+ * 摆出来的是一条没有字的引号，不是语感样本。这里是**定义**（什么算一句话），不是阈值。
+ */
+const SAMPLE_ONLY_MARKS = /^[\p{P}\p{S}]+$/u;
+
+function isSampleSentence(sentence: string): boolean {
+  return !SAMPLE_ONLY_MARKS.test(sentence);
+}
+
+/** 已完稿正文：这次上下文里装着的章节条目，**不算当前正在写的那一章**（半截草稿不入样本）。 */
+function finishedChaptersText(assembled: AssembledContext): string {
+  return assembled.items
+    .filter((item) => item.kind === "chapter" && !item.active)
+    .map((item) => item.text)
+    .join("\n");
+}
+
+/** 按句长取**首／中／尾**三枚（数据算出来的位置，不自定阈值）；不足 `BOOK_SAMPLE_MIN_SENTENCES` 句返回 null。 */
+function pickByLength(sentences: readonly string[]): [string, string, string] | null {
+  const samples = sentences.filter(isSampleSentence);
+  if (samples.length < BOOK_SAMPLE_MIN_SENTENCES) return null;
+  const byLength = [...samples].sort((a, b) => a.length - b.length);
+  return [byLength[0]!, byLength[Math.floor(byLength.length / 2)]!, byLength[byLength.length - 1]!];
+}
+
+/** 一枚样本写成一行：`最短的一句（7 字）：「…」`——超 `BOOK_SAMPLE_CHARS` 截断并留一个省略号。 */
+function sampleLine(rank: string, sentence: string): string {
+  const shown =
+    sentence.length <= BOOK_SAMPLE_CHARS ? sentence : `${sentence.slice(0, BOOK_SAMPLE_CHARS)}…`;
+  return `${rank}（${sentence.length} 字）：「${shown}」`;
+}
+
+/**
+ * 语感样本：本书**叙述句**的**实际下沿／中沿／上沿**三枚原句。
+ * 只取 `dialogueBalance(sentence).quoted === 0` 的句子——引号里的话由 `dialogueSampleSentence` 单独给，
+ * 两段的正面样本不该重叠（拿一句对白当「叙述语感」摆出来，指挥棒就指错了方向）。
+ * 不足三句（含开书第一轮：还没有已完稿正文）返回空串——没样本不注入空段。
+ */
+export function voiceSampleSentence(assembled: AssembledContext): string {
+  const sentences = sentencesOf(finishedChaptersText(assembled)).filter(
+    (sentence) => dialogueBalance(sentence).quoted === 0
+  );
+  const picked = pickByLength(sentences);
+  if (picked === null) return "";
+  return (
+    "本书语感样本（原样摘抄自这本书已完稿的正文，不是范例句）：" +
+    [
+      sampleLine("最短的一句", picked[0]),
+      sampleLine("中位的一句", picked[1]),
+      sampleLine("最长的一句", picked[2])
+    ].join("；") +
+    "。写新内容时照这本书自己的语感写：用词、句长、断句都往这三条的路子上靠，长短仍要跟着情绪走" +
+    "（该快的地方可以比最短那条还短），但别换一套腔调。前面各段里给的例子只是示意，" +
+    "真要照的是这几条本书原句。与上面的文风硬约束冲突时硬约束优先：那是下限，样本只是这本书自己的习惯。"
+  );
+}
+
+/**
+ * 对白样本：本书**引号里的话**的同样三枚（下沿／中沿／上沿）。
+ * 「是不是对白句」走 `dialogueBalance(sentence).quoted > 0`——引号配对只住 `dialogue.ts` 的 scanQuotes 一处，
+ * 这里不另写一套引号规则；没有对白句（或不足三句）返回空串。
+ */
+export function dialogueSampleSentence(assembled: AssembledContext): string {
+  const sentences = sentencesOf(finishedChaptersText(assembled)).filter(
+    (sentence) => dialogueBalance(sentence).quoted > 0
+  );
+  const picked = pickByLength(sentences);
+  if (picked === null) return "";
+  return (
+    "本书对白样本（原样摘抄自这本书已完稿的正文，引号里的字算对白）：" +
+    [
+      sampleLine("最短的一句", picked[0]),
+      sampleLine("中位的一句", picked[1]),
+      sampleLine("最长的一句", picked[2])
+    ].join("；") +
+    "。写对话时照这本书自己的路子——人物一句话的长短、口气、断句往这三条上靠：可以比最短那条还短" +
+    "（一个字的回答也是回答），也可以比最长那条更长，但要真需要。别让新写的人物说起来像另一个人写的。" +
+    "前面各段里给的例子只是示意，真要照的是这几条本书原句。"
+  );
+}
+
 /**
  * 档案的写入范围说成一句人话（spec §5.1 约束 3：写入范围是**上限**，不是授权）。
  *
@@ -436,6 +558,10 @@ export function defaultPromptFor(context: PromptContext): string {
   const dialogueHint = dialogueBalanceSentence(context.context);
   // 本书腔调摘要（六段 · P0-③）：把《文风手册》六维里量得出来的四维报给模型，防「写着写着不像自己」。
   const styleProfile = styleProfileSentence(context.context);
+  // 本书原句样本（七段／八段，2026-10-20）：把「通用范例句」换成本书自己的句子——语感（句长三枚）与
+  // 对白（三枚）各一段，取自已完稿正文（不含当前章）。没样本（不足三句 / 开书第一轮）不加。
+  const voiceSample = voiceSampleSentence(context.context);
+  const dialogueSample = dialogueSampleSentence(context.context);
   return [
     "你是墨宸 AI 的写作智能体，在用户本地的一本书上工作，能直接操控这本书的资料库。",
     // 档案先说：人设与写入范围上限都出自它（spec §5.1）。
@@ -477,6 +603,10 @@ export function defaultPromptFor(context: PromptContext): string {
     // 本书腔调摘要（六段 · P0-③）：这本书自己的常态读数（句长/标点/对白/段末收法），
     // 叮嘱保持同一腔调。样本不足不加——与三段「本书现场」动态段并列。
     ...(styleProfile === "" ? [] : [styleProfile]),
+    // 本书原句样本（七段／八段，2026-10-20）：原样摘抄本书已完稿正文里的句子（句长三枚 / 对白三枚），
+    // 让「正面样本」出自这本书自己，而不是本仓自造的通用例句。没样本就不加这段。
+    ...(voiceSample === "" ? [] : [voiceSample]),
+    ...(dialogueSample === "" ? [] : [dialogueSample]),
     // 联网段跟着开关走：关掉时这枚工具根本不出站，留着这段就是教模型调一枚不存在的工具。
     ...(context.webSearchEnabled ? [WEB_SEARCH_INSTRUCTION] : []),
     "改动已有文稿用 propose_patch（给 doc/anchor/replace/why），整篇新建或重写用 write_doc。",
