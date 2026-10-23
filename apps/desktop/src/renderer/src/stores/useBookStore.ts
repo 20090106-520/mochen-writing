@@ -10,6 +10,7 @@ import {
   type DocRef,
   type DocWriteResult,
   type PermissionMode,
+  type RecentBookEntry,
   type WorkMode
 } from "@mochen/contracts";
 import { absorbConflictNotice } from "../utils/agent-thread";
@@ -19,7 +20,12 @@ import {
   permissionModeStep,
   workModeStep
 } from "../utils/meta-mode-step";
-import { foreshadowRows, readForeshadowRaws, type ForeshadowRow } from "../utils/foreshadow";
+import {
+  foreshadowRows,
+  readForeshadowRaws,
+  readPlantedChapters,
+  type ForeshadowRow
+} from "../utils/foreshadow";
 import { renameTitleInContent } from "../utils/doc-title";
 import { moveOrderItem, nextTabInCycle, sortDocsByOrder, tabAtIndex } from "../utils/doc-order";
 import {
@@ -46,11 +52,13 @@ import { installQuitFlushListener } from "../utils/quit-flush-client";
 import { bumpDocLoadToken, readDocIntoTab } from "../utils/doc-read";
 import { browseFailureNotice, readBrowseBody, resetBrowseReadGates } from "../utils/browse-read";
 import {
-  readChangePeek,
-  restoreBackupToDoc,
-  type ChangePeekIo,
-  type ChangeRestoreIo
-} from "../utils/change-history";
+  closeChangeHistory,
+  loadChanges,
+  openChangeHistory,
+  peekChange,
+  restoreChange,
+  type ChangePreview
+} from "./book-change-history";
 import { bookDataFlushNotice, withBookDataFlush } from "../composables/bookDataRegistry";
 
 /**
@@ -66,19 +74,6 @@ export type EditorViewMode = "edit" | "split" | "preview";
 const writeDocIpc: FlushIO["write"] = (relPath, content, expectedFingerprint) =>
   window.mochen.writeDoc(relPath, content, expectedFingerprint);
 
-/** peek 一条改稿历史要用的两扇 IPC，同样是模块级、不捕 `this`（编排的规矩全在 utils/change-history）。 */
-const changePeekIpc: ChangePeekIo = {
-  readChange: (backupRelPath) => window.mochen.readChange(backupRelPath),
-  diffChange: (backupRelPath, docRelPath) => window.mochen.diffChange(backupRelPath, docRelPath)
-};
-
-/** 回滚一条件要用的两扇 IPC，同样模块级、不捕 `this`（编排规矩在 `restoreBackupToDoc`）。 */
-const changeRestoreIpc: ChangeRestoreIo = {
-  readDoc: (relPath) => window.mochen.readDoc(relPath),
-  restoreChange: (backupRelPath, expectedFingerprint) =>
-    window.mochen.restoreChange(backupRelPath, expectedFingerprint)
-};
-
 /** 最后一次键入到自动保存之间的静默窗的**默认档**：设置页那排档位的兜底值（没有偏好时用它）。
  *  排程真身走 loadAutosaveDelay（偏好档：关/1/2/5 秒），这个常量只保证「没设置时行为与原版一字不变」。 */
 export const AUTO_SAVE_DELAY_MS = AUTOSAVE_DEFAULT_DELAY_MS;
@@ -89,6 +84,15 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 export const useBookStore = defineStore("book", {
   state: () => ({
     rootPath: null as string | null,
+    /**
+     * 作品库（2026-10-21）：最近打开/新建过的书，按时间倒序。
+     *
+     * 真身在主进程（`book:open` / `book:create` 成功那一刻记账），这里只是它的一份只读镜像：
+     * 渲染层不自己往里塞条目，避免「界面记得、盘上不记得」两套账。
+     */
+    recentBooks: [] as RecentBookEntry[],
+    /** 作品库清单的一次在读（切书后刷新用它，按钮据此禁用）。 */
+    recentBooksLoading: false,
     meta: null as BookMeta | null,
     docs: [] as DocRef[],
     docTabs: [] as string[],
@@ -130,13 +134,12 @@ export const useBookStore = defineStore("book", {
     /** 拉列表 / 读备份 / 回滚的各自在途标记；按钮据此禁用，重复点不会发两次 IPC。 */
     changesBusy: false,
     /** 读回来的那条备份正文，回滚前给用户看的就是它。 */
-    changePreview: null as { backupRelPath: string; content: string; diff: string | null } | null,
-    /**
-     * 伏笔台账（2026-10-05）的三格。
-     * 状态机与解析在 contracts/foreshadow，行组装在 utils/foreshadow——这里只存结果与在途标记。
-     */
+    changePreview: null as ChangePreview | null,
+    /** 伏笔台账（2026-10-05）：判定在 contracts/foreshadow 与 utils/foreshadow，这里只存结果。 */
     foreshadowsOpen: false,
     foreshadowRows: [] as ForeshadowRow[],
+    /** 台账登记的埋设章正文（C6 关键词回归用）；没打开台账就是空 Map。 */
+    foreshadowChapterTexts: new Map<string, string>(),
     foreshadowsBusy: false,
     /**
      * 正文这一格的在途标志（2026-10-05 批次 3 尾巴）。
@@ -167,6 +170,35 @@ export const useBookStore = defineStore("book", {
         return;
       }
       await this.openBook(picked);
+    },
+
+    /**
+     * 读回作品库（2026-10-21）。
+     *
+     * 读不到就保持现有清单、不弹错：作品库是「顺手再打开一本」的入口，
+     * 不该因为它读失败而挡住正在写的这一本。主进程那边读坏也退空清单。
+     */
+    async loadRecentBooks() {
+      if (this.recentBooksLoading) return;
+      this.recentBooksLoading = true;
+      try {
+        const snapshot = await window.mochen.listRecentBooks();
+        this.recentBooks = snapshot.books;
+      } catch {
+        // 见上面：静默保持现状。
+      } finally {
+        this.recentBooksLoading = false;
+      }
+    },
+
+    /** 只从作品库清单里移除一条（不删书）。回执就是移除后的整份清单，直接换下本地镜像。 */
+    async forgetRecentBook(rootPath: string) {
+      try {
+        const snapshot = await window.mochen.forgetRecentBook(rootPath);
+        this.recentBooks = snapshot.books;
+      } catch {
+        // 同上：移除失败时不改本地清单，至少不会出现「界面没了、盘上还在」的假象。
+      }
     },
 
     async openBook(rootPath: string) {
@@ -203,6 +235,8 @@ export const useBookStore = defineStore("book", {
       // 而挡住它的那次读又会被世代号丢掉——那一格就永久读不出来了。
       resetBrowseReadGates();
       this.docLoading = false;
+      // 作品库（2026-10-21）：刚打开/新建的这一本在盘上已记了一笔，镜像跟着刷新一次。
+      void this.loadRecentBooks();
     },
 
     /**
@@ -435,37 +469,22 @@ export const useBookStore = defineStore("book", {
      * 面板要同时管列表、预览与在途标记，散在组件里就散成三份状态。
      */
     async loadChanges(): Promise<void> {
-      this.changesBusy = true;
-      try {
-        this.changeList = await window.mochen.listChanges();
-      } catch (err) {
-        this.notice = `改稿历史没读回来：${failureReasonOf(err)}`;
-        this.changeList = [];
-      } finally {
-        this.changesBusy = false;
-      }
+      await loadChanges(this);
     },
 
     /** 打开面板并拉一次列表。没开书时列表是空表（主进程那边给的就是空表，不是错）。 */
     async openChangeHistory(): Promise<void> {
-      this.changeHistoryOpen = true;
-      await this.loadChanges();
+      await openChangeHistory(this);
     },
 
     closeChangeHistory(): void {
-      this.changeHistoryOpen = false;
-      this.changeHistory = null;
-      this.changePreview = null;
+      closeChangeHistory(this);
     },
-
-    /**
-     * 伏笔台账（2026-10-05）：把书里所有 `foreshadow/` 文稿读回来摆成一张表。
-     * 为什么要读全文、读不到的为什么照样列出来（tone=unknown）、为什么不缓存——都写在
-     * `utils/foreshadow` 的 `readForeshadowRaws` 与 `foreshadowRows` 上，这里只摆状态。
-     */
+    /** 伏笔台账（2026-10-05）：读全文、读不到照列（tone=unknown）等纪律全在 `utils/foreshadow`。 */
     async loadForeshadows(): Promise<void> {
       if (this.docs.length === 0) {
         this.foreshadowRows = [];
+        this.foreshadowChapterTexts = new Map();
         return;
       }
       this.foreshadowsBusy = true;
@@ -483,37 +502,22 @@ export const useBookStore = defineStore("book", {
       }
     },
 
+    /** 跨章回归（2026-10-22，C6）：读登记过的埋设章正文；读盘纪律见 `readPlantedChapters`。 */
+    async loadForeshadowChapters(): Promise<void> {
+      this.foreshadowChapterTexts = await readPlantedChapters(
+        this.docs,
+        this.foreshadowRows,
+        (relPath) => window.mochen.readDoc(relPath)
+      );
+    },
     /** 点开一条：改前那份正文读回来，同时让主进程算出它与盘上此刻的逐行差别；回滚与否由人定。 */
     async peekChange(entry: ChangeEntry): Promise<void> {
-      this.changesBusy = true;
-      this.changeHistory = entry;
-      this.changePreview = null;
-      const peek = await readChangePeek(changePeekIpc, entry);
-      // 在途标记先落地再挑结果：中途换了选中那条时下面直接 return，标记留在 true 面板就点点不动了。
-      this.changesBusy = false;
-      // 失败那句**先**落地：备份整个读不到时 preview 是 null，靠下面那行 return 拦不住话——
-      // 那时 notice 是用户唯一看得见的东西（2026-10-13 就把这一句写在 return 之后，红灯当场逮到）。
-      if (peek.notice) this.notice = peek.notice;
-      // 读到的是别的一条（面板期间盘上变了）就丢掉，别把错的内容摆给人看。
-      if (!peek.preview || this.changeHistory?.backupRelPath !== entry.backupRelPath) return;
-      this.changePreview = { backupRelPath: entry.backupRelPath, ...peek.preview };
+      await peekChange(this, entry);
     },
 
     /** 回滚一条备份：守卫、现读现传的指纹、三档文案全在 `restoreBackupToDoc`，这里只摆状态。 */
     async restoreChange(entry: ChangeEntry): Promise<void> {
-      this.changesBusy = true;
-      const outcome = await restoreBackupToDoc(changeRestoreIpc, entry, this.activeDocTab);
-      // 在途标记先落地再刷列表：refresh 那两步各自还会写 notice，标记挂着不许拦用户点第二下。
-      this.changesBusy = false;
-      if (outcome.refresh) {
-        // 当前正文可能正是被回滚的那一篇：现读回来刷新右栏，别让屏幕停在旧内容上。
-        // 比的是**此刻**的标签（进来以后用户可能已经切走了），不是编排里那份快照。
-        if (this.activeDocTab === entry.docRelPath) await this.reloadActive();
-        await this.loadChanges();
-      }
-      // 提示写在最后——reloadActive 自己也会写 notice（「已重载盘上内容」），
-      // 顺序颠倒的话用户从头到尾看不见「已回滚」这三个字（2026-10-05 真机逮到）。
-      this.notice = outcome.notice;
+      await restoreChange(this, entry);
     },
 
     /** 循环切换编辑视图三态：edit → split → preview → edit。 */
@@ -523,12 +527,7 @@ export const useBookStore = defineStore("book", {
       this.editorViewMode = order[(idx + 1) % 3] as EditorViewMode;
     },
 
-    /**
-     * 浏览：把右栏这一格切到浏览，但绝不触碰文稿标签与草稿。
-     *
-     * 读盘那三道闸（世代号 / 在途集合 / 失败可见，2026-10-09 扫描总单 P1-9）住在
-     * `utils/browse-read`——那里逐条钉着在用例里，这里只负责把 store 的三张表接上去。
-     */
+    /** 浏览：切到右栏浏览，绝不触碰文稿标签与草稿；读盘三道闸住在 `utils/browse-read`。 */
     browse(ref: DocRef) {
       if (!this.browseTabs.some((doc) => doc.relPath === ref.relPath)) this.browseTabs.push(ref);
       this.activeBrowse = ref.relPath;

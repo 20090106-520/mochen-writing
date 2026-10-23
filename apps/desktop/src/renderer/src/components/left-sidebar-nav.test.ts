@@ -40,25 +40,15 @@ describe("LeftSidebar · 主操作各调一个真身（F-C，§2.7）", () => {
     expect(template).not.toContain("模型配置");
   });
 
-  it("「AI 写作」子项（navIdOf 沿用语义 id=new-thread）调 agent.clearThreadView(threadKeyFor(...))，只清渲染层", () => {
-    // 子项的 data-nav-id 是动态绑定，new-thread 这个语义 id 由 navIdOf 对 action 生成。
+  it("子项 data-nav-id 语义化 + 文案诚实：模板只调 helper", () => {
+    // 「写作」组（AI 写作 / 章节编辑器）2026-10-23 已删；同一天「审核检查」组也迁成内置技能，
+    // 所以左栏不再有「缺章去开一章」这条引导（needChapterState 已删）。下面几条通用约束仍成立。
     expect(template).toContain(':data-nav-id="navIdOf(group, child)"');
     expect(script).toContain('if (child.reality.kind === "action") return child.reality.action;');
-    expect(script).toContain("clearThreadView(threadKeyFor(book.activeDocTab))");
-  });
-
-  it("文案诚实：AI 写作未开章不再是死按钮——判定走 childState（need-doc 引导），title 与 label 都说实话", () => {
-    expect(script).toContain("CLEAR_VIEW_SENTENCE");
-    expect(template).toContain(':data-nav-id="navIdOf(group, child)"');
-    expect(template).not.toContain("新建会话线程");
-    // 未开章判定收在 script 的 childState（模板只调 helper，不抄第二份逻辑）——
-    // 钉两半：script 有该判定（new-thread 先于 activeDocTab 判空），模板有 title 载体。
-    expect(script).toMatch(/new-thread[\s\S]*?book\.activeDocTab === null/);
     expect(template).toContain(':title="childState(child).hint"');
-    // 2026-10-04 二次裁定：全部可点、点哪都有真响应——子项行不再有 disabled 属性，
-    // 缺章时的响应是引导去开一章（need-doc → guideToDoc），label 也说明这一点。
     expect(template).not.toContain(':disabled="childState(child).disabled"');
-    expect(script).toContain("去开一章");
+    // 反向：缺章引导整条退场（连同它的文案）。
+    expect(script).not.toContain("去开一章");
     expect(script).toContain("guideToDoc(state.docKind)");
   });
 
@@ -116,40 +106,29 @@ describe("LeftSidebar · 功能导航（2026-10-04 演示图裁定：完整按�
     );
   });
 
-  it("「AI 智能体」一级项已按裁定退役：左栏不再有该行；面板展开真身保留，由审核检查消费", () => {
-    // 2026-10-04 三次裁定：该行与「AI 写作」重复、是摆设——删行不删真身：
-    // revealAgentPanel 仍是 ai-check 动作分派的真身（上一组用例钉住），导航表里也不再设 agent 项。
+  it("「AI 智能体」一级项已按裁定退役：左栏不再有该行；面板展开真身留给两个台账动作", () => {
+    // 2026-10-04 三次裁定：该行与「AI 写作」重复、是摆设——删行不删真身。
+    // 2026-10-23：审核四项迁出导航表（改为内置技能），aiCheckOf 分派删除；
+    // revealAgentPanel 改由伏笔台账 / 时间线核对两个动作消费，真身仍在。
     expect(template).not.toContain('data-nav-id="agent"');
     expect(script).not.toContain('data-nav-id="agent"');
     expect(script).toContain("function revealAgentPanel(): void");
     expect(script).toContain('layout.setPaneCollapsed("right", false)');
-    expect(script).toMatch(/aiCheckOf\(child\.reality\.action\)[\s\S]*?revealAgentPanel\(\)/);
+    expect(script).not.toContain("aiCheckOf");
+    expect(script).toMatch(/foreshadow-ledger[\s\S]*?revealAgentPanel\(\)/);
   });
 
-  it("「去开一章 / 先建一章」这三种引导：一篇文档都没有时改走 need-book（5-㊳）", () => {
-    // 【这条决定是 2026-10-07 批次 5-㊳ 改的，逐条说明】
-    // 原来这三处一律返回 `mode: "need-doc", docKind: "chapter"`，由 guideToDoc →
-    // startAdding("chapter") 去**文稿树里那一行**摆行内新建输入框。
-    // 而一篇文档都没有时（没打开作品）文稿树根本不在界面上 ⇒ startAdding 落不到任何地方。
-    // 真机把左栏 28 枚钮逐个点了一遍（p536i），这五枚全部「状态一点没变」：
-    //   AI 写作（去开一章）/ 章节编辑器（先建一章）/ 一致性·剧情·逻辑检查（去开一章）
-    // 标题都在承诺一个引导，界面上却什么都没发生 —— 不报错、不消失，只是「像坏了」。
+  it("「去开一章」引导随 AI 检查迁出：needChapterState 删除，缺章规则只剩 side-nav 一处（5-㊳→2026-10-23）", () => {
+    // 【这条决定是 2026-10-07 批次 5-㊳ 立的】
+    // 当时三处「去开一章 / 先建一章」引导收进 needChapterState 一处真身：没打开作品时
+    // 改走 need-book 对话框（打开目录 = Ctrl+O，新建作品 = 组头「+」，两项现成真身）。
     //
-    // ⇒ 改判据：**没打开作品时走 need-book**，那是对话框，两个按钮都是现成真身
-    // （打开目录 = Ctrl+O，新建作品 = 组头「+」）。与 utils/side-nav 里
-    // sideNavChildState 对 docs 子项的同一句规则（「一篇文档都没有 = 大概率没打开作品」）对齐。
-    expect(script).toContain("function needChapterState(label: string, hint: string)");
-    const fn = /function needChapterState[\s\S]*?\n {2}\}/.exec(script)?.[0] ?? "";
-    expect(fn, "needChapterState 读不到").not.toBe("");
-    expect(fn).toContain("book.docs.length === 0");
-    expect(fn).toContain('mode: "need-book"');
-    expect(fn).toContain("NEED_BOOK_HINT");
-    expect(fn).toContain('mode: "need-doc", docKind: "chapter"');
-    // 三个分支都必须走这一个真身，不许哪一处又自己写一份 need-doc。
-    expect(countNeedle("needChapterState(", script)).toBe(4); // 一处定义 + 三处调用
-    // 反向：正文里不许再出现那三处手写的 need-doc 引导。
-    expect(script).not.toMatch(/mode: "need-doc",\s*docKind: "chapter",\s*hint: "先打开一章/);
-    expect(script).not.toMatch(/mode: "need-doc",\s*docKind: "chapter",\s*hint: "先有章节/);
+    // 2026-10-23：审核四项改为内置技能后，左栏再没有「动作类但要求当前章」的子项——
+    // needChapterState 连同它的唯一调用一并删除。规则本身（一篇文档都没有 = 大概率没打开作品）
+    // 仍只留在 `utils/side-nav.ts` 的 sideNavChildState 一处，组件只调它、不另写一份。
+    expect(script).not.toContain("needChapterState");
+    expect(script).not.toContain('mode: "need-doc", docKind: "chapter"');
+    expect(script).toContain("sideNavChildState(child, book.docs)");
   });
 
   it("数据统计已落地（深夜裁定）：真功能 openStats，表格数字来自 book.docs 聚合", () => {
@@ -173,18 +152,16 @@ describe("LeftSidebar · 功能导航（2026-10-04 演示图裁定：完整按�
     expect(script).toContain("sideNavChildState(child, book.docs)");
   });
 
-  it("审核四项已落地：ai-check 动作分派=展开对话面板 + 预填提问（不自动发送）", () => {
-    // id 语义化：ai-check-* 平铺为 data-nav-id（navIdOf 对 action 沿用现成 id）。
+  it("审核四项已迁出左栏：改由内置技能在对话框里载入，左栏不再有 ai-check 分派", () => {
+    // id 语义化：action 类子项平铺为 data-nav-id（navIdOf 对 action 沿用现成 id）——这条仍在。
     expect(script).toContain(
       "function navIdOf(group: { id: string }, child: SideNavChild): string"
     );
-    // 分派真身：revealAgentPanel（面板可见）+ prefillComposer（草稿写入，用户保留发送权）。
-    expect(script).toMatch(/aiCheckOf\(child\.reality\.action\)[\s\S]*?revealAgentPanel\(\)/);
-    expect(script).toContain(
-      "agent.prefillComposer(threadKeyFor(book.activeDocTab), AI_CHECK_PROMPTS[check])"
-    );
-    // 缺章口径与 AI 写作一致：先引导去开一章。
-    expect(script).toContain("先打开一章再做检查");
+    // 2026-10-23：四项检查改为内置技能（`main/builtin-skills.ts` 落盘，模型经 use_skill 自选载入），
+    // 左栏那条「展开面板 + 预填提问」的分派整条删除——组件里不再出现 aiCheckOf / AI_CHECK_PROMPTS。
+    expect(script).not.toContain("aiCheckOf");
+    expect(script).not.toContain("AI_CHECK_PROMPTS");
+    expect(script).not.toContain("先打开一章再做检查");
   });
 
   it("响应对话框是导航的统一出口：planned 说规划中，need-book 两按钮各挂现成真身", () => {
@@ -201,30 +178,31 @@ describe("LeftSidebar · 功能导航（2026-10-04 演示图裁定：完整按�
     expect(script).toContain("void startAdding(kind);");
   });
 
-  it("子项分派一条路：docs=展开树对应分组；new-thread / chapter-editor 各挂现成真身", () => {
+  it("子项分派一条路：docs=展开树对应分组（写作组两项已删）", () => {
     expect(script).toContain("function onChildAction(child: SideNavChild): void");
     expect(script).toMatch(
       /docs[\s\S]*?collapsedSections\.value\[child\.reality\.docKind\] = false/
     );
-    expect(script).toContain("newThreadForActiveChapter()");
-    expect(script).toContain("openChapterEditor()");
-    // data-nav-id 语义化：action 沿用既有 id，docs 报出树分组（可定位可枚举）。
     expect(script).toContain(
       "function navIdOf(group: { id: string }, child: SideNavChild): string"
     );
     expect(script).toContain("return `tree-${child.reality.docKind}`");
   });
 
-  it("章节编辑器真身：活动章节优先、没有就开第一本；都没有时不再禁用——引导去建一章（need-doc）", () => {
-    expect(script).toContain(
-      'book.activeDocTab ?? book.docs.find((doc) => doc.kind === "chapter")?.relPath'
-    );
-    expect(script).toMatch(
-      /chapterEditorReady[\s\S]*?book\.activeDocTab !== null \|\| book\.docs\.some\(\(doc\) => doc\.kind === "chapter"\)/
-    );
-    // 未就绪的响应是引导（展开章节分组 → 有章开章、没章聚到行内新建），label 同步说实话。
-    expect(script).toContain("先有章节才能用章节编辑器");
-    expect(script).toContain("先建一章");
+  it("点树行 / 新建：右栏折着时先展开，否则开了也看不见（2026-10-23）", () => {
+    // 右栏折叠时（窄窗自动收 / 用户手动收），openDocTab 只是把标签塞进看不见的那一栏，
+    // 界面上唯一的反馈是树行亮了——真机读到的就是「点了一行，正文没出来」。
+    // 三条入口都先 layout.setPaneCollapsed("right", false)，与 AI 检查先展开右栏同一条约定。
+    const entries: Array<[string, RegExp]> = [
+      ["activate", /function activate\(kind: BookKind, relPath: string\)[\s\S]*?\n\}/],
+
+      ["confirmAdding", /async function confirmAdding\(\)[\s\S]*?\n\}/]
+    ];
+    for (const [name, pattern] of entries) {
+      const body = pattern.exec(script)?.[0] ?? "";
+      expect(body, `${name} 没找到`).not.toBe("");
+      expect(body, `${name} 要先展开右栏`).toContain('layout.setPaneCollapsed("right", false)');
+    }
   });
 
   it("品牌区与底部标语逐字照图：副标题在品牌两行里，标语在 footer 右列", () => {
@@ -256,22 +234,54 @@ describe("LeftSidebar · 功能导航（2026-10-04 演示图裁定：完整按�
     expect(tagline).toContain("text-overflow: ellipsis;");
     expect(tagline).toContain("justify-self: end;");
   });
+
+  /**
+   * 2026-10-23（第二刀）：「定位」签随 9 个跳树子项一起撤销。子项行仍是三列栅格
+   * （字形 / 名字 / 签），只是只剩「规划中」那一种签了；这一条钉的是「签确实撤干净了」，
+   * 免得留下一个指向已删函数的绑定或一条没人消费的样式。
+   */
+  it("「定位」签已撤：组件 / 模板 / 样式表三处都不再出现它，子项行仍是三列栅格", () => {
+    expect(script).not.toContain("sideNavLocateTag");
+    expect(template).not.toContain("nav-locate");
+    const css = styleSource("left-nav.css");
+    expect(css).not.toContain(".nav-locate");
+    // 子项行仍是三列：字形 / 名字 / 签（只剩「规划中」那一枚）。
+    expect(ruleBlock(css, ".nav-subrow")).toContain(
+      "grid-template-columns: 14px minmax(0, 1fr) auto;"
+    );
+    // 名字仍只来自那份表：子项文案里不许出现第二份「素材库」这类手写别名。
+    expect(template).toContain("{{ childState(child).label }}");
+  });
 });
 
 describe("LeftSidebar · 书名与工作目录这一行（#103b：示意稿 B 顶栏的两条事实）", () => {
   // 载体钉（M5 同律）：值在 script 里算好不等于进了 DOM，所以来源与插值各钉一次。
   it("开书才有这一行：书名与绝对路径都读 store，且它是字不是按钮", () => {
     expect(script).toContain("book.meta && book.rootPath");
-    const block = /<div v-if="workspace"[\s\S]*?<\/div>/.exec(template)?.[0] ?? "";
+    const block = /<div v-if="workdirFallback"[\s\S]*?<\/div>/.exec(template)?.[0] ?? "";
     expect(block).toContain('class="sidebar-workdir"');
-    expect(block).toContain("{{ workspace.title }}");
-    expect(block).toContain("工作目录：{{ workspace.rootPath }}");
-    expect(block).toContain(':title="workspace.rootPath"');
+    expect(block).toContain("{{ workdirFallback.title }}");
+    // 字面只留尾部两段（2026-10-22：「C:\Users\17863\Downloa…」把真正想看的目录名截没了）；
+    // 完整路径退到 title，悬停仍能读到全称。
+    expect(block).toContain("工作目录：{{ shortenRootPath(workdirFallback.rootPath) }}");
+    expect(block).toContain(':title="workdirFallback.rootPath"');
+    expect(script).toContain('from "../utils/book-path"');
     // 这一行没有动作可谈 ⇒ 不许长出按钮或链接（点了没反应的 button 就是摆设）。
     expect(block).not.toMatch(/<(button|a)\b/);
     // 反向：没开书时整行不进 DOM，也不许预先糊一个假路径上去。
-    expect(template).toContain('v-if="workspace"');
+    expect(template).toContain('v-if="workdirFallback"');
     expect(template).not.toContain("墨宸AI\\");
+  });
+
+  /**
+   * 2026-10-23：作品库那一行已经把「当前这本 + 路径 + 正在写」摆全了，
+   * 紧接着再摆一遍同样的书名与路径，真机上就是两个「海雾手记」上下叠着（一个能点、一个不能点）。
+   * 这一行现在只做清单未回填时的补位，判据必须是「清单里有没有这本」，不是「开没开书」。
+   */
+  it("作品库清单里已经有这本时不再补位：同一件事只说一遍", () => {
+    expect(script).toContain("book.recentBooks.some(");
+    expect(script).toContain("entry.rootPath === open.rootPath");
+    expect(script).toContain("return listed ? null : open;");
   });
 });
 

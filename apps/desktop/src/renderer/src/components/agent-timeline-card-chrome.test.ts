@@ -140,3 +140,26 @@ describe("来源清单：默认只铺开 5 条（2026-10-06 批次 5-⑭）", ()
     expect(ruleBlock(CARD, ".source-more[open] > summary::before")).toContain("rotate(90deg)");
   });
 });
+
+/**
+ * 失败条的时间戳（2026-10-23 真机走查）。
+ *
+ * 起因：打开一本书就把上次会话的红底失败条原样摆出来，而那批是 **15 天前**的记录——
+ * 界面上既没有日期也没有「这是旧记录」的标记，读起来就是「应用现在坏了」。
+ * 判定与格式化在中立处（`buildTimeline` 把事件的 `ts` 带进块里、`utils/history-time` 出字）；
+ * 这里钉**渲染**：气泡里确实有那一格、且用的是那份真身。
+ */
+describe("失败条：必须标出发生时间", () => {
+  it("错误气泡里挂着时间戳，格式化只调 utils/history-time 那一份", () => {
+    expect(cardTpl).toContain('class="error-at"');
+    expect(cardTpl).toContain("formatHistoryTime(block.at)");
+    // 时间戳来自块自己的字段（回放时由 buildTimeline 从事件的 ts 带上，不在模板里现取）。
+    expect(cardTpl).toContain("block.at");
+  });
+
+  it("那一格的规则在样式表里真有，且**不压暗**——它的意义就是让人看见", () => {
+    const at = ruleBlock(CARD, ".error-at");
+    expect(at).toContain("font-variant-numeric: tabular-nums");
+    expect(at).not.toContain("opacity");
+  });
+});

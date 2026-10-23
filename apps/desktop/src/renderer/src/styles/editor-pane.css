@@ -236,9 +236,15 @@ html[data-platform="darwin"] .editor-header {
 
 .section-tabs-remove:hover:not(:disabled),
 .section-tabs-remove:focus-visible:not(:disabled) {
-  outline: none;
   background: var(--theme-line);
   color: var(--text-primary);
+}
+
+/* 键盘焦点保留可见环（2026-10-23）：上面那条把 outline 抹了，
+   键盘用户点不准这枚关闭钮。hover 不要环，只 focus-visible 给。 */
+.section-tabs-remove:focus-visible:not(:disabled) {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 
 .section-tabs-remove:hover:not(:disabled),
@@ -277,6 +283,11 @@ html[data-platform="darwin"] .editor-header {
    压在 hover 上只有 4.38 掉线，判据整个反了）。所以删声明，不补 shadow。 */
 .view-tabs {
   display: flex;
+  /* 2026-10-22 真机（窗口 1000、右栏还剩约 460）撞出：这条分段控件是工具的收缩对象，
+     按钮里的中文又能在**任意字之间**折行 ⇒ 被压到半个字宽时「文稿 / 浏览 / 作品资料」
+     折成「文/稿」「浏/览」「作品资/料」三摞竖排。控件本体不许缩，空间不够交给
+     `.editor-text-tools`（它本来就会把提示行折到下一行）。 */
+  flex: 0 0 auto;
   align-items: center;
   padding: 2px;
   border-radius: 7px;
@@ -290,6 +301,8 @@ html[data-platform="darwin"] .editor-header {
   color: var(--text-tertiary);
   font-size: 0.714286rem;
   cursor: pointer;
+  /* 同上：两个字不许折成两行——上面那条只挡住「整条被压扁」，这一条挡住「按钮自己内部折行」。 */
+  white-space: nowrap;
 }
 
 .view-tabs button.is-active {
@@ -696,6 +709,38 @@ html[data-theme="dark"] .document-editor:focus-visible {
    `:where()` 贡献 0 特异度，压根压不过 `.save-state.is-dirty`（0,2,0）——它一直没生效过。
    这次把类名换掉时顺手把颜色放在压得住的那一层，免得又写一条量不出效果的规则。 */
 .editor-footer .editor-save-status.is-dirty {
+  color: var(--warning);
+}
+
+/* 逐章目标（2026-10-22）：页脚一行读完「目标 / 已写 / 差多少」。
+   flex 容器里的纯空白文本节点不参与排版，「目标 ＿ 字」三个字与输入框靠 gap 对齐，不会忽宽忽窄。 */
+.editor-footer .chapter-quota {
+  display: inline-flex;
+  align-items: baseline;
+  flex: 0 0 auto;
+  gap: 4px;
+  color: var(--text-tertiary);
+}
+
+.editor-footer .chapter-quota .quota-input {
+  width: 5.2em;
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: center;
+}
+
+/* 数字框的上下箭头在页脚这么窄的一格里会把 3 位数挤成省略号；需要调值时点一下直接改。 */
+.editor-footer .chapter-quota .quota-input::-webkit-inner-spin-button,
+.editor-footer .chapter-quota .quota-input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.editor-footer .chapter-quota.is-over {
   color: var(--warning);
 }
 

@@ -44,7 +44,8 @@ const panel = ref<HTMLElement>();
 const { style, close, tab } = useComposerContextPopover(
   () => props.anchor,
   panel,
-  () => emit("close")
+  () => emit("close"),
+  { widthPx: 340 }
 );
 
 // 显示上限住在 utils/change-history.ts（铁律 6）：这里只拆开用。
@@ -163,7 +164,7 @@ onMounted(() => {
               :aria-current="selected?.backupRelPath === row.backupRelPath"
               @click="book.peekChange(row)"
             >
-              <span class="change-history-doc">{{ row.docRelPath }}</span>
+              <span class="change-history-doc" :title="row.docRelPath">{{ row.docRelPath }}</span>
               <span class="change-history-when">{{ changeTimeLabel(row.stamp) }}</span>
             </button>
           </li>

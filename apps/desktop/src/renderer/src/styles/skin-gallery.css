@@ -94,6 +94,21 @@
   min-width: 0;
 }
 
+/* 档整组（2026-10-22 窄窗逐页走查撞出）。
+   此前这些档直接挂在 `.skin-filter-row` 这条单行 flex 上：档默认 `flex-shrink: 1`，
+   而按钮里的中文能在**任意字之间**折行 ⇒ 「画面」「挂件」那两行各有十六枚档，
+   放不下时不是折行，而是每枚被压到两个字宽：真机 1600 窗量到
+   「绯青夜景」折成「绯青夜 / 景」、「全部」折成「全 / 部」两行字，
+   再往后直接溢出窗口右缘（1000 窗下「樱站昼樱」「枫叶」整枚在窗外，点不到）。
+   折行交给这一层、单枚档不参与收缩（见下一条），两行就都成了完整的单行档。 */
+.skin-filter-values {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
 .skin-filter-label {
   flex: 0 0 auto;
   width: 52px;
@@ -110,6 +125,10 @@
   font: inherit;
   font-size: 0.857143rem;
   cursor: pointer;
+  /* 上面那条只让「整组」折行；这一条挡住「每一枚自己内部折行」——
+     档名是四个字的固定词，折成两行就不再是一枚档了。 */
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .skin-filter.is-active {
@@ -395,7 +414,7 @@
    卡片预览（上面那五块）与这里的整窗模型都读 `--skin-backdrop / --skin-art-image /
    --skin-grid-image / --skin-glass-*`。它们由模板内联在祖先元素上（`previewStyle`），
    所以「看到的就是换上之后的样子」不是靠画得像，是靠**同一批变量走同一套换算**。
-   凡是这里自创一个观感的地方（比如放行那 52%），都必须能在 theme-runtime.css
+   凡是这里自创一个观感的地方（比如放行那一档比例），都必须能在 theme-runtime.css
    找到那条真规则作为出处；找不到出处的写法就是示意图，本仓不许。
    ========================================================================== */
 
@@ -588,11 +607,11 @@
   background-color: var(--window-paper, currentColor);
 }
 
-/* 带画的那一档放行 52%，与 theme-runtime.css 里那条真规则同值同判据：
+/* 带画的那一档放行 76%，与 theme-runtime.css 里那条真规则同值同判据（2026-10-22 收档）：
    这里读的是模型自己那扇窗的 data-skin-art（模板内联），不是 `<html>` 上那份——
    两块并排时各说各的，而 `<html>` 上只有一份当前生效的。 */
 .skin-window[data-skin-art]:not([data-skin-art="none"]) .skin-window-main {
-  background-color: color-mix(in srgb, var(--window-paper, currentColor) 52%, transparent);
+  background-color: color-mix(in srgb, var(--window-paper, currentColor) 76%, transparent);
 }
 
 /* 右栏 = 卡面那一族（card fill + 卡片档模糊 + 圆角走 md）。 */

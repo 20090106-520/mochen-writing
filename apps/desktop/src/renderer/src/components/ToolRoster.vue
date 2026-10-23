@@ -1,16 +1,24 @@
-<!-- 工具 ▾ 的浮层：只读清单，行集来自 toolRoster(联网开关)（唯一名单在 contracts 的 AGENT_TOOL_NAMES）。
-     这里刻意没有任何**逐枚**开关——列出来的工具一并交给模型自选（tool_choice: "auto"），
-     画成能一枚一枚点掉的样子就是「按了没反应的按钮」。唯一的例外是联网：它本来就是输入区那枚真开关，
-     关掉那一轮 web_search 根本不出站，所以这一行跟着从清单里消失（清单报的是真带出去的那几枚）。 -->
+<!--
+  工具 ▾ 的浮层（2026-10-21 改造）。
+  这一版起每一行**真的能关**：关掉的工具在 `toolsFor` / `toolGateOf` 两处同时摘掉，
+  模型既看不到它、仿历史里硬调也会被闸住并画一张「被关掉」的工具卡——不是「按了没反应的按钮」。
+  行集仍来自 toolRoster(联网开关)（唯一名单在 contracts 的 AGENT_TOOL_NAMES）；
+  联网关着时 web_search 本来就不出站，那一行跟着从清单里消失。
+-->
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { toolRoster } from "../utils/tool-roster";
 import { useModalFocus } from "../composables/useModalFocus";
 
-const props = defineProps<{ webSearchEnabled: boolean }>();
-const emit = defineEmits<{ close: [] }>();
+const props = defineProps<{ webSearchEnabled: boolean; disabledTools: readonly string[] }>();
+const emit = defineEmits<{ close: []; toggle: [name: string] }>();
 const panel = ref<HTMLElement>();
 const rows = computed(() => toolRoster(props.webSearchEnabled));
+const enabledCount = computed(() => rows.value.filter((row) => !isOff(row.name)).length);
+
+function isOff(name: string): boolean {
+  return props.disabledTools.includes(name);
+}
 
 // 焦点进出、Esc、Tab 困在层内、焦点归位、顶层栈：全在 useModalFocus 一处（批次 5-㊱，5-㊵ 收编本枚）。
 // 本组件由 CenterColumn 的 v-if 挂载，所以不传 isOpen —— 挂载即开、卸载即关。
@@ -27,21 +35,49 @@ useModalFocus({ root: panel, close: () => emit("close") });
       aria-label="它带的工具"
       tabindex="-1"
     >
-      <h3 class="tool-roster-title">这一轮带出去的工具（{{ rows.length }} 枚）</h3>
+      <header class="tool-roster-head">
+        <div class="tool-roster-heading">
+          <h3 class="tool-roster-title">它带的工具</h3>
+          <p class="tool-roster-sub">
+            这一轮带出 {{ enabledCount }} / {{ rows.length }} 枚 · 关掉的这一轮不会出站
+          </p>
+        </div>
+        <button class="tool-roster-x" type="button" aria-label="关闭" @click="emit('close')">
+          ×
+        </button>
+      </header>
+
       <ul class="tool-roster-list">
-        <li v-for="row in rows" :key="row.name" class="tool-roster-row">
-          <code class="tool-roster-name">{{ row.name }}</code>
-          <span class="tool-roster-kind" :data-kind="row.kind">{{ row.kind }}</span>
+        <li
+          v-for="row in rows"
+          :key="row.name"
+          class="tool-roster-row"
+          :class="{ 'is-off': isOff(row.name) }"
+        >
           <div class="tool-roster-text">
-            <strong>{{ row.label }}</strong>
+            <span class="tool-roster-line">
+              <strong>{{ row.label }}</strong>
+              <code class="tool-roster-name">{{ row.name }}</code>
+              <span class="tool-roster-kind" :data-kind="row.kind">{{ row.kind }}</span>
+            </span>
             <p>{{ row.effect }}</p>
           </div>
+          <button
+            class="tool-roster-switch"
+            type="button"
+            role="switch"
+            :aria-checked="!isOff(row.name)"
+            :aria-label="`${row.label}：${isOff(row.name) ? '这一轮关闭' : '这一轮带上'}`"
+            @click="emit('toggle', row.name)"
+          >
+            {{ isOff(row.name) ? "已关" : "带上" }}
+          </button>
         </li>
       </ul>
+
       <p class="tool-roster-foot">
-        工具由模型自己挑，这一格不能单独禁用某一枚；能控的是权限档与输入区的思考 / 联网开关。
+        工具由模型自己挑，你只管把不该用的摘掉；能改盘的那几枚仍要过输入区的权限档。
       </p>
-      <button class="tool-roster-close" type="button" @click="emit('close')">关闭</button>
     </div>
   </div>
 </template>

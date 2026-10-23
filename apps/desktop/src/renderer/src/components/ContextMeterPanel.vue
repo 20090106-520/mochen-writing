@@ -34,7 +34,8 @@ const panel = ref<HTMLElement>();
 const { style, close, tab } = useComposerContextPopover(
   () => props.anchor,
   panel,
-  () => emit("close")
+  () => emit("close"),
+  { widthPx: 420 }
 );
 
 function keydown(event: KeyboardEvent): void {

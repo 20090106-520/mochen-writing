@@ -361,6 +361,23 @@ export const useWritingGoalStore = defineStore("writingGoal", () => {
     return averageSpeed.value;
   }
 
+  /* ── 逐章目标（2026-10-22）──
+   * 键就是「书内相对路径」，与编辑器当前那页同一口径，换章自动换目标。
+   * 0 表示没设——删键而不是存 0，盘上不留一堆没意义的零。 */
+  function chapterTargetOf(docRelPath: string | undefined): number {
+    if (docRelPath === undefined) return 0;
+    return data.value.chapterTargets[docRelPath] ?? 0;
+  }
+
+  function setChapterTarget(docRelPath: string, target: number): void {
+    if (docRelPath === "") return;
+    const value = Number.isFinite(target) && target > 0 ? Math.floor(target) : 0;
+    const next = { ...data.value.chapterTargets };
+    if (value === 0) delete next[docRelPath];
+    else next[docRelPath] = value;
+    data.value.chapterTargets = next;
+  }
+
   return {
     goal,
     sessions,
@@ -379,6 +396,8 @@ export const useWritingGoalStore = defineStore("writingGoal", () => {
     getTodayProgress,
     getRecentDays,
     getRecentSessions,
-    getWritingSpeed
+    getWritingSpeed,
+    chapterTargetOf,
+    setChapterTarget
   };
 });

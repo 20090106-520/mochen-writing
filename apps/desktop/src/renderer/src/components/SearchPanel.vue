@@ -380,7 +380,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
   color: var(--text-secondary, #999);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
 }
 
 /* 全书替换那一行：只在精确命中且查询有效时进 DOM（见 canReplace）。 */
@@ -432,7 +432,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
 }
 
 .search-replace-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
   color: var(--text-primary, #e8e8e8);
 }
 
@@ -469,7 +469,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
 .history-chip {
   padding: 3px 10px;
   font-size: 0.857143rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 12px;
   color: var(--text-secondary, #999);
@@ -477,7 +477,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
 }
 
 .history-chip:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 8%, transparent);
   color: var(--text-primary, #e8e8e8);
 }
 
@@ -544,7 +544,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   color: var(--text-muted, #777);
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
 }
 
 .search-hit-list {
@@ -565,7 +565,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
 
 .search-hit:hover,
 .search-hit.is-selected {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
 }
 
 .hit-line {

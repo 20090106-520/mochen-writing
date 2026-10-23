@@ -329,7 +329,7 @@ const importanceLabel: Record<string, string> = {
                 :style="entry.color ? { background: entry.color } : undefined"
               />
               <span class="bible-item-text">
-                <span class="bible-item-title">{{ entry.title }}</span>
+                <span class="bible-item-title" :title="entry.title">{{ entry.title }}</span>
                 <span class="bible-item-meta">
                   <span class="bible-type-tag">{{ typeLabel[entry.type] }}</span>
                   <span class="bible-item-time">{{ formatTime(entry.updatedAt) }}</span>

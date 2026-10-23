@@ -250,7 +250,14 @@ export const startTurnInputSchema = z
      * **必填、无默认值**：与上两枚每轮开关同一条理由——缺字段就是渲染层忘了传，
      * 在边界上炸中文，比悄悄按「关」发出去好查得多。
      */
-    sampleCount: draftSampleCountSchema
+    sampleCount: draftSampleCountSchema,
+    /**
+     * 这一轮在工具面板里被关掉的工具名（2026-10-21，可选）。
+     *
+     * 用字符串而不是枚举：工具名还有插件注册进来的那一批，枚举表只在 agent-runtime 的花名册里。
+     * 多余/不存在的名字由 runtime 按「不在本轮清单里」自然忽略，不必在这里逐条校验。
+     */
+    disabledTools: z.array(z.string().max(80, "工具名过长（最多 80 字）")).max(64).optional()
   })
   .superRefine((value, ctx) => {
     if (value.threadKey.trim() === "" && value.docRelPath !== null)

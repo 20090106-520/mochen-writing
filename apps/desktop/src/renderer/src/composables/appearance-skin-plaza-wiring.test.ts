@@ -271,7 +271,7 @@ describe("皮肤广场页 · 接线（.vue 零类型检查，只能读源码）"
     expect(panels).toContain("position: relative");
   });
 
-  it("中栏那块「带画才放行」与真规则同值同判据（52%），且读的是模型自己的 data-skin-art", () => {
+  it("中栏那块「带画才放行」与真规则同值同判据（76%），且读的是模型自己的 data-skin-art", () => {
     const css = strippedStyleSource(CSS);
     const rule = [
       ...css.matchAll(
@@ -279,10 +279,11 @@ describe("皮肤广场页 · 接线（.vue 零类型检查，只能读源码）"
       )
     ].map((one) => one[0]);
     expect(rule.length, "找不到整窗模型那条放行规则").toBeGreaterThan(0);
-    expect(rule.join("\n")).toContain("52%");
-    // 出处：theme-runtime.css 里那条真规则也是 52%，两处必须一起改。
-    // 字面量收在 `RELEASE_BODY` 一份（下面那条「三张整页在放行名单里」的判据也认它）：
-    // 两处各写一句的话，改档位时会红一个漏一个。
+    // 模型读的是 `--window-paper`（预览自己的纸色），比例必须与真规则同值：
+    // 从 RELEASE_BODY 里把比例抠出来，两处各写一个字面量的话，改档位时会红一个漏一个。
+    const ratio = RELEASE_BODY.match(/(\d+)%/)?.[1];
+    expect(rule.join("\n")).toContain(`${ratio}%`);
+    // 出处：theme-runtime.css 里那条真规则同值，两处必须一起改。
     const real = strippedStyleSource("theme-runtime.css");
     expect(real).toContain(RELEASE_BODY);
 
@@ -431,20 +432,19 @@ describe("皮肤广场页 · 接线（.vue 零类型检查，只能读源码）"
 });
 
 /** 放行那条规则的**正文标记**：认到这一句才算找到那条规则（改档位要连这里一起改）。 */
-const RELEASE_BODY = "color-mix(in srgb, var(--surface-main) 52%, transparent)";
+const RELEASE_BODY = "color-mix(in srgb, var(--surface-main) 76%, transparent)";
 
 /**
- * 广场那一页**自己的**放行档（2026-10-15，台账 §七十七）。
+ * 广场那一页**自己的**放行档（2026-10-15 单列，2026-10-22 跟着阅读区一起收）。
  *
  * 【为什么不跟上面那条同值】广场的卡面是 `.skin-card`（那层 40% 的玻璃），卡说明（次要）
  * 与卡脚出处（10.5px 元信息小字）就压在这条合成底上，而这幅画**最暗的那块**正好落在卡位
- * 底下：真机量出来的阶梯是 52% ⇒ 4.38（书舟·夜航 / 墨潭·沉雾 那两处）、60% ⇒ 4.55、
- * 70% ⇒ 4.73、实底 ⇒ 4.87。60% 只有 0.05 的留量——图上更暗的一块按同一比例就能再吃掉它
- * （52% 那一档实测吃掉 0.49）⇒ 取 **70%**：最暗那块按 70% 折算还吃掉约 0.17，落点 ≈ 4.70。
- * 代价是广场看到的画变淡（画在页面合成里的占比 48% → 30%），这是用户点的 A 方案：
- * 既不写豁免、也不给卡面加衬垫。
+ * 底下 ⇒ 比阅读区再多压一档。
+ *
+ * 2026-10-22 用户反馈「明亮插画下整片阅读区泛光、小灰字读不出来」之后，阅读区 52% → 76%、
+ * 广场 70% → 84%：画仍在，字先读得清。两处必须同时改（判据就在下面几条用例里）。
  */
-const PLAZA_RELEASE_BODY = "color-mix(in srgb, var(--surface-main) 70%, transparent)";
+const PLAZA_RELEASE_BODY = "color-mix(in srgb, var(--surface-main) 84%, transparent)";
 
 /**
  * 那条「带画才放行」规则的**选择器串**（整组，不是某一条）。
@@ -455,8 +455,8 @@ const PLAZA_RELEASE_BODY = "color-mix(in srgb, var(--surface-main) 70%, transpar
  * 且正文里含给定的那枚 `color-mix`」把整组捞出来，断言只在这组**内部**成立。
  * 找不到那一组一律抛错：返回空串会让组内每条 `toContain` 一起变绿，看不出缺的是哪条规则
  * （与 `ruleBlock` 同一句理由）。
- * `body` 有默认值：默认那一档（52%）是中栏、右栏与另两张整页共用的那份；
- * 广场那一页 2026-10-15 起单列 70%，调用方显式传 `PLAZA_RELEASE_BODY`。
+ * `body` 有默认值：默认那一档（76%）是中栏、右栏与另两张整页共用的那份；
+ * 广场那一页 2026-10-15 起单列（现为 84%），调用方显式传 `PLAZA_RELEASE_BODY`。
  */
 function releasedSelectors(css: string, body: string = RELEASE_BODY): string {
   const groups: string[] = [];
@@ -516,25 +516,25 @@ describe("视觉四层的消费 · 硬约束：背景与图案不落正文区", 
        的整页，见 skin-gallery.css:7 / extensions.css:39 / settings-page.css:28 各自的
        `background: var(--surface-main)`），所以三张一起进名单，不留「这页放行那页不放行」的
        第二套规矩。
-       可读性不比正文那一档差：页面放行 52% 之后，卡面还压着 `--surface-raised` 40%，
-       合成实底 ≈ 0.4 + 0.6×0.52 ≈ 71%，比正文区单独那 52% 更厚。
+       可读性不比正文那一档差：页面放行 76% 之后，卡面还压着 `--surface-raised` 40%，
+       合成实底 ≈ 0.4 + 0.6×0.76 ≈ 86%，比正文区单独那 76% 更厚。
 
        2026-10-15 广场那一页的**档位**单列了（见 `PLAZA_RELEASE_BODY`）：三张页仍一起放行，
        分开的只是比例——广场卡面上压着卡说明与 10.5px 的卡脚出处这一族元信息小字，
-       而这幅画最暗的那块正好落在卡位下，52% 时实测从 4.87（实底）掉到 4.38。 */
+       2026-10-22 起它比阅读区再多压一档（84%）：画仍露 16%，字先读得清。 */
     const css = strippedStyleSource("theme-runtime.css");
     const group = releasedSelectors(css);
     for (const page of [".extensions-page", ".settings-page"]) {
       expect(group, `整页 ${page} 不在放行名单里 —— 画会被这一页盖成一整块实底`).toContain(page);
     }
-    // 广场页也在名单里，只是档位更低（70%）：不放行的话它同样会把整窗画盖成一块实底。
+    // 广场页也在名单里，只是档位不同（84%）：不放行的话它同样会把整窗画盖成一块实底。
     const plaza = releasedSelectors(css, PLAZA_RELEASE_BODY);
     expect(plaza, "广场页不在放行名单里 —— 画会被这一页盖成一整块实底").toContain(".skin-gallery");
-    // 反向：广场页不许同时留在 52% 那一组里。两条规则并存时实际档位由顺序决定，
+    // 反向：广场页不许同时留在默认那一组里。两条规则并存时实际档位由顺序决定，
     // 这一页的判词就落不到它身上（名单看起来还在，量到的却是另一档）。
     expect(
       group,
-      "广场页同时留在 52% 那一组里 —— 这一页的实际档位就不由它自己的规则决定了"
+      "广场页同时留在默认档那一组里 —— 这一页的实际档位就不由它自己的规则决定了"
     ).not.toContain(".skin-gallery");
     // 反向：正文区不许顺手加进这一组（它有上面那条独立守卫，这里只钉「别在同一张单子上」）。
     expect(group).not.toMatch(/\.document-editor|\.message-markdown/);

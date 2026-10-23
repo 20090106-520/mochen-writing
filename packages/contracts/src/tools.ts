@@ -7,7 +7,10 @@ export const AGENT_TOOL_NAMES = [
   "web_search",
   // 2026-10-11 追加 web_read（网页正文抓取）：web_search 只回标题+摘要，扫榜/资料任务
   // 拿不到正文；这一枚把一条来源的网页正文剥出来给模型读。同样主进程出网、不要 key。
-  "web_read"
+  "web_read",
+  // 2026-10-23 追加 use_skill（技能自选，放宽 spec §11）：技能此前只能由用户手选挂入；
+  // 这一枚让模型自己列技能库、按需载入。只读，不写盘、不出网。
+  "use_skill"
 ] as const;
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
 

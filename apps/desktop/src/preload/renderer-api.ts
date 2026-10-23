@@ -38,6 +38,9 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     pickBookDirectory: () => invoke(IPC_CHANNELS.bookPick),
     openBook: (rootPath) => invoke(IPC_CHANNELS.bookOpen, rootPath),
     createBook: (input) => invoke(IPC_CHANNELS.bookCreate, input),
+    // 作品库（2026-10-21）：读整份清单 / 划掉一条（只动清单，不删书）。
+    listRecentBooks: () => invoke(IPC_CHANNELS.bookRecent),
+    forgetRecentBook: (rootPath) => invoke(IPC_CHANNELS.bookForget, rootPath),
     saveMeta: (meta) => invoke(IPC_CHANNELS.bookSaveMeta, meta),
     readDoc: (relPath) => invoke(IPC_CHANNELS.docRead, relPath),
     writeDoc: (relPath, content, expectedFingerprint) =>

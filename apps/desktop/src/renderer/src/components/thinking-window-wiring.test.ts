@@ -40,7 +40,7 @@ describe("接线", () => {
   it("中心列把 running 传下去（少这一个，判断永远是 false，这一格永远不出现）", () => {
     expect(CENTER_SCRIPT).toContain("const running = computed");
     expect(CENTER_TPL).toContain(
-      '<AgentTimeline :items="items" :tail="tail" :running="running" />'
+      '<AgentTimeline :items="items" :tail="tail" :running="running" :emotion="assistantFace" />'
     );
   });
 

@@ -658,6 +658,15 @@ html[data-platform="darwin"] .conversation-pane {
   color: var(--danger-text);
 }
 
+/* 失败条的时间戳（2026-10-23 真机走查）：回放旧会话时，一屏红底失败条若没有日期，
+   读起来就是「应用现在坏了」——而那批可能是半个月前的记录。所以它得**看得见**：
+   同色同层（不压暗），只收一档字号、数字用等宽，后面跟一个中点隔开正文。 */
+.error-at {
+  margin-right: 2px;
+  font-size: 0.857143rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .interrupted-line {
   background: var(--warning-soft);
   color: var(--warning);
@@ -1052,6 +1061,13 @@ html[data-platform="darwin"] .conversation-pane {
   /* 2026-10-17 设计稿：工具条 64px 高、gap 12、左右内边距 20。 */
   min-height: 64px;
   gap: 12px;
+  /* 【2026-10-22 用户裁定：放不下就折两行】此前照 deepwrite「永远一行、超宽出省略号」，
+     真机在 1600 宽 + 右栏展开（容器 840）上摆出「联网…」「多…」「工…」一排残片——
+     那不是省地方，是把标签读废。折行的判据交给 flex 自己：左端 basis auto 取自然宽，
+     右端整组 `0 0 auto`，两边加起来放不下时右端整组落到第二行。
+     窄档的两级容器查询（620 分配 / 560 换行 + 收右端文字）仍在，负责 560 以下的图标化。 */
+  flex-wrap: wrap;
+  row-gap: 6px;
   padding: 0 20px;
   /* 【2026-10-17 用户裁定·装饰】正文区与工具条之间补一条发丝线。
      此前卡里上下两段是同一种底色、也没有任何分隔，整块读成一张没有结构的白板
@@ -1063,7 +1079,9 @@ html[data-platform="darwin"] .conversation-pane {
 
 .composer-toolbar-left {
   display: flex;
-  flex: 1 1 0;
+  /* basis 取 auto（自然宽）而不是 0：折行时「左端自己放不放得下」才是折行判据；
+     basis:0 会让它永远\"放得下\"，右端先被挤死，折行永远轮不到。 */
+  flex: 1 1 auto;
   align-items: center;
   min-width: 0;
   gap: 4px;
@@ -1124,6 +1142,9 @@ html[data-platform="darwin"] .conversation-pane {
   flex: 0 0 auto;
   align-items: center;
   gap: 4px;
+  /* 折行后右端整组落在第二行：`justify-content: space-between` 在**单项目的行**上等同 flex-start，
+     不给这一句就会贴到左边、跟上一行的左端起始位置对齐着掉下来。 */
+  margin-left: auto;
 }
 
 .send-button {
@@ -1346,7 +1367,8 @@ html[data-platform="darwin"] .conversation-pane {
  * 工具、命令、直接动手、权限档的图标与文字互相压住，量到 17 处矩形相交、左端溢出 228px。
  *
  * 成因不是「空间不够」，是**分配错了**，两处：
- * ① `.composer-toolbar-left` 是 `flex: 1 1 0`——收缩权重 = `flex-shrink × flex-basis`，
+ * ① `.composer-toolbar-left` 是 `flex: 1 1 0`（2026-10-22 起基础规则已放宽为 `1 1 auto`；这一档仍压成 `0 1 auto`）——
+ *    收缩权重 = `flex-shrink × flex-basis`，
  *    basis 为 0 ⇒ **权重为 0**，缺额却全落在它头上：容器 354 时它被压到 **80px**
  *    （1024 时 10px），而内容要 238px。于是内容画到框外，压在右端与兄弟 chip 上。
  * ② `.composer-chip--model .composer-chip-label` 有 `min-width: 4.5em`（上面那条），
@@ -1411,6 +1433,15 @@ html[data-platform="darwin"] .conversation-pane {
 
   .composer-toolbar-right {
     margin-left: auto;
+  }
+
+  /* 折行之后右端这一行只剩两枚 chip + 麦克风 + 发送键，可它自己的文字仍在按 8em 挤：
+     2026-10-22 真机（窗口 1000、容器 278）量到「工作模式：未定」「未打开作品目录」被切成
+     「工作…」「未…」——两个字加一枚省略号，读起来像渲染残片，而且这一行本来就折出来了，
+     不是「一行里没地方」。按 5-㓜 的同一条口径收文字、不收控件：图标与下拉三角全在，
+     名字交给 title（Chromium 的 AccName 在无内容时回落到 title）。宽档一个字都不动。 */
+  .composer-toolbar-right .composer-chip-label {
+    display: none;
   }
 }
 
@@ -1757,16 +1788,31 @@ html[data-platform="darwin"] .conversation-pane {
    也就是说**把文字全藏光也装不下**。所以窄档要一路往回收间隙与内边距，
    顺序沿用 5-⑱ 工具栏梯子的老裁定：**控件一个不藏，只藏文字，从次要的先藏**。
    ① 副文「章节 · N字」先走；② 再走计量读数；③ 最后走主标题，只剩图标。
+   （① 这级 2026-10-23 提前到 800：它在 460 之前就该退场，见下面第一档那组实测数。）
    ⚠️ 这三个数是照固定开销算出来的，真机量过 1024（284）/1100/1280（408）/1440 三档；
    改之前先量，改完必须复验「该藏的藏了、不该藏的一个字没少」。 */
+/* 2026-10-23 · 上下文条第一档：「中等宽度」这一段（它不在 460 那条窄档梯子里）。
+   真机 1000 CSS（容器 653）量到：五枚胶囊自然需要 724，可用只有 605，缺额 119 按 basis
+   摊到两个标题上 ⇒ 书籍只剩「海…」、文档只剩「第一章 · 雾从…」。这两段字在屏上都有第二份：
+   档案名就在对话栏顶上（「墨宸 · 主笔」），文档的「章节 · N 字」在页脚字数里。
+   所以先让它们退场——名字都还在，只是不在这一行重复第二遍。
+   阈值 800 是量出来的：1600 CSS 那屏逐段量到自然宽合计 724（书 89 / 文档 266 / 档案 119 /
+   计量 132 / 阶段 85 + 间隙 32 + 内边距 20）；可用宽 = 容器 - 28（bar 外边距）- 20（内边距），
+   所以临界容器 = 772，取 800 留 28px 余量。改之前先按这组数复量，别直接调数值。 */
+@container composer (max-width: 800px) {
+  .composer-doc-context .doc-context-kind {
+    display: none;
+  }
+
+  .composer-profile-context > strong {
+    display: none;
+  }
+}
+
 @container composer (max-width: 460px) {
   .composer-context-bar {
     gap: 10px;
     padding-inline: 10px;
-  }
-
-  .composer-doc-context .doc-context-kind {
-    display: none;
   }
 }
 

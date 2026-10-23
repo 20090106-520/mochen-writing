@@ -8,6 +8,7 @@ import type { ModelListResult } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
 import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
+import { groupModels, modelKindOf, type ModelGroupKind } from "../utils/model-picker";
 import type { HotkeyMods } from "../utils/hotkeys";
 
 const props = defineProps<{
@@ -36,6 +37,39 @@ const rows = computed<string[]>(() =>
 const failReason = computed(() =>
   props.result !== null && !props.result.ok ? props.result.reason : ""
 );
+
+/**
+ * 搜索（2026-10-21）：名单可以有几十个，纯按顺序扫太慢。
+ * 只做**本地子串过滤**——不额外问主进程，也不给模型编「类型/能力」这类主进程没给的标签。
+ */
+const query = ref("");
+const filtered = computed<string[]>(() => {
+  const needle = query.value.trim().toLowerCase();
+  if (needle === "") return rows.value;
+  return rows.value.filter((name) => name.toLowerCase().includes(needle));
+});
+
+/**
+ * 分组与模态标记（2026-10-22）。
+ *
+ * 真机事故：名单是**平铺**的，图像/视频模型和对话模型混在一起，点错一行就会切到
+ * `agnes-image-2.1-flash`，下一句话必然被上游 400 顶回来（「is an image model」）。
+ * 名单本身不带类型字段，所以这里只用 `modelKindOf` 的**名字猜测**做两件事：
+ * 把不能对话的排到后面，并在那一行标出「图像 / 视频」——不隐藏、不禁用任何一个模型
+ * （猜错只是标记多余，不会让一个能用的模型消失）。
+ */
+const groups = computed(() => groupModels(filtered.value));
+const hasNonChat = computed(() =>
+  groups.value.some((group) => group.kind !== "chat" && group.items.length > 0)
+);
+
+/** 行尾那枚模态标记：对话模型不标（那是默认），只标猜出来不能对话的。 */
+function modalityTagOf(name: string): string {
+  const kind: ModelGroupKind = modelKindOf(name);
+  if (kind === "image") return "图像";
+  if (kind === "video") return "视频";
+  return "";
+}
 
 // 点外面 / Esc / Tab 触边 / 关闭钮，四条关闭通路都在这一个合成器里（含「关完把焦点还给那枚 chip」）。
 const { style, close, tab } = useComposerContextPopover(
@@ -73,7 +107,37 @@ function onKeydown(event: KeyboardEvent): void {
     close();
     return;
   }
+  // ↑ / ↓ 在名单里走焦点（2026-10-21）：几十行时用键盘比鼠标稳。到边界回绕。
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    moveFocus(event.key === "ArrowDown" ? 1 : -1);
+    return;
+  }
   if (event.key === "Tab") tab(event);
+}
+
+/**
+ * 行元素句柄（2026-10-21）：↑↓ 靠它走焦点。不在这里 `querySelector`——
+ * 组件不自己去 DOM 里搜节点，句柄只从模板的 ref 收集器里拿（同 ComposerBox 的 setChipRef 口径）。
+ */
+const rowEls = new Map<string, HTMLElement>();
+function setRowRef(name: string, el: unknown): void {
+  if (el instanceof HTMLElement) rowEls.set(name, el);
+  else rowEls.delete(name);
+}
+
+/** 焦点在行间移动；当前行被筛掉了就从头/尾重新落。输入框里的 ↑↓ 仍归输入框自己。 */
+function moveFocus(delta: 1 | -1): void {
+  const names = filtered.value;
+  if (names.length === 0) return;
+  const index = names.findIndex((name) => rowEls.get(name) === document.activeElement);
+  const next =
+    index < 0
+      ? delta === 1
+        ? 0
+        : names.length - 1
+      : (index + delta + names.length) % names.length;
+  rowEls.get(names[next] ?? "")?.focus();
 }
 </script>
 
@@ -90,28 +154,61 @@ function onKeydown(event: KeyboardEvent): void {
     >
       <header class="model-select-head">
         <strong>这一轮用哪个模型</strong>
+        <span v-if="rows.length" class="model-select-count"
+          >{{ filtered.length }} / {{ rows.length }}</span
+        >
+        <button
+          v-if="rows.length && !loading"
+          class="model-select-refresh"
+          type="button"
+          :disabled="switching"
+          title="重新向模型设置里的地址拉一次名单"
+          @click="emit('retry')"
+        >
+          刷新
+        </button>
         <button class="model-select-close" type="button" aria-label="关闭模型列表" @click="close">
           <AppIcon name="close" :size="14" />
         </button>
       </header>
 
+      <label v-if="rows.length > 6" class="model-select-search">
+        <input
+          v-model="query"
+          type="search"
+          class="model-select-search-input"
+          placeholder="搜模型名…"
+          aria-label="按名字筛选模型"
+        />
+      </label>
+
       <p v-if="loading" class="model-select-note">正在拉取模型名单…</p>
-      <ul v-else-if="rows.length" class="model-select-list">
-        <li v-for="name in rows" :key="name">
-          <button
-            type="button"
-            role="menuitem"
-            class="model-select-row"
-            :class="{ 'is-current': name === current }"
-            :aria-current="name === current ? 'true' : undefined"
-            :disabled="switching"
-            @click="pick(name)"
-          >
-            <span class="model-select-name">{{ name }}</span>
-            <AppIcon v-if="name === current" class="model-select-check" name="check" :size="14" />
-          </button>
-        </li>
+      <ul v-else-if="groups.length" class="model-select-list">
+        <template v-for="group in groups" :key="group.kind">
+          <!-- 只有一种分组时不加标题：名单全是对话模型时，多一行「对话 / 写作」只是噪声。 -->
+          <li v-if="groups.length > 1" class="model-select-group-head">{{ group.label }}</li>
+          <li v-for="name in group.items" :key="name">
+            <button
+              :ref="(el) => setRowRef(name, el)"
+              type="button"
+              role="menuitem"
+              class="model-select-row"
+              :class="{ 'is-current': name === current }"
+              :aria-current="name === current ? 'true' : undefined"
+              :disabled="switching"
+              @click="pick(name)"
+            >
+              <span class="model-select-name">{{ name }}</span>
+              <!-- 名字猜出来不能对话的，行字后面直接标出来——用户点它之前就该知道这一行发不出话。 -->
+              <span v-if="modalityTagOf(name)" class="model-select-tag">{{
+                modalityTagOf(name)
+              }}</span>
+              <AppIcon v-if="name === current" class="model-select-check" name="check" :size="14" />
+            </button>
+          </li>
+        </template>
       </ul>
+      <p v-else-if="rows.length" class="model-select-note">没有匹配「{{ query }}」的模型。</p>
       <template v-else>
         <p v-if="failReason" class="model-select-error">{{ failReason }}</p>
         <p v-else class="model-select-error">还没拿到名单。</p>
@@ -125,6 +222,9 @@ function onKeydown(event: KeyboardEvent): void {
           </button>
         </div>
       </template>
+      <p v-if="hasNonChat" class="model-select-note">
+        带「图像 / 视频」标记的模型不能用来对话，选中后发送会直接失败。
+      </p>
       <!-- 忙态理由必须是看得见的文字：disabled 按钮在 Chromium 里不弹 title，光靠禁用等于没说。 -->
       <p v-if="switching" class="model-select-note">正在写回模型名…</p>
       <!-- 切换失败：浮层刻意不关（装配处只在写回成功时关），所以理由得摆在这里而不是让人去设置页找。

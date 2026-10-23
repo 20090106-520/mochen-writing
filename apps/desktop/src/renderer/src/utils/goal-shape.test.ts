@@ -25,15 +25,16 @@ describe("normalizeWritingGoalData：整份的形状", () => {
     expect(normalizeWritingGoalData(7)).toBeNull();
   });
 
-  it("完全空对象按老版本存档补全：默认目标 + 空会话 + 零连续", () => {
+  it("完全空对象按老版本存档补全：默认目标 + 空会话 + 零连续 + 空逐章目标", () => {
     expect(normalizeWritingGoalData({})).toEqual({
       goal: DEFAULT_GOAL,
       sessions: [],
-      streak: DEFAULT_STREAK
+      streak: DEFAULT_STREAK,
+      chapterTargets: {}
     });
   });
 
-  it("三格都在时原样认下来", () => {
+  it("三格都在时原样认下来（逐章目标一并认）", () => {
     const input = {
       goal: { dailyWordTarget: 2000, dailyTimeTarget: 45, enabled: false, totalWordTarget: 80000 },
       sessions: [
@@ -46,9 +47,24 @@ describe("normalizeWritingGoalData：整份的形状", () => {
           docRelPath: "chapters/01.md"
         }
       ],
-      streak: { currentStreak: 3, longestStreak: 9, lastReachDate: "2026-10-08" }
+      streak: { currentStreak: 3, longestStreak: 9, lastReachDate: "2026-10-08" },
+      chapterTargets: { "chapters/01.md": 3000 }
     };
     expect(normalizeWritingGoalData(input)).toEqual(input);
+  });
+
+  it("逐章目标里 0 / 负数 / 非数字逐条丢掉，而不是把整份文件判死", () => {
+    const got = normalizeWritingGoalData({
+      ...emptyWritingGoalData(),
+      chapterTargets: {
+        "chapters/01.md": 3000,
+        "chapters/02.md": 0,
+        "chapters/03.md": -10,
+        "chapters/04.md": "很多"
+      }
+    });
+    // 会话/连续天数这些真正不可丢的东西还在——没为一个空目标赔上它们。
+    expect(got?.chapterTargets).toEqual({ "chapters/01.md": 3000 });
   });
 
   it("我们认识的字段之外不往盘上带：多余键丢掉，输出键序稳定", () => {
@@ -58,7 +74,7 @@ describe("normalizeWritingGoalData：整份的形状", () => {
       streak: DEFAULT_STREAK,
       未知版本: 2
     });
-    expect(Object.keys(got ?? {})).toEqual(["goal", "sessions", "streak"]);
+    expect(Object.keys(got ?? {})).toEqual(["goal", "sessions", "streak", "chapterTargets"]);
     expect(JSON.stringify(got)).not.toContain("别跟着落盘");
   });
 
@@ -187,7 +203,9 @@ describe("isDefaultWritingGoalData：「这份旧数据没有可迁的东西」�
     const got = normalizeWritingGoalData({});
     expect(got).not.toBeNull();
     expect(
-      isDefaultWritingGoalData(got ?? { goal: DEFAULT_GOAL, sessions: [], streak: DEFAULT_STREAK })
+      isDefaultWritingGoalData(
+        got ?? { goal: DEFAULT_GOAL, sessions: [], streak: DEFAULT_STREAK, chapterTargets: {} }
+      )
     ).toBe(true);
   });
 

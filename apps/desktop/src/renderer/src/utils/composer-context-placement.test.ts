@@ -64,6 +64,27 @@ describe("composerPopoverPlacement · 不越出视口", () => {
     expect(narrow.widthPx).toBe(300 - POPOVER_MARGIN * 2);
   });
 
+  it("preferredWidth（面板自报宽度）生效，且仍被 视口-2*margin 钳住、left 按新宽度回收到视口内", () => {
+    const wide = composerPopoverPlacement({
+      anchor: anchorAt(700, 740),
+      viewport,
+      preferredWidth: 460
+    });
+    expect(wide.widthPx).toBe(460);
+    const right = composerPopoverPlacement({
+      anchor: { left: 1190, top: 700, bottom: 740 },
+      viewport,
+      preferredWidth: 460
+    });
+    expect(right.leftPx).toBe(1200 - 460 - POPOVER_MARGIN);
+    const narrow = composerPopoverPlacement({
+      anchor: anchorAt(700, 740),
+      viewport: { innerWidth: 300, innerHeight: 800 },
+      preferredWidth: 460
+    });
+    expect(narrow.widthPx).toBe(300 - POPOVER_MARGIN * 2);
+  });
+
   it("锚点贴右边缘 ⇒ left 往回收到视口内；贴左边缘 ⇒ 不早于 margin", () => {
     const right = composerPopoverPlacement({
       anchor: { left: 1190, top: 700, bottom: 740 },

@@ -243,6 +243,66 @@ describe("streamChat", () => {
     expect(await failMessage(fetchImpl)).toBe('模型服务端返回 503：{"error":{"message":""}}');
   });
 
+  // ===== 2026-10-23 真机走查：网关退回工具清单时不许直出内部异常 =====
+  it("工具清单被网关退回（serde 反序列化报错）→ 翻成人话并指出下一步", async () => {
+    const raw =
+      "***.BadRequestError: OpenAIException - Failed to deserialize the JSON body into the target type: " +
+      "tools[9].function: missing field `parameters` at line 1 column 8706";
+    const { fetchImpl } = makeFetch([], 422, JSON.stringify({ error: { message: raw } }));
+    const message = await failMessage(fetchImpl);
+    expect(message).toContain("模型服务端返回 422：");
+    // 说清是「第几个工具 + 缺什么」并指向插件那一栏——原文给的这三样，用户能真去查。
+    expect(message).toContain("第 10 个工具");
+    expect(message).toContain("parameters");
+    expect(message).toContain("插件");
+    // 反向：内部异常的特征串一个都不许留。
+    expect(message).not.toContain("Failed to deserialize");
+    expect(message).not.toContain("tools[9]");
+    expect(message).not.toContain("column 8706");
+    expect(message).not.toContain("BadRequestError");
+  });
+
+  it("翻译只认那一种形状：不带 tools[N] 的英文错误体仍旧原样透传", async () => {
+    const { fetchImpl } = makeFetch([], 500, "Failed to deserialize something else entirely");
+    expect(await failMessage(fetchImpl)).toBe(
+      "模型服务端返回 500：Failed to deserialize something else entirely"
+    );
+  });
+
+  /* 2026-10-22：选错模态时上游回的是英文（「Model X is an image model. Use /v1/images/generations」）。
+     这句话用户读不懂，也看不出下一步该干什么——翻成人话，并点明去哪儿换模型。 */
+  it("选到图像模型：翻译成一句能照着做的话，并带上模型名", async () => {
+    const { fetchImpl } = makeFetch(
+      [],
+      400,
+      JSON.stringify({
+        error: {
+          message:
+            "Model agnes-image-2.1-flash is an image model. Use /v1/images/generations instead."
+        }
+      })
+    );
+    expect(await failMessage(fetchImpl)).toBe(
+      "模型服务端返回 400：「agnes-image-2.1-flash」是图像生成模型，不能用来对话；请在左下角齿轮（设置）里换一个对话模型。"
+    );
+  });
+
+  it("选到视频模型：同一套说法，不把视频说成图像", async () => {
+    const { fetchImpl } = makeFetch(
+      [],
+      400,
+      JSON.stringify({ message: "Model agnes-video-2.5 is a video model." })
+    );
+    const message = await failMessage(fetchImpl);
+    expect(message).toContain("视频生成模型");
+    expect(message).not.toContain("图像生成模型");
+  });
+
+  it("上游原文没有对应的下一步时不擅自改写：不知道的就原样留着", async () => {
+    const { fetchImpl } = makeFetch([], 400, '{"error":{"message":"Bad request: unknown field"}}');
+    expect(await failMessage(fetchImpl)).toBe("模型服务端返回 400：Bad request: unknown field");
+  });
+
   it("取出来的 message 同样受 200 字截断", async () => {
     const { fetchImpl } = makeFetch(
       [],

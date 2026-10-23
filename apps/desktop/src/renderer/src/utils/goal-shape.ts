@@ -18,6 +18,12 @@ export interface WritingGoalData {
   goal: WritingGoal;
   sessions: WritingSession[];
   streak: WritingStreak;
+  /**
+   * 逐章目标字数（2026-10-22）：键是书内相对路径，值是这一章打算写多少字。
+   * 与 `goal.totalWordTarget` 是两层目标：那是「这本书多少字收尾」，这是「这一章写到哪算完」。
+   * 0 与负数不入档（删键就是取消目标），所以读出来的值恒为正。
+   */
+  chapterTargets: Record<string, number>;
 }
 
 /**
@@ -39,17 +45,23 @@ export const DEFAULT_STREAK: WritingStreak = {
 
 /** 盘上还没有这份数据时的起点（`useBookFileData` 的 `empty()` 也用它，两处一份）。 */
 export function emptyWritingGoalData(): WritingGoalData {
-  return { goal: { ...DEFAULT_GOAL }, sessions: [], streak: { ...DEFAULT_STREAK } };
+  return {
+    goal: { ...DEFAULT_GOAL },
+    sessions: [],
+    streak: { ...DEFAULT_STREAK },
+    chapterTargets: {}
+  };
 }
 
 /**
  * 「这份旧的全局数据里根本没有可迁的东西」——迁移那一路用它决定要不要真往这本书里写一次。
- * 判据是**整份都停在默认值**：会话一条没有、连续天数没记过、四格目标一格没改。
+ * 判据是**整份都停在默认值**：会话一条没有、连续天数没记过、四格目标一格没改、逐章目标一条没有。
  * 只要改过任一格（哪怕只把每日目标调成 2000），那就是作者的手笔，必须迁走。
  */
 export function isDefaultWritingGoalData(value: WritingGoalData): boolean {
   return (
     value.sessions.length === 0 &&
+    Object.keys(value.chapterTargets ?? {}).length === 0 &&
     value.streak.currentStreak === DEFAULT_STREAK.currentStreak &&
     value.streak.longestStreak === DEFAULT_STREAK.longestStreak &&
     value.streak.lastReachDate === DEFAULT_STREAK.lastReachDate &&
@@ -144,13 +156,34 @@ function normalizeStreak(raw: unknown): WritingStreak | typeof BAD {
   return { currentStreak, longestStreak, lastReachDate: last ?? null };
 }
 
+/**
+ * 逐章目标：整格缺失 = 老版本存档（补空表）；写了但不是对象 = 这份文件不是我们认识的那份。
+ *
+ * 单条的值只认正有限数，0 / 负数 / NaN **逐条丢弃**而不是整份判坏：
+ * 那一条不携带任何信息（0 就是「没设」的同义词），为它把整份文件判死会连带丢掉
+ * 会话与连续天数——那是拿一个空目标换掉作者真正在乎的东西。
+ */
+function normalizeChapterTargets(raw: unknown): Record<string, number> | typeof BAD {
+  if (raw === undefined) return {};
+  if (!isRecord(raw)) return BAD;
+  const out: Record<string, number> = {};
+  for (const [relPath, value] of Object.entries(raw)) {
+    if (relPath === "" || typeof value !== "number" || !Number.isFinite(value) || value <= 0)
+      continue;
+    out[relPath] = Math.floor(value);
+  }
+  return out;
+}
+
 export function normalizeWritingGoalData(parsed: unknown): WritingGoalData | null {
   if (!isRecord(parsed)) return null;
   const goal = normalizeGoal(parsed.goal);
   const streak = normalizeStreak(parsed.streak);
+  const chapterTargets = normalizeChapterTargets(parsed.chapterTargets);
   // 会话那一格：没写 = 这本书还没记过（补空表），写了但不是表 = 读不懂。
   const rawSessions = parsed.sessions === undefined ? [] : parsed.sessions;
-  if (goal === BAD || streak === BAD || !Array.isArray(rawSessions)) return null;
+  if (goal === BAD || streak === BAD || chapterTargets === BAD || !Array.isArray(rawSessions))
+    return null;
   const sessions: WritingSession[] = [];
   for (const raw of rawSessions) {
     const row = normalizeSession(raw);
@@ -158,5 +191,5 @@ export function normalizeWritingGoalData(parsed: unknown): WritingGoalData | nul
     if (row === BAD) return null;
     sessions.push(row);
   }
-  return { goal, sessions, streak };
+  return { goal, sessions, streak, chapterTargets };
 }

@@ -1,7 +1,5 @@
 import { defineStore } from "pinia";
 import {
-  PERMISSION_LABELS,
-  PERMISSION_MODES,
   nextThinkingLevel,
   type AgentEvent,
   type AgentOutbound,
@@ -25,8 +23,6 @@ import {
   ProposalView,
   ThreadView,
   UNBOUND,
-  cardsCountOf,
-  composeStatusReport,
   decisionViewPatch,
   enqueueText,
   malformedPush,
@@ -41,8 +37,7 @@ import {
 import { DRAFT_DISCARD_DONE, nextDraftSampleCount, resolveDraft } from "../utils/draft-candidates";
 import { readRemote } from "../utils/agent-requests";
 import { replayProposalStatuses } from "../utils/timeline";
-import { matchPermissionMode, type SlashCommand } from "../utils/slash-commands";
-import { stageLabelOf, matchStageName } from "../utils/composer-context";
+import { type SlashCommand } from "../utils/slash-commands";
 import { prefillText } from "../utils/composer-draft";
 import { clearComposerAfterSend } from "../utils/auto-behavior-preference";
 import { sessionRowAction, type SessionRowAction } from "../utils/session-row-action";
@@ -58,7 +53,7 @@ import {
   saveThinkingLevel,
   thinkingPreferenceStorage
 } from "../utils/thinking-preference";
-import { useLayoutStore } from "./layoutStore";
+import { dispatchSlashCommand } from "./agent-slash-dispatch";
 import { useBookStore } from "./useBookStore";
 
 export * from "../utils/agent-thread";
@@ -109,6 +104,14 @@ export const useAgentStore = defineStore("agent", {
     thinkingRemembered: loadThinkingRemember(thinkingPreferenceStorage()),
     /** 多稿档（P0-②）：1=关；**刻意不跨重启记忆**——它是 N 倍 token 成本的开关，每次启动回到关，与「联网/深度」两枚持久偏好是两条规矩。 */
     sampleCount: 1 as DraftSampleCount,
+    /**
+     * 工具面板里被关掉的工具（2026-10-21）。
+     *
+     * 从下一次请求起生效：主进程在 `toolsFor`（发给模型的 tools）与 `toolGateOf`（模型硬调时的闸）
+     * 两处同时摘掉，所以关掉是真的不出站，不是只在界面上藏一行。
+     * 与多稿档同一条规矩：**不跨重启记忆**——启动回到全带，免得某天忘了自己关过什么。
+     */
+    disabledTools: [] as string[],
     /** 多稿候选集（P0-②）：键是 threadKey；值里那几稿已由主进程按 rankDrafts 排好序，换轮/选稿/丢稿都会清掉它。 */
     draftSets: {} as Record<string, { draftSetId: string; drafts: DraftCandidate[] }>
   }),
@@ -188,6 +191,16 @@ export const useAgentStore = defineStore("agent", {
     /** 多稿档循环（P0-②）：关 → ×2 → ×3 → 关；次序从 contracts 的 DRAFT_SAMPLE_COUNTS 现拼，不留第二份档位表。 */
     cycleDraftSample(): void {
       this.sampleCount = nextDraftSampleCount(this.sampleCount);
+    },
+
+    /**
+     * 工具面板里切一枚（2026-10-21）：已关的点回「带上」，带着的点成「已关」。
+     * 只改下一次请求的清单——正在跑的那一轮带出去什么，在它启动那一刻就定了。
+     */
+    toggleTool(name: string): void {
+      this.disabledTools = this.disabledTools.includes(name)
+        ? this.disabledTools.filter((item) => item !== name)
+        : [...this.disabledTools, name];
     },
 
     /** 中栏唯一的订阅入口：装配处挂载时调一次，重复调用不叠加监听。 */
@@ -415,6 +428,9 @@ export const useAgentStore = defineStore("agent", {
         webSearchEnabled: this.webSearchEnabled,
         // 多稿档（P0-②）：必填字段，开着时主进程一轮静默跑 N 次生成再把 N 稿一起推回来。
         sampleCount: this.sampleCount,
+        // 工具面板里关掉的几枚（2026-10-21）：一枚没关就不带这个字段——整轮请求与从前一字不差；
+        // 关了才摊一份递过去，别把响应式数组的引用交出去。
+        ...(this.disabledTools.length > 0 ? { disabledTools: [...this.disabledTools] } : {}),
         // 本线程显式挂入的技能（spec §11）：只传 id，正文由主进程按同一套读取守卫取。
         // 摊一份再递 —— 见 utils/agent-thread.ts 的 plainList，那段记着为什么这条路不通过一次。
         skillPaths: plainList(this.skillPathsOf(threadKeyFor(book.activeDocTab)))
@@ -673,105 +689,9 @@ export const useAgentStore = defineStore("agent", {
       this.applyReplay(this.viewOf(threadKey), result);
     },
 
-    /**
-     * `/` 面板唯一派发口（spec §6）：命令落在哪个 store 动作上，只在这里决定一次。
-     * 面板组件、快捷键接线都不允许再各写一份 switch。
-     */
+    /** `/` 面板唯一派发口：switch 表住在 `agent-slash-dispatch`（本文件贴到 800 行预算后拆出），这里只转交。 */
     runSlashCommand(command: SlashCommand, argument: string): void {
-      const book = useBookStore();
-      const threadKey = threadKeyFor(book.activeDocTab);
-      switch (command) {
-        case "model":
-          // 与 Ctrl+, 同一条通路（Task 7）：模型设置的唯一真身仍是 ProviderSettings 浮层。
-          useLayoutStore().showSettings();
-          return;
-        case "permissions": {
-          // 不带档名 ⇒ 只开菜单（popover 里逐档可点）；带档名 ⇒ 查表直接切档落盘（spec §6）。
-          if (argument === "") {
-            book.openPermissionMenu();
-            return;
-          }
-          const mode = matchPermissionMode(argument);
-          if (mode === null) {
-            // 档名列一律来自 PERMISSION_LABELS，这里不手抄第二份中文。
-            this.notice = `没有这一档：「${argument}」。可选：${PERMISSION_MODES.map((item) => PERMISSION_LABELS[item]).join(" / ")}。`;
-            return;
-          }
-          void book.setPermissionMode(mode);
-          return;
-        }
-        case "status": {
-          this.notice = composeStatusReport({
-            threadKey,
-            thread: this.threads[threadKey],
-            cards: cardsCountOf(this.proposals, threadKey),
-            pending: this.pendingOf(threadKey),
-            hasBook: book.hasBook,
-            permissionMode: book.meta?.permissionMode ?? null,
-            stageName: stageLabelOf(book.meta)
-          });
-          return;
-        }
-        case "resume":
-          void this.ensureHydrated(threadKey);
-          return;
-        case "clear":
-          this.clearThreadView(threadKey);
-          return;
-        case "skills":
-          // 与左栏那枚「技能库」钮同一条真身：layout.showCenter("skills")。
-          // 命令面板不许在组件里各派发一次，命令落到哪个动作上只在这里决定一次。
-          // 5-㉜ 起它们换的是**中栏那一格**（左栏恒定），所以这里也切中栏——
-          // 两处指同一处，否则会出现「命令进来落在整页、钮进来落在中栏」的两处真身。
-          useLayoutStore().showCenter("skills");
-          return;
-        case "plugins":
-          // 与左栏那枚「插件」钮同一条真身：layout.showCenter("plugins")。
-          // 插件与技能都是「装在应用里的东西」，与当前书/线程都无关，
-          // 而中栏显示什么是与书无关的布局状态，正是 layout 的作用域。
-          useLayoutStore().showCenter("plugins");
-          return;
-        case "skins":
-          // 与左栏那枚「皮肤广场」钮同一条真身：layout.showCenter("skins")。
-          // 它与技能库/插件同属「左栏某枚钮通向的中栏那一格」，落点只能是中栏。
-          useLayoutStore().showCenter("skins");
-          return;
-        case "export":
-          // 与右栏头部那枚「导出」钮同一条真身：layout.openExport()（面板可见态住在 layout）。
-          useLayoutStore().openExport();
-          return;
-        case "wordcount":
-          // 与右栏头部那枚「字数统计」钮同一条真身：layout.openWordCount()。
-          useLayoutStore().openWordCount();
-          return;
-        case "newbook":
-          // 与左栏「+」同一条真身：layout.openNewBook()（开合真身是 layout.newBookOpen）。
-          useLayoutStore().openNewBook();
-          return;
-        case "stage": {
-          // 无参：报当前阶段 + 可选值（回一句实话，而不是「按了没反应」）。
-          if (argument.trim() === "") {
-            const options = (book.meta?.stages ?? []).map((s) => s.name).join(" / ");
-            this.notice =
-              options === ""
-                ? "这本书还没有任何阶段。"
-                : `当前阶段：${stageLabelOf(book.meta)}。可选：${options}（例：/stage ${(book.meta?.stages ?? [])[0]!.name}）。`;
-            return;
-          }
-          const stage = matchStageName(book.meta, argument);
-          if (stage === null) {
-            const options = (book.meta?.stages ?? []).map((s) => s.name).join(" / ");
-            this.notice = `没有这个阶段：「${argument}」。可选：${options || "（无）"}。`;
-            return;
-          }
-          if (stage.id === book.meta?.activeStage) {
-            this.notice = `已经在「${stage.name}」这一阶段。`;
-            return;
-          }
-          void book.setActiveStage(stage.id);
-          return;
-        }
-      }
+      dispatchSlashCommand(this, command, argument);
     },
 
     /**

@@ -102,6 +102,12 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   color: var(--text-faint);
 }
 
+/* 搜索框聚焦时给它一圈可见环（2026-10-23）：input 自己 outline:0，
+   原先整个框聚焦零反馈，键盘用户定位不到。环走 --accent-soft，不占布局。 */
+.settings-search:focus-within {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
 .settings-nav {
   display: flex;
   flex-direction: column;
@@ -213,7 +219,9 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   align-items: center;
   gap: 16px;
   padding: 14px 18px;
-  cursor: pointer;
+  /* 不给 cursor:pointer（2026-10-23）：这一族全是纯展示行（关于页的事实表、
+     助手设置、WebDAV 字段），没有一条带 @click。手型光标是假控件暗示——
+     全仓扫过，settings-item 上没有一处点击，可点的行走的是各自的类。 */
 }
 
 .settings-item:not(:last-child) {
@@ -455,6 +463,18 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 .provider-profile-text span {
   color: var(--text-tertiary);
   font-size: 0.82rem;
+}
+
+/* 模态标记（2026-10-22）：与对话下拉的 .model-select-tag 同一套判定与画法。
+   底是 --hover 深档，字色必须用状态档灰——判据见 composables/appearance-surface-ladder.test.ts。 */
+.provider-profile-tag {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--hover);
+  color: var(--text-on-state);
+  font-size: 0.785714rem;
+  white-space: nowrap;
 }
 
 .provider-profile-actions {
@@ -956,7 +976,8 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 }
 
 .webdav-input:focus-visible {
-  border-color: var(--theme-line);
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px var(--accent-soft);
   outline: none;
 }
 

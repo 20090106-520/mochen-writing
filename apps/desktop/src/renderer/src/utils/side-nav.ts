@@ -6,7 +6,8 @@ import { BOOK_KIND_LABELS } from "./book-kinds";
  * 侧边栏功能导航的唯一真身表（2026-10-04 演示图裁定：完整按图）。
  * 子项三种现实：
  * - `docs`   —— 已有真身：定位到文稿树对应类型的分组（展开它；没有文档就引导新建）。
- * - `action` —— 已有真身：组件里挂一个现成动作（新对话 / 打开章节 / 展开对话面板 / AI 检查）。
+ *               （2026-10-23：与树分组同名的 9 个子项收掉后，表里暂时没有 docs 实例；机制保留。）
+ * - `action` —— 已有真身：组件里挂一个现成动作（开素材库面板 / 开伏笔台账 / 开时间线核对）。
  * - `planned`—— 还没落地的功能：入口照图摆出来，点击打开诚实的占位说明。
  *               （2026-10-04 深夜：演示图里的占位项已全部落地——本表暂时没有 planned 实例，
  *               机制保留给未来的新占位。）
@@ -17,17 +18,14 @@ export type SideNavChildReality =
   | {
       kind: "action";
       action:
-        | "new-thread"
-        | "chapter-editor"
-        | "ai-check-consistency"
-        | "ai-check-plot"
-        | "ai-check-logic"
-        // 文风检查（2026-10-10 去AI味）：审的是 AI 腔套话与句式，口径在 AI_CHECK_PROMPTS.style。
-        | "ai-check-style"
         // 伏笔台账（2026-10-05）：聚合视图，开关住在 store 的 foreshadowsOpen 那一格。
         | "foreshadow-ledger"
         // 时间线核对（2026-10-05 批次 5-①）：聚合视图，开关住在 useTimelineStore.open。
-        | "timeline-ledger";
+        | "timeline-ledger"
+        // 素材库面板（2026-10-23）：不再是「跳到树里那一组」——它有真面板了
+        // （列全书 materials/ 文稿 + 导入 + 让 AI 整理入库）。开关住 useMaterialStore.open，
+        // 锚点那枚按钮在右栏头部，分派见 LeftSidebar 的 materials-panel 分支。
+        | "materials-panel";
     }
   | { kind: "planned" };
 
@@ -40,67 +38,35 @@ export interface SideNavGroup {
   id: string;
   label: string;
   icon: IconName;
-  /** 初始开合（演示图：小说大脑展开，故事规划/写作/审核检查收起）。 */
+  /** 初始开合（2026-10-23 起只剩一组，默认展开）。 */
   defaultOpen: boolean;
   children: SideNavChild[];
 }
 
 export const SIDE_NAV_GROUPS: SideNavGroup[] = [
   {
-    id: "brain",
-    label: "小说大脑",
-    icon: "brain",
-    defaultOpen: true,
-    // 2026-10-05：子项名一律取 BOOK_KIND_LABELS 这一份真身——早先这里手写过「人物库」「设定集」，
-    // 与左栏树分组、中栏提示（「这本书还没有素材库分组」）是两套中文名，用户按提示找不到。
-    children: [
-      { label: BOOK_KIND_LABELS.worldview, reality: { kind: "docs", docKind: "worldview" } },
-      { label: BOOK_KIND_LABELS.character, reality: { kind: "docs", docKind: "character" } },
-      { label: BOOK_KIND_LABELS.faction, reality: { kind: "docs", docKind: "faction" } },
-      { label: BOOK_KIND_LABELS.location, reality: { kind: "docs", docKind: "location" } },
-      { label: BOOK_KIND_LABELS.timeline, reality: { kind: "docs", docKind: "timeline" } },
-      { label: BOOK_KIND_LABELS.material, reality: { kind: "docs", docKind: "material" } },
-      { label: BOOK_KIND_LABELS.glossary, reality: { kind: "docs", docKind: "glossary" } }
-    ]
-  },
-  {
     id: "plan",
-    label: "故事规划",
+    label: "素材与台账",
     icon: "map",
-    defaultOpen: false,
+    defaultOpen: true,
+    /*
+     * 2026-10-23（用户评「小说大脑 / 故事规划都是空壳，没啥用」）：这一组里**只剩真身**。
+     *
+     * 原先两组（小说大脑 / 故事规划）共 11 个跳转子项，逐个收掉了 9 个——它们的真身就是
+     * 「跳到左栏『我的作品』树里那一组」，而树本来就在同一屏上，于是那一栏读起来像两个去处。
+     * 留下的三项都**有自己的东西**，不是树的影子：
+     *   · 素材库 —— 有真面板（列全书 materials/ + 导入 + 让 AI 整理入库）；
+     *   · 伏笔台账 / 时间线核对 —— 跨文稿的聚合视图，要读全书再排/再判，不是筛某一类文稿。
+     */
     children: [
-      { label: BOOK_KIND_LABELS.outline, reality: { kind: "docs", docKind: "outline" } },
-      { label: BOOK_KIND_LABELS.volume, reality: { kind: "docs", docKind: "volume" } },
-      // 这一项不是「章节」的标签而是动作名（进章节分组做增删改序），故不取 BOOK_KIND_LABELS。
-      { label: "章节管理", reality: { kind: "docs", docKind: "chapter" } },
+      // 素材库（2026-10-23）：有自己的面板，锚点在右栏头部；分派见 LeftSidebar 的 materials-panel 分支。
+      { label: BOOK_KIND_LABELS.material, reality: { kind: "action", action: "materials-panel" } },
       // 伏笔台账是**聚合视图**（要看所有伏笔的状态），不是某一类文稿的筛选，
       // 所以走 action 而不是 docs；分派处见 LeftSidebar 的 foreshadow-ledger 分支。
       { label: "伏笔台账", reality: { kind: "action", action: "foreshadow-ledger" } },
       // 时间线一致性检查（2026-10-05，批次 5-①）：同样是聚合视图——要把全书的时间线
       // 读一遍排顺序、查矛盾，不是筛某类文稿。分派见 LeftSidebar 的 timeline-ledger 分支。
       { label: "时间线核对", reality: { kind: "action", action: "timeline-ledger" } }
-    ]
-  },
-  {
-    id: "writing",
-    label: "写作",
-    icon: "pen",
-    defaultOpen: false,
-    children: [
-      { label: "AI 写作", reality: { kind: "action", action: "new-thread" } },
-      { label: "章节编辑器", reality: { kind: "action", action: "chapter-editor" } }
-    ]
-  },
-  {
-    id: "review",
-    label: "审核检查",
-    icon: "shield",
-    defaultOpen: false,
-    children: [
-      { label: "一致性检查", reality: { kind: "action", action: "ai-check-consistency" } },
-      { label: "剧情审核", reality: { kind: "action", action: "ai-check-plot" } },
-      { label: "逻辑检查", reality: { kind: "action", action: "ai-check-logic" } },
-      { label: "文风检查", reality: { kind: "action", action: "ai-check-style" } }
     ]
   }
 ];
@@ -135,8 +101,9 @@ export const PLUGINS_HINT = "查看装了哪些插件、它们给对话加了哪
 export const SKINS_HINT = "浏览整套皮肤：配色三色 + 纹理、圆角、描边、光晕；浅色与深色一并应用";
 
 /**
- * AI 检查的预填提问（文案唯一真身）：点击审核三项 → 打开对话面板并把这句填进输入框，
- * 用户确认后发送——AI 真的会按这个口径检查当前章节。预填不自动发送（用户保留最后一道编辑权）。
+ * 检查口径文案（2026-10-23 起只剩 `style` 一个消费者：书稿体检的「一键改写」那一支）。
+ * 左栏「审核检查」四项已改为内置技能（`apps/desktop/src/main/builtin-skills.ts`）——
+ * 它们在对话框里由模型经 `use_skill` 工具自选载入，不再走这里的预填。其余三段保留作口径参考。
  */
 export const AI_CHECK_PROMPTS = {
   consistency:
@@ -146,8 +113,6 @@ export const AI_CHECK_PROMPTS = {
   style:
     "请对当前章节做文风检查（去 AI 味）：找出 AI 腔的套话与句式——如「嘴角勾起」「眼底闪过」「勾起一抹」「深吸一口气」「空气仿佛凝固」「他知道，……」式开头、连续长短雷同的句子、「缓缓/微微/不禁」堆叠——逐处指出原文并给出更像人写的改法；全文没有就明确说没有。"
 } as const;
-
-export type AiCheckKind = keyof typeof AI_CHECK_PROMPTS;
 
 /**
  * 文风检查的动态预填（2026-10-10 去AI味二段）：静态口径之上，把**这一篇真扫出来的**
@@ -171,13 +136,6 @@ export function styleCheckPrompt(report: AiFlavorReport | null): string {
     "\n请先用 read_doc 读本章拿上下文，再对每一处给出替换写法，并直接用 propose_patch " +
     "提交替换提案（我批准后才落盘）；确要保留的写法在提案 why 里说明理由，不要擅自整段重写。"
   );
-}
-
-/** 由 action id 取回检查口径（组件分派用；平铺 id 与表键一一对应）。 */
-export function aiCheckOf(action: string): AiCheckKind | null {
-  if (action.startsWith("ai-check-") === false) return null;
-  const kind = action.slice("ai-check-".length);
-  return kind in AI_CHECK_PROMPTS ? (kind as AiCheckKind) : null;
 }
 
 /**

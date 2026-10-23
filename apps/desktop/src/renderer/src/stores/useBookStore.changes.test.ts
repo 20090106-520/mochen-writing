@@ -85,6 +85,9 @@ const api = {
   createBook: vi.fn(async () => {
     throw new Error("不该建书");
   }),
+  // 作品库（2026-10-21）：openBook 的 applyOpened 会顺手刷一次清单。
+  listRecentBooks: vi.fn(async () => ({ books: [] })),
+  forgetRecentBook: vi.fn(async () => ({ books: [] })),
   saveMeta: vi.fn(async () => {}),
   readDoc,
   writeDoc: vi.fn(async (): Promise<DocWriteResult> => ({

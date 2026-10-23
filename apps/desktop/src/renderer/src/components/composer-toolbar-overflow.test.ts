@@ -6,7 +6,7 @@
  *   `.composer-tools .conversation-model-config{flex:0 1 auto}`＋`{max-width:100%;min-width:0}`、
  *   `.composer-tools .conversation-model-config-label{min-width:0}`，
  *   以及 `@container composer (max-width: min(32rem, 560px))` 里那条 `max-width: 8em`。
- *   他整个 composer 段里**一处 flex-wrap 都没有**：窄了出省略号，永远一行。
+ *   他整个 composer 段里**一处 flex-wrap 都没有**：窄了出省略号，永远一行（2026-10-22 起本仓不再照搬，见文末裁定）。
  * - 25-27 给默认三栏（286 / clamp(410px, 34vw, 650px) / 320），5071-5075 的 ≤1220px 收窄（262/395）
  *   写在**同一份文件末尾**——同一特异性的平手由顺序裁决，所以他那块真能盖住前面那三条默认值。
  * - 2643-2650 的 `@container` 块里 `max-width: 8em` 只落在 `.conversation-model-config-label` 一枚上；
@@ -26,6 +26,12 @@
  * 改成**逐级收标签、保图标**的阶梯（380 起右端参与收缩）——控件本体一个不藏，功能与 tooltip 全程在。
  * 同日用户第三次裁定：阶梯**次序按「图标能否自解释」排**（tools→palette→web-search→thinking 先收，
  * 模型名只截断永不隐藏）——判据从「谁最长」换成「藏掉文字还剩多少信息」。
+ *
+ * 2026-10-22 用户裁定反转「永远一行」（上面 2611-2655 那条 deepwrite 原值不再照搬）：
+ * 1600 宽 + 右栏展开（容器 840）真机上左端五枚 + 右端整组放不下，摆出「联网…」「多…」「工…」一排残片——
+ * 在**宽窗**就把标签读废，这已经不是「窄窗才付的代价」。改为 `.composer-toolbar` 自带 `flex-wrap: wrap`：
+ * 左端 basis 取自然宽（auto）、放不下时右端整组 `margin-left: auto` 落到第二行。
+ * 收缩阶梯（722/696/662/615/589）与窄档两级（620 分配 / 560 换行 + 收右端文字）原样保留。
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -65,14 +71,21 @@ function blocks(css: string, at: string): string[] {
   return out;
 }
 
-describe("chip 行 · 收缩截断代替折行（deepwrite 的 toolbar 没有 flex-wrap）", () => {
-  it("左端容器：flex:1 1 0 + min-width:0，整条规则里不许出现 flex-wrap", () => {
+describe("chip 行 · 放不下就折两行（2026-10-22 用户裁定，反转 deepwrite 的「永远一行」）", () => {
+  it("工具栏允许折行；左端取自然宽 flex:1 1 auto，自身仍是单行（折行只发生在工具栏这一层）", () => {
+    const bar = ruleBlock(CARD, ".composer-toolbar");
+    expect(bar).toContain("flex-wrap: wrap");
     const body = ruleBlock(CARD, ".composer-toolbar-left");
     // 规则体内不留注释：下一条 not.toContain 的鉴别力全靠这一条守着（注释里写着 flex-wrap 不算做）。
     expect(body).not.toContain("/*");
-    expect(body).toContain("flex: 1 1 0");
+    // basis 取 auto 而不是 0：折行判据问的是「左端自己放不放得下」，basis:0 让它永远「放得下」，
+    // 折行轮不到、右端先被挤死。
+    expect(body).toContain("flex: 1 1 auto");
     expect(body).toContain("min-width: 0");
     expect(body).not.toContain("flex-wrap");
+    // 折行后右端整组落在第二行：单项目的行上 `justify-content: space-between` 等同 flex-start，
+    // 必须靠 margin-left:auto 才靠右。
+    expect(ruleBlock(CARD, ".composer-toolbar-right")).toContain("margin-left: auto");
   });
 
   it("左端每一枚都可让位：flex:0 1 auto + max-width:100%（钉成 0 0 auto 会在窄档溢出压到右端头上）", () => {
@@ -216,7 +229,7 @@ describe("chip 行 · 收缩截断代替折行（deepwrite 的 toolbar 没有 fl
     const TEXT_ONLY = new Set([
       "composer-chip-label", // 5-⑱ 阶梯：工具 / 调色 / 联网 / 思考四枚的标签
       "doc-context-kind", // 5-㉓ 阶梯第一级：文档胶囊的「章节 · N 字」
-      "context-meter-text", // 5-㉓ 阶梯第二级：「N 条 · ≈M tokens」
+      "context-meter-text", // 5-㉓ 阶梯第二级：计量读数「≈M tokens」
       // 5-㉓ 末一档：胶囊的尾巴（✕ / ›）。**它不是控件，是控件里的字形**——
       // 解除绑定靠整枚胶囊的 @click、展开靠 aria-haspopup，藏掉字形不拿走任何功能，
       // title 上那句「点击解除绑定」也还在。真正的控件（.composer-context-item 本体）

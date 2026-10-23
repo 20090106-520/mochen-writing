@@ -31,7 +31,21 @@ function dismiss(): void {
 useModalFocus({ root: dialogRoot, close: dismiss, isOpen: dialogOpen });
 useDialogMotion({ root: dialogRoot, isOpen: dialogOpen });
 
-function reloadFromDisk(): void {
+/**
+ * 「放弃草稿并重载」是不可逆动作（草稿是本应用最不可逆的资产），一次误点全没——
+ * 所以先落在二次确认上，不直接重载。确认态与动作分成三粒，直接点击那一枚不写盘。
+ */
+const confirmingDiscard = ref(false);
+
+function requestDiscard(): void {
+  confirmingDiscard.value = true;
+}
+
+function cancelDiscard(): void {
+  confirmingDiscard.value = false;
+}
+
+function confirmDiscard(): void {
   void book.reloadActive();
 }
 </script>
@@ -71,10 +85,21 @@ function reloadFromDisk(): void {
         </div>
 
         <div class="dialog-actions">
-          <button class="dialog-secondary-button" type="button" @click="dismiss">先看草稿</button>
-          <button class="dialog-primary-button is-danger" type="button" @click="reloadFromDisk">
-            放弃草稿并重载盘上内容
-          </button>
+          <template v-if="!confirmingDiscard">
+            <button class="dialog-secondary-button" type="button" @click="dismiss">先看草稿</button>
+            <button class="dialog-primary-button is-danger" type="button" @click="requestDiscard">
+              放弃草稿并重载盘上内容
+            </button>
+          </template>
+          <template v-else>
+            <span class="dialog-note">草稿不可恢复，确定放弃？</span>
+            <button class="dialog-secondary-button" type="button" @click="cancelDiscard">
+              取消
+            </button>
+            <button class="dialog-primary-button is-danger" type="button" @click="confirmDiscard">
+              确定放弃并重载
+            </button>
+          </template>
         </div>
       </section>
     </div>

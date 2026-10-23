@@ -105,11 +105,19 @@ export function splitTxtChapters(text: string, fallbackTitle: string): TxtChapte
 }
 
 /**
+ * 导入目标（2026-10-23）：章节（默认）或**素材库**。素材落 `materials/`，
+ * 会进 AI 的上下文装配（agent-runtime/context.ts 的素材条目）与 @ 引用池。
+ */
+export type TxtImportTargetKind = "chapter" | "material";
+
+/**
  * commit 的输入：预览确认后的章目清单。只收 title + content——
  * 渲染层递不了路径，`chapters/<标题>.md` 由主进程用 planDocRelPath 拼（铁律：路径由主进程拼）。
  */
 export interface TxtImportCommitInput {
   chapters: { title: string; content: string }[];
+  /** 缺省 chapter（保持既有行为）；"material" 落 `materials/`。 */
+  targetKind?: TxtImportTargetKind;
 }
 
 /**
@@ -139,14 +147,15 @@ export type TxtImportCommitResult =
  * 让主进程在**写第一个字之前**就知道这批能不能落——「导到一半撞名」比「一开始就不开始」糟得多。
  */
 export function planImportRelPaths(
-  chapters: { title: string }[]
+  chapters: { title: string }[],
+  kind: TxtImportTargetKind = "chapter"
 ): { ok: true; relPaths: string[] } | { ok: false; invalid: string[]; conflicts: string[] } {
   const invalid: string[] = [];
   const conflicts: string[] = [];
   const seen = new Set<string>();
   const relPaths: string[] = [];
   for (const { title } of chapters) {
-    const relPath = planDocRelPath("chapter", title);
+    const relPath = planDocRelPath(kind, title);
     if (relPath === null) {
       invalid.push(title);
       continue;

@@ -41,6 +41,7 @@ import {
   type ProposalView,
   type ThreadView
 } from "../stores/useAgentStore";
+import { assistantEmotion } from "../utils/emotion-signal";
 
 /**
  * `leftCollapsed` 与 `toggleLeft` 在 2026-10-17 一并退役：那枚「展开左侧栏」搬去了
@@ -115,6 +116,21 @@ const messagesEmpty = computed(
 );
 const contextBarVisible = computed(() =>
   showContextBar({ hasBook: book.hasBook, threadEmpty: messagesEmpty.value })
+);
+/**
+ * 助手头像这一刻的表情（2026-10-21）：判定真身在 utils/emotion-signal.ts，
+ * 这里只负责把本线程的六路信号喂进去——不在这写第二份「running ? …」。
+ */
+const assistantFace = computed(() =>
+  assistantEmotion({
+    running: running.value,
+    items: items.value,
+    tail: tail.value,
+    endedAs: thread.value?.endedAs ?? "",
+    lastError: thread.value?.lastError ?? "",
+    pendingProposals: openCards.value.length,
+    hydrating: hydrating.value
+  })
 );
 function turnLabel(card: ProposalView): string {
   return cardTurnLabel(anchors.value, card.proposal.turnId);
@@ -317,7 +333,9 @@ onBeforeUnmount(() => {
           <strong>{{ agentLabel }}</strong>
           <!-- 无书时不渲染这一行：没有书就没有「主上下文」，写个「无」只是把
                上面那句「未选择作品」再说一遍（恒真的空信息比没有更误导）。 -->
-          <span v-if="book.meta" class="context-caption">主上下文：{{ contextTitle }}</span>
+          <span v-if="book.meta" class="context-caption" :title="`主上下文：${contextTitle}`"
+            >主上下文：{{ contextTitle }}</span
+          >
         </div>
       </div>
       <div class="conversation-header-actions">
@@ -367,7 +385,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-else class="message-list agent-column">
-          <AgentTimeline :items="items" :tail="tail" :running="running" />
+          <AgentTimeline :items="items" :tail="tail" :running="running" :emotion="assistantFace" />
 
           <div v-if="openCards.length" class="proposal-stack">
             <ProposalCard
@@ -466,6 +484,8 @@ onBeforeUnmount(() => {
     <ToolRoster
       v-if="rosterOpen"
       :web-search-enabled="agent.webSearchEnabled"
+      :disabled-tools="agent.disabledTools"
+      @toggle="agent.toggleTool"
       @close="rosterOpen = false"
     />
     <!-- 贴 chip 的下拉（2026-10-07）：锚点是点开它的那枚 chip，元素随事件一起交上来。

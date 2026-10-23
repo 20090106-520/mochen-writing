@@ -253,6 +253,11 @@ html[data-platform="darwin"] .conversation-header {
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
   box-shadow: var(--shadow-sm);
+  /* 2026-10-22 窄窗逐页走查（1000 CSS）：三栏全开时中栏只有 ~300px，
+     卡内 226px 再减掉 118px 品牌图与 18px 间距，正文栏只剩 ~90px，
+     「墨宸·主笔」被折成「墨宸·主 / 笔」。允许换行后，正文栏放不下就整段落到图下、
+     独占整行；宽窗下两段的基准宽够用，仍是一行图一行字，不变。 */
+  flex-wrap: wrap;
 }
 
 /* 品牌原图整幅显示：cover 会裁掉龙首与落款，违「原图原样用」。 */
@@ -270,11 +275,31 @@ html[data-platform="darwin"] .conversation-header {
   height: 118px;
   overflow: hidden;
   border-radius: 12px;
+  /* 2026-10-22：粒子之间是透明的，底下直接是纸色——远看是一团撒在白纸上的黑噪点，
+     像图片没加载出来。补上原图那种墨底，它才读成「一张深色的品牌缩略图」而不是脏点。 */
+  background: #05070d;
+  box-shadow: var(--shadow-sm);
 }
 
 .workbench-hero-text {
   min-width: 0;
   flex: 1 1 auto;
+}
+
+/* 有书时正文栏的换行基准（见 .workbench-hero flex-wrap 那条）：160px 是标题
+   「墨宸·主笔」一行放得下的最小宽；放不下时整段落到品牌图下面。
+   无书时 hero 是 column 布局，flex-basis 会变成高度，所以只对带书那种生效。 */
+.workbench-hero:not(.is-no-book) .workbench-hero-text {
+  flex: 1 1 160px;
+}
+
+/* 2026-10-23 窄窗走查（1000 CSS、三栏全开，中栏 ~300px）：这段 54 字的提示会落成
+   「26 + 26 + 2」——末行只剩「录。」（同一族的「中文被压出孤字」）。
+   试过 `text-wrap: pretty`：**无效**（它只均衡末两行，真机读数反而把段数从 2 顶到 3、孤字还在）。
+   改成 `balance`（整段均分：54 → 18+18+18，末行不再孤字）；`balance` 在 Chromium 只作用于
+   六行以内的块，这段最多三行，稳在射程内。宽窗下这段本就是一两行，均分后仍是一两行。 */
+.workbench-lead {
+  text-wrap: balance;
 }
 
 /* 无书时这一段不再当「主视觉卡」用（2026-10-05 实机截图）。

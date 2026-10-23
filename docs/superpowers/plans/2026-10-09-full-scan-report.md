@@ -10011,7 +10011,1028 @@ quoted annotation 原文、`Linux 侧 4772 条注册 = 本机 4775 − 3` 那笔
 - **不做判据**：不报「这本太偏视觉」、不给下限。
 - **样本只来自上下文装着的已完稿章节**（同 §一百四十一／§一百四十二）。
 
+## 第一百四十四节：UI 收口四件——英文 400 翻人话、路径中间省略、品牌粒子可辨识、模态标记两处同源（2026-10-22）
 
+**来源**：用户「你看看我这个整体UI，还有哪一方面或东西不顺眼…反人类的都修改」→「开始」→「要」→「继续」。
+本节记这四件的取舍与边界；**不推送**（用户硬约束：功能完成前禁止推送）。
 
+### 一、落了什么
+
+1. `packages/agent-runtime/src/provider-client.ts`：`humanizeUpstream()` 只认
+   `Model X is an image model` / `is a video model` 这一种上游原文，翻成
+   「「X」是图像生成模型，不能用来对话；请在左下角齿轮（设置）里换一个对话模型。」；
+   其余上游原文**一字不改**（不认识就不猜）。`errorHint()` 前置调用它，3 条用例覆盖图像／视频／不认识原文不改写。
+2. `apps/desktop/src/renderer/src/utils/book-path.ts`（新）`shortenRootPath()`：路径**中间省略**、保留尾部两段，
+   `title` 仍给完整路径。只用于展示，不参与任何路径判定。
+3. `BookWorkbench.vue`：空态品牌粒子 `count` 5000 → 1600、`size` → 1.7 + 深色墨底（`.workbench-hero-art.is-particle`）。
+   **不改 `ParticleObject` 的默认值**（14000 / 2.4 仍给大画布用）——118px 这个尺寸下颗粒数过密只会变成黑噪点。
+4. 模态标记两处同源：`ModelSelect.vue` 按 `groupModels()` 分组、行尾加「图像 / 视频」药丸与一句
+   「带标记的模型不能用来对话」；`ProviderSettings.vue` 的模型行复用同一份 `modelKindOf()` 加同款药丸
+   （`.provider-profile-tag`，`--hover` 底 + `--text-on-state`，已登记 `STATE_RUNG_SITES`）。
+
+### 二、取舍（为什么这么切）
+
+- **「芯片 3.0-flash、请求打到图像模型」已归因，不是双通路 bug**：代码只有一条模型来源
+  （`config()` 取唯一 enabled profile → `provider.model` → 请求体 `model`），芯片读的是同一份；
+  `%APPDATA%\mochen-ai-dev\config.json` 的写入时间正好在那次 400 之后 36 秒，当时启用的确为图像模型。
+  真因是**名单平铺**（`/models` 里图像与对话混在一列）导致误选，所以修的是「分组 + 标记」，不是路由。
+- **不隐藏、不禁用任何一个模型**：`modelKindOf` 是按名字猜的（`/models` 没有模态字段），猜错顶多挪一格／标错一枚；
+  隐藏一个能用的模型会直接让人以为这服务不支持它。两处都不按 kind 过滤行。
+- **设置页也要标**：那里有启停开关，把图像模型切成启用中，下一句对话立刻 400——标记必须出现在能造成后果的地方。
+
+### 三、纪律与门禁
+
+- 变异／反向断言：`model-select-wiring.test.ts` 与 `provider-settings-wiring.test.ts` 都反向钉
+  「不许按 kind 过滤（隐藏）」；设置页那条同时钉「不自带第二套按名猜」。
+- 全仓 `corepack pnpm verify` 绿：**384 文件 / 5048 passed | 2 skipped（5050 条注册）**，`VERIFY_EXIT=0`。
+- 本轮改 renderer 侧的 HMR 生效；未改主进程，故 dev 不需要重启。
+
+### 四、台账口径更正（照读会重做）
+
+`docs/superpowers/specs/2026-10-21-sense-channels/tasks.md` 与 `…/2026-10-21-sentence-openings/tasks.md`
+两份复选框**全部未勾**，但代码与用例都已在盘上（`prompt-assembly.ts` 的 `SENSE_CHANNEL_TERMS` /
+`senseChannelSentence` / `sentenceOpeningSentence`；`prompt-sense-channels.test.ts`、
+`prompt-sentence-openings.test.ts` 均已存在，见 §一百四十二／§一百四十三）。
+判定：**已实现未销项**，不重做；如需销项另开一刀只勾复选框。
+
+## 第一百四十五节：窄窗复核——先纠正 DPI，再修右端两枚残片（2026-10-22）
+
+**来源**：用户「开始」→ 上一轮提的「窄窗复核（1280 及以下逐页走查）」。
+
+### 一、先纠正一件事（照旧口径会误判）
+
+本机缩放是 **150%（DPI 144）**，不是此前记的 250%。于是「物理 2400×1400 的窗口」实际是
+**1600×933 CSS**，不是 960——第一次走查报上来的「960 CSS 下图标文字被压成一个字」，
+量到的其实是 1600 宽窗口（右栏展开）下的**单行省略号**，属设计内行为，不是窄窗缺陷。
+真窄档只有一档：窗口地板 `minWidth: 1000` CSS ⇒ 右栏展开时容器最窄 **278px**
+（1500×1051 物理窗口、右栏展开，2026-10-22 真机截图）。
+
+### 二、真窄档实测：折行与图标级都在，只有一处残片
+
+窗口 1000 / 容器 278 时：左端五枚已按阶梯收成图标 + 三角（模型名归零到只剩图标），
+右端按 `@container 560` 折到第二行——**没有重叠、没有出框**，与 §一百三十四（批次 5-⑱）的设计一致。
+唯一的坏：右端两枚 chip 的文字仍按 8em 挤，量到「工作…」「未…」——两个字加一枚省略号，
+读起来像渲染事故。这不是「一行放不下」，是**已经折行了还在按单行口径截**。
+
+### 三、修法与边界
+
+- `agent-pane.css` 的 `@container composer (max-width: 560px)` 里加一条：
+  `.composer-toolbar-right .composer-chip-label { display: none; }`。
+  与左端五枚同一条口径（5-㓜）：**收文字、不收控件**，图标与三角全在，名字交给 `title`
+  （Chromium 的 AccName 在内容为空时回落到 title）。
+- 反向钉：宽档基础规则里不许出现这条——否则正常窗口会把右端两枚一并变成图标。
+  用例在 `composer-toolbar-narrow.test.ts`「换行级：右端 chip 收文字不收控件，且只在这一档收」。
+- **本刀当时没动**「工具栏永远一行、超宽出省略号」这条 deepwrite 对齐的决定，
+  改成「自适应折行」要同时改掉那条守卫与真机门槛，留作用户裁定（见下一节，同日已裁定并落地）。
+
+### 四、门禁
+
+`corepack pnpm verify` 绿：**384 文件 / 5049 passed | 2 skipped（5051 条注册）**，`VERIFY_EXIT=0`。
+只改 CSS 与守卫，dev 侧 HMR 已生效；代码未推送。
+
+## 第一百四十六节：工具栏改「放不下就折两行」——反转 deepwrite 的「永远一行」（2026-10-22）
+
+**来源**：上一节末那条待裁定的取舍，用户答「都行」⇒ 选自适应折行。
+
+### 一、为什么必须反转
+
+上一节把「1600 宽 + 右栏展开」的省略号归为设计内，但那份读数本身就是反证：
+窗口还宽着（容器仍在 560 以上、收缩阶梯还没轮到），标签却已经被截成「联网…」「多…」「工…」。
+deepwrite 的「永远一行」在**宽窗**就把标签读废——这不是窄窗才付的代价，是判据错。
+反过来，把「放不下」交给 flex 折行，代价只是多 26px 高度，换来每个标签都完整可读。
+
+### 二、改了什么（都在 `agent-pane.css`）
+
+- `.composer-toolbar` 基础规则加 `flex-wrap: wrap; row-gap: 6px;`——折行只发生在工具栏这一层。
+- `.composer-toolbar-left` 从 `flex: 1 1 0` 改 `flex: 1 1 auto`。
+  这是折行判据的关键：`basis: 0` 会让左端永远「放得下」，右端先被挤死，折行永远轮不到。
+- `.composer-toolbar-right` 基础规则加 `margin-left: auto`。
+  单项目的 flex 行上 `justify-content: space-between` 等同 `flex-start`，不给这一句右端会掉到第二行**左侧**。
+- 收缩阶梯（722/696/662/615/589）与窄档两级（620 分配 / 560 换行 + 收右端文字）原样保留：
+  折行解决「还有空间但一行塞不下」，阶梯解决「连两行都塞不下」。
+
+### 三、守卫同步（两份都改，且都反向钉着）
+
+- `composer-toolbar-overflow.test.ts`：describe 改名「放不下就折两行」，断言翻转为
+  工具栏含 `flex-wrap: wrap`、左端 `flex: 1 1 auto` 且**自身**不含 `flex-wrap`、右端含 `margin-left: auto`；
+  文件头补 2026-10-22 裁定反转的出处与判据。
+- `composer-toolbar-narrow.test.ts`：两处基础规则断言 `flex: 1 1 0` → `1 1 auto`，用例标题同步。
+- 两份合计 30 条用例全绿（17 + 13）。
+
+### 四、真机复核（150% 缩放，逐档截图）
+
+| 物理窗口 | CSS 宽 | 结果 |
+| --- | --- | --- |
+| 2400×1400 | 1600 | 单行，`多稿关 / 工具▾ / /命令▾ / 工作模式：未定 / 未打开作品目录` 全部完整 |
+| 2200×1400 | ≈1467 | **两行**：左端五枚 + 模型名完整在第一行，右端整组靠右落在第二行，无重叠、无残片 |
+| 1750×1400 | ≈1167 | 560 档：左端独占一行（图标级）、右端第二行靠右，右端标签按既定口径收掉 |
+| 1500×1051 | 1000 | 窗口地板、容器 278：仍是两行、无重叠（上一节那一刀已验证） |
+
+2200 那一档正是旧方案出「联网…」「多…」的那类宽度，现在标签完整、右端靠右。
+
+### 五、门禁
+
+`corepack pnpm verify` 绿：**384 文件 / 5049 passed | 2 skipped（5051 条注册）**，`VERIFY_EXIT=0`。
+只改 CSS 与两份守卫，dev 侧 HMR 已生效；代码未推送。
+
+## 第一百四十七节：右栏页签被压成竖排（窄窗复核第二站，2026-10-22）
+
+**来源**：接着上一节做窄窗逐页走查，窗口地板 1000 CSS（右栏还剩约 460）时撞到。
+
+### 一、缺陷
+
+右栏工具行里，「文稿 / 浏览 / 作品资料」三枚页签被压到**半个字宽**：
+中文可以在任意两个字之间折行，于是折成「文/稿」「浏/览」「作品资/料」三摞竖排，
+每个页签变成 50px 高的两行小字。工具链全绿、界面不可读——与 §一百四十五 同一类。
+
+### 二、成因
+
+`.view-tabs` 是 `.editor-toolbar` 的一个 flex 项目，默认 `flex: 0 1 auto`
+⇒ 它是那一行里**唯一会让路**的东西。同行的 `.editor-text-tools` 里带一条
+`flex: 1 1 100%` 的提示行（`interaction.css:156`），max-content 把整行撑爆，
+缺额按收缩比例摊下来，页签控件被压到 min-content（一个汉字宽）。
+
+### 三、修法（两处各挡一半）
+
+`editor-pane.css`：
+
+- `.view-tabs` 加 `flex: 0 0 auto` —— 整条分段控件不参与收缩，
+  空间不够交给 `.editor-text-tools`（它本来就会把提示行折到下一行，见 `flex-wrap: wrap`）。
+- `.view-tabs button` 加 `white-space: nowrap` —— 只挡外面那层不够：
+  按钮自己不折行，才不会在控件内部再折一次。
+
+守卫：`document-pane-wiring.test.ts` 新增「窄栏页签不许折成竖排」一条（读两条规则的正文）。
+
+### 四、真机复核
+
+- 1000 CSS（1500×1051 物理）：页签恢复单行「文稿 / 浏览 / 作品资料」，提示行照旧折到下一行，无溢出。
+- 1600 CSS（2400×1400 物理）：宽窗无变化。
+
+### 五、门禁
+
+`corepack pnpm verify` 绿：**384 文件 / 5050 passed | 2 skipped（5052 条注册）**，`VERIFY_EXIT=0`
+（比上一节多一条 = 新增的那条守卫）。代码未推送。
+
+## 第一百四十八节：皮肤广场筛选档被压成两行字（窄窗复核第三站，2026-10-22）
+
+**来源**：接着上一节做窄窗逐页走查，这一站是皮肤广场。同一个缺口的第四例，
+但这次连 1600 CSS 的常规窗都撞到（不是只有窄窗）。
+
+### 一、缺陷
+
+「画面」「挂件」两行各有十六枚筛选档。放不下时它们**不折行**，而是每一枚被压窄，
+四个字的中文在任意两字之间折开：
+
+- 1600 CSS（2400×1400 物理）：「绯青夜景」折成「绯青夜 / 景」，「全部」折成「全 / 部」，
+  一行里每枚档高度不一，读起来像换行错乱的表格。
+- 1000 CSS（1500×1051 物理）：压到极限后尾部整枚溢出窗口右缘——
+  「樱站昼樱」「枫叶」落在窗外，**点不到**（不是看不到提示，是这一档根本选不了）。
+
+### 二、成因
+
+十六枚档原先**直接挂在 `.skin-filter-row` 这条单行 flex 上**（行里只有「组标签 + 十六枚档」
+两类项目）。档是 flex 项目、默认 `flex-shrink: 1`，而按钮里的中文能在任意字之间折行
+⇒ 缺额被摊到每一枚档上，它们先各自缩成两行字；缩到 min-content 之后剩下的缺额才表现为溢出。
+与 §一百四十七 的页签是同一个成因族（中文可折 + 单行 flex 上的默认可缩项目）。
+
+### 三、修法（三处各挡一角）
+
+`SkinGalleryPage.vue`：把每行的档包进一层 `.skin-filter-values`。
+
+- 折行必须发生在「标签右侧那一组」里。折在 `.skin-filter-row` 本身上也能不出两行字，
+  但续行会回到组标签左边、与标签起始位对齐着掉下来，四行的档就不再横向对齐了
+  （那正是 `.skin-filter-label` 定宽 52px 想保住的东西）。
+
+`skin-gallery.css`：
+
+- `.skin-filter-values`：`flex: 1 1 auto; flex-wrap: wrap; gap: 8px; min-width: 0`。
+- `.skin-filter` 加 `flex: 0 0 auto` + `white-space: nowrap` —— 整组折行之后，
+  单枚不许再缩、档名不许在自己内部折。
+
+守卫：新建 `appearance-skin-filter-wrap.test.ts`（2 条：规则正文 + 模板里那层包裹存在）。
+先写在 `appearance-skin-plaza-wiring.test.ts` 里，但它正好 799 行——加一条就越过 800 行预算，
+于是按「钉的对象」拆开（这类拆分在 §一百四十六 前后已有先例）。
+
+### 四、真机复核
+
+- 1600 CSS：画面行折成两行（续行从第一枚档的 x 起排），每枚都是单行完整的四字档；挂件行同理。
+- 1000 CSS：画面两行、挂件两行，尾部「樱站昼樱」「枫叶」都在窗内且可点；下方说明文字不动位。
+
+### 五、门禁
+
+`corepack pnpm verify` 绿：**385 文件 / 5052 passed | 2 skipped（5054 条注册）**，`VERIFY_EXIT=0`
+（比上一节多一个测试文件、两条守卫）。代码未推送。
+
+## 第一百四十九节：打开作品后左栏作品库不出现这一本（窄窗复核第四站，2026-10-22）
+
+**来源**：窄窗逐页走查时按 Ctrl+O 重新打开示例书，左栏「作品库」仍是上一行，
+刚打开的这一本要**重启之后**才补上。
+
+### 一、缺陷
+
+`book:open` / `book:create` 成功的一刻，主进程会往 `recent-books.json` 记一笔
+（作品库那一栏的镜像就读这份清单）。但这条记账挂在 `hooks.onOpened` 上，而装配处
+写的是 fire-and-forget：`onOpened: (book) => recentBooks.touch(...)`，`registerBookIpc`
+也按同步 void 调它、立刻把回执发回渲染层。渲染层收到回执后紧接着读 `book:recent`，
+此时清单可能还没写完 ⇒ 读到旧清单，刚打开的这一本不在库里；重启后清单落盘完成，才补上。
+
+### 二、修法
+
+只把这一条旁路改成**可等待**，其余不动：
+
+- `book-service.ts`：`hooks.onOpened?: (book) => void | Promise<void>`，
+  `book:open` / `book:create` 里改成 `await hooks.onOpened?.(...)`，等它落地再返回回执。
+- `index.ts`：装配处把 `touch` 的 Promise 原样返回（`onOpened: (book) => recentBooks.touch(...)`）。
+
+等待不会把开书拖失败：清单那头的读写错误一律在 `recent-books-store` 内部咽掉。
+
+守卫：`book-data-service.test.ts` 新增一条——用一个 gate Promise 卡住 `onOpened`，
+先断「回执还没发」，release 之后才放行在途的开书。变异验证：把 `await` 去掉，该用例如期失败。
+
+### 三、真机复核
+
+清掉 `recent-books.json` 里原有两条记录（只移记录、文件未删），重启，再用 Ctrl+O 打开示例书：
+**无需重启**，左栏当场出现「海雾手记 · 正在写」。
+
+### 四、门禁
+
+见 §一百五十一 末尾（同一轮一起跑）。
+
+## 第一百五十节：1000 CSS 下 hero 标题折成「墨宸·主 / 笔」（2026-10-22）
+
+**来源**：同一轮窄窗走查，三栏全开、窗口地板 1000 CSS 时中栏只剩约 300px。
+
+### 一、缺陷
+
+已打开作品时 `.workbench-hero` 是横向 flex：品牌图 118px + 18px 间距之后，
+正文栏只剩约 90px。「墨宸·主笔」一行放不下，中文在任意两字之间折开，标题变成
+「墨宸·主 / 笔」两行；下面的引言也跟着挤成窄条。
+
+### 二、修法
+
+`conversation-pane.css`：
+
+- `.workbench-hero` 加 `flex-wrap: wrap` —— 放不下就让正文整段落到品牌图下面，而不是压窄。
+- 新增 `.workbench-hero:not(.is-no-book) .workbench-hero-text { flex: 1 1 160px }` ——
+  160px 是「墨宸·主笔」一行放得下的最小宽。只对**有书**那种横向 hero 生效：
+  无书时 hero 是 `flex-direction: column`，同一个 `flex-basis` 会变成高度，所以不能落到通用规则上。
+
+守卫：`book-workbench-wiring.test.ts` 新增两条（hero 允许换行 + 基准宽只挂 `:not(.is-no-book)`）。
+
+### 三、真机复核
+
+1000 CSS（1500×1051 物理）：hero 变成「品牌图在上、标题与引言独占整行」，标题一行完整；
+1600 CSS 无变化。
+
+## 第一百五十一节：右贴边全高抽屉的头部按钮压在 —□× 底下（2026-10-22）
+
+**来源**：同一轮窄窗走查，Ctrl+Shift+N 打开笔记面板后，头部只剩「笔记」两个字，
+「新建笔记 / 关闭」两枚按钮**屏幕上根本不在**——位置正好是无边框窗口右上角的窗控叠加区。
+
+### 一、缺陷与范围
+
+窗口是 `titleBarStyle: hidden` + `titleBarOverlay`（高 50px、右侧约 138px 给 —□×）。
+右贴边、全高的抽屉把头部 12px 内边距 + 28px 按钮摆在 `top: 12px`，整枚落在系统按钮底下：
+系统按钮画在页面之上 ⇒ 屏上看不见；点下去命中的是「最小化 / 关闭窗口」。
+同一形状共三处：笔记面板、写作目标面板（Ctrl+Shift+G，原先只有 Esc 能关）、故事大脑面板（Ctrl+Shift+B）。
+
+### 二、修法
+
+三处栏头各加一条与右栏栏头（`editor-pane.css` 的 `.editor-header`）**同一条**让位口径：
+
+```css
+padding-right: calc(16px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+```
+
+不支持 `titlebar-area-*` 的平台三项相消回 0，退回原来的 16px，不多留空。
+
+守卫：`frameless-titlebar-wiring.test.ts` 新增一条 `it.each`，把三份抽屉的栏头一起钉住
+（一处漏了，下一份右贴边抽屉就不会再漏第二次）；`notes-panel-wiring.test.ts` 只留
+「两枚头部按钮仍在模板里、各有 onClick」，不再重复写让位断言。
+
+### 三、真机复核
+
+1000 CSS：
+
+- 笔记面板：+ / × 出现在 —□× 左侧；点 × 面板关闭（窗口不关）；点 + 打开新建表单
+  （正文、标签、「附在当前章上 · 第二章·灯塔里没有人」、保存/取消，排版正常）；Tab+Enter 同样可用。
+- 写作目标面板：头部出现带焦点环的 ×，位于 —□× 左侧；点它面板关闭。
+- 故事大脑面板：+ / × 均在窗控区左侧；760px 面板左缘留出遮罩，列表与详情两栏未挤压，底部「Esc 关闭」完整。
+
+### 四、门禁
+
+`corepack pnpm verify` 绿：**385 文件 / 5059 passed | 2 skipped（5061 条注册）**，`VERIFY_EXIT=0`
+（比 §一百四十八 多 7 条：作品库回执 1、hero 换行 2、三份抽屉让位 3、笔记按钮通路 1）。代码未推送。
+
+## 第一百五十二节：设置「项目管理」读的是没人写的书签册（2026-10-22）
+
+**来源**：同一轮 1000 CSS（1500×1051 物理）窄窗走查。中栏开着《海雾手记》，
+设置 → 项目管理却写「当前作品：尚未打开」「最近作品：还没有任何作品」；
+主进程 `%APPDATA%/mochen-ai-dev/recent-books.json` 里明明有一条《海雾手记》。
+
+### 一、缺陷与根因
+
+`ProjectSettingsPanel.vue` 读 `useProjectManagerStore`（localStorage
+`mochen.project-manager.v1`）。全仓 grep：`registerProject` / `registerAndActivate`
+**零调用点**，只命中定义与导出 ⇒ 这份书签册永远为空，面板永远说「尚未打开 / 没有任何作品」。
+作品的真实账在另一条链上：主进程 `recent-books-store.ts` 落盘 `recent-books.json`，
+渲染层镜像在 `useBookStore.recentBooks`，当前书在 `book.meta/rootPath`。
+
+同面板「打开作品目录」只调 `window.mochen.pickBookDirectory()` 并丢掉返回值——
+选完目录不开书，回执白丢。
+
+### 二、修法
+
+1. 面板数据源换成 `useBookStore`：
+   - 当前作品 = `book.meta?.title`；
+   - 最近作品 `v-for="entry in book.recentBooks"`（key = `rootPath`，高亮判据
+     `book.rootPath === entry.rootPath`）；
+   - 行点击 `await book.openBook(entry.rootPath)`；行移除
+     `book.forgetRecentBook(entry.rootPath)`（只划掉清单，不动盘上的书）；
+   - `onMounted` 里 `loadRecentBooks()`：清单原只在开书后刷新，先进设置页的人也得看见；
+   - 「打开作品目录」改调 `book.pickAndOpen()`（选目录 + 开书 + 主进程记账）；
+   - 元信息只留最近打开时间：`RecentBookEntry` 契约没有字数，不编造。
+2. 守卫：
+   - `char-count-wiring.test.ts` 的 `PANELS` 去掉该面板（它不再显示字数），注释同步；
+   - 新增 `project-settings-wiring.test.ts`，钉死 `useBookStore` 数据源、四个接点
+     （`recentBooks` / `openBook(` / `forgetRecentBook(` / `pickAndOpen(`）与 `v-else` 空态；
+   - 变异验证：① 列表改回 `pm.sortedProjects` ⇒ 红；② `pickAndOpen` 改回 `pickBookDirectory` ⇒ 红；
+     还原后全绿。
+
+### 三、真机复核
+
+设置页逐节走查（1000 CSS）：模型配置、智能体、写作、外观（含底部半透明侧栏 / 减少动效）、
+快捷键（键位表三列未溢出，长说明折行正常）、写作目标（五枚档位一行放得下）均无溢出或遮挡。
+项目管理：修复后面板显示「当前作品：海雾手记」，最近作品列出「海雾手记 · 10/22」一行，
+标题与时间都在面板宽度内；空态文案只在清单为空时出现。
+右边缘约 10px 的浅灰条带是截图越过窗口客户区拍到的桌面残影（窗口 1500 宽、客户区 1478×1040，
+DWM 边框 11px），不是页面缺陷。
+
+### 四、门禁
+
+`corepack pnpm verify` 绿：**386 文件 / 5062 passed | 2 skipped（5064 条注册）**，`VERIFY_EXIT=0`
+（比 §一百五十一 多 1 个文件、3 条：新守卫 4 条，char-count 少 1 条）。
+窗口还原 2400×1400 @ (80,80)。代码未 commit、未推送。
+
+### 五、本节收不掉的口子
+
+- `useProjectManagerStore` 与 `ProjectSwitcher.vue` 已无生产引用，仍是死代码；清理会牵动多条
+  既有守卫，留给后续专刀；
+- 最近作品没有字数 / 章节数，因为主进程清单契约里没有这两项；
+- 自动化换书复核时，文件夹对话框的「选择文件夹」按钮未能被脚本点中（对话框 Modal 压在应用窗口后），
+  换书链路由 `project-settings-wiring` 与既有开书通路共同覆盖，未做第二本书的真机切换。
+
+## 第一百五十三节：页脚空态把「字」挂在一个没设的目标后面（2026-10-23）
+
+### 一、问题
+
+真机走查页脚（窗口 2400×1400）：本章没设目标时，页脚读作「目标 [未设] 字 · 已保存到本机」。
+
+成因在 `components/ChapterQuota.vue` 第 41 行：单位「字」写在 input 之后、**无条件**渲染，
+而 `utils/chapter-quota.ts` 在 `target <= 0` 时把 `label` 置空串。于是空态里那个「字」
+悬在一个空目标后面——「[未设] 字」读起来就是「未设字」，一个没有所指的单位。
+
+### 二、修法
+
+- 单位与 label 同档：`<span v-if="quota.target > 0">字</span>`；设了目标才带单位，
+  空态只留「目标 [未设]」。判定复用 `chapter-quota.ts` 已有的 `target: 0` 返回，不新增判据。
+- 守卫加在 `document-pane-wiring.test.ts` 末尾：正向钉 `<span v-if="quota.target > 0">字</span>`，
+  反向钉旧的裸「字」写法不再出现（文件 458 行，未触 800 行门禁）。
+
+### 三、真机复核
+
+页脚现为「… 目标 [未设] 已保存到本机」，多余单位消失，其余状态句与保存按钮位置未变。
+
+### 四、门禁
+
+`corepack pnpm verify` 绿：**386 文件 / 5063 passed | 2 skipped**，`VERIFY_EXIT=0`
+（比 §一百五十二 多 1 条，即新守卫）。窗口还原 2400×1400 @ (80,80)。代码未 commit、未推送。
+
+### 五、本轮看到但没动的四条（等拍板）
+
+1. **1600 CSS 下上下文 chip 截成半截英文**：`utils/context-meter.ts:125` 拼的是
+   `` `${entries} 条 · ≈${tokens} tokens` ``，窄档被压成「4 条 · ≈565 t…」。中文界面里留半截
+   英文单词，可改「tok」或「词元」，但 chip 宽度阶梯与 `composer-toolbar-overflow.test.ts`
+   的断言要一起改。
+2. **工作台快捷卡文案含内部术语**：`utils/workbench-state.ts:80-86` 三张卡都写「落到右栏浏览态」
+   （「浏览…浏览」重复），`chief-write` 的「再交给你逐条审批」主语含混。多处守卫逐字钉这几句，
+   改动须同步。
+3. **页脚状态句与按钮同名**：状态「已保存到本机」与按钮「保存到本机」一个说状态一个说动作，
+   并排时像自相矛盾（`DocumentPane.vue:770-796`）。
+4. **左栏两个「素材库」**：书稿素材分组与小说大脑子项同名，点错才发现进的是另一个东西。
+
+## 第一百五十四节：工作台卡文案与页脚保存按钮的重复话（2026-10-23）
+
+### 一、改了什么
+
+1. 工作台三张浏览卡原写「浏览人物分组第一篇，落到右栏浏览态」——「浏览态」是代码里的叫法，
+   界面上没有这个概念，而且一句里「浏览」出现了两次。改成说清结果：
+   「打开人物分组第一篇，在右栏读它。」（素材库 / 大纲同构）。
+2. `chief-write` 的「预填一句改稿指令，再交给你逐条审批」主语悬空（谁把什么交给谁）。
+   改成「预填一句改稿指令；改稿提案逐条等你批准。」
+3. 页脚原来并排「已保存到本机」与按钮「保存到本机」，状态句与动作短语几乎同字。
+   按钮收成「保存」，目的地由左侧状态句交代；保存中仍显示「保存中…」。
+
+### 二、守卫
+
+- `workbench-state.test.ts`：`chief-write` 逐字换成新句；空卡断言改成与
+  `WORKBENCH_CARD_HINTS.character` 不等（不再抄旧文案的字面量）；新增一条
+  「五句卡脚里出现『浏览态』或『落到』就红」，防止内部叫法再漂回界面。
+- 保存按钮文案全仓只有 `DocumentPane.vue` 一处，无测试钉它，无需改守卫。
+
+### 三、复核与门禁
+
+纯文案替换，DOM 结构与样式未动：按钮字更短不会撑破栏宽；卡脚说明仍是自动折行
+（`conversation-pane.css:466` 的 `.workbench-card-hint` 没有 clamp）。
+`corepack pnpm verify` 绿：**386 文件 / 5063 passed | 2 skipped**，`VERIFY_EXIT=0`
+（与 §一百五十三 同基线：本轮只改既有用例，未新增注册）。窗口 2400×1400 @ (80,80)。
+代码未 commit、未推送。
+
+### 四、没动的两条与理由
+
+1. **1600 CSS 下上下文 chip 的「≈565 t…」**：`agent-pane.css:1782` 明写三档阈值是照固定开销
+   算出来、真机量过 1024 / 1100 / 1280 / 1440 四档的，改之前必须先量。本轮没有新的测量数据，
+   硬改阈值或在窄档换单位都属于凭空猜宽度，留到有测量的一轮。
+2. **左栏两个「素材库」**：这不是错标一处——左栏树分组与「小说大脑」子项都取
+   `BOOK_KIND_LABELS`，世界观 / 人物 / 势力 / 地图 / 时间线 / 素材库 / 术语表七项全都同名
+   出现两次，是「一份中文名」的既定裁定（`utils/side-nav.ts:54-55` 写明：早先手写别名，
+   用户按提示找不到文稿）。只改素材库一项会把那条路重新弄断，需要整层导航一起设计，
+   不在本轮范围。
+
+## 第一百五十五节：左栏同名子项挂「定位」签（2026-10-23）
+
+### 一、第 2 点已经在 §一百五十四 落地
+
+工作台三张浏览卡与 `chief-write` 的文案已在上一节改完（去「浏览态」、理顺主语），本轮不重复。
+
+### 二、第 4 点：不改名字，改说明
+
+同一份 `BOOK_KIND_LABELS` 同时供着「我的作品」树分组和「小说大脑」子项，
+世界观 / 人物 / 势力 / 地图 / 时间线 / 素材库 / 术语表七项在左栏里各出现两次。
+**不能靠改名解决**：`side-nav.ts:54-55` 写明早先手写别名（人物库 / 设定集）导致用户按提示找不到文稿，
+那份中文名是唯一真身，只改一项会把这条路重新弄断。
+
+改法：子项行的第三列（原本放「规划中」签的那一格）在有这类文稿时挂一枚灰字「定位」，
+说明它只是跳到树里那一组。名字不变，语义分开；没书 / 有书但没这类文稿时它转去引导新建，
+不挂签（挂上就是承诺一个它不会做的动作）。
+
+- 判定下沉到 `utils/side-nav.ts` 的 `sideNavLocateTag(child, docs)`（纯函数，单测钉三态 + 动作类）。
+  `LeftSidebar.vue` 只绑结果，模板仍是三列栅格，不新增列。
+- `.nav-locate` 只是一枚灰字，**不做底色**：第一版给了 `--surface-hover` 底，
+  `appearance-surface-ladder` 当场报两条——深档底没进普查表、块内灰字没 shadow 那枚 token。
+  灰字直接落在侧栏底色上，既不用登记，也不会在深色皮肤里变成又一块要普查的档底。
+
+### 三、行数腾挪
+
+`LeftSidebar.vue` 加一行模板后到 801 行（门禁 800），把判定搬进 `side-nav.ts` 并删掉本地包装，
+同时合并顶部那段「我在改哪本书」注释（5 行 → 3 行），落到 798 行。
+
+### 四、守卫与门禁
+
+- `side-nav.test.ts`：新增 `sideNavLocateTag` 三态用例（有这类文稿 true；没书 / 有书没这类 / 动作类 false）。
+- `left-sidebar-nav.test.ts`：钉模板确实绑了 `sideNavLocateTag(child, book.docs)`、
+  签文是「定位」、第三列仍是 `14px minmax(0, 1fr) auto`、`.nav-locate` 不许自带 `background`。
+- `corepack pnpm verify` 绿：**386 文件 / 5065 passed | 2 skipped**，`VERIFY_EXIT=0`
+  （比 §一百五十四 多 2 条：`sideNavLocateTag` 新用例 + 侧栏守卫一条）。
+
+### 五、真机复核
+
+- 真机窗口 1500×1051（1000 CSS @ 150%），开书「海雾手记」后：左栏「小说大脑」里
+  有文稿的「人物」「素材库」两行右侧各出现一枚灰字「定位」；没有文稿的「世界观」
+  「势力/组织」「地图」「时间线」「专有名词」不挂签——正是判定要的形状。
+- 与树分组「素材库」同屏时，下面那一行读作「素材库　定位」，不再像另一个同名的去处；
+  灰字右对齐落进原「规划中」那一格，没有换行、截断，也没挤压子项名。
+- 复核用的临时脚本与截图都落在 `%TEMP%`，不进仓库。窗口已还原 2400×1400 @ (80,80)，
+  代码未 commit、未推送。
+
+## 第一百五十六节：上下文 chip 那半截「≈989…」（2026-10-23）
+
+### 一、先把缺陷抓在手里
+
+§一百五十四 的第五条把这条留成「等有测量的一轮」，本轮先复现再动手。
+
+之前两次尝试都失败，原因不是脚本坏了，而是**绑定条只在空线程显形**
+（`ComposerBox.vue:158` 的 `contextBarVisible` = 已开书 + 这一格还没消息，见
+`ComposerBox.vue:42` 的注释）。当时那一格挂着两轮历史，所以 chip 整条不在 DOM 里。
+点「+ 新建对话」后绑定条立刻出来，读到的是：
+
+```
+📕 海…   📄 第一章 · 雾从…   章节 …   ✕   👤 墨宸 · 主笔   📚 23 条 · ≈989…   ✏ 正文
+```
+
+计量那颗被压成「23 条 · ≈989…」：数字后面的单位整段没了，只剩省略号。
+顺带记一笔：同一行里书籍胶囊只剩「海…」、文档胶囊的类型副文只剩「章节 …」，
+即 1000 CSS 下这条栏整体超预算（见第五节第 2 条）。
+
+### 二、根因（是固定上限，不是窗口宽度）
+
+- `.context-meter`（`agent-pane.css:1684-1687`）是 `flex: 0 0 auto; max-width: 12em`。
+  它自己 `font-size: 0.857143rem`（≈13.71px）⇒ 上限 ≈164.6px。
+- 盒内固定开销：内边距 16 + 边框 2 + 图标 16 + 两道 gap 16 + 尾巴 12 = 62px
+  ⇒ 留给文字的只有 **≈103px**。
+- 旧串「23 条 · ≈989 tokens」按同字号折算 ≈130px ⇒ 必截。
+- 关键点：`12em` 是与窗口无关的定值，所以这条截断在 **1600 CSS 也一样发生**——
+  §一百五十四 记的「1600 CSS 截成半截英文」和本轮 1000 CSS 的复现是同一个根因，
+  不是窄窗才有的毛病。
+
+### 三、修法：让出前缀，保住单位
+
+chip 改报 `≈{tokens} tokens`（`utils/context-meter.ts:129`），条数不再占这一格。
+理由：同字号下新串 ≈77px，比 103px 的额度还剩 26px；两个候选里
+「只留 tokens」比「只留条数（`23 条 · ≈989`）」更可读——后者是一串没有单位的数字，
+正是这次被截掉单位之后的样子。
+
+条数没有丢：tooltip 首句仍报「装配 N 条 …（+ 会话历史 N 条）」，展开面板还逐条列着条目标题
+与字数，`contextMeterRows` 一字未动。合计口径（装配 + 历史）也一字未动。
+
+**没有碰阶梯阈值。** `agent-pane.css:1782` 明写三档阈值是照固定开销算、真机量过
+1024（284）/1100/1280（408）/1440 的，改之前必须先量；本轮只动文案，`12em`、
+`(max-width: 460px)`、`(max-width: 380px)` 全部原样。
+
+### 四、守卫
+
+- `context-meter.test.ts` 六处逐字断言跟着改（`≈4.3k` / `≈5.6k` / `≈129` / `≈1.1k` /
+  两处 `≈29`）；「有历史」那条改成同时核 chip 的 token 与 tooltip 的
+  「装配 2 条 33 字 + 会话历史 28 条 5902 字」——合账仍在，只是条数改在 tooltip 里核。
+- 新增一条：「chip 那一行不许再带条数前缀」，断言 `text` 不含「条」。
+- 注释同步：`ContextMeter.vue:9`、`composer-toolbar-overflow.test.ts:232` 的
+  TEXT_ONLY 白名单说明都改成「≈M tokens」。
+- 变异：把 `text` 改回 `` `${totals.entries} 条 · ≈${tokens} tokens` `` ⇒ 7 条红
+  （六处逐字 + 新的前缀守卫）；还原后 32 条全绿。
+
+### 五、真机复核
+
+1. 1000 CSS（窗口 1500×1051）：`📚 ≈989 tokens` 完整显示，省略号消失；
+   同一颗胶囊的 12em 上限与尾巴箭头位置都没变，没有把字挤到下一格。
+2. 1600 CSS（窗口 2400×1400）：整条读作
+   「海雾手记 / 第一章 · 雾从海面升起来 / 章节 · 147 字 / 墨宸 · 主笔 / ≈989 tokens / 正文」，
+   计量完整。
+3. 本节看到但**没动**的一条：1000 CSS 下这条栏整体超预算，书籍胶囊仍只剩「海…」、
+   文档胶囊的「章节 · N 字」副文只剩「章节 …」。前者是标题在挤压下的省略，
+   后者由 460/380 两档阶梯管（那一档藏的是副文），真机容器在 1000 CSS 时约 700px，
+   还够不到藏的那一档。要收它得重排这条栏的额度分配（谁先让、谁后让），
+   并且必须连同门槛一起量，不在本轮范围。
+
+### 六、门禁
+
+`corepack pnpm verify` 绿：**386 文件 / 5066 passed | 2 skipped（5068 条注册）**，
+`VERIFY_EXIT=0`（比 §一百五十五 多 1 条，即新加的前缀守卫）。
+窗口已还原 2400×1400 @ (80,80)。代码未 commit、未推送。
+
+## 第一百五十七节：上下文条在 1000 CSS 下整体超预算（2026-10-23）
+
+### 一、把缺陷抓在手里
+
+§一百五十六 第五节第 3 条留的口子：计量修好之后，1000 CSS 那屏这整条仍是：
+
+```
+📕 海…   📄 第一章 · 雾从…   章节 …   ✕   👤 墨宸 · 主笔   📚 ≈989 tokens   ✏ 正文
+```
+
+两处都在省略：书籍胶囊只剩「海…」，文档胶囊的标题与类型副文各剩半截。
+
+真机逐段量（1000 CSS = 窗口 1500×1051，容器 653，bar 可用 605）：
+
+| 胶囊 | 自然宽（CSS） |
+| --- | --- |
+| 书 | 89 |
+| 文档 | 266 |
+| 档案 | 119 |
+| 计量 | 132 |
+| 阶段 | 85 |
+| 间隙 4×8 | 32 |
+| 内边距 | 20 |
+| **合计** | **724** |
+
+缺额 119。收缩规则把缺额按 basis 摊到 `.composer-book-context` 与 `.composer-doc-context`
+两个标题上（其余三枚是 `flex: 0 0 auto`），于是两个标题各自被切掉一截。
+
+### 二、额度从谁身上出：先退「屏上已有第二份」的那两段字
+
+按 5-⑱ / 5-㉓ 的老裁定——**控件一个不藏，只藏文字，从次要的先藏**——这两段字恰好都有第二份：
+
+- 档案名「墨宸 · 主笔」就在对话栏顶上（`.conversation-heading-start strong`）；
+- 文档的「章节 · N 字」在页脚字数里（`ChapterQuota`）。
+
+所以先让这两段退场：档案胶囊只剩图标 + 下拉箭头，文档胶囊只留标题。
+名字一个没丢，只是不在这一行重复第二遍。整枚控件、tooltip、点击解绑全部原样。
+
+### 三、阈值 800 怎么来的
+
+1600 CSS 那屏（五枚都完整）逐段量到自然宽合计 **724**（书 89 / 文档 266 / 档案 119 /
+计量 132 / 阶段 85 + 间隙 32 + 内边距 20）。bar 可用宽 = 容器 − 28（左右外边距）− 20（内边距）
+⇒ 临界容器 = 724 + 48 = **772**。取 800，留 28px 余量，吸收字体度量与子像素差。
+
+不是拍的：改之前先按这组数复量过一遍，与 1600 那屏逐段读数一致。
+
+### 四、改法
+
+`agent-pane.css`：
+
+1. 新增 `@container composer (max-width: 800px)`：藏 `.composer-doc-context .doc-context-kind`
+   与 `.composer-profile-context > strong`。
+2. 把 460 档里那条重复的 `.composer-doc-context .doc-context-kind { display: none }` 删掉——
+   同一件事两处实现，改一处忘另一处就是下一次的坑。
+3. 阶梯注释补一行，说明「① 副文先走」这一级已从 460 提前到 800。
+
+没碰：`min-width: 34px` 地板、`.composer-book-context` 的 `max-width: min(58%, 360px)`、
+三枚固定枚的 `flex: 0 0 auto`、300/380/460 三档里那些仍然有效的规则。
+
+### 五、守卫
+
+`extreme-content-overflow.test.ts`：
+
+- 「窄栏递进」的 steps 第一项从 460 改 800（搬档了，断言得跟着搬）。
+- 新增「中等宽度那一档只退『屏上已有第二份』的两段字，整枚控件一枚不藏」：
+  钉 800 档同时含 doc-kind 与 `> strong` 两条 `display: none`，且**不许**出现
+  `.composer-context-item { display: none }`。
+- 「每一档都还把间隙与内边距往回收」里 460 那项的 selector 改成 `.composer-context-bar`
+  （该档现在只收 gap / padding，不再管副文）。
+
+### 六、变异
+
+- M1：`800px` 改回 `520px` ⇒ 2 条红（`containerStep` 找不到 800 档，新守卫与递进守卫同时炸）。
+- M2：删掉 `.composer-profile-context > strong` 那条 ⇒ 1 条红（新守卫）。
+- 还原后 `extreme-content-overflow` 26 + `context-meter` 32 + `composer-toolbar-overflow` 17，
+  共 **75 条全绿**。
+
+### 七、真机复核
+
+1. 1000 CSS（窗口 1500×1051）扫描读数（CSS 坐标）：
+   书题 `350.7 → 398`（47.3，即「海雾手记」全字）、文档标题 `447.3 → 577.3`（130，全标题）、
+   无「章节 · N 字」副文、档案只剩 `624.7` 图标与 `650` 箭头、计量 `708 → 778`（`≈989 tokens`）、
+   阶段 `848 → 872`（`正文`）。截图 `m158_1000b.png` 目视一致，无挤字、无叠印。
+2. 1600 CSS（窗口 2400×1400）复测：五枚全在，
+   读作「海雾手记 / 第一章 · 雾从海面升起 · 章节 · 147 字 / 墨宸 · 主笔 / ≈989 tokens / 正文」——
+   800 档在宽屏一个字都不动，该显的仍显。
+
+### 八、门禁
+
+`corepack pnpm verify` 绿：**386 文件 / 5067 passed | 2 skipped（5069 条注册）**，
+`VERIFY_EXIT=0`（比 §一百五十六 多 1 条，即新增的中等宽度守卫）。
+窗口已还原 2400×1400 @ (80,80)。代码未 commit、未推送。
+
+## 第一百五十八节：接手那半截导航重构——先让红树回绿（审核四项迁出左栏的收口）＋死代码专刀（2026-10-23）
+
+**来源**：用户「看看功能……还有哪些反人类的地方／UI……仓库里继续完成未完成的东西」。接手时工作区
+（分支 `feat/plan3-interaction-and-assembly` 领先 origin 17 笔、压着 136 处改动 + 30 份新增）
+**是红的**：`vitest` 4 条红、行数预算 1 条红、`tsc`（apps web）1 条红、`prettier` 11 份未合规。
+本节先把红收掉，再落死代码专刀。
+
+### 一、接手时的四处红（逐条读数）
+
+| # | 红在哪 | 判据 | 根因 |
+| --- | --- | --- | --- |
+| 1 | `utils/side-nav.test.ts` 3 条 | 仍按「三组（brain/plan/review）」写，且 `import { aiCheckOf }` | 半截重构删了「审核检查」组与 `aiCheckOf`，守卫没跟 |
+| 2 | `components/DocumentPane.vue` **806 行 > 800** | `tools/check-source-line-budget.mjs` | 本轮新增的「预览剥围栏」注释把文件顶过预算（改前 800 整） |
+| 3 | `apps/desktop/tsconfig.web.json` 1 条 | `utils/timeline.ts` 的 `TOOL_LABELS: Record<AgentToolName>` 缺 `use_skill` | 2026-10-23 新增 `use_skill` 工具，穷尽表没跟 |
+| 4 | `prettier . --check` 11 份 | 4 份源码（`builtin-skills.ts` / `doc-tools-host.ts` / `VolumeOutlinePanel.vue` / `side-nav.ts`）＋ `.codeartsdoer/` 7 份 | 半截重构未格式化；`.codeartsdoer/` 是未跟踪工具目录、没进 `.gitignore` |
+
+另有一处**悬空引用**（同一病灶、当时不红）：`aiCheckOf` 已从 `side-nav.ts` 删除，`LeftSidebar.vue`
+仍 import 它并两处调用——`tsc` 看不见 `.vue`，四枚守卫里两枚只做**文本**断言
+（`center-header-actions.test.ts:91`、`left-sidebar-nav.test.ts:114/171`），所以它一路绿着。
+
+### 二、收口改法
+
+1. `components/LeftSidebar.vue`：删 `aiCheckOf` / `AI_CHECK_PROMPTS` / `NEED_BOOK_HINT` 三个 import、
+   `useAgentStore` 那一行与 `const agent`、`needChapterState` 整个函数、`childState` 里的 AI 检查分支、
+   `onChildAction` 里的 ai-check 分派。「审核检查」四项的真身已是 `main/builtin-skills.ts` 落盘的四个技能
+   （模型经 `use_skill` 自选载入，用户也可在技能库手选挂入）。
+2. 三份守卫同步到新口径：`side-nav.test.ts`（两组 / 子项 7+5 / 删 aiCheckOf 反查）、
+   `left-sidebar-nav.test.ts`（三条：revealAgentPanel 改由两个台账动作消费、needChapterState 删除、
+   ai-check 分派退场）、`center-header-actions.test.ts`（那条 `aiCheckOf` 断言改钉「它不在」）。
+3. `utils/timeline.ts` 的 `TOOL_LABELS` 补 `use_skill: "查技能"`（名字与 `utils/tool-roster.ts` 同一份口径）。
+4. `DocumentPane.vue` 压缩两处注释（预览剥围栏、标题行可编辑），806 → **≤800**。
+5. `prettier --write` 那 4 份源码；`.codeartsdoer/` 按既有工具目录惯例补进 `.gitignore`
+   （prettier 读 `.gitignore`，同款的 `.mochen-tmp/` 就没被点名）。
+
+### 三、死代码专刀（§一百五十二 欠的那把）
+
+`components/ProjectSwitcher.vue` 与 `stores/useProjectManagerStore.ts` 全仓**零生产引用**
+（复核：只剩 `char-count-wiring.test.ts` 的 `PANELS` 与 `appearance-surface-ladder.test.ts` 一张表
+点过名）。两枚整删，同步撤两处守卫登记、改 `profile-options.ts` 里一条注释。
+`mochen.project-manager.v1` 那份 localStorage 书签册自此无人再读。
+
+### 四、门禁
+
+`vitest run`：**386 文件 / 5068 passed | 2 skipped（5070 条注册）**，0 failed（接手时 4 条红）。
+六道闸逐条回读：`prettier --check .` 干净、`tsc` 六枚 `EXIT=0`、`eslint . --max-warnings=0` `EXIT=0`、
+包边界「边界检查通过」、行数预算「759 份通过」。
+窗口未动（本节不涉真机走查）。**代码未 commit、未推送。**
+
+### 五、本节没做的三件（用户点名，如实挂着）
+
+- **素材库真面板**：它现在仍只是一种文稿（`materials/`），没有独立面板；「导入素材 → AI 能读」这条链已通
+  （`ImportTxtDialog` 可导 `material`、`agent-runtime/context.ts` ⑥ 注入），缺的是面板本体与「AI 整理入库」入口，未开工。
+- **导航重排（小说大脑 / 故事规划）**：这两组仍是「跳树分组 / 开聚合动作」的捷径，未合并成真界面、也未收掉同名子项。
+- **重构建**：界面上仍看得见已删的旧导航，因为 `apps/desktop/out/renderer` 停在 **10-21**、release 包停在 **10-10**——
+  须 `pnpm build` / `dev` 才看得到本轮改动。
+
+### 六、就地更正一条过期登记
+
+`docs/superpowers/plans/README.md` 里那句「**未做（留给后续、明确记下）：把这张清单接到 UI
+（技能页显示「推荐」分组 + 一键挂入）**」**已过期**：推荐条 2026-10-17 就接上了——
+`components/ExtensionsPage.vue:238-253` 渲染「推荐技能」、装配在 `stores/useExtensionBrowse.ts` 的
+`skillRecommendations`（`rankSkills` 打分），并有 `extensions-recommend-wiring.test.ts` 与
+`useExtensionBrowse.recommend.test.ts` 两条守卫。原文一字未动，在此更正。
+
+## 第一百五十九节：素材库不再是空壳——真面板 + 两条真动作 + 左栏改成真入口（2026-10-23）
+
+**来源**：用户「那个素材库就是一个空壳……它不是一个单独的界面，加可以导入材料制作前面机器人 AI 能读取到的东西」。
+
+### 一、先把「已经有」和「确实缺」分开
+
+- **已经有**：素材库是一种文稿（`materials/`，`BOOK_KIND_LABELS.material`）；导入链通
+  （`ImportTxtDialog` 的目标开关可导 `material`，2026-10-23 落地）；「AI 能读到」也通
+  （`agent-runtime/src/context.ts` ⑥ 按 1000 额度注入）。
+- **确实缺**：一个能把全书素材列出来、并给出下一步动作的地方。缺这一处，用户看到的「素材库」
+  就只是左栏树里一个分组 = 空壳。
+
+### 二、落了什么
+
+1. 新面板 `components/MaterialPanel.vue` + 入口 `components/MaterialButton.vue`（右栏头部那枚按钮，
+   锚点即它自己）+ 开关 `stores/useMaterialStore.ts`（只存一个布尔，清单从 `book.docs` 派生，
+   不落第二本账）。形态照 `CastCheckButton/Panel` 那一套（Teleport 到 body、贴锚点定位）。
+2. 面板两条真动作：① 「导入文本到素材库」走既有 `layout.openImportTxt()`（不另造一套导入）；
+   ② 「让 AI 整理入库」只 `agent.prefillComposer(...)` 预填一句指令，**不自动发送**
+   （与去 AI 味 / 书稿体检同一条纪律；落库仍受 `write_doc` 逐条审批）。
+3. 左栏「素材库」子项**从 `docs` 改成 `action: "materials-panel"`**——它不再是「跳到树里那一组」，
+   而是展开右栏并打开这个面板。它也因此不再挂「定位」签（`sideNavLocateTag` 对 action 恒 false）。
+4. 三处接线：`styles.css` 引入新样式、`styles/motion.css` 的「弹层出场」表加 `.material-panel`、
+   `DocumentPane.vue` 挂 `<MaterialButton />`。
+5. 守卫：新增 `components/material-panel-wiring.test.ts`（7 条）；`appearance-surface-ladder.test.ts`
+   登两条新规则（`.material-entry:hover` inheritFrom + shadow、`.material-action:hover:not(:disabled)`
+   primary）；`side-nav.test.ts` 的素材库 reality 与「定位」签夹具同步。
+
+### 三、行数预算
+
+`DocumentPane.vue` 加挂载后到 802 ⇒ 压两处旧注释（改稿历史 / 审稿打分）回 **≤800**。
+本节的四个新文件另计（面板 140 行级，未触预算）。
+
+### 四、门禁
+
+`vitest run`：**387 文件 / 5079 passed | 2 skipped（5081 条注册）**（比 §一百五十八 多 1 个文件 = 新守卫）。
+`prettier --check .` 干净、`tsc` 六枚 `EXIT=0`、`eslint . --max-warnings=0` `EXIT=0`、包边界通过、
+行数预算 763 份通过。已 `electron-vite build` 重建（`out/` 22:15），产物里 `material-panel` /
+`useMaterialStore` 均在。窗口未动。**代码未 commit、未推送。**
+
+### 五、本节没做的（下一刀）
+
+- 左栏「小说大脑 / 故事规划」里其余与树同名的跳转子项（世界观 / 人物 / 势力 / 地图 / 时间线 /
+  专有名词 / 大纲 / 分卷 / 章节管理）**仍在**，未收；`sideNavLocateTag` 与「定位」签仍服务它们。
+- 「导入文本到素材库」**没把对话框的目标预设成素材库**：打开后仍是「章节」默认，需用户自己切到
+  「素材库」那一档（预设要动 `layoutStore.openImportTxt` 签名与 `ImportTxtDialog` 的初值，留作下一刀）。
+
+## 第一百六十节：收掉与树同名的跳树子项——左栏只剩「素材与台账」一组真身（2026-10-23）
+
+**来源**：用户原话（「小说大脑故事规划都是空壳，没啥用」）；方向由我定（用户答「都行」）。
+
+### 一、缺陷是什么（不是审美）
+
+左栏那两组共 11 个子项里，9 个的 `reality` 是 `docs`——点下去的真身就是「展开左栏『我的作品』树里的对应分组」。
+而树本来就在**同一屏**上，于是同一类文稿在左栏出现两个入口，读起来像两个去处（§一百五十五 为此加过「定位」签，
+那是缓解，不是根治）。
+
+### 二、改法
+
+1. 删「小说大脑」整组（世界观 / 人物 / 势力·组织 / 地图 / 时间线 / 专有名词 六项全是跳树）。
+2. 「故事规划」组改名「素材与台账」，只留三项**各有真身**的子项：素材库（有面板，上一刀）/
+   伏笔台账 / 时间线核对。
+3. 连带删掉只为那 9 项存在的真身：`sideNavLocateTag`（纯函数）、左栏那枚「定位」签、
+   `styles/left-nav.css` 的 `.nav-locate` 规则，以及三处守卫里对应的断言。
+4. `docs` 这一种现实**保留**——`sideNavChildState` 的三态判定仍是通用能力（左栏树自己的 need-doc
+   引导也走它），与 `planned` 那条「暂时没有实例、机制保留」同一写法，表头注释里写明了。
+
+### 三、一处本次的失误（记下来免得再犯）
+
+第二次编辑时，`oldString` 里带了「定位」签函数的整段、并在末尾接了另一处注释，**匹配到的区域比预期大**：
+把 `SideNavChildReality` / `SideNavChild` / `SideNavGroup` / `SIDE_NAV_GROUPS` / `BRAND_TAGLINE` /
+`FOOTER_TAGLINE` 一整段一起删掉了（文件从 188 行掉到 104 行）。当场按读回的内容重建，之后 `tsc` 六枚与
+`vitest` 全量都过、导出符号逐个回读齐全（见门禁）。教训：**删块时 oldString 只写到块尾**，
+不要顺手把相邻的下一个注释也吃进去——两处不相邻的文本会被当成一处。
+
+### 四、门禁
+
+`vitest run`：**387 文件 / 5078 passed | 2 skipped（5080 条注册）**（比 §一百五十九 少 1 条 = 删掉了那条
+`sideNavLocateTag` 用例）。`prettier --check .` 干净、`tsc` 六枚 `EXIT=0`、`eslint . --max-warnings=0` `EXIT=0`、
+包边界通过、行数预算 763 份通过。已重建（`out/` 22:27）；产物里 `nav-locate` / `sideNavLocateTag` /
+`小说大脑` 均 **0 命中**。窗口未动。**代码未 commit、未推送。**
+
+### 五、本节没做的
+
+- 「导入文本到素材库」仍未把对话框目标预设成素材库（§一百五十九 第五节那条，照旧挂着）。
+- 工作台空卡的引导（`layout.docGroupRequest` → `guideToDoc`）**没动**：它指向的是树里那一组，
+  与本次收掉的导航子项是两件事。
+
+## 第一百六十二节：真机走查（1000 / 1600 CSS）与三处「反人类」的处置（2026-10-23）
+
+**来源**：用户「看看功能，还有 UI 那个…」——本节先补当初「两条并行」里欠的那一半（真机走查），
+拿到读数再决定改什么。
+
+### 一、走查做法与局限（先记下来）
+
+- 用**生产产物**起应用（`electron apps/desktop`，跑的是 `out/`），窗口 2400×1400 @ (80,80)
+  （= 1600 CSS，本机 150% DPI）与 1500×1400（= 1000 CSS）两档；作品用 `.mochen-tmp/p535/probe-book`（两章）。
+- **局限**：墨宸的 a11y 树坐标是飘的（frameless 窗口），只能按截图目测定位点击；且宿主窗口反复抢焦点，
+  `Type` 送不进去 ⇒ **发送链路没能复测**。下面每条读数都标了是在哪一格量的。
+
+### 二、确认已闭的三条（2026-10-04 旧报告）
+
+- 设置页在 1000 CSS **没有**裁切（「模型配置 / 智能体 / 写作 / 外观 / 快捷键 / 写作目标 / 项目管理 /
+  远程备份 / 关于」逐条完整）——「模型页签被裁」随设置中心整页化解决。
+- 皮肤广场、空工作台、草稿区在窄档换行均正常；左栏新导航两档正常（「素材与台账」默认展开，三项真身子项在位）。
+
+### 三、P1：旧会话把**原始服务端异常**原样端上桌 —— 已修
+
+**读数**：打开作品后聊天区摆着 5 条红底气泡，原文——
+`模型服务端返回 422: ***.BadRequestError: OpenAIException - Failed to deserialize the JSON body into the target type: tools[9].function: missing field 'parameters' at line 1 column 8706`。
+读盘定日期（`sessions/2026/10/08/rollout-…jsonl`）：**15 天前的旧记录**；界面上没有日期、没有「旧记录」标记，
+读起来像应用现在坏了。它同时把英文异常类名、内部结构 `tools[9].function`、字节偏移 `column 8706` 端给用户，
+且没有下一步。
+
+**根因**：`provider-client.ts` 的 `humanizeUpstream` 只认两种形状（图像/视频模型），其余**原样透传**，
+这条 serde 反序列化报错正好落在「其余」里。盘上三个内置插件（outline / rhythm / roster）**都带 `parameters`**
+⇒ 这是旧插件版本的产物，当前代码不可复现。
+
+**改法**：`humanizeUpstream` 增一条判据——「反序列化失败」与「tools[N]」**两段同时在**才算，翻成
+「工具清单被服务端退了：清单里第 N 个工具少一个必填字段（field），整轮对话一条也发不出去。多半是某个
+插件给的工具定义不完整——到左栏『插件』里逐个停用，就能找出是哪一个。」（配套 2 条用例：翻成人话 +
+反向「不带 `tools[N]` 的英文错误体仍原样透传」）。
+
+**没做**：旧记录**没有日期**这件事（要把事件的 `ts` 带到气泡上，属另一刀）。
+
+### 四、P2：撤回（不是缺陷）
+
+原以为「窄档输入区只剩图标」是缺陷。查证后：`components/composer-toolbar-narrow.test.ts` 与
+`composer-toolbar-overflow.test.ts` 里有一张**按宽度逐档隐藏标签**的守卫表（722 / 696 / 662 / 615px 各钉一条），
+那是有意设计且有守卫的。**本条撤回**。
+
+### 五、P3：孤字成行——试修，读数推翻修法，已回退
+
+**读数**：1000 CSS + 右栏展开（中栏 ~300px）时，空工作台那段提示的末行只剩「录。」。
+
+**试修**：给 `.workbench-lead` 加 `text-wrap: pretty`（标准做法：避开末行过短）。**真机 A/B**：
+
+| 配置 | 中栏宽 | 末行 |
+| --- | --- | --- |
+| 加 `pretty` | ~300 CSS | 「…作品 / **目录。**」——段数从 2 行顶到 3 行，**孤字还在** |
+| 回退后 | ~312 CSS | 「…你不点批 / 准，它一个字也写不进作品目录。」——2 行，正常 |
+
+⇒ `text-wrap: pretty` 对**中文**孤字无效（它做的是行间均衡，不是消除孤字）。**改动已回退**，
+`conversation-pane.css` 相对 HEAD 只剩 10-22 别人那 16 行。建议单开一刀：极窄档用容器查询换短文案，
+或换这一段的换行策略。
+
+### 六、P4（观察，未动）
+
+模型选择浮层的分组标题写作「对话 / 写作（名字像是）」「图像（名字像是）」「视频（名字像是）」
+（`utils/model-picker.ts:26-28`）。那是「不按名字猜能力」的诚实口径，但把对冲说法放进**标题**里读着像
+没写完的句子。改不改由用户定。
+
+### 七、门禁
+
+`vitest run`：**5081 passed | 2 skipped（5083 条注册）**（比 §一百六十一 多 2 条 = P1 的新用例）。
+`prettier --check .` 干净、`tsc` 六枚 `EXIT=0`、`eslint . --max-warnings=0` `EXIT=0`、包边界通过、
+行数预算 763 份通过。已重建（`out/`）。**代码未 commit、未推送。**
+
+## 第一百六十三节：失败条标出发生时间——把上一节 P1 欠的那半补上（2026-10-23）
+
+**来源**：§一百六十二 第三节自记的「没做」：旧记录**没有日期**，所以 15 天前那批红底失败条读起来
+像「应用现在坏了」。
+
+### 一、改法（复用现成的时间真身，不新写格式化）
+
+1. `utils/timeline.ts`：错误块的类型加 `at: string`，构造时取 `event.ts`——**时间戳跟着事件走**，
+   回放旧会话时带的就是它当时那个时间。
+2. `components/AgentTimeline.vue`：错误那一行前面挂一格 `<span class="error-at">`，格式化只调
+   **已有的** `utils/history-time` 的 `formatHistoryTime`（今天 → `HH:MM`，往日 → `M/D`，跨年带年）。
+3. `styles/agent-pane.css`：新增 `.error-at`——**同色同层、不压暗**（它存在的意义就是让人看见），
+   只收一档字号、数字用 `tabular-nums`，后面跟一个中点隔开正文。
+
+### 二、守卫（含一条被带红的）
+
+- `utils/timeline.test.ts`：错误块那条 `toEqual` 补上 `at`（钉住「时间戳确实来自事件」）。
+- `components/agent-timeline-card-chrome.test.ts`：新增一组「失败条：必须标出发生时间」——
+  气泡里挂着那一格、格式化只调那份真身、且**反向钉住 `.error-at` 不含 `opacity`**（不许被调淡）。
+- `components/message-markdown-wiring.test.ts`：**这条被我的改动带红了**——它原先钉
+  `class="error-line">{{ block.text }}` 这个整串。原意是「这一行是纯文本插值、不走 v-html」，
+  所以改成**按那一段标签取整块**再断言（保留原意 + 钉住新挂的时间戳），而不是把字面量再抄一遍。
+
+### 三、门禁
+
+`vitest run`：**5083 passed | 2 skipped（5085 条注册）**（比 §一百六十二 多 2 条 = 新增的两条守卫，
+含被改钉那条）。`prettier --check .` 干净、`tsc` 六枚 `EXIT=0`、`eslint . --max-warnings=0` `EXIT=0`、
+包边界通过、行数预算 763 份通过。已重建（`out/`）。**代码未 commit、未推送。**
+
+### 四、没动的
+
+- **P3 孤字成行**：仍建议单开一刀（极窄档容器查询换短文案）——§一百六十二 第五节已有 A/B 读数。
+- **P4 模型浮层分组名**（「对话 / 写作（名字像是）」）：那是「不按名字猜能力」的口径，措辞归用户定。
+
+## 第一百六十四节：窄档孤字改用 `balance`——真机读数定案（2026-10-23）
+
+**来源**：§一百六十二 第五节留下的 P3（当时试 `pretty` 无效，已回退）。
+
+### 一、换判据的理由
+
+上一轮试的是 `text-wrap: pretty`——它只均衡**末两行**。而这段提示是 54 字，在窄档正好落成
+「26 + 26 + 2」：末行只剩「录。」。这是**整段均分**能解的问题，对应的是 `balance`，不是 `pretty`。
+
+### 二、真机读数（同一格：1000 CSS + 右栏全开，中栏 ~240 CSS）
+
+| 版本 | 读数 |
+| --- | --- |
+| 原样（greedy） | 2 行：`…写不进作品目` / `录。`——**末行 2 字** |
+| `text-wrap: pretty` | 3 行：`…作品` / `目录。`——**段数被顶到 3，末行仍孤字** |
+| **`text-wrap: balance`（本刀）** | 3 行 **16 / 16 / 16 均分**：`…它会自己读文档、` / `…你不点批` / `准，它一个字也写不进作品目录。`——**末行是整行，孤字消失** |
+
+宽档读数不变（仍两行均分、不多占高度）。代价是窄档那段从 2 行变 3 行——按「末行不许只剩
+一两个字」这条家规换的，值。
+
+### 三、落地的三处
+
+1. `styles/conversation-pane.css`：新增 `.workbench-lead { text-wrap: balance }`，注释里记着三档读数与
+   「为什么不是 pretty」。`balance` 在 Chromium 只作用于六行以内的块，这段最多三行，稳在射程内。
+2. `components/book-workbench-wiring.test.ts`：新增一组守卫——`.workbench-lead` 必须声明
+   `text-wrap: balance`，且**反向不许出现 `pretty`**（真机已证它对中文无效）。
+
+### 四、另外两条就地撤回（都不是缺陷）
+
+- **P2 窄档输入区只剩图标**：`composer-toolbar-narrow.test.ts` / `composer-toolbar-overflow.test.ts`
+  里有一张**按宽度逐档隐藏标签**的守卫表（722 / 696 / 662 / 615px），是有意设计。§一百六十二 已撤，此处重申。
+- **P4 模型浮层分组名「（名字像是）」**：`utils/model-picker.ts:24` 明写「措辞一律带『像是』，不把猜测
+  说成事实」——那是**写进注释的既定规则**，不是笔误。**撤回**，不改。
+
+### 五、门禁
+
+`vitest run`：**5084 passed | 2 skipped（5086 条注册）**（比 §一百六十三 多 1 条 = 新增的窄档孤字守卫）。
+`prettier --check .` 干净、`tsc`（抽查 contracts / agent-runtime / desktop-web）`EXIT=0`、
+`eslint . --max-warnings=0` `EXIT=0`、包边界通过、行数预算 763 份通过。已重建（`out/`）。
+走查实例已关闭。**代码未 commit、未推送。**
+
+## 第一百六十五节：全仓「未完成项」清点——只剩收口这一步（2026-10-23）
+
+**来源**：用户最初那半句「仓库里继续完成未完成的东西」。前面几节都是「撞见什么收什么」，
+本节是**系统扫一遍**——扫法三条，结论一条。
+
+### 一、扫法
+
+1. **代码里的待办标记**：正文树（`apps/desktop/src` + `packages`，排除 `.test.`）扫
+   `TODO` / `FIXME` / `XXX`，**大小写敏感**（不敏感时 `autoDocTool` 里的 `toDo` 会假命中）——**零命中**。
+2. **各 spec 的 `tasks.md` 勾选状态**：六份仍有未勾项（`repeat-guard` 6 / `book-voice-samples` 10 /
+   `judgment-tiers` 10 / `simile-density` 20 / `sense-channels` 10 / `sentence-openings` 13）。
+   其中五份是 §一百四十四 已认定的「**已实现未销项**」（作者写完没回勾）。
+3. **台账里的「留给后续 / 未收口 / 本节没做」**：§一百五十八 ~ §一百六十四 逐条对过，
+   能做的（死代码专刀、导入预设、P3 孤字）都做完了。
+
+### 二、唯一真没做完的：`2026-10-18-repeat-guard` 的 T6「收口」
+
+那一份是**边做边勾**的（T1–T5 全勾、`28` 条里勾了 `22`），剩下 6 条全在 T6：
+
+| 条 | 内容 | 现在能不能做 |
+| --- | --- | --- |
+| T6.1 | 代码/判据/spec 提交并推送 | **不能**——要用户点头（且仓规「功能完成前禁止推送」） |
+| T6.2 | 读真实 CI（私有仓需带凭据） | **不能**——缺凭据 |
+| T6.3 | README「## 门禁」节换绑 ＋ `tools/readme-claims.test.mjs` 回填链注释同步 | **不能**——它要绑到一个**新提交 + 一次 CI run**，而两者都还没发生（`readme-claims` 现在全绿，说明没漂） |
+| T6.4 | 台账补记新一节 | 已在做（§一百五十八 ~ §一百六十四 就是这一刀几节的补记） |
+| T6.5 | 工作树干净、未收口项如实留档、清理仓外临时件 | 留档＝本节；**清理**受"禁止递归删除"约束，临时件留在盘上（见下） |
+
+⇒ **结论：代码层面没有未完成项；全仓只剩「收口」这一步，而它整条都挂在提交/推送那个决定上。**
+
+### 三、如实留档：盘上留下的东西
+
+- `.mochen-tmp/walkthrough-userdata/` —— §一百六十二 走查用的**独立 user-data 目录**（临时件，在
+  `.gitignore` 覆盖范围内）。按"禁止递归删除"的约束**没有删**，留着等你处置。
+- `apps/desktop/out/` —— 生产产物已按每节重建（最后 23:38），属正常产物。
+
+### 四、门禁
+
+本节**只动台账**（`docs/superpowers` 在 prettier 忽略名单内），无代码改动、无新增用例。
+上一节的门禁读数（`5084 passed | 2 skipped`、六闸全绿）仍然有效。**代码未 commit、未推送。**
+
+## 第一百六十一节：导入目标可预设——素材库面板那条入口落到「素材库」档（2026-10-23）
+
+**来源**：§一百五十九 第五节自记的留白（「导入文本到素材库」打开后仍是「章节」默认，需用户手切）。
+
+### 一、改法（一处信号 + 一路透传，不另造开合法）
+
+1. `stores/layoutStore.ts`：新增 `importTxtTarget`（`TxtImportTargetKind`，初值 `"chapter"`），
+   `openImportTxt(target = "chapter")` 变成**带参**——写的是初值，不是锁，用户进去仍可自己改。
+2. `components/ImportTxtDialog.vue`：新增 `initialTarget?` prop，`target` 的初值取
+   `props.initialTarget ?? "chapter"`。
+3. `App.vue`：挂载处补 `:initial-target="layout.importTxtTarget"`（开合真身仍是 `layout.importTxtOpen`，没动）。
+4. `components/MaterialPanel.vue`：那一枚按钮改调 `layout.openImportTxt("material")`。
+   左栏书务行不传参，仍是默认「章节」。
+
+### 二、守卫
+
+`components/import-txt-dialog-wiring.test.ts`：挂载断言改成**容错正则**（`:initial-target` 会把那一行
+由 prettier 折成多行，钉整串就会因为「格式变了」而红），并新增一条「目标初值一路透传」——
+store 带参 → App 透传 → 对话框取初值 → 素材库面板传 `material` / 左栏不传参。共 6 条。
+
+### 三、门禁
+
+`vitest run`：**387 文件 / 5079 passed | 2 skipped（5081 条注册）**（比 §一百六十 多 1 条 = 新的透传用例）。
+`prettier --check .` 干净、`tsc` 六枚 `EXIT=0`、`eslint . --max-warnings=0` `EXIT=0`、包边界通过、
+行数预算 763 份通过。已重建（`out/` 22:31）。窗口未动。**代码未 commit、未推送。**
 
 

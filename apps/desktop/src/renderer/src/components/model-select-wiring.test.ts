@@ -91,7 +91,9 @@ describe("ModelSelect · 弹层本体", () => {
   it("每一行都可点且点了必有反应：当前项带 ✓，点它收起而不是重复写同一个值", () => {
     const markup = templateSource(POPOVER);
     const script = scriptSource(POPOVER);
-    const rowTag = /<button[^>]*class="model-select-row"[^>]*>/.exec(markup)?.[0] ?? "";
+    // 标签内的属性用 `[\s\S]*?` 而不是 `[^>]*`：2026-10-21 起这行挂了 `:ref`，
+    // 函数 ref 的箭头 `=>` 里就带一个 `>`，`[^>]` 会把它当标签结束，取到空串。
+    const rowTag = /<button[\s\S]*?class="model-select-row"[\s\S]*?>/.exec(markup)?.[0] ?? "";
     expect(rowTag, "整行按钮不见了").not.toBe("");
     expect(rowTag).toContain('role="menuitem"');
     expect(rowTag).toContain(`:class="{ 'is-current': name === current }"`);
@@ -156,6 +158,24 @@ describe("ModelSelect · 弹层本体", () => {
 
   it("title 报出通道名（铁律：报不出通道名的控件不进 UI）", () => {
     expect(templateSource(POPOVER)).toContain("provider:list-models");
+  });
+
+  /**
+   * 2026-10-22 真机事故：名单平铺 ⇒ 图像模型混在对话模型里，点错一行就切到
+   * `agnes-image-2.1-flash`，下一句话被上游 400 顶回来。这里钉两件事：
+   *   ① 用 model-picker 的分组与模态标记把「不能对话的」挪到后面并标出来；
+   *   ② **不隐藏任何一个模型**——分组只重排，不按 kind 过滤掉任何一行。
+   */
+  it("图像/视频模型不再和对话模型平铺：分组 + 行尾模态标记，且一个模型都没被藏掉", () => {
+    const markup = templateSource(POPOVER);
+    const script = scriptSource(POPOVER);
+    expect(script).toContain("groupModels(filtered.value)");
+    expect(script).toContain("modelKindOf(name)");
+    expect(markup).toContain("model-select-group-head");
+    expect(markup).toContain("model-select-tag");
+    expect(markup).toContain("不能用来对话");
+    // 反向钉：模板里不许出现「只渲染对话组」这类过滤（分组是重排，不是筛掉）。
+    expect(markup).not.toMatch(/group\.kind\s*===\s*["']chat["']/);
   });
 });
 

@@ -8,8 +8,9 @@ import AppIcon from "./AppIcon.vue";
 import { useBookStore } from "../stores/useBookStore";
 import { useModalFocus } from "../composables/useModalFocus";
 import { useDialogMotion } from "../composables/useDialogMotion";
-import type { TxtChapterDraft } from "@mochen/contracts";
+import type { TxtChapterDraft, TxtImportTargetKind } from "@mochen/contracts";
 
+const props = defineProps<{ initialTarget?: TxtImportTargetKind }>();
 const emit = defineEmits<{ close: [] }>();
 const book = useBookStore();
 
@@ -20,6 +21,9 @@ useDialogMotion({ root: dialogRoot });
 
 /** idle：还没选文件；preview：切章清单已就绪。两态之间只有「选文件」一条路。 */
 const phase = ref<"idle" | "preview">("idle");
+/** 导入目标（2026-10-23）：章节（默认）或素材库——素材落 materials/，AI 会读到它。
+    初值由调用方给（素材库面板开它时预设「素材库」），用户仍可在对话框里改。 */
+const target = ref<TxtImportTargetKind>(props.initialTarget ?? "chapter");
 /** 本地持有的错误：与 NewBookDialog 同一条纪律——不读全局 notice，自己的错自己亮。 */
 const error = ref("");
 /** 主进程报上来的文件名 / 编码（预览头一句话要用）。 */
@@ -59,7 +63,10 @@ async function commit(): Promise<void> {
   }
   working.value = true;
   error.value = "";
-  const result = await window.mochen.importTxtCommit({ chapters: chosen });
+  const result = await window.mochen.importTxtCommit({
+    chapters: chosen,
+    targetKind: target.value
+  });
   if (!result.ok) {
     working.value = false;
     error.value = result.message;
@@ -68,8 +75,11 @@ async function commit(): Promise<void> {
   // 新章登记进 chapterOrder（书的次序真身）：按 txt 里的先后排，不靠文件名的拼音序猜
   // （「第一章/第二章/第三章」按拼音排是 二、三、一——次序必须显式登记）。
   // 打开这本书才进得到这个对话框（入口有 need-book 闸），meta 理应非空；兜一层防外力。
-  const order = [...(book.meta?.chapterOrder ?? []), ...result.created];
-  await book.persistMeta({ chapterOrder: order }, "导入的章节顺序没存住");
+  // 只有导入**章节**才登记 chapterOrder（那是章节次序的真身）；素材不进章节次序。
+  if (target.value === "chapter") {
+    const order = [...(book.meta?.chapterOrder ?? []), ...result.created];
+    await book.persistMeta({ chapterOrder: order }, "导入的章节顺序没存住");
+  }
   await book.refreshDocs();
   working.value = false;
   importedCount.value = result.created.length;
@@ -98,12 +108,26 @@ async function commit(): Promise<void> {
         </header>
         <div class="dialog-content">
           <template v-if="phase === 'idle'">
+            <fieldset class="import-target">
+              <legend>导入到</legend>
+              <label class="import-target-option">
+                <input v-model="target" type="radio" value="chapter" />
+                <span>章节</span>
+                <em>正文章节，登记进章节次序</em>
+              </label>
+              <label class="import-target-option">
+                <input v-model="target" type="radio" value="material" />
+                <span>素材库</span>
+                <em>设定 / 参考材料，落 materials/，AI 会读到</em>
+              </label>
+            </fieldset>
             <p class="dialog-description">
-              选一本存量的 txt 文件，主进程会自动辨认编码（UTF-8 / GBK）、按章节标题切章，
-              然后在这里预览——确认后落成这本书「章节」分组下的一篇篇文稿。
+              选一个存量的 txt 文件，主进程会自动辨认编码（UTF-8 / GBK）、按章节标题切段，
+              然后在这里预览——确认后落成这本书
+              {{ target === "material" ? "「素材库」" : "「章节」" }}分组下的一篇篇文稿。
             </p>
             <p class="dialog-description">
-              不会覆盖书里已有的内容：撞名的章节会在导入前整批拦下，改个标题再导就行。
+              不会覆盖书里已有的内容：撞名的文稿会在导入前整批拦下，改个标题再导就行。
             </p>
             <button
               class="dialog-primary-button import-pick-button"
@@ -119,7 +143,7 @@ async function commit(): Promise<void> {
           <template v-else>
             <p class="dialog-description">
               「{{ fileName }}」按 {{ encoding === "gbk" ? "GBK" : "UTF-8" }} 解码，切出
-              {{ chapters.length }} 章。标题可以直接改（改的就是文件名与章名）；不想要的章把勾去掉。
+              {{ chapters.length }} 篇。标题可以直接改（改的就是文件名）；不想要的把勾去掉。
             </p>
             <ul class="import-chapter-list">
               <li v-for="(chapter, index) in chapters" :key="index" class="import-chapter-row">
@@ -142,12 +166,13 @@ async function commit(): Promise<void> {
               :disabled="working"
               @click="commit"
             >
-              {{ working ? "正在导入…" : `导入这 ${includedCount()} 章` }}
+              {{ working ? "正在导入…" : `导入这 ${includedCount()} 篇` }}
             </button>
           </template>
 
           <p v-if="importedCount !== null" class="dialog-description import-done-line">
-            已导入 {{ importedCount }} 章，都在左侧「章节」分组里。
+            已导入 {{ importedCount }} 篇，在左侧
+            {{ target === "material" ? "「素材库」" : "「章节」" }}分组里。
           </p>
           <p v-if="error !== '' && !working" class="provider-error">{{ error }}</p>
         </div>
@@ -165,6 +190,35 @@ async function commit(): Promise<void> {
 <style scoped>
 .import-txt-dialog {
   width: min(560px, calc(100vw - 64px));
+}
+
+.import-target {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.import-target legend {
+  padding: 0 4px;
+  font-size: 0.82rem;
+  color: var(--text-tertiary);
+}
+
+.import-target-option {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.import-target-option em {
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  font-style: normal;
 }
 
 .import-pick-button {

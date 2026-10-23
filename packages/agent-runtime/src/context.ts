@@ -1,5 +1,11 @@
 import type { AgentProfile, ContextKind, ContextScope } from "@mochen/contracts";
-import { contextKindLabel, splitFrontmatter } from "@mochen/contracts";
+import {
+  castMention,
+  castNames,
+  contextKindLabel,
+  parseCharacterCard,
+  splitFrontmatter
+} from "@mochen/contracts";
 
 /**
  * 上下文包装配（spec §5「上下文包 = 当前章正文 + 大纲摘要 + 出场人物卡 + 前情提要 + 显式挂入的素材与技能」）。
@@ -57,6 +63,21 @@ export interface AssembledContext {
    * 可选字段：老的装配结果（测试夹具）没有它，装配层按空清单处理。
    */
   openings?: string[];
+  /**
+   * 已装进上下文的角色卡上声明过的约束（2026-10-22）。人物卡正文剥掉了 frontmatter，
+   * 提示词装配再把这几格念给模型听时读不到原字段，所以在装配时就带上。
+   * 只含 voice / exit 有一项非空的卡；可选字段，老夹具不给就是空清单。
+   */
+  characterNotes?: CharacterNote[];
+}
+
+/** 一张已装进上下文的角色卡上的约束。 */
+export interface CharacterNote {
+  title: string;
+  /** 专属说法（口头禅、用词习惯）；没写就是空表。 */
+  voice: string[];
+  /** 退场章的文稿相对路径；没写就是空串。 */
+  exit: string;
 }
 
 /** 前情提要每章取多少字（spec §5：默认前 2 章的尾部摘要，各约 400 字）。 */
@@ -141,6 +162,8 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
   const scope: ContextScope = profile.context;
   const active = input.activeDocRelPath;
   const items: ContextItem[] = [];
+  /** 已装进上下文的角色卡约束（随人物卡一起装，提示词装配那边直接念，不再读盘）。 */
+  const notes: CharacterNote[] = [];
   const seen = new Set<string>();
 
   const push = (item: ContextItem): void => {
@@ -182,10 +205,18 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
     const stage = active === null ? "" : textOf(active);
     for (const doc of docs) {
       if (doc.kind !== "character") continue;
-      const text = textOf(doc.relPath);
+      const raw = contents[doc.relPath] ?? "";
+      const text = body(raw);
       if (text === "") continue;
-      if (stage !== "" && !stage.includes(doc.title)) continue;
+      // 出场判据（2026-10-22）：卡题 **与别名** 任一出现在本章正文里都算出场。
+      // 此前只认卡题——「李深」这一章通篇叫「老李」，他的人设卡就装不进来，
+      // 而模型正好在这一章把他写成另一个人。名字最短两个字，与 `book_cast` 同口径。
+      const meta = parseCharacterCard(raw);
+      if (stage !== "" && castMention(stage, castNames(doc.title, meta)) === "") continue;
       push(makeItem("character", doc, clip(text, 800), false));
+      if (meta.voice.length > 0 || meta.exit !== "") {
+        notes.push({ title: doc.title, voice: meta.voice, exit: meta.exit });
+      }
     }
   }
 
@@ -215,11 +246,12 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
     }
   }
 
-  // ⑥ 素材库
+  // ⑥ 素材库（2026-10-23 额度 600 → 1000）：导入的外部材料常是整段设定 / 资料，
+  // 600 字往往只够开头一句，等于「导进来了 AI 也只看到个标题」。1000 与世界观一族同量级。
   if (scope.materials) {
     for (const doc of docs) {
       if (doc.kind !== "material") continue;
-      push(makeItem("material", doc, clip(textOf(doc.relPath), 600), false));
+      push(makeItem("material", doc, clip(textOf(doc.relPath), 1000), false));
     }
   }
 
@@ -271,7 +303,8 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
     items,
     chars,
     approxTokens: estimateTokens(items.map((i) => i.text).join("\n")),
-    openings
+    openings,
+    characterNotes: notes
   };
 }
 

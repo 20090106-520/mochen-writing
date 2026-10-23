@@ -145,6 +145,17 @@ describe("每一行 · 判定只从 store 的 rowActionFor 取（裁定 R2）", 
     expect(s).toContain("?? item.docRelPath");
   });
 
+  /**
+   * 真机 1000 CSS 读到的副行就是英文「unbound」——那是 threadKey 的「未绑定」哨兵（contracts 里的 UNBOUND），
+   * 跨进程判定要用它，但它不是给人看的字。只换这一种；查不到真名的行仍退回路径（名字可以土，不能假）。
+   */
+  it("没绑文稿的行不许把哨兵 unbound 印给用户", () => {
+    const s = scriptSource(MENU);
+    expect(s).toContain("UNBOUND");
+    expect(s).toContain("未绑定文稿");
+    expect(s).toContain("item.docRelPath === UNBOUND");
+  });
+
   it("四句禁用理由一句都不在组件里：全部来自 session-row-action.ts", () => {
     const code = codeOf(MENU);
     for (const reason of [

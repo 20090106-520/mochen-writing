@@ -228,7 +228,8 @@ describe("裁定 R2 · 阶段查表全仓只留 composer-context.ts 一份", () 
       "activeStageOf"
     );
     expect(typeScriptSource("utils/book-dossier.ts")).toContain("activeStageOf(meta)");
-    expect(typeScriptSource("stores/useAgentStore.ts")).toContain(
+    // 2026-10-21：/status 的实现从 useAgentStore 搬到 `agent-slash-dispatch.ts`，查表口径一字未改。
+    expect(typeScriptSource("stores/agent-slash-dispatch.ts")).toContain(
       "stageName: stageLabelOf(book.meta)"
     );
   });

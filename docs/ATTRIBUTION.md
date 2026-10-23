@@ -213,6 +213,23 @@ Apache License 2.0 的要求集中记录在本文件，许可证原文见仓库�
   `appearance-skin-assets.test.ts` 读盘钉住；挂位（窗角 `right 28px bottom 28px`、
   `--skin-ornament-size: min(18vmin, 184px)`、`no-repeat`）在 `appearanceSkinVisual.ts`。
 
+## 助手头像表情引擎（Emotion Ball，2026-10-21 搬入）
+
+助手消息左侧那枚头像改用第三方表情引擎（32 种表情，纯 SVG + 原生 JS，零依赖）。
+用户原话：「`https://github.com/sam70361/aora-bot.git` 可以把这个做进我这个软件里面，
+就是对话的那个头像 32 种表情都要用」。
+
+- 上游项目：[sam70361/aora-bot](https://github.com/sam70361/aora-bot) 的 `emotion-ball/js/`
+- 本项目路径：`apps/desktop/src/renderer/src/vendor/emotion-ball/{rings,emotions,ball,engine}.js`
+  —— **原样搬入、无逻辑改动**，只按本仓 prettier 规则重排格式；接入层是同目录的 `index.ts`
+- 许可（**必须照读，不能概括成"开源免费"**）：表情引擎源代码与表情配置数据采用双许可，
+  **非商业免费、商业用途需另行取得授权**；球形角色的**视觉形象**（blob / wedge / gem 造型、
+  配色与特效）**仅限个人技术学习与研究，禁止任何商业用途，且上游明确永不提供商业授权**。
+  许可证原文与授权声明随文件放在 `vendor/emotion-ball/LICENSE` 与 `NOTICE.md`
+- **本仓当前定位为私有 / 自用**，按非商业口径使用。若将来对外商业发行，这一层不可接受：
+  须换掉球形形象（改用 mood-mates 子项目的云宝 / 亮亮，那两枚是上游原创、可洽商业授权），
+  或另行取得授权——代码面只需替换 `vendor/emotion-ball/` 与 `EmotionAvatar.vue` 的引擎入口。
+
 ## 其他第三方库（npm 依赖）
 
 - [canvas-ui](https://github.com/DavidHDev/canvas-ui)：MIT + Commons Clause。品牌粒子画布引擎来源，已按其 registry 源码拆分集成。

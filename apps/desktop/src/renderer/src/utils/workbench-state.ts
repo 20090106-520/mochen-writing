@@ -76,12 +76,17 @@ const CARD_TARGET_KIND: Record<Exclude<WorkbenchCardId, "chief-write" | "inspire
   outline: WORKBENCH_CARD_KIND.outline
 };
 
-/** 有目标时的动作说明（与 WORKBENCH_EMPTY_HINTS 成对：一句说动作，一句说缺什么）。 */
+/**
+ * 有目标时的动作说明（与 WORKBENCH_EMPTY_HINTS 成对：一句说动作，一句说缺什么）。
+ * 2026-10-23：原先三张浏览卡写「浏览…落到右栏浏览态」——「浏览态」是内部叫法，
+ * 用户不知道那是什么；「浏览」还在一句里重复两次。改成说清结果：在右栏读它。
+ * chief-write 的「再交给你逐条审批」主语悬空（谁交给谁），改成提案等你点头。
+ */
 export const WORKBENCH_CARD_HINTS: Record<WorkbenchCardId, string> = {
-  "chief-write": "打开当前章，预填一句改稿指令，再交给你逐条审批。",
-  character: "浏览人物分组第一篇，落到右栏浏览态。",
-  world: "浏览素材库分组第一篇，落到右栏浏览态。",
-  outline: "浏览大纲分组第一篇，落到右栏浏览态。",
+  "chief-write": "打开当前章，预填一句改稿指令；改稿提案逐条等你批准。",
+  character: "打开人物分组第一篇，在右栏读它。",
+  world: "打开素材库分组第一篇，在右栏读它。",
+  outline: "打开大纲分组第一篇，在右栏读它。",
   inspire: "打开当前章，预填一句要点子的话；发不发由你。"
 };
 

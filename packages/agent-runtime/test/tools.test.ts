@@ -5,7 +5,9 @@ import {
   TOOL_SPECS,
   dispatchToolCall,
   isCallableTool,
+  toolGateOf,
   toolNameOf,
+  toolsFor,
   type ToolHost,
   type ToolOutcome
 } from "../src/tools.js";
@@ -35,6 +37,34 @@ describe("TOOL_SPECS", () => {
   it("未知工具名返回 null，已知返回自身", () => {
     expect(toolNameOf("read_doc")).toBe("read_doc");
     expect(toolNameOf("rm_rf")).toBeNull();
+  });
+});
+
+describe("工具面板逐枚关掉（2026-10-21）", () => {
+  const host = fakeHost([], { ok: true, text: "", proposals: [] });
+
+  it("关掉的工具不在本轮清单里，但仍在花名册里——所以拒绝理由是「你关掉的」而不是「不存在」", () => {
+    const names = toolsFor(host, false, ["read_doc"]).map((spec) => spec.name);
+    expect(names).not.toContain("read_doc");
+    expect(names).toContain("list_docs");
+
+    const gate = toolGateOf(host, "read_doc", false, ["read_doc"]);
+    expect(gate.allowed).toBe(false);
+    expect(gate).toMatchObject({ kind: "off-this-round" });
+    if (!gate.allowed) expect(gate.reason).toContain("工具面板里把「read_doc」关掉了");
+    expect(isCallableTool(host, "read_doc", false, ["read_doc"])).toBe(false);
+  });
+
+  it("不关的时候一切照旧：五枚都在，read_doc 叫得动", () => {
+    expect(toolsFor(host, false)).toHaveLength(TOOL_SPECS.length - 2);
+    expect(toolsFor(host, true)).toHaveLength(TOOL_SPECS.length);
+    expect(isCallableTool(host, "read_doc", false)).toBe(true);
+  });
+
+  it("联网关着且没在面板里关它时，理由仍是「联网开关关闭」，不冒充用户关的", () => {
+    const gate = toolGateOf(host, "web_search", false);
+    expect(gate).toMatchObject({ kind: "off-this-round" });
+    if (!gate.allowed) expect(gate.reason).toContain("联网开关是关闭的");
   });
 });
 

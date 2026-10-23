@@ -351,7 +351,7 @@ describe("buildTimeline", () => {
     expect(blocks[0]).toMatchObject({ kind: "tool", label: "delete_everything" });
   });
 
-  it("错误与打断各自成块，打断块带待审计数", () => {
+  it("错误与打断各自成块；错误块**带上事件自己的时间戳**（免得旧记录看起来像刚刚发生）", () => {
     const blocks = buildTimeline(
       [
         event("error", { message: "模型服务端返回 503：繁忙" }),
@@ -359,7 +359,13 @@ describe("buildTimeline", () => {
       ],
       NO_TAIL
     );
-    expect(blocks[0]).toEqual({ kind: "error", id: "e-error", text: "模型服务端返回 503：繁忙" });
+    expect(blocks[0]).toEqual({
+      kind: "error",
+      id: "e-error",
+      text: "模型服务端返回 503：繁忙",
+      // 2026-10-23 真机走查：回放旧会话时那一屏红底失败条没有日期，读起来是「应用现在坏了」。
+      at: "2026-10-01T00:00:00.000Z"
+    });
     expect(blocks[1]).toEqual({ kind: "interrupted", id: "e-interrupted", pending: 2 });
   });
 

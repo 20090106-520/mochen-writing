@@ -1,4 +1,4 @@
-import { frontmatterField, splitFrontmatter } from "./frontmatter.js";
+import { frontmatterField, frontmatterList, splitFrontmatter } from "./frontmatter.js";
 
 /**
  * 伏笔台账的形状与规则（2026-10-05）。
@@ -16,6 +16,7 @@ import { frontmatterField, splitFrontmatter } from "./frontmatter.js";
  * status: planted      # planted 已埋 / paid 已回收 / dropped 已弃用
  * planted: chapters/01-开局.md
  * paid: chapters/05-归港.md
+ * keywords: [老枪, 旧伤]   # 可选：能认出这条线的那几个词
  * ---
  * 正文…
  * ```
@@ -33,6 +34,11 @@ export interface ForeshadowMeta {
   plantedIn: string;
   /** 回收在第几篇；没写就是空串。 */
   paidIn: string;
+  /**
+   * 可选：能认出这条线的那几个词（2026-10-22，C6 关键词回归）。
+   * 没写就是空表——空表的那条不参与关键词核对，不替作者从标题里猜关键词。
+   */
+  keywords: string[];
   /**
    * frontmatter 里 `status:` 的**原样**取值（没写则是空串）。
    * 认不出的值不静默吞掉：status 照样按「已埋」算，但 UI 拿它说「这条的状态字段写错了」，
@@ -64,6 +70,7 @@ export function parseForeshadowMeta(raw: string): ForeshadowMeta {
     status: isStatus(rawStatus) ? rawStatus : "planted",
     plantedIn: fieldOf(block, "planted"),
     paidIn: fieldOf(block, "paid"),
+    keywords: frontmatterList(block, "keywords"),
     rawStatus
   };
 }

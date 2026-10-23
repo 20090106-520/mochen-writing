@@ -33,7 +33,8 @@ const panel = ref<HTMLElement>();
 const { style, close, tab } = useComposerContextPopover(
   () => props.anchor,
   panel,
-  () => emit("close")
+  () => emit("close"),
+  { widthPx: 400 }
 );
 
 /** 扫的是**活动文稿的当前草稿**（含未保存手改），与去 AI 味同一条口径。 */

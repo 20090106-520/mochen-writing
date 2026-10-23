@@ -122,7 +122,11 @@ export function contextMeterSummary(preview: ContextPreview | null): ContextMete
 
   return {
     visible: true,
-    text: `${totals.entries} 条 · ≈${tokens} tokens`,
+    // 2026-10-23：chip 上**只留 tokens**，条数不进这一格。折叠条的横向额度是 12em（约 103px 文字），
+    // 真机 1000 CSS 量到「23 条 · ≈989 tokens」被截成「23 条 · ≈989…」——中文界面里留一串
+    // 没有单位的数字加省略号，比不报条数更糟。条数没丢：tooltip 首句就报「装配 N 条 …」，
+    // 展开面板还逐条列着，所以这里让出前缀，把单位保住。
+    text: `≈${tokens} tokens`,
     title:
       `这一轮会一起发给「${preview.profileName}」：${parts.join(" + ")}，` +
       (totals.hasHistory ? `共 ${totals.chars} 字，` : "") +

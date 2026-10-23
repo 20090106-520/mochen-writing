@@ -2,7 +2,7 @@
 // 仅删去其功能导航枚举（layoutFeatureNavigation：主功能高亮/视图切换），分栏、折叠与宽度记忆未改。
 import { computed, nextTick, onScopeDispose, ref, shallowRef, watch } from "vue";
 import { defineStore } from "pinia";
-import type { BookKind } from "@mochen/contracts";
+import type { BookKind, TxtImportTargetKind } from "@mochen/contracts";
 import { useOnboardingStore } from "./useOnboardingStore";
 import type { RightPaneMode } from "./useBookStore";
 import { createPanePointerCapture } from "../utils/panePointerCapture";
@@ -175,6 +175,11 @@ export const useLayoutStore = defineStore("layout", () => {
   /** 「导入 TXT」对话框的唯一开合真身（2026-10-11）：入口在左栏书务行，与 newBookOpen 同一套开合法。 */
   const importTxtOpen = ref(false);
   /**
+   * 导入对话框的目标初值（2026-10-23）：素材库面板开它时预设到「素材库」档（素材落 `materials/`），
+   * 其余入口（左栏书务行）不带参、默认「章节」。用户进去仍可自己改——这只是初值，不是锁。
+   */
+  const importTxtTarget = ref<TxtImportTargetKind>("chapter");
+  /**
    * 一次性信号：中栏工作台的「空卡」被点时请求左栏展开该类分组并进入行内新建。
    * 真身仍是左栏的 guideToDoc——这里只传「请引导到这一类」，不复制它的开合逻辑；
    * 左栏消费后立刻清空（不留下一个永远为真、重复触发的布尔）。
@@ -339,7 +344,9 @@ export const useLayoutStore = defineStore("layout", () => {
     newBookOpen.value = false;
   }
 
-  function openImportTxt(): void {
+  /** 开导入对话框。`target` 是**初值**：素材库面板传 "material"，其余入口不传 = 章节。 */
+  function openImportTxt(target: TxtImportTargetKind = "chapter"): void {
+    importTxtTarget.value = target;
     importTxtOpen.value = true;
   }
 
@@ -642,6 +649,7 @@ export const useLayoutStore = defineStore("layout", () => {
     settingsTab,
     newBookOpen,
     importTxtOpen,
+    importTxtTarget,
     docGroupRequest,
     leftCollapsed,
     rightCollapsed,

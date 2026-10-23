@@ -20,7 +20,20 @@ const lines = computed(() => parseDiffLines(props.diff));
         <span v-else-if="line.type === 'remove'" class="diff-marker">−</span>
         <span v-else-if="line.type === 'header'" class="diff-marker">·</span>
       </span>
-      <span class="diff-text">{{ line.text }}</span>
+      <span class="diff-text">
+        <!-- 2026-10-22 逐字 diff：成对的改动行再切成「没变的 / 变了的」，
+             只给变色那几段加底色——否则改一处字，看到的是一整行红配一整行绿。
+             v-text 而不是插值：插值外层换行会在 pre-wrap 里变成一个真的空格。 -->
+        <template v-if="line.segments">
+          <span
+            v-for="(seg, s) in line.segments"
+            :key="s"
+            :class="{ 'diff-frag': seg.changed }"
+            v-text="seg.text"
+          />
+        </template>
+        <span v-else v-text="line.text" />
+      </span>
     </div>
   </div>
 </template>
@@ -106,5 +119,18 @@ const lines = computed(() => parseDiffLines(props.diff));
   color: var(--accent, #6c9eff);
   opacity: 0.7;
   font-style: italic;
+}
+
+/* 逐字片段（2026-10-22）：整行底色仍标「这一行变了」，这一层只把真正动过的那几个字拎出来。
+   色值沿用上面增删语义色，只提高不透明度——两套颜色会让同一处改动看起来是两回事。 */
+.diff-frag {
+  border-radius: 3px;
+  background: rgba(80, 200, 120, 0.28);
+}
+
+.is-remove .diff-frag {
+  background: rgba(240, 96, 96, 0.3);
+  text-decoration: line-through;
+  text-decoration-color: rgba(240, 96, 96, 0.55);
 }
 </style>

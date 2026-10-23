@@ -597,7 +597,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
   flex-shrink: 0;
   padding: 1px 6px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
   color: var(--text-tertiary, #777);
   font-size: 0.714286rem;
   font-weight: 500;

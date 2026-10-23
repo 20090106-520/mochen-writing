@@ -68,3 +68,24 @@ export function frontmatterField(block: string | null, key: string): string {
   }
   return "";
 }
+
+/**
+ * 把 `[a, b]` / `a、b` / `a，b` / `a, b` 这类**单行列表**切成数组；不认缩进嵌套（YAML 那套仍归 fs-store）。
+ *
+ * 住这里而不是各自解析器里：人物卡（`aliases:` / `voice:`）与伏笔（`keywords:`）读的是同一种写法，
+ * 各写一份就是两套「方括号要不要剥、引号怎么去」的规则，迟早一边少剥一样。
+ */
+export function frontmatterList(block: string | null, key: string): string[] {
+  const raw = frontmatterField(block, key);
+  if (raw === "") return [];
+  const inner = raw.startsWith("[") && raw.endsWith("]") ? raw.slice(1, -1) : raw;
+  return inner
+    .split(/[,，、;；]/)
+    .map((item) =>
+      item
+        .trim()
+        .replace(/^["']|["']$/g, "")
+        .trim()
+    )
+    .filter((item) => item !== "");
+}

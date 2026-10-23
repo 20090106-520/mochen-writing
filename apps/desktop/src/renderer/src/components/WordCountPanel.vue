@@ -117,7 +117,13 @@ function enableGoal(): void {
     >
       <header class="wc-header">
         <h3>字数统计</h3>
-        <button class="icon-btn" type="button" @click="emit('close')">
+        <button
+          class="icon-btn"
+          type="button"
+          aria-label="关闭字数统计"
+          title="关闭字数统计"
+          @click="emit('close')"
+        >
           <AppIcon name="close" :size="14" />
         </button>
       </header>
@@ -264,7 +270,7 @@ function enableGoal(): void {
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
 }
 
 .wc-overview {
@@ -281,12 +287,12 @@ function enableGoal(): void {
   padding: 12px 8px;
   border: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 2%, transparent);
 }
 
 .wc-stat-total {
-  background: rgba(108, 158, 255, 0.08);
-  border-color: rgba(108, 158, 255, 0.2);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .wc-stat-value {
@@ -323,7 +329,7 @@ function enableGoal(): void {
 
 .wc-goal-bar {
   height: 6px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -350,7 +356,7 @@ function enableGoal(): void {
   width: 100%;
   padding: 8px 10px;
   font-size: 0.857143rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 3%, transparent);
   border: 1px dashed var(--border, rgba(255, 255, 255, 0.15));
   border-radius: 6px;
   color: var(--text-secondary, #999);
@@ -359,7 +365,7 @@ function enableGoal(): void {
 }
 
 .wc-goal-enable:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
   border-color: var(--accent, #6c9eff);
   color: var(--text-primary, #e8e8e8);
 }
@@ -391,7 +397,7 @@ function enableGoal(): void {
 }
 
 .wc-bar-row:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
 }
 
 .wc-bar-title {
@@ -407,7 +413,7 @@ function enableGoal(): void {
 .wc-bar-track {
   flex: 1;
   height: 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -447,10 +453,10 @@ function enableGoal(): void {
 }
 
 .wc-extreme-icon.is-up {
-  color: #6c9eff;
+  color: var(--accent);
 }
 
 .wc-extreme-icon.is-down {
-  color: #f0a040;
+  color: var(--warning);
 }
 </style>

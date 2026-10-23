@@ -9,7 +9,7 @@
 .review-score {
   position: fixed;
   z-index: 60;
-  width: 400px;
+  /* 宽度由 useComposerContextPopover 的 widthPx 给出（400），样式表不再写死 width。 */
   max-height: min(560px, 76vh);
   display: flex;
   flex-direction: column;

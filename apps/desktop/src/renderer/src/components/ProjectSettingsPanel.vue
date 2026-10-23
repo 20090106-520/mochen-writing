@@ -1,24 +1,22 @@
 <!-- 项目管理面板（设置浮层的「项目管理」页签）：当前作品、操作按钮、最近作品列表。
-     数据真身是 useProjectManagerStore（书签册，不是文件柜）：删除只从列表移除，不动磁盘文件。
-     打开/创建走 window.mochen IPC（主进程落盘）。 -->
+     清单真身在主进程（`<appData>/recent-books.json`，book:recent / book:forget），
+     渲染层只读 useBookStore 里那份镜像；当前作品读同一份 book.meta——
+     原先挂的 useProjectManagerStore 从未被写入过（registerProject 零调用点），
+     面板因此永远显示「尚未打开 / 没有任何作品」，与中栏已开的书对不上。
+     移除只从清单划掉，不动磁盘文件。 -->
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useLayoutStore } from "../stores/layoutStore";
-import { useProjectManagerStore } from "../stores/useProjectManagerStore";
 import { useBookStore } from "../stores/useBookStore";
-import { formatCharCount } from "../utils/char-count";
 
 const layout = useLayoutStore();
-const pm = useProjectManagerStore();
 const book = useBookStore();
 
-const currentBookTitle = computed(() => pm.activeProject?.title ?? null);
+const currentBookTitle = computed(() => book.meta?.title ?? null);
 
-/** 字数展示：≥1万显示「X.X万」，否则显示千分位整数 */
-
-/** 最近打开时间：今天显示时分，同年显示月-日，跨年显示年-月-日 */
-function formatTime(timestamp: number): string {
+/** 最近打开时间（清单里是 ISO 字符串）：今天显示时分，同年显示月-日，跨年显示年-月-日 */
+function formatTime(timestamp: string): string {
   const date = new Date(timestamp);
   const now = new Date();
   if (date.toDateString() === now.toDateString()) {
@@ -31,18 +29,23 @@ function formatTime(timestamp: number): string {
   return date.toLocaleDateString("zh-CN", options);
 }
 
+/** 打开作品目录 = 选目录 + 开书 + 主进程记账（只 pick 不开书会把回执丢掉）。 */
 function openProjectDir(): void {
-  void window.mochen.pickBookDirectory();
+  void book.pickAndOpen();
 }
 
 function createBook(): void {
   layout.openNewBook();
 }
 
-async function switchProject(project: { id: string; rootPath: string }): Promise<void> {
-  pm.setActiveProject(project.id);
-  await book.openBook(project.rootPath);
+async function switchProject(entry: { rootPath: string }): Promise<void> {
+  await book.openBook(entry.rootPath);
 }
+
+/** 清单只在开书后刷新；先进设置页的人也得看见现有的最近作品。 */
+onMounted(() => {
+  void book.loadRecentBooks();
+});
 </script>
 
 <template>
@@ -66,26 +69,23 @@ async function switchProject(project: { id: string; rootPath: string }): Promise
 
     <section class="settings-group">
       <h2 class="settings-group-title">最近作品</h2>
-      <ul v-if="pm.sortedProjects.length > 0" class="project-list">
+      <ul v-if="book.recentBooks.length > 0" class="project-list">
         <li
-          v-for="project in pm.sortedProjects"
-          :key="project.id"
+          v-for="entry in book.recentBooks"
+          :key="entry.rootPath"
           class="project-row"
-          :class="{ 'is-active': pm.activeProjectId === project.id }"
+          :class="{ 'is-active': book.rootPath === entry.rootPath }"
         >
-          <button class="project-row-main" type="button" @click="switchProject(project)">
+          <button class="project-row-main" type="button" @click="switchProject(entry)">
             <AppIcon name="book" :size="12" />
-            <span class="project-row-title">{{ project.title }}</span>
-            <span class="project-row-meta"
-              >{{ formatCharCount(project.totalChars) }} ·
-              {{ formatTime(project.lastOpenedAt) }}</span
-            >
+            <span class="project-row-title" :title="entry.title">{{ entry.title }}</span>
+            <span class="project-row-meta">{{ formatTime(entry.lastOpenedAt) }}</span>
           </button>
           <button
             class="project-row-remove"
             type="button"
-            :aria-label="`移除项目 ${project.title}`"
-            @click="pm.removeProject(project.id)"
+            :aria-label="`移除项目 ${entry.title}`"
+            @click="book.forgetRecentBook(entry.rootPath)"
           >
             <AppIcon name="close" :size="10" />
           </button>

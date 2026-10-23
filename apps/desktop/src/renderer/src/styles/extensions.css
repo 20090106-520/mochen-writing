@@ -96,6 +96,12 @@
   font: inherit;
 }
 
+/* 聚焦态（2026-10-23）：input 自己 outline:none，靠外层容器给可见反馈。 */
+.extensions-search:focus-within {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
 .extensions-search-go {
   padding: 4px 12px;
   border: none;

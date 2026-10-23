@@ -28,6 +28,11 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
+  /* 【2026-10-22 窄窗走查】与笔记面板同一条：右贴边全高的抽屉，头部的关闭/操作钮
+     落在无边框窗口右上角的窗控叠加区（—□×）底下，屏上不可见、点下去是最小化/关窗。
+     让位口径照抄右栏栏头（editor-pane.css 的 .editor-header），不支持 titlebar-area-* 时
+     相消回 0，退回原来的 16px。 */
+  padding-right: calc(16px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
   border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
   flex-shrink: 0;
 }
@@ -64,7 +69,7 @@
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
   color: var(--text-primary, #e8e8e8);
 }
 
@@ -144,7 +149,7 @@
 .type-chip {
   padding: 3px 12px;
   font-size: 0.857143rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 12px;
   color: var(--text-secondary, #999);
@@ -187,7 +192,7 @@
 }
 
 .btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
   color: var(--text-primary, #e8e8e8);
 }
 
@@ -295,7 +300,7 @@
 }
 
 .bible-list-item:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 3%, transparent);
 }
 
 .bible-list-item.is-selected {
@@ -336,7 +341,7 @@
   font-size: 0.714286rem;
   padding: 0 5px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 5%, transparent);
   color: var(--text-muted, #777);
 }
 
@@ -399,7 +404,7 @@
   font-size: 0.785714rem;
   padding: 2px 8px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
   color: var(--text-muted, #777);
 }
 
@@ -415,7 +420,7 @@
   margin-bottom: 14px;
   padding: 10px 14px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 3%, transparent);
   border: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
 }
 
@@ -445,18 +450,18 @@
 }
 
 .bible-importance-badge.is-high {
-  background: rgba(224, 85, 90, 0.18);
-  color: #e0556e;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .bible-importance-badge.is-medium {
-  background: rgba(214, 143, 60, 0.18);
-  color: #d68f3c;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .bible-importance-badge.is-low {
-  background: rgba(107, 114, 128, 0.18);
-  color: #6b7280;
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 12%, transparent);
+  color: var(--text-secondary, #999);
 }
 
 .bible-detail-content {
@@ -477,7 +482,7 @@
 .bible-tag {
   padding: 2px 10px;
   font-size: 0.785714rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 10px;
   color: var(--text-secondary, #999);
@@ -512,7 +517,7 @@
 
 .bible-input {
   padding: 7px 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 3%, transparent);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 6px;
   color: var(--text-primary, #e8e8e8);
@@ -527,7 +532,7 @@
 
 .bible-textarea {
   padding: 7px 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 3%, transparent);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 6px;
   color: var(--text-primary, #e8e8e8);
@@ -550,7 +555,7 @@
 .importance-btn {
   padding: 3px 14px;
   font-size: 0.857143rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 3%, transparent);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 6px;
   color: var(--text-secondary, #999);
@@ -558,21 +563,21 @@
 }
 
 .importance-btn.is-high.is-active {
-  background: rgba(224, 85, 90, 0.18);
-  border-color: #e0556e;
-  color: #e0556e;
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .importance-btn.is-medium.is-active {
-  background: rgba(214, 143, 60, 0.18);
-  border-color: #d68f3c;
-  color: #d68f3c;
+  background: var(--warning-soft);
+  border-color: var(--warning);
+  color: var(--warning);
 }
 
 .importance-btn.is-low.is-active {
-  background: rgba(107, 114, 128, 0.18);
-  border-color: #6b7280;
-  color: #6b7280;
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 12%, transparent);
+  border-color: var(--theme-line);
+  color: var(--text-secondary, #999);
 }
 
 .bible-color-picker {

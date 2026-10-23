@@ -253,14 +253,25 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
     sites: [{ needle: ".foreshadow-row:hover", shadow: ["--text-dim"] }]
   },
   {
+    /* 素材库浮层（2026-10-23）：条目悬停在自绘底（`.material-entry` 已有 surface-dim 底）上，
+       所以走 inheritFrom；条目里那行字数是从句色（--text-dim），压在状态档底上按 shadow 登记。
+       动作条那两枚底是透明的，hover 才上底色 ⇒ primary。 */
+    file: "styles/material-panel.css",
+    sites: [
+      { needle: ".material-entry:hover", inheritFrom: ".material-entry", shadow: ["--text-dim"] },
+      { needle: ".material-action:hover:not(:disabled)", primary: true }
+    ]
+  },
+  {
     file: "styles/interaction.css",
     sites: [
       { needle: ".permission-option:hover", inheritFrom: ".permission-option" },
       { needle: ".permission-option.is-current", inheritFrom: ".permission-option" },
       { needle: ".composer-chip:hover", primary: true, shadow: ["--text-faint"] },
       { needle: '.composer-chip[aria-pressed="true"]', primary: true, shadow: ["--text-faint"] },
-      { needle: ".tool-roster-close:hover", primary: true },
       { needle: ".model-select-row:hover", inheritFrom: ".model-select-row" },
+      /* 模态标记（2026-10-22）：只有图像/视频模型会渲染出来的小药丸，底是 --hover。 */
+      { needle: ".model-select-tag", primary: true },
       { needle: ".model-select-retry:hover", shadow: ["--text-soft"] }
     ]
   },
@@ -305,6 +316,8 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
         inheritFrom: ".provider-profile-menu button"
       },
       { needle: ".provider-connection-tag", primary: true },
+      /* 模态标记（2026-10-22）：设置页只在图像/视频模型上渲染的小药丸，底是 --hover。 */
+      { needle: ".provider-profile-tag", primary: true },
       { needle: ".provider-verify", primary: true },
       { needle: ".model-picker-count", primary: true },
       { needle: ".model-picker-refresh:hover", primary: true },
@@ -379,17 +392,6 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
   {
     file: "components/ProjectSettingsPanel.vue",
     sites: [{ needle: ".settings-btn:hover", inheritFrom: ".settings-btn" }]
-  },
-  {
-    file: "components/ProjectSwitcher.vue",
-    sites: [
-      { needle: ".project-switcher-trigger:hover", inheritFrom: ".project-switcher-trigger" },
-      { needle: ".project-item:hover", shadow: ["--text-muted"] }
-      /* `.link-btn:hover` 那一条判词 2026-10-17 撤了（台账 §一百一十九）：本规则不再画状态档底
-         ——hover 提示改成下划线，与 components/ExportDialog.vue 那份**同名实现**对齐
-         （同名类两份 hover 画法就是铁律 6 说的漂移）。不画档底就不进这道普查，
-         那条 `exempt: accent-as-text` 也跟着撤掉，不再留一枚没人负责的豁免。 */
-    ]
   }
 ];
 

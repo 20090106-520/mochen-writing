@@ -226,6 +226,9 @@ export const api = {
   createBook: vi.fn(async (): Promise<never> => {
     throw new Error("agent-store-fixture 不该调用 createBook");
   }),
+  // 作品库（2026-10-21）：默认空清单（openBook 之后 store 会顺手刷一次）。
+  listRecentBooks: vi.fn(async () => ({ books: [] })),
+  forgetRecentBook: vi.fn(async () => ({ books: [] })),
   saveMeta,
   readDoc,
   writeDoc,

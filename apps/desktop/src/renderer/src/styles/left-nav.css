@@ -465,13 +465,15 @@ html[data-platform="darwin"] .sidebar-brand-row {
 .tree-node-action {
   display: grid;
   place-items: center;
-  width: 27px;
-  height: 27px;
+  width: 30px;
+  height: 30px;
   border-radius: 5px;
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
-  opacity: 0;
+  /* 常显半透明（2026-10-23）：原先 opacity:0，只有行 hover 才出现——
+     用户看不到这里能操作，触屏更是完全够不着。0.5 既提示存在又不喧宾。 */
+  opacity: 0.5;
 }
 
 .tree-row:hover ~ .tree-node-action-area .tree-node-action,
@@ -592,8 +594,8 @@ html[data-platform="darwin"] .sidebar-brand-row {
   justify-content: center;
   flex: 0 0 auto;
   order: -1;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   margin-right: 4px;
   border-radius: 4px;
   color: var(--text-tertiary);
@@ -695,14 +697,15 @@ html[data-platform="darwin"] .sidebar-brand-row {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 27px;
-  height: 27px;
+  width: 30px;
+  height: 30px;
   margin-right: 3px;
   border-radius: 6px;
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
-  opacity: 0;
+  /* 同 .tree-node-action：常显半透明，入口才可发现。 */
+  opacity: 0.5;
 }
 
 .resource-section-heading:hover .section-add,

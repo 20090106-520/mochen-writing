@@ -351,10 +351,12 @@ html[data-theme] .desktop-shell {
    **只在这一档放开**——出厂十套与另外五套改编皮 art 都是 none，正文区仍是纯 --surface-main。
    正文（.document-editor / .message-markdown）不在这个列表里：背景一动字的边缘就在抖，
    那条守卫（appearance-skins.test.ts「背景与图案不落正文区」）正是在钉这件事。
-   选 52% 而不是更低/更高（2026-10-08 真机量过的）：86% 时画面只剩 14%，
-   而画的底色与面板底色同为深蓝，于是「画出来了但等于没出来」——
-   控制台零报错、DOM 六层俱全，只有肉眼知道少了东西。
-   52% 下画面读得出来，而正文那一层仍压着 48% 的实底，长文可读。
+
+   2026-10-22 用户反馈：明亮插画（浅底水彩那一套）下整片阅读区泛光，
+   空状态与对话里的小灰字几乎读不出来。原先的 52% 是按「画要看得出来」定的，
+   但它把「长时间盯着写」这件事排在了后面 —— 阅读区优先，档位收到 **76%**：
+   画仍从 24% 那一层透出来（侧栏与窗外缘照旧是全画），而正文与小字重新落在实底上。
+   广场那一页同理再收一档（84%，见下一条）。
 
    2026-10-08 波3 补三张整页（.skin-gallery / .extensions-page / .settings-page）：
    同一族坑换了个地方复发——站在皮肤广场这一页做「整窗预览」时，`.skin-gallery` 计算出来是
@@ -362,34 +364,44 @@ html[data-theme] .desktop-shell {
    于是「整窗预览」在**预览皮肤的那一页上**把画盖成了一整块实底，只剩左栏与一条 286px 的边。
    三张页与中栏同构（都是 `grid-column: 2 / -1; grid-row: 1` 的整页，各自写着
    `background: var(--surface-main)`），所以要放一起放，不留「这页放行那页不放行」的第二套规矩。
-   可读性不比正文那一档差：页面放行后卡面还压着 `--surface-raised` 40%，
-   合成实底 ≈ 0.4 + 0.6×0.52 ≈ 71%，比正文区单独那 52% 更厚。
    `.settings-sidebar` 与 `.workspace-dialog` **故意不在这份名单里**：前者是一根窄列，
    后者是模态框——表单与按钮的可读性优先级高于「画露多少」，那条判据由
    appearance-skin-plaza-wiring.test.ts 里「正文区不在这组」的反向断言一起守。
 
-   2026-10-15（台账 §七十七）广场那一页的**档位**单列了一档（70%，见下一条）：三张页仍一起
-   放行，分开的只是比例。广场卡面上压着卡说明与 10.5px 的卡脚出处这一族元信息小字，
-   而这幅画**最暗的那块**正好落在卡位底下——真机 6×6 无损采样量到的阶梯是
-   52% ⇒ 4.38（书舟·夜航 / 墨潭·沉雾 那两处）／60% ⇒ 4.55／70% ⇒ 4.73／实底 ⇒ 4.87，
-   而 60% 只剩 0.05 的留量：图上更暗的一块按同一比例就能再吃掉它（52% 那一档实测吃掉 0.49）。
-   ⇒ 取 **70%**（最暗那块的折算余量 ≈ 0.17，落点 ≈ 4.70）。代价是广场看到的画变淡
-   （画在页面合成里的占比 48% → 30%）——这是用户点的 A 方案：不写豁免、也不给卡面加衬垫。
-   另两张整页没跟着动：它们的卡（`.extension-card` / `.settings-card`）里没有 10.5px 这一族。 */
+   2026-10-15（台账 §七十七）广场那一页的**档位**单列了一档：三张页仍一起放行，
+   分开的只是比例。广场卡面上压着卡说明与 10.5px 的卡脚出处这一族元信息小字，
+   而这幅画**最暗的那块**正好落在卡位底下，所以要更实的一层。
+   ⇒ 2026-10-22 起取 **84%**（与上面的 76% 同一次调整，广场比阅读区再多压一档）。
+   另两张整页与阅读区同值：它们的卡（`.extension-card` / `.settings-card`）里没有 10.5px 这一族。 */
 html[data-skin-art]:not([data-skin-art="none"]) .conversation-pane,
 html[data-skin-art]:not([data-skin-art="none"]) .conversation-header,
 html[data-skin-art]:not([data-skin-art="none"]) .conversation-scroll,
 html[data-skin-art]:not([data-skin-art="none"]) .editor-pane,
 html[data-skin-art]:not([data-skin-art="none"]) .extensions-page,
 html[data-skin-art]:not([data-skin-art="none"]) .settings-page {
-  background-color: color-mix(in srgb, var(--surface-main) 52%, transparent);
+  background-color: color-mix(in srgb, var(--surface-main) 76%, transparent);
 }
 
-/* 广场这一页自己的放行档（70%）。理由、量到的阶梯与「为什么不跟上面那组同值」都写在
-   上一段的 2026-10-15 那一小节里；判据在 appearance-skin-plaza-wiring.test.ts
-   （两条反向断言钉住它既不在 52% 那一组里、也不从名单里消失）。 */
+/* 广场这一页自己的放行档（84%）。理由、与上面那组的档差都写在上一段；
+   判据在 appearance-skin-plaza-wiring.test.ts（两条反向断言钉住它既不在 76% 那一组里、
+   也不从名单里消失）。 */
 html[data-skin-art]:not([data-skin-art="none"]) .skin-gallery {
-  background-color: color-mix(in srgb, var(--surface-main) 70%, transparent);
+  background-color: color-mix(in srgb, var(--surface-main) 84%, transparent);
+}
+
+/* 有画皮肤下，压在画上的小字提一档颜色。
+   空状态说明、品牌引句、最近作品那行副标题、左栏标语——它们原本是三级灰（`--text-tertiary`
+   / `--text-faint`），在 76% 的阅读纱上仍会发白；统一抬到正文次要色（`--text-secondary`）。
+   只抬颜色、不动字号与字重：版式照旧，读得清就行。 */
+html[data-skin-art]:not([data-skin-art="none"])
+  :where(
+    .conversation-empty p,
+    .workbench-quote,
+    .workbench-empty-book p,
+    .workbench-recent-head span,
+    .footer-tagline
+  ) {
+  color: var(--text-secondary);
 }
 
 /* 图案层：网格。端场那两条线（1px 横 @4px / 1px 竖 @120px）是**暗底**上的值，

@@ -169,7 +169,8 @@ describe("5-㉝ · 左栏恒定，右栏不跟，这一处占中栏+右栏一整
     const navMarkup = templateSource(NAV);
     expect(navMarkup).toContain("@click=\"layout.showCenter('skills')\"");
     expect(navMarkup).toContain("@click=\"layout.showCenter('plugins')\"");
-    const agent = typeScriptSource("stores/useAgentStore.ts");
+    // 2026-10-21：斜杠命令的派发表搬到 `agent-slash-dispatch.ts`，两处 showCenter 在那里。
+    const agent = typeScriptSource("stores/agent-slash-dispatch.ts");
     expect(agent).toContain('useLayoutStore().showCenter("skills");');
     expect(agent).toContain('useLayoutStore().showCenter("plugins");');
     // 反向：上一版那个整页入口必须已经不存在，否则两处真身并存。

@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { styleSource } from "../utils/vue-source-reader";
+import { ruleBlock, scopedStyleSource, styleSource, vueSource } from "../utils/vue-source-reader";
 
 const mainSource = readFileSync(
   fileURLToPath(new URL("../../../main/index.ts", import.meta.url)),
@@ -90,5 +90,25 @@ describe("CSS · 窗控区让位与顶部拖动区（让位 = env 相消式 fall
     expect(title).toContain("-webkit-app-region:drag");
     const brand = compact(topLevelBlock(styleSource("left-nav.css"), ".sidebar-brand-row"));
     expect(brand).toContain("-webkit-app-region:drag");
+  });
+});
+
+/**
+ * 【2026-10-22 窄窗走查】右贴边、全高的抽屉（笔记 / 写作目标 / 故事大脑）头部 12px 内边距
+ * + 28px 的关闭钮，整枚落在窗控叠加区（titleBarOverlay，高 50px、宽约 138px）底下：
+ * 系统按钮画在页面之上 ⇒ 屏上看不见、点下去命中的是「最小化 / 关闭窗口」。
+ * 让位口径与右栏栏头（.editor-header）同一条，三处都钉在这里，免得下一份抽屉再漏一次。
+ */
+describe("CSS · 右贴边全高抽屉的头部给窗控区让位", () => {
+  it.each([
+    ["components/NotesPanel.vue", ".notes-header"],
+    ["components/WritingGoalPanel.vue", ".goal-header"],
+    ["components/story-bible-panel.css", ".bible-header"]
+  ])("%s 的 %s 带 env(titlebar-area-*) 相消式让位", (file, selector) => {
+    const source = file.endsWith(".css") ? vueSource(file) : scopedStyleSource(file);
+    const block = compact(ruleBlock(source, selector));
+    expect(block).toContain(
+      "padding-right:calc(16px+100vw-env(titlebar-area-x,0px)-env(titlebar-area-width,100vw))"
+    );
   });
 });

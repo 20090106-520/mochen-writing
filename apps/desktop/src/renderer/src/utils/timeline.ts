@@ -51,7 +51,12 @@ export type TimelineBlock =
        */
       rawFolded: boolean;
     }
-  | { kind: "error"; id: string; text: string }
+  /**
+   * 这一轮失败了。`at` 是事件自己的时间戳（回放时**必须**带上）——
+   * 2026-10-23 真机走查：打开一本书就把上次会话的红底失败条原样摆出来，而那批是 15 天前的记录，
+   * 界面上没有任何日期 ⇒ 读起来像「应用现在坏了」。判据与格式化都在 utils/history-time。
+   */
+  | { kind: "error"; id: string; text: string; at: string }
   /**
    * 本轮 token 用量（2026-10-15）。`text` 是**组好的人话**（`turnUsageText`），
    * 模板只渲染它、不自己拿 requests/reported 再拼一遍——判定与句子都只在这一处（铁律 6）。
@@ -106,7 +111,9 @@ export const TOOL_LABELS: Record<AgentToolName, string> = {
   propose_patch: "提出改稿提案",
   write_doc: "写入文档",
   web_search: "联网搜索",
-  web_read: "读取网页"
+  web_read: "读取网页",
+  // 2026-10-23 技能自选：模型自己列技能库、按需载入正文（只读）。名字与 tool-roster 同一份口径。
+  use_skill: "查技能"
 };
 
 /**
@@ -177,7 +184,7 @@ export function buildTimeline(items: AgentEvent[], tail: StreamingTail): Timelin
       continue;
     }
     if (event.type === "error") {
-      blocks.push({ kind: "error", id: event.id, text: event.message });
+      blocks.push({ kind: "error", id: event.id, text: event.message, at: event.ts });
       continue;
     }
     if (event.type === "usage") {

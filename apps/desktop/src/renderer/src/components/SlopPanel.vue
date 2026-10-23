@@ -25,7 +25,8 @@ const panel = ref<HTMLElement>();
 const { style, close, tab } = useComposerContextPopover(
   () => props.anchor,
   panel,
-  () => emit("close")
+  () => emit("close"),
+  { widthPx: 420 }
 );
 
 /** 扫的是**活动文稿的当前草稿**（含还没落盘的手改），不是盘上那份——否则扫出来的东西用户没写过。 */

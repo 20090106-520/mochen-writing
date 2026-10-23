@@ -18,7 +18,7 @@ export function useComposerContextPopover(
   anchor: () => HTMLElement,
   panel: Ref<HTMLElement | undefined>,
   dismiss: () => void,
-  options?: { limitPx?: number }
+  options?: { limitPx?: number; widthPx?: number }
 ) {
   const style = ref<CSSProperties>({ visibility: "hidden" });
   let restoreFocus = true;
@@ -29,7 +29,8 @@ export function useComposerContextPopover(
     const rect = anchor().getBoundingClientRect();
     const p = composerPopoverPlacement({
       anchor: rect,
-      viewport: { innerWidth: window.innerWidth, innerHeight: window.innerHeight }
+      viewport: { innerWidth: window.innerWidth, innerHeight: window.innerHeight },
+      ...(options?.widthPx === undefined ? {} : { preferredWidth: options.widthPx })
     });
     style.value = {
       position: "fixed",

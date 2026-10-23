@@ -6,14 +6,11 @@ import { listComponentFiles, scriptSource, templateSource } from "../utils/vue-s
  *
  * 扫描总单里这一条是"同一本书在不同面板显示成不同字数"：`formatChars` 在五处各写一份，
  * 万位有的 `.toFixed(1)` 有的 `.toFixed(2)`，有的带千位分隔符有的不带，大纲还独有一份「千字」档。
- * 这里钉的是：那五处都改调同一份，且全仓不再有第二个 `function formatChars`。
+ * 这里钉的是：仍显示字数的**两处**都改调同一份，且全仓不再有第二个 `function formatChars`。
+ * （项目管理面板 2026-10-22 改读主进程作品库清单，那份契约没有字数，故退出本清单；
+ *   `ProjectSwitcher.vue` 2026-10-23 随死代码专刀整枚删除，也退出本清单。）
  */
-const PANELS = [
-  "OutlinePanel.vue",
-  "ProjectSettingsPanel.vue",
-  "ProjectSwitcher.vue",
-  "WordCountPanel.vue"
-] as const;
+const PANELS = ["OutlinePanel.vue", "WordCountPanel.vue"] as const;
 
 describe("字数只有一份口径", () => {
   for (const name of PANELS) {

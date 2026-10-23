@@ -195,7 +195,8 @@
     inset 0 1px 0 var(--glass-highlight);
 }
 
-/* 工具 ▾ 浮层（#101）：与 / 面板同一套毛玻璃与层级，只读清单，没有任何可点掉的行。 */
+/* 工具 ▾ 浮层（#101；2026-10-21 改造）：从「只读清单」改成「逐枚可关」。
+   每一行右侧那枚开关是真开关：关掉的工具在 toolsFor / toolGateOf 两处同时摘掉。 */
 .tool-roster-mask {
   position: fixed;
   inset: 0;
@@ -208,13 +209,13 @@
 }
 
 .tool-roster {
-  width: min(560px, 92vw);
-  max-height: 72vh;
+  width: min(600px, 92vw);
+  max-height: 74vh;
   overflow: auto;
   align-self: flex-start;
-  padding: 14px 16px 16px;
+  padding: 16px 18px 16px;
   border: 1px solid var(--line-soft);
-  border-radius: 14px;
+  border-radius: 16px;
   background: color-mix(in srgb, var(--editor) 92%, transparent);
   backdrop-filter: blur(18px) saturate(120%);
   box-shadow: 0 14px 42px var(--shadow-color);
@@ -224,33 +225,87 @@
   outline: none;
 }
 
+/* 头一行：标题 + 一枚 ×。标题下面那行小字是本轮「带出几枚 / 一共几枚」。 */
+.tool-roster-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tool-roster-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
 .tool-roster-title {
-  margin: 0 0 10px;
+  margin: 0;
   color: var(--text);
   font-size: 0.928571rem;
   font-weight: 620;
 }
 
-/* 2026-10-05 修版：整张名单是**一个** grid（max-content / auto / 1fr 三列），
-   行本身 display:contents——上一版每行各自成 grid，名字列宽随行变，读/写徽标齐不了一列
-   （用户截图：六枚徽标六个起点）。列对齐交给同一份网格，行间节奏走 row-gap。
-   字号全部 rem（原 12/13px 写死，外观里调「界面字号」它不跟着缩）。 */
-.tool-roster-list {
+.tool-roster-sub {
+  color: var(--text-faint);
+  font-size: 0.785714rem;
+}
+
+.tool-roster-x {
   display: grid;
-  grid-template-columns: max-content auto 1fr;
-  gap: 12px 10px;
-  align-items: baseline;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tool-roster-x:hover {
+  background: color-mix(in srgb, var(--focus) 8%, transparent);
+  color: var(--text);
+}
+
+.tool-roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* 一行 = 左文右开关。名字 / 徽标同一条基线，说明文字压在下一行。 */
 .tool-roster-row {
-  display: contents;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-main) 55%, transparent);
+}
+
+.tool-roster-row.is-off {
+  opacity: 0.55;
+}
+
+.tool-roster-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 7px;
 }
 
 .tool-roster-name {
-  color: var(--text);
+  color: var(--text-soft);
   font-family: var(--code-font);
   font-size: var(--code-font-size);
 }
@@ -260,7 +315,7 @@
   border: 1px solid var(--line-soft);
   border-radius: 999px;
   color: var(--text-soft);
-  font-size: 0.857143rem;
+  font-size: 0.785714rem;
 }
 
 /* 会写盘的两枚用告警色区分——这是清单里唯一一处颜色差异，读的一律中性。 */
@@ -269,8 +324,11 @@
   color: var(--warning);
 }
 
+.tool-roster-text {
+  min-width: 0;
+}
+
 .tool-roster-text strong {
-  display: block;
   color: var(--text);
   font-size: 0.928571rem;
   font-weight: 600;
@@ -282,32 +340,33 @@
   font-size: 0.857143rem;
 }
 
+/* 开关本体：一枚小胶囊。带上 = 焦点色底，已关 = 线框灰。 */
+.tool-roster-switch {
+  flex: none;
+  min-width: 52px;
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--focus) 34%, var(--line-soft));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--focus) 12%, transparent);
+  color: color-mix(in srgb, var(--focus) 88%, var(--text));
+  font-size: 0.785714rem;
+  cursor: pointer;
+}
+
+.tool-roster-switch[aria-checked="false"] {
+  border-color: var(--line-soft);
+  background: transparent;
+  color: var(--text-faint);
+}
+
+.tool-roster-switch:hover {
+  border-color: color-mix(in srgb, var(--focus) 55%, var(--line-soft));
+}
+
 .tool-roster-foot {
   margin: 12px 0 0;
   color: var(--text-faint);
   font-size: 0.857143rem;
-}
-
-.tool-roster-close {
-  margin-top: 10px;
-  padding: 4px 12px;
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-soft);
-  font-size: 0.857143rem;
-  cursor: pointer;
-}
-
-.tool-roster-close:hover {
-  background: var(--hover);
-  /* 基规则那枚 `--text-soft` 压在 hover 档只有 4.38:1，这一档上换成状态档灰。 */
-  color: var(--text-on-state);
-}
-
-.tool-roster-close:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
 }
 
 /* 模型 ▾ 下拉（2026-10-07 用户裁定）。
@@ -336,12 +395,68 @@
 .model-select-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   padding: 2px 6px 6px;
   color: var(--text-soft);
   font-size: 0.857143rem;
   font-weight: 600;
+}
+
+/* 标题占满左边，计数 / 刷新 / × 依次靠右（2026-10-21 加前两枚）。 */
+.model-select-head strong {
+  margin-right: auto;
+}
+
+.model-select-count {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--focus) 9%, transparent);
+  color: var(--text-faint);
+  font-size: 0.785714rem;
+  font-weight: 500;
+}
+
+.model-select-refresh {
+  flex: none;
+  padding: 2px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.785714rem;
+  cursor: pointer;
+}
+
+.model-select-refresh:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--focus) 45%, var(--line-soft));
+  color: var(--text);
+}
+
+.model-select-refresh:disabled {
+  opacity: 0.5;
+}
+
+/* 搜索框（2026-10-21）：名单超过六行才出现，免得只有三个模型时多一个空框。 */
+.model-select-search {
+  display: block;
+  padding: 0 4px 6px;
+}
+
+.model-select-search-input {
+  width: 100%;
+  padding: 5px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-main) 62%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.857143rem;
+}
+
+.model-select-search-input:focus {
+  border-color: color-mix(in srgb, var(--focus) 55%, var(--line-soft));
+  outline: none;
 }
 
 .model-select-list {
@@ -392,6 +507,33 @@
   color: var(--success);
 }
 
+/* 分组标题（2026-10-22）：名单平铺时图像/视频模型混在对话模型里，点错一行下一句必然 400。
+   分组只改顺序与标题，不隐藏任何模型（@see utils/model-picker.ts 的诚实边界）。 */
+.model-select-group-head {
+  margin: 6px 0 2px;
+  padding: 0 8px;
+  color: var(--text-faint);
+  font-size: 0.785714rem;
+  letter-spacing: 0.02em;
+}
+
+/* 行尾那枚模态标记：靠 auto 推到右端；它和 ✓ 同时在场时 ✓ 不再抢中段空白。 */
+.model-select-tag {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--hover);
+  /* 这枚底是状态档（--hover）：灰字压上去深底会掉线，按普查表的判词改走状态档专用字色。 */
+  color: var(--text-on-state);
+  font-family: var(--ui-font);
+  font-size: 0.785714rem;
+}
+
+.model-select-tag + .model-select-check {
+  margin-left: 6px;
+}
+
 .model-select-retry,
 .model-select-settings,
 .model-select-retry,
@@ -413,8 +555,8 @@
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
   border-radius: 6px;

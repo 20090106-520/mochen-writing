@@ -9,7 +9,7 @@
  * ④ LibraryNavRows 的第四枚入口 + LeftSidebar 的 need-book 闸 ⇒ 没开书不许开对话框。
  */
 import { describe, expect, it } from "vitest";
-import { scriptSource, templateSource } from "../utils/vue-source-reader";
+import { scriptSource, templateSource, typeScriptSource } from "../utils/vue-source-reader";
 
 const APP = "App.vue";
 const DIALOG = "components/ImportTxtDialog.vue";
@@ -19,9 +19,23 @@ const SIDEBAR = "components/LeftSidebar.vue";
 describe("App.vue · 导入对话框挂载", () => {
   it("v-if 走 layout.importTxtOpen，关闭走 closeImportTxt——开合真身只有 store 那一份", () => {
     const tpl = templateSource(APP);
-    expect(tpl).toContain(
-      '<ImportTxtDialog v-if="layout.importTxtOpen" @close="layout.closeImportTxt()" />'
+    // 2026-10-23：多带一条 `:initial-target`（素材库面板开它时预设「素材库」档）。
+    expect(tpl).toMatch(
+      /<ImportTxtDialog[\s\S]{0,240}?v-if="layout\.importTxtOpen"[\s\S]{0,240}?@close="layout\.closeImportTxt\(\)"/
     );
+  });
+
+  it("目标初值一路透传：store 带参 → App 透传 → 对话框取初值，面板那条入口传 material", () => {
+    const store = typeScriptSource("stores/layoutStore.ts");
+    expect(store).toContain('openImportTxt(target: TxtImportTargetKind = "chapter")');
+    expect(store).toContain("importTxtTarget.value = target;");
+    expect(templateSource(APP)).toContain(':initial-target="layout.importTxtTarget"');
+    expect(scriptSource(DIALOG)).toContain('props.initialTarget ?? "chapter"');
+    // 素材库面板那一支明确要「素材库」；左栏书务行不传参，仍是默认「章节」。
+    expect(scriptSource("components/MaterialPanel.vue")).toContain(
+      'layout.openImportTxt("material")'
+    );
+    expect(scriptSource(SIDEBAR)).toContain("layout.openImportTxt()");
   });
 });
 
@@ -29,7 +43,10 @@ describe("ImportTxtDialog · 只走两枚通道，不碰路径判定", () => {
   it("预览走 window.mochen.importTxtPreview()，提交走 importTxtCommit", () => {
     const script = scriptSource(DIALOG);
     expect(script).toContain("window.mochen.importTxtPreview()");
-    expect(script).toContain("window.mochen.importTxtCommit({ chapters: chosen })");
+    expect(script).toContain("window.mochen.importTxtCommit({");
+    expect(script).toContain("chapters: chosen,");
+    // 2026-10-23：多带一个导入目标（章节 / 素材库）。
+    expect(script).toContain("targetKind: target.value");
   });
 
   it("反向钉：组件里不规划路径、不直接建文档（那是主进程的事）", () => {
@@ -50,8 +67,10 @@ describe("ImportTxtDialog · 只走两枚通道，不碰路径判定", () => {
     expect(script).toContain(".map((c) => ({ title: c.title, content: c.content }))");
   });
 
-  it("成功后登记 chapterOrder（persistMeta）并刷新文稿树，顺序不靠文件名猜", () => {
+  it("成功后（仅章节）登记 chapterOrder（persistMeta）并刷新文稿树，顺序不靠文件名猜", () => {
     const script = scriptSource(DIALOG);
+    // 2026-10-23：导入素材不登记章节次序——只有 targetKind=chapter 才写 chapterOrder。
+    expect(script).toContain('if (target.value === "chapter")');
     expect(script).toContain('book.persistMeta({ chapterOrder: order }, "导入的章节顺序没存住")');
     expect(script).toContain("await book.refreshDocs()");
   });

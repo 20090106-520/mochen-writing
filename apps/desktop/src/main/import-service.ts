@@ -8,7 +8,8 @@ import {
   splitTxtChapters,
   type TxtImportCommitInput,
   type TxtImportCommitResult,
-  type TxtImportPreviewResult
+  type TxtImportPreviewResult,
+  type TxtImportTargetKind
 } from "@mochen/contracts";
 import { createDocFile, type AtomicWriteFs, defaultAtomicFs } from "@mochen/fs-store";
 import { handleTrusted, type IpcRegistrar } from "./ipc-guard.js";
@@ -112,7 +113,11 @@ export function createImportService(deps: ImportServiceDeps): ImportService {
       if (book === null)
         return { ok: false, reason: "no-book", message: "尚未打开作品目录，先在左栏打开一本书。" };
       // 跨进程来的参数当不可信：形状由这里判，不 cast 了事。
-      const chapters = (raw as TxtImportCommitInput | null)?.chapters;
+      const rawInput = raw as TxtImportCommitInput | null;
+      const chapters = rawInput?.chapters;
+      // 导入目标白名单（2026-10-23）：只有 material 与 chapter 两种，其他值一律回落 chapter。
+      const targetKind: TxtImportTargetKind =
+        rawInput?.targetKind === "material" ? "material" : "chapter";
       if (
         !Array.isArray(chapters) ||
         chapters.length === 0 ||
@@ -132,7 +137,7 @@ export function createImportService(deps: ImportServiceDeps): ImportService {
           reason: "too-large",
           message: "这一批正文总量超出单次导入上限，分两次导。"
         };
-      const planned = planImportRelPaths(chapters);
+      const planned = planImportRelPaths(chapters, targetKind);
       if (!planned.ok) {
         const parts: string[] = [];
         if (planned.invalid.length > 0)

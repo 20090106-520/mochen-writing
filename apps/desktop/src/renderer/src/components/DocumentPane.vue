@@ -12,6 +12,8 @@ import SlopPanel from "./SlopPanel.vue";
 import ReviewScorePanel from "./ReviewScorePanel.vue";
 import ForeshadowPanel from "./ForeshadowPanel.vue";
 import TimelineCheckPanel from "./TimelineCheckPanel.vue";
+import CastCheckButton from "./CastCheckButton.vue";
+import MaterialButton from "./MaterialButton.vue";
 import VolumeOutlinePanel from "./VolumeOutlinePanel.vue";
 import SnippetToolbar from "./SnippetToolbar.vue";
 import SelectionRewriteBar from "./SelectionRewriteBar.vue";
@@ -22,6 +24,7 @@ import { useEditUndo } from "../composables/useEditUndo";
 import { useBookStore, type EditorViewMode, type RightPaneMode } from "../stores/useBookStore";
 import { useFindReplaceStore } from "../stores/useFindReplaceStore";
 import { useTimelineStore } from "../stores/useTimelineStore";
+import ChapterQuota from "./ChapterQuota.vue";
 import { useLayoutStore } from "../stores/layoutStore";
 import { isStructuredKind, useVolumeOutlineStore } from "../stores/useVolumeOutlineStore";
 import { dossierSummary, groupDocsForDossier } from "../utils/book-dossier";
@@ -52,10 +55,7 @@ const emit = defineEmits<{ collapse: [] }>();
 const book = useBookStore();
 const find = useFindReplaceStore();
 
-/**
- * 改稿历史浮层（2026-10-05）。锚点就是那颗按钮本身，面板贴它定位。
- * 开关与在途标记都住在 store 里——面板自己那份会与「回滚完要重载正文」那一步各说各话。
- */
+/** 改稿历史浮层（2026-10-05）：锚点是那颗按钮本身；开关与在途标记都住 store（面板自己那份会与「回滚完要重载正文」各说各话）。 */
 const changeHistoryButton = ref<HTMLElement>();
 const changeHistoryAnchor = computed(() => changeHistoryButton.value ?? null);
 const changeHistoryOpen = computed({
@@ -78,10 +78,7 @@ const slopOpen = ref(false);
 const slopButton = ref<HTMLElement>();
 const slopAnchor = computed(() => slopButton.value ?? null);
 
-/**
- * 审稿打分浮层（2026-10-05，批次 4-②）。同上款：纯本地统计（判定在 utils/review-score），
- * 只在这一颗按钮上开合，所以住组件本地，不进 store。
- */
+/** 审稿打分浮层（2026-10-05，批次 4-②）：纯本地统计（判定在 utils/review-score），只在这一颗按钮上开合，故住组件本地。 */
 const reviewOpen = ref(false);
 const reviewButton = ref<HTMLElement>();
 const reviewAnchor = computed(() => reviewButton.value ?? null);
@@ -104,10 +101,7 @@ const timelineAnchor = computed(() => timelineButton.value ?? null);
 /** 导出面板的开合住在 layoutStore（App 也读那一份，不另持本地 ref——铁律 6）。 */
 const layout = useLayoutStore();
 
-/**
- * 卷纲 → 章纲浮层（2026-10-05，批次 5-②）。锚点同款。只在打开的是分卷/大纲时亮
- * （`isStructuredKind`）——章节正文拆不成章纲，按钮亮着却什么都拆不出来就是骗人。
- */
+/** 卷纲 → 章纲浮层（2026-10-05，批次 5-②）。锚点同款。只在打开的是分卷/大纲时亮（`isStructuredKind`）——章节正文拆不成章纲，按钮亮了却拆不出来就是骗人。 */
 const volumeOutline = useVolumeOutlineStore();
 const volumeOutlineButton = ref<HTMLElement>();
 const volumeOutlineAnchor = computed(() => volumeOutlineButton.value ?? null);
@@ -139,12 +133,8 @@ const browseDoc = computed(
   () => book.browseTabs.find((doc) => doc.relPath === book.activeBrowse) ?? null
 );
 
-/**
- * 浏览那一格显示的正文（2026-10-09 扫描总单 P1-9）。
- * 原来模板里直接写 `book.browseContents[relPath] ?? "正在读取…"`，于是读盘失败之后
- * 那一格**永远停在「正在读取…」**——比空着更糟，它在撒谎。三态判据抽在
- * `utils/browse-body`（那边逐档有用例），这里只负责把 store 的两张表交给它。
- */
+/** 浏览那一格显示的正文（2026-10-09 扫描总单 P1-9）：原来模板里直接写 `… ?? "正在读取…"`，
+ * 读盘失败后那一格就永远停在「正在读取…」——比空着更糟，它在撒谎。三态判据在 `utils/browse-body`。 */
 const browseView = computed(() =>
   browseBodyViewOf(book.browseContents, book.browseErrors, browseDoc.value?.relPath)
 );
@@ -163,10 +153,7 @@ const title = computed(() =>
   mode.value === "manuscript" ? (activeDoc.value?.title ?? "") : (browseDoc.value?.title ?? "")
 );
 
-/**
- * 正文这一格摆什么：骨架 / 空态 / 正文（2026-10-05 批次 3 尾巴）。
- * 判定与话术全在 utils/editor-readout，这里只喂事实、只取结论。
- */
+/** 正文这一格摆什么：骨架 / 空态 / 正文（2026-10-05 批次 3 尾巴）。判定与话术全在 utils/editor-readout。 */
 const bodyState = computed(() =>
   editorBodyState({ loading: book.docLoading, hasDoc: book.activeDocTab !== null })
 );
@@ -258,7 +245,8 @@ const tabs = computed(() =>
 
 /** Markdown 预览的 HTML：吃 `previewDraft`（落后一拍的草稿）。理由见 utils/preview-debounce 与 composables/usePreviewDraft。 */
 const previewDraft = usePreviewDraft(() => book.draft, viewMode);
-const previewHtml = computed(() => markdownToSimpleHtml(previewDraft.value));
+/** 2026-10-23：预览只该看正文——草稿含 `---` 围栏与 `title:`，原样渲染会把元数据当小说；剥围栏真身是 contracts 的 splitFrontmatter（不另写一套）。 */
+const previewHtml = computed(() => markdownToSimpleHtml(splitFrontmatter(previewDraft.value).body));
 
 /** 高亮层 HTML：内容闸在这里；怎么切、为什么吃 mirrorSource 快照——见 utils/find-mirror 注释。 */
 const mirrorSource = useTrailingValue(
@@ -358,10 +346,9 @@ function onEditorScroll(): void {
 }
 
 /**
- * 标题行可编辑：改的是 frontmatter 的 title 行（book.renameDocTitle 走指纹链），
- * relPath 与文件名一概不动（那要牵动 chapterOrder 与会话）。提交只有 blur 一条路——
- * Enter 只是主动移开焦点，避免 Enter+blur 双发；Esc 当场弹回；空名字当场弹回不发请求。
- * 提交后无论成败都把显示值对齐 store 的真相：成功 title 已换新，失败弹回旧值。
+ * 标题行可编辑：只改 frontmatter 的 title 行（renameDocTitle 走指纹链），relPath 与文件名不动——
+ * 那要牵动 chapterOrder 与会话。提交只有 blur 一条路（Enter 只移开焦点，避免 Enter+blur 双发；
+ * Esc / 空名当场弹回），提交后无论成败都把显示值对齐 store 的真相。
  */
 function blurTitle(event: Event): void {
   (event.target as HTMLInputElement).blur();
@@ -490,6 +477,10 @@ function switchMode(next: RightPaneMode): void {
         >
           <AppIcon name="arrow-up" :size="17" />
         </button>
+        <!-- 人物设定核对：只判人物卡上写明的 aliases / voice / exit，不做语义推断。纯本地。 -->
+        <CastCheckButton />
+        <!-- 素材库：给 AI 读的参考材料，可导入文本、让 AI 整理入库（清单读 book.docs 的 material）。 -->
+        <MaterialButton />
         <!-- 卷纲 → 章纲：把自由 markdown 拆成字段表，再一键落成大纲文稿。纯本地，不调模型。 -->
         <button
           ref="volumeOutlineButton"
@@ -778,6 +769,11 @@ function switchMode(next: RightPaneMode): void {
         <template v-if="mode === 'manuscript'">
           <span>正文 {{ characterCount.toLocaleString("zh-CN") }} 字</span>
           <span class="reading-time">{{ readingTimeLabel }}</span>
+          <ChapterQuota
+            v-if="activeDoc?.kind === 'chapter'"
+            :chars="characterCount"
+            :rel-path="activeDoc?.relPath ?? ''"
+          />
         </template>
         <!-- 批次 5-⑳：保存状态全栏只此一处（栏头那份已去掉，见上）。`is-dirty` 是从那边搬过来的：
              原来只有栏头那份会变色，去掉副本若不补上，「有未保存修改」就只剩字面变化、丢了告警色。 -->
@@ -792,7 +788,7 @@ function switchMode(next: RightPaneMode): void {
         @click="book.saveActive()"
       >
         <AppIcon name="save" :size="14" />
-        {{ book.saving ? "保存中…" : "保存到本机" }}
+        {{ book.saving ? "保存中…" : "保存" }}
       </button>
     </footer>
   </aside>

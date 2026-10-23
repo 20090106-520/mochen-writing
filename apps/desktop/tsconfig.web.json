@@ -4,6 +4,11 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "preserve",
+    // vendor/emotion-ball/ 是原样搬入的第三方零依赖脚本（2026-10-21）：只参与打包，
+    // 不进类型检查——它们不是本仓写的，按 strict 去咬只会逼人改上游源码。
+    // facade（vendor/emotion-ball/index.ts）仍在本仓类型视野里，调用面由它兜住。
+    "allowJs": true,
+    "checkJs": false,
     "types": ["vite/client"]
   },
   "include": ["src/renderer"]

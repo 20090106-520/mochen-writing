@@ -9,13 +9,37 @@ import {
   type StreamingTail,
   type TimelineBlock
 } from "../utils/timeline";
+import { EMOTION_DONE } from "../utils/emotion-signal";
+import EmotionAvatar from "./EmotionAvatar.vue";
 import AppIcon from "./AppIcon.vue";
 import ThinkingWindow from "./ThinkingWindow.vue";
 import { THINKING_LIVE_LABEL, thinkingWindowState } from "../utils/thinking-window";
 import { markdownToSimpleHtml } from "@mochen/fs-store/export-shared";
+import { formatHistoryTime } from "../utils/history-time";
 
-const props = defineProps<{ items: AgentEvent[]; tail: StreamingTail; running: boolean }>();
+const props = defineProps<{
+  items: AgentEvent[];
+  tail: StreamingTail;
+  running: boolean;
+  /** 助手头像这一刻该画哪种表情；判定唯一真身在 utils/emotion-signal.ts。 */
+  emotion: string;
+}>();
 const blocks = computed<TimelineBlock[]>(() => buildTimeline(props.items, props.tail));
+
+/**
+ * 头像只给**最后一条**助手正文做「活的那一枚」（2026-10-21）。
+ * 历史消息的球用 `autostart:false` 静态渲染：一条长对话里几十枚同时跑 rAF，
+ * 只为让翻过去的旧消息眨眼，是纯烧电。
+ * 用户 2026-10-21 补充裁定：「它那个表情是自动的，不需要我自己手动点击切换」
+ * ⇒ 这里不设任何图鉴 / 钉住 / 点击入口，画哪张脸完全由 emotion prop 自动决定。
+ */
+const liveBlockId = computed(() => {
+  for (let i = blocks.value.length - 1; i >= 0; i -= 1) {
+    const block = blocks.value[i];
+    if (block?.kind === "message") return block.id;
+  }
+  return "";
+});
 
 /**
  * 助手正文走 markdown 渲染（2026-10-10）。
@@ -168,7 +192,9 @@ function openSource(url: string): void {
         </div>
       </div>
 
-      <p v-else-if="block.kind === 'error'" class="error-line">{{ block.text }}</p>
+      <p v-else-if="block.kind === 'error'" class="error-line">
+        <span class="error-at">{{ formatHistoryTime(block.at) }} ·</span>{{ block.text }}
+      </p>
 
       <!-- 用量播报（2026-10-15）：文案已在 utils/token-usage 组好，这里只渲染 text。
            必须在末尾 `v-else`（message 分支）之前，否则 usage 块会掉进 message 渲染。 -->
@@ -179,15 +205,17 @@ function openSource(url: string): void {
       </p>
 
       <div v-else class="message-line" :class="{ 'is-streaming': block.streaming }">
-        <!-- 【2026-10-17 用户裁定·对话链】助手侧的人头像（用户原话：「参考手机软件那种人机链对话框」）。
-             此前这一行**只有正文**，而 `.message-line` 在样式里连一条规则都没有——
-             agent 的话与自己的话在屏上没有一刻左右之分，两栏都从左边顶格开始，读起来是两份文档不是一条链。
-             头像用品牌那一枚 sparkles（不是 bot）：它是「墨宸 · 主笔」的位子，不只是一个机器人。
-             `aria-hidden` 是必须的：它不承载信息（这一侧是谁由上下文与栏头那枚 agentLabel 说），
-             让它进可读树只会给读屏用户多播一个无名图形。 -->
-        <span class="message-avatar" aria-hidden="true"
-          ><AppIcon name="sparkles" :size="15"
-        /></span>
+        <!-- 【2026-10-21 用户裁定·助手头像】原先是品牌 sparkles 图标，现在换成 Emotion Ball：
+             用户原话「对话的那个头像 32 种表情都要用」。球画哪种表情由 emotion prop 决定
+             （utils/emotion-signal.ts 判定，组件不自己判）：最后一条正文那枚跟着本轮状态
+             自动换脸（思考 / 调工具 / 搜索 / 写作 / 完成 / 出错 / 被打断），
+             历史消息全部静态定格在「任务完成」；用户另有裁定「表情是自动的，不需要自己
+             手动点击切换」⇒ 这里没有任何按钮或图鉴入口，脸只随状态走。
+             球本身是装饰，谁说的由气泡位置说明，所以整块 aria-hidden。 -->
+        <span class="message-avatar" aria-hidden="true">
+          <EmotionAvatar v-if="block.id === liveBlockId" :emotion="props.emotion" />
+          <EmotionAvatar v-else :emotion="EMOTION_DONE" :animated="false" />
+        </span>
         <div class="message-body">
           <div class="message-content message-markdown">
             <!--

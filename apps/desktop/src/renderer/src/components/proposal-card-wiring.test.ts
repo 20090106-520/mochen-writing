@@ -41,6 +41,19 @@ describe("ProposalCard · 唯一发射口是 decide（化石不许回来）", ()
   });
 });
 
+describe("ProposalCard · 卡头写的是文稿标题，不是盘上地址", () => {
+  // 真机上原先读作 `chapters/01-雾从海面升起来.md`：卡在等你审批，标题却是一串路径和扩展名。
+  // 换名要连带把兜底留住（查不到真名时才退回路径），否则书被改过名就一片空白。
+  it("模板插的是 docTitle，docRelPath 只许当兜底", () => {
+    const markup = templateSource(card);
+    expect(markup).toContain("{{ docTitle }}");
+    expect(markup).not.toContain("{{ view.proposal.docRelPath }}");
+    expect(scriptSource(card)).toContain(
+      "book.refOf(props.view.proposal.docRelPath)?.title ?? props.view.proposal.docRelPath"
+    );
+  });
+});
+
 /**
  * 2026-10-05：七态里 pending / expired 一直没配色（走基线灰），
  * 于是「等你点同意」和「你已拒绝」在视觉上一样安静。

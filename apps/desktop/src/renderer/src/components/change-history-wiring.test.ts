@@ -30,6 +30,12 @@ const storeSource = readFileSync(
   fileURLToPath(new URL("../stores/useBookStore.ts", import.meta.url)),
   "utf8"
 );
+// 2026-10-21：五条动作的实现从 store 搬到 `book-change-history.ts`（store 贴到 800 行预算）。
+// 搬的是代码位置，不是判据——下面仍钉同一批字符串，只是读的那份文件换成了搬去的地方。
+const changeHistorySource = readFileSync(
+  fileURLToPath(new URL("../stores/book-change-history.ts", import.meta.url)),
+  "utf8"
+);
 const css = styleSource("change-history.css");
 
 describe("入口挂在哪", () => {
@@ -120,14 +126,19 @@ describe("回滚那三件事：这里只钉接线，行为用例住在运行时"
   // stale 与被拒的文案、抛错不冒出去）和 `useBookStore.changes.test.ts`（真跑 store 动作）里
   // 各有能失败用例 ⇒ 源码字符串就是第二份判据：搬一次家红三行，而它承诺的行为一条没变。
   // 所以只留「store 确实把那颗按钮接到了那份编排上」——这条不运行时验，因为它验的是接线。
+  // 2026-10-21 搬家后再补一句：store 那颗动作必须真的把 `this` 递给编排模块，
+  // 否则面板点了 store 动作、store 动作却没往下走，链子看着在、实则断在中间。
   it("restoreChange 用的就是那份编排，传的是此刻的当前正文标签", () => {
-    expect(storeSource).toContain("restoreBackupToDoc(changeRestoreIpc, entry, this.activeDocTab)");
-    expect(storeSource).toContain("this.notice = outcome.notice");
+    expect(storeSource).toContain("restoreChange(this, entry)");
+    expect(changeHistorySource).toContain(
+      "restoreBackupToDoc(changeRestoreIpc, entry, host.activeDocTab)"
+    );
+    expect(changeHistorySource).toContain("host.notice = outcome.notice");
   });
 
   it("编排那两扇 IO 指的是 readDoc 与 restoreChange，不是别的通道", () => {
-    expect(storeSource).toContain("readDoc: (relPath) => window.mochen.readDoc(relPath)");
-    expect(storeSource).toContain(
+    expect(changeHistorySource).toContain("readDoc: (relPath) => window.mochen.readDoc(relPath)");
+    expect(changeHistorySource).toContain(
       "window.mochen.restoreChange(backupRelPath, expectedFingerprint)"
     );
   });

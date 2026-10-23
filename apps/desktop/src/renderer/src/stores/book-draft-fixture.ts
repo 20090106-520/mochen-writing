@@ -116,6 +116,9 @@ export function createBookApi(): BookApiFixture {
     pickBookDirectory: vi.fn(async (): Promise<string | null> => "/book"),
     openBook: vi.fn(async () => draftBook),
     createBook,
+    // 作品库（2026-10-21）：默认空清单；applyOpened 会顺手刷一次，不该炸。
+    listRecentBooks: vi.fn(async () => ({ books: [] })),
+    forgetRecentBook: vi.fn(async () => ({ books: [] })),
     saveMeta,
     readDoc,
     writeDoc,

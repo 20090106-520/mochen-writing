@@ -39,6 +39,8 @@ export interface TurnInput {
   /** 每轮开关，由主进程从已校验的 StartTurnInput 原样搬来；循环不认识字段名，只负责往下传。 */
   thinkingLevel: ThinkingLevel;
   webSearchEnabled: boolean;
+  /** 这一轮被用户从工具面板里关掉的工具名（2026-10-21）：清单与闸两处都要按它摘。 */
+  disabledTools?: readonly string[];
 }
 
 export interface StreamRequestLike {
@@ -268,7 +270,7 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
         // **清单与派发用同一份判据**（P1-2）：派发那一层调的也是这个函数，
         // provider-client 的 `wireToolsFor` 再作用一次是幂等的，留着是因为它对
         // 任何调用方都成立（不许只靠调用方自觉）。
-        tools: toolsFor(deps.host, input.webSearchEnabled),
+        tools: toolsFor(deps.host, input.webSearchEnabled, input.disabledTools),
         signal: deps.signal,
         thinkingLevel: input.thinkingLevel,
         webSearchEnabled: input.webSearchEnabled
@@ -400,7 +402,7 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
         }
         return finishInterrupted(pendingProposals);
       }
-      const gate = toolGateOf(deps.host, call.name, input.webSearchEnabled);
+      const gate = toolGateOf(deps.host, call.name, input.webSearchEnabled, input.disabledTools);
       if (!gate.allowed) {
         // §4 裁定：对模型的拒绝必须用中文回喂，绝不静默丢弃。
         // tool 回执保证上面那条 assistant 消息里的**每一条** tool_call 都有配对——缺回执时

@@ -2,7 +2,7 @@
      2026-10-04 演示图裁定：功能导航分组化（完整按图 + 诚实占位）——
      导航表与占位判定的唯一真身在 utils/side-nav.ts；文稿树（五类分组）整体住在「我的作品」组内。 -->
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { BookKind, DocRef } from "@mochen/contracts";
 import { Ellipsis, X } from "lucide";
 import { MorphIcon } from "morphicons/vue";
@@ -11,36 +11,35 @@ import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
 import { loadReducedMotion, motionPreferenceStorage } from "../utils/motion-preference";
 import { BOOK_KIND_LABELS, BOOK_KIND_ORDER } from "../utils/book-kinds";
+import { shortenRootPath } from "../utils/book-path";
 import { KIND_ICON } from "../utils/kind-icons";
 import { newDocButtonTitle, newDocPlan } from "../utils/new-doc";
 import { statsRowsOf } from "../utils/stats-rows";
 import { textRowKeydown } from "../utils/text-row-keydown";
 import {
-  AI_CHECK_PROMPTS,
   BRAND_TAGLINE,
   FOOTER_TAGLINE,
-  NEED_BOOK_HINT,
   SIDE_NAV_GROUPS,
-  aiCheckOf,
   sideNavChildState,
   type SideNavChild,
   type SideNavChildState
 } from "../utils/side-nav";
-import { CLEAR_VIEW_SENTENCE, threadKeyFor, useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
 import { useTimelineStore } from "../stores/useTimelineStore";
+import { useMaterialStore } from "../stores/useMaterialStore";
 import { useTrashStore } from "../stores/useTrashStore";
 import { useBackupStore } from "../stores/useBackupStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import SideNavNoticeDialog, { type SideNavNotice } from "./SideNavNoticeDialog.vue";
 import LibraryNavRows from "./LibraryNavRows.vue";
 import ExtensionsNavRow from "./ExtensionsNavRow.vue";
+import BookLibraryList from "./BookLibraryList.vue";
 
 const emit = defineEmits<{ collapse: [] }>();
 const book = useBookStore();
 const layout = useLayoutStore();
 const timeline = useTimelineStore();
-const agent = useAgentStore();
+const material = useMaterialStore();
 const trash = useTrashStore();
 const backup = useBackupStore();
 // 每日自动备份（2026-10-10）：换书/开书那刻调一次 daily 档——今天已备过就静默跳过
@@ -54,6 +53,9 @@ watch(
 );
 // 减少动效档（外观页）：本组件随设置视图互斥挂载，回来重挂即读到新档。
 const reducedMotion = loadReducedMotion(motionPreferenceStorage());
+
+// 作品库（2026-10-21）：挂载即读一次最近作品；打开/新建成功后 store 自己会再刷一次。
+onMounted(() => void book.loadRecentBooks());
 
 // 行内新建的状态先声明（sections 的放行判定要用——正在新建的空分组也要显示出来，
 // 否则「这本书还没有这类文档」时树里根本没有入口去建第一篇）。
@@ -83,6 +85,9 @@ function isSelected(relPath: string): boolean {
 function activate(kind: BookKind, relPath: string): void {
   const ref = book.refOf(relPath);
   if (!ref) return;
+  // 2026-10-23：右栏折叠时（窄窗自动收 / 用户手动收），点树行只会亮一行，正文落在看不见的那一栏里，
+  // 看起来就是「点了没反应」。打开哪一篇就把右栏摆出来——与 AI 检查先展开右栏同一条约定。
+  layout.setPaneCollapsed("right", false);
   if (kind === "chapter") void book.openDocTab(relPath);
   else book.browse(ref);
 }
@@ -97,26 +102,31 @@ onBeforeUnmount(() => {
   if (dragLeaveTimer !== null) clearTimeout(dragLeaveTimer);
 });
 
-/**
- * 「我在改哪本书、它落在哪个盘」落到「我的作品」组内（deepwrite 也把工作目录放侧栏；
+/** 「我在改哪本书、它落在哪个盘」落到「我的作品」组内（deepwrite 也把工作目录放侧栏；
  * 这里没有切书的 IPC，所以是字不是下拉）。两个字段齐了才出现：只有 rootPath 没 meta
- * 是开书瞬间的过渡态，那时宁可什么都不说。
- */
+ * 是开书瞬间的过渡态，那时宁可什么都不说。 */
 const workspace = computed(() =>
   book.meta && book.rootPath ? { title: book.meta.title, rootPath: book.rootPath } : null
 );
+
+/**
+ * 2026-10-23：作品库那一行已经把「当前这本 + 路径 + 正在写」摆全了，紧挨着再摆一遍书名与同一条路径，
+ * 等于同一件事说两遍（真机 1000 / 1600 CSS 上都读到两个「海雾手记」上下叠着，一个能点一个不能点）。
+ * 这一行只在作品库清单里**还没回填**这本时补位——刚打开目录、或清单被清空的那一瞬。
+ * 判据读的是清单本身，不是「开没开书」：只要清单里有这本，它就一定是重复的那一份。
+ */
+const workdirFallback = computed(() => {
+  const open = workspace.value;
+  if (!open) return null;
+  const listed = book.recentBooks.some((entry) => entry.rootPath === open.rootPath);
+  return listed ? null : open;
+});
 
 // 底部齿轮这个入口：唯一真身（showSettings 是唯一路径）。2026-10-05 裁定导航区不再有「设置」行
 // （理由后来修正过：设置中心改占中栏+右栏两格后左栏照常在，「整页卸载」那句已不成立；现行理由=
 // 与底部齿轮重复，且设置视图的指示器是齿轮自己——它此时不在 nav-row 里，没有 is-active 互斥参与）。
 function openSettingsOverlay(): void {
   layout.showSettings();
-}
-
-// 段③：只清渲染层视图，不碰 JSONL、不碰主进程 pending —— clearThreadView 的真实边界。
-// 渲染层这一份提案视图确实会随本页清空（store 会给出带条数的警告文案），动不到的只有主进程那一份。
-function newThreadForActiveChapter(): void {
-  agent.clearThreadView(threadKeyFor(book.activeDocTab));
 }
 
 // 「新建作品」对话框：开合真身是 layout.newBookOpen（与工作台降级区共用一个入口，不复制状态）。
@@ -141,16 +151,6 @@ function revealAgentPanel(): void {
   layout.setPaneCollapsed("right", false);
 }
 
-const chapterEditorReady = computed(
-  () => book.activeDocTab !== null || book.docs.some((doc) => doc.kind === "chapter")
-);
-
-/** 章节编辑器：打开活动章节；没有活动章节就打开第一本（都没有时按钮是禁的）。 */
-function openChapterEditor(): void {
-  const target = book.activeDocTab ?? book.docs.find((doc) => doc.kind === "chapter")?.relPath;
-  if (target) void book.openDocTab(target);
-}
-
 /**
  * 子项的响应判定（UI 层）：side-nav 纯函数打底，action 类的「就绪/引导」细分在这里
  * （它需要 book 上下文）。每一项都可点——不再有死按钮，点了必有下面四种响应之一。
@@ -158,34 +158,14 @@ function openChapterEditor(): void {
 type SideNavChildUiState = SideNavChildState & { label: string };
 
 /**
- * 「去开一章 / 先建一章」这三种引导指向的是**文稿树里那一行的行内新建**。
- * 真机量过（2026-10-07 P536I）：一篇文档都没有时文稿树不在界面上，引导落空——
- * 不报错、不消失，只是「像坏了」。⇒ 没打开作品时改走 `need-book` 对话框（两个按钮
- * 都是现成真身），与 side-nav 对 docs 子项的同一句规则对齐（「一篇文档都没有=大概率没打开作品」）。
+ * 子项的响应判定：side-nav 纯函数打底，包一层 label。
+ *
+ * 2026-10-23：这里原先还有一条 AI 检查专属分支（`aiCheckOf` + `needChapterState`）——
+ * 「审核检查」四项已改为内置技能（`main/builtin-skills.ts`），由模型在对话框里经 `use_skill`
+ * 自选载入，左栏不再有 ai-check 动作，那条分支连同它专用的 `needChapterState` 一并删除。
+ * 「一篇文档都没有 = 大概率没打开作品」这条规则仍只留在 `utils/side-nav.ts` 一处。
  */
-function needChapterState(label: string, hint: string): SideNavChildUiState {
-  return book.docs.length === 0
-    ? { mode: "need-book", hint: NEED_BOOK_HINT, label }
-    : { mode: "need-doc", docKind: "chapter", hint, label };
-}
-
 function childState(child: SideNavChild): SideNavChildUiState {
-  if (child.reality.kind === "action" && child.reality.action === "new-thread") {
-    return book.activeDocTab === null
-      ? needChapterState(`${child.label}（去开一章）`, "先打开一章再开始 AI 写作——点这里去开一章")
-      : { mode: "ready", hint: CLEAR_VIEW_SENTENCE, label: child.label };
-  }
-  if (child.reality.kind === "action" && child.reality.action === "chapter-editor") {
-    return chapterEditorReady.value
-      ? { mode: "ready", hint: "在中间的编辑器里打开一章", label: child.label }
-      : needChapterState(`${child.label}（先建一章）`, "先有章节才能用章节编辑器——点这里去建一章");
-  }
-  // AI 检查四项（含文风检查）：检查对象是「当前打开的章节」——没开章就引导去开，同 AI 写作的口径。
-  if (child.reality.kind === "action" && aiCheckOf(child.reality.action) !== null) {
-    return book.activeDocTab === null
-      ? needChapterState(`${child.label}（去开一章）`, "先打开一章再做检查——点这里去开一章")
-      : { mode: "ready", hint: "打开对话面板并预填检查提问，确认后发送", label: child.label };
-  }
   return { ...sideNavChildState(child, book.docs), label: child.label };
 }
 
@@ -276,15 +256,10 @@ function onChildAction(child: SideNavChild): void {
     return;
   }
   if (child.reality.kind === "action") {
-    // AI 检查：展开对话面板 + 预填提问（不自动发送，用户保留最后一道编辑权）。
-    const check = aiCheckOf(child.reality.action);
-    if (check !== null) {
+    // 素材库（2026-10-23）：有真面板了——锚点那枚按钮同样在右栏头部，先展右栏再开面板。
+    if (child.reality.action === "materials-panel") {
       revealAgentPanel();
-      agent.prefillComposer(threadKeyFor(book.activeDocTab), AI_CHECK_PROMPTS[check]);
-      return;
-    }
-    if (child.reality.action === "new-thread") {
-      newThreadForActiveChapter();
+      material.toggle();
       return;
     }
     // 伏笔台账（2026-10-05）：锚点那枚按钮住在右栏头部，所以先把右栏展开再开台账——
@@ -301,7 +276,6 @@ function onChildAction(child: SideNavChild): void {
       void timeline.toggle();
       return;
     }
-    if (child.reality.action === "chapter-editor") openChapterEditor();
   }
 }
 
@@ -346,7 +320,8 @@ async function confirmAdding(): Promise<void> {
   const kind = addingKind.value;
   const title = newDocTitle.value;
   cancelAdding();
-  await book.createDoc(kind, title);
+  // 新建成功后 store 会直接打开这一篇：右栏折着时同样是「新建了却看不见」，所以成了再展开。
+  if (await book.createDoc(kind, title)) layout.setPaneCollapsed("right", false);
 }
 
 /**
@@ -522,12 +497,17 @@ function onChapterDragEnd(): void {
             </button>
           </div>
           <div v-if="worksOpen" class="nav-group-body">
-            <div v-if="workspace" class="sidebar-workdir">
-              <strong class="workdir-book" :title="workspace.title">
-                {{ workspace.title }}
+            <!-- 作品库（2026-10-21）：先列「我打开过哪几本」（清单真身在主进程，点一行即切书，× 只移出清单），再放当前这本的文稿树。 -->
+            <section class="sidebar-library" aria-label="作品库">
+              <span class="sidebar-library-title">作品库</span>
+              <BookLibraryList />
+            </section>
+            <div v-if="workdirFallback" class="sidebar-workdir">
+              <strong class="workdir-book" :title="workdirFallback.title">
+                {{ workdirFallback.title }}
               </strong>
-              <span class="workdir-path" :title="workspace.rootPath">
-                工作目录：{{ workspace.rootPath }}
+              <span class="workdir-path" :title="workdirFallback.rootPath">
+                工作目录：{{ shortenRootPath(workdirFallback.rootPath) }}
               </span>
             </div>
             <div class="resource-list">

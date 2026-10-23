@@ -103,15 +103,20 @@ describe("workbench-state · 五张能力卡是真动作（示意稿 A）", () =
       docs: chapters,
       activeChapter: null
     }).find((card) => card.id === "character")?.hint;
-    // F1：没有目标 ⇒ 说实话，不承诺此刻不存在的「浏览…」动作
+    // F1：没有目标 ⇒ 说实话，不承诺此刻不存在的「在右栏读它」动作
     expect(emptyHint).toBe(WORKBENCH_EMPTY_HINTS.character);
-    expect(emptyHint).not.toBe("浏览人物分组第一篇，落到右栏浏览态。");
+    expect(emptyHint).not.toBe(WORKBENCH_CARD_HINTS.character);
+    // 2026-10-23 文案走查：「浏览态」是内部叫法，用户看不懂；「落到」也是实现口吻。
+    for (const hint of Object.values(WORKBENCH_CARD_HINTS)) {
+      expect(hint).not.toContain("浏览态");
+      expect(hint).not.toContain("落到");
+    }
     // F1：有目标 ⇒ 动作说明（chief-write 在 chapters 里有真目标）
     expect(
       workbenchCards({ hasBook: true, docs: chapters, activeChapter: null }).find(
         (card) => card.id === "chief-write"
       )?.hint
-    ).toBe("打开当前章，预填一句改稿指令，再交给你逐条审批。");
+    ).toBe("打开当前章，预填一句改稿指令；改稿提案逐条等你批准。");
   });
 
   it("悬停文案：空卡在实话后面补「点一下去左栏新建一篇」，有目标的不许画蛇添足", () => {

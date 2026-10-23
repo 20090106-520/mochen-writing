@@ -276,6 +276,11 @@ const heatDays = computed(() => recentProgress.value);
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
+  /* 【2026-10-22 窄窗走查】与笔记面板同一条：右贴边全高的抽屉，头部的「关闭」正好落在
+     无边框窗口右上角的窗控叠加区（—□×）底下，屏上不可见、点下去是最小化/关窗。
+     让位口径照抄右栏栏头（editor-pane.css 的 .editor-header），不支持 titlebar-area-* 时
+     相消回 0，退回原来的 16px。 */
+  padding-right: calc(16px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
   border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
   flex-shrink: 0;
 }
@@ -300,7 +305,7 @@ const heatDays = computed(() => recentProgress.value);
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
   color: var(--text-primary, #e8e8e8);
 }
 

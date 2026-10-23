@@ -28,6 +28,13 @@ const statusLabel = computed(() => PROPOSAL_STATUS_LABELS[props.view.status]);
 // 模式文案的唯一来源是 contracts 的穷尽表（铁律 6）：这里不写三元链，加模式不写文案直接编译不过。
 const modeLabel = computed(() => PROPOSAL_MODE_LABELS[props.view.proposal.mode]);
 /**
+ * 2026-10-23：卡头原先直接印 docRelPath（`chapters/01-雾从海面升起来.md`）——那是盘上的地址，
+ * 不是给人看的标题。查不到真名时仍退回路径：名字可以土，不能假。
+ */
+const docTitle = computed(
+  () => book.refOf(props.view.proposal.docRelPath)?.title ?? props.view.proposal.docRelPath
+);
+/**
  * 「切档后再批准」的入口（Plan 2 冒烟 P3）。判定在 utils/proposal-permission.ts，
  * 判据用的就是主进程批准时那一份 writeVerdict——所以这里指的那一档，主进程一定认。
  * 「当前章」取活动标签：与主进程 `threadKey` 即文稿路径的裁定 o 同一口径。
@@ -84,7 +91,7 @@ function decide(decision: ProposalDecision): void {
     <header class="card-head">
       <AppIcon name="replace" :size="15" />
       <span class="card-turn">{{ turnLabel }}</span>
-      <span class="proposal-title">{{ view.proposal.docRelPath }}</span>
+      <span class="proposal-title">{{ docTitle }}</span>
       <span class="proposal-mode">{{ modeLabel }}</span>
       <span class="proposal-status">{{ statusLabel }}</span>
     </header>

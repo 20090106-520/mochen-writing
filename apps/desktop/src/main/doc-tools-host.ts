@@ -6,9 +6,11 @@ import type {
   DocRef,
   EditProposal,
   PatchMode,
-  ProposalSource
+  ProposalSource,
+  SkillRef
 } from "@mochen/contracts";
 import {
+  BOOK_KINDS,
   fuzzyEligible,
   fuzzyFindInLine,
   aiFlavorGate,
@@ -52,6 +54,12 @@ export interface DocToolHostDeps {
   webSearch(query: string): Promise<WebSearchOutcome>;
   /** 网页正文抓取（2026-10-11，web_read 的真身）：主进程出网；测试注入假实现。 */
   webRead(url: string): Promise<WebReadOutcome>;
+  /**
+   * 技能库（use_skill 的真身，2026-10-23）。listSkills 列全部可用技能；readSkill 按 id 载入正文。
+   * 两者都只读——与 skill-service 的只读面同一条边界。缺省 ⇒ use_skill 回「技能库不可用」。
+   */
+  listSkills?: (() => Promise<SkillRef[]>) | undefined;
+  readSkill?: ((id: string) => Promise<{ title: string; text: string }>) | undefined;
 }
 
 function str(args: Record<string, unknown>, key: string): string {
@@ -85,6 +93,62 @@ function inWritableDir(relPath: string): boolean {
  */
 function sentence(text: string): string {
   return /[。．.!?！？…]$/.test(text.trimEnd()) ? text.trimEnd() : `${text}。`;
+}
+
+/* ── search_docs 的两种回执（2026-10-22 扩形）──
+ * 逐行档回答「这一句在哪」，按篇档回答「哪些章提到它」。两档用的是**同一次**扫盘结果，
+ * 差别只在排版——所以收集与排版分开，判据一处。
+ * 上限 50 而不是无限：回执直接进模型上下文，整本倾倒会把这轮的对话预算吃光。 */
+const SEARCH_LIMIT_DEFAULT = 20;
+const SEARCH_LIMIT_MAX = 50;
+
+interface SearchHit {
+  ref: DocRef;
+  /** 1 起的行号。 */
+  line: number;
+  /** 命中行原文（已 trim）。 */
+  text: string;
+}
+
+/** 模型可能给数字也可能给字符串；缺省/非法一律回默认，超上限截到上限。 */
+function searchLimitOf(raw: unknown): number {
+  const value = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(value)) return SEARCH_LIMIT_DEFAULT;
+  return Math.min(SEARCH_LIMIT_MAX, Math.max(1, Math.floor(value)));
+}
+
+function searchReceipt(input: {
+  hits: SearchHit[];
+  group: "line" | "doc";
+  limit: number;
+  /** 限定的文稿类型（空串 = 全书）；回执要把这件事说清，免得模型以为搜过整本。 */
+  scope: string;
+  lead: string;
+  fuzzy: boolean;
+}): string {
+  const { hits, group, limit, scope, lead, fuzzy } = input;
+  const scopeNote = scope === "" ? "" : `（只搜了 ${scope} 类文稿）`;
+  const fuzzyNote = fuzzy ? "（命中的字可能与查询不完全相同，引用前先核对）" : "";
+  if (group === "doc") {
+    const byDoc = new Map<string, SearchHit[]>();
+    for (const hit of hits) {
+      const bucket = byDoc.get(hit.ref.relPath);
+      if (bucket === undefined) byDoc.set(hit.ref.relPath, [hit]);
+      else bucket.push(hit);
+    }
+    const docs = [...byDoc.values()];
+    const shown = docs.slice(0, limit);
+    const rows = shown.map((bucket) => {
+      const first = bucket[0]!;
+      return `- ${first.ref.relPath} · ${first.ref.title}（命中 ${bucket.length} 处，首处第 ${first.line} 行：${first.text}）`;
+    });
+    const tail = docs.length > shown.length ? `，只列前 ${shown.length} 篇` : "";
+    return `${lead} ${hits.length} 处，分布在 ${docs.length} 篇${scopeNote}${tail}${fuzzyNote}：\n${rows.join("\n")}`;
+  }
+  const shown = hits.slice(0, limit);
+  const rows = shown.map((hit) => `${hit.ref.relPath}:${hit.line}: ${hit.text}`);
+  const tail = hits.length > shown.length ? `，只列前 ${shown.length} 条` : "";
+  return `${lead} ${hits.length} 处${scopeNote}${tail}${fuzzyNote}：\n${rows.join("\n")}`;
 }
 
 /* ── AI 味自动退稿闸（2026-10-10 二段）──
@@ -274,55 +338,95 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
         };
       }
 
+      // use_skill（2026-10-23，spec §11 放宽）：无参列技能库，带 skill（id）载入那一份正文。
+      // 只读——不写盘、不进文稿树；载入的正文当一条工具回执给模型，模型据此照做。
+      if (name === "use_skill") {
+        const wanted = str(args, "skill").trim();
+        if (wanted === "") {
+          if (deps.listSkills === undefined) return deny("技能库这一轮没接上，列不出来。");
+          const refs = await deps.listSkills();
+          if (refs.length === 0) return { ok: true, text: "（技能库里还没有技能）", proposals: [] };
+          return {
+            ok: true,
+            text: refs
+              .map((ref) => `- ${ref.id} · ${ref.displayName}：${ref.description || "（无说明）"}`)
+              .join("\n"),
+            proposals: []
+          };
+        }
+        if (deps.readSkill === undefined) return deny("技能库这一轮没接上，读不到技能正文。");
+        const one = await deps.readSkill(wanted).catch(() => null);
+        if (one === null)
+          return deny(
+            `技能库里没有 id 为「${wanted}」的技能。先不带参数调一次 use_skill 看看有哪些。`
+          );
+        return { ok: true, text: `【技能：${one.title}】\n${one.text}`, proposals: [] };
+      }
+
       if (name === "search_docs") {
         const query = str(args, "query");
         if (query === "") return deny("search_docs 需要非空的 query。");
         const root = deps.root();
         if (root === null) return deny("尚未打开作品目录。");
-        const hits: string[] = [];
-        let total = 0;
-        for (const ref of deps.docs()) {
-          const body = await readFile(path.join(root, ...ref.relPath.split("/")), "utf8").catch(
-            () => null
+        // 2026-10-22：kind 把检索限定在一类文稿上（人物卡、场景、伏笔……）。
+        // 认不出的 kind 不静默退回全书——那样作者以为只搜了人物，实际搜了整本。
+        const kind = str(args, "kind");
+        if (kind !== "" && !(BOOK_KINDS as readonly string[]).includes(kind))
+          return deny(
+            `不认识的文稿类型「${kind}」。可用的是 ${BOOK_KINDS.join("、")}；不传则搜全书。`
           );
-          if (body === null) continue;
-          const lines = body.split("\n");
-          for (const [index, line] of lines.entries()) {
-            if (!line.includes(query)) continue;
-            total += 1;
-            if (hits.length < 20) hits.push(`${ref.relPath}:${index + 1}: ${line.trim()}`);
-          }
-        }
-        // 一字之差兜底（2026-10-10）：与渲染层全文搜索同一份真身（contracts/search-match），
-        // 精确零命中才跑第二轮，并在回执里如实写明这是容错命中——模型据此知道窗口里
-        // 的字与 query 并不相同（比如「林潮生」命中了「林潮升」），不能照抄。
-        if (total === 0 && fuzzyEligible(query)) {
-          for (const ref of deps.docs()) {
+        const refs = deps.docs().filter((ref) => kind === "" || ref.kind === kind);
+        // group="doc"：按篇聚合，答「哪些章节提到漕运」——这是 kind 之外的另一半。
+        const group = str(args, "group") === "doc" ? "doc" : "line";
+        const limit = searchLimitOf(args.limit);
+
+        const collect = async (match: (line: string) => boolean) => {
+          const hits: SearchHit[] = [];
+          for (const ref of refs) {
             const body = await readFile(path.join(root, ...ref.relPath.split("/")), "utf8").catch(
               () => null
             );
             if (body === null) continue;
-            const lines = body.split("\n");
-            for (const [index, line] of lines.entries()) {
-              const found = fuzzyFindInLine(line, query);
-              if (found === null) continue;
-              total += 1;
-              if (hits.length < 20) hits.push(`${ref.relPath}:${index + 1}: ${line.trim()}`);
+            for (const [index, line] of body.split("\n").entries()) {
+              if (!match(line)) continue;
+              hits.push({ ref, line: index + 1, text: line.trim() });
             }
           }
-          if (total === 0) return { ok: true, text: `没有命中「${query}」。`, proposals: [] };
+          return hits;
+        };
+
+        const exact = await collect((line) => line.includes(query));
+        // 一字之差兜底（2026-10-10）：与渲染层全文搜索同一份真身（contracts/search-match），
+        // 精确零命中才跑第二轮，并在回执里如实写明这是容错命中——模型据此知道窗口里
+        // 的字与 query 并不相同（比如「林潮生」命中了「林潮升」），不能照抄。
+        if (exact.length === 0 && fuzzyEligible(query)) {
+          const fuzzy = await collect((line) => fuzzyFindInLine(line, query) !== null);
+          if (fuzzy.length === 0)
+            return { ok: true, text: `没有命中「${query}」。`, proposals: [] };
           return {
             ok: true,
-            text: `精确搜索没有命中「${query}」，按一字之差容错命中 ${total} 处${
-              hits.length < total ? `，只列前 ${hits.length} 条` : ""
-            }（命中的字可能与查询不完全相同，引用前先核对）：\n${hits.join("\n")}`,
+            text: searchReceipt({
+              hits: fuzzy,
+              group,
+              limit,
+              scope: kind,
+              lead: `精确搜索没有命中「${query}」，按一字之差容错命中`,
+              fuzzy: true
+            }),
             proposals: []
           };
         }
-        if (total === 0) return { ok: true, text: `没有命中「${query}」。`, proposals: [] };
+        if (exact.length === 0) return { ok: true, text: `没有命中「${query}」。`, proposals: [] };
         return {
           ok: true,
-          text: `命中 ${total} 处${hits.length < total ? `，只列前 ${hits.length} 条` : ""}：\n${hits.join("\n")}`,
+          text: searchReceipt({
+            hits: exact,
+            group,
+            limit,
+            scope: kind,
+            lead: "命中",
+            fuzzy: false
+          }),
           proposals: []
         };
       }

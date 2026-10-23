@@ -20,7 +20,13 @@ export default tseslint.config(
       "scratch/**",
       ".mochen-tmp/**",
       ".superpowers/**",
-      ".superdesign/**"
+      ".superdesign/**",
+      // CodeArts 编辑工具的临时目录（检查点备份 / accept 快照）：会持续生成 .vue/.ts，
+      // 且它自带 .gitignore、永不进版本控制——lint 它只会把工具产物当源码报错。
+      ".codeartsdoer/**",
+      // 第三方原样搬入的脚本（2026-10-21）：Emotion Ball 引擎是零依赖 IIFE，
+      // 改它等于改上游源码；本仓自己的接线都在同目录的 index.ts facade 里。
+      "apps/desktop/src/renderer/src/vendor/emotion-ball/*.js"
     ]
   },
   js.configs.recommended,

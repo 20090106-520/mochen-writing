@@ -354,6 +354,10 @@ const id = (label: string): ArgRule => textRule({ maxLength: MAX_ID_CHARS, label
  */
 export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   [IPC_CHANNELS.bookOpen]: [textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "打开作品目录" })],
+  // 作品库（2026-10-21）：移除一条只递书根的绝对路径；「是不是真在清单里」由 store 自己判。
+  [IPC_CHANNELS.bookForget]: [
+    textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "要从作品库移除的作品目录" })
+  ],
   [IPC_CHANNELS.bookCreate]: [objectRule("新建作品")],
   [IPC_CHANNELS.bookSaveMeta]: [objectRule("保存作品设置")],
   [IPC_CHANNELS.bookDataRead]: [
@@ -463,6 +467,8 @@ export function argRulesFor(channel: string): ArgRule[] {
  */
 export const IPC_NO_ARG_CHANNELS: readonly string[] = [
   IPC_CHANNELS.bookPick,
+  // 作品库（2026-10-21）：读整份清单没有参数（书架内容全由主进程自己的落盘决定）。
+  IPC_CHANNELS.bookRecent,
   IPC_CHANNELS.agentListSessions,
   IPC_CHANNELS.providerGet,
   IPC_CHANNELS.skillsList,
@@ -504,6 +510,8 @@ const webdavDenyIo = (info: DenyInfo): unknown => ({
  */
 const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
   [IPC_CHANNELS.bookCreate]: (info) => ({ ok: false, message: info.message }),
+  // 作品库移除（2026-10-21）被挡时回空清单：调用点按 result.books 渲染，抛错会让那一行悬在 await 上。
+  [IPC_CHANNELS.bookForget]: () => ({ books: [] }),
   [IPC_CHANNELS.docWrite]: (info) => ({
     ok: false,
     reason: info.kind === "check" ? "outside-book" : "invalid-path",

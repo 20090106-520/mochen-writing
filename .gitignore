@@ -42,6 +42,12 @@ release-e2e/
 # 可再生产、不属于项目内容，本体留在盘上不动，只是不跟着代码走（既例见上面那几条工具目录）。
 .trae-html-share-packages/
 
+# ---- 2026-10-23 补上的忽略（收口工具目录，让 `prettier . --check` 与 `git status` 继续只反映真改动）----
+# `.codeartsdoer/` —— 第三方 Agent 工具的本地工作区（配置、索引、临时稿），未跟踪、可再生产，
+# 不属于项目内容。不忽略它时 `prettier . --check` 会把里面 7 个 json/md 判成格式不合规
+# （既例见上面 `.workbuddy/` / `.mavis/` / `.trae-html-share-packages/` 那几条工具目录）。
+.codeartsdoer/
+
 # ---- 2026-10-20 补上的忽略（P0-① 判据阈值真人语料校准）----
 # `packages/contracts/corpus/` —— 喂给 `flavor-calibration` 出表的**真人语料**：多为受版权保护的
 # 出版文本，只在本地当对照算出分位与误报率，本体不跟着代码走（既例见上面那几条语料/工具目录）。

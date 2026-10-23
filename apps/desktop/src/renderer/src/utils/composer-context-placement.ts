@@ -53,9 +53,16 @@ export interface PopoverPlacement {
 export function composerPopoverPlacement(input: {
   anchor: PopoverAnchorRect;
   viewport: PopoverViewport;
+  /**
+   * 这一枚浮层想要的宽度（2026-10-23）。不传就用 `POPOVER_WIDTH`（320）——
+   * 下拉类浮层的默认观感一个字没变。台账/读数面板要摆下四件东西，320 装不下的那些
+   * 由此自报宽度；**底线仍然是 `视口宽 - 2*margin`**，贴边打开时不会有一截跑到屏幕外。
+   * 宽度是真身（这里），各面板样式表里的 `width` 让位给它，不再各写一份。
+   */
+  preferredWidth?: number;
 }): PopoverPlacement {
-  const { anchor, viewport } = input;
-  const width = Math.min(POPOVER_WIDTH, viewport.innerWidth - POPOVER_MARGIN * 2);
+  const { anchor, viewport, preferredWidth } = input;
+  const width = Math.min(preferredWidth ?? POPOVER_WIDTH, viewport.innerWidth - POPOVER_MARGIN * 2);
   const above = Math.max(0, anchor.top - POPOVER_GAP - POPOVER_MARGIN);
   const below = Math.max(0, viewport.innerHeight - anchor.bottom - POPOVER_GAP - POPOVER_MARGIN);
   const upward = above >= POPOVER_ABOVE_MIN || above > below;

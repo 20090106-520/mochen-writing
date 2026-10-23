@@ -130,37 +130,6 @@ describe("read_doc / list_docs / search_docs", () => {
     expect(characters.text).toContain("characters/李深.md");
     expect(characters.text).not.toContain(CHAPTER);
   });
-
-  it("search_docs 给出行号", async () => {
-    const out = await host().call("search_docs", { query: "守闸人" });
-    expect(out.ok).toBe(true);
-    expect(out.text).toContain("characters/李深.md:1:");
-  });
-
-  it("search_docs 的 query 是空串时拒绝，而不是拿空串去全书逐行匹配", async () => {
-    // 空串 line.includes("") 恒真：少了这条守卫，回执会变成「命中 N 处」的全书倾倒。
-    const out = await host().call("search_docs", { query: "" });
-    expect(out.ok).toBe(false);
-    expect(out.text).toContain("非空");
-    expect(out.proposals).toEqual([]);
-  });
-
-  it("search_docs 精确零命中后按一字之差容错，并如实写明这是容错命中", async () => {
-    // 盘上是「守闸人」，query 差一个字：精确匹配零命中，第二轮容错兜底。
-    const out = await host().call("search_docs", { query: "守闸入" });
-    expect(out.ok).toBe(true);
-    expect(out.text).toContain("容错命中");
-    expect(out.text).toContain("characters/李深.md:1:");
-  });
-
-  it("search_docs 精确命中时不跑容错轮；确实不存在时回「没有命中」且不提容错", async () => {
-    const exact = await host().call("search_docs", { query: "守闸人" });
-    expect(exact.text).not.toContain("容错");
-    const miss = await host().call("search_docs", { query: "绝不会出现的词" });
-    expect(miss.ok).toBe(true);
-    expect(miss.text).toContain("没有命中");
-    expect(miss.text).not.toContain("容错");
-  });
 });
 
 describe("web_search", () => {

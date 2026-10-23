@@ -474,7 +474,11 @@ function onTemplateApply(text: string): void {
 
     <SaveConflictDialog />
     <NewBookDialog v-if="newBookOpen" @close="layout.closeNewBook()" />
-    <ImportTxtDialog v-if="layout.importTxtOpen" @close="layout.closeImportTxt()" />
+    <ImportTxtDialog
+      v-if="layout.importTxtOpen"
+      :initial-target="layout.importTxtTarget"
+      @close="layout.closeImportTxt()"
+    />
     <SearchPanel :visible="searchOpen" @close="searchOpen = false" />
     <NotesPanel :visible="notesOpen" @close="notesOpen = false" />
     <WordCountPanel

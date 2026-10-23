@@ -78,6 +78,12 @@ function skip(): void {
 function close(): void {
   onboarding.dismiss();
 }
+
+/** 完成屏那枚「新建作品」：先收掉引导（别挡住下面的新建对话框），再开新建。 */
+function startNewBook(): void {
+  onboarding.complete();
+  layout.openNewBook();
+}
 </script>
 
 <template>
@@ -117,7 +123,7 @@ function close(): void {
         </button>
       </footer>
 
-      <button class="ob-close" type="button" @click="close">
+      <button class="ob-close" type="button" aria-label="关闭引导" title="关闭引导" @click="close">
         <AppIcon name="close" :size="12" />
       </button>
     </div>
@@ -125,22 +131,16 @@ function close(): void {
 
   <!-- 完成状态 -->
   <div v-if="currentStep === 'complete' && showGuide" class="ob-overlay">
-    <div class="ob-dialog ob-complete" role="dialog">
+    <div class="ob-dialog ob-complete" role="dialog" aria-label="引导完成">
       <div class="ob-icon-wrap ob-icon-success">
         <AppIcon name="check" :size="32" />
       </div>
       <h3>一切就绪！</h3>
       <p class="ob-desc">引导完成。去创建你的第一部作品吧。</p>
-      <button
-        class="ob-next"
-        type="button"
-        @click="
-          onboarding.complete();
-          layout.openNewBook();
-        "
-      >
-        新建作品
-      </button>
+      <div class="ob-complete-actions">
+        <button class="ob-next" type="button" @click="startNewBook">新建作品</button>
+        <button class="ob-skip" type="button" @click="onboarding.complete()">稍后再说</button>
+      </div>
     </div>
   </div>
 </template>
@@ -149,11 +149,13 @@ function close(): void {
 .ob-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 32%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 3000;
+  /* 90：低于 .dialog-backdrop 的 100（新建作品等对话框要能盖在引导上），高于常规浮层 60。
+     原来 3000 会把引导里「下一步」打开的 NewBookDialog 整个压住且拦截点击——用户点不动、也退不出。 */
+  z-index: 90;
 }
 
 .ob-dialog {
@@ -164,7 +166,7 @@ function close(): void {
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 14px;
   padding: 24px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-lg);
 }
 
 .ob-progress {
@@ -173,7 +175,7 @@ function close(): void {
   left: 0;
   right: 0;
   height: 3px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
   border-radius: 14px 14px 0 0;
   overflow: hidden;
 }
@@ -264,7 +266,7 @@ function close(): void {
   width: 6px;
   height: 6px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 15%, transparent);
   transition: all 0.2s;
 }
 
@@ -297,8 +299,8 @@ function close(): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   background: transparent;
   border: none;
   border-radius: 4px;
@@ -308,10 +310,17 @@ function close(): void {
 
 .ob-close:hover {
   color: var(--text-secondary, #999);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
 }
 
 .ob-complete {
   text-align: center;
+}
+
+.ob-complete-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 </style>

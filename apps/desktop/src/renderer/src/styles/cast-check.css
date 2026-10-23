@@ -1,0 +1,166 @@
+/* 人物设定核对浮层（2026-10-22）。骨架与 timeline / foreshadow 同款：
+   Teleport 到 body、贴着锚点定位，头固定 / 中间自己滚 / 盲区块在滚动区内。 */
+
+.cast-check {
+  position: fixed;
+  z-index: 60;
+  /* 宽度由 useComposerContextPopover 的 widthPx 给出（430），样式表不再写死 width。 */
+  max-height: min(560px, 76vh);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  font-size: 0.928571rem;
+  line-height: 1.6;
+}
+
+.cast-check-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.cast-check-head strong {
+  margin-right: auto;
+}
+
+.cast-check-count {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.cast-check-note,
+.cast-check-empty,
+.cast-check-verdict {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.857143rem;
+}
+
+.cast-check-note {
+  flex: none;
+}
+
+.cast-check-note code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-dim, #f0f1f4);
+  font-size: 0.785714rem;
+}
+
+.cast-check-error {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: var(--danger-soft, rgb(214 69 69 / 12%));
+  color: var(--danger, #d64545);
+  font-size: 0.857143rem;
+}
+
+/* 结论：干净时转中性色，有问题时转琥珀——只是「要核一核」，不是判你写错了。 */
+.cast-check-verdict {
+  color: var(--warning, #d99a00);
+  font-weight: 600;
+}
+
+.cast-check-verdict.is-clean {
+  color: var(--text-dim, #6b6f76);
+  font-weight: 400;
+}
+
+.cast-check-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.cast-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cast-group-title {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.cast-group-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cast-finding {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--surface-dim, #f0f1f4);
+}
+
+.cast-finding-message {
+  margin: 0;
+  color: var(--text-primary, #23262b);
+}
+
+.cast-finding-place {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+}
+
+.cast-finding-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent, #3a6ea5);
+  font-size: inherit;
+  font-family: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cast-finding-quote {
+  color: var(--text-dim, #6b6f76);
+}
+
+.cast-blind {
+  flex: none;
+  padding: 8px 9px;
+  border-radius: 8px;
+  background: var(--surface-dim, #f0f1f4);
+}
+
+.cast-blind-title {
+  margin: 0 0 4px;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  font-weight: 600;
+}
+
+.cast-blind ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+}

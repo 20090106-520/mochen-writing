@@ -31,6 +31,7 @@ describe("parseForeshadowMeta", () => {
       "status: paid",
       "planted: chapters/01-开局.md",
       "paid: chapters/05-归港.md",
+      "keywords: [老枪, 旧伤]",
       "---",
       "",
       "他一直没让人碰那处伤。"
@@ -39,8 +40,14 @@ describe("parseForeshadowMeta", () => {
       status: "paid",
       plantedIn: "chapters/01-开局.md",
       paidIn: "chapters/05-归港.md",
+      keywords: ["老枪", "旧伤"],
       rawStatus: "paid"
     });
+  });
+
+  it("没写 keywords 就是空表：不拿标题去猜关键词", () => {
+    const raw = ["---", "title: 老枪的伤", "status: planted", "---", "正文"].join("\n");
+    expect(parseForeshadowMeta(raw).keywords).toEqual([]);
   });
 
   it("没有围栏 / 没有 status 键都不报错：默认按「已埋未收」算", () => {

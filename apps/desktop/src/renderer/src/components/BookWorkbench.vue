@@ -17,6 +17,7 @@ import {
 } from "../utils/workbench-state";
 import { useBookStore } from "../stores/useBookStore";
 import { useLayoutStore } from "../stores/layoutStore";
+import BookLibraryList from "./BookLibraryList.vue";
 
 defineProps<{
   hasBook: boolean;
@@ -49,7 +50,8 @@ async function openBook(): Promise<void> {
         v-if="!hasBook && !particleFailed"
         class="workbench-hero-art is-particle"
         :src="brandMark"
-        :count="5000"
+        :count="1600"
+        :size="1.7"
         :drift="0.5"
         :float-intensity="0.35"
         :rotation-intensity="0"
@@ -98,6 +100,16 @@ async function openBook(): Promise<void> {
         </button>
       </div>
     </div>
+
+    <!-- 最近的作品（2026-10-21）：工作台不再只有「打开 / 新建」两个按钮——
+         写过哪几本、上一本叫什么，都摆在这里，点一本就切过去（同一份组件，左栏那份是 is-list）。 -->
+    <section v-if="book.recentBooks.length" class="workbench-recent" aria-label="最近的作品">
+      <header class="workbench-recent-head">
+        <strong>最近的作品</strong>
+        <span>点一本就换过去</span>
+      </header>
+      <BookLibraryList variant="cards" />
+    </section>
 
     <!-- 能力清单：静态说明，不是对话项——本版没有「它先开口」这件事，所以不写时间戳。 -->
     <section v-if="hasBook" class="workbench-intro">

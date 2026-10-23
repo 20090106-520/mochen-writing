@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { DocRef } from "@mochen/contracts";
-import { foreshadowRows, foreshadowStats, plantToneLabel, readForeshadowRaws } from "./foreshadow";
+import {
+  brokenPointers,
+  foreshadowRows,
+  foreshadowStats,
+  keywordMisses,
+  plantToneLabel,
+  readForeshadowRaws,
+  readPlantedChapters
+} from "./foreshadow";
 
 /**
  * 伏笔台账的**行组装与统计**（2026-10-05）。
@@ -127,6 +135,61 @@ describe("plantToneLabel", () => {
   });
 });
 
+describe("brokenPointers · 跨章回归（2026-10-22）", () => {
+  const chapter = (relPath: string, title: string): DocRef => doc(relPath, title, "chapter");
+
+  it("落点章改名/删掉之后报断，并把原文路径原样带出来", () => {
+    const docs = [doc("foreshadow/老枪.md", "老枪的伤"), chapter("chapters/05-归港.md", "归港")];
+    const rows = foreshadowRows(
+      docs,
+      new Map([["foreshadow/老枪.md", doc_("status: planted|planted: chapters/03-旧闸.md")]])
+    );
+    expect(brokenPointers(docs, rows)).toEqual([
+      {
+        relPath: "foreshadow/老枪.md",
+        title: "老枪的伤",
+        field: "planted",
+        target: "chapters/03-旧闸.md"
+      }
+    ]);
+  });
+
+  it("两格都指空就报两条，各说各的入口", () => {
+    const docs = [doc("foreshadow/甲.md", "甲")];
+    const rows = foreshadowRows(
+      docs,
+      new Map([
+        ["foreshadow/甲.md", doc_("status: paid|planted: chapters/01.md|paid: chapters/09.md")]
+      ])
+    );
+    expect(brokenPointers(docs, rows).map((one) => one.field)).toEqual(["planted", "paid"]);
+  });
+
+  it("落点都在书里就一条都不报；没写落点的也不报（那是「还没登记」不是「断了」）", () => {
+    const docs = [
+      doc("foreshadow/甲.md", "甲"),
+      doc("foreshadow/乙.md", "乙"),
+      chapter("chapters/01.md", "一")
+    ];
+    const rows = foreshadowRows(
+      docs,
+      new Map([
+        ["foreshadow/甲.md", doc_("status: planted|planted: chapters/01.md")],
+        ["foreshadow/乙.md", doc_("status: planted")]
+      ])
+    );
+    expect(brokenPointers(docs, rows)).toEqual([]);
+  });
+
+  it("读不到原文的那条跳过：它的落点字段没解析出来，不能替它下「断」的结论", () => {
+    const docs = [doc("foreshadow/甲.md", "甲")];
+    // raws 里没有它 ⇒ tone = unknown
+    const rows = foreshadowRows(docs, new Map());
+    expect(rows[0]?.tone).toBe("unknown");
+    expect(brokenPointers(docs, rows)).toEqual([]);
+  });
+});
+
 describe("readForeshadowRaws（2026-10-09 从 store 搬进来的并发读）", () => {
   it("只读 foreshadow 那一类，其它文稿一篇都不碰", async () => {
     const asked: string[] = [];
@@ -156,5 +219,91 @@ describe("readForeshadowRaws（2026-10-09 从 store 搬进来的并发读）", (
         (r) => r.tone
       )
     ).toEqual(["unknown", "pending"]);
+  });
+});
+
+describe("keywordMisses · 关键词回归（2026-10-22，C6）", () => {
+  function rowsOf(raw: string, relPath = "chapters/01.md") {
+    return foreshadowRows(
+      [doc("foreshadow/老枪.md", "老枪的伤")],
+      new Map([["foreshadow/老枪.md", doc_(`planted: ${relPath}|${raw}`)]])
+    );
+  }
+
+  it("关键词在埋设章里找得到就不报", () => {
+    const rows = rowsOf("keywords: [老枪, 旧伤]");
+    const misses = keywordMisses(
+      rows,
+      new Map([["chapters/01.md", "他按住那处旧伤，老枪挂在墙上。"]])
+    );
+    expect(misses).toEqual([]);
+  });
+
+  it("找不到只报这一处，指到伏笔、埋设章与那个词", () => {
+    const rows = rowsOf("keywords: [老枪, 旧伤]");
+    const misses = keywordMisses(rows, new Map([["chapters/01.md", "他按住那处旧伤。"]]));
+    expect(misses).toEqual([
+      {
+        relPath: "foreshadow/老枪.md",
+        title: "老枪的伤",
+        chapter: "chapters/01.md",
+        keyword: "老枪"
+      }
+    ]);
+  });
+
+  it("没写 keywords 的条目不参与：不从标题里替作者猜", () => {
+    expect(keywordMisses(rowsOf("status: planted"), new Map([["chapters/01.md", "正文"]]))).toEqual(
+      []
+    );
+  });
+
+  it("一个字的关键词不判：太短的串正文里到处撞", () => {
+    const rows = rowsOf("keywords: [枪]");
+    expect(keywordMisses(rows, new Map([["chapters/01.md", "正文"]]))).toEqual([]);
+  });
+
+  it("埋设章没读到（或压根没写埋设章）就跳过，不拿缺席当没写", () => {
+    expect(keywordMisses(rowsOf("keywords: [老枪]"), new Map())).toEqual([]);
+    const noPlanted = foreshadowRows(
+      [doc("foreshadow/老枪.md", "老枪的伤")],
+      new Map([["foreshadow/老枪.md", doc_("keywords: 老枪")]])
+    );
+    expect(keywordMisses(noPlanted, new Map([["chapters/01.md", "正文"]]))).toEqual([]);
+  });
+
+  it("伏笔原文都没读到的条目跳过：它声明了什么都不知道", () => {
+    const rows = foreshadowRows([doc("foreshadow/老枪.md", "老枪的伤")], new Map());
+    expect(keywordMisses(rows, new Map([["chapters/01.md", "正文"]]))).toEqual([]);
+  });
+});
+
+describe("readPlantedChapters（2026-10-22，C6 只读埋设章）", () => {
+  const docs = [
+    doc("foreshadow/老枪.md", "老枪的伤"),
+    doc("chapters/01.md", "第一章", "chapter"),
+    doc("chapters/02.md", "第二章", "chapter")
+  ];
+  const rows = foreshadowRows(
+    docs,
+    new Map([["foreshadow/老枪.md", doc_("planted: chapters/01.md|keywords: 老枪")]])
+  );
+
+  it("只读登记过的埋设章，且只留正文（围栏不混进判据）", async () => {
+    const asked: string[] = [];
+    const texts = await readPlantedChapters(docs, rows, async (relPath) => {
+      asked.push(relPath);
+      return { content: ["---", "title: 开局", "---", "正文来了。"].join("\n") };
+    });
+    expect(asked).toEqual(["chapters/01.md"]);
+    expect(texts.get("chapters/01.md")).toBe("正文来了。");
+    expect(asked).not.toContain("chapters/02.md");
+  });
+
+  it("埋设章读不到就不进 map：调用方据此跳过，不误报关键词不在", async () => {
+    const texts = await readPlantedChapters(docs, rows, async () => {
+      throw new Error("EBUSY");
+    });
+    expect(texts.size).toBe(0);
   });
 });

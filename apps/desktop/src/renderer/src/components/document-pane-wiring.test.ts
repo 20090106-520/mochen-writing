@@ -119,6 +119,18 @@ describe("工具行左排分段 + 按钮回到方块（#113a）", () => {
     expect(styleSource("interaction.css")).not.toContain(".editor-text-tools .format-button");
   });
 
+  /**
+   * 2026-10-22 真机（窗口 1000、右栏约 460）：页签被当成收缩对象压到半个字宽，
+   * 中文可在任意字间折行 ⇒ 「文稿 / 浏览 / 作品资料」折成「文/稿」「浏/览」「作品资/料」三摞竖排。
+   * 两处各挡一半：整条控件不参与收缩（否则按钮再 nowrap 也只是溢出），按钮文字不折行。
+   */
+  it("窄栏页签不许折成竖排：分段控件不收缩，按钮文字 nowrap", () => {
+    const tabs = ruleBlock(styleSource("editor-pane.css"), ".view-tabs");
+    expect(tabs).toContain("flex: 0 0 auto");
+    const button = ruleBlock(styleSource("editor-pane.css"), ".view-tabs button");
+    expect(button).toContain("white-space: nowrap");
+  });
+
   it("化石清理：本仓没有「正文/人物状态」双文件页签，无人消费的规则不留", () => {
     const editor = styleSource("editor-pane.css");
     expect(editor).not.toContain("draft-file-tabs");
@@ -197,7 +209,9 @@ describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F
   it("分栏预览走静默窗：previewHtml 吃 previewDraft，排程只住在 usePreviewDraft", () => {
     expect(paneScript).toContain('from "../composables/usePreviewDraft"');
     expect(paneScript).toContain("usePreviewDraft(() => book.draft, viewMode)");
-    expect(paneScript).toContain("markdownToSimpleHtml(previewDraft.value)");
+    // 2026-10-23：预览先剥 frontmatter 再渲染——草稿原文会印出 `---` / `title:` 三行元数据，
+    // 标题在围栏里与正文 h1 里各说一遍。剥围栏复用 contracts 的 splitFrontmatter，不另写规则。
+    expect(paneScript).toContain("markdownToSimpleHtml(splitFrontmatter(previewDraft.value).body)");
     expect(paneScript).not.toContain("markdownToSimpleHtml(book.draft)");
     expect(paneScript).not.toContain("setTimeout");
   });
@@ -442,5 +456,17 @@ describe("DocumentPane · 正文偏好三件套（2026-10-05 建，5-㉑/5-㉒ �
     const css = styleSource("editor-pane.css");
     expect(css).toContain("line-height: var(--editor-leading, 1.95)");
     expect(css).toContain("font-size: var(--editor-font-size, 1.07143rem)");
+  });
+});
+
+/**
+ * 2026-10-23 窄窗走查：页脚原样写着「目标 [未设] 字」——单位挂在 input 后面无条件渲染，
+ * 空态里那个「字」没有所指。没设目标时只留「目标 [未设]」，设了才带单位。
+ */
+describe("页脚本章目标：没设目标时不挂单位", () => {
+  it("「字」的单位与 label 都只在有目标时渲染", () => {
+    const tpl = templateSource("components/ChapterQuota.vue");
+    expect(tpl).toContain('<span v-if="quota.target > 0">字</span>');
+    expect(tpl).not.toMatch(/\n\s*字<span v-if="quota.label"/);
   });
 });

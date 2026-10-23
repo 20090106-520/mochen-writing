@@ -179,4 +179,34 @@ describe("book-data：IPC 注册", () => {
       readReason((await read(trustedRendererEvent(), "../book.json")) as BookDataReadResult)
     ).toBe("invalid-key");
   });
+
+  it("book:open 的回执等记账回调落地（作品库镜像不会读到旧清单）", async () => {
+    // 2026-10-22 窄窗走查撞出：此前 onOpened 是同步 void、由装配处 fire-and-forget，
+    // 渲染层拿到回执后立刻读 book:recent，可能读到记账写完之前的旧文件
+    // ⇒ 刚打开的这一本不进作品库，要等重启才补上。判据：记账没落地，回执不许先发。
+    const service = serviceWith();
+    const handlers = new Map<string, (...args: unknown[]) => unknown>();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    registerBookIpc({ handle: (c, fn) => handlers.set(c, fn) }, service, {
+      onOpened: async () => {
+        await gate;
+      }
+    });
+    const open = handlers.get(IPC_CHANNELS.bookOpen);
+    expect(open, "book:open 没注册").toBeTypeOf("function");
+    if (typeof open !== "function") return;
+
+    let replied = false;
+    const opening = Promise.resolve(open(trustedRendererEvent(), rootA)).then(() => {
+      replied = true;
+    });
+    // 留一拍给 service.open 自己跑完：它跑完之后回调还在 gate 上等着。
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(replied, "记账还没落地，回执就已经发出去了").toBe(false);
+    release();
+    await opening;
+  });
 });

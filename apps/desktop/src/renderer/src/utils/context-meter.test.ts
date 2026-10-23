@@ -71,7 +71,7 @@ describe("contextMeterSummary", () => {
     expect(s.title).toBe("");
   });
 
-  it("有条目 ⇒ 显形：条数与 token 估算都摆出来", () => {
+  it("有条目 ⇒ 显形：token 估算摆出来（条数留在 tooltip 与展开面板）", () => {
     const s = contextMeterSummary(
       preview({
         items: [item(), item({ kind: "character", relPath: "characters/雾.md" })],
@@ -79,7 +79,7 @@ describe("contextMeterSummary", () => {
       })
     );
     expect(s.visible).toBe(true);
-    expect(s.text).toBe("2 条 · ≈4.3k tokens");
+    expect(s.text).toBe("≈4.3k tokens");
   });
 
   it("title 说清这一轮真会发出去什么，并报出档案名与总字数", () => {
@@ -98,8 +98,12 @@ describe("contextMeterSummary", () => {
  * 清单第 1 项（第二十二节登记的那条口径分裂）：折叠 chip 报的数必须与展开面板的总账同源。
  *
  * 夹具**照第二十二节屏 2 的真机读数摆**（装配 2 条 / 33 字 / 29 tokens；历史 28 条 /
- * 5902 字 / 5592 tokens，另丢 2 条 2648 字），不是随手挑的整数——当时 chip 上写的
- * 「2 条 · ≈29 tokens」正是缺陷本体，所以这一组数一有改动就必然撞红。
+ * 5902 字 / 5592 tokens，另丢 2 条 2648 字），不是随手挑的整数——当时 chip 上写的是
+ * 「2 条 · ≈29 tokens」，只报装配那一路，正是缺陷本体，所以这一组数一有改动就必然撞红。
+ *
+ * 2026-10-23 起 chip 那行字只留 `≈N tokens`（条数并进 tooltip：真机 1000 CSS 下
+ * 「23 条 · ≈989 tokens」被 12em 宽度截成「23 条 · ≈989…」）。合计口径没变：
+ * 下面钉的仍是「装配 + 历史」两路相加，只是条数那半句改在 tooltip 里核。
  */
 describe("折叠 chip 的总账 = 装配条目 + 会话历史", () => {
   const assembled = () =>
@@ -112,11 +116,17 @@ describe("折叠 chip 的总账 = 装配条目 + 会话历史", () => {
       approxTokens: 29
     });
 
-  it("有历史 ⇒ 折叠那一行把历史并进条数与 token，不再只报装配那一路", () => {
+  it("有历史 ⇒ 折叠那一行的 token 是两路合账，条数在 tooltip 里同样是合账", () => {
     // 2 + 28 = 30 条；29 + 5592 = 5621 tokens ⇒ 5.6k（屏 2 上面板与 store 的合账）
-    expect(contextMeterSummary({ ...assembled(), history: stat() }).text).toBe(
-      "30 条 · ≈5.6k tokens"
-    );
+    const s = contextMeterSummary({ ...assembled(), history: stat() });
+    expect(s.text).toBe("≈5.6k tokens");
+    expect(s.title).toContain("装配 2 条 33 字 + 会话历史 28 条 5902 字");
+  });
+
+  it("chip 那一行不许再带条数前缀：12em 装不下，会被截成没有单位的「≈989…」", () => {
+    const s = contextMeterSummary({ ...assembled(), history: stat() });
+    expect(s.text).not.toContain("条");
+    expect(s.text).not.toMatch(/\d+ 条/);
   });
 
   it("tooltip 逐路拆项并报合计，同时把「历史按上界算」这句说明白", () => {
@@ -144,7 +154,7 @@ describe("折叠 chip 的总账 = 装配条目 + 会话历史", () => {
       })
     });
     // 2 条装配 + 1 条真发出去的历史 = 3 条；那 3 条 900 字**没上轮**，不许算进占用
-    expect(s.text).toBe("3 条 · ≈129 tokens");
+    expect(s.text).toBe("≈129 tokens");
     expect(s.title).toContain("会话历史 1 条 100 字");
     expect(s.title).toContain("共 133 字");
     expect(s.title).not.toContain("共 1033 字");
@@ -158,7 +168,7 @@ describe("折叠 chip 的总账 = 装配条目 + 会话历史", () => {
       approxTokens: 600,
       history: stat({ entries: 1, chars: 500, approxTokens: 500, droppedCount: 0, droppedChars: 0 })
     });
-    expect(s.text).toBe("2 条 · ≈1.1k tokens");
+    expect(s.text).toBe("≈1.1k tokens");
   });
 
   it("历史全零（盘上没这条会话）⇒ 折叠那行一字不变，也不提会话历史", () => {
@@ -166,13 +176,13 @@ describe("折叠 chip 的总账 = 装配条目 + 会话历史", () => {
       ...assembled(),
       history: stat({ entries: 0, chars: 0, approxTokens: 0, droppedCount: 0, droppedChars: 0 })
     });
-    expect(s.text).toBe("2 条 · ≈29 tokens");
+    expect(s.text).toBe("≈29 tokens");
     expect(s.title).not.toContain("会话历史");
   });
 
   it("旧回包（无 history 字段）⇒ 按「没有历史」显示，绝不编一份占用", () => {
     const s = contextMeterSummary(assembled());
-    expect(s.text).toBe("2 条 · ≈29 tokens");
+    expect(s.text).toBe("≈29 tokens");
     expect(s.title).not.toContain("会话历史");
   });
 

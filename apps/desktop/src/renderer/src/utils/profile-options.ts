@@ -51,7 +51,7 @@ export function activeProfileLabel(meta: BookMeta | null): string {
   return activeProfileOf(meta).name;
 }
 
-/** 顶栏标题的「没有书」说法。与 ProjectSwitcher、useBookStore 的同义短语保持同一口径。 */
+/** 顶栏标题的「没有书」说法。与 useBookStore 的同义短语保持同一口径。 */
 export const NO_BOOK_TITLE = "未选择作品";
 
 /**

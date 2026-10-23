@@ -120,12 +120,26 @@ describe("工具栏窄档：两级门槛与修法", () => {
     expect(block).toMatch(/\.composer-toolbar-left\s*\{[^}]*flex:\s*1 0 100%/);
     expect(block).toMatch(/\.composer-toolbar-right\s*\{[^}]*margin-left:\s*auto/);
   });
+
+  /**
+   * 2026-10-22 真机补钉（窗口 1000、容器 278）：折行之后右端那行只剩两枚 chip + 麦克风 + 发送键，
+   * 可文字仍按 8em 挤，量到「工作…」「未…」两枚残片——两个字加省略号读起来像渲染事故。
+   * 修法与左端五枚同一口径：收文字、不收控件（图标、三角、title 全在）。
+   * 反向钉：宽档的基础规则里不许出现这条,否则正常窗口会把两枚 chip 一并变成图标。
+   */
+  it("换行级：右端 chip 收文字不收控件，且只在这一档收", () => {
+    const block = atRuleBlock(CSS, WRAP_TIER);
+    expect(block).toMatch(
+      /\.composer-toolbar-right \.composer-chip-label\s*\{[^}]*display:\s*none/
+    );
+    expect(ruleBlock(CSS, ".composer-toolbar-right")).not.toContain("composer-chip-label");
+  });
 });
 
 describe("工具栏窄档：顺序", () => {
-  it("分配级晚于基础规则 `flex: 1 1 0`（同特异度下后来者赢）", () => {
+  it("分配级晚于基础规则 `flex: 1 1 auto`（同特异度下后来者赢）", () => {
     const baseAt = CSS.indexOf(".composer-toolbar-left {");
-    expect(ruleBlock(CSS, ".composer-toolbar-left")).toContain("flex: 1 1 0");
+    expect(ruleBlock(CSS, ".composer-toolbar-left")).toContain("flex: 1 1 auto");
     expect(CSS.indexOf(ALLOC_TIER)).toBeGreaterThan(baseAt);
   });
 
@@ -144,8 +158,8 @@ describe("工具栏窄档：顺序", () => {
 });
 
 describe("工具栏窄档：宽档一个字都不该动", () => {
-  it("基础规则仍是 basis:0 + 右端 0 0 auto（1440 那一档量过是干净的）", () => {
-    expect(ruleBlock(CSS, ".composer-toolbar-left")).toContain("flex: 1 1 0");
+  it("基础规则是「自然宽 + 可缩」：左端 1 1 auto（2026-10-22 起，折行判据要它取自然宽）、右端 0 0 auto", () => {
+    expect(ruleBlock(CSS, ".composer-toolbar-left")).toContain("flex: 1 1 auto");
     expect(ruleBlock(CSS, ".composer-toolbar-right")).toContain("flex: 0 0 auto");
   });
 });

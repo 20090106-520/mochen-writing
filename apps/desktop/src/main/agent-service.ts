@@ -21,6 +21,7 @@ import {
   type ProposalDecision,
   type SessionListItem,
   type SessionLoadResult,
+  type SkillRef,
   type StartTurnInput
 } from "@mochen/contracts";
 import {
@@ -91,6 +92,11 @@ export interface AgentServiceDeps {
    * 不给这一项时挂入技能一律读不到，也就是「没挂技能」与「挂了但没接上」在链路上分得出来。
    */
   readSkill?: ((relPath: string) => Promise<{ title: string; text: string }>) | undefined;
+  /**
+   * 技能库清单（use_skill 的「列出」那一半，2026-10-23）。读正文复用上面的 readSkill。
+   * 不给 ⇒ use_skill 只能回「技能库这一轮没接上」。与 readSkill 同一条只读边界。
+   */
+  listSkills?: (() => Promise<SkillRef[]>) | undefined;
   /** 插件运行时（2026-10-07 批次 5-㉘）。不给 ⇒ 没有插件工具，行为与插件之前逐字一致。 */
   plugins?: PluginTools | undefined;
 }
@@ -327,7 +333,10 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
       // signal 覆写成 AbortSignal.timeout（防挂死闸门，不许拿掉），所以 abortableFetch 在最外层
       // 把两只并成一只——单源有界照旧，Esc 当场停下；换一轮就是另一只 signal，与每轮开关同口径。
       webSearch: (query) => webSearch(query, { fetchImpl: abortableFetch(fetch, signal) }),
-      webRead: (url) => webRead(url, { fetchImpl: abortableFetch(fetch, signal) })
+      webRead: (url) => webRead(url, { fetchImpl: abortableFetch(fetch, signal) }),
+      // 技能自选（use_skill，2026-10-23）：列清单与按 id 读正文，都用装配层传进来的那份。
+      listSkills: deps.listSkills,
+      readSkill: deps.readSkill
     });
     // 插件工具**叠加**（2026-10-07 批次 5-㉘）；那层住 plugin-host.ts。
     return withPlugins(base, deps.plugins);
@@ -620,7 +629,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
               history: fitted.kept,
               userText: input.userText,
               thinkingLevel: input.thinkingLevel,
-              webSearchEnabled: input.webSearchEnabled
+              webSearchEnabled: input.webSearchEnabled,
+              // 工具面板关掉的那几枚（2026-10-21）：原样递进循环，清单与闸两处同时摘。
+              disabledTools: input.disabledTools ?? []
             }
           );
         // 多稿（P0-②）：静默跑 N 稿、由 multi-sample 摆候选（采样期零 publish、零落盘），

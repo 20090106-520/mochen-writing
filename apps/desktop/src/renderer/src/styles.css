@@ -1,5 +1,7 @@
 /* 源自 deepwrite：docs/ATTRIBUTION.md —— 同源实现的布局与主题层，未自造类名。 */
 @import "./styles/left-nav.css";
+/* 作品库（2026-10-21）：左栏「我的作品」组内的最近作品清单，工作台空态共用同一份组件。 */
+@import "./styles/book-library.css";
 @import "./styles/conversation-pane.css";
 @import "./styles/conversation-history.css";
 @import "./styles/editor-pane.css";
@@ -19,6 +21,8 @@
 @import "./styles/timeline.css";
 @import "./styles/outline.css";
 @import "./styles/foreshadow.css";
+@import "./styles/cast-check.css";
+@import "./styles/material-panel.css";
 @import "./styles/toast.css";
 @import "./styles/theme-runtime.css";
 @import "./styles/interaction.css";
@@ -26,6 +30,9 @@
 /* 视图过渡排在 motion.css 之后：它那几段「关掉动效」要压得住 motion.css 的出场动画表。 */
 @import "./styles/view-transition.css";
 @import "./styles/thinking-window.css";
+/* 助手表情头像（2026-10-21）：Emotion Ball 的 32 种表情接进对话链。
+   排在 density 之前，理由同下面那一段：density 必须最后。 */
+@import "./styles/emotion-avatar.css";
 /* 界面密度档排在**全部**样式表之后：它的每一条与各自那条基规则同特异性
    （`html[data-x] .cls` 这一形），平手只由先后裁决 —— 写在任何一个文件里都可能
    排在基规则之前，于是那一档从此不生效而且**界面上完全看不出来**
@@ -165,6 +172,44 @@ textarea:focus-visible {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+/* —— 原生控件归一（2026-10-23）——
+   本仓界面是手搓 CSS + 自绘控件，浏览器给的默认外观（系统下拉箭头、数字微调钮、
+   搜索清除叉、勾选框实心方块）与整体风格割裂。这里一次收口：select 自绘箭头、
+   勾选框跟随主色、number 去掉微调钮、search 去掉清除叉。子类规则（如 .appearance-select）
+   仍可就地覆盖尺寸与配色——但**不许再用 background 简写**，那会连同箭头底图一起清掉。 */
+select {
+  appearance: none;
+  min-height: 34px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  background-color: var(--surface-raised);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23888c92' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+select:hover {
+  border-color: var(--accent);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+input[type="number"] {
+  appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+input[type="search"]::-webkit-search-cancel-button {
+  appearance: none;
 }
 
 ul,

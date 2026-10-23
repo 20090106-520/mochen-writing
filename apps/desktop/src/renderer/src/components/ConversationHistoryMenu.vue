@@ -15,7 +15,7 @@ import AppIcon from "./AppIcon.vue";
 import { formatHistoryTime } from "../utils/history-time";
 import { useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
-import type { SessionListItem } from "@mochen/contracts";
+import { UNBOUND, type SessionListItem } from "@mochen/contracts";
 
 const agent = useAgentStore();
 const book = useBookStore();
@@ -42,7 +42,9 @@ function rowOf(item: SessionListItem) {
 }
 
 function docLabel(item: SessionListItem): string {
-  // 查不到就用盘上的相对路径：名字可以土，不能假。
+  // 2026-10-23：没绑文稿的线程，docRelPath 就是哨兵 "unbound"——真机上副行直接印着这串英文，
+  // 那是跨进程契约里的值，不是给人看的字。这里只换这一种，查不到真名时仍退回路径（名字可以土，不能假）。
+  if (item.docRelPath === UNBOUND) return "未绑定文稿";
   return book.refOf(item.docRelPath)?.title ?? item.docRelPath;
 }
 

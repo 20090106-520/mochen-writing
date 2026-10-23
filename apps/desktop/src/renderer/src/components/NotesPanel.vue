@@ -368,6 +368,12 @@ function jumpToDoc(note: Note): void {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
+  /* 【2026-10-22 窄窗走查】面板右贴边、全高，头部 12px + 28px 的按钮正好落在
+     无边框窗口右上角的窗控叠加区（—□×）底下：系统按钮盖在上面，屏上看不见这两枚，
+     点下去命中的是「最小化 / 关闭窗口」。这里按右栏栏头同一条让位口径把按钮推到
+     窗控区左侧（见 editor-pane.css 的 .editor-header）。相消式 fallback：
+     不支持 titlebar-area-* 时 100vw - 0px - 100vw = 0，退回原来的 16px。 */
+  padding-right: calc(16px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
   border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
 }
 
@@ -396,7 +402,7 @@ function jumpToDoc(note: Note): void {
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
   color: var(--text-primary, #e8e8e8);
 }
 
@@ -447,7 +453,7 @@ function jumpToDoc(note: Note): void {
   padding: 10px;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 2%, transparent);
 }
 
 .notes-textarea {
@@ -583,7 +589,7 @@ function jumpToDoc(note: Note): void {
   margin-bottom: 6px;
   border: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 2%, transparent);
 }
 
 .note-card.is-quick {
@@ -614,7 +620,7 @@ function jumpToDoc(note: Note): void {
   font-size: 0.714286rem;
   padding: 1px 6px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
   color: var(--text-secondary, #999);
 }
 
@@ -677,7 +683,7 @@ function jumpToDoc(note: Note): void {
 }
 
 .icon-btn-sm:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
   color: var(--text-primary, #e8e8e8);
 }
 
@@ -704,7 +710,7 @@ function jumpToDoc(note: Note): void {
 .tag-pill {
   padding: 2px 8px;
   font-size: 0.714286rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   border-radius: 10px;
   color: var(--text-secondary, #999);
@@ -712,6 +718,6 @@ function jumpToDoc(note: Note): void {
 }
 
 .tag-pill:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 8%, transparent);
 }
 </style>

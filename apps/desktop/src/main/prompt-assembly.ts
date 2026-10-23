@@ -292,6 +292,44 @@ export const DETAIL_AND_BEAT_INSTRUCTION =
   "也别把这一拍写成总结或感叹（章末四禁另外管这个）。写完这一章先想清「最后一拍是什么」，写不到就回头改。";
 
 /**
+ * 角色约束（2026-10-22）：把人物卡上写明的两格念给这一轮——专属说法与退场章。
+ *
+ * 为什么值得一段：`QUALITY_INSTRUCTION` 第 4 条只说「对话要贴人物卡」，可人物卡上的
+ * `voice` / `exit` 是**frontmatter**，装配时已被剥掉，模型根本看不见——写出来的对话
+ * 于是只照本书语感样本，不照这个人。这里把作者声明过的东西原样念出来，不新增任何推断。
+ *
+ * 两条纪律写进段里：专属说法**只在他说的话里用**（别人说不算），退场之后要写他
+ * **得交代清楚是谁在回忆/转述**（那是作者的合法选择，不是禁止）。没有声明就不注入空段。
+ */
+export function castConstraintSentence(assembled: AssembledContext): string {
+  const notes = (assembled.characterNotes ?? []).filter(
+    (note) => note.voice.length > 0 || note.exit !== ""
+  );
+  if (notes.length === 0) return "";
+  const lines = notes.map((note) => {
+    const parts: string[] = [];
+    if (note.voice.length > 0) {
+      parts.push(
+        `专属说法：${note.voice.map((one) => `「${one}」`).join("、")}` +
+          "——只在他自己说的话里用，别让别的角色也这么说"
+      );
+    }
+    if (note.exit !== "") {
+      parts.push(
+        `已在「${note.exit}」退场——之后不要再让他当场出场；` +
+          "回忆、转述、别人提起都可以，但要在文中写清是谁在提"
+      );
+    }
+    return `- ${note.title}：${parts.join("；")}。`;
+  });
+  return (
+    "角色约束（这一轮上下文里的人物卡上作者写明的，写对话与安排出场时照这个来）：\n" +
+    lines.join("\n") +
+    "\n这些是作者自己定的，不是建议：和你的临场想法冲突时按它写。"
+  );
+}
+
+/**
  * 本书套话回流（2026-10-10 三段）：把体检真身跑在**已装配的上下文**上，
  * 拿这本书自己的高频命中点名叮嘱——词库管的是「天下通病」，这段管的是「这本书的病」。
  *
@@ -679,6 +717,8 @@ export function defaultPromptFor(context: PromptContext): string {
   const openingRepeat = sentenceOpeningSentence(context.context);
   // 感官通道读数（十段，2026-10-21）：这本书偏「看」还是也写闻到／摸到／疼到——细腻层的读数。
   const senseChannels = senseChannelSentence(context.context);
+  // 角色约束（2026-10-22）：人物卡 frontmatter 里的专属说法与退场章，剥围栏后模型看不见，这里原样念。
+  const castHint = castConstraintSentence(context.context);
   return [
     "你是墨宸 AI 的写作智能体，在用户本地的一本书上工作，能直接操控这本书的资料库。",
     // 档案先说：人设与写入范围上限都出自它（spec §5.1）。
@@ -728,6 +768,8 @@ export function defaultPromptFor(context: PromptContext): string {
     ...(openingRepeat === "" ? [] : [openingRepeat]),
     // 感官通道读数（十段，2026-10-21）：五枚密度全列，叮嘱「别只给画面、一处就够」。空正文不加。
     ...(senseChannels === "" ? [] : [senseChannels]),
+    // 角色约束（2026-10-22）：人物卡上写明的专属说法与退场章。没写就不加这段。
+    ...(castHint === "" ? [] : [castHint]),
     // 联网段跟着开关走：关掉时这枚工具根本不出站，留着这段就是教模型调一枚不存在的工具。
     ...(context.webSearchEnabled ? [WEB_SEARCH_INSTRUCTION] : []),
     "改动已有文稿用 propose_patch（给 doc/anchor/replace/why），整篇新建或重写用 write_doc。",

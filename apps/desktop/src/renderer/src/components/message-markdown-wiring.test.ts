@@ -65,8 +65,15 @@ describe("AgentTimeline · 助手正文真的走 markdown 渲染", () => {
     expect(tpl).toContain('v-if="block.interrupted"');
   });
 
-  it("错误那一行仍是纯文本（报错是系统自己写的，不是模型吐的 markdown）", () => {
-    expect(templateSource(TIMELINE)).toContain('class="error-line">{{ block.text }}');
+  it("错误那一行仍是纯文本（报错是系统自己写的，不是模型吐的 markdown），并在前面标出发生时间", () => {
+    const tpl = templateSource(TIMELINE);
+    const line = /<p v-else-if="block\.kind === 'error'"[\s\S]*?<\/p>/.exec(tpl)?.[0] ?? "";
+    expect(line, "错误那一行读不到").not.toBe("");
+    // 纯文本插值：这一行不许走 v-html（走 v-html 的只有正文那一格）。
+    expect(line).toContain("{{ block.text }}");
+    expect(line).not.toContain("v-html");
+    // 2026-10-23：前面挂一格时间戳——回放旧会话时，一屏失败条没有日期就等于「应用现在坏了」。
+    expect(line).toContain("formatHistoryTime(block.at)");
   });
 });
 

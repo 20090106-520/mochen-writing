@@ -68,6 +68,9 @@ const api = {
   pickBookDirectory: offLimits("pickBookDirectory"),
   openBook: vi.fn(async (): Promise<BookOpenResult> => result),
   createBook: createBookIpc,
+  // 作品库（2026-10-21）：createBook 成功后 applyOpened 会顺手刷一次清单。
+  listRecentBooks: vi.fn(async () => ({ books: [] })),
+  forgetRecentBook: offLimits("forgetRecentBook"),
   saveMeta: offLimits("saveMeta"),
   readDoc,
   writeDoc,

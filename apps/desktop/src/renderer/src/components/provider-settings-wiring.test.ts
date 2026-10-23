@@ -61,4 +61,20 @@ describe("ProviderSettings · 卡片面板的每一步都有真身（铁律：�
     expect(markup).not.toContain("loadModels");
     expect(markup).not.toContain("provider:list-models");
   });
+
+  it("模态标记复用对话下拉那一份 modelKindOf：设置页不自带第二套按名猜", () => {
+    const markup = templateSource(dialog);
+    const script = scriptSource(dialog);
+    // 判定只有一份：从 utils/model-picker 取，不在组件里另写关键词表。
+    expect(script).toContain('from "../utils/model-picker"');
+    expect(script).toContain("modelKindOf(name)");
+    expect(script).not.toContain("NAMED_IMAGE_FAMILIES");
+    // 标记只渲染、不隐藏行：模型行仍是 v-for 铺全部 profile。
+    expect(markup).toContain('v-for="profile in group.profiles"');
+    expect(markup).toContain('class="provider-profile-tag"');
+    expect(markup).toContain("modalityTagOf(profile.model)");
+    expect(markup).toContain("不能用来对话");
+    // 按 kind 过滤掉图像/视频模型就是「隐藏」，本仓禁止。
+    expect(markup).not.toMatch(/group\.profiles\.filter/);
+  });
 });

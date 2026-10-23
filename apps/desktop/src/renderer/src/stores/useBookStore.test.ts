@@ -158,6 +158,11 @@ const api = {
   },
   discardDrafts: async () => {
     throw new Error("不该在这条用例里丢稿");
+  },
+  // 作品库（2026-10-21）：applyOpened 会顺手刷一次清单；本用例不碰书架，给空清单即可。
+  listRecentBooks: async () => ({ books: [] }),
+  forgetRecentBook: async () => {
+    throw new Error("不该在这条用例里移除作品");
   }
 } satisfies RendererApi;
 

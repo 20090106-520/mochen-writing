@@ -332,7 +332,13 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
     >
       <header class="export-header">
         <h3>导出作品</h3>
-        <button class="icon-btn" type="button" @click="emit('close')">
+        <button
+          class="icon-btn"
+          type="button"
+          aria-label="关闭导出"
+          title="关闭导出"
+          @click="emit('close')"
+        >
           <AppIcon name="close" :size="14" />
         </button>
       </header>
@@ -437,7 +443,8 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
 .export-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 24%, transparent);
+  backdrop-filter: blur(8px) saturate(1.05);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -451,7 +458,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
   background: var(--dropdown-bg, #1e1e2a);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 10px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
   padding: 16px;
   overflow-y: auto;
 }
@@ -483,7 +490,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
 }
 
 .export-section {
@@ -533,7 +540,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
   flex-direction: column;
   gap: 2px;
   padding: 8px 6px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 2%, transparent);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 6px;
   text-align: center;
@@ -582,7 +589,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
 }
 
 .export-chapter-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
 }
 
 .export-chapter-item input {

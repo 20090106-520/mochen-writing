@@ -32,7 +32,8 @@ const panel = ref<HTMLElement>();
 const { style, close, tab } = useComposerContextPopover(
   () => props.anchor,
   panel,
-  () => emit("close")
+  () => emit("close"),
+  { widthPx: 480 }
 );
 
 /** 这一行的完整度（0~1）：写全的章一条满格，没写字段的章条短——不是打分，是「还差几项」。 */
@@ -156,7 +157,9 @@ function keydown(event: KeyboardEvent): void {
             >
               <div class="outline-chapter-head">
                 <span class="outline-order">{{ chapter.order }}</span>
-                <span class="outline-chapter-title">{{ chapter.title }}</span>
+                <span class="outline-chapter-title" :title="chapter.title">{{
+                  chapter.title
+                }}</span>
                 <span
                   class="outline-meter"
                   :style="{ '--fill': String(Math.round(completeness(chapter) * 100)) }"

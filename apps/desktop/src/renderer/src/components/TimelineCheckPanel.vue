@@ -23,7 +23,8 @@ const panel = ref<HTMLElement>();
 const { style, close, tab } = useComposerContextPopover(
   () => props.anchor,
   panel,
-  () => emit("close")
+  () => emit("close"),
+  { widthPx: 420 }
 );
 
 /** 有日期问题的行才需要上标记色（琥珀），正常的行不吵。 */

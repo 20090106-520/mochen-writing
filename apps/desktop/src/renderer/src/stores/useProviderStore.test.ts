@@ -107,6 +107,9 @@ function offLimits(name: string) {
 const api = {
   pickBookDirectory: offLimits("pickBookDirectory"),
   openBook: offLimits("openBook"),
+  // 作品库（2026-10-21）：本测试不碰作品库，两条都按 offLimits 处理。
+  listRecentBooks: offLimits("listRecentBooks"),
+  forgetRecentBook: offLimits("forgetRecentBook"),
   saveMeta: offLimits("saveMeta"),
   readDoc: offLimits("readDoc"),
   writeDoc: offLimits("writeDoc"),

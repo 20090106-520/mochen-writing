@@ -4,7 +4,7 @@
 .foreshadow-ledger {
   position: fixed;
   z-index: 60;
-  width: 460px;
+  /* 宽度由 useComposerContextPopover 的 widthPx 给出（460），样式表不再写死 width。 */
   max-height: min(560px, 76vh);
   display: flex;
   flex-direction: column;
@@ -92,6 +92,29 @@
 
 .foreshadow-stats > div.is-broken dd {
   color: var(--danger, #d64545);
+}
+
+/* 断线提示（2026-10-22）：这里是「路径指空」，用警示色而不是危险色——
+   线没断在故事里，断在台账与文稿清单之间，改一下 frontmatter 那条路径就回来了。 */
+.foreshadow-broken {
+  margin: 8px 0 0;
+  padding: 7px 9px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--warning, #c98a1b) 34%, transparent);
+  background: color-mix(in srgb, var(--warning, #c98a1b) 9%, transparent);
+  font-size: 0.74rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.foreshadow-dangle {
+  display: block;
+  margin-top: 2px;
+}
+
+.foreshadow-dangle code {
+  font-size: 0.72rem;
+  opacity: 0.85;
 }
 
 .foreshadow-list {

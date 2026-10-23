@@ -89,8 +89,14 @@ function rosterSpecs(host: ToolHost): ChatToolSpec[] {
  * 模型仿历史里那条 `web_search` 调一次照样真出网——清单和权限用了两套判据。
  * 现在两边都从这一个函数取，`wireToolsFor` 仍是唯一那份映射（这里调它，不改它）。
  */
-export function toolsFor(host: ToolHost, webSearchEnabled: boolean): ChatToolSpec[] {
-  return wireToolsFor(rosterSpecs(host), webSearchEnabled);
+export function toolsFor(
+  host: ToolHost,
+  webSearchEnabled: boolean,
+  disabledTools: readonly string[] = []
+): ChatToolSpec[] {
+  return wireToolsFor(rosterSpecs(host), webSearchEnabled).filter(
+    (spec) => !disabledTools.includes(spec.name)
+  );
 }
 
 /**
@@ -105,8 +111,13 @@ export function toolsFor(host: ToolHost, webSearchEnabled: boolean): ChatToolSpe
 export type ToolGate =
   { allowed: true } | { allowed: false; kind: "unknown" | "off-this-round"; reason: string };
 
-export function toolGateOf(host: ToolHost, name: string, webSearchEnabled: boolean): ToolGate {
-  const round = toolsFor(host, webSearchEnabled);
+export function toolGateOf(
+  host: ToolHost,
+  name: string,
+  webSearchEnabled: boolean,
+  disabledTools: readonly string[] = []
+): ToolGate {
+  const round = toolsFor(host, webSearchEnabled, disabledTools);
   if (round.some((spec) => spec.name === name)) return { allowed: true };
   const roster = round.map((spec) => spec.name).join("、");
   if (!rosterSpecs(host).some((spec) => spec.name === name))
@@ -118,9 +129,10 @@ export function toolGateOf(host: ToolHost, name: string, webSearchEnabled: boole
   return {
     allowed: false,
     kind: "off-this-round",
-    reason:
-      `这一轮的联网开关是关闭的，所以「${name}」没有执行，也一个字都没有出网。` +
-      "要查网络资料请先在输入区打开联网开关再问一次；这一轮请基于已有文稿回答。"
+    reason: disabledTools.includes(name)
+      ? `这一轮你在输入区的工具面板里把「${name}」关掉了，所以它没有执行。要让它重新工作，点开工具面板把它切回「带上」再问一次。`
+      : `这一轮的联网开关是关闭的，所以「${name}」没有执行，也一个字都没有出网。` +
+        "要查网络资料请先在输入区打开联网开关再问一次；这一轮请基于已有文稿回答。"
   };
 }
 
@@ -129,8 +141,13 @@ export function toolGateOf(host: ToolHost, name: string, webSearchEnabled: boole
  * `webSearchEnabled` 是必填的第三枚——**故意不给默认值**：这一层漏判一次就是「关掉联网仍出网」
  * （P1-1/P1-2 的原案），默认值只会让新调用点悄悄复制同一个洞。
  */
-export function isCallableTool(host: ToolHost, name: string, webSearchEnabled: boolean): boolean {
-  return toolGateOf(host, name, webSearchEnabled).allowed;
+export function isCallableTool(
+  host: ToolHost,
+  name: string,
+  webSearchEnabled: boolean,
+  disabledTools: readonly string[] = []
+): boolean {
+  return toolGateOf(host, name, webSearchEnabled, disabledTools).allowed;
 }
 
 const object = (
@@ -159,9 +176,34 @@ export const TOOL_SPECS: ChatToolSpec[] = [
     parameters: object({ kind: { type: "string", description: "可选：文稿类型" } })
   },
   {
+    // 2026-10-22 扩形：原来只有 query，答不了「按人物卡搜」「哪些章提到漕运」这两类最常问的问题。
+    // 新参数全是可选的，只给 query 时回执与旧版同一形状（逐行 路径:行号: 内容）。
     name: "search_docs",
-    description: "全书子串检索，返回 路径:行号: 内容 前 20 条。",
-    parameters: object({ query: { type: "string", description: "要检索的字面文本" } }, ["query"])
+    description:
+      "全书子串检索。默认逐行返回「路径:行号: 内容」；" +
+      "kind 可把检索限定在一类文稿（chapter/character/location/worldview/foreshadow…）；" +
+      'group="doc" 改为按篇聚合，只报每篇命中几处与首处位置——问「哪些章节提到漕运」时用这一档。' +
+      "精确零命中时会自动按一字之差再扫一遍，回执会写明那是容错命中，引用前必须核对原文。",
+    parameters: object(
+      {
+        query: { type: "string", description: "要检索的字面文本" },
+        kind: {
+          type: "string",
+          description:
+            "可选：只在这一类文稿里搜。chapter=章节，character=人物，location=场景/地点，" +
+            "worldview=世界观，foreshadow=伏笔，outline=大纲，volume=分卷，material=素材…"
+        },
+        group: {
+          type: "string",
+          description: "可选：doc = 按篇聚合（查「哪些章提到它」），line = 逐行列出（默认）"
+        },
+        limit: {
+          type: "number",
+          description: "可选：最多返回多少处（逐行档）或多少篇（聚合档），默认 20，上限 50"
+        }
+      },
+      ["query"]
+    )
   },
   {
     name: "propose_patch",
@@ -203,6 +245,20 @@ export const TOOL_SPECS: ChatToolSpec[] = [
     parameters: object({ url: { type: "string", description: "要读的网页链接（http/https）" } }, [
       "url"
     ])
+  },
+  {
+    // 2026-10-23 技能自选（spec §11 放宽）：不带参数列出技能库（id/名称/说明），
+    // 带 skill（id）载入那一份正文。只读——技能是提示词文本，不改盘、不进文稿树。
+    name: "use_skill",
+    description:
+      "技能库：不带参数调用会列出所有可用技能的 id、名称与说明；带上某个 id（参数 skill）再调一次，会返回该技能正文。" +
+      "当用户的任务正好命中某个技能的用途时，先不带参数列一遍，再载入需要的那一个，照着它写的步骤做。",
+    parameters: object({
+      skill: {
+        type: "string",
+        description: "可选：要从技能库载入的技能 id；不给就先列出全部可用技能"
+      }
+    })
   }
 ];
 

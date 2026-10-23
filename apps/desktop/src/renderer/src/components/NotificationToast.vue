@@ -56,7 +56,13 @@ function formatTime(ts: number): string {
           <span class="toast-msg">{{ n.message }}</span>
         </div>
         <span class="toast-time">{{ formatTime(n.timestamp) }}</span>
-        <button class="toast-close" type="button" @click.stop="dismiss(n.id)">
+        <button
+          class="toast-close"
+          type="button"
+          aria-label="关闭通知"
+          title="关闭通知"
+          @click.stop="dismiss(n.id)"
+        >
           <AppIcon name="close" :size="10" />
         </button>
       </div>

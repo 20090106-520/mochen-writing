@@ -433,6 +433,8 @@ frontmatter 解析复用 `fs-store/frontmatter.ts`。id 冲突时书内优先，
 - UI：左栏加「技能库」入口（第五类文稿 `material` 的树不动，技能不是 `BookKind`）；技能行走浏览标签只读渲染，卡脚一个「加入当前上下文」按钮 + 已挂入标记。没有编写、删除、导入按钮。
 - 自动推荐得分（2026-10-17 追加，`apps/desktop/src/renderer/src/utils/skill-pick.ts`）：上面那条「挂入是**唯一**让技能进入上下文的动作」的口径**不因此改动一个字**——本节新增的是**推荐**，不是**挂入**。`rankSkills(candidates, scene, limit, pinned)` 是纯函数、无状态、零 IPC：拿三路正信号（技能 `stage` 命中当前阶段名 +40、`appliesTo` 命中当前文稿 kind +30、指令二元字命中技能标题/说明每词 +8 且封顶 24）打分，排除已挂入的、去掉 0 分、同分按 id 升序、按 `SKILL_PATHS_MAX`（12）取前 N。**推荐不越过用户批准**：它只产出一张排序清单，真正进上下文仍只有「加入当前上下文」钮这一条路（spec §10 第 4 条）。`stage`/`appliesTo` 按 contracts 的既有声明「只作提示、不作闸门」——只当正信号，不给未命中的轴扣分。
 - 自动推荐落点（2026-10-17 追加）：技能页顶上一条「推荐」条（`ExtensionsPage.vue`，`v-if` 有推荐才显形）。现场三项现取——阶段名 `activeStageOf(book.meta)?.name`、文稿类 `book.docs` 里当前活动文稿的 `kind`、指令 `agent.draftOf(threadKey)`——装配走 `useExtensionBrowseStore.skillRecommendations`（模板只 v-for）。每枚推荐摆出 `displayName` + 中文理由 + 一颗「挂入」；挂入仍只走 `toggleSkillForThread`，且**只在点击时**发生（无 watcher、无自动挂入）。
+- **模型自选载入（2026-10-23，用户裁定放宽本节开头那条底线）**：上面「挂入是唯一让技能进入上下文的动作」在此**扩成两条路**——① 用户显式挂入（原路，未改）；② 模型经 **`use_skill` 工具**自选载入（新路）。工具名在 `packages/contracts/src/tools.ts` 的 `AGENT_TOOL_NAMES`（第 8 枚）、规格在 `packages/agent-runtime/src/tools.ts` 的 `TOOL_SPECS`、执行在 `apps/desktop/src/main/doc-tools-host.ts` 的 `call`：不带参数 ⇒ 列技能库（id + 名称 + 说明），带 `skill`（id）⇒ 用 `skillService.read` 载入正文，当一条工具回执给模型。**只读**：不写盘、不进文稿树。
+  【为什么放宽】用户要的是「开启自动，让它自动调用合适的技能写作」——原来的「只能手选挂入」把这条挡住了。放宽范围**仅限只读载入**：技能只影响模型这一轮怎么写，不改用户作品；写盘仍受 `propose_patch` / `write_doc` 的逐条批准与权限档约束（§10 第 4 条的底线没动）。上一条「自动推荐」仍只排序、不自动挂入——本刀加的是**工具**，不是自动挂入。
 
 ## 12. F-4 · 磁盘路径迁移（波 3）
 

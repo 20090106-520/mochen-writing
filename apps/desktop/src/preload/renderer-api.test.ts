@@ -167,6 +167,9 @@ describe("createRendererApi", () => {
     await api.pickBookDirectory();
     await api.openBook("/book");
     await api.createBook({ directory: "/new-book", title: "新书" });
+    // 作品库（2026-10-21）：读回整份清单 / 只递书根划掉一条（不删书）。
+    await api.listRecentBooks();
+    await api.forgetRecentBook("/book");
     await api.saveMeta(meta);
     await api.readDoc("chapters/01-开局.md");
     await api.writeDoc("chapters/01-开局.md", "正文", "fp-1");
@@ -265,13 +268,16 @@ describe("createRendererApi", () => {
     await api.webdavList();
     await api.webdavPull("book-2026-10-15-12-00-00");
 
-    expect(calls.length).toBe(65);
+    expect(calls.length).toBe(67);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
       "book:pick",
       "book:open",
       "book:create",
+      // 作品库（2026-10-21）：读整份清单 / 只递书根划掉一条。
+      "book:recent",
+      "book:forget",
       "book:save-meta",
       "doc:read",
       "doc:write",
@@ -355,6 +361,9 @@ describe("createRendererApi", () => {
       [],
       ["/book"],
       [{ directory: "/new-book", title: "新书" }],
+      // 作品库（2026-10-21）：读清单不带实参；划掉一条只递书根。
+      [],
+      ["/book"],
       [meta],
       ["chapters/01-开局.md"],
       ["chapters/01-开局.md", "正文", "fp-1"],
@@ -459,6 +468,9 @@ describe("createRendererApi", () => {
       // 多稿两枚（P0-②）：选稿要把某一稿真的写进盘，丢稿是那集的收尾——
       // 进这份点名册的理由与别的改稿通道一致：少一枚面板点不到，多一枚就是多开的口子。
       "discardDrafts",
+      // 作品库（2026-10-21）：清单读回与「划掉一条」。后者只动 appData 的一份 json，
+      // 不进改稿通道那一档；进点名册是为了钉住 preload 的方法面（多一枚就是多开的口子）。
+      "forgetRecentBook",
       // 技能市场三枚（2026-10-07 批次 5-㉖）。装/卸是**往用户磁盘写**的两枚通道，
       // 和其它改稿通道一样进这份点名册：少一枚面板调不到，多一枚就是多开的口子。
       "importTxtCommit",
@@ -470,6 +482,8 @@ describe("createRendererApi", () => {
       "listMarket",
       "listModels",
       "listPlugins",
+      // 作品库（2026-10-21）：最近打开/新建过的书，按时间倒序。
+      "listRecentBooks",
       "listSessions",
       "listSkills",
       // 回收站三条（2026-10-10）：删=移动进 .mochen/trash，还原=按小抄搬回。

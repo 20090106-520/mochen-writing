@@ -1,0 +1,197 @@
+/* 作品库（2026-10-21）：左栏「我的作品」组内一份，工作台空态一份（is-cards）。
+   两处共用同一套行结构，只靠 variant 换密度——不复制第二份清单组件。
+   底色一律 color-mix 现算（不直接吃 --hover 这一深档），理由见 appearance-surface-ladder。 */
+
+.book-library {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* 左栏那一格的小标题：与「工作目录」那块同层级，但先于它出现（作品库 → 当前这本）。 */
+.sidebar-library {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+
+.sidebar-library-title {
+  padding: 0 8px 4px;
+  color: var(--text-faint);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+}
+
+.book-library-empty {
+  padding: 6px 8px;
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.book-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-library-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  border-radius: 7px;
+}
+
+.book-library-row.is-current {
+  background: color-mix(in srgb, var(--focus) 9%, transparent);
+}
+
+/* 行体本身是最大的可点区：图标 + 书名 + 路径。移除钮单独一枚，不与它嵌套（button 里不许再套 button）。 */
+.book-library-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.book-library-open:hover {
+  background: color-mix(in srgb, var(--focus) 6%, transparent);
+}
+
+.book-library-icon {
+  display: grid;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--focus) 10%, transparent);
+  color: color-mix(in srgb, var(--focus) 82%, var(--text));
+}
+
+.book-library-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.book-library-title {
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-library-path {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-library-state {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--focus) 14%, transparent);
+  color: color-mix(in srgb, var(--focus) 88%, var(--text));
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+/* 移除钮：默认半透明，行悬停 / 键盘聚焦才显形——免得每一行都挂着一个像「删书」的叉。 */
+.book-library-forget {
+  display: grid;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-right: 4px;
+  place-items: center;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.book-library-row:hover .book-library-forget,
+.book-library-forget:focus-visible {
+  opacity: 1;
+}
+
+.book-library-forget:hover {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger-text);
+}
+
+/* 工作台那一份：横向卡片，书名一行、路径一行；窗口窄时自动换成单列。 */
+.book-library.is-cards .book-library-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.book-library.is-cards .book-library-row {
+  border: 1px solid var(--line-soft);
+  background: var(--surface-card);
+}
+
+.book-library.is-cards .book-library-open {
+  padding: 10px 12px;
+}
+
+.book-library.is-cards .book-library-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.book-library.is-cards .book-library-title {
+  font-size: 0.86rem;
+}
+
+.book-library.is-cards .book-library-path {
+  font-size: 0.72rem;
+}
+
+/* 中栏工作台那一格：整段与上面五张能力卡同宽，标题轻、内容实在。 */
+.workbench-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workbench-recent-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.workbench-recent-head strong {
+  font-size: 0.88rem;
+}
+
+.workbench-recent-head span {
+  color: var(--text-faint);
+  font-size: 0.74rem;
+}

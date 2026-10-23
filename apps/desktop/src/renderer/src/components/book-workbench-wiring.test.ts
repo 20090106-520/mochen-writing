@@ -191,3 +191,43 @@ describe("BookWorkbench · 品牌粒子（canvas-ui，无书空状态）", () =>
     expect(shell).not.toContain("WebGLRenderer");
   });
 });
+
+/**
+ * 窄窗逐页走查（2026-10-22，1000 CSS）：三栏全开时中栏只剩 ~300px，
+ * 卡内 226px 减掉 118px 品牌图与 18px 间距后正文栏只有 ~90px，
+ * 「墨宸·主笔」被折成「墨宸·主 / 笔」，正文也一行三五个字。
+ * 修法是允许 hero 换行、正文给一条基准宽——放不下就整段落到图下独占一行。
+ */
+describe("BookWorkbench · 窄窗下 hero 换行", () => {
+  it("hero 允许换行，正文栏带基准宽（放不下就落到图下）", () => {
+    const hero = /\.workbench-hero\s*\{([^}]*)}/.exec(css)?.[1];
+    expect(hero).toContain("flex-wrap: wrap");
+    const text = /\.workbench-hero:not\(\.is-no-book\) \.workbench-hero-text\s*\{([^}]*)}/.exec(
+      css
+    )?.[1];
+    expect(text, "缺 .workbench-hero:not(.is-no-book) .workbench-hero-text 这条").toBeDefined();
+    expect(text).toContain("flex: 1 1 160px");
+  });
+
+  it("无书时 hero 是 column 布局：基准宽不能落到那条通用规则上（否则变成高度）", () => {
+    const base = /\.workbench-hero-text\s*\{([^}]*)}/.exec(css)?.[1];
+    expect(base).toContain("flex: 1 1 auto");
+    expect(base).not.toContain("160px");
+  });
+});
+
+/**
+ * 窄档孤字（2026-10-23 真机走查，1000 CSS + 右栏全开、中栏 ~240 CSS）。
+ *
+ * 同一段 54 字提示原先落成「26 + 26 + 2」——末行只剩「录。」。试过 `text-wrap: pretty`：**无效**
+ * （真机读数反而把段数从 2 顶到 3、末行仍是 3 字孤字）。改用 `balance` 后读数是 16 / 16 / 16，
+ * 末行成为整行。这条钉住「那一条还在、且没被换回 pretty」。
+ */
+describe("窄档孤字：那段提示用 balance 均分，末行不再只剩一两个字", () => {
+  it("`.workbench-lead` 声明 text-wrap: balance（不是 pretty——真机读数证明后者对中文无效）", () => {
+    const rule = /\.workbench-lead\s*\{([^}]*)}/.exec(css)?.[1] ?? "";
+    expect(rule, "读不到 .workbench-lead 规则").not.toBe("");
+    expect(rule).toContain("text-wrap: balance");
+    expect(rule).not.toContain("pretty");
+  });
+});

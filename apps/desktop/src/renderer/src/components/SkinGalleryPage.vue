@@ -179,17 +179,22 @@ function backToChat(): void {
            点已选中的那枚 = 收回这一层（判定在 store 的 setFilter 里）。 -->
       <div v-for="row in rows" :key="row.key" class="skin-filter-row">
         <span class="skin-filter-label">{{ row.label }}</span>
-        <button
-          v-for="value in row.values"
-          :key="value"
-          class="skin-filter"
-          :class="{ 'is-active': row.current === value }"
-          :aria-pressed="row.current === value"
-          type="button"
-          @click="browse.setFilter(row.key, value)"
-        >
-          {{ row.labels[value] }}
-        </button>
+        <!-- 档整组单独一层：折行要发生在「标签右侧那一组」里。让折行落在 `.skin-filter-row`
+             本身上，第二行的档会回到组标签左边、跟标签起始位对齐着掉下来；
+             包成这一层之后，续行从第一枚档的 x 起排，四行的档仍横向对齐。 -->
+        <span class="skin-filter-values">
+          <button
+            v-for="value in row.values"
+            :key="value"
+            class="skin-filter"
+            :class="{ 'is-active': row.current === value }"
+            :aria-pressed="row.current === value"
+            type="button"
+            @click="browse.setFilter(row.key, value)"
+          >
+            {{ row.labels[value] }}
+          </button>
+        </span>
       </div>
 
       <div v-if="browse.hasConditions" class="skin-filter-row">

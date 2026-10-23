@@ -4,7 +4,7 @@
 .change-history {
   position: fixed;
   z-index: 60;
-  width: 340px;
+  /* 宽度由 useComposerContextPopover 的 widthPx 给出（340），样式表不再写死 width。 */
   max-height: min(520px, 72vh);
   display: flex;
   flex-direction: column;

@@ -84,19 +84,34 @@ export interface BookService {
 
 export function registerBookIpc(
   ipcMain: { handle(channel: string, fn: (...args: unknown[]) => unknown): void },
-  service: BookService
+  service: BookService,
+  /**
+   * 打开 / 新建成功那一刻的旁路（2026-10-21 作品库）。
+   *
+   * 记账点只能在这里：`book:open` 与 `book:create` 是「打开过哪本」的唯一真身，
+   * 放到渲染层再报一次就是第二种通路（而且换渲染层存储就全丢）。
+   * 【2026-10-22 窄窗走查】回调改成**可等待**（`void | Promise<void>`）并在回执前等它落地：
+   * 此前是同步 void + 装配处 fire-and-forget，`book:recent` 可能在清单写完之前就被读走
+   * ⇒ 渲染层镜像读到的仍是旧清单，刚打开的这一本不入库（重启后才补上）。
+   * 等待不会把开书拖失败：清单那头的读写错误一律在 store 内部咽掉（见 recent-books-store）。
+   */
+  hooks: { onOpened?: (book: BookOpenResult) => void | Promise<void> } = {}
 ): void {
   // 【2026-10-10 全仓扫描 P1-7】这八条原先一律写成 `(_event, …)`：主进程从不问「这条是谁发的」，
   // 于是 `book:open` 收来的 string 会被当成**绝对路径**直接去读 `book.json`。
   // 来源与参数形状的判定只在 `ipc-guard.ts` 有一份，这里只负责「注册」和「当前这本书的根在哪」。
   const register: IpcRegistrar = (channel, fn) => ipcMain.handle(channel, fn);
 
-  handleTrusted(register, IPC_CHANNELS.bookOpen, (_event, rootPath) =>
-    service.open(rootPath as string)
-  );
-  handleTrusted(register, IPC_CHANNELS.bookCreate, (_event, input) =>
-    service.createBook(input as BookCreateInput)
-  );
+  handleTrusted(register, IPC_CHANNELS.bookOpen, async (_event, rootPath) => {
+    const opened = await service.open(rootPath as string);
+    await hooks.onOpened?.(opened);
+    return opened;
+  });
+  handleTrusted(register, IPC_CHANNELS.bookCreate, async (_event, input) => {
+    const result = await service.createBook(input as BookCreateInput);
+    if (result.ok) await hooks.onOpened?.(result.book);
+    return result;
+  });
   handleTrusted(register, IPC_CHANNELS.bookSaveMeta, (_event, meta) =>
     service.saveMeta(meta as BookMeta)
   );

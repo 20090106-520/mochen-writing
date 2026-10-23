@@ -235,14 +235,15 @@ describe("5-㉓ ③ 上下文条：副文缩，不许溢出画到下一枚身上
     expect(step).toMatch(/\.composer-context-item \.context-chevron\s*\{[^}]*display:\s*none/s);
   });
 
-  it("窄栏三档递进：副文 → 计量读数 → 主标题，只藏文字", () => {
+  it("窄栏递进：副文 → 计量读数 → 主标题，只藏文字", () => {
     // 逐条规则匹配，不是「整块里有没有 display: none」。
     // 【这一条是被变异逮出来的】第一版只断言整块含 display: none，
     // 而 300 那档里有**两条** display:none（主标题 + 尾巴），于是把主标题那条改成
     // display: block 之后整块照样含 display:none、断言照样绿——**漏网一条**。
     // 「红得对」不等于「验到了那一块」：块级断言会把同块的另一条当成自己的。
+    // 2026-10-23：副文那一级的阈值从 460 提前到 800（中等宽度就该退场，实测见样式表注释）。
     const steps: Array<[string, string]> = [
-      ["@container composer (max-width: 460px)", ".composer-doc-context .doc-context-kind"],
+      ["@container composer (max-width: 800px)", ".composer-doc-context .doc-context-kind"],
       ["@container composer (max-width: 380px)", ".context-meter .context-meter-text"],
       ["@container composer (max-width: 300px)", ".composer-context-item > strong"]
     ];
@@ -256,9 +257,22 @@ describe("5-㉓ ③ 上下文条：副文缩，不许溢出画到下一枚身上
     }
   });
 
+  it("中等宽度那一档只退「屏上已有第二份」的两段字，整枚控件一枚不藏", () => {
+    const step = containerStep(
+      CARD,
+      "@container composer (max-width: 800px)",
+      ".composer-profile-context > strong"
+    );
+    // 档案名在对话栏顶上、文档的「章节 · N 字」在页脚，两处都是第二份。
+    expect(step).toMatch(/\.composer-doc-context \.doc-context-kind\s*\{[^}]*display:\s*none/s);
+    expect(step).toMatch(/\.composer-profile-context > strong\s*\{[^}]*display:\s*none/s);
+    // 整枚胶囊（控件）仍然不许藏：`.composer-context-item { display: none }` 必须不出现。
+    expect(step).not.toMatch(/\.composer-context-item\s*\{[^}]*display:\s*none/s);
+  });
+
   it("每一档都还把间隙与内边距往回收——否则全藏光也装不下（固定开销 289 > 真机 284）", () => {
     for (const [at, sel] of [
-      ["@container composer (max-width: 460px)", ".composer-doc-context .doc-context-kind"],
+      ["@container composer (max-width: 460px)", ".composer-context-bar"],
       ["@container composer (max-width: 380px)", ".context-meter .context-meter-text"],
       ["@container composer (max-width: 300px)", ".composer-context-item > strong"]
     ] as Array<[string, string]>) {

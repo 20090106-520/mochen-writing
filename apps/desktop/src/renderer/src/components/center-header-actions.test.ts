@@ -59,9 +59,9 @@ describe("对齐他的头部钮 · 「新建对话」取代自造的「模型设
     const actions = headerActions();
     expect(actions).toContain(':title="CLEAR_VIEW_SENTENCE"');
     expect(scriptSource(CENTER)).toContain("CLEAR_VIEW_SENTENCE,");
-    // 左栏侧边栏化（2026-10-04）后判定收进 script 的 childState：常量在 script 消费，
-    // 模板只挂 title=hint 载体——同一句常量仍然只有一份。
-    expect(scriptSource(LEFT)).toContain("CLEAR_VIEW_SENTENCE");
+    // 2026-10-23：「写作」组（AI 写作 / 章节编辑器）已删，左栏不再消费 CLEAR_VIEW_SENTENCE——
+    // 这句常量现在只有中栏头部那一处（上面 :title）在用。左栏仍挂 childState 的 title 载体。
+    expect(scriptSource(LEFT)).not.toContain("CLEAR_VIEW_SENTENCE");
     expect(templateSource(LEFT)).toContain(':title="childState(child).hint"');
   });
 
@@ -88,10 +88,14 @@ describe("对齐他的头部钮 · 「新建对话」取代自造的「模型设
   it("左栏那一格不受影响：缺章不再是禁用而是引导（全部可点裁定），且两栏都不绕过 store 自己改视图", () => {
     // 2026-10-04 二次裁定：侧边栏全部可点、点哪都有真响应——左栏缺章时点击引导去开一章
     // （childState 报 need-doc，onChildAction → guideToDoc），判定真身仍在 script 的 childState。
-    expect(scriptSource(LEFT)).toMatch(/new-thread[\s\S]*?book\.activeDocTab === null/);
+    // 2026-10-23：审核四项改为内置技能后，左栏那条 aiCheckOf 缺章引导已删除（needChapterState 同删）；
+    // 「全部可点、点了有真响应」这条裁定仍由 side-nav 四态（ready / need-book / need-doc / planned）承担。
+    expect(scriptSource(LEFT)).toContain("sideNavChildState(child, book.docs)");
     expect(scriptSource(LEFT)).toContain("guideToDoc");
+    // 2026-10-23：左栏「AI 写作」已删，clearThreadView 只剩中栏一处；反向两条对两栏都仍要。
+    expect(countNeedle("clearThreadView(", codeOf(CENTER)), "中栏只调一次").toBe(1);
+    expect(codeOf(LEFT), "左栏不再有 clearThreadView").not.toContain("clearThreadView(");
     for (const file of [CENTER, LEFT]) {
-      expect(countNeedle("clearThreadView(", codeOf(file)), `${file} 只调一次`).toBe(1);
       expect(codeOf(file)).not.toContain("hydrated = true");
       expect(codeOf(file)).not.toContain("items = []");
     }
@@ -108,10 +112,10 @@ describe("对齐他的头部钮 · 「新建对话」取代自造的「模型设
        决定一个字没变：**左栏缺章的响应是引导，不是禁用**。变的是它现在由哪一处提供，
        所以判据跟着改成「触发条件在」+「引导那一份在」+「模板里没有 disabled」，
        而不再是把两段文本绑在一起——那种写法对实现的重排毫无容忍度，
-       下一次有人整理一下函数顺序它就红，而产品一点问题都没有。 */
-    expect(scriptSource(LEFT)).toContain("book.activeDocTab === null");
-    expect(scriptSource(LEFT)).toContain("function needChapterState");
-    expect(scriptSource(LEFT)).toContain('mode: "need-doc", docKind: "chapter"');
+       【2026-10-23】审核四项改为内置技能后，左栏已没有「缺章」这一支：needChapterState 删除，
+       所以改钉「它确实不在」——缺章引导这条判据随功能一起退场。 */
+    expect(scriptSource(LEFT)).not.toContain("needChapterState");
+    expect(scriptSource(LEFT)).not.toContain('mode: "need-doc", docKind: "chapter"');
     expect(templateSource(LEFT)).not.toContain(':disabled="childState(child).disabled"');
   });
 

@@ -64,6 +64,14 @@ const contractsIpcSrc = readFileSync(
   fileURLToPath(new URL("../../../../../../packages/contracts/src/ipc.ts", import.meta.url)),
   "utf8"
 );
+// 2026-10-21：通道名表从 ipc.ts 搬到 ipc-channels.ts（ipc.ts 贴到 800 行预算）。
+// 下面「通道是字面量」那条读的是搬去的地方；签名类断言仍读 ipc.ts。
+const contractsChannelsSrc = readFileSync(
+  fileURLToPath(
+    new URL("../../../../../../packages/contracts/src/ipc-channels.ts", import.meta.url)
+  ),
+  "utf8"
+);
 const appScript = scriptSource("App.vue");
 const appTpl = templateSource("App.vue");
 const paneTpl = templateSource("components/DocumentPane.vue");
@@ -136,7 +144,7 @@ describe("组装走 IPC 到主进程", () => {
   });
 
   it("契约里那条通道是字面量 file:build-export（三处同名，值错了整条链断在暗处）", () => {
-    expect(contractsIpcSrc).toContain('buildExport: "file:build-export"');
+    expect(contractsChannelsSrc).toContain('buildExport: "file:build-export"');
   });
 
   it("preload 转发到那条通道，主进程注册了同一个 handler", () => {

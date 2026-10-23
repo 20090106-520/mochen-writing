@@ -35,6 +35,8 @@ import { registerAgentIpc, registerProviderIpc } from "./agent-ipc.js";
 import { createAppearanceStore, registerAppearanceIpc } from "./appearance-store.js";
 import { createChangeRetentionStore } from "./change-retention-store.js";
 import { createBookService, registerBookIpc } from "./book-service.js";
+// 作品库（2026-10-21）：最近打开过的书，与外观设置同住 activeDir、同一套「读坏退空」策略。
+import { createRecentBooksStore, registerRecentBooksIpc } from "./recent-books-store.js";
 import { installCrashGuard } from "./crash-guard.js";
 import { installQuitFlush } from "./quit-flush.js";
 // 来源闸与窗口闸（2026-10-10 全仓扫描 P1-7 / P1-8）：判据只有 ipc-guard 那一份，装配层只负责装上。
@@ -52,6 +54,7 @@ import { toProviderFetch } from "./provider-fetch.js";
 import { createModelLister } from "./provider-models.js";
 import { resolveTitleBarOverlayColors, resolveTitleBarPreferDark } from "./title-bar.js";
 import { createSkillService, registerSkillIpc } from "./skill-service.js";
+import { seedBuiltinSkills } from "./builtin-skills.js";
 import { createSkillMarketService, registerSkillMarketIpc } from "./skill-market-service.js";
 import { SKILL_CATALOG } from "./skill-catalog.js";
 import { createPluginService, registerPluginIpc } from "./plugin-service.js";
@@ -173,7 +176,15 @@ app.whenReady().then(async () => {
     retention: () => retentionStore.current()
   });
 
-  registerBookIpc(ipcMain, service);
+  // 作品库（2026-10-21）：记账点挂在 book:open / book:create 成功那一刻（见 registerBookIpc 的 hooks）。
+  // 【2026-10-22】回调返回 touch 的 Promise，让回执等记账写完再发：否则渲染层紧接着读的
+  // book:recent 可能读到旧清单（刚打开的这一本不在库里）。touch 自身吞掉读写错误，不会拖失败。
+  const recentBooks = createRecentBooksStore({ dir: activeDir });
+
+  registerBookIpc(ipcMain, service, {
+    onOpened: (book) => recentBooks.touch(book.rootPath, book.meta.title)
+  });
+  registerRecentBooksIpc((channel, fn) => ipcMain.handle(channel, fn), recentBooks);
   // dialog 的重载签名不好直接对接可测试的窄接口，这里做一层薄适配。
   registerPickDirectoryIpc(ipcMain, {
     showOpenDialog: (options) =>
@@ -340,6 +351,8 @@ app.whenReady().then(async () => {
     isoNow: () => new Date().toISOString(),
     promptFor: defaultPromptFor,
     readSkill: readSkillForTurn,
+    // 技能自选（use_skill，2026-10-23）：清单走只读的 skillService.list()。
+    listSkills: () => skillService.list(),
     plugins
   });
   registerAgentIpc((channel, fn) => ipcMain.handle(channel, fn), agent);
@@ -355,11 +368,15 @@ app.whenReady().then(async () => {
   // 技能库只读：全局那份跟着 activeDir 走；书内那份跟着当前书走。
   // 注意（F-4 的已知边界）：§12 只搬那三个已知**文件**，全局 `skills/` 目录不在其中——
   // 用户自己放进去的技能会留在旧目录里（旧目录只改名不删除，所以没丢），需要时自取。
+  const globalSkillsDir = path.join(activeDir, "skills");
   const skillService = createSkillService({
-    globalSkillsDir: path.join(activeDir, "skills"),
+    globalSkillsDir,
     bookRoot: () => service.current()?.root ?? null
   });
   registerSkillIpc((channel, fn) => ipcMain.handle(channel, fn), skillService);
+  // 内置技能首启落盘（2026-10-23）：把审核检查那四条写成全局技能，之后与用户技能同一套。
+  // 不阻塞启动——写盘失败只丢一条内置技能，不该拦住应用起来。
+  void seedBuiltinSkills(globalSkillsDir).catch(() => undefined);
   // 技能市场（2026-10-07）：列、装、卸。装卸**只写全局 skills 目录**，
   // 书目录是用户的作品，应用不往里塞文件（见 skill-market-service.ts 的三条守卫）。
   // 两个来源的技能根从只读那套 `dirOf` 借：`<appData>/skills` 与 `<书>/.mochen/skills`

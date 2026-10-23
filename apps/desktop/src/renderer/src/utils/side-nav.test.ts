@@ -7,7 +7,6 @@ import {
   NEED_BOOK_HINT,
   PLANNED_HINT,
   SIDE_NAV_GROUPS,
-  aiCheckOf,
   sideNavChildState,
   styleCheckPrompt,
   type SideNavChild
@@ -15,98 +14,56 @@ import {
 import type { AiFlavorReport } from "@mochen/contracts";
 
 describe("side-nav · 导航表（演示图的唯一真源）", () => {
-  it("四个折叠组按图排序：小说大脑/故事规划/写作/审核检查，开合默认值照图（大脑开、其余收）", () => {
-    expect(SIDE_NAV_GROUPS.map((group) => group.id)).toEqual([
-      "brain",
-      "plan",
-      "writing",
-      "review"
-    ]);
-    expect(SIDE_NAV_GROUPS.map((group) => group.label)).toEqual([
-      "小说大脑",
-      "故事规划",
-      "写作",
-      "审核检查"
-    ]);
-    expect(SIDE_NAV_GROUPS.map((group) => group.defaultOpen)).toEqual([true, false, false, false]);
+  it("只剩一组「素材与台账」：默认展开（两组空壳已收）", () => {
+    // 2026-10-23 三轮收口：
+    // ① 删「写作」组——它的两项（AI 写作 / 章节编辑器）分别与中栏「新建对话」
+    //    （同一个 clearThreadView）和左栏文稿树点章节行完全重复；
+    // ② 删「审核检查」组——四项已改为内置技能（`main/builtin-skills.ts`），
+    //    由模型在对话框里经 `use_skill` 自选载入，不再占左栏一行；
+    // ③ 「小说大脑」整组 + 「故事规划」里 3 个跳树子项也收掉——它们的真身就是「我的作品」树分组
+    //    本身，树本来就在同一屏上。只剩「素材与台账」一组，组内三项都各有真身。
+    expect(SIDE_NAV_GROUPS.map((group) => group.id)).toEqual(["plan"]);
+    expect(SIDE_NAV_GROUPS.map((group) => group.label)).toEqual(["素材与台账"]);
+    expect(SIDE_NAV_GROUPS.map((group) => group.defaultOpen)).toEqual([true]);
   });
 
-  it("组内子项逐字照图：大脑 7 项 / 规划 5 项 / 写作 2 项 / 审核 3 项", () => {
-    // 2026-10-05：子项名改取 BOOK_KIND_LABELS 真身（左栏树分组、中栏提示同一套中文名）。
+  it("组内三项都是真身：素材库（有面板）/ 伏笔台账 / 时间线核对", () => {
     expect(SIDE_NAV_GROUPS[0]?.children.map((child) => child.label)).toEqual([
-      "世界观",
-      "人物",
-      "势力/组织",
-      "地图",
-      "时间线",
+      // 2026-10-23：素材库改走 action——它有自己的面板（不再是「跳到树里那一组」）。
       "素材库",
-      "专有名词"
-    ]);
-    expect(SIDE_NAV_GROUPS[1]?.children.map((child) => child.label)).toEqual([
-      "大纲",
-      "分卷",
-      "章节管理",
-      // 2026-10-05：伏笔台账（一条伏笔一篇文稿，状态在 frontmatter）落在这里。
-      // 它走 action 而不是 docs——台账是跨文稿的聚合视图，不是某一类文稿的筛选。
+      // 2026-10-05：伏笔台账（一条伏笔一篇文稿，状态在 frontmatter）走 action——跨文稿的聚合视图。
       "伏笔台账",
       // 2026-10-05 批次 5-①：时间线核对（把全书 timeline 按 date 排一遍查矛盾），同款聚合视图。
       "时间线核对"
     ]);
-    expect(SIDE_NAV_GROUPS[2]?.children.map((child) => child.label)).toEqual([
-      "AI 写作",
-      "章节编辑器"
-    ]);
-    expect(SIDE_NAV_GROUPS[3]?.children.map((child) => child.label)).toEqual([
-      "一致性检查",
-      "剧情审核",
-      "逻辑检查",
-      // 2026-10-10 去AI味：第四项检查，审 AI 腔套话与句式。
-      "文风检查"
-    ]);
   });
 
-  it("真实身映射：大脑/规划 9 项全是文档类型，AI 写作/章节编辑器是既有动作", () => {
+  it("三项的现实全是 action（表里已无 docs 实例，侧栏子项机制保留）", () => {
     const byLabel = new Map(
       SIDE_NAV_GROUPS.flatMap((group) => group.children).map((child) => [child.label, child])
     );
-    expect(byLabel.get("世界观")?.reality).toEqual({ kind: "docs", docKind: "worldview" });
-    expect(byLabel.get("人物")?.reality).toEqual({ kind: "docs", docKind: "character" });
-    expect(byLabel.get("势力/组织")?.reality).toEqual({ kind: "docs", docKind: "faction" });
-    expect(byLabel.get("地图")?.reality).toEqual({ kind: "docs", docKind: "location" });
-    expect(byLabel.get("时间线")?.reality).toEqual({ kind: "docs", docKind: "timeline" });
-    expect(byLabel.get("素材库")?.reality).toEqual({ kind: "docs", docKind: "material" });
-    expect(byLabel.get("专有名词")?.reality).toEqual({ kind: "docs", docKind: "glossary" });
-    expect(byLabel.get("大纲")?.reality).toEqual({ kind: "docs", docKind: "outline" });
-    expect(byLabel.get("分卷")?.reality).toEqual({ kind: "docs", docKind: "volume" });
-    expect(byLabel.get("章节管理")?.reality).toEqual({ kind: "docs", docKind: "chapter" });
-    expect(byLabel.get("AI 写作")?.reality).toEqual({ kind: "action", action: "new-thread" });
-    expect(byLabel.get("章节编辑器")?.reality).toEqual({
+    expect(byLabel.get("素材库")?.reality).toEqual({ kind: "action", action: "materials-panel" });
+    expect(byLabel.get("伏笔台账")?.reality).toEqual({
       kind: "action",
-      action: "chapter-editor"
+      action: "foreshadow-ledger"
+    });
+    expect(byLabel.get("时间线核对")?.reality).toEqual({
+      kind: "action",
+      action: "timeline-ledger"
     });
   });
 
-  it("审核四项已落地（2026-10-04 深夜裁定 + 2026-10-10 文风检查）：全是 ai-check 动作，口径提示词一一对应", () => {
-    const byLabel = new Map(
-      SIDE_NAV_GROUPS.flatMap((group) => group.children).map((child) => [child.label, child])
-    );
-    expect(byLabel.get("一致性检查")?.reality).toEqual({
-      kind: "action",
-      action: "ai-check-consistency"
-    });
-    expect(byLabel.get("剧情审核")?.reality).toEqual({ kind: "action", action: "ai-check-plot" });
-    expect(byLabel.get("逻辑检查")?.reality).toEqual({ kind: "action", action: "ai-check-logic" });
-    expect(byLabel.get("文风检查")?.reality).toEqual({ kind: "action", action: "ai-check-style" });
-    // 四句提问都真实可用：说清检查对象与「没有就明说」，不装自动完成。
+  it("审核四项已迁出导航表：改为内置技能由对话框载入，左栏不再有 ai-check 动作", () => {
+    const labels = SIDE_NAV_GROUPS.flatMap((group) => group.children).map((child) => child.label);
+    for (const gone of ["一致性检查", "剧情审核", "逻辑检查", "文风检查"]) {
+      expect(labels).not.toContain(gone);
+    }
+    // 口径常量仍在（书稿体检的「一键改写」那一支读 `style`）：四句都说清检查对象与
+    // 「没有就明说」，不装自动完成。真正的载入通路是主进程 `main/builtin-skills.ts` 落盘的技能。
     for (const prompt of Object.values(AI_CHECK_PROMPTS)) {
       expect(prompt).toContain("当前章节");
       expect(prompt.length).toBeGreaterThan(20);
     }
-    // id → 口径的反查（组件分派用）：ai-check 前缀识别 + 非法 id 拒绝。
-    expect(aiCheckOf("ai-check-plot")).toBe("plot");
-    expect(aiCheckOf("ai-check-style")).toBe("style");
-    expect(aiCheckOf("new-thread")).toBeNull();
-    expect(aiCheckOf("ai-check-nope")).toBeNull();
   });
 
   it("文案常量是诚实句子：标语逐字照图，占位说辞承认未落地、引导说辞指向真实入口", () => {
@@ -146,12 +103,16 @@ describe("sideNavChildState · 子项响应判定（纯函数：全部可点，�
   });
 
   it("action 类打底恒 ready（缺章细分在组件——那里才有 book 上下文）", () => {
-    expect(sideNavChildState(child({ kind: "action", action: "new-thread" }), [])).toEqual({
+    expect(sideNavChildState(child({ kind: "action", action: "foreshadow-ledger" }), [])).toEqual({
       mode: "ready",
       hint: ""
     });
   });
 });
+
+/* 2026-10-23（第二刀）：「定位」签随那 9 个跳树子项一起撤销——表里不再有 docs 子项，
+   也就没有「与树分组同名」这回事；`sideNavLocateTag`、左栏那枚签与 styles/left-nav.css 里那条规则
+   一并删除，不再留一枚只为死条目服务的真身。 */
 
 describe("styleCheckPrompt · 文风检查的动态预填（2026-10-10 去AI味二段）", () => {
   const report: AiFlavorReport = {

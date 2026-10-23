@@ -49,6 +49,8 @@
 .review-score,
 .timeline-check,
 .volume-outline,
+.cast-check,
+.material-panel,
 .foreshadow-ledger {
   animation: mochen-pop-in var(--dur-pop) var(--ease-out-soft);
 }

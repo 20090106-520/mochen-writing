@@ -12,7 +12,12 @@ import { computed, onMounted, ref } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
 import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
-import { foreshadowStats, plantToneLabel } from "../utils/foreshadow";
+import {
+  brokenPointers,
+  foreshadowStats,
+  keywordMisses,
+  plantToneLabel
+} from "../utils/foreshadow";
 import { useBookStore } from "../stores/useBookStore";
 
 const props = defineProps<{ anchor: HTMLElement }>();
@@ -24,11 +29,16 @@ const panel = ref<HTMLElement>();
 const { style, close, tab } = useComposerContextPopover(
   () => props.anchor,
   panel,
-  () => emit("close")
+  () => emit("close"),
+  { widthPx: 460 }
 );
 
 const rows = computed(() => book.foreshadowRows);
 const stats = computed(() => foreshadowStats(rows.value));
+/** 跨章回归（2026-10-22）：台账里写着的落点章，改稿/改名之后还在不在。 */
+const broken = computed(() => brokenPointers(book.docs, rows.value));
+/** 跨章回归的另一半：作者声明的关键词在不在它登记的埋设章里（读不到那章就跳过）。 */
+const misses = computed(() => keywordMisses(rows.value, book.foreshadowChapterTexts));
 
 /** 点一行：去右栏打开那篇伏笔，把台账和正文对上。 */
 async function openRow(relPath: string): Promise<void> {
@@ -52,8 +62,10 @@ function keydown(event: KeyboardEvent): void {
   if (event.key === "Tab") tab(event);
 }
 
-onMounted(() => {
-  if (rows.value.length === 0) void book.loadForeshadows();
+onMounted(async () => {
+  if (rows.value.length === 0) await book.loadForeshadows();
+  // 行回来之后才知道该读哪几章埋设章（C6）；读不到的那些章由判定层跳过，不冒充「关键词不在」。
+  if (rows.value.length > 0) void book.loadForeshadowChapters();
 });
 </script>
 
@@ -108,6 +120,33 @@ onMounted(() => {
           </div>
         </dl>
 
+        <!-- 断线提示（2026-10-22）：落点章被改名/删掉之后，台账照旧显示旧路径，
+             那一行看起来完全正常，只有对着文稿清单才查得出来。这里把它主动摆到最上面。 -->
+        <p v-if="broken.length > 0" class="foreshadow-broken">
+          落点断了 {{ broken.length }} 处，改稿或改章节名之后这几条线已经指不到原文：
+          <span
+            v-for="one in broken"
+            :key="`${one.relPath}-${one.field}`"
+            class="foreshadow-dangle"
+          >
+            「{{ one.title }}」{{ one.field === "planted" ? "埋于" : "收于" }}
+            <code>{{ one.target }}</code>
+          </span>
+        </p>
+
+        <!-- 关键词回归（2026-10-22，C6）：作者在 `keywords:` 上声明的词，在登记的埋设章正文里找不到。
+             只报「这一处对不上」，不判「伏笔丢了」——同一件事可能换了说法埋下去，那要读语义。 -->
+        <p v-if="misses.length > 0" class="foreshadow-broken">
+          有 {{ misses.length }} 个关键词在登记的埋设章里没找到——是换了说法，还是埋设章写错了？
+          <span
+            v-for="one in misses"
+            :key="`${one.relPath}-${one.keyword}`"
+            class="foreshadow-dangle"
+          >
+            「{{ one.title }}」的「{{ one.keyword }}」不在 <code>{{ one.chapter }}</code>
+          </span>
+        </p>
+
         <ul class="foreshadow-list">
           <li v-for="row in rows" :key="row.relPath">
             <!-- 语气 class 用字面量三元而不是 `is-${row.tone}` 模板串：
@@ -129,7 +168,7 @@ onMounted(() => {
               @click="void openRow(row.relPath)"
             >
               <AppIcon name="pin" :size="13" />
-              <span class="foreshadow-title">{{ row.title }}</span>
+              <span class="foreshadow-title" :title="row.title">{{ row.title }}</span>
               <span class="foreshadow-status">{{ row.statusLabel }}</span>
               <span class="foreshadow-where">
                 <template v-if="row.plantedIn">埋于 {{ row.plantedIn }}</template>

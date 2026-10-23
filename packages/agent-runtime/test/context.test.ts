@@ -321,6 +321,39 @@ describe("出场人物卡按真出场过滤（2026-10-10 三段：给 AI 的上�
     const result = assemble("world", { pinned: ["characters/周砚.md"] });
     expect(paths(result.items)).toContain("characters/周砚.md");
   });
+
+  it("只叫别名也算出场：这一章通篇「老李」，李深的卡照样装（2026-10-22）", () => {
+    const result = assemble("lead-writer", {
+      contents: {
+        ...CONTENTS,
+        "chapters/03-深渊之下.md": "老李把闸拉下来。第三章正文。",
+        "characters/李深.md": "---\ntitle: 李深\naliases: [老李, 深爷]\n---\n李深：主角。"
+      }
+    });
+    const cast = paths(result.items).filter((p) => p.startsWith("characters/"));
+    expect(cast).toEqual(["characters/李深.md"]);
+  });
+
+  it("角色约束随卡交给提示词装配：voice 与 exit 原样带着（卡正文里已经剥掉了）", () => {
+    const result = assemble("lead-writer", {
+      contents: {
+        ...CONTENTS,
+        "chapters/03-深渊之下.md": "李深站着。第三章正文。",
+        "characters/李深.md":
+          "---\ntitle: 李深\nvoice: [少废话, 闸上不许跑]\nexit: chapters/04-回声.md\n---\n李深：主角。"
+      }
+    });
+    expect(result.characterNotes).toEqual([
+      { title: "李深", voice: ["少废话", "闸上不许跑"], exit: "chapters/04-回声.md" }
+    ]);
+    expect(result.items.find((one) => one.relPath === "characters/李深.md")?.text).not.toContain(
+      "少废话"
+    );
+  });
+
+  it("没声明 voice / exit 的卡不占 characterNotes（空表不注入空段）", () => {
+    expect(assemble("lead-writer").characterNotes).toEqual([]);
+  });
 });
 
 describe("各章开头句 openings（2026-10-10 四段 / 2026-10-15 改源：从 DocRef.opening 取）", () => {

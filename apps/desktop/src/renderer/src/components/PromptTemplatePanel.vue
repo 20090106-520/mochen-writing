@@ -289,7 +289,7 @@ function cloneTemplate(id: string, name: string): void {
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
 }
 
 .tpl-search {
@@ -322,7 +322,7 @@ function cloneTemplate(id: string, name: string): void {
 .tpl-cat-btn {
   padding: 4px 10px;
   font-size: 0.785714rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   border-radius: 12px;
   color: var(--text-secondary, #999);
@@ -340,7 +340,7 @@ function cloneTemplate(id: string, name: string): void {
   padding: 10px;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 2%, transparent);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -350,7 +350,7 @@ function cloneTemplate(id: string, name: string): void {
 .tpl-create-select {
   padding: 6px 8px;
   font-size: 0.857143rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
   color: var(--text-primary, #e8e8e8);
@@ -360,7 +360,7 @@ function cloneTemplate(id: string, name: string): void {
 .tpl-create-textarea {
   padding: 6px 8px;
   font-size: 0.857143rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
   color: var(--text-primary, #e8e8e8);
@@ -415,7 +415,7 @@ function cloneTemplate(id: string, name: string): void {
   padding: 10px 12px;
   border: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 2%, transparent);
 }
 
 .tpl-card.is-builtin {
@@ -441,7 +441,7 @@ function cloneTemplate(id: string, name: string): void {
   color: var(--text-muted, #777);
   padding: 1px 6px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
 }
 
 .tpl-badge {

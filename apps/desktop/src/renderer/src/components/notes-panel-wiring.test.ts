@@ -107,6 +107,21 @@ describe("③ 归档双向：取回入口在屏上", () => {
   });
 });
 
+describe("④ 头部两枚按钮的真实通路（窗控区让位钉在 frameless-titlebar-wiring）", () => {
+  /*
+   * 【2026-10-22 窄窗走查】面板右贴边、全高，头部按钮原先正好落在无边框窗口右上角的
+   * 窗控叠加区（titleBarOverlay）底下：系统按钮画在页面之上 ⇒ 屏上看不见、点下去命中
+   * 最小化/关窗。让位规则（env(titlebar-area-*) 相消式）与另两份右贴边抽屉一起钉在
+   * frameless-titlebar-wiring.test.ts；这里只钉「让位不是把功能摘掉」。
+   */
+  it("两枚头部按钮仍在模板里，各有 onClick", () => {
+    expect(tpl).toContain('title="新建笔记"');
+    expect(tpl).toContain('title="关闭"');
+    expect(tpl).toContain('@click="showNewForm = !showNewForm"');
+    expect(tpl).toContain("@click=\"emit('close')\"");
+  });
+});
+
 describe("新加的这几类都有规则（死 CSS 的反方向：有 class 没样式）", () => {
   for (const cls of [
     ".notes-input",
