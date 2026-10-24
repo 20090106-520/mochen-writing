@@ -10,7 +10,7 @@ tags:
 
 本规范对「一次免费联网搜索怎么出网、挑源、判重、回执」有规范力：`apps/desktop/src/main/web-search.ts` 这一份文件，源链主入口 `webSearch`、三源解析器（DuckDuckGo / 必应 / 360）、共用归一 `normalizeResults`、来源键回执 `webSearchReceipt`、冷却与失败簿记（`coolDown` / `runSourceChain`）的取证都在这一层。它是主进程唯一一条「抓搜索页 HTML + 正则解析」的只读出网通路，无 API key、无第三方搜索 SDK。
 
-Depended on by: `agent-service.ts`（`webSearch(query, { fetchImpl: abortableFetch(fetch, signal) })`，须接**当轮那只 AbortController**）、`doc-tools-host.ts`（按 `WebSearchError.kind` 分流、非本错误一律换中文兜底）、`provider-fetch.ts`（`abortableFetch` 的 `WebFetchLike` 类型）、`web-read.ts`（同一套 fetch 纪律与类型）。
+Depended on by: `agent-service.ts`（`webSearch(query, { fetchImpl: abortableFetch(fetch, signal) })`，须接**当轮那只 AbortController**）、`doc-tools-host.ts`（按 `WebSearchError.kind` 分流、非本错误一律换中文兜底）、`provider-fetch.ts`（`abortableFetch` 的 `WebFetchLike` 类型）、`web-read.ts`（同一套 fetch 纪律与类型）、`materials-web-service.ts`（素材库面板那条路：`{ fetchImpl, dedupe: false }`——给人看的那条不参与判重）。
 
 Out of scope:
 
@@ -21,6 +21,7 @@ Out of scope:
 ## Surface
 
 - `webSearch(query, options)` — @apps/desktop/src/main/web-search.ts — 源链主入口：跑链 → 判重 → 全落空则抛 `WebSearchError`，答上就回 `WebSearchOutcome`。
+- `WebSearchOptions.dedupe` — 同文件 — 跨搜索判重的开关（默认 `true`）：**给模型的那条路必须开**，**给界面那条路（素材库面板）要关**。
 - `runSourceChain` — 同文件 — 只管「源链怎么走」：按序试、该进冷却的进冷却、全挂了抛；判重与措辞不归它。
 - `serveResults` — 同文件 — 跨搜索判重：只跟**紧邻的上一次**比、只在 TTL 内有效，并刷新记忆。
 - `coolDown(sourceId, at)` — 同文件 — 打进冷却，时长按**连续失败次数**翻倍，封顶 `SOURCE_COOLDOWN_MAX_MS`。
@@ -56,10 +57,12 @@ States: 空闲 → 一轮搜索（按序试源）→ 答上（回 `WebSearchOutc
 15. WHEN 360 回 200 + 频控页，the 层 MUST 按 `unavailable` 处置（MUST NOT 当「搜了没结果」）。
 16. WHEN 必应结果 coverage `< BING_MIN_COVERAGE`，the 层 MUST 归 `empty` 并带一句「压成 2–4 个关键词」的 hint，MUST NOT 把词典条目递出去。
 17. WHEN 360 结果含噪音卡（回显问题卡、落回 360 搜索/AI 页、聚合落地页），the 层 MUST 按 `isSo360NoiseCard` 剔掉。
+18. WHEN 调用方传 `dedupe: false`，the 层 MUST 原样递回结果（不剔、不抛「已经递过同样的结果」），且 MUST NOT 把本轮结果写进 `lastServed` —— 判重记忆是**模型那条路**的，界面那条路不参与、也不污染它。
+19. WHEN 调用方未传 `dedupe`，the 层 MUST 按 `true` 处置（模型那条路的既有行为一个字不变）。
 
 ## Constraints & Invariants
 
-- Constraint: 本文件正贴 800 行预算顶（796 / 800）—— 只读工具、单文件自足，改动前先看 `conventions/source-line-budget.rule.md`。
+- Constraint: 本文件正贴 800 行预算顶（800 / 800，2026-10-24 补 `dedupe` 开关后重新贴顶）—— 只读工具、单文件自足，改动前先看 `conventions/source-line-budget.rule.md`；再要加东西，先把某一族搬出去（判重与措辞那一族可整体拆走）。
 - Constraint: 真实出网只在本层，`fetchImpl` 一律注入 —— 渲染层碰不到网络，测试给假实现。
 - Constraint: 只读工具 —— 结果只回给模型看，**一个字都不落盘**；要保存由模型整理后走 `write_doc`（用户审批）。
 - Constraint: query 不改写 —— 长问句压关键词这件事交给模型自己做，本层不替它猜（必应退化无可靠静态预测器）。
@@ -70,6 +73,7 @@ States: 空闲 → 一轮搜索（按序试源）→ 答上（回 `WebSearchOutc
 - Invariant: 三态失败（`network` / `unavailable` / `empty`）必须分得开 —— 前两种进冷却、第三种不进，判据落在 `reason` 上而不是 message 串。
 - Invariant: 共用归一只有 `normalizeResults` 一份；噪音判据收在 360 自己一侧（`isSo360NoiseCard`），共用层不替别的源写。
 - Invariant: 源抛异常不许掐断整条链 —— `runSourceChain` 的第二道 try 把「一个坏源」降级成记一条失败，继续试下一个。
+- Invariant: **判重是为模型写的，不是为人写的** —— 模型换词重搜时页面高度重叠，不去重它会把一条资料数成两条「多方印证」；人搜第二次看到同样那几条不是被骗，而那套措辞是写给模型的下一步动作的。故模型那条路默认开、界面那条路（素材库面板）显式关。两个角色各记各的：人在面板搜一次不该把模型下一轮的结果吃掉。**冷却不跟着关** —— 源被频控了就是被频控了，两个角色都该绕开它。
 
 ## Failure Behavior
 

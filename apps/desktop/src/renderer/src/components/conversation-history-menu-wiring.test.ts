@@ -133,27 +133,44 @@ describe("每一行 · 判定只从 store 的 rowActionFor 取（裁定 R2）", 
     const m = markup();
     expect(m).toContain('class="conversation-history-copy"');
     expect(m).toContain('class="conversation-history-title-row"');
-    expect(m).toContain('item.title === "" ? "（这一条还没有用户输入）" : item.title');
+    // 【§174】空标题的判据搬进了 utils/work-items.ts：左栏那枚「工作项」面板用同一份，
+    // 两块面板各写一遍文案，改一边忘了另一边，两边就会对不上（铁律 6）。
+    expect(m).toContain("{{ sessionTitle(item) }}");
     expect(m).toContain('<time :datetime="item.startedAt">');
     expect(m).toContain("formatHistoryTime(item.startedAt)");
     expect(m).toContain("<small>{{ docLabel(item) }}</small>");
+    // 真身在 utils 那一份，不在组件里。
+    const items = typeScriptSource("utils/work-items.ts");
+    expect(items).toContain('item.title === "" ? SESSION_EMPTY_TITLE : item.title');
+    expect(items).toContain('export const SESSION_EMPTY_TITLE = "（这一条还没有用户输入）";');
   });
 
   it("标题取真文稿名，查不到就退回相对路径（不编一个好看的）", () => {
     const s = scriptSource(MENU);
     expect(s).toContain("book.refOf(");
-    expect(s).toContain("?? item.docRelPath");
+    // 【§174】回落项跟着判据搬进了 utils：组件给的是「路径 → 名字」这个查表，
+    // 查不到时回落的是**那个路径本身**（名字可以土，不能假）。
+    expect(s).toContain("?? relPath");
+    expect(typeScriptSource("utils/work-items.ts")).toContain("docTitleOf(item.docRelPath)");
   });
 
   /**
    * 真机 1000 CSS 读到的副行就是英文「unbound」——那是 threadKey 的「未绑定」哨兵（contracts 里的 UNBOUND），
    * 跨进程判定要用它，但它不是给人看的字。只换这一种；查不到真名的行仍退回路径（名字可以土，不能假）。
+   *
+   * 【§174】这条判据也搬进了 utils/work-items.ts（左栏那枚「工作项」面板共用同一份）。
    */
   it("没绑文稿的行不许把哨兵 unbound 印给用户", () => {
-    const s = scriptSource(MENU);
-    expect(s).toContain("UNBOUND");
-    expect(s).toContain("未绑定文稿");
-    expect(s).toContain("item.docRelPath === UNBOUND");
+    // sessionTitle 只在模板里用（`{{ sessionTitle(item) }}`），scriptSource 读不到它 ⇒ 断言落在 codeOf 上。
+    const s = codeOf(MENU);
+    expect(s).toContain("sessionDocLabel(");
+    expect(s).toContain("sessionTitle(");
+    // 组件里不再自己判（判据只有一份）；真身在 utils 里。
+    const items = typeScriptSource("utils/work-items.ts");
+    expect(items).toContain("UNBOUND");
+    expect(items).toContain("SESSION_UNBOUND_LABEL");
+    expect(items).toContain("item.docRelPath === UNBOUND");
+    expect(items).toContain('export const SESSION_UNBOUND_LABEL = "未绑定文稿";');
   });
 
   it("四句禁用理由一句都不在组件里：全部来自 session-row-action.ts", () => {

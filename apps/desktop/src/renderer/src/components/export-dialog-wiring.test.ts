@@ -226,10 +226,15 @@ describe("零章 / 二进制 / 复制 三处用户能撞上的岔路", () => {
     // 2026-10-09 假控件那一刀：这句文案原先写在组件里、由组件自己 `if (format === "epub")` 判，
     // 于是"组装失败/空选"这两条同样复制不了的路径全都没闸——文案搬进 util 之后，
     // 这里改钉**接线**：组件必须引 decideCopy，且 blocked 分支先于写剪贴板。
+    // 【2026-10-25 · §173 再改钉一次】写入动作本身搬进了 `utils/clipboard`
+    // （写剪贴板只有那一份：对话链的消息操作条也走它）。
+    // ⇒ 断言的锚点从 `navigator.clipboard.writeText(` 换成 `copyText(`——
+    // **次序这条没变**：blocked 分支仍然必须先于写入。变的只是写入落到哪一份实现。
     expect(dialogScript).toContain('from "../utils/export-clipboard"');
+    expect(dialogScript).toContain('from "../utils/clipboard"');
     expect(dialogScript).toContain("const decision = decideCopy({");
     expect(dialogScript.indexOf('if (decision.kind === "blocked") {')).toBeLessThan(
-      dialogScript.indexOf("await navigator.clipboard.writeText(")
+      dialogScript.indexOf("await copyText(")
     );
     expect(clipboardSrc).toContain("EPUB 是打包出来的电子书文件，请点「导出」保存成 .epub。");
   });

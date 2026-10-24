@@ -490,6 +490,10 @@ describe("createRendererApi", () => {
       // 进点名册的理由与别的改稿通道一致：少一枚面板调不到，多一枚就是多开的口子。
       "listTrash",
       "loadSession",
+      // 素材库联网搜索（2026-10-24）：出网在主进程（web-search.ts 那条源链），渲染层只递一个搜索词。
+      // 它不是改稿通道、不写盘——进点名册是为了钉住 preload 的方法面（多一枚就是多开的口子）。
+      "materialsFetch",
+      "materialsSearch",
       "notify",
       "onAgentEvent",
       // 退出握手两枚（2026-10-09 P0-6）：去的那枚只能订阅、回的那枚只能 invoke，

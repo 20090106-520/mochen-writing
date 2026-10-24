@@ -181,10 +181,18 @@ html[data-platform="darwin"] .conversation-header {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* 【2026-10-25】滚动条那条槽**永远**留着（`stable`）：正文列的宽度不随「这一屏要不要滚」变。
+     为什么要这条：滚动条是**布局内**的（12px），它把正文列的可用宽度吃掉一截；
+     而输入卡不在这个滚动容器里，它拿的是整条宽度。
+     不写 `stable` 时，线程一长正文列就窄 12px、线程一短又复原——
+     于是输入卡与它上面的正文**在长会话里错开 12px**（真机读数：卡面 1106 / 正文列 1094，
+     左边缘齐、右边缘差 12px），换个会话宽度就变了。
+     输入卡那侧让的是同一个数（`--scrollbar-gutter`，见 `.composer-wrap`），两边逐档同宽。 */
+  scrollbar-gutter: stable;
 }
 
 .conversation-scroll::-webkit-scrollbar {
-  width: 12px;
+  width: var(--scrollbar-gutter);
 }
 
 .conversation-scroll::-webkit-scrollbar-thumb {
@@ -540,9 +548,14 @@ html[data-platform="darwin"] .conversation-header {
    两条公式逐档恒等：容器 ≥ token + 48 时都是 token，更窄时都是 容器 − 48。
    真机复验：1440 / 右栏折叠下卡面 1106、注入量到的正文 1106（逐档同宽）。
    判据在 `composer-card-wiring.test.ts`（两条读同一个变量、这条的每侧留白 = 卡侧兜底、
-   且这一档 ≥1080）。 */
+   且这一档 ≥1080）。
+   【2026-10-25 窄档更正：上面「逐档恒等」当时只对 1440 成立】窄窗（≤1220px）里
+   这条另起过一条 `calc(100% - 34px)`（字面量硬编码），而输入卡那侧不跟
+   ⇒ 真机读数 1200 / 1000 / 860 三档卡比正文列**窄 14px**（每侧差 7px），只有 1440 齐。
+   ⇒ 两侧留白收成一个 token `--conversation-inline-inset`（默认 24px = 合计 48，
+   窄窗 17px = 合计 34），窄窗那条 @media 只改这一个数、不再另写宽度公式。 */
 .message-list {
-  width: min(var(--conversation-column-width), calc(100% - 48px));
+  width: min(var(--conversation-column-width), calc(100% - var(--conversation-inline-inset) * 2));
   margin: 0 auto;
   padding: 34px 0 72px;
 }

@@ -34,6 +34,7 @@ import SideNavNoticeDialog, { type SideNavNotice } from "./SideNavNoticeDialog.v
 import LibraryNavRows from "./LibraryNavRows.vue";
 import ExtensionsNavRow from "./ExtensionsNavRow.vue";
 import BookLibraryList from "./BookLibraryList.vue";
+import WorkItemsPanel from "./WorkItemsPanel.vue";
 
 const emit = defineEmits<{ collapse: [] }>();
 const book = useBookStore();
@@ -470,6 +471,12 @@ function onChapterDragEnd(): void {
           <AppIcon name="house" :size="17" />
           <span>工作台</span>
         </button>
+
+        <!-- 【§174】作品工作项面板：左栏常驻的那一列，形态照 MiniMax Code 的会话列表，
+             只不过上面显示的是小说的东西（对话 / 待审 / 伏笔）。
+             **只在开了书的时候出现**：没书时它是空的——§168 用户评「空壳没啥用」，
+             宁可没有这一格，也不要摆一个写着「暂无」的板子。 -->
+        <WorkItemsPanel v-if="book.hasBook" />
 
         <!-- 「我的作品」：文稿树整体住这组里。组头右侧「+」是新建作品的真身入口。 -->
         <section class="nav-group" :class="{ 'is-collapsed': !worksOpen }">

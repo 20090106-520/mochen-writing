@@ -13,6 +13,7 @@ import { useBookStore } from "../stores/useBookStore";
 import { useNotificationStore } from "../stores/useNotificationStore";
 import { useModalFocus } from "../composables/useModalFocus";
 import { decideCopy, shouldAssemble } from "../utils/export-clipboard";
+import { copyText } from "../utils/clipboard";
 import type { DocRef } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 
@@ -292,17 +293,20 @@ async function copyToClipboard(): Promise<void> {
     });
     return;
   }
-  try {
-    await navigator.clipboard.writeText(decision.text);
-    copyDone.value = true;
-    setTimeout(() => (copyDone.value = false), 2000);
-  } catch {
+  // 写入走 `utils/clipboard`（§173）：**写剪贴板只有那一份**——
+  // 对话链的消息操作条也用它，两边各写一遍 `navigator.clipboard.writeText`
+  // 就会有两个失败处理（一个报「无法访问剪贴板」、一个什么都不说）。
+  const written = await copyText(decision.text);
+  if (!written) {
     notif.notify({
       title: "复制失败",
       message: "无法访问剪贴板",
       level: "warning"
     });
+    return;
   }
+  copyDone.value = true;
+  setTimeout(() => (copyDone.value = false), 2000);
 }
 
 const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [

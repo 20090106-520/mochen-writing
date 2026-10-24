@@ -126,7 +126,7 @@ watch(
       </button>
     </div>
     <div v-else class="composer-reference-empty">{{ menu.emptyText }}</div>
-    <div class="composer-reference-footer">
+    <div class="composer-reference-footer list-keys">
       <span><kbd>↑</kbd><kbd>↓</kbd> 选择</span>
       <span><kbd>Enter</kbd> 插入</span>
     </div>

@@ -21,6 +21,16 @@ export const IPC_CHANNELS = {
    */
   bookRecent: "book:recent",
   bookForget: "book:forget",
+  /**
+   * 素材库联网搜索（2026-10-24）：面板里直接搜，结果直接加成素材卡。
+   * 出网只在主进程（`web-search.ts` 那条源链），渲染层碰不到网络。
+   */
+  materialsSearch: "materials:search",
+  /**
+   * 素材库联网搜索的**取全文**那一步（2026-10-24）：搜索只给摘要，摘要当素材是纸片——
+   * 落卡前要把这一页的正文抓回来。抓取复用主进程 `web-read.ts` 那条链，渲染层不碰网络。
+   */
+  materialsFetch: "materials:fetch",
   docCreate: "doc:create",
   /**
    * 只重算**一篇**文稿的 DocRef（P1-4 后半，2026-10-10）。

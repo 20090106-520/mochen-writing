@@ -1,0 +1,184 @@
+/* 作品工作项面板（2026-10-25 · §174）：左栏常驻的那一列。
+   形态照 MiniMax Code 的会话列表——每行一件东西、标题 + 副行 + 右格、点一行直达。
+   颜色全走 token（这一段零色值字面量）；字号一律 rem（渲染层禁 px 字面量）。 */
+
+/* —— 面板外框 —— */
+.work-items {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 6px;
+}
+
+/* —— 面板标题行（照「我的作品」那枚组头的排法） —— */
+.work-items-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 2px 9px;
+  color: var(--text-secondary);
+}
+
+.work-items-head svg {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.work-items-head strong {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.892857rem;
+  font-weight: 600;
+}
+
+.work-items-head span {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+}
+
+/* —— 分组 ——
+   列表区自己封顶、自己滚：对话那一组可能有十几条，全铺开会把下面的文稿树顶出视野
+   （树还要用）。封顶按视口走，窗口越矮封得越紧。 */
+.work-items-groups {
+  display: grid;
+  gap: 2px;
+  max-height: min(42vh, 27rem);
+  overflow-y: auto;
+}
+
+.work-items-group-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 26px;
+  padding: 2px 9px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.821429rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.work-items-group-head:hover {
+  background: var(--hover);
+  /* 状态档底上，本族消费的两枚灰字都要升档（结构律 ②：深档底一出现，灰字必须升档）。 */
+  --text-secondary: var(--text-on-state);
+  --text-tertiary: var(--text-on-state);
+}
+
+.work-items-group-head svg {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.work-items-group-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-items-group-count {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+  font-style: normal;
+}
+
+.work-items-chevron {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  transform: rotate(90deg);
+  transition: transform var(--dur-control) ease;
+}
+
+.work-items-group:has(.work-items-group-head[aria-expanded="false"]) .work-items-chevron {
+  transform: rotate(0);
+}
+
+/* —— 行 —— */
+.work-items-list {
+  display: grid;
+  gap: 1px;
+}
+
+.work-items-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 38px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.work-items-row:hover:not(:disabled) {
+  background: var(--hover);
+  /* 同上：行里那枚副行与右格是三级灰，压在状态档底上要升档。 */
+  --text-secondary: var(--text-on-state);
+  --text-tertiary: var(--text-on-state);
+}
+
+/* 正在看的那一条：亮着（照参照面板那份「当前项亮着」）。它不算点不了——点它就是原地不动。 */
+.work-items-row.is-current {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+  --text-secondary: var(--text-on-state);
+  --text-tertiary: var(--text-on-state);
+}
+
+.work-items-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.work-items-row-icon {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+/* 标题与副行那一格：两行都要能省略，否则长标题会把右格顶走。 */
+.work-items-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.work-items-title,
+.work-items-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-items-title {
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+}
+
+.work-items-detail {
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+}
+
+.work-items-meta {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* —— 空状态（没有一组可摆时） —— */
+.work-items-empty {
+  padding: 2px 9px 6px;
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+}

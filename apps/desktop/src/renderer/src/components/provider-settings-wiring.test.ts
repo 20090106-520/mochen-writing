@@ -62,17 +62,28 @@ describe("ProviderSettings · 卡片面板的每一步都有真身（铁律：�
     expect(markup).not.toContain("provider:list-models");
   });
 
-  it("模态标记复用对话下拉那一份 modelKindOf：设置页不自带第二套按名猜", () => {
+  /**
+   * 改钉（2026-10-25）：判据从 `modelKindOf` 收成 `modalityLabelOf`。
+   *
+   * 原来这里手写了一遍「kind → 图像/视频」的映射，而对话下拉那份也手写了一遍——
+   * 同一份判据两处字面量，迟早走偏（改一处忘了另一处）。
+   * 现在两边都引 utils/model-picker 的同一份，**判据只有一份**（铁律 6）。
+   * 这条断言防的仍然是同一件事：设置页不自带第二套按名猜。
+   */
+  it("模态标记复用对话下拉那一份 modalityLabelOf：设置页不自带第二套按名猜", () => {
     const markup = templateSource(dialog);
     const script = scriptSource(dialog);
     // 判定只有一份：从 utils/model-picker 取，不在组件里另写关键词表。
     expect(script).toContain('from "../utils/model-picker"');
-    expect(script).toContain("modelKindOf(name)");
+    expect(script).toContain("modalityLabelOf");
     expect(script).not.toContain("NAMED_IMAGE_FAMILIES");
+    // 反向钉：组件里不许再留一份 kind → 字面量的映射（那正是两份判据的形状）。
+    expect(script).not.toMatch(/kind\s*===\s*["']image["']/);
+    expect(script).not.toMatch(/kind\s*===\s*["']video["']/);
     // 标记只渲染、不隐藏行：模型行仍是 v-for 铺全部 profile。
     expect(markup).toContain('v-for="profile in group.profiles"');
     expect(markup).toContain('class="provider-profile-tag"');
-    expect(markup).toContain("modalityTagOf(profile.model)");
+    expect(markup).toContain("modalityLabelOf(profile.model)");
     expect(markup).toContain("不能用来对话");
     // 按 kind 过滤掉图像/视频模型就是「隐藏」，本仓禁止。
     expect(markup).not.toMatch(/group\.profiles\.filter/);

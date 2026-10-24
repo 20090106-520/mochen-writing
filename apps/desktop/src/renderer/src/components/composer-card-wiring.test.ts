@@ -354,44 +354,123 @@ describe("权限档弹层真身挂到卡右端（#105 目标形态 2：更多 + 
  * 下限 1080 不是估的：1440 窗口右栏折叠时栏宽 1154/1178，卡宽取到这一档
  * 才既装得下上面那 774.3（模型名整条显示，不再出省略号），
  * 又不会在常见窗口下再留出成片死空（杀过的对照组见 agent-pane.css 那条规则上的注释）。
+ *
+ * ── 【2026-10-25 改钉】上面那句「两条逐档恒等」当时是**假的** ──
+ * 它只对**注入量**成立，对**真渲染**不成立：正文列在**滚动容器**里，
+ * 而滚动条是**布局内**的（12px）⇒ 正文列真值 = min(1120, 1154 − 12 − 48) = 1094，
+ * 卡却还是 1154 − 48 = 1106 ⇒ **卡比正文宽 12px、左边缘齐而右边缘错开**。
+ * 「注入量」量不到滚动条，所以那道复验量的是纸面值、不是屏上值。
+ * ⇒ 改法从「两条读同一个变量」升级为「**两条用同一个公式 + 两个容器同宽**」：
+ * 滚动条那条槽由 `scrollbar-gutter: stable` **永远**留着（宽度 = `--scrollbar-gutter`），
+ * 输入卡这侧让的是同一个数 ⇒ 两个容器的可用宽度逐档相等 ⇒ 卡与正文列逐档同宽同左缘。
  */
-describe("输入卡版心 · 与消息列共用同一个列宽 token（2026-10-17 用户裁定）", () => {
+describe("输入卡版心 · 与消息列同宽（2026-10-25 改钉：同一个公式 + 同一个容器宽度）", () => {
   const columnToken = (): number => {
     const m = /--conversation-column-width:\s*(\d+)px/.exec(vueSource("styles.css"));
     expect(m, "styles.css 的 :root 里必须定义 --conversation-column-width").not.toBeNull();
     return Number(m?.[1]);
   };
 
-  it("卡宽不再写死：.composer-wrap 的两侧内边距帽走 --conversation-column-width", () => {
-    const body = ruleBlock(styleSource("agent-pane.css"), ".composer-wrap");
-    expect(body).toContain("var(--conversation-column-width)");
-    expect(body).not.toContain("760px");
+  it("卡宽不再写死：卡与消息列读同一个 token", () => {
+    // 【为什么断言挪到 `.composer`】宽度原先写在 `.composer-wrap` 的**内边距帽**上，
+    // 那一写法把「减多少」写死在内边距里，于是正文那侧减 48、卡这侧也减 48 却少减了滚动条那 12。
+    // 现在宽度写在卡自己的容器 `.composer` 上，与 `.message-list` 同一个公式（下一条钉）。
+    const composer = ruleBlock(styleSource("agent-pane.css"), ".composer");
+    expect(composer).toContain("var(--conversation-column-width)");
+    expect(composer).not.toContain("760px");
+    // 反向：那条写死的内边距帽不许回来（它就是「少减了滚动条那 12」的来源）。
+    const wrap = ruleBlock(styleSource("agent-pane.css"), ".composer-wrap");
+    expect(wrap, "内边距帽回来了 ⇒ 卡宽又与正文列分家").not.toContain("calc((100% - var(");
   });
 
-  it("消息列与卡同宽：.message-list 的版心宽读同一个变量（两条要一起动，否则卡会比正文宽出一截）", () => {
-    const body = ruleBlock(styleSource("conversation-pane.css"), ".message-list");
-    expect(body).toContain("min(var(--conversation-column-width)");
-    expect(body).not.toContain("760px");
+  it("消息列与卡同宽：两条用**一字不差**的公式（同一个 token、同一个留白、同一个 auto 居中）", () => {
+    const composer = ruleBlock(styleSource("agent-pane.css"), ".composer");
+    const list = ruleBlock(styleSource("conversation-pane.css"), ".message-list");
+    const formula =
+      "width: min(var(--conversation-column-width), calc(100% - var(--conversation-inline-inset) * 2));";
+    for (const [name, block] of [
+      [".composer", composer],
+      [".message-list", list]
+    ] as const) {
+      expect(block, `${name} 的宽度公式与另一条不一致`).toContain(formula);
+      expect(block, `${name} 没有 auto 居中`).toContain("margin: 0 auto");
+      // 留白不许再写死成字面量：一旦哪一侧退回 `calc(100% - 48px)`，
+      // 窄窗那条（≤1220px 的另一档留白）就跟它分家 ⇒ 卡比正文列窄 14px。
+      expect(block, `${name} 又把两侧留白写死成字面量了`).not.toMatch(/calc\(100% - \d+px\)/);
+    }
+    expect(list).not.toContain("760px");
+  });
+
+  it("两侧留白来自同一个 token：默认每侧 24px、窄窗每侧 17px，窄窗只改这一个数", () => {
+    // 【2026-10-25 窄档那一刀】原先窄窗（≤1220px）里正文列另起一条 `calc(100% - 34px)`，
+    // 卡侧不跟 ⇒ 真机读数 1200 / 1000 / 860 三档卡比正文列窄 14px（每侧 7px），只有 1440 齐。
+    const root = vueSource("styles.css");
+    const base = /--conversation-inline-inset:\s*(\d+)px/.exec(root);
+    expect(base, "styles.css 的 :root 里必须定义 --conversation-inline-inset").not.toBeNull();
+    expect(Number(base?.[1]), "默认两侧留白应当是每侧 24px（合计 48px）").toBe(24);
+    // 窄窗只改这一个数（34px ÷ 2 = 每侧 17px）。
+    const narrow =
+      /@media \(max-width: 1220px\)\s*\{[\s\S]*?--conversation-inline-inset:\s*(\d+)px/.exec(root);
+    expect(narrow, "窄窗那块必须改 --conversation-inline-inset").not.toBeNull();
+    expect(Number(narrow?.[1]) * 2, "窄窗两侧留白合计应当还是 34px").toBe(34);
+    // 这个 token 只有两处定义：默认值一处、窄窗覆盖一处——再多一处就是分家的开始。
+    const hits = root.match(/--conversation-inline-inset:/g) ?? [];
+    expect(hits.length, "--conversation-inline-inset 的定义处不止「默认 + 窄窗」两处").toBe(2);
+  });
+
+  it("两个容器的可用宽度相等：滚动条那条槽永远留着，卡这侧让同一个数", () => {
+    const scroll = ruleBlock(styleSource("conversation-pane.css"), ".conversation-scroll");
+    // ① 正文容器永远让出滚动条那条槽（不写这条：线程一长正文列就窄 12px、线程一短又复原）。
+    expect(scroll, "滚动条那条槽不是常驻的 ⇒ 正文列宽度随滚动状态变").toContain(
+      "scrollbar-gutter: stable"
+    );
+    // ② 那条槽的宽度与卡侧让位读**同一个 token**（一个数两处读）。
+    const bar = ruleBlock(
+      styleSource("conversation-pane.css"),
+      ".conversation-scroll::-webkit-scrollbar"
+    );
+    expect(bar).toContain("var(--scrollbar-gutter)");
+    const wrap = ruleBlock(styleSource("agent-pane.css"), ".composer-wrap");
+    expect(wrap, "卡侧让的不是那同一个数 ⇒ 卡与正文列各减各的").toContain(
+      "var(--scrollbar-gutter)"
+    );
+    // ③ 那个 token 在 :root 里有且只有一个定义（styles.css 里数一次）。
+    const root = vueSource("styles.css");
+    const hits = root.match(/--scrollbar-gutter:/g) ?? [];
+    expect(hits.length, "--scrollbar-gutter 的定义处不止一个").toBe(1);
   });
 
   it("这一档够宽：760 那档装不下左端五枚（缺 14.3px 全砸在模型名上），1080 起才有一整行不出省略号的余量", () => {
     expect(columnToken()).toBeGreaterThanOrEqual(1080);
   });
+});
 
-  it("两条的兜底成对：卡侧每侧留白 ×2 = 正文版心的整体留白", () => {
-    // 【为什么单开这一道】上面三条只钉到「两条读同一个变量」——读得到同一个变量、
-    // 却各自加减不同的数，照样漂。真机构建（1440 / 右栏折叠 / 容器 1154 / token 1120）量到的正是这一形：
-    // 卡侧兜底 18px ⇒ 卡面 1154 − 36 = 1118；正文那条 48px ⇒ min(1120, 1154 − 48) = 1106。
-    // 两个值都"对"，但卡比它上面的正文每侧宽 6px，而屏幕上一句报错都没有。
-    const card = ruleBlock(styleSource("agent-pane.css"), ".composer-wrap");
-    const list = ruleBlock(styleSource("conversation-pane.css"), ".message-list");
-    const floor = Number(/max\((\d+)px/.exec(card)?.[1]);
-    const gutter = Number(/calc\(100% - (\d+)px\)/.exec(list)?.[1]);
-    expect(floor, ".composer-wrap 那条 max() 兜底读不到").toBeGreaterThan(0);
-    expect(gutter, ".message-list 那条 calc(100% - …px) 兜底读不到").toBeGreaterThan(0);
-    expect(
-      floor * 2,
-      `卡侧每侧 ${floor}px 而正文整体留 ${gutter}px——容器落在 token 与 token + ${gutter} 之间时两条各减不同的数，卡与正文就会错开`
-    ).toBe(gutter);
+/**
+ * 输入区不再留空带（2026-10-25 用户批注「对话框感觉还是不太行」）。
+ *
+ * 读数（1440 / 右栏折叠）：输入区 88px 而里面只有一行 34px 的 textarea ⇒ 上下共 54px 是净空。
+ * 占位文字孤零零挂在卡的上沿，下面一整条空带，再往下才是那条发丝线——整卡上半部读起来
+ * 是一块没写字的白板（卡总高 153px，却只是「一格字 + 一排开关」）。
+ * ⇒ 输入区改成**按内容走**：上下内边距 16 / 14 ⇒ 16 + 34 + 14 = 64px，卡随内容长高。
+ */
+describe("输入区 · 按内容走，不留空带（2026-10-25）", () => {
+  it("不再有撑高度的 min-height：那条最小高度容得下一行字，剩下的全是净空", () => {
+    const zone = ruleBlock(cardSection("agent-pane.css"), ".composer-input-zone");
+    expect(zone, "min-height 又回来了 ⇒ 上半部又变回一块空板").not.toContain("min-height");
+  });
+
+  it("上下内边距之和 ≤ 32px（16 + 14）：留白要撑得起呼吸，又不能撑成一条空带", () => {
+    const zone = ruleBlock(cardSection("agent-pane.css"), ".composer-input-zone");
+    const padding = /padding:\s*([\d.]+)px\s+([\d.]+)px\s+([\d.]+)px/.exec(zone);
+    expect(padding, "读不到 .composer-input-zone 的 padding").not.toBeNull();
+    const top = Number(padding?.[1]);
+    const bottom = Number(padding?.[3]);
+    expect(top + bottom, "上下留白合计超过 32px ⇒ 输入区又是一条空带").toBeLessThanOrEqual(32);
+  });
+
+  it("输入区仍由 textarea 的自增高撑开（field-sizing: content），不是写死的高度", () => {
+    const textarea = ruleBlock(cardSection("agent-pane.css"), ".composer-textarea");
+    expect(textarea).toContain("field-sizing: content");
+    expect(textarea).toContain("max-height: 150px");
   });
 });

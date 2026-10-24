@@ -2,6 +2,10 @@
 @import "./styles/left-nav.css";
 /* 作品库（2026-10-21）：左栏「我的作品」组内的最近作品清单，工作台空态共用同一份组件。 */
 @import "./styles/book-library.css";
+/* 作品工作项面板（2026-10-25 · §174）：左栏常驻的那一列，形态照 MiniMax Code 的会话列表，
+   上面显示的是小说的东西（对话 / 待审 / 伏笔）。排在 book-library.css 之后——
+   它比作品库更靠上（工作台按钮的正下方），两者不共用选择器，先后无所谓，写在一起是为了读得顺。 */
+@import "./styles/work-items.css";
 @import "./styles/conversation-pane.css";
 @import "./styles/conversation-history.css";
 @import "./styles/editor-pane.css";
@@ -81,6 +85,23 @@
      左端五枚整条显示；更宽的屏幕上仍有一道帽，免得输入卡被拉成一条。
      判据钉「卡与消息列读同一个变量、且这一档 ≥1080」（composer-card-wiring.test.ts）。 */
   --conversation-column-width: 1120px;
+  /* 中栏两侧的留白（**每侧**）。**一个数两处读**：正文列 `.message-list`
+     （conversation-pane.css）与输入卡 `.composer`（agent-pane.css）——
+     两条宽度公式要逐档恒等，前提是「减多少」也来自同一个数。
+     【2026-10-25 窄档那一刀】原先这半边留白是两个字面量：默认 48px（每侧 24px），
+     而窄窗（≤1220px）里正文列**另起一条** `calc(100% - 34px)`，卡侧不跟
+     ⇒ 真机读数 1200 / 1000 / 860 三档卡比正文列**窄 14px**（每侧差 7px），只有 1440 齐。
+     收成 token：默认 24px（合计 48），窄窗 17px（合计 34，与窄窗那档同值）。
+     ⇒ 窄窗那块 @media 只许改这一个数，不许再写第二条宽度公式。 */
+  --conversation-inline-inset: 24px;
+  /* 中栏滚动条让出来的那条槽宽（2026-10-25）。**一个数两处读**：
+     `.conversation-scroll` 的滚动条自身宽度（conversation-pane.css）与输入卡右侧的让位
+     （agent-pane.css 的 `.composer-wrap`）。两处必须是同一个数——
+     滚动条是**布局内**的（12px），它把正文列的可用宽度吃掉一截；而输入卡不在那个滚动容器里，
+     它拿的是整条宽度。两边不让同一条，正文列与输入卡就错开 12px
+     （真机读数：卡面 1106 / 正文列 1094，左边缘齐、右边缘差 12px——同一屏里两种宽度）。
+     分头写两个数，这道缝就会在某次改宽时悄悄回来。 */
+  --scrollbar-gutter: 12px;
   --line: var(--theme-line, #dedfdf);
   --line-soft: var(--theme-line-soft, #e9e9e7);
   --text: var(--text-primary, #202226);
@@ -210,6 +231,49 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 input[type="search"]::-webkit-search-cancel-button {
   appearance: none;
+}
+
+/* —— 键帽（2026-10-25 收敛到一处）——
+   这一族浮层底部都有一行「↑↓ 选择 / Enter 插入」的提示行，键帽是那种提示的固定形状：
+   @ 引用菜单、模型选择器、权限档、阶段选择、大纲面板、全书搜索，六处各写了一遍，
+   同一种东西六种长相——浮层之间一比就露馅（描边粗细、圆角、字号、底色全不一样）。
+   ⇒ 形状（描边、圆角、字族、字号、字重、居中、min-width）**只此一份**，落在元素规则这一层；
+   上下文要改**颜色**就自己覆写（键位表那一枚是表格正文的一部分，字色跟正文走，
+   不是提示行那一档的浅灰——那是两种东西，不该硬拉成一种）。 */
+kbd {
+  display: inline-block;
+  min-width: 24px;
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--sidebar);
+  color: var(--text-faint);
+  font-family: var(--ui-font);
+  font-size: 0.642857rem;
+  font-weight: 550;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* —— 浮层底部的键位提示行（2026-10-25）——
+   这一族浮层（@ 引用菜单 / 模型选择器 / 权限档 / 阶段选择）底部都有一行
+   「↑↓ 选择 / Enter 插入」——它是说清「这个浮层能怎么用」的地方。
+   排版只此一份：横向排、右对齐、每组之间 16px、组内键帽之间 4px。
+   上下文自己加**位置**（贴底、留白、分隔线）。 */
+.list-keys {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  color: var(--text-faint);
+  font-size: 0.642857rem;
+}
+
+.list-keys > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 ul,
@@ -379,6 +443,11 @@ html[data-platform="darwin"] .desktop-shell {
     --left-pane-width: 262px;
     --right-pane-width: 395px;
     --center-pane-min: 320px;
+    /* 窄窗时两侧留白收窄：34px ÷ 2 = 每侧 17px（默认 24px，合计 48）。
+       【2026-10-25】原先窄窗里给正文列另写过一条专属的宽度公式，而输入卡不跟
+       ⇒ 窄窗三档卡比正文列窄 14px（每侧 7px），只有 1440 那档齐。
+       现在只改这一个数：两条公式（`.message-list` 与 `.composer`）逐档恒等。 */
+    --conversation-inline-inset: 17px;
   }
 
   .desktop-shell,
@@ -406,9 +475,10 @@ html[data-platform="darwin"] .desktop-shell {
     grid-template-columns: var(--left-rail-width) minmax(var(--center-pane-min), 1fr) 0;
   }
 
-  .message-list {
-    width: calc(100% - 34px);
-  }
+  /* 【2026-10-25 退役】原先这里给正文列另写过一条窄窗专属的宽度公式（合计 34px 留白），
+     而输入卡那侧不跟 ⇒ 窄窗三档卡比正文列窄 14px（每侧 7px），只有 1440 齐。
+     现在窄窗只改 `--conversation-inline-inset`（34px ÷ 2 = 每侧 17px），
+     正文列与输入卡走同一条公式。 */
 
   .context-caption {
     display: none;

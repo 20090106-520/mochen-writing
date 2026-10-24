@@ -1,4 +1,5 @@
 import type { AgentEvent, AgentToolName, ProposalStatus, WebSource } from "@mochen/contracts";
+import { presentableFailureMessage } from "@mochen/contracts";
 import { toolArgsText } from "./tool-args";
 import { turnUsageText } from "./token-usage";
 
@@ -55,8 +56,22 @@ export type TimelineBlock =
    * 这一轮失败了。`at` 是事件自己的时间戳（回放时**必须**带上）——
    * 2026-10-23 真机走查：打开一本书就把上次会话的红底失败条原样摆出来，而那批是 15 天前的记录，
    * 界面上没有任何日期 ⇒ 读起来像「应用现在坏了」。判据与格式化都在 utils/history-time。
+   *
+   * 【2026-10-25 · §173】多两个字段：
+   * - `stale`：这条失败**之后线程又往前走过了**（有过新的提问或新的助手回复）⇒
+   *   它已经不是「当前状态」，只是一段历史。红底红字是「刚刚炸了」的语气，
+   *   钉在一条两天前、后来已经聊回来的失败上，读起来像应用现在坏了（用户原话：
+   *   「还有红色的那个东西」）。⇒ 判据在 `markStaleFailures`，模板只读这个布尔。
+   * - `retryText`：失败前最近一条用户提问（「再问一次」要填回输入框的那句）。没有就 null。
    */
-  | { kind: "error"; id: string; text: string; at: string }
+  | {
+      kind: "error";
+      id: string;
+      text: string;
+      at: string;
+      stale: boolean;
+      retryText: string | null;
+    }
   /**
    * 本轮 token 用量（2026-10-15）。`text` 是**组好的人话**（`turnUsageText`），
    * 模板只渲染它、不自己拿 requests/reported 再拼一遍——判定与句子都只在这一处（铁律 6）。
@@ -123,8 +138,11 @@ export const TOOL_LABELS: Record<AgentToolName, string> = {
  */
 export function buildTimeline(items: AgentEvent[], tail: StreamingTail): TimelineBlock[] {
   const blocks: TimelineBlock[] = [];
+  /** 失败条要用它：「再问一次」填回输入框的就是失败前最近那一句。 */
+  let lastUserText: string | null = null;
   for (const event of items) {
     if (event.type === "user-message") {
+      lastUserText = event.text;
       blocks.push({ kind: "user", id: event.id, text: event.text });
       continue;
     }
@@ -183,8 +201,24 @@ export function buildTimeline(items: AgentEvent[], tail: StreamingTail): Timelin
       });
       continue;
     }
+    // 【2026-10-25 用户批注「不应该显示这个」】失败条上那句话**渲染时**翻成人话。
+    //
+    // 为什么渲染层也要翻：盘上早就落下来的旧记录（2026-10-08 之前的主进程写的原始英文异常
+    // `***.BadRequestError: OpenAIException - {…}`）主进程已经改不动了——那是历史事实。
+    // 但**显示**是渲染层的事，屏上那句话必须是人话。
+    //
+    // 判据住在 `@mochen/contracts`（与主进程共用同一份，铁律 6），且是**幂等**的：
+    // 主进程翻过的那批（含中文）原样不动。
     if (event.type === "error") {
-      blocks.push({ kind: "error", id: event.id, text: event.message, at: event.ts });
+      blocks.push({
+        kind: "error",
+        id: event.id,
+        text: presentableFailureMessage(event.message),
+        at: event.ts,
+        // 「已经被后来的成功盖过」要回头看才知道 ⇒ 这一刀在最后统一标（markStaleFailures）。
+        stale: false,
+        retryText: lastUserText
+      });
       continue;
     }
     if (event.type === "usage") {
@@ -212,6 +246,35 @@ export function buildTimeline(items: AgentEvent[], tail: StreamingTail): Timelin
       streaming: true,
       interrupted: false
     });
+  return markStaleFailures(blocks);
+}
+
+/**
+ * 标出「已经被后来的成功盖过」的失败条（2026-10-25 · §173）。
+ *
+ * **判据**：失败条**之后**只要还有新的提问或新的助手回复，这条线程就往前走过了一格，
+ * 那条失败于是不再是「当前状态」，只是一段历史。
+ * 红底红字是「刚刚炸了」的语气；钉在两天前、后来已经聊回来的失败上，
+ * 读起来像应用现在坏了（用户原话：「还有红色的那个东西，解决一下」）。
+ * ⇒ 盖过的失败降成一行低调记录（`stale: true`，模板据此换样式），
+ * **不藏**——失败必须看得见，只是不再冒充当前状态。
+ *
+ * 只有它**之后**才有东西才算「盖过」：失败条本身在链上的位置就是它发生的那一刻。
+ * 尾部正在流式的那条助手回复（`tail-message`）也算——线程确实在往前走。
+ */
+export function markStaleFailures(blocks: TimelineBlock[]): TimelineBlock[] {
+  let movedOn = false;
+  for (let i = blocks.length - 1; i >= 0; i -= 1) {
+    const block = blocks[i];
+    if (block === undefined) continue;
+    if (block.kind === "user" || block.kind === "message") {
+      movedOn = true;
+      continue;
+    }
+    if (block.kind === "error" && movedOn) {
+      blocks[i] = { ...block, stale: true };
+    }
+  }
   return blocks;
 }
 

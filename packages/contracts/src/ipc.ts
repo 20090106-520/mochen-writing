@@ -34,6 +34,7 @@ import type {
   TxtImportCommitResult,
   TxtImportPreviewResult
 } from "./import.js";
+import type { MaterialsFetchResult, MaterialsSearchResult } from "./materials-web.js";
 import type {
   WebdavConfigInput,
   WebdavConfigSnapshot,
@@ -571,6 +572,16 @@ export interface RendererApi {
   importTxtPreview(): Promise<TxtImportPreviewResult>;
   /** 把预览确认后的章目落成 `chapters/` 下的文稿；重名在写盘前整批拦下（all-or-nothing）。 */
   importTxtCommit(input: TxtImportCommitInput): Promise<TxtImportCommitResult>;
+  /**
+   * 素材库联网搜索（2026-10-24）：面板里直接搜、结果直接加成素材卡——不绕对话、不等模型。
+   * 出网仍只在主进程（`web-search.ts` 那条源链）；搜不着或源不能用时回 `{ ok:false, message }`，不抛。
+   */
+  materialsSearch(query: string): Promise<MaterialsSearchResult>;
+  /**
+   * 取一条网页的正文（2026-10-24）。搜索只给摘要，落卡前要抓全文——抓取在主进程
+   * （`web-read.ts` 那条链），渲染层不碰网络。抓不到时回 `{ ok:false, message }`，不抛。
+   */
+  materialsFetch(url: string): Promise<MaterialsFetchResult>;
   /**
    * 读 WebDAV 配置快照（2026-10-15）。
    *

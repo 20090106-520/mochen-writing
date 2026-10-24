@@ -70,6 +70,8 @@ const { autoUpdater } = electronUpdaterPkg;
 import { createTrashService, registerTrashIpc, type TrashSnapshot } from "./doc-trash.js";
 import { backupFs, createBookBackupService, registerBookBackupIpc } from "./book-backup.js";
 import { createImportService, registerImportIpc } from "./import-service.js";
+// 素材库联网搜索（2026-10-24）：出网走 web-search.ts 那条源链，这里只注册通道。
+import { registerMaterialsWebIpc } from "./materials-web-service.js";
 import { nodeWebdavFetch } from "./webdav-client.js";
 import { createWebdavConfigStore, registerWebdavConfigIpc } from "./webdav-config-store.js";
 import { createWebdavService, registerWebdavServiceIpc } from "./webdav-service.js";
@@ -450,6 +452,8 @@ app.whenReady().then(async () => {
     }
   });
   registerImportIpc((channel, fn) => ipcMain.handle(channel, fn), importService);
+  // 素材库联网搜索（2026-10-24）：面板里直接搜、直接把结果加成素材卡，不绕对话。
+  registerMaterialsWebIpc((channel, fn) => ipcMain.handle(channel, fn));
   // 检查更新（2026-10-10）：更新源 = 环境变量 MOCHEN_UPDATE_URL（放 latest.yml 的目录）。
   // electron-updater 真身在这里适配成 UpdaterLike；检查只「说」不下载（autoDownload 关）。
   const updateFeedUrl = process.env.MOCHEN_UPDATE_URL ?? null;

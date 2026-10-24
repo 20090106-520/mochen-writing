@@ -47,6 +47,14 @@ function componentSources(): { file: string; text: string }[] {
 describe("菜单本体 · 对齐 deepwrite 的 composer-reference-* 骨架", () => {
   it("宿主组件存在，类名逐段对齐参考源（-menu/-heading/-trigger/-options/-icon/-copy/-token/-empty/-footer）", () => {
     const m = templateSource(MENU);
+    // 【2026-10-25：按整枚 class 记，不按整串 class 属性】
+    // 页脚那枚现在还挂了一枚共用的排版类（`list-keys`，键位提示行的排版收在 styles.css 一处），
+    // 于是 `class="composer-reference-footer"` 这种**整串相等**的写法就红了。
+    // 改法不是把断言放宽成子串匹配（`composer-reference-footer-x` 也会命中，`\b` 在连字符前也算边界），
+    // 而是按 **class 名单** 记：把模板里每个 class 属性拆成 token，再逐枚查。
+    const tokens = new Set(
+      [...m.matchAll(/class="([^"]*)"/g)].flatMap((x) => (x[1] ?? "").split(/\s+/))
+    );
     for (const cls of [
       "composer-reference-menu",
       "composer-reference-heading",
@@ -58,7 +66,7 @@ describe("菜单本体 · 对齐 deepwrite 的 composer-reference-* 骨架", () 
       "composer-reference-empty",
       "composer-reference-footer"
     ]) {
-      expect(m, `菜单骨架缺 .${cls}`).toContain(`class="${cls}"`);
+      expect(tokens.has(cls), `菜单骨架缺 .${cls}`).toBe(true);
     }
     expect(m).toContain('role="listbox"');
     expect(m).toContain('role="option"');
@@ -286,12 +294,19 @@ describe("store · 只做状态与接线，判定在 utils、DOM 在组件", () 
     for (const needle of [
       "findReferenceMatch",
       "resolveReferenceSelection",
-      "moveReferenceIndex",
       "REFERENCE_MENU_COPY"
     ]) {
       expect(store).toContain(needle);
     }
+    /* 上下键环绕与夹下标（2026-10-25）：原先这两个函数住在 utils/inline-reference-menu.ts，
+       与「引用菜单」无关、却是「一组选项的高亮」这一族通用的一件事 ⇒ 收到 utils/list-highlight.ts。
+       这一族浮层（模型选择器 / 权限档 / 阶段选择 / 设置页的模型名单）统一引那一份，
+       免得下一个浮层「照着引用菜单抄一份」——同一个判据两份实现（铁律 6）。 */
+    expect(store).toContain('from "../utils/list-highlight"');
+    expect(store).toContain("moveHighlightIndex");
     const util = readFileSync(new URL(`../${UTIL}`, import.meta.url), "utf8");
+    expect(util).not.toContain("moveHighlightIndex");
+    expect(util).not.toContain("clampHighlightIndex");
     expect(util).toContain("SLASH_COMMAND_DESCRIPTIONS");
     expect(util).toContain("BOOK_KIND_LABELS");
     expect(util).toContain("@素材："); // 引用文本模板只住这一处

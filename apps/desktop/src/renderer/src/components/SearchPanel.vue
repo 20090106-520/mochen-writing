@@ -374,13 +374,10 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   color: var(--text-muted, #777);
 }
 
+/* 键帽的形状在 styles.css 的元素规则一处（2026-10-25 收敛到一处），这里只留这一枚的字号。
+   原先这里自带一整套（4px 圆角 + 白描边 + 深底），与别的浮层的键帽不是一个东西。 */
 .search-shortcut {
   font-size: 0.714286rem;
-  padding: 2px 6px;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: 4px;
-  color: var(--text-secondary, #999);
-  background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
 }
 
 /* 全书替换那一行：只在精确命中且查询有效时进 DOM（见 canReplace）。 */
@@ -600,11 +597,8 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   color: var(--text-muted, #777);
 }
 
+/* 键帽形状在 styles.css 的元素规则一处；这里只留这一行提示自己的间距与字号。 */
 .search-footer kbd {
-  display: inline-block;
-  padding: 1px 4px;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: 3px;
   margin: 0 2px;
   font-size: 0.714286rem;
 }

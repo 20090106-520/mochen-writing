@@ -338,13 +338,14 @@
   white-space: nowrap;
 }
 
+/* 键位表里的键帽：**形状**走 styles.css 的元素规则那一处（描边/圆角/字族/字重），
+   这里只覆写**它自己这一格的语境**：表正文是深色档，键帽的浅底会浮起来；
+   字色跟正文走（不是提示行那一档的浅灰），字号比提示行大一号——这是一张表，不是一行提示。 */
 .hotkeys-keys kbd {
   padding: 1px 6px;
   border: 1px solid var(--theme-line);
-  border-radius: 5px;
   background: var(--surface-muted);
   color: var(--text-primary);
-  font-family: var(--ui-font);
   font-size: 0.785714rem;
 }
 

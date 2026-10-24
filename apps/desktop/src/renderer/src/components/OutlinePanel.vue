@@ -685,13 +685,9 @@ onBeforeUnmount(() => panelScrollbar.dispose());
   color: var(--text-tertiary, #777);
 }
 
+/* 键帽形状在 styles.css 的元素规则一处（2026-10-25 收敛到一处）；这里只留间距与字号。 */
 .outline-footer kbd {
-  display: inline-block;
-  padding: 1px 4px;
-  border: 1px solid var(--line, rgba(255, 255, 255, 0.1));
-  border-radius: 3px;
   margin: 0 2px;
   font-size: 0.714286rem;
-  font-family: inherit;
 }
 </style>

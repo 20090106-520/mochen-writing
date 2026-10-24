@@ -9,9 +9,7 @@
 import { defineStore } from "pinia";
 import {
   REFERENCE_MENU_COPY,
-  clampReferenceIndex,
   findReferenceMatch,
-  moveReferenceIndex,
   referenceEmptyText,
   referenceOptionPool,
   referenceVisibleOptions,
@@ -23,6 +21,9 @@ import {
   type ReferenceSelection,
   type ReferenceTrigger
 } from "../utils/inline-reference-menu";
+// 上下键环绕与夹下标（2026-10-25）：从 utils/inline-reference-menu.ts 收到 utils/list-highlight.ts ——
+// 它们与「引用菜单」无关，是「一组选项的高亮」这一族通用的一件事（铁律 6：判据只有一份）。
+import { clampHighlightIndex, moveHighlightIndex } from "../utils/list-highlight";
 import { availableCommands, type PaletteFocus } from "../utils/slash-commands";
 import { threadKeyFor, useAgentStore } from "./useAgentStore";
 import { useBookStore } from "./useBookStore";
@@ -74,7 +75,7 @@ export const useReferenceMenuStore = defineStore("reference-menu", {
     selectedOption(): ReferenceOption | null {
       const list = this.visibleOptions;
       if (list.length === 0) return null;
-      return list[clampReferenceIndex(this.activeIndex, list.length)] ?? null;
+      return list[clampHighlightIndex(this.activeIndex, list.length)] ?? null;
     },
 
     emptyText(): string {
@@ -103,7 +104,7 @@ export const useReferenceMenuStore = defineStore("reference-menu", {
       this.match = next;
       // 换了一个 token ⇒ 从头一条开始；同一 token 只是过滤变窄 ⇒ 高亮收回还在的最后一行。
       this.activeIndex = sameToken
-        ? clampReferenceIndex(this.activeIndex, this.visibleOptions.length)
+        ? clampHighlightIndex(this.activeIndex, this.visibleOptions.length)
         : 0;
     },
 
@@ -113,12 +114,12 @@ export const useReferenceMenuStore = defineStore("reference-menu", {
     },
 
     activate(index: number): void {
-      this.activeIndex = clampReferenceIndex(index, this.visibleOptions.length);
+      this.activeIndex = clampHighlightIndex(index, this.visibleOptions.length);
     },
 
     /** ↑↓：环绕由纯函数算（deepwrite 的取模写法），这里只写回。 */
     move(delta: number): void {
-      this.activeIndex = moveReferenceIndex(this.activeIndex, delta, this.visibleOptions.length);
+      this.activeIndex = moveHighlightIndex(this.activeIndex, delta, this.visibleOptions.length);
     },
 
     /**

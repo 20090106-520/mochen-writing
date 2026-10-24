@@ -161,11 +161,11 @@ function submit(): void {
              与 deepwrite 的 .composer-stack + .composer-reference-menu 同一形态（裁定 D4）。
              刻意不放进 .composer-toolbar-right：那是权限弹层的定位祖先，抢了它弹层就会跟着菜单跑。 -->
         <ComposerReferenceMenu />
-        <!-- 2026-10-17 设计稿「用这个对话框」：输入行以装饰性 `/` 前缀起头（设计稿的 .prefix-char）。
-             它是纯装饰（aria-hidden），placeholder 与任何数据通路都不受影响；把它与 textarea
-             包进 `.composer-input-zone` 是为了照设计稿做「前缀 + 输入框并排一行」。 -->
+        <!-- 输入行（2026-10-17 设计稿；2026-10-24 撤掉前缀）：这一行原本以装饰性 `/` 起头
+             （设计稿的 .prefix-char）。真机上它读起来像「我自己打了一个斜杠」——用户点名去掉。
+             它是纯装饰（原来就 aria-hidden），撤掉不影响 placeholder 与任何数据通路；
+             `.composer-input-zone` 留着，它管的是这一行的内边距与最小高度。 -->
         <div class="composer-input-zone">
-          <span class="composer-prefix" aria-hidden="true">/</span>
           <textarea
             v-model="draft"
             data-mochen-composer

@@ -19,6 +19,17 @@
   box-shadow: 0 12px 34px var(--shadow-color);
 }
 
+/* 焦点圈是自己画的（2026-10-25）。
+   这一族的焦点在**菜单容器**上（它没有搜索框，焦点留在容器里 ↑↓ 才收得到），
+   于是容器必须给一条焦点提示——但那条圈不该是浏览器默认那圈：
+   默认那圈是 `outline-style: auto` + 系统强调色（真机读数：outline-color rgb(229,151,0)，
+   换个系统/主题就换个颜色，与界面无关），而且宽度由浏览器定。
+   ⇒ 改成自家 token（`--focus`），与 agent-pane.css 那两枚（.context-option 等）同一手。 */
+.permission-menu:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
 .permission-option {
   display: flex;
   width: 100%;
@@ -34,13 +45,30 @@
   cursor: pointer;
 }
 
+/* 鼠标划过与键盘高亮是**同一件事**（指着哪一档），所以同一档底色。
+   档位取 `--selected` 而不是 `--hover`：与 @ 引用菜单、模型选择器那一族一致。 */
 .permission-option:hover {
-  background: var(--hover);
+  background: var(--selected);
 }
 
+/* 键盘高亮（2026-10-25）：↑↓ 走的是**高亮**而不是真焦点——焦点留在菜单容器上，
+   真焦点搬走就点不到「当前」那一档了（改之前这个浮层干脆只有 Esc，键盘完全选不了）。 */
+.permission-option.is-selected {
+  background: var(--selected);
+}
+
+/* 当前那一档：字加粗。「在用」与「指着」是两件事，各说各的。 */
 .permission-option.is-current {
   background: var(--selected);
   font-weight: 600;
+}
+
+/* 键位提示行：排版在 styles.css 的 `.list-keys` 一处（这一族浮层共用），
+   这里只留它在权限档菜单里的位置。 */
+.permission-keys {
+  margin: 6px 0 0;
+  padding: 2px 9px 0;
+  border-top: 1px solid var(--line-soft);
 }
 
 /* Task 5 的模板引用这些类（样式随本任务落地，中间一提交只有裸文本、不影响门禁与判读） */
@@ -375,11 +403,19 @@
 
    定位与收起用共用的 `useComposerContextPopover`（它按锚点算 fixed 坐标、夹进视口、收尾把焦点还给 chip），
    所以几何（position / left / top / width / max-height）由它以**行内样式**交给这个类名，
-   本段一个也不许再写——写了两份就会有一份悄悄不生效，浮层飞到屏幕角落时看不出是哪一份的锅。 */
+   本段一个也不许再写——写了两份就会有一份悄悄不生效，浮层飞到屏幕角落时看不出是哪一份的锅。
+
+   【2026-10-25 改成「头 / 搜索 / 列表」三段，滚动只发生在列表里】
+   原来整个面板一起滚（`overflow: auto` 挂在面板上）：名单一长，头上的搜索框与脚注被一起滚走，
+   于是「我搜到哪了」「这个面板怎么用」这两样在滚动过程中都看不见。
+   现在面板是 flex 列、列表自己滚——`min-height: 0` 是让 flex 子项肯缩下去的那一行，
+   少了它列表会把面板撑高、滚动条跑到整个面板上（这段的滚动就又回到老样子）。 */
 .model-select {
   position: fixed;
   z-index: 60;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 6px;
   border: 1px solid var(--line-soft);
   border-radius: 12px;
@@ -396,6 +432,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: none;
   padding: 2px 6px 6px;
   color: var(--text-soft);
   font-size: 0.857143rem;
@@ -407,6 +444,7 @@
   margin-right: auto;
 }
 
+/* 计数那枚药丸：没在搜时是「几个」，搜时是「匹配几个 / 一共几个」（文案由组件算好）。 */
 .model-select-count {
   flex: none;
   padding: 1px 7px;
@@ -417,34 +455,48 @@
   font-weight: 500;
 }
 
-.model-select-refresh {
+/* 刷新（2026-10-25 从文字钮改成图标钮）：头部原本是「标题 + 计数 + 刷新文字钮 + ×」四件，
+   挤在一行里谁都不显眼。刷新是一枚低频动作，图标钮够用；
+   通道名挪进它的悬停提示——那是排查用的，不该摊在正文上（可见文字里不该有 provider:list-models）。 */
+.model-select-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
-  padding: 2px 9px;
-  border: 1px solid var(--line-soft);
-  border-radius: 7px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-soft);
-  font-size: 0.785714rem;
   cursor: pointer;
 }
 
-.model-select-refresh:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--focus) 45%, var(--line-soft));
-  color: var(--text);
-}
-
-.model-select-refresh:disabled {
+.model-select-icon-btn:disabled {
   opacity: 0.5;
+  cursor: default;
 }
 
-/* 搜索框（2026-10-21）：名单超过六行才出现，免得只有三个模型时多一个空框。 */
+/* 搜索框（2026-10-25 改成常驻）：原先是「超过六行才出现」，多数时候面板里就没有搜索框，
+   用户也就不知道能搜。现在名单里只要有模型就在，且打开时光标就落进来。
+   左边那枚 search 图标是 @ 引用菜单那一族的同一形状（输入区里「能搜」这件事得看得见）。 */
 .model-select-search {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
   padding: 0 4px 6px;
 }
 
+.model-select-search-icon {
+  flex: none;
+  color: var(--text-faint);
+}
+
 .model-select-search-input {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 5px 9px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
@@ -459,10 +511,15 @@
   outline: none;
 }
 
+/* 列表：面板里唯一会滚的那一段。`min-height: 0` 不能省——flex 子项默认不肯缩到内容以下，
+   少了它，列表会把面板撑高、滚动条跑到整个面板上（那就等于没改成三段）。 */
 .model-select-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -486,12 +543,33 @@
   cursor: pointer;
 }
 
+/* 鼠标划过与键盘高亮是**同一件事**（指着哪一行），所以同一档底色。
+   档位取 `--selected` 而不是 `--hover`：与 @ 引用菜单那一族一致（悬停即高亮，
+   鼠标一停就变成键盘高亮那一档，反差最小）。 */
 .model-select-row:hover:not(:disabled) {
-  background: var(--hover);
+  background: var(--selected);
 }
 
+/* 键盘高亮（2026-10-25）：↑↓ 走的是**高亮**而不是真焦点，所以焦点始终留在搜索框里，
+   用户能边打字边选。这一格与 hover 同档（两者是同一件事：指着哪一行）。
+   类名用 `is-selected`（与 @ 引用菜单、权限档、阶段选择同一枚词），
+   `is-active` 那枚是本仓旧词，四处浮层各叫各的正是「不一致」的来源。 */
+.model-select-row.is-selected {
+  background: var(--selected);
+}
+
+/* 当前在用的那一行：单开一段摆到最上面（真机读数：原来它混在名单第 4 行），
+   所以这一行得比别行更「在用」——底是强调色的淡调，字加粗，右端带 ✓。
+   底用 `--accent-soft` 而不是 `--selected`：后者是中性灰，压在它上面读不出「这一枚是现在在用的」。 */
 .model-select-row.is-current {
+  background: var(--accent-soft);
   color: var(--text);
+  font-weight: 600;
+}
+
+/* 当前行同时被指着（高亮）时：底再深一档，让「在用」与「指着」两件事同时看得出来。 */
+.model-select-row.is-current.is-selected {
+  background: color-mix(in srgb, var(--focus) 18%, transparent);
 }
 
 .model-select-name {
@@ -507,9 +585,12 @@
   color: var(--success);
 }
 
-/* 分组标题（2026-10-22）：名单平铺时图像/视频模型混在对话模型里，点错一行下一句必然 400。
-   分组只改顺序与标题，不隐藏任何模型（@see utils/model-picker.ts 的诚实边界）。 */
-.model-select-group-head {
+/* 段标题（2026-10-25 改名）：原先叫 `.model-select-group-head`，是给「对话 / 图像 / 视频」
+   那三段分组用的。分组整块撤掉了（只列写作模型，见 utils/model-picker.ts），
+   现在面板里只剩一段标题——「正在用」——所以它不再是一段「组」，是一段「标题」。
+   类名跟着改：留着 "group" 会让下一个人以为分组还在。 */
+.model-select-section-head {
+  flex: none;
   margin: 6px 0 2px;
   padding: 0 8px;
   color: var(--text-faint);
@@ -517,7 +598,8 @@
   letter-spacing: 0.02em;
 }
 
-/* 行尾那枚模态标记：靠 auto 推到右端；它和 ✓ 同时在场时 ✓ 不再抢中段空白。 */
+/* 行尾那枚模态标记：只出现在「正在用」那一行（当前在用的这一枚可能不是写作模型，
+   标出来是诚实）。靠 auto 推到右端；它和 ✓ 同时在场时 ✓ 不再抢中段空白。 */
 .model-select-tag {
   flex: none;
   margin-left: auto;
@@ -567,7 +649,8 @@
 
 .model-select-retry:hover,
 .model-select-settings:hover,
-.model-select-close:hover {
+.model-select-close:hover,
+.model-select-icon-btn:hover {
   background: var(--hover);
   /* 这一组里三枚各写自己的字色（retry 与 close 是 `--text-soft`，settings 是实心主按钮），
      所以升档只能 shadow 那一枚 token，不能在这里补一条 `color:` 把实心按钮一起改掉。 */
@@ -578,6 +661,7 @@
    所以它是实心主按钮，「再试一次」退为次要描边——主次跟文案说的事实对齐。 */
 .model-select-actions {
   display: flex;
+  flex: none;
   gap: 8px;
   margin-top: 8px;
 }
@@ -604,27 +688,45 @@
 .model-select-row:focus-visible,
 .model-select-retry:focus-visible,
 .model-select-settings:focus-visible,
-.model-select-close:focus-visible {
+.model-select-close:focus-visible,
+.model-select-icon-btn:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
 
+/* 状态与脚注（2026-10-25 挪位）：写回中与切换失败的理由原本排在列表**底下**，
+   名单一长就被推到滚动区下面——用户看不见就只剩「点了没反应」。
+   现在它们排在列表**上面**，且这一段不参与滚动，永远在第一屏。 */
 .model-select-note {
+  flex: none;
   margin: 6px 0 0;
+  padding: 0 8px;
   color: var(--text-soft);
   font-size: 0.857143rem;
 }
 
 .model-select-error {
+  flex: none;
   margin: 6px 0 0;
+  padding: 0 8px;
   color: var(--danger-text);
   font-size: 0.857143rem;
 }
 
 .model-select-foot {
-  margin: 8px 6px 2px;
+  flex: none;
+  margin: 8px 0 2px;
+  padding: 0 8px;
   color: var(--text-faint);
   font-size: 0.857143rem;
+}
+
+/* 键位提示行（2026-10-25）：排版（横向、右对齐、组距）在 styles.css 的 `.list-keys` 一处，
+   这一族浮层共用；这里只留它在模型选择器里的位置——贴着脚注，不参与滚动。 */
+.model-select-keys {
+  flex: none;
+  margin: 6px 0 2px;
+  padding: 0 8px;
 }
 
 /* ==== deepwrite-composer-card ====

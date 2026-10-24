@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { sourceKey, type AgentEvent } from "@mochen/contracts";
+import userAvatar from "../assets/avatar/user-avatar.png";
 import {
   buildTimeline,
   SOURCE_LIST_PREVIEW,
@@ -16,6 +17,15 @@ import ThinkingWindow from "./ThinkingWindow.vue";
 import { THINKING_LIVE_LABEL, thinkingWindowState } from "../utils/thinking-window";
 import { markdownToSimpleHtml } from "@mochen/fs-store/export-shared";
 import { formatHistoryTime } from "../utils/history-time";
+import { useNotificationStore } from "../stores/useNotificationStore";
+import { copyText } from "../utils/clipboard";
+import {
+  ASK_AGAIN_VIEW,
+  COPY_NOTICES,
+  actionsForSpeaker,
+  type MessageActionView
+} from "../utils/message-actions";
+import { hasMessageText } from "../utils/message-text";
 
 const props = defineProps<{
   items: AgentEvent[];
@@ -77,14 +87,76 @@ const thinkingWindow = computed(() =>
 function openSource(url: string): void {
   void window.mochen.openWebSource(url);
 }
+
+/**
+ * 消息操作条（2026-10-25 · §173）：一条消息上能做什么。
+ *
+ * **用户原话**：「你光参考了 UI，没有参考它的功能，因为我那个对话的功能不全，还有很多问题。」
+ * ⇒ 这一族动作补的就是「功能」那一半：
+ * ① 复制（助手回复 / 自己那句）——写稿最常干的一件事，原来**整仓一次剪贴板都没调过**；
+ * ② 改一改再问（自己那句）——把原话填回输入框，用户改完再发（**不自动发**：
+ * 已经发出去的话是历史，不该被偷偷改写）。
+ *
+ * 动作清单住在 `utils/message-actions.ts`（判据只有一份）；
+ * 写入剪贴板走 `utils/clipboard.ts`（成功与失败只有那一份）；
+ * 「填回输入框」交给**上装层**——它才有 store 与那格输入框。
+ */
+const emit = defineEmits<{ prefill: [text: string] }>();
+const notif = useNotificationStore();
+
+/** 复制一段话：成没成都说成人话（不许假装成功）。 */
+async function copyMessage(text: string): Promise<void> {
+  const ok = await copyText(text);
+  notif.notify(ok ? COPY_NOTICES.ok : COPY_NOTICES.failed);
+}
+
+/** 「改一改再问」/「再问一次」：把那句话交给上装层填回输入框。 */
+function askAgain(text: string): void {
+  emit("prefill", text);
+}
+
+/** 动作分发：清单在 utils，这里只把 id 落到动作上。 */
+function runAction(action: MessageActionView, text: string): void {
+  if (action.id === "copy") {
+    void copyMessage(text);
+    return;
+  }
+  askAgain(text);
+}
 </script>
 
 <template>
   <div class="agent-timeline">
     <section v-for="block in blocks" :key="block.id" class="agent-block" :data-kind="block.kind">
-      <div v-if="block.kind === 'user'" class="user-line">
-        <span class="user-tag">你</span>
-        <p class="user-text">{{ block.text }}</p>
+      <div v-if="block.kind === 'user'" class="user-block">
+        <div class="user-line">
+          <!-- 【2026-10-25 用户批注「随便从网上找一个好看的动漫女生头像，加用这个」】
+               原来这里是一枚写着「你」的深色圆标。它在链上其实是**头像位**——助手那一侧有 Emotion Ball，
+               自己这一侧却只有一个字，看着像「标签」不像「人」。
+               现在换成一张真的头像（取自 Safebooru 的 `original` 原创插画，登记见 docs/ATTRIBUTION.md）。
+               `alt="你"` 保留原来的语义：这一格说的是「这是你自己说的话」，
+               圆标那层不再写字，字交给 alt（屏幕阅读器读到的还是「你」）。 -->
+          <span class="user-tag">
+            <img class="user-tag-image" :src="userAvatar" alt="你" />
+          </span>
+          <p class="user-text">{{ block.text }}</p>
+        </div>
+        <!-- 【§173】自己那句话上的操作条：复制 / 改一改再问。
+             动作清单在 utils/message-actions.ts（判据只有一份），这里只接线。
+             空的不挂动作（真机在这本书的历史里翻出过两条空正文的助手消息，
+             挂一枚「复制」点下去必然失败）：判定是 utils 那边的 hasMessageText。 -->
+        <div v-if="hasMessageText(block.text)" class="message-actions message-actions--right">
+          <button
+            v-for="action in actionsForSpeaker('user')"
+            :key="action.id"
+            type="button"
+            class="message-action"
+            :title="action.title"
+            @click="runAction(action, block.text)"
+          >
+            {{ action.label }}
+          </button>
+        </div>
       </div>
 
       <details v-else-if="block.kind === 'thinking'" class="thinking-card" :open="block.streaming">
@@ -192,8 +264,19 @@ function openSource(url: string): void {
         </div>
       </div>
 
-      <p v-else-if="block.kind === 'error'" class="error-line">
+      <p v-else-if="block.kind === 'error'" class="error-line" :class="{ 'is-stale': block.stale }">
         <span class="error-at">{{ formatHistoryTime(block.at) }} ·</span>{{ block.text }}
+        <!-- 【§173】失败条上的「再问一次」：把失败前那一句填回输入框，
+             改完再发一次（失败必须看得见，而「看得见」要连着「能重问」）。 -->
+        <button
+          v-if="block.retryText"
+          type="button"
+          class="message-action error-retry"
+          :title="ASK_AGAIN_VIEW.title"
+          @click="askAgain(block.retryText)"
+        >
+          {{ ASK_AGAIN_VIEW.label }}
+        </button>
       </p>
 
       <!-- 用量播报（2026-10-15）：文案已在 utils/token-usage 组好，这里只渲染 text。
@@ -232,6 +315,21 @@ function openSource(url: string): void {
             <div class="message-text" v-html="messageHtml(block.text)" />
             <!-- eslint-enable vue/no-v-html -->
             <em v-if="block.interrupted" class="tail-flag">已打断</em>
+          </div>
+          <!-- 【§173】助手回复上的操作条：复制。
+               写稿最常干的一件事（把写好的段落拿走），而原来整仓一次剪贴板都没调过。
+               空正文不挂（同上：挂一枚点不成的钮只是噪音）。 -->
+          <div v-if="hasMessageText(block.text)" class="message-actions">
+            <button
+              v-for="action in actionsForSpeaker('assistant')"
+              :key="action.id"
+              type="button"
+              class="message-action"
+              :title="action.title"
+              @click="runAction(action, block.text)"
+            >
+              {{ action.label }}
+            </button>
           </div>
         </div>
       </div>

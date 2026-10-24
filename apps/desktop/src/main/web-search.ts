@@ -87,14 +87,9 @@ export const SOURCE_COOLDOWN_MS = 10 * 60 * 1000;
 export const SOURCE_COOLDOWN_MAX_MS = 60 * 60 * 1000;
 
 /**
- * 跨搜索判重的记忆窗口（2026-10-06 批次 5-⑩）。
- *
- * 模型第一轮搜不准时会换几个词再搜一次，而搜索站在同主题上递回来的页面**高度重叠**
- * （实测两次回执里三条有两条是同一页面）。不去重的话模型看到五个编号、实际只有三个页面，
- * 还容易写成「多方来源印证」——那是把一条资料数成两条，不抛不报。
- *
- * 只在十分钟内有效：重搜几乎都发生在同一件事的几分钟内；隔更久再搜同一个问题多半是
- * 真有新问题，把老结果判成「重复」会让第二次搜索空手而归——那比重复更糟。
+ * 跨搜索判重的记忆窗口（2026-10-06 批次 5-⑩）。只在十分钟内有效：重搜几乎都发生在同一件事的
+ * 几分钟内；隔更久再搜多半是真有新问题，把老结果判成「重复」会让第二次搜索空手而归——那比重复更糟。
+ * （判重**为什么**存在，见 `WebSearchOptions.dedupe` 那一段。）
  */
 export const SOURCE_DEDUP_TTL_MS = 10 * 60 * 1000;
 
@@ -584,6 +579,14 @@ export interface WebSearchOptions {
   fetchImpl: WebFetchLike;
   /** 注入时钟；不传用 Date.now。冷却判据需要它可测。 */
   now?: () => number;
+  /**
+   * 跨搜索判重要不要开（2026-10-24）。默认 true——**给模型的那条路必须开**：模型换词重搜时搜索站
+   * 递回来的页面高度重叠（实测两次回执里三条有两条是同一页面），不去重它会把一条资料数成两条
+   * 「多方印证」。**给界面那条路要关**（素材库面板是给人看的）：人搜第二次看到同样那几条不是被骗，
+   * 而模型那套措辞是写给模型的下一步动作的。关掉还顺带让**两个角色各记各的**——人在面板搜一次
+   * 不该把模型下一轮的结果吃掉。冷却不跟着关：源被频控了就是被频控了。
+   */
+  dedupe?: boolean;
 }
 
 /**
@@ -666,6 +669,7 @@ export async function webSearch(
   options: WebSearchOptions
 ): Promise<WebSearchOutcome> {
   const outcome = await runSourceChain(query, options);
+  if (options.dedupe === false) return { ...outcome, deduped: 0 }; // 判重关掉：原样递回，也不写记忆
   const served = serveResults(outcome.results, (options.now ?? Date.now)());
   // 一条不剩 = 全是刚递过的。措辞必须说清这是「重复」而不是「没搜到」：
   // 两者的下一步动作不同（换个更具体的词 vs 换一批词），混成一句模型就会原地打转。

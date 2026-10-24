@@ -168,6 +168,9 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
       { needle: ".composer-context-item:active", shadow: ["--text-tertiary"] },
       { needle: ".context-picker-close:hover", shadow: ["--text-tertiary"] },
       { needle: ".context-option:hover", shadow: ["--text-secondary", "--text-tertiary"] },
+      /* 阶段选择的键盘高亮（2026-10-25）：↑↓ 改的是高亮不是真焦点（改之前是搬真焦点，
+         Enter 还按第一条选）。这一格与 hover 同一块、同样的升档。 */
+      { needle: ".context-option.is-selected", shadow: ["--text-secondary", "--text-tertiary"] },
       { needle: ".context-option:active", shadow: ["--text-secondary", "--text-tertiary"] }
     ]
   },
@@ -267,9 +270,17 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
     sites: [
       { needle: ".permission-option:hover", inheritFrom: ".permission-option" },
       { needle: ".permission-option.is-current", inheritFrom: ".permission-option" },
+      /* 权限档的键盘高亮（2026-10-25）：↑↓ 改的是高亮不是真焦点，这一格自己画了状态档底。
+         形状与 hover 同一形——字色由基规则 `.permission-option` 带着。 */
+      { needle: ".permission-option.is-selected", inheritFrom: ".permission-option" },
       { needle: ".composer-chip:hover", primary: true, shadow: ["--text-faint"] },
       { needle: '.composer-chip[aria-pressed="true"]', primary: true, shadow: ["--text-faint"] },
       { needle: ".model-select-row:hover", inheritFrom: ".model-select-row" },
+      /* 键盘高亮那一格（2026-10-25）：↑↓ 走的是高亮而不是真焦点，所以「指着哪一行」
+         自己也画了状态档底。形状与 hover 同一形——字色由基规则 `.model-select-row` 带着。
+         类名从 is-active 改成 is-selected：这一族浮层（模型选择器 / 权限档 / 阶段选择 /
+         @ 引用菜单）统一用同一枚词，各叫各的正是「不一致」的来源。 */
+      { needle: ".model-select-row.is-selected", inheritFrom: ".model-select-row" },
       /* 模态标记（2026-10-22）：只有图像/视频模型会渲染出来的小药丸，底是 --hover。 */
       { needle: ".model-select-tag", primary: true },
       { needle: ".model-select-retry:hover", shadow: ["--text-soft"] }
@@ -351,6 +362,24 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
           kind: "inactive-control",
           why: "同 `.save-button:disabled`：主题层给这两枚失活态定的就是 selected + tertiary，属 1.4.3 Incidental 例外"
         }
+      }
+    ]
+  },
+  {
+    /* 作品工作项面板（2026-10-25 · §174）：左栏常驻的那一列。
+       三处状态档底与「历史对话」浮层那两枚同一形——行里有一枚副行与一枚右格是三级灰，
+       压在底上要升档（结构律 ②）。组头那枚的组名是次要灰、数字与图标是三级灰，两枚都要。 */
+    file: "styles/work-items.css",
+    sites: [
+      { needle: ".work-items-group-head:hover", shadow: ["--text-secondary", "--text-tertiary"] },
+      {
+        needle: ".work-items-row:hover:not(:disabled)",
+        shadow: ["--text-secondary", "--text-tertiary"]
+      },
+      {
+        needle: ".work-items-row.is-current",
+        primary: true,
+        shadow: ["--text-secondary", "--text-tertiary"]
       }
     ]
   },

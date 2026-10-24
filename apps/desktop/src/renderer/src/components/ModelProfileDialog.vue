@@ -26,7 +26,12 @@ import AppIcon from "./AppIcon.vue";
 import { useModalFocus } from "../composables/useModalFocus";
 import { useDialogMotion } from "../composables/useDialogMotion";
 import { useProviderStore } from "../stores/useProviderStore";
-import { MODEL_PICKER_LIST_LIMIT, filterModels, groupModels } from "../utils/model-picker";
+import {
+  MODEL_PICKER_LIST_LIMIT,
+  MODEL_WRITABLE_ONLY_NOTE,
+  filterModels,
+  writableModels
+} from "../utils/model-picker";
 
 const props = defineProps<{
   mode: "add" | "edit";
@@ -92,11 +97,16 @@ const suggestedModels = computed<string[]>(() =>
     : (preset.value?.models ?? [])
 );
 
-/* ── 选模型这块（2026-10-06 重做） ──────────────────────────────────────────
+/* ── 选模型这块（2026-10-06 重做，2026-10-25 再收一刀） ─────────────────────
    此前是一个原生 <input list> + <datalist>：浏览器画的浮层、各平台长得都不一样，
    上百个模型的 hub 里也没法搜，而且图像/视频模型和对话模型平铺在一列，
    用户得自己认名字挑（agnes-ai 真机拉到 12 个，里面 6 个是对话、6 个是图像/视频）。
-   现在是「可搜 + 分组 + 点一下就选中」，判定都在 utils/model-picker.ts。 */
+   现在是「可搜 + 点一下就选中」，判定都在 utils/model-picker.ts。
+
+   【2026-10-25：只列写作模型】用户裁定「我这是写小说的，应该只显示写作模型，其他的模型不显示」。
+   与模型选择器（ModelSelect.vue）**同一份判据**（`writableModels`）——
+   两处各判一次早晚会走偏（一个列了、一个没列）。
+   分组那一整套（对话/图像/视频三段 + 每段标题）随之撤掉：只列写作模型的话，分组只剩一段。 */
 
 /** 列表区是否展开。默认展开：用户点进来的目的多半就是挑模型。 */
 const pickerOpen = ref(true);
@@ -105,13 +115,18 @@ const modelQuery = ref("");
 
 /** 真从上游拉到了名单吗？（拉失败时那串「常用模型名」不是上游的东西，不能冒充名单） */
 const hasRemoteList = computed(() => provider.models !== null && provider.models.ok);
+/** 名单里能用来写这一轮的那些（判据只有一份，见 utils/model-picker.ts）。 */
+const writableList = computed<string[]>(() => writableModels(suggestedModels.value));
+/**
+ * 被藏起来的那几个：图像/视频模型。它们写不了对话，列出来只是让人点错
+ * （§167 真机事故就是这么来的：切到 `agnes-image-2.1-flash`，下一句被上游 400 顶回来）。
+ * **数量要说出来**——不然用户会以为「上游就这几个模型」。
+ */
+const nonWritableCount = computed(() => suggestedModels.value.length - writableList.value.length);
 /** 当前该展示的名单：有上游名单用它，否则退回预置常用名。 */
-const visibleModels = computed<string[]>(() =>
-  filterModels(suggestedModels.value, modelQuery.value)
-);
+const visibleModels = computed<string[]>(() => filterModels(writableList.value, modelQuery.value));
 /** 名单长到铺满对话框时不该把整页撑长，剩下的在列表里滚。 */
 const cappedModels = computed(() => visibleModels.value.slice(0, MODEL_PICKER_LIST_LIMIT));
-const cappedGroups = computed(() => groupModels(cappedModels.value));
 const hiddenModelCount = computed(() => visibleModels.value.length - cappedModels.value.length);
 const listEl = ref<HTMLElement | null>(null);
 
@@ -487,24 +502,26 @@ useDialogMotion({ root: dialogRoot });
                   </p>
 
                   <ul v-else ref="listEl" class="model-picker-list">
-                    <li v-for="group in cappedGroups" :key="group.kind" class="model-picker-group">
-                      <p class="model-picker-group-title">{{ group.label }}</p>
-                      <div class="model-picker-group-items">
-                        <button
-                          v-for="name in group.items"
-                          :key="name"
-                          type="button"
-                          class="model-picker-item"
-                          :class="{ 'is-chosen': name === modelId }"
-                          :aria-pressed="name === modelId"
-                          :data-model-name="name"
-                          @click="chooseModel(name)"
-                        >
-                          {{ name }}
-                        </button>
-                      </div>
+                    <li v-for="name in cappedModels" :key="name" class="model-picker-row">
+                      <button
+                        type="button"
+                        class="model-picker-item"
+                        :class="{ 'is-chosen': name === modelId }"
+                        :aria-pressed="name === modelId"
+                        :data-model-name="name"
+                        @click="chooseModel(name)"
+                      >
+                        {{ name }}
+                      </button>
                     </li>
                   </ul>
+
+                  <!-- 被藏起来的那几个：说一句「还有几个不能写」而不是把它们列出来。
+                       这句话与模型选择器的空态同一份（MODEL_WRITABLE_ONLY_NOTE）——
+                       同一件事不许两处各写一遍（铁律 6）。 -->
+                  <p v-if="nonWritableCount > 0" class="model-picker-hint">
+                    另有 {{ nonWritableCount }} 个模型没有列出来。{{ MODEL_WRITABLE_ONLY_NOTE }}
+                  </p>
 
                   <p v-if="hiddenModelCount > 0" class="model-picker-hint">
                     还有 {{ hiddenModelCount }} 个没列出来，搜名字能直接找到。

@@ -79,27 +79,40 @@ describe("ModelSelect · 弹层本体", () => {
   });
 
   /**
-   * 改钉（2026-10-07，第 ② 条）：从「当前行不是按钮」改成「整行可点 + 当前项带 ✓」。
+   * 改钉（2026-10-07 第 ② 条，2026-10-25 续改）：从「当前行不是按钮」改成「整行可点 + 当前项带 ✓」，
+   * 2026-10-25 又把**当前那一行从名单里挪出来**，单开一段「正在用」摆在最上面。
    *
    * 保证没变小——旧断言防的是「按了没反应的按钮」，新形状没有让这个问题回来的余地：
-   *   · 每个候选都是一个 `<button role="menuitem">`，点击一律进 `pick()`；
+   *   · 两处行（当前那一行 + 分组里的行）都是 `<button role="menuitem">`，点击一律进 `pick()`；
    *   · `pick()` 里点当前项走的是 **close()**，也就是「按下去有反应」（收起），
    *     而不是把同一个模型名再写一遍——写一遍既无效果，又让人以为没生效；
    *   · 其余行走 `emit("select", name)`，切模型那条真路没变。
    * 反向钉：旧的「改用」按钮（`.model-select-pick`）与徽章（`.model-select-badge`）都得消失。
+   *
+   * 【为什么改成按标签切开数，而不是整份 toContain】
+   * 变异的形状正是「把**某一枚**行按钮的 `@click` 摘掉」——整份里另一枚行按钮的 `@click`
+   * 还在，`toContain` 照样饱。而 `split("<button")` 之后逐块看，摘掉哪一枚都看得见。
    */
-  it("每一行都可点且点了必有反应：当前项带 ✓，点它收起而不是重复写同一个值", () => {
+  it("每一行都可点且点了必有反应：当前项单开一段带 ✓，点它收起而不是重复写同一个值", () => {
     const markup = templateSource(POPOVER);
     const script = scriptSource(POPOVER);
-    // 标签内的属性用 `[\s\S]*?` 而不是 `[^>]*`：2026-10-21 起这行挂了 `:ref`，
-    // 函数 ref 的箭头 `=>` 里就带一个 `>`，`[^>]` 会把它当标签结束，取到空串。
-    const rowTag = /<button[\s\S]*?class="model-select-row"[\s\S]*?>/.exec(markup)?.[0] ?? "";
-    expect(rowTag, "整行按钮不见了").not.toBe("");
-    expect(rowTag).toContain('role="menuitem"');
-    expect(rowTag).toContain(`:class="{ 'is-current': name === current }"`);
-    expect(rowTag).toContain(`@click="pick(name)"`);
-    // 当前项的标记是勾，不是徽章（参考图那一版）。
-    expect(markup).toContain(`v-if="name === current"`);
+    const rowChunks = markup
+      .split("<button")
+      .slice(1)
+      .filter((chunk) => /class="model-select-row/.test(chunk));
+    expect(rowChunks.length, "行按钮一枚都不剩").toBeGreaterThanOrEqual(2);
+    for (const chunk of rowChunks) {
+      // 2026-10-25：这一族浮层统一成 listbox/option + aria-selected（与 @ 引用菜单、
+      // 权限档、阶段选择同一形状）⇒ 旧断言里的 role="menuitem" 改成 role="option"。
+      expect(chunk, "有一枚行按钮不是选项").toContain('role="option"');
+      expect(chunk, "有一枚行按钮点了不进货").toContain('@click="pick(name)"');
+      // 高亮那一行要同时说给屏幕阅读器（aria-selected）与样式（is-selected）。
+      expect(chunk, "有一枚行按钮没接上高亮").toContain(":aria-selected=");
+      expect(chunk, "有一枚行按钮没接上高亮类").toContain("'is-selected'");
+    }
+    // 当前项那一行：静态类 + aria-current，右端带 ✓（不再是徽章）。
+    expect(markup).toContain('class="model-select-row is-current"');
+    expect(markup).toContain('aria-current="true"');
     expect(markup).toContain(`class="model-select-check" name="check"`);
 
     // 「按了有反应」那一半：钉在 pick 的函数体上，不靠读模板的 if。
@@ -161,21 +174,227 @@ describe("ModelSelect · 弹层本体", () => {
   });
 
   /**
-   * 2026-10-22 真机事故：名单平铺 ⇒ 图像模型混在对话模型里，点错一行就切到
-   * `agnes-image-2.1-flash`，下一句话被上游 400 顶回来。这里钉两件事：
-   *   ① 用 model-picker 的分组与模态标记把「不能对话的」挪到后面并标出来；
-   *   ② **不隐藏任何一个模型**——分组只重排，不按 kind 过滤掉任何一行。
+   * 2026-10-25 用户裁定：「我这是写小说的，应该只显示写作模型，其他的模型不显示」。
+   *
+   * 这一刀比 2026-10-22 那版「分组 + 行尾标记」更彻底：标记只是提醒，藏掉才是根治。
+   * 保证没变小——「切换」那条真路一条没少（点哪一行还是切哪一行）；
+   * 少掉的只是**不能写对话的那几行**（图像/视频模型选上去只会被上游 400 顶回来，
+   * §167 真机事故就是这么来的）。
+   *
+   * 钉三件事：
+   *   ① 名单只留写作模型，判据只有一份（utils/model-picker 的 writableModels）；
+   *   ② 分组那一整套（groupModels / 组标题 / 行尾模态标记）**撤掉了**，不许悄悄加回来——
+   *      那是第二份「名单怎么排」的判定（铁律 6）；
+   *   ③ 「正在用」那一行**照常摆着**，哪怕当前在用的这一枚不是写作模型——
+   *      那是「此刻在用的那一个」，不是「可选名单」，藏起来等于面板不认账；
+   *      那一行行尾要标出模态（手填的模型名 / 早先误切留下的图像模型）。
    */
-  it("图像/视频模型不再和对话模型平铺：分组 + 行尾模态标记，且一个模型都没被藏掉", () => {
+  it("只列写作模型：图像/视频一行都不画，分组那一整套也撤了", () => {
     const markup = templateSource(POPOVER);
     const script = scriptSource(POPOVER);
-    expect(script).toContain("groupModels(filtered.value)");
-    expect(script).toContain("modelKindOf(name)");
-    expect(markup).toContain("model-select-group-head");
-    expect(markup).toContain("model-select-tag");
-    expect(markup).toContain("不能用来对话");
-    // 反向钉：模板里不许出现「只渲染对话组」这类过滤（分组是重排，不是筛掉）。
-    expect(markup).not.toMatch(/group\.kind\s*===\s*["']chat["']/);
+    // ① 判据只有一份：组件引 utils 那份，不自己判「是不是图像模型」。
+    expect(script).toContain('from "../utils/model-picker"');
+    expect(script).toContain("writableModels(allModels.value)");
+    expect(script).not.toContain("modelKindOf");
+    // ② 分组那一整套不许回来（连组标题那个类名一起）。
+    expect(script).not.toContain("groupModels");
+    expect(script).not.toContain("MODEL_GROUP_CAVEAT");
+    expect(script).not.toContain("MODEL_MODALITY_WARNING");
+    expect(markup).not.toContain("model-select-group-head");
+    // 名单下面那些行不再挂模态标记（它们按定义全是写作模型，恒为空 ⇒ 死标记）。
+    // 标记只留在「正在用」那一行——那一枚**可能**不是写作模型。
+    const restRows = markup.split("split.rest")[1] ?? "";
+    expect(restRows, "名单里的行不该再挂模态标记").not.toContain("modalityLabelOf");
+    // ③ 空态说清楚「上游给的模型里没有能用来写这一轮的」，那句话只有一份。
+    expect(script).toContain("MODEL_WRITABLE_ONLY_NOTE");
+    expect(markup).toContain("MODEL_WRITABLE_ONLY_NOTE");
+  });
+
+  /**
+   * 「正在用」那一行是**唯一**还可能挂着模态标记的地方。
+   *
+   * 钉的是位置（那一行在 `split.current` 那段里），不是「模板里出现过 modalityLabelOf」——
+   * 后者会让标记挂到名单的每一行上去（那里恒为空，是死标记）。
+   */
+  it("模态标记只挂在「正在用」那一行：当前在用的可能不是写作模型，标出来是诚实", () => {
+    const markup = templateSource(POPOVER);
+    const currentBlock = /v-for="name in split\.current"[\s\S]*?<\/li>/.exec(markup)?.[0] ?? "";
+    expect(currentBlock, "「正在用」那一段读不到").not.toBe("");
+    expect(currentBlock).toContain("modalityLabelOf");
+    expect(currentBlock).toContain("model-select-tag");
+  });
+
+  /**
+   * 面板自报宽高（2026-10-25）。
+   *
+   * 共用的合成器默认给 320 宽 / 380 高，那是给「挑一个选项」那类短菜单的。
+   * 模型名单动辄十几个，380 会把列表切在半行上（真机读数：9 个模型只露 5 行，第五行是半截）。
+   * ⇒ 本面板自报 380 宽 / 520 高，走的是合成器那对现成的口子（`widthPx` / `limitPx`），
+   * **底线没松**：合成器那侧仍是 `min(limitPx, spacePx)`，贴窗口下沿打开不会跑到屏幕外。
+   *
+   * 几何只有一份：样式表里不许再写一遍 width / max-height（写两遍就会有一份悄悄不生效）。
+   */
+  it("面板自报宽高，样式表里不再写第二份几何", () => {
+    const script = scriptSource(POPOVER);
+    expect(script).toContain("widthPx: PANEL_WIDTH");
+    expect(script).toContain("limitPx: PANEL_MAX_HEIGHT");
+    const css = styleSource("interaction.css");
+    const panel = ruleBlock(css, ".model-select");
+    expect(panel).not.toContain("width:");
+    expect(panel).not.toContain("max-height:");
+  });
+
+  /**
+   * 2026-10-25 那一刀的核心：当前模型**单开一段**摆到最上面。
+   *
+   * 真机读数（改之前）：当前那枚 `agnes-3.0-flash` 混在名单第 4 行——用户打开面板
+   * 第一眼看不到「我现在用的是哪个」；名单一长（几十个模型）它还会被挤出视口。
+   * Cursor / Claude Code 那一类切换器都把当前项单列，这是共识。
+   *
+   * 「不重复出现」也钉住：当前模型进了「正在用」那一段，就不许再出现在下面的分组里
+   * （同一个名字出现两次，用户会以为有两个模型）。
+   */
+  it("当前模型单开一段「正在用」摆在最上面，且不在下面的名单里重复出现", () => {
+    const markup = templateSource(POPOVER);
+    const script = scriptSource(POPOVER);
+    // 切分只有一份判定：utils/model-picker 的 splitByCurrentModel。
+    expect(script).toContain("splitByCurrentModel(rows.value, props.current, showCurrent.value)");
+    // 高亮次序：当前那一行在最前，其余在后（不是把当前混在名单中间）。
+    expect(script).toContain("...split.value.current,");
+    expect(script).toContain("...split.value.rest");
+    // 「正在用」那一段标题必须**挂在「有当前模型」这个条件上**。
+    // 【为什么不能只钉「模板里出现过『正在用』三个字」】那三个字是静态文案，
+    // 变异把条件摘掉（v-if="false"）之后它照样在模板里，`toContain` 照样绿——
+    // 而那一段的真身是**条件**，不是那几个字。
+    expect(markup).toMatch(/v-if="split\.current\.length"[^>]*>\s*正在用/);
+  });
+
+  /**
+   * 搜索框常驻 + 打开就把光标放进去（2026-10-25）。
+   *
+   * 改之前是「超过六行才出现」，多数时候面板里就没有搜索框，用户也就不知道能搜；
+   * 光标落在面板容器上，↑↓ 只能走行列表。
+   * 现在：名单里只要有模型就有搜索框，打开时光标就在里面（走共用的合成器 focusSelector，
+   * 不自己 querySelector——自己搜锚点那类坑本仓已经吃过一次）。
+   */
+  it("搜索框常驻且打开就把光标放进去（走共用的合成器选项，不另造焦点机制）", () => {
+    const markup = templateSource(POPOVER);
+    const script = scriptSource(POPOVER);
+    expect(markup).toContain('v-if="upstream.length"');
+    expect(markup).not.toContain("rows.length > 6");
+    expect(markup).toContain(`class="model-select-search-input"`);
+    expect(script).toContain('focusSelector: ".model-select-search-input"');
+    expect(script).not.toContain("querySelector");
+  });
+
+  /**
+   * ↑↓ 走高亮、焦点留在搜索框、Enter 直接切（2026-10-25）。
+   *
+   * 改之前 ↑↓ 搬的是**真焦点**：一按 ↓，焦点就离开搜索框了，于是「再打两个字」变成打不动。
+   * 改之后 ↑↓ 走的是一个**下标**（高亮），真焦点始终在搜索框里 —— 能边打字边选。
+   *
+   * 【2026-10-25 再收一刀：高亮判据抽成共用的一份】
+   * 组件原先自己写了一份 `moveActive` / `watch(visibleNames)`——而 @ 引用菜单、
+   * 权限档、阶段选择这三处各写各的，同一件事四份实现（铁律 6），
+   * 于是「↑↓ 能不能用」在不同浮层里表现不一样（权限档干脆只有 Esc）。
+   * ⇒ 现在都走 `composables/useListHighlight.ts` 那一份，
+   *   组件里只剩接线（items / onPick / elementOf）。
+   */
+  it("↑↓ 走高亮而焦点留在搜索框，Enter 直接切（高亮判据只有一份：共用的 useListHighlight）", () => {
+    const script = scriptSource(POPOVER);
+    // 高亮是这一族浮层共用的那一份，组件不自己写一份。
+    expect(script).toContain('from "../composables/useListHighlight"');
+    expect(script).toContain("useListHighlight<string>({");
+    expect(script).toContain("items: () => visibleNames.value");
+    // 反向钉：组件里不许再出现自己那份上下键判据。
+    expect(script).not.toContain("moveHighlightIndex");
+    expect(script).not.toContain("clampHighlightIndex");
+    // 【为什么钉调用点而不只是函数名】函数名在文件里 ≠ 它还会动高亮：
+    // 把调用摘掉（把 `highlight.move(...)` 换成空操作）照样满足上面的 `toContain`。
+    expect(script).toContain('highlight.move(event.key === "ArrowDown" ? 1 : -1)');
+    // Enter 只在搜索框里由面板接管：行本身是 <button>，Enter 会触发它自己的 click，
+    // 在面板根上再接一次就是「按一下切两次」。
+    expect(script).toContain(`event.key === "Enter" && event.target === searchInput.value`);
+    expect(script).toContain("highlight.pickActive()");
+    // 反向钉：组件不许自己搬真焦点（旧实现是 `buttons[next]?.focus()` 那一套，
+    // 搬走了就打字打不进去——那才是真不好用）。
+    expect(script).not.toContain(".focus()");
+  });
+
+  /**
+   * 键位提示行（2026-10-25）：照 @ 引用菜单那一族，底部一枚 kbd 提示行
+   * 把「这个面板能怎么用」说清楚，不用猜。
+   *
+   * 排版（`.list-keys`）在 styles.css 一处共用；这里钉的是**这一行真的在模板里**，
+   * 而且走的是共用那份排版类，不是自己又写一个。
+   */
+  it("底部有键位提示行，且走共用那份排版（`.list-keys`）", () => {
+    const markup = templateSource(POPOVER);
+    expect(markup).toContain('class="model-select-keys list-keys"');
+    expect(markup).toContain("<kbd>↑</kbd>");
+    expect(markup).toContain("<kbd>Enter</kbd>");
+    expect(markup).toContain("<kbd>Esc</kbd>");
+  });
+
+  /**
+   * 写回中与切换失败的理由必须排在列表**上面**（2026-10-25 挪位）。
+   *
+   * 改之前它们排在脚注前头，名单一长就被推到滚动区下面——用户看不见就只剩「点了没反应」。
+   * 这条钉的是**位置**（索引比较），不是「文案出现过」：文案在文件里出现过一次，
+   * 挪到列表底下照样满足 `toContain`。
+   */
+  it("写回中与切换失败的理由排在列表上面（切不过去时那行红字必须在第一屏）", () => {
+    const markup = templateSource(POPOVER);
+    const switchingAt = markup.indexOf(`v-if="switching"`);
+    const errorAt = markup.indexOf(`v-if="switchError"`);
+    const listAt = markup.indexOf(`class="model-select-list"`);
+    expect(switchingAt).toBeGreaterThan(-1);
+    expect(errorAt).toBeGreaterThan(-1);
+    expect(listAt).toBeGreaterThan(-1);
+    expect(switchingAt, "写回中的理由被排到列表后面了").toBeLessThan(listAt);
+    expect(errorAt, "切换失败的理由被排到列表后面了").toBeLessThan(listAt);
+  });
+
+  /**
+   * 可见文字里不再有通道名与 baseURL（2026-10-25 去术语）。
+   *
+   * 脚注原来写的是「名单来自 provider:list-models（主进程按模型设置里的 baseURL 出网）」——
+   * 通道名、主进程、baseURL 三个词摊在正文上，对写作者一个都不解释。
+   * ⇒ 脚注只说「去哪儿改」；通道名挪进「刷新」那颗钮的**悬停提示**（那是排查用的），
+   * 铁律「报不出通道名的控件不进 UI」照样有着落——它要求的是**控件**报得出，不是正文摊着。
+   */
+  it("脚注里没有通道名与 baseURL；通道名只进悬停提示（控件仍要报得出自己走哪条通道）", () => {
+    const markup = templateSource(POPOVER);
+    const foot = /<p class="model-select-foot">([\s\S]*?)<\/p>/.exec(markup)?.[1] ?? "";
+    expect(foot, "脚注读不到").not.toBe("");
+    expect(foot).not.toContain("provider:list-models");
+    expect(foot).not.toContain("baseURL");
+    expect(foot).not.toContain("主进程");
+    // 通道名仍在（挪进「刷新」那颗钮的悬停提示），不许整个删掉。
+    expect(markup).toContain("provider:list-models");
+  });
+
+  /**
+   * 名单封顶（2026-10-25）：有些 hub 的 `/models` 会回几百条，全铺开会把浮层撑爆。
+   * **先过滤再封顶** —— 不然位置在第 300 名的模型永远搜不到。
+   * 封顶这件事也要说出来（只列了前 N 个），不然用户以为那就是全部。
+   */
+  it("名单封顶：先过滤再封顶，且封顶这件事说给用户听", () => {
+    const script = scriptSource(POPOVER);
+    const markup = templateSource(POPOVER);
+    expect(script).toContain("filterModels(upstream.value, query.value)");
+    expect(script).toContain("matched.value.slice(0, MODEL_PICKER_LIST_LIMIT)");
+    expect(markup).toContain("只列了前");
+  });
+
+  /**
+   * 搜索只有一份判据（铁律 6）：组件引 utils/model-picker 的 filterModels，
+   * 不在组件里另写一遍子串比较（改之前组件里那份与 utils 那份是同款逻辑的两份实现）。
+   */
+  it("搜索只有一份判据：组件不另写子串过滤", () => {
+    const script = scriptSource(POPOVER);
+    expect(script).toContain("filterModels(upstream.value, query.value)");
+    expect(script).not.toContain("toLowerCase().includes(");
   });
 });
 

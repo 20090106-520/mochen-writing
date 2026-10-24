@@ -97,9 +97,14 @@ describe("ModelProfileDialog · 出网与数据通路", () => {
     expect(markup).toContain('<input v-if="mode !== \'add\'" type="text" :value="model" disabled');
   });
 
-  // 2026-10-06 重做：原生 <datalist> 换成「可搜 + 分组 + 点一下就选中」的选择器。
+  // 2026-10-06 重做：原生 <datalist> 换成「可搜 + 点一下就选中」的选择器。
   // 原生那个浮层各平台长得都不一样、也搜不了；而 hub 一拉十几个模型、
   // 里面还有图像/视频的混在一起，用户得自己认名字挑。
+  //
+  // 【2026-10-25 再收一刀：只列写作模型】
+  // 用户裁定「我这是写小说的，应该只显示写作模型，其他的模型不显示」——
+  // 与模型选择器（ModelSelect.vue）**同一份判据**（`writableModels`）。
+  // 分组那一整套随之撤掉：只列写作模型的话，名单里只剩一段，分什么组。
   it("选模型是能搜能点的选择器，不再是原生 datalist 浮层", () => {
     const markup = markupOf();
     const script = scriptOf();
@@ -114,10 +119,32 @@ describe("ModelProfileDialog · 出网与数据通路", () => {
     expect(markup).toContain(':data-model-name="name"');
     expect(markup).toContain(":class=\"{ 'is-chosen': name === modelId }\"");
     expect(script).toContain("function chooseModel(name: string)");
-    // 判定下沉 utils，组件里不重写一遍分组/搜索。
+    // 判定下沉 utils，组件里不重写一遍「能不能写」/「搜不搜得到」。
     expect(script).toContain('from "../utils/model-picker"');
-    expect(script).toContain("filterModels(suggestedModels.value, modelQuery.value)");
-    expect(script).toContain("groupModels(cappedModels.value)");
+    expect(script).toContain("writableModels(suggestedModels.value)");
+    expect(script).toContain("filterModels(writableList.value, modelQuery.value)");
+    // 反向钉：分组那一整套撤掉了，不许悄悄加回来（那是第二份「名单怎么排」的判定）。
+    expect(script).not.toContain("groupModels");
+    expect(markup).not.toContain("model-picker-group");
+  });
+
+  /**
+   * 被藏起来的那几个要说出来（2026-10-25）。
+   *
+   * 「只列写作模型」不能悄悄做：用户看到上游有 12 个、界面上只有 6 个，
+   * 少了的那 6 个去哪儿了？一句话说清楚（"另有 N 个模型没有列出来。图像 / 视频模型写不了对话。"），
+   * 免得用户以为这家 provider 就这几个模型。
+   *
+   * 钉的是**数量真的算出来了**（不是一句写死的文案）+ 那句事实引的是共用那一份。
+   */
+  it("藏起来的那些模型要说出数量，那句事实引共用那一份", () => {
+    const script = scriptOf();
+    const markup = markupOf();
+    expect(script).toContain("nonWritableCount");
+    expect(script).toContain("suggestedModels.value.length - writableList.value.length");
+    expect(script).toContain("MODEL_WRITABLE_ONLY_NOTE");
+    expect(markup).toContain("MODEL_WRITABLE_ONLY_NOTE");
+    expect(markup).toContain("另有 {{ nonWritableCount }} 个模型没有列出来");
   });
 
   it("名单拉到没拉到，说法要分开：不能拿预置常用名冒充上游名单", () => {

@@ -164,6 +164,12 @@ const api = {
   importTxtPreview: async () => {
     throw new Error("不该做 TXT 导入预览");
   },
+  materialsSearch: async () => {
+    throw new Error("这条用例不该调素材库联网搜索");
+  },
+  materialsFetch: async () => {
+    throw new Error("这条用例不该调素材库取全文");
+  },
   importTxtCommit: async () => {
     throw new Error("不该提交 TXT 导入");
   },

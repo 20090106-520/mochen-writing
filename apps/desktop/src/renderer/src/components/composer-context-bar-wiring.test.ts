@@ -170,7 +170,12 @@ describe("阶段弹层真身 · 对齐他的 DOM 与键盘，删干净永不为�
     // `event.isComposing === true` 就是在十处之外又埋一份，将来改判据必漏。
     expect(s).not.toContain("event.isComposing === true");
     expect(s).not.toContain('"Escape"');
-    expect(s).toContain('["ArrowDown", "ArrowUp"].includes(event.key)');
+    // 【2026-10-25 改钉】↑↓ 原来写成 `["ArrowDown","ArrowUp"].includes(event.key)`，
+    // 现在改成两枚显式比较——因为它不再只是「识别方向键」，而是要把方向**改给高亮**：
+    // `event.key === "ArrowDown" || event.key === "ArrowUp"` 之后紧跟着 `highlight.move(...)`。
+    // 保证没变小：方向键仍然被识别（两枚都在），只是接的下一动作从「搬真焦点」换成了「改高亮」。
+    expect(s).toContain('event.key === "ArrowDown" || event.key === "ArrowUp"');
+    expect(s).toContain('highlight.move(event.key === "ArrowDown" ? 1 : -1)');
     expect(s).toContain("tab(event)");
   });
 

@@ -220,11 +220,11 @@ function modelChip(input: { modelLabel: string; baseURL: string }): ComposerChip
   let title: string;
   if (baseURL === "") {
     title =
-      "配置里还没有 API 地址，provider:list-models 此刻拉不到名单。先在模型设置里填好 baseURL（或手填模型名）。";
+      "还没有 API 地址，provider:list-models 此刻拉不到名单。先在模型设置里填好地址（或手填模型名）。";
   } else if (modelLabel === "") {
-    title = `还没读出当前模型名。点开试拉 ${endpoint}（走 provider:list-models 通道，密钥只在主进程发出）；也可在模型设置里手填。`;
+    title = `还没读出当前模型名。点开可切换模型；名单从 ${endpoint} 拉（走 provider:list-models 通道）。也可在模型设置里手填。`;
   } else {
-    title = `当前模型 ${modelLabel}。点开试拉 ${endpoint}（走 provider:list-models 通道，密钥只在主进程发出）；改地址或密钥请到模型设置。`;
+    title = `当前模型 ${modelLabel}。点开可切换；名单从 ${endpoint} 拉（走 provider:list-models 通道）。改地址或密钥请到模型设置。`;
   }
   return {
     id: "model",

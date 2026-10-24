@@ -176,16 +176,13 @@ export function referenceVisibleOptions(
   return filterReferenceOptions(referenceOptionPool(match, pool), match.query);
 }
 
-export function moveReferenceIndex(index: number, delta: number, total: number): number {
-  if (total === 0) return 0;
-  return (index + delta + total) % total;
-}
-
-/** 过滤后列表变短 ⇒ 高亮收回最后一行（deepwrite 用 watch 夹住，这里夹在同一个纯函数里）。 */
-export function clampReferenceIndex(index: number, total: number): number {
-  if (total === 0) return 0;
-  return Math.min(Math.max(index, 0), total - 1);
-}
+/**
+ * 【2026-10-25 搬走】上下键环绕与夹下标那两个函数原先住在这里。
+ * 它们与「引用菜单」无关（只是「一组选项的高亮」这一族通用的两件事），
+ * 放在一个以引用菜单命名的模块里，会诱使下一个浮层「照着引用菜单那份抄」——
+ * 于是同一个判据又变成两份实现（铁律 6）。
+ * ⇒ 收到 `utils/list-highlight.ts`，那一族浮层统一引它（含本菜单的 store）。
+ */
 
 /** `@` 插入的可读引用文本：标题给人看，relPath 给它自己找回那篇。 */
 export function materialReferenceText(doc: DocRef): string {

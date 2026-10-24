@@ -12,6 +12,7 @@ import {
   toolStatusOf
 } from "./timeline";
 import { ruleBlock, styleSource, templateSource, typeScriptSource } from "./vue-source-reader";
+import { NO_TAIL, event } from "./timeline-fixture";
 
 describe("工具卡的第三态：没搜到（2026-10-06 批次 5-⑮）", () => {
   /**
@@ -100,16 +101,6 @@ describe("SOURCE_LIST_PREVIEW（批次 5-⑭：来源清单默认铺开几条）
   });
 });
 
-function event(type: AgentEvent["type"], rest: Record<string, unknown> = {}): AgentEvent {
-  return {
-    id: `e-${type}`,
-    ts: "2026-10-01T00:00:00.000Z",
-    turnId: "t1",
-    type,
-    ...rest
-  } as AgentEvent;
-}
-
 /** 同上，但显式指定轮次：F-1 的轮次锚点要跨轮排布。 */
 function turnEvent(
   type: AgentEvent["type"],
@@ -123,8 +114,6 @@ function turnEvent(
 function cardOf(id: string, turnId: string, createdAt: string, status: ProposalStatus) {
   return { proposal: { id, turnId, createdAt }, status };
 }
-
-const NO_TAIL = { reasoning: "", message: "" };
 
 describe("buildTimeline", () => {
   it("用户消息单独一层，排在最前", () => {
@@ -364,7 +353,11 @@ describe("buildTimeline", () => {
       id: "e-error",
       text: "模型服务端返回 503：繁忙",
       // 2026-10-23 真机走查：回放旧会话时那一屏红底失败条没有日期，读起来是「应用现在坏了」。
-      at: "2026-10-01T00:00:00.000Z"
+      at: "2026-10-01T00:00:00.000Z",
+      // 【2026-10-25 · §173】多两枚：这条失败后面没有任何新东西 ⇒ 它还是「当前状态」（不降调）；
+      // 它前面也没有用户提问 ⇒ 没有「再问一次」可填（null，不是空串）。
+      stale: false,
+      retryText: null
     });
     expect(blocks[1]).toEqual({ kind: "interrupted", id: "e-interrupted", pending: 2 });
   });

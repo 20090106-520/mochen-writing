@@ -57,6 +57,18 @@
   font-size: 0.785714rem;
 }
 
+/* 滚动区（2026-10-24）：搜索结果与素材清单**并存**之后，面板里有两个清单了。
+   两个各自 overflow 会在一个浮层里造出两条滚动条——所以滚动交给这一层，
+   里面的清单都只是普通的一列。头与底（动作条）留在滚动区外。 */
+.material-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .material-panel-list {
   margin: 0;
   padding: 0;
@@ -64,8 +76,6 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-height: 0;
-  overflow-y: auto;
 }
 
 .material-entry {
@@ -104,6 +114,67 @@
   color: var(--text-dim, #6b6f76);
   font-size: 0.785714rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* 从网上搜那一行（2026-10-24）：输入框 + 一颗「搜」。 */
+.material-search {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.material-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #23262b);
+  font-size: 0.857143rem;
+  font-family: inherit;
+}
+
+.material-search-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 一条搜索结果：标题 / 摘要 / 动作**竖排**——摘要本来就长，横排会把它挤成一条线。 */
+.material-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-dim, #f0f1f4);
+}
+
+.material-hit-title {
+  color: var(--text-primary, #23262b);
+  font-size: 0.928571rem;
+  line-height: 1.5;
+}
+
+/* 来源站点：搜索结果那一行最要紧的是「这是谁家的」——站点名比摘要更早让人认出来。 */
+.material-hit-meta {
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.material-hit-snippet {
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  line-height: 1.6;
+}
+
+/* 一条结果的两个动作：先看原页（核来源），再收进素材库（真要它）。 */
+.material-hit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .material-panel-actions {

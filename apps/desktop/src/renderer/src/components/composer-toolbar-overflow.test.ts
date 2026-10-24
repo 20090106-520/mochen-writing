@@ -279,13 +279,28 @@ describe("≤1220px 三栏收窄 · 必须排在 styles.css 自己的默认值�
     expect(styleSource("theme-runtime.css")).not.toContain("max-width: 1220px");
   });
 
-  it("块内就是他那三个收窄值 + 随行的两栏细节，一条不许少", () => {
+  it("块内就是他那三个收窄值 + 两侧留白那一档 + 随行的两栏细节，一条不许少", () => {
     const body = blocks(ROOT, "@media (max-width: 1220px)")[0] ?? "";
     expect(body).toContain("--left-pane-width: 262px");
     expect(body).toContain("--right-pane-width: 395px");
     expect(body).toContain("--center-pane-min: 320px");
-    expect(body).toContain("calc(100% - 34px)");
+    // 【2026-10-25】窄窗的两侧留白收成一个数（34px ÷ 2 = 每侧 17px），
+    // 不再是「给正文列另写一条宽度公式」——那正是卡与正文列分家的原因
+    // （真机读数：1200 / 1000 / 860 三档卡比正文列窄 14px，每侧差 7px）。
+    expect(body).toContain("--conversation-inline-inset: 17px");
     expect(body).toContain(".context-caption");
+  });
+
+  it("窄窗里不许再写第二条宽度公式：正文列与输入卡只走那一条（分家的根）", () => {
+    const body = blocks(ROOT, "@media (max-width: 1220px)")[0] ?? "";
+    // 注释里的字不算规则 ⇒ 先把注释剥掉再判（否则那句「这里原先写过一个公式」会把断言喂饱）。
+    const rules = body.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(rules, "窄窗里又给正文列单写了一条宽度公式 ⇒ 卡与正文列在窄窗分家").not.toMatch(
+      /\.message-list\s*\{[^}]*width\s*:/
+    );
+    expect(rules, "窄窗里又给输入卡单写了一条宽度公式").not.toMatch(
+      /\.composer\s*\{[^}]*width\s*:/
+    );
   });
 
   it("顺序裁决：块在默认 token 之后、也在最后一条 .desktop-shell 规则之后，平手才轮得到它", () => {

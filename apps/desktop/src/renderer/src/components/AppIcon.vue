@@ -156,6 +156,13 @@ const strokeWidth = computed(() => (props.size >= 16 ? 1.8 : 2));
       <path d="M4 6v5h5M4.8 10A8 8 0 1 1 6 17.5" />
       <path d="M12 8v5l3 2" />
     </template>
+    <!-- 「重新拉一次」（2026-10-25）：与上面那枚「历史」互为镜像——同一段弧，箭头转到右边、
+         方向也反过来，于是读成「转一圈再来一遍」而不是「往回走」。
+         两枚共用同一种描边语言（24 viewBox / 1.8 / 端点圆头），不是新画一套。 -->
+    <template v-else-if="name === 'refresh'">
+      <path d="M20 6v5h-5" />
+      <path d="M19.2 10A8 8 0 1 0 18 17.5" />
+    </template>
     <template v-else-if="name === 'message'">
       <path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-1-2V7a2 2 0 0 1 2-2Z" />
     </template>

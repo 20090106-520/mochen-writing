@@ -15,7 +15,8 @@ import AppIcon from "./AppIcon.vue";
 import { formatHistoryTime } from "../utils/history-time";
 import { useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
-import { UNBOUND, type SessionListItem } from "@mochen/contracts";
+import { sessionDocLabel, sessionTitle } from "../utils/work-items";
+import { type SessionListItem } from "@mochen/contracts";
 
 const agent = useAgentStore();
 const book = useBookStore();
@@ -44,8 +45,10 @@ function rowOf(item: SessionListItem) {
 function docLabel(item: SessionListItem): string {
   // 2026-10-23：没绑文稿的线程，docRelPath 就是哨兵 "unbound"——真机上副行直接印着这串英文，
   // 那是跨进程契约里的值，不是给人看的字。这里只换这一种，查不到真名时仍退回路径（名字可以土，不能假）。
-  if (item.docRelPath === UNBOUND) return "未绑定文稿";
-  return book.refOf(item.docRelPath)?.title ?? item.docRelPath;
+  //
+  // 【§174】这段判据搬进了 utils/work-items.ts：**左栏那枚「工作项」面板也用同一份**，
+  // 两块面板各写一遍文案，改一边忘了另一边，两边就会对不上（铁律 6）。
+  return sessionDocLabel(item, (relPath) => book.refOf(relPath)?.title ?? relPath);
 }
 
 function titleOf(item: SessionListItem): string {
@@ -113,7 +116,7 @@ async function pick(item: SessionListItem): Promise<void> {
         >
           <span class="conversation-history-copy">
             <span class="conversation-history-title-row">
-              <strong>{{ item.title === "" ? "（这一条还没有用户输入）" : item.title }}</strong>
+              <strong>{{ sessionTitle(item) }}</strong>
               <time :datetime="item.startedAt">{{ formatHistoryTime(item.startedAt) }}</time>
             </span>
             <small>{{ docLabel(item) }}</small>

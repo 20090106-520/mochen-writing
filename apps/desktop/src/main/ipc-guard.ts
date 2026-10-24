@@ -228,6 +228,13 @@ export const MAX_REL_PATH_CHARS = 1024;
 export const MAX_ID_CHARS = 256;
 /** 单篇正文上限：4M 字（约 12 MB utf-8）——比任何一本真实书都宽，窄到 1M 会把长文拦成「保存失败」。 */
 export const MAX_BODY_CHARS = 4_000_000;
+/** 素材库联网搜索的搜索词上限（2026-10-24）：够放一整句问句，又短到不会被拿来塞别的东西。 */
+export const MAX_MATERIALS_SEARCH_CHARS = 120;
+/**
+ * 取全文那条通道的链接长度上限（2026-10-24）：搜索站给的跳转链实测能到 450 字符，
+ * 2000 够装下最长的那种，又短到不会被拿来塞别的东西。
+ */
+export const MAX_MATERIALS_FETCH_URL_CHARS = 2000;
 
 /** 被挡下的四种原因：来源不对 / 通道档位没满足 / 参数形状不对 / 追加检查没过。`guard` 档的判定住在 channel-trust.ts。 */
 export type GuardDenyKind = "untrusted" | "arg" | "check" | "guard";
@@ -452,7 +459,16 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   // WebDAV 远程备份（2026-10-15）：config-save 递配置草稿（密钥三态见契约，语义判定住在
   // webdav-config-store.ts）；pull 只递一个远程备份目录名——盘上落点由主进程按当前书根拼。
   [IPC_CHANNELS.webdavConfigSave]: [objectRule("WebDAV 配置草稿")],
-  [IPC_CHANNELS.webdavPull]: [id("远程备份条目名")]
+  [IPC_CHANNELS.webdavPull]: [id("远程备份条目名")],
+  // 素材库联网搜索（2026-10-24）：只收一个搜索词，长度有上限。
+  [IPC_CHANNELS.materialsSearch]: [
+    textRule({ maxLength: MAX_MATERIALS_SEARCH_CHARS, label: "搜索词" })
+  ],
+  // 取全文（2026-10-24）：只收一条链接。协议白名单不在这里判——它住在 web-read.ts 那条链上
+  // （与「点开来源」同源），这里只管形状与长度。
+  [IPC_CHANNELS.materialsFetch]: [
+    textRule({ maxLength: MAX_MATERIALS_FETCH_URL_CHARS, label: "网页链接" })
+  ]
 };
 
 export function argRulesFor(channel: string): ArgRule[] {
@@ -603,7 +619,12 @@ const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
     ok: false,
     reason: "gone",
     message: info.message
-  })
+  }),
+  // 素材库联网搜索（2026-10-24）被挡时照契约的失败档回话：面板那颗「搜」是 await 后按 result.ok
+  // 分支的，抛错会让它悬死在 await 上。
+  [IPC_CHANNELS.materialsSearch]: (info) => ({ ok: false, message: info.message }),
+  // 取全文那条同理（2026-10-24）：面板那枚「加入素材库」也是 await 后按 result.ok 分支的。
+  [IPC_CHANNELS.materialsFetch]: (info) => ({ ok: false, message: info.message })
 };
 
 /**

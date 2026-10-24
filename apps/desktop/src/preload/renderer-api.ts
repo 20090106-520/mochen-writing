@@ -152,6 +152,10 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     // 提交只递标题+正文清单，`chapters/<标题>.md` 由主进程拼。preload 不加判定。
     importTxtPreview: () => invoke(IPC_CHANNELS.importPreview),
     importTxtCommit: (input) => invoke(IPC_CHANNELS.importCommit, input),
+    /** 素材库联网搜索（2026-10-24）：面板里直接搜，结果直接加成素材卡（出网在主进程）。 */
+    materialsSearch: (query: string) => invoke(IPC_CHANNELS.materialsSearch, query),
+    /** 取一条网页的正文（2026-10-24）：搜索只给摘要，落卡前要抓全文（抓取在主进程）。 */
+    materialsFetch: (url: string) => invoke(IPC_CHANNELS.materialsFetch, url),
     // 全书替换（2026-10-15）：只递「找什么 + 换成什么」。要动哪几篇、怎么逐篇过指纹闸与备份，
     // 全在主进程 book-replace.ts 一处；这里连 relPath 都递不出去，也就没有「渲染层点哪篇」这条路。
     replaceAllInBook: (input) => invoke(IPC_CHANNELS.bookReplaceAll, input),

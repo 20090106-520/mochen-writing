@@ -39,9 +39,15 @@ describe("接线", () => {
 
   it("中心列把 running 传下去（少这一个，判断永远是 false，这一格永远不出现）", () => {
     expect(CENTER_SCRIPT).toContain("const running = computed");
-    expect(CENTER_TPL).toContain(
-      '<AgentTimeline :items="items" :tail="tail" :running="running" :emotion="assistantFace" />'
-    );
+    // 钉的是**这一枚标签的属性**，不是整枚标签的字面量。
+    // 字面量会随属性增减而变（§173 给它加了 @prefill，整串就冲掉了），
+    // 而这条用例要量的只是「running 有没有传下去」这一件事。
+    const tag = CENTER_TPL.match(/<AgentTimeline\b[^>]*>/)?.[0] ?? "";
+    expect(tag, "中心列里找不到 <AgentTimeline> 这一枚标签").not.toBe("");
+    expect(tag).toContain(':items="items"');
+    expect(tag).toContain(':tail="tail"');
+    expect(tag).toContain(':running="running"');
+    expect(tag).toContain(':emotion="assistantFace"');
   });
 
   it("这一格挂在 v-for 之外、且在时间线末尾：时间线是追加的，开头那个位置属于上一轮", () => {

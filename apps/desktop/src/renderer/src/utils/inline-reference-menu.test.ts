@@ -12,16 +12,16 @@ import {
   REFERENCE_MENU_COPY,
   REFERENCE_OPTION_LIMIT,
   REFERENCE_TRIGGERS,
-  clampReferenceIndex,
   findReferenceMatch,
   materialReferenceText,
-  moveReferenceIndex,
   referenceEmptyText,
   referenceOptionPool,
   referenceVisibleOptions,
   resolveReferenceSelection,
   type ReferenceMenuPool
 } from "./inline-reference-menu";
+// 上下键环绕与夹下标（2026-10-25 搬到 utils/list-highlight.ts）：这一族浮层共用的那一份。
+import { clampHighlightIndex, moveHighlightIndex } from "./list-highlight";
 
 function doc(overrides: Partial<DocRef> = {}): DocRef {
   return { relPath: "chapters/ch01.md", kind: "chapter", title: "第一章", ...overrides };
@@ -168,20 +168,20 @@ describe("referenceVisibleOptions · 过滤（大小写、中文、上限）", (
 
 describe("moveReferenceIndex / clampReferenceIndex · 上下键环绕", () => {
   it("向下越界回到 0，向上越界回到末位（deepwrite 的取模写法）", () => {
-    expect(moveReferenceIndex(2, 1, 3)).toBe(0);
-    expect(moveReferenceIndex(0, -1, 3)).toBe(2);
-    expect(moveReferenceIndex(1, 1, 3)).toBe(2);
+    expect(moveHighlightIndex(2, 1, 3)).toBe(0);
+    expect(moveHighlightIndex(0, -1, 3)).toBe(2);
+    expect(moveHighlightIndex(1, 1, 3)).toBe(2);
   });
 
   it("空列表 ⇒ 恒 0，不出现 -1（反向用例）", () => {
-    expect(moveReferenceIndex(0, 1, 0)).toBe(0);
-    expect(moveReferenceIndex(4, -1, 0)).toBe(0);
-    expect(clampReferenceIndex(9, 0)).toBe(0);
+    expect(moveHighlightIndex(0, 1, 0)).toBe(0);
+    expect(moveHighlightIndex(4, -1, 0)).toBe(0);
+    expect(clampHighlightIndex(9, 0)).toBe(0);
   });
 
   it("过滤后列表变短：高亮收回最后一行，不指着不存在的那条", () => {
-    expect(clampReferenceIndex(9, 4)).toBe(3);
-    expect(clampReferenceIndex(2, 4)).toBe(2);
+    expect(clampHighlightIndex(9, 4)).toBe(3);
+    expect(clampHighlightIndex(2, 4)).toBe(2);
   });
 });
 

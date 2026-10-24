@@ -43,6 +43,7 @@ export type IconName =
   | "plus"
   | "quote"
   | "redo"
+  | "refresh"
   | "replace"
   | "save"
   | "search"

@@ -4,6 +4,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   PROPOSAL_STATUS_LABELS,
+  presentableFailureMessage,
   workModeOf,
   type AgentEvent,
   type ProposalDecision
@@ -42,6 +43,8 @@ import {
   type ThreadView
 } from "../stores/useAgentStore";
 import { assistantEmotion } from "../utils/emotion-signal";
+import { useNotificationStore } from "../stores/useNotificationStore";
+import { PREFILL_NOTICE } from "../utils/message-actions";
 
 /**
  * `leftCollapsed` 与 `toggleLeft` 在 2026-10-17 一并退役：那枚「展开左侧栏」搬去了
@@ -63,6 +66,7 @@ const book = useBookStore();
 const agent = useAgentStore();
 const layout = useLayoutStore();
 const provider = useProviderStore();
+const notif = useNotificationStore();
 /** #106 裁定 D1：`/` 的真身只剩行内引用菜单一处，唤起态也跟着它住进 store（键位层要能派下来）。 */
 const referenceMenu = useReferenceMenuStore();
 /** 工具 ▾ 的浮层是瞬时 UI 态，不进 store（计划决定 6），关掉不带走任何状态。 */
@@ -176,6 +180,10 @@ const contextTitle = computed(() => {
  * stop 被拒绝（:340-345）、turn-end{failed}（:214）——所以不能简单砍掉单列段。
  * 规则：与时间线里最后一条 error 文本相同就不重复渲染，其余照旧显示。
  * 刻意不改 store 与 timeline 的语义（那是上游契约）。
+ *
+ * 【2026-10-25】去重比对的是**原始**文本（event.message 对 thread.lastError），
+ * 翻译只发生在**显示**那一步（两处都走 contracts 的 presentableFailureMessage）——
+ * 所以去重不会因为两边都翻过而错位。
  */
 const lastTimelineError = computed(() => {
   const list = items.value;
@@ -187,7 +195,9 @@ const lastTimelineError = computed(() => {
 });
 const orphanError = computed(() => {
   const text = thread.value?.lastError ?? "";
-  return text === "" || text === lastTimelineError.value ? "" : text;
+  if (text === "" || text === lastTimelineError.value) return "";
+  // 与时间线那条同一个真身（contracts）：屏上不出现原始英文异常。
+  return presentableFailureMessage(text);
 });
 
 // 作品工作台（F-A + 示意稿 A）：判定全在 utils/workbench-state，这里只接线；hasBook 不设本地 computed，
@@ -202,6 +212,20 @@ const suggestions = computed(() =>
 function prefillChapterThread(target: string, text: string): void {
   void book.openDocTab(target); // 右栏进文稿态，线程随 threadKeyFor 绑定；预填才看得见
   agent.prefillComposer(threadKeyFor(target), text); // Task 4 通路
+}
+
+/**
+ * 【§173】对话链上的「改一改再问」/「再问一次」：把那句话填回**这一格**的输入框。
+ *
+ * 为什么不自己写草稿：草稿的唯一写者是 `useAgentStore.setDraft`（F-A 定的纪律），
+ * 预填的唯一入口是 `prefillComposer`（它还管「输入框里已经有字时不许覆盖」）。
+ * 这里只补一句「成了没有」的话：被挡时那句中文由 store 自己说（摆在状态栏上），
+ * 不在这里重复报一次。
+ */
+function onPrefillFromTimeline(text: string): void {
+  const before = agent.draftOf(threadKey.value);
+  agent.prefillComposer(threadKey.value, text);
+  if (agent.draftOf(threadKey.value) !== before) notif.notify(PREFILL_NOTICE);
 }
 // 卡的点击协调（跨 book / agent 两个 store）只在这一处：空卡 ⇒ 引导去建，填字卡 ⇒ 开章 + 预填，其余 ⇒ 浏览。
 // 2026-10-05 裁定：目标取卡片自带的 target（workbenchCards 算好的那一份），这里不重算第二遍。
@@ -385,7 +409,13 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-else class="message-list agent-column">
-          <AgentTimeline :items="items" :tail="tail" :running="running" :emotion="assistantFace" />
+          <AgentTimeline
+            :items="items"
+            :tail="tail"
+            :running="running"
+            :emotion="assistantFace"
+            @prefill="onPrefillFromTimeline"
+          />
 
           <div v-if="openCards.length" class="proposal-stack">
             <ProposalCard

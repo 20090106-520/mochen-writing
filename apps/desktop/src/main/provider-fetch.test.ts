@@ -328,8 +328,18 @@ describe("Retry-After 折算（2026-10-14 审计项 7）", () => {
   });
 
   it("HTTP-date 形状：按现在到那一刻的差算（HTTP-date 秒级截断，只断言区间），过去那刻收 0", () => {
-    const at = Date.now() + 5_000;
-    const wait = retryAfterMsOf(new Headers({ "retry-after": new Date(at).toUTCString() }));
+    // **「现在」要由本用例自己递进去**（`retryAfterMsOf(headers, now)` 的第二个参数就是为此留的）。
+    // 不递的话，函数内部自己读一次墙钟，而用例前面也读了一次——两次读之间只要跨过整秒，
+    // 算出来的差就少一截（HTTP-date 本身还被 `toUTCString()` 截到整秒）。
+    // 那道缝有多宽：设第一次读到的毫秒余数为 m、两次读之间隔了 delta 毫秒，
+    // 差值就是 `5000 - m - delta`；m + delta ≥ 1000 时差值 ≤ 4000，断言当场红。
+    // 空载时两次读只隔零点几毫秒（几乎撞不上），一跑满仓（4 个 worker 抢 CPU）delta 会涨到几十毫秒，
+    // 撞上的窗口就有百分之几——**一条按机器负载随机红的闸，比没有闸更坏**（它训练人忽略红灯）。
+    // 实测：2026-10-24 跑全仓门禁时它红了两次、单独跑 12 次全绿（单独跑时 delta 太小，撞不上）。
+    const now = Date.now();
+    const at = now + 5_000;
+    const wait = retryAfterMsOf(new Headers({ "retry-after": new Date(at).toUTCString() }), now);
+    // now 固定 ⇒ 差值恒为 `5000 - (now % 1000)`，落在 (4000, 5000] 这一段里（端点都取得到）。
     expect(wait).toBeGreaterThan(4_000);
     expect(wait).toBeLessThanOrEqual(5_000);
     expect(retryAfterMsOf(new Headers({ "retry-after": "Wed, 21 Oct 2015 07:28:00 GMT" }))).toBe(0);

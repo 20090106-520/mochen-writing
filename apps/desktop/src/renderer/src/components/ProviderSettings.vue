@@ -11,7 +11,7 @@ import {
 } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import ModelProfileDialog from "./ModelProfileDialog.vue";
-import { modelKindOf } from "../utils/model-picker";
+import { modalityLabelOf } from "../utils/model-picker";
 import { useProviderStore } from "../stores/useProviderStore";
 
 const provider = useProviderStore();
@@ -68,18 +68,6 @@ function check(connectionId: string): void {
 /** 本机端点单独标一眼：它与预置供应商不是一回事，混在一起会让人以为「本地也是一种供应商」。 */
 function isLocalBase(baseURL: string): boolean {
   return baseURL === OLLAMA_BASE_URL;
-}
-
-/**
- * 模态标记：和对话输入框那枚曲形下拉共用 `modelKindOf` 的同一份按名猜，
- * **不隐藏、不禁用**任何模型——猜错了顶多标错一枚药丸，隐藏一个能用的模型才是真损失。
- * 这里标出来是因为设置页也有启停开关：把图像模型改成启用中，下一句对话就直接 400。
- */
-function modalityTagOf(name: string): string {
-  const kind = modelKindOf(name);
-  if (kind === "image") return "图像";
-  if (kind === "video") return "视频";
-  return "";
 }
 
 function onDocClick(event: MouseEvent): void {
@@ -199,14 +187,15 @@ onUnmounted(() => {
             <div class="provider-profile-text">
               <strong :title="profile.model">{{ profile.model }}</strong>
             </div>
-            <!-- 模态标记与对话下拉同一套按名猜：图像/视频模型能加进名单，
+            <!-- 模态标记与对话下拉同一套按名猜（utils/model-picker 的 modalityLabelOf，
+                 两处引同一份，判据只有一份）：图像/视频模型能加进名单，
                  但对话发请求打上去会 400，先在设置页就在这里说出来。 -->
             <span
-              v-if="modalityTagOf(profile.model)"
+              v-if="modalityLabelOf(profile.model)"
               class="provider-profile-tag"
-              :title="`${profile.model} 的名字像是${modalityTagOf(profile.model)}生成模型，不能用来对话`"
+              :title="`${profile.model} 像是${modalityLabelOf(profile.model)}生成模型，不能用来对话`"
             >
-              {{ modalityTagOf(profile.model) }}
+              {{ modalityLabelOf(profile.model) }}
             </span>
             <div class="provider-profile-actions">
               <button

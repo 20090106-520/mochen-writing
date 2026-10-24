@@ -116,7 +116,7 @@ html[data-density="compact"] .workbench-intro {
 }
 
 html[data-density="compact"] .message-list {
-  /* 只动上下留白，宽度那条（以及窄窗里 `calc(100% - 34px)` 那条 @media）一概不碰。 */
+  /* 只动上下留白，宽度那条（以及窄窗里那档 `--conversation-inline-inset`）一概不碰。 */
   padding: 26px 0 56px;
 }
 

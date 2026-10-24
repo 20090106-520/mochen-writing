@@ -18,7 +18,15 @@
  * 钉不住「好不好看」——这正是用户这一条反馈的原话（「感觉不太行」）。
  */
 import { describe, expect, it } from "vitest";
-import { countNeedle, ruleBlock, styleSource, templateSource } from "../utils/vue-source-reader";
+import fs from "node:fs";
+import {
+  countNeedle,
+  ruleBlock,
+  scriptSource,
+  strippedStyleSource,
+  styleSource,
+  templateSource
+} from "../utils/vue-source-reader";
 
 const CARD = styleSource("agent-pane.css");
 const TPL = templateSource("components/AgentTimeline.vue");
@@ -49,15 +57,40 @@ describe("对话链 · 手机式人机气泡链（2026-10-17 用户裁定）", (
     ).toContain("flex-direction: row-reverse");
   });
 
-  it("那枚「你」是一个圆头像，不是第二枚标签", () => {
+  it("那枚「你」是一个圆头像，不是第二枚标签（2026-10-25 用户批注：圆标里换成真的头像）", () => {
     const tag = ruleBlock(CARD, ".user-tag");
     expect(tag).toContain("border-radius: 50%");
     expect(tag).toContain("width: 26px");
     expect(tag).toContain("height: 26px");
-    expect(tag, "头像的底色与字色必须是那一对 solid/contrast，否则暗色皮肤下会糊成一块").toContain(
+    // 圆裁由**这层**做：图铺满圆框、多余的裁掉。不在图上做圆角的话边缘会留锯齿。
+    expect(tag, "圆裁没做在这一层 ⇒ 头像的四角会露出方角").toContain("overflow: hidden");
+    // 底色与字色留着当兜底：图没加载出来时（离线 / 缓存失效）它就是那枚深色圆标。
+    expect(tag, "兜底底色必须是那一对 solid/contrast，否则暗色皮肤下会糊成一块").toContain(
       "var(--neutral-solid)"
     );
     expect(tag).toContain("var(--neutral-solid-contrast)");
+  });
+
+  it("圆标里挂的是真头像：模板接了资产文件，资产在盘上", () => {
+    const tpl = templateSource("components/AgentTimeline.vue");
+    const script = scriptSource("components/AgentTimeline.vue");
+    expect(tpl, "圆标里没有头像那张图").toContain('class="user-tag-image"');
+    expect(tpl, "头像没接上那张图").toContain(':src="userAvatar"');
+    // alt 保留原来的语义：这一格说的是「这是你自己说的话」。
+    expect(tpl).toMatch(/class="user-tag-image"[^>]*alt="你"/);
+    expect(script).toContain('import userAvatar from "../assets/avatar/user-avatar.png"');
+    // 资产真的在盘上（引一个不存在的文件不会在构建期报错，只会在屏上出现一枚空圆）。
+    expect(
+      fs.existsSync(new URL("../assets/avatar/user-avatar.png", import.meta.url)),
+      "assets/avatar/user-avatar.png 不在盘上"
+    ).toBe(true);
+  });
+
+  it("头像那张图铺满圆框、不拉伸（object-fit: cover）", () => {
+    const image = ruleBlock(CARD, ".user-tag-image");
+    expect(image).toContain("width: 100%");
+    expect(image).toContain("height: 100%");
+    expect(image, "不裁切的话方图会被拉成椭圆").toContain("object-fit: cover");
   });
 
   it("自己的话裹成气泡：底色 + 圆角 + 内边距 + 收窄，且仍是可断行的 flex item", () => {
@@ -184,14 +217,14 @@ describe("输入卡装饰 · 2026-10-17 用户裁定「缺少一些东西」", (
     expect(round).toContain("height: 38px");
   });
 
-  it("设计稿：输入区以 `/` 前缀起头，排在 textarea 之前（模板层）", () => {
+  it("输入行没有装饰斜杠（2026-10-24 用户点名撤掉）：模板与样式表两处都不许再有它", () => {
     const m = templateSource("components/ComposerBox.vue");
-    expect(countNeedle('class="composer-prefix"', m), "`/` 前缀没挂，或挂了不止一处").toBe(1);
-    const prefixAt = m.indexOf('class="composer-prefix"');
-    const taAt = m.indexOf('class="composer-textarea"');
-    expect(taAt, '模板里找不到 class="composer-textarea"').toBeGreaterThan(-1);
-    expect(prefixAt, "`/` 前缀排在 textarea 之后——设计稿里它在输入行最左端").toBeLessThan(taAt);
-    expect(m, "前缀是纯装饰，必须 aria-hidden").toContain('aria-hidden="true"');
+    // 设计稿那个 `/` 前缀原先挂在这里；真机上它读起来像「我自己打了一个斜杠」，故撤。
+    expect(countNeedle('class="composer-prefix"', m)).toBe(0);
+    expect(m, "前缀撤了，输入框得还在").toContain('class="composer-textarea"');
+    // 反向：样式表里那条只为它存在的规则也要一起删干净（否则是没人消费的死规则）。
+    // 用剥注释版读：那条规则旁边就写着「`.composer-prefix` 随之删除」，原文读法会被这句注释反咬。
+    expect(strippedStyleSource("agent-pane.css")).not.toContain(".composer-prefix");
   });
 
   it("设计稿：玻璃落在主题层——surface 已移出不透明组，另起一条同特异性规则", () => {

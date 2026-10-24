@@ -1,7 +1,15 @@
 import { sseDataFrames } from "./sse.js";
 import { toWireMessages, type AssistantToolCall, type ChatMessage } from "./chat-message.js";
 import { thinkingBodyField, wireToolsFor } from "./per-run-fields.js";
-import type { AuthHeader, ThinkingLevel, ThinkingWire, TokenUsage } from "@mochen/contracts";
+import {
+  upstreamErrorMessage,
+  upstreamFailureMessage,
+  upstreamSnippet,
+  type AuthHeader,
+  type ThinkingLevel,
+  type ThinkingWire,
+  type TokenUsage
+} from "@mochen/contracts";
 
 export interface ChatToolSpec {
   name: string;
@@ -127,79 +135,19 @@ export function retryWaitMsOf(
 
 export class ProviderError extends Error {}
 
-function snippet(text: string): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  return flat.length <= 200 ? flat : `${flat.slice(0, 200)}…`;
-}
-
-/** 从已 JSON.parse 的错误体里挑那句中文：先看 error.message，再看顶层 message。 */
-function upstreamMessage(parsed: unknown): string {
-  if (typeof parsed !== "object" || parsed === null) return "";
-  const root = parsed as Record<string, unknown>;
-  const nested = root["error"];
-  const nestedMessage =
-    typeof nested === "object" && nested !== null
-      ? (nested as Record<string, unknown>)["message"]
-      : undefined;
-  const candidate = typeof nestedMessage === "string" ? nestedMessage : root["message"];
-  return typeof candidate === "string" ? candidate.trim() : "";
-}
-
-/**
- * 上游有几句话是「英文 + 能给出下一步」，原文丢给用户等于没说。
- * 这里只翻**确定性**的几种（模态选错、密钥无效），改不了的就原样保留——
- * 乱猜一句中文比露出原文更糟（用户会照着错的提示去改配置）。
+/*
+ * 上游错误体 → 人话的**判据住在 contracts**（`upstream-error.ts`）：
+ * 主进程（这里）与渲染层（对话时间线里那批**旧落盘记录**）各调同一份，不许各写一遍。
+ * 渲染层禁止 import agent-runtime（包边界闸），而 agent-runtime 依赖 contracts、渲染层也依赖 contracts
+ * ——所以 contracts 是这两边唯一能共用的落点。
+ *
+ * 这里的 `humanizeUpstream` 与 `errorHint` 已于 2026-10-25 搬去 contracts：
+ * 判据只有一份（铁律 6），而渲染层那侧还多担一件事——**盘上早就落下来的旧记录**
+ * （2026-10-08 之前的主进程写的原始英文异常）也得翻成人话，判据必须是同一份。
  */
-function humanizeUpstream(message: string): string {
-  const imageModel = message.match(/Model\s+([^\s]+)\s+is an image model/i);
-  if (imageModel !== null) {
-    const name = imageModel[1] ?? "";
-    return `「${name}」是图像生成模型，不能用来对话；请在左下角齿轮（设置）里换一个对话模型。`;
-  }
-  const videoModel = message.match(/Model\s+([^\s]+)\s+is a video model/i);
-  if (videoModel !== null) {
-    const name = videoModel[1] ?? "";
-    return `「${name}」是视频生成模型，不能用来对话；请在左下角齿轮（设置）里换一个对话模型。`;
-  }
-  /*
-   * 2026-10-23（真机走查）：网关把「工具清单不合它的 schema」也走非 2xx 回给我们，原文是一段
-   * serde 反序列化报错——英文异常类名 + `tools[9].function` + 字节偏移（`at line 1 column 8706`）。
-   * 用户看到的就是一段内部异常，而它其实指着一个很具体的下一步：某个插件给的工具定义不完整。
-   *
-   * 判据取「反序列化失败」与「tools[N]」两段**同时**在——只认其中一条会把别的英文错误体也吞掉
-   * （下一条用例就钉着「不认识的一律原样透传」）。
-   */
-  const toolSchema = message.match(
-    /Failed to deserialize[\s\S]*?\btools\[(\d+)\][\s\S]*?missing field[^A-Za-z_]{0,3}([A-Za-z_]\w*)/i
-  );
-  if (toolSchema !== null) {
-    const index = Number(toolSchema[1] ?? "0") + 1;
-    const field = toolSchema[2] ?? "";
-    return (
-      `工具清单被服务端退了：清单里第 ${index} 个工具少一个必填字段${field === "" ? "" : `（${field}）`}，` +
-      `整轮对话一条也发不出去。多半是某个插件给的工具定义不完整——到左栏「插件」里逐个停用，就能找出是哪一个。`
-    );
-  }
-  return message;
-}
 
-/**
- * 上游错误体优先取 error.message / message；取不到再压平截断，不把裸 JSON 丢给用户。
- * 空体返回空串，由调用处的 `|| "无响应体"` 兜住。JSON.parse 必须 try/catch：
- * 一段畸形体不许把整轮炸成异常，退回原样片段就是 F-5 之前的行为。
- */
-function errorHint(text: string): string {
-  const flat = snippet(text);
-  if (flat === "") return "";
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return humanizeUpstream(flat);
-  }
-  const message = upstreamMessage(parsed);
-  return humanizeUpstream(message === "" ? flat : snippet(message));
-}
+/* 下面这三条判据（humanizeUpstream / errorHint / snippet）已搬进 contracts 的 `upstream-error.ts`，
+   这里不再留第二份实现（铁律 6）。本文件只调它们。 */
 
 function completionsUrl(baseURL: string): string {
   return `${baseURL.replace(/\/+$/, "")}/chat/completions`;
@@ -220,11 +168,11 @@ function inBandError(parsed: unknown): string | null {
   if (typeof parsed !== "object" || parsed === null) return null;
   const error = (parsed as Record<string, unknown>)["error"];
   if (error === undefined || error === null) return null;
-  const message = upstreamMessage(parsed);
+  const message = upstreamErrorMessage(parsed);
   if (message !== "") return message;
-  if (typeof error === "string") return snippet(error);
+  if (typeof error === "string") return upstreamSnippet(error);
   if (typeof error !== "object") return null;
-  return snippet(JSON.stringify(error));
+  return upstreamSnippet(JSON.stringify(error));
 }
 
 interface PendingCall {
@@ -428,16 +376,14 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
     const error = connectError;
     if (error instanceof ProviderError) throw error;
     throw new ProviderError(
-      `无法连接模型服务端：${snippet(error instanceof Error ? error.message : String(error))}`,
+      `无法连接模型服务端：${upstreamSnippet(error instanceof Error ? error.message : String(error))}`,
       {
         cause: error
       }
     );
   }
   if (result.status < 200 || result.status >= 300)
-    throw new ProviderError(
-      `模型服务端返回 ${result.status}：${errorHint(result.errorText) || "无响应体"}`
-    );
+    throw new ProviderError(upstreamFailureMessage(result.status, result.errorText));
   if (result.stream === null) throw new ProviderError("模型服务端没有返回可读取的流");
 
   const calls = new Map<number, PendingCall>();
@@ -454,7 +400,9 @@ export async function* streamChat(req: StreamRequest): AsyncGenerator<StreamEven
       try {
         raw = JSON.parse(frame);
       } catch (error) {
-        throw new ProviderError("流式响应不是合法 JSON：" + snippet(frame), { cause: error });
+        throw new ProviderError("流式响应不是合法 JSON：" + upstreamSnippet(frame), {
+          cause: error
+        });
       }
       // 带内错误盖不住打断：真正兜住这件事的是下面 catch 里那句 `if (!req.signal.aborted) throw error`
       // （读流期守卫，既有语义），把它挪到上面那道 aborted 守卫之前实测也红不了任何用例——

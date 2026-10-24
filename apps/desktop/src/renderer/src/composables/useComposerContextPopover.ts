@@ -18,7 +18,7 @@ export function useComposerContextPopover(
   anchor: () => HTMLElement,
   panel: Ref<HTMLElement | undefined>,
   dismiss: () => void,
-  options?: { limitPx?: number; widthPx?: number }
+  options?: { limitPx?: number; widthPx?: number; focusSelector?: string }
 ) {
   const style = ref<CSSProperties>({ visibility: "hidden" });
   let restoreFocus = true;
@@ -60,8 +60,8 @@ export function useComposerContextPopover(
   }
 
   /**
-   * 浮层里能吃到焦点的东西——与上面 `tab()` 收的是同两样（button / input），
-   * 两处共用这一行字符串，别在下面再抄一份。
+   * 浮层里能吃到焦点的东西——`tab()` 收的是这同两样（button / input），
+   * `preferredFocusTarget()` 判的也是这同两样，三处共用这一行字符串，别在下面再抄一份。
    */
   const POPOVER_FOCUSABLE = "button:not(:disabled), input:not(:disabled)";
 
@@ -90,7 +90,7 @@ export function useComposerContextPopover(
       const el = panel.value;
       if (el === undefined) return true; // 面板已经没了，没什么可做的，也别再重试
       if (getComputedStyle(el).visibility === "hidden") return false; // ① 还没可见，focus 会静默失败
-      const first = el.querySelector<HTMLElement>(POPOVER_FOCUSABLE) ?? el;
+      const first = preferredFocusTarget(el);
       first.focus();
       return el.contains(document.activeElement); // ② 浏览器拒了就是拒了，下一帧再试
     };
@@ -100,6 +100,29 @@ export function useComposerContextPopover(
       requestAnimationFrame(retry);
     };
     void nextTick(retry);
+  }
+
+  /**
+   * 打开时焦点落在**谁**身上。
+   *
+   * 默认是浮层里第一个能聚焦的东西——对「挑一个选项」那类浮层是对的。
+   * 但对「以搜索为主动作」的浮层（素材库面板）就偏了：那里第一个能聚焦的是右上角那颗 ×，
+   * 用户一打开面板，光标停在关闭键上，得自己 Tab 一次才摸得到搜索框。
+   * ⇒ 于是给了一个 `focusSelector`：指定的目标**可用时**优先落在它身上。
+   *
+   * 判据两件（缺一不可）：
+   * ① 目标得**真的能聚焦**——`:disabled` 的输入框 focus() 是静默失败，
+   *    那种情况下宁可落回第一个能聚焦的东西（不然整条「Esc 能关」的链路就断了：
+   *    焦点在层外，收不到冒泡上来的 keydown）；
+   * ② 目标得**在层内**——外面那个元素聚焦了，按键同样到不了面板根。
+   */
+  function preferredFocusTarget(el: HTMLElement): HTMLElement {
+    const selector = options?.focusSelector;
+    if (selector !== undefined) {
+      const picked = el.querySelector<HTMLElement>(selector);
+      if (picked !== null && picked.matches(POPOVER_FOCUSABLE)) return picked;
+    }
+    return el.querySelector<HTMLElement>(POPOVER_FOCUSABLE) ?? el;
   }
 
   function tab(event: KeyboardEvent): void {

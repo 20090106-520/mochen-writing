@@ -184,6 +184,8 @@ export function createBookApi(): BookApiFixture {
     restoreBookBackup: offLimits("restoreBookBackup"),
     updateCheck: offLimits("updateCheck"),
     importTxtPreview: offLimits("importTxtPreview"),
+    materialsSearch: offLimits("materialsSearch"),
+    materialsFetch: offLimits("materialsFetch"),
     importTxtCommit: offLimits("importTxtCommit"),
     replaceAllInBook: offLimits("replaceAllInBook"),
     // WebDAV 远程备份（2026-10-15）：这条路上一个都不该被调到——谁真要用它在用例里显式铺好 mock。

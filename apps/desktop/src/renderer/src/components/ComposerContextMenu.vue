@@ -1,13 +1,21 @@
 <!-- #113c 阶段选择弹层。真身：deepwrite components/ComposerContextMenu.vue + composer-context-menu.css
      ，DOM 结构、类名与键盘操作逐条对齐：搜索过滤、当前项打勾、上下键在可用项间环移、
-     Enter 选中第一条、Tab 触边交还焦点、Esc 关闭。
+     Tab 触边交还焦点、Esc 关闭。
      删掉的只有他那份的 book / library 两个分支——本仓没有书目/资料库注册表（无 book:list 通道），
      留着就是永不为真的判断；类名与 CSS 一律沿用他的，日后对上游 diff 是机械活。
-     样式不住这里：本仓 .vue 不写 style 段，全部进 styles/agent-pane.css 的卡片分段（见 composer-card-wiring 契约）。 -->
+     样式不住这里：本仓 .vue 不写 style 段，全部进 styles/agent-pane.css 的卡片分段（见 composer-card-wiring 契约）。
+
+     【2026-10-25 按墨宸自己那份 @ 引用菜单的范式重做键盘这一半】
+     改之前：↑↓ **搬真焦点**（一按方向键，焦点就离开搜索框了，于是「再打两个字」打不进去），
+     Enter 选的是 **buttons[0]**（第一条），不是用户正指着的那条——高亮在两个地方各算各的。
+     ⇒ 现在与那一族同一形状：↑↓ 走**高亮**（下标，焦点留在搜索框）、Enter 选高亮那条、
+       悬停与高亮同步、名单是 listbox/option + aria-selected、底部一枚 kbd 提示行。
+       高亮判据只有一份（composables/useListHighlight.ts + utils/list-highlight.ts）。 -->
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, useId } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
+import { useListHighlight } from "../composables/useListHighlight";
 import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
 import type { ContextOption } from "../utils/composer-context";
 import type { HotkeyMods } from "../utils/hotkeys";
@@ -29,10 +37,39 @@ const filtered = computed(() => {
   );
 });
 
+/**
+ * 能被选的那几项：禁用的不参与导航（旧实现也是 `:not(:disabled)` 那一套口径），
+ * 忙时整列都禁 ⇒ 名单为空，高亮自然失效。
+ */
+const selectable = computed<ContextOption[]>(() =>
+  filtered.value.filter((option) => !option.disabled && !props.busy)
+);
+
+/** 行元素句柄：高亮行要能滚进视野（长名单时高亮可能停在视口外）。 */
+const optionEls = new Map<string, HTMLElement>();
+function setOptionRef(id: string, el: unknown): void {
+  if (el instanceof HTMLElement) optionEls.set(id, el);
+  else optionEls.delete(id);
+}
+
+/**
+ * 高亮（2026-10-25）：这一族浮层共用的那一份。
+ * 初值落在「当前那一档」上——用户最可能要改的正是现在这一档。
+ */
+const highlight = useListHighlight<string>({
+  items: () => selectable.value.map((option) => option.id),
+  initialIndex: () => selectable.value.findIndex((option) => option.current),
+  onPick: (id) => emit("select", id),
+  elementOf: (id) => optionEls.get(id) ?? null
+});
+/** 屏幕上高亮的那一项。 */
+const activeId = computed<string>(() => highlight.activeItem.value ?? "");
+
 const { style, close, tab } = useComposerContextPopover(
   () => props.anchor,
   panel,
-  () => emit("close")
+  () => emit("close"),
+  { focusSelector: ".context-search-input" }
 );
 
 function keydown(event: KeyboardEvent): void {
@@ -48,25 +85,26 @@ function keydown(event: KeyboardEvent): void {
     close();
     return;
   }
-  const buttons = Array.from(
-    panel.value?.querySelectorAll<HTMLButtonElement>(".context-option:not(:disabled)") ?? []
-  );
-  if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+  // ↑ / ↓ 走高亮（不是搬真焦点）：焦点留在搜索框里，用户才能边打字边选。
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
     event.preventDefault();
-    const index = buttons.findIndex((button) => button === document.activeElement);
-    const next =
-      index < 0
-        ? event.key === "ArrowDown"
-          ? 0
-          : buttons.length - 1
-        : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
-    buttons[next]?.focus();
+    highlight.move(event.key === "ArrowDown" ? 1 : -1);
+    return;
   }
+  // Enter 选**高亮那条**，不是第一条。输入法合成中的 Enter 不算（imeOwnsKey）。
   if (event.key === "Enter" && event.target === search.value) {
+    if (imeOwnsKey(event)) return;
     event.preventDefault();
-    buttons[0]?.click();
+    highlight.pickActive();
+    return;
   }
   tab(event);
+}
+
+/** 鼠标划过就把高亮挪过去（键盘与鼠标共用同一个高亮）。 */
+function setActive(id: string): void {
+  const index = selectable.value.findIndex((option) => option.id === id);
+  if (index >= 0) highlight.activate(index);
 }
 
 onMounted(async () => {
@@ -77,7 +115,10 @@ onMounted(async () => {
   // t≈40ms 时 computed visibility 仍是 hidden、t≈120ms 才 visible，一次都没进去且无人重试。
   // 「焦点进层」的真身现在是 useComposerContextPopover.focusFirstWhenVisible()，那一族共用它；
   // 留着这里就是同一件事的第二份实现，而且偏偏是那个不生效的。
-  panel.value?.querySelector(".is-current")?.scrollIntoView({ block: "nearest" });
+  //
+  // 焦点现在**落在搜索框**（focusSelector 走共用的合成器选项），于是「当前那一档」要自己滚进视野：
+  // 那是高亮的初值所在，不滚进去就看不见自己正指着哪一条。
+  highlight.reveal();
 });
 </script>
 
@@ -105,21 +146,26 @@ onMounted(async () => {
           <input
             ref="search"
             v-model="query"
+            class="context-search-input"
             type="search"
             placeholder="搜索阶段名称"
             aria-label="搜索阶段名称"
           />
         </label>
-        <div class="context-picker-list">
+        <div class="context-picker-list" role="listbox" aria-label="本书阶段">
           <button
             v-for="option in filtered"
             :key="option.id"
+            :ref="(el) => setOptionRef(option.id, el)"
             class="context-option"
             type="button"
-            :class="{ 'is-current': option.current }"
+            role="option"
+            :class="{ 'is-current': option.current, 'is-selected': activeId === option.id }"
+            :aria-selected="activeId === option.id"
             :aria-current="option.current ? 'true' : undefined"
             :disabled="busy || option.disabled"
             @click="emit('select', option.id)"
+            @mouseenter="setActive(option.id)"
           >
             <span class="context-option-icon"><AppIcon :name="option.icon" :size="17" /></span>
             <span class="context-option-copy"
@@ -133,14 +179,21 @@ onMounted(async () => {
             /></span>
             <AppIcon v-else name="chevron" :size="14" />
           </button>
-          <div v-if="!filtered.length" class="context-picker-empty">
-            <AppIcon name="search" :size="26" /><strong>{{
-              query.trim() ? "没有找到匹配项" : "这本书没有可切的阶段"
-            }}</strong
-            ><span>{{ query.trim() ? "试试其他关键词" : "阶段列在作品目录的 book.json 里" }}</span>
-          </div>
+        </div>
+        <div v-if="!filtered.length" class="context-picker-empty">
+          <AppIcon name="search" :size="26" /><strong>{{
+            query.trim() ? "没有找到匹配项" : "这本书没有可切的阶段"
+          }}</strong
+          ><span>{{ query.trim() ? "试试其他关键词" : "阶段列在作品目录的 book.json 里" }}</span>
         </div>
       </div>
+      <!-- 键位提示行（2026-10-25）：与 @ 引用菜单、模型选择器、权限档同一枚形状，
+           排版走 styles.css 的 `.list-keys` 一处。 -->
+      <footer class="context-picker-keys list-keys">
+        <span><kbd>↑</kbd><kbd>↓</kbd> 选择</span>
+        <span><kbd>Enter</kbd> 切换</span>
+        <span><kbd>Esc</kbd> 关闭</span>
+      </footer>
     </section>
   </Teleport>
 </template>

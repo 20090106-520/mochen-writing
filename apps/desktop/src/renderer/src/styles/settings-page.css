@@ -824,10 +824,14 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   font-size: 0.857143rem;
 }
 
-/* 列表自己滚，不撑高对话框——几百个模型的 hub 才不会把整页顶出滚动条。 */
+/* 列表自己滚，不撑高对话框——几百个模型的 hub 才不会把整页顶出滚动条。
+   两列：模型名普遍不长，一列的话 13 个模型就是 13 行、约 500px，对话框里压根露不出几行，
+   用户得先滚过上面四个字段、再滚这个列表才看得全。两列压到一百多像素，一屏之内就能扫完。
+   （原先这个两列是挂在 `.model-picker-group-items` 上的——分组整块撤掉后，列数落到列表自己身上。） */
 .model-picker-list {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
   max-height: 240px;
   margin: 0;
   padding: 2px;
@@ -835,40 +839,9 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   overscroll-behavior: contain;
 }
 
-.model-picker-group {
-  display: grid;
-  gap: 4px;
-}
-
-/*
- * 模型名排两列。
- * 一列的话 13 个模型就是 13 行、约 500px——对话框里压根露不出几行，用户得
- * 先滚过上面四个字段、再滚这个列表才看得全。两列把它压到一百多像素，
- * 一屏之内就能扫完（模型名普遍不长，两列各约 260px 放得下）。
- */
-.model-picker-group .model-picker-item {
-  grid-column: span 1;
-}
-
-.model-picker-group-items {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-}
-
-.model-picker-group-title {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  margin: 0;
-  padding: 3px 0;
-  background: var(--surface-raised);
-  color: var(--text-tertiary);
-  font-size: 0.785714rem;
-}
-
 /* 模型名当按钮：点一下就选中，不必先聚焦输入框再从下拉里挑。 */
 .model-picker-item {
+  width: 100%;
   padding: 6px 9px;
   border: 1px solid transparent;
   border-radius: 8px;

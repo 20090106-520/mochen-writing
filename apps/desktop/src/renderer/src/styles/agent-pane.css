@@ -58,7 +58,15 @@ html[data-platform="darwin"] .conversation-pane {
 
 /* 那枚「你」原先是一条 999px 的小胶囊（`padding: 2px 8px`），与气泡并排时像第二个标签。
    聊天链上它是一个圆头像：钉成 26×26、文字居中、去掉左右内边距。
-   底色/字色仍是原来那一对 solid/contrast（暗色皮肤下它俩成对翻转，换别的色会糊成一块）。 */
+   底色/字色仍是原来那一对 solid/contrast（暗色皮肤下它俩成对翻转，换别的色会糊成一块）。
+   【2026-10-25 用户批注「随便从网上找一个好看的动漫女生头像，加用这个」】
+   圆标里原来只有一个「你」字——助手那一侧有表情球、自己这一侧只有一个字，
+   在链上读起来像「标签」不像「人」。现在里面换成一张真的头像（登记见 docs/ATTRIBUTION.md）。
+   这一层因此多两件事：
+   ① `overflow: hidden` —— **圆裁由这层做**（图铺满圆框、多余的裁掉）；
+      不在图上做圆角的话，边缘会留一圈锯齿。
+   ② 底色/字色/字号**留着**：图没加载出来时（离线、缓存失效）它就是兜底底色，
+      alt 文本「你」也靠那档字号才不至于撑破 26px 的圆。 */
 .user-tag {
   flex: 0 0 auto;
   display: grid;
@@ -67,10 +75,19 @@ html[data-platform="darwin"] .conversation-pane {
   height: 26px;
   padding: 0;
   border-radius: 50%;
+  overflow: hidden;
   background: var(--neutral-solid);
   color: var(--neutral-solid-contrast);
   font-size: 0.75rem;
   line-height: 1;
+}
+
+/* 头像本体：铺满圆框、按「居中裁切」填（object-fit: cover），不拉伸变形。 */
+.user-tag-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .user-text {
@@ -667,6 +684,73 @@ html[data-platform="darwin"] .conversation-pane {
   font-variant-numeric: tabular-nums;
 }
 
+/* 【2026-10-25 · §173】**已经被后来的成功盖过**的失败条：降成一行低调记录。
+   病根是语气错位——红底红字是「刚刚炸了」，而这条失败是两天前的、后面已经聊回来了，
+   钉在链子中间读起来像应用现在坏了（用户原话：「还有红色的那个东西，解决一下」）。
+   ⇒ 盖过的失败去掉底色、字色压到次要档、左侧留一道细线（还在，只是不再喊）。
+   判据（什么算「盖过」）在 utils/timeline.ts 的 markStaleFailures，样式层只读那个布尔。 */
+.error-line.is-stale {
+  background: none;
+  color: var(--text-soft);
+  border-left: 2px solid var(--line);
+  border-radius: 0;
+  padding: 6px 12px;
+}
+
+/* 【2026-10-25 · §173】消息操作条：一条消息上能做什么（复制 / 改一改再问 / 再问一次）。
+   做法与主流聊天产品一致：**位置恒定、平时不抢眼**——透明且点不着，
+   鼠标移上去（或键盘聚焦到它）才显形。
+   为什么要 `pointer-events: none` 那一档：透明但仍可点的按钮会吃掉底下那一片点击，
+   用户点了半天没反应，怪不到看得见的按钮上。
+   颜色全走 token（这一段零色值字面量）。 */
+.message-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.agent-block:hover .message-actions,
+.message-actions:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 自己那一侧的操作条靠右（气泡本来就靠右，动作跟着它那一侧对齐）。 */
+.message-actions--right {
+  justify-content: flex-end;
+}
+
+.message-action {
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.message-action:hover {
+  color: var(--text);
+}
+
+/* 失败条上的「再问一次」：它是那一条里唯一的动作，挨着正文、别跳到下一行去。 */
+.error-retry {
+  margin-left: 8px;
+  color: var(--danger-text);
+}
+
+/* 降调那一档的「再问一次」也跟着降调：条子已经不喊了，按钮再是红的就像另一半没改。 */
+.error-line.is-stale .error-retry {
+  color: var(--text-faint);
+}
+
+.error-retry:hover {
+  color: var(--text);
+}
+
 .interrupted-line {
   background: var(--warning-soft);
   color: var(--warning);
@@ -953,16 +1037,46 @@ html[data-platform="darwin"] .conversation-pane {
    变量、却各自加减不同的数 ⇒ 照样漂）。把兜底改成每侧 24px 之后两条公式**逐档恒等**：
    容器 ≥ token+48 时两条都是 token；更窄时两条都是 容器 − 48。
    真机复验（构建后实例、1440 / 右栏折叠）：token 1120、卡面 1106、注入量到的正文 1106、
-   左端五枚满文本（77/77、21/21、42/42、21/21、29/29）、两两相交 0、行高 30（一行）。 */
+   左端五枚满文本（77/77、21/21、42/42、21/21、29/29）、两两相交 0、行高 30（一行）。
+   【2026-10-25 更正上面那句「逐档恒等」】它当时只对**注入量**成立，对**真渲染**不成立：
+   正文列在**滚动容器**里，而滚动条是布局内的（12px）⇒ 正文列真值是 min(1120, 1154−12−48)=1094，
+   卡却还是 1154−48=1106 ⇒ **卡比正文宽 12px、右边缘错开**（左边缘齐）。
+   「注入量」量不到滚动条，所以那道复验量的是纸面值，不是屏上值。
+   这一刀把宽度改回**同一个公式 + 同一个容器宽度**：滚动条那条槽由
+   `.conversation-scroll { scrollbar-gutter: stable }` 永远留着（宽度 = `--scrollbar-gutter`），
+   输入卡这侧让的是同一个数 ⇒ 两个容器的可用宽度逐档相等 ⇒ 卡与正文列逐档同宽同左缘。
+   【2026-10-25 同日再补一刀：上面「逐档同宽」只对 1440 成立】窄窗（≤1220px）里
+   `.message-list` 另起过一条 `calc(100% - 34px)`（合计 34px 留白），卡这侧不跟
+   ⇒ 真机读数 1200 / 1000 / 860 三档卡比正文列窄 14px（每侧 7px）。
+   ⇒ 两侧留白也收成 token `--conversation-inline-inset`（默认每侧 24px、窄窗 17px），
+   两条公式逐档恒等。 */
 .composer-wrap {
   position: relative;
   z-index: 2;
   container: composer / inline-size;
-  padding: 10px max(24px, calc((100% - var(--conversation-column-width)) / 2)) 12px;
+  /* 右侧那 12px 是给正文列的滚动条让位（`--scrollbar-gutter`，一个数两处读）：
+     滚动条在**布局内**，正文列因此窄一截；输入卡不在那个滚动容器里，它拿的是整条宽度。
+     右边不让这一条，卡就比上面的正文宽 12px（真机读数 1106 / 1094）。
+     水平留白不再写在内边距上——它交给 `.composer` 的 auto 外边距，
+     那边用的是与 `.message-list` 一字不差的公式。 */
+  padding: 10px var(--scrollbar-gutter) 12px 0;
 }
 
 .composer {
   position: relative;
+  /* 卡宽与正文列**逐档同宽**：同一个公式、同一个 token、同一个容器宽度。
+     与 `.message-list`（conversation-pane.css）那句一字不差——
+     两边读同一个变量、各自减同一个留白、各自 auto 居中，而两个容器的可用宽度相等
+     （正文容器让出滚动条那条槽，卡容器也让出同一个数）。
+     原来的写法是「内边距帽 = max(24px, (容器 − token) / 2)」，它与本句在**不含滚动条**时
+     等价（容器 − 2×max(24,…) ≡ min(token, 容器 − 48)），但它把「减多少」写死在内边距上，
+     于是正文那侧减 48、卡这侧减 48 却少减了滚动条那 12 —— 两个数各减各的，缝就出来了。
+     【2026-10-25 窄档那一刀】留白也收成 token `--conversation-inline-inset`：
+     窄窗（≤1220px）里正文列原先另起一条 `calc(100% - 34px)`，卡侧不跟
+     ⇒ 1200 / 1000 / 860 三档卡比正文列窄 14px（每侧 7px），只有 1440 齐。
+     现在两边减的是同一个数（默认每侧 24px，窄窗 17px）。 */
+  width: min(var(--conversation-column-width), calc(100% - var(--conversation-inline-inset) * 2));
+  margin: 0 auto;
 }
 
 /* 裁定 B：忙态整卡压暗（deepwrite 的 .composer.is-disabled 原值 0.75），但 textarea 不 disabled，Tab 排队通路照旧。 */
@@ -1000,23 +1114,19 @@ html[data-platform="darwin"] .conversation-pane {
     0 22px 48px -22px color-mix(in srgb, var(--shadow-color) 52%, transparent);
 }
 
-/* 上方输入区（2026-10-17 设计稿）：`/` 前缀 + 透明 textarea 并排一行。 */
+/* 上方输入区（2026-10-17 设计稿）：输入行（2026-10-24 起只有 textarea 一个孩子——
+   设计稿那个装饰性 `/` 前缀被用户点名撤了，`.composer-prefix` 那条规则随之删除）。
+   【2026-10-25 去掉 `min-height: 88px`】原先那条最小高度只容得下一行 34px 的文字，
+   剩下 54px 是**净空**：占位文字孤零零挂在卡的上沿，下面一整条空带，再往下才是那条发丝线。
+   真机读数（1440 / 右栏折叠）：输入区 88 而 textarea 34 ⇒ 卡上半部读起来是一块没写字的白板，
+   整卡 153px 高却是「一格字 + 一排开关」，用户原话「对话框感觉还是不太行」。
+   现在输入区**按内容走**（16 + 34 + 14 = 64px）：卡随内容长高（textarea 自增高、封顶 150px），
+   空卡不再是一块空板。
+   留白改成上下 16 / 14：原先 20 / 12 的下沿贴着发丝线，视觉上那行字像要掉进工具条里。 */
 .composer-input-zone {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 20px 22px 12px;
-  min-height: 88px;
-}
-
-/* 设计稿的 `/` 前缀：装饰用（模板里 aria-hidden），让这一行读起来像命令输入行。 */
-.composer-prefix {
-  flex: 0 0 auto;
-  color: var(--text);
-  font-size: 1.375rem;
-  line-height: 30px;
-  font-weight: 500;
-  user-select: none;
+  padding: 16px 22px 14px;
 }
 
 .composer-textarea {
@@ -1517,20 +1627,10 @@ html[data-platform="darwin"] .conversation-pane {
   font-weight: 700;
 }
 
-/* 键帽：本仓没有 kbd 的既有规则（deepwrite 有），照它补一枚——这是本任务唯一新增的通用元素样式。 */
-.composer-reference-menu kbd {
-  min-width: 24px;
-  padding: 2px 5px;
-  border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 5px;
-  background: var(--sidebar);
-  color: var(--text-faint);
-  font-family: var(--ui-font);
-  font-size: 0.642857rem;
-  font-weight: 550;
-  text-align: center;
-}
+/* 键帽：原先这里是 `.composer-reference-menu kbd` 一整条（描边/圆角/底/字色/字族/字号）。
+   2026-10-25 收进 styles.css 的元素规则一处——这一族浮层（引用菜单 / 模型选择器 /
+   权限档 / 阶段选择 / 大纲 / 全书搜索）都要一枚键帽，各写一遍就是同一种东西六种长相。
+   这一族浮层自己只留**页脚排版**（哪些字挨着、往哪靠），键帽本身不再重画。 */
 
 .composer-reference-options {
   overflow-y: auto;
@@ -1592,22 +1692,12 @@ html[data-platform="darwin"] .conversation-pane {
   text-align: center;
 }
 
+/* 排版在 styles.css 的 `.list-keys` 一处（2026-10-25 收敛到一处，这一族浮层共用）；
+   这里只留这一行在引用菜单里的位置（贴底、留白、上面一条淡线）。 */
 .composer-reference-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 16px;
   min-height: 34px;
   padding: 6px 12px;
   border-top: 1px solid var(--line-soft);
-  color: var(--text-faint);
-  font-size: 0.642857rem;
-}
-
-.composer-reference-footer span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
 }
 
 /* ==== Task 113c 输入卡上方的「书 / 阶段」绑定条 + 阶段弹层 ====
@@ -1946,6 +2036,15 @@ html[data-platform="darwin"] .conversation-pane {
   padding: 2px;
 }
 
+/* 键位提示行（2026-10-25）：排版（横向、右对齐、组距）在 styles.css 的 `.list-keys` 一处，
+   这一族浮层共用；这里只留它在阶段浮层里的位置——贴着列表底下，不参与滚动。 */
+.context-picker-keys {
+  flex: none;
+  margin: 4px 4px 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--theme-line-soft);
+}
+
 .context-option {
   display: flex;
   align-items: center;
@@ -1963,8 +2062,13 @@ html[data-platform="darwin"] .conversation-pane {
   cursor: pointer;
 }
 
-.context-option:hover:not(:disabled) {
-  background: var(--surface-hover);
+/* 鼠标划过与键盘高亮是**同一件事**（指着哪一行）——而且在这一族里，
+   鼠标一停就变成键盘高亮那一档（mouseenter 直接改高亮），两个档若不同就会先亮一下再沉一下，
+   看着像闪。所以同一档底色（与 @ 引用菜单、模型选择器、权限档一致）。
+   状态档上的三级小字只有 4.09~4.38:1 ⇒ 自定义属性连着整棵子树改口。 */
+.context-option:hover:not(:disabled),
+.context-option.is-selected {
+  background: var(--surface-selected);
   --text-secondary: var(--text-on-state);
   --text-tertiary: var(--text-on-state);
 }
