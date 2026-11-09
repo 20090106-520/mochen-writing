@@ -149,17 +149,19 @@ describe("右栏行模板必须容得下实际子元素", () => {
   // 屏幕上那片"空着的正文区"其实是它。真正的 `.editor-document` 落到 36px 那行，
   // textarea 被顶到 y=948，而视口只有 902px ⇒ **正文一直就没显示过**。
   // 这类 bug 静态扫不出来（CSS 规则都"有消费者"），只能把行号钉死。
-  it("行模板留了两根 auto 给条件条（查找替换条 + 视图切换条可同时在场）", () => {
+  // 2026-11-09 W-03：多了常驻的「本章参考」，auto 行由两根变三根，弹性行跟着后移一位。
+  it("行模板留了三根 auto 给常驻/条件条（查找替换条、视图切换条、本章参考）", () => {
     const parts = rowsOf(".editor-pane");
-    expect(parts, `行模板只有 ${parts.length} 根，容不下 7 个子元素`).toHaveLength(7);
-    expect(parts.filter((p) => p === "auto")).toHaveLength(2);
-    // 弹性行必须落在文档那一根上，不能是条件条
-    expect(parts[5]).toBe("minmax(0, 1fr)");
+    expect(parts, `行模板只有 ${parts.length} 根，容不下 8 个子元素`).toHaveLength(8);
+    expect(parts.filter((p) => p === "auto")).toHaveLength(3);
+    // 弹性行必须落在文档那一根上，不能是常驻/条件条
+    expect(parts[6]).toBe("minmax(0, 1fr)");
   });
 
   it("文档与页脚写死行号，不靠「第几个子元素」顺推", () => {
-    expect(ruleBlock(css, ".editor-pane > .editor-document")).toContain("grid-row: 6;");
-    expect(ruleBlock(css, ".editor-pane > .editor-footer")).toContain("grid-row: 7;");
+    expect(ruleBlock(css, ".editor-pane > .chapter-brief")).toContain("grid-row: 6;");
+    expect(ruleBlock(css, ".editor-pane > .editor-document")).toContain("grid-row: 7;");
+    expect(ruleBlock(css, ".editor-pane > .editor-footer")).toContain("grid-row: 8;");
   });
 
   // 作品资料页少两根条（不渲染标签条与视图切换条），行号要跟着减，否则资料页又会错位。

@@ -17,13 +17,17 @@
  * ① 模板补两根 `auto` 行，容得下「查找替换条 + 视图切换条」这两根条件条（同时在场也不会错位）；
  * ② 文档与页脚**写死行号**，不再靠「第几个子元素」顺推——
  *    前面的条件条增删都动不到它们。
+ *
+ * 2026-11-09 W-03 又加了一条**常驻**的「本章参考」，排在视图切换条之后、
+ * `.editor-document` 之前。它是常驻而非条件条（只在文稿态渲染），所以模板再补一根 `auto`，
+ * 文档与页脚的写死行号同步后移一位。作品资料态没有这条带子，四行模板不受影响。
  */
 .editor-pane {
   grid-column: 3;
   /* 同上：五处各钉一行，落格才是判定（详见 conversation-pane.css 与 extensions.css 那两段）。 */
   grid-row: 1;
   display: grid;
-  grid-template-rows: 50px 42px 40px auto auto minmax(0, 1fr) 36px;
+  grid-template-rows: 50px 42px 40px auto auto auto minmax(0, 1fr) 36px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -31,12 +35,17 @@
   background: var(--editor);
 }
 
-.editor-pane > .editor-document {
+/* 本章参考（W-03）：视图切换条之后、正文之前的那一行。 */
+.editor-pane > .chapter-brief {
   grid-row: 6;
 }
 
-.editor-pane > .editor-footer {
+.editor-pane > .editor-document {
   grid-row: 7;
+}
+
+.editor-pane > .editor-footer {
+  grid-row: 8;
 }
 
 /* 作品资料页不渲染文稿标签条与视图切换条，行数相应减两（其余照旧）。 */
@@ -57,7 +66,7 @@ html[data-platform="darwin"] .editor-pane {
 }
 
 html[data-platform="darwin"] .editor-pane.has-section-tabs {
-  grid-template-rows: 52px 42px 40px minmax(0, 1fr) 36px;
+  grid-template-rows: 52px 42px 40px auto auto auto minmax(0, 1fr) 36px;
 }
 
 /* 作品资料态整条标签带不渲染（评审 T6-4）：五行轨收成四行，剩余四格各归位，不留 42px 空带。
@@ -77,7 +86,7 @@ html[data-platform="darwin"] .editor-pane.has-section-tabs:has(.editor-document.
   justify-content: space-between;
   gap: 10px;
   min-width: 0;
-  padding: 7px 9px 7px 15px;
+  padding: 7px 9px 7px 16px;
   /* 无边框窗口：栏头在最右列，右侧让出窗控叠加区（—□×）的地盘。
      env() 相消式 fallback：不支持 titlebar-area-* 时 100vw - 0px - 100vw = 0，退回原 padding。 */
   padding-right: calc(9px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
@@ -115,7 +124,9 @@ html[data-platform="darwin"] .editor-header {
   min-width: 0;
   overflow: hidden;
   color: var(--text-tertiary);
-  font-size: 0.75rem;
+  /* 2026-11-08 字号层级：面包屑与标签页同走 0.8125rem（11.4px），比原来 0.75rem 抬半档——
+     右栏这三条横带（头 / 标签 / 工具）里，头这一行是最先被扫到的定位信息，不该比标签还小。 */
+  font-size: 0.8125rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -137,11 +148,11 @@ html[data-platform="darwin"] .editor-header {
   flex: 1 1 auto;
   min-width: 4em;
   color: var(--text-secondary);
-  font-weight: 560;
+  font-weight: 600;
 }
 
 .editor-breadcrumbs i {
-  margin: 0 6px;
+  margin: 0 7px;
   color: var(--text-tertiary);
   font-style: normal;
 }
@@ -153,11 +164,51 @@ html[data-platform="darwin"] .editor-header {
   gap: 5px;
 }
 
+/* P0-5：头部按钮分「写作 / 检查」两组。
+   group 只是把同一族按钮包起来（读屏能读出两组），间距仍由上一层的 gap 出；
+   中间那条竖线是给眼睛用的分组线，不是可交互元素。 */
+.editor-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.editor-tools-divider {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  background: var(--line-soft);
+}
+
+/* 「审稿」是一颗**带下拉**的按钮：图标 + 小三角。宽度多给 4px，
+   否则三角挤进图标里；这一颗的 aria-haspopup / aria-expanded 在模板里。 */
+.review-menu-toggle {
+  /* .icon-button 是 grid（两个子元素会被排成两行），这颗要图标 + 三角并排，改回 flex。 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  gap: 1px;
+}
+
+.review-menu-caret {
+  display: inline-flex;
+  transform: rotate(90deg);
+  /* 2026-11-08：`--text-dim` 在本仓 :root 里没有定义（与浮层那几份旧名同源），
+     这里改走真实的三档文字色，避免 caret 悄悄继承父级颜色。 */
+  color: var(--text-tertiary);
+  transition: transform 160ms ease;
+}
+
+.review-menu-toggle[aria-expanded="true"] .review-menu-caret {
+  transform: rotate(-90deg);
+}
+
 .section-tabs-bar {
   display: flex;
   align-items: stretch;
   min-width: 0;
-  padding: 0 9px 0 13px;
+  padding: 0 10px 0 14px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--editor);
 }
@@ -165,9 +216,10 @@ html[data-platform="darwin"] .editor-header {
 .section-tabs-scroll {
   display: flex;
   flex: 1 1 auto;
-  align-items: end;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
+  padding: 4px 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -177,43 +229,35 @@ html[data-platform="darwin"] .editor-header {
   display: none;
 }
 
+/* 2026-11-08 标签页换语言：原来是一条「浏览器式」的下划线页签（灰字 + accent 2px 底线），
+   与中栏的过程卡/输入区那套「浅底圆角块」不是同一族。
+   现在收起底部着色条，改成 8px 圆角的软胶囊：当前页一枚浅侧栏底，未选只有字色，
+   用底色而不是色条表达「在哪一页」。高度落回 29px，42px 的标签带里上下各留 4px 呼吸。 */
 .section-tab {
   position: relative;
   flex: 0 0 auto;
   max-width: 144px;
-  height: 41px;
-  padding: 0 11px;
+  height: 29px;
+  padding: 0 10px;
   overflow: hidden;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-tertiary);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
 }
 
-.section-tab::after {
-  position: absolute;
-  right: 8px;
-  bottom: 0;
-  left: 8px;
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: transparent;
-  content: "";
-}
-
 .section-tab:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   color: var(--text-primary, #42464b);
 }
 
 .section-tab.is-active {
+  background: color-mix(in srgb, var(--sidebar) 58%, transparent);
   color: var(--text-primary, #24272b);
-  font-weight: 620;
-}
-
-.section-tab.is-active::after {
-  background: var(--accent, #7c5c3e);
+  font-weight: 600;
 }
 
 .section-tabs-remove {
@@ -224,7 +268,7 @@ html[data-platform="darwin"] .editor-header {
   width: 27px;
   height: 27px;
   margin-left: 5px;
-  border-radius: 5px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
@@ -236,7 +280,7 @@ html[data-platform="darwin"] .editor-header {
 
 .section-tabs-remove:hover:not(:disabled),
 .section-tabs-remove:focus-visible:not(:disabled) {
-  background: var(--theme-line);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--text-primary);
 }
 
@@ -290,13 +334,13 @@ html[data-platform="darwin"] .editor-header {
   flex: 0 0 auto;
   align-items: center;
   padding: 2px;
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 .view-tabs button {
   height: 25px;
   padding: 0 9px;
-  border-radius: 5px;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-tertiary);
   font-size: 0.714286rem;
@@ -308,14 +352,15 @@ html[data-platform="darwin"] .editor-header {
 .view-tabs button.is-active {
   background: var(--surface-main);
   color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(24, 26, 28, 0.08);
+  /* 2026-11-08：写死的 rgba 暗影换主题不跟，改走高程第一档（--shadow-sm 由主题层算）。 */
+  box-shadow: var(--shadow-sm);
 }
 
 .toolbar-separator {
   width: 1px;
   height: 19px;
   margin: 0 4px;
-  background: var(--theme-line);
+  background: var(--line-soft);
 }
 
 .editor-text-tools {
@@ -677,7 +722,8 @@ html[data-theme="dark"] .document-editor:focus-visible {
   border-top: 1px solid var(--line-soft);
   background: var(--surface-muted);
   color: var(--text-tertiary);
-  font-size: 0.678571rem;
+  /* 2026-11-08：底栏是注脚档，但不是看不见档；0.678571rem（9.5px）在 14px 根字号下太小，抬到 10px。 */
+  font-size: 0.714286rem;
 }
 
 .editor-footer-meta {

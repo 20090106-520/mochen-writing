@@ -112,6 +112,45 @@
   background: var(--accent-soft, rgb(51 156 255 / 10%));
 }
 
+/* 一键撤销（P0-5）：列表每一行右侧一颗。
+   与行内那颗「看改前」是两件事：那颗只开面板，这颗直接回写盘（撤销本身也会先留一份备份）。
+   行按钮让出宽度（flex: 1 1 auto + min-width: 0），长标题才照常出省略号。 */
+.change-history-item {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.change-history-item .change-history-row {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+.change-history-undo {
+  flex: none;
+  align-self: center;
+  padding: 3px 7px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text-dim, #6b6f76);
+  font: inherit;
+  font-size: 0.785714rem;
+  cursor: pointer;
+}
+
+.change-history-undo:hover:not(:disabled) {
+  border-color: var(--danger, #d64545);
+  background: var(--danger-soft, rgb(214 69 69 / 10%));
+  color: var(--danger, #d64545);
+}
+
+.change-history-undo:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .change-history-doc {
   overflow: hidden;
   text-overflow: ellipsis;

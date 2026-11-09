@@ -100,6 +100,12 @@ export interface ExtensionSkillRow {
   skillMd: string;
   /** 这一行此刻有没有动作在跑（卸掉/装上 之中有一个在跑）。 */
   busy: boolean;
+  /** 书级默认挂入（`book.json` 的 `skillPolicy.enabled`）。P0-4：界面据此标「书级默认」。 */
+  defaultOn: boolean;
+  /** 本书全局停用：不进推荐，`use_skill` 也读不到。 */
+  disabled: boolean;
+  /** 本会话有没有临时覆盖（与「书级默认」相对）；没有覆盖时这一格 armed 的是书级默认。 */
+  overridden: boolean;
 }
 
 // 这三个 store 只在 action 内部现取（不在模块求值期读它们的状态），但 import 仍在文件顶部：
@@ -164,11 +170,13 @@ export const useExtensionBrowseStore = defineStore("extensionBrowse", {
         docKind: string | null;
         /** 本线程输入框里正敲的指令原文。 */
         instruction: string;
+        /** 本书全局停用的技能 id：被停用的不进推荐（P0-4）。 */
+        disabled?: readonly string[];
         /** 取前几条，默认技能挂入上限（`SKILL_PATHS_MAX` = 12）。 */
         limit?: number;
       }): SkillPick[] =>
         rankSkills(
-          input.library.map(candidateOf),
+          input.library.filter((one) => !(input.disabled ?? []).includes(one.id)).map(candidateOf),
           { stageName: input.stageName, docKind: input.docKind, instruction: input.instruction },
           input.limit ?? SKILL_PATHS_MAX,
           input.pinned
@@ -223,14 +231,22 @@ export const useExtensionBrowseStore = defineStore("extensionBrowse", {
      */
     skillEntries(input: {
       library: readonly SkillRef[];
-      /** 本线程已挂入的技能 id。 */
+      /** 本线程已挂入的技能 id（生效后：覆盖或书级默认，已剔除停用）。 */
       pinned: readonly string[];
+      /** 书级默认挂入的技能 id（`book.json` 的 `skillPolicy.enabled`）。 */
+      defaults: readonly string[];
+      /** 本书全局停用的技能 id。 */
+      disabled: readonly string[];
+      /** 本会话有没有覆盖；没有就是「书级默认」在生效。 */
+      overridden: boolean;
       market: readonly MarketEntry[];
       marketBusy(dirName: string): boolean;
       page?: "plugins" | "skills";
     }): ExtensionSkillRow[] {
       const page = input.page ?? "skills";
       const pinned = new Set(input.pinned);
+      const defaults = new Set(input.defaults);
+      const disabledIds = new Set(input.disabled);
       const rows: ExtensionSkillRow[] = [];
       const joined = new Set<string>();
 
@@ -253,7 +269,10 @@ export const useExtensionBrowseStore = defineStore("extensionBrowse", {
           marketInstalled: entry?.installed ?? false,
           shadowedByBook: entry?.shadowedByBook ?? false,
           skillMd: entry?.skillMd ?? "",
-          busy: input.marketBusy(skill.dirName)
+          busy: input.marketBusy(skill.dirName),
+          defaultOn: defaults.has(skill.id),
+          disabled: disabledIds.has(skill.id),
+          overridden: input.overridden
         });
       }
 
@@ -273,7 +292,10 @@ export const useExtensionBrowseStore = defineStore("extensionBrowse", {
           marketInstalled: entry.installed,
           shadowedByBook: entry.shadowedByBook,
           skillMd: entry.skillMd,
-          busy: input.marketBusy(entry.dirName)
+          busy: input.marketBusy(entry.dirName),
+          defaultOn: false,
+          disabled: false,
+          overridden: false
         });
       }
 

@@ -310,3 +310,106 @@ describe("诚实边界那一支", () => {
     expect(store.verdict).toContain("1 节没写字段");
   });
 });
+
+describe("saveChapter：写回原文，成败都要说清楚（2026-11 W-02）", () => {
+  /** 先把面板按真读盘打开，再把「哪一篇是当前标签」交给每个用例自己摆。 */
+  async function opened(): Promise<{
+    bridge: Bridge;
+    store: ReturnType<typeof useVolumeOutlineStore>;
+  }> {
+    const bridge = makeBridge();
+    stubWindow(bridge);
+    const store = useVolumeOutlineStore();
+    await store.toggleFor(docRef({ relPath: "卷一.md", title: "卷一", kind: "volume" }));
+    return { bridge, store };
+  }
+
+  it("不是当前标签：readDoc 拿指纹 → writeDoc 写同一路径，成功后按新原文重算", async () => {
+    const { bridge, store } = await opened();
+
+    const result = await store.saveChapter(firstChapter(), { pov: "程野" });
+
+    expect(result.ok).toBe(true);
+    const [relPath, content, fingerprint] = bridge.writeDoc.mock.calls[0] ?? [];
+    expect(relPath).toBe("卷一.md");
+    expect(fingerprint).toBe("fp-1");
+    // 只动那一行：卷纲标题与第二章原样在。
+    expect(String(content)).toContain("- 视角：程野");
+    expect(String(content)).toContain("# 第一卷 潮信");
+    expect(store.outline?.chapters[0]?.fields.pov).toBe("程野");
+    expect(store.saving).toEqual([]);
+  });
+
+  it("盘上被改过（stale）：不覆盖，照实说「没覆盖」", async () => {
+    const bridge = makeBridge({
+      writeDoc: vi.fn(async (): Promise<DocWriteResult> => ({
+        ok: false,
+        reason: "stale",
+        currentFingerprint: "fp-别人改过的"
+      }))
+    });
+    stubWindow(bridge);
+    const store = useVolumeOutlineStore();
+    await store.toggleFor(docRef({ relPath: "卷一.md", title: "卷一", kind: "volume" }));
+
+    const result = await store.saveChapter(firstChapter(), { pov: "程野" });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("没覆盖");
+    // 失败不换解析结果：面板上仍是被拒之前的那一份。
+    expect(store.outline?.chapters[0]?.fields.pov).toBe("林砚");
+    expect(store.saving).toEqual([]);
+  });
+
+  it("当前打开的那一篇：改的是 book.draft，落盘走 saveActive（备份与冲突判定都在那一处）", async () => {
+    const { store } = await opened();
+    const book = useBookStore();
+    book.activeDocTab = "卷一.md";
+    book.draft = VOLUME_MD;
+    book.dirty = false;
+    const save = vi.spyOn(book, "saveActive").mockImplementation(async () => {
+      book.dirty = false;
+      book.conflict = null;
+      book.notice = "已保存";
+    });
+    const cancel = vi.spyOn(book, "cancelAutoSave");
+
+    const result = await store.saveChapter(firstChapter(), { goal: "把船靠岸" });
+
+    expect(result.ok).toBe(true);
+    expect(book.draft).toContain("- 目标：把船靠岸");
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(cancel).toHaveBeenCalled();
+    expect(store.outline?.chapters[0]?.fields.goal).toBe("把船靠岸");
+  });
+
+  it("saveActive 失败：把 book.notice 那句原样带回，不许静默成功", async () => {
+    const { store } = await opened();
+    const book = useBookStore();
+    book.activeDocTab = "卷一.md";
+    book.draft = VOLUME_MD;
+    book.dirty = false;
+    vi.spyOn(book, "saveActive").mockImplementation(async () => {
+      book.notice = "保存失败：磁盘只读";
+    });
+
+    const result = await store.saveChapter(firstChapter(), { pov: "程野" });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toBe("保存失败：磁盘只读");
+    expect(store.outline?.chapters[0]?.fields.pov).toBe("林砚");
+  });
+
+  it("面板打开后正文被改过、章序对不上：拒绝写，盘一个字节不动", async () => {
+    const { bridge, store } = await opened();
+
+    const result = await store.saveChapter(
+      { ...firstChapter(), title: "另一个标题" },
+      { pov: "程野" }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("章序对不上");
+    expect(bridge.writeDoc).not.toHaveBeenCalled();
+  });
+});

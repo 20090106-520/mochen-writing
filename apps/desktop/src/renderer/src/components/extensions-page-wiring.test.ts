@@ -488,16 +488,21 @@ describe("技能那一处 · 两张表按目录名并成一行（不许各出一
     expect(templateSource(PAGE)).toContain("「${conditions.filter}」这一类里现在没有技能。");
   });
 
-  it("徽标是三枚且穷尽，「已经安装但这一轮没带」不许没徽标（真机撞出来的）", () => {
+  it("徽标是四枚且穷尽（P0-4 补「已停用」），另有一枚独立说清挂入是谁定的", () => {
     const markup = templateSource(PAGE);
     // 真机症状：重启后「本轮已挂入」清空，而那一档原本没写，于是「装在盘上但这一轮没带」
     // 那一种一行徽标都没有——它和「可以装」只差两颗钮的形状。
-    expect(markup).toContain('v-if="row.pinned"');
+    expect(markup).toContain('v-if="row.disabled"');
+    expect(markup).toContain('v-else-if="row.pinned"');
     expect(markup).toContain('v-else-if="row.onDisk"');
+    expect(markup).toContain(">已停用</span>");
     expect(markup).toContain(">已安装</span>");
     expect(markup).toContain(">可以装</span>");
     expect(markup).toContain('class="extension-badge is-quiet">已安装');
     expect(markup).toContain('class="extension-badge is-quiet">可以装');
+    // P0-4：书级默认与本会话临时改过要分得开——这是两件事，不能合成一枚。
+    expect(markup).toContain('v-if="row.onDisk && row.overridden"');
+    expect(markup).toContain('v-else-if="row.onDisk && row.defaultOn"');
     // 用户指正「技能库那边应该也加一个已安装」：第二枚写的是状态，不是事实。
     // 「在盘上」说的是「它在磁盘上」，而这一页那枚钮写的是「装上/卸掉」——
     // 徽标与钮各说一套，用户得自己推断这两者是一件事。

@@ -90,7 +90,9 @@ describe("message-markdown · 渲染出来的块级元素要排得住", () => {
     const all = css();
     expect(all).toContain(".message-markdown p,");
     expect(all).toMatch(/\.message-markdown > \* \+ \*/);
-    expect(all).toContain("margin-top: 0.6em");
+    // 2026-11-08 行宽收紧（正文收到 min(100%, 72ch)）之后，段间气口同步从 0.6em 抬到 0.8em：
+    // 行变短、断行变多，段落之间还按 0.6em 排就分不出「换段」和「换行」。
+    expect(all).toContain("margin-top: 0.8em");
   });
 
   it("列表有缩进可继承（外边距归零之后 padding 是唯一的缩进来路）", () => {

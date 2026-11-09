@@ -46,13 +46,14 @@ html[data-platform="darwin"] .sidebar-brand-row {
   -webkit-app-region: no-drag;
 }
 
+/* 2026-11-08 左栏与中栏收成一套形状：品牌钮/图标方块也走 8px 一档（原来 7px 是另一套小圆角）。 */
 .brand-button {
   display: inline-flex;
   align-items: center;
   min-width: 0;
   gap: 8px;
   padding: 3px 6px 3px 3px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
 }
 
@@ -61,7 +62,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   place-items: center;
   width: 27px;
   height: 27px;
-  border-radius: 7px;
+  border-radius: 8px;
   overflow: hidden;
   background: #242629;
   color: #ffffff;
@@ -113,9 +114,10 @@ html[data-platform="darwin"] .sidebar-brand-row {
   gap: 2px;
   min-width: 0;
   margin-bottom: 5px;
-  padding: 7px 9px;
+  padding: 8px 10px;
   border: 1px solid var(--line-soft);
-  border-radius: 10px;
+  /* 与中栏过程卡同档：卡片外框一律 12px。 */
+  border-radius: 12px;
   background: var(--surface-muted);
 }
 
@@ -142,6 +144,15 @@ html[data-platform="darwin"] .sidebar-brand-row {
 
 .side-nav {
   padding: 4px 7px 11px;
+}
+
+/* 【2026-11-08 分区】功能导航与「我的作品」文稿树是两类东西：中间用一条发丝线断开，
+   而不是让两组行直接接在一起、只靠 11px 底边距分开。
+   `+` 只在两者都在场时画线（工作台空态没有文稿树，不会留一条悬空的分隔线）。 */
+.side-nav + .resource-list {
+  margin-top: 3px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line-soft);
 }
 
 /* 选中态（演示图工作台那一行的浅底高亮）：视图只有工作台 / 设置两种，互相排斥。 */
@@ -198,10 +209,10 @@ html[data-platform="darwin"] .sidebar-brand-row {
   width: 100%;
   min-height: 30px;
   padding: 0 9px 0 30px;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.892857rem;
+  font-size: 0.875rem;
   text-align: left;
   cursor: pointer;
 }
@@ -310,10 +321,12 @@ html[data-platform="darwin"] .sidebar-brand-row {
   width: 100%;
   min-height: 34px;
   padding: 0 9px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-primary);
-  font-size: 0.964286rem;
+  /* 2026-11-08 字号层级：导航 13px（0.928571rem）> 文稿树 12.25px > 说明行 10.5px。
+     原先 0.964286rem（13.5px）与中栏正文的收口差了半档，左栏读起来比正文还重。 */
+  font-size: 0.928571rem;
   text-align: left;
   cursor: pointer;
 }
@@ -328,7 +341,8 @@ html[data-platform="darwin"] .sidebar-brand-row {
 }
 
 .nav-row svg {
-  color: var(--text-secondary);
+  /* 2026-11-08 图标退一档灰：标签是这行的主体，图标只负责指路。选中行仍由上面那条 accent 提亮。 */
+  color: var(--text-tertiary);
 }
 
 @keyframes nav-background-pulse {
@@ -352,7 +366,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
 }
 
 .resource-section + .resource-section {
-  margin-top: 7px;
+  margin-top: 9px;
 }
 
 .resource-section-heading {
@@ -369,10 +383,10 @@ html[data-platform="darwin"] .sidebar-brand-row {
   flex: 1;
   min-height: 32px;
   padding: 5px 7px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-primary);
-  font-size: 0.964286rem;
+  font-size: 0.928571rem;
   font-weight: 650;
   letter-spacing: -0.005em;
   text-align: left;
@@ -389,6 +403,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
 
 .section-toggle > svg {
   flex: 0 0 auto;
+  color: var(--text-tertiary);
 }
 
 .section-toggle:hover {
@@ -427,7 +442,9 @@ html[data-platform="darwin"] .sidebar-brand-row {
   position: relative;
   margin: 2px 0 4px 16px;
   padding-left: 7px;
-  border-left: 1px solid var(--theme-line);
+  /* 2026-11-08：树的引导线原来用重一档的 --theme-line，在浅色皮肤上像一道分割栏；
+     换发丝线，让它只是「这几行是一组」的暗示。 */
+  border-left: 1px solid var(--line-soft);
 }
 
 .tree-row {
@@ -438,10 +455,10 @@ html[data-platform="darwin"] .sidebar-brand-row {
   min-width: 0;
   min-height: 28px;
   padding: 2px 7px 2px calc(3px + var(--tree-depth) * 14px);
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.892857rem;
+  font-size: 0.875rem;
   text-align: left;
   cursor: pointer;
 }
@@ -467,7 +484,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 5px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
@@ -496,11 +513,15 @@ html[data-platform="darwin"] .sidebar-brand-row {
   right: 0;
   width: max-content;
   min-width: 128px;
-  padding: 5px;
-  border: 1px solid var(--theme-line);
-  border-radius: 9px;
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  /* 2026-11-08 与右栏 dropdown / 输入区「更多」收成同一张菜单面：
+     发丝线 + 12px 圆角 + 编辑区半透明底 + 同一档浮层阴影（原来是 raise 底 + --shadow-lg，
+     与界面上其余弹层各写了一套）。 */
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--editor) 94%, transparent);
+  backdrop-filter: blur(14px) saturate(118%);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--shadow-color) 70%, transparent);
 }
 
 .tree-node-action-menu-item {
@@ -511,7 +532,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   width: 100%;
   min-height: 32px;
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-primary);
   font-size: 0.928571rem;

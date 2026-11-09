@@ -1,3 +1,4 @@
+import { defaultProfile } from "@mochen/contracts";
 import type {
   AgentDeltaKind,
   AgentEvent,
@@ -8,7 +9,8 @@ import type {
   ThinkingWire,
   TokenUsage,
   TurnEndStatus,
-  WebSource
+  WebSource,
+  AgentProfile
 } from "@mochen/contracts";
 import { parseProtocolBlocks } from "./patch-protocol.js";
 import { ProviderError, TRUNCATED_TOOL_CALL_RECEIPT, truncationNotice } from "./provider-client.js";
@@ -41,6 +43,11 @@ export interface TurnInput {
   webSearchEnabled: boolean;
   /** 这一轮被用户从工具面板里关掉的工具名（2026-10-21）：清单与闸两处都要按它摘。 */
   disabledTools?: readonly string[];
+  /**
+   * 这一轮用的档案（P0-1）。工具白名单与写入范围都以它为准；缺省只为兼容既有测试输入，
+   * 生产装配（agent-service.startTurn）每轮都显式传入。
+   */
+  profile?: AgentProfile;
 }
 
 export interface StreamRequestLike {
@@ -163,6 +170,9 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
   };
   emitSimple({ type: "user-message", text: input.userText });
 
+  // 本轮档案：生产装配必传；缺省只是让既有测试输入不必逐处补字段（P0-1）。
+  const profile = input.profile ?? defaultProfile();
+
   // 本轮用量计数（2026-10-15）。requests 每发一次请求就 +1（连接期失败也算发过）；
   // reported 只在某一发上游回了用量时 +1；三枚数只累加**已回报**的那些，没回报的不估算、不补零。
   let requests = 0;
@@ -270,7 +280,7 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
         // **清单与派发用同一份判据**（P1-2）：派发那一层调的也是这个函数，
         // provider-client 的 `wireToolsFor` 再作用一次是幂等的，留着是因为它对
         // 任何调用方都成立（不许只靠调用方自觉）。
-        tools: toolsFor(deps.host, input.webSearchEnabled, input.disabledTools),
+        tools: toolsFor(deps.host, input.webSearchEnabled, input.disabledTools, profile),
         signal: deps.signal,
         thinkingLevel: input.thinkingLevel,
         webSearchEnabled: input.webSearchEnabled
@@ -402,7 +412,13 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
         }
         return finishInterrupted(pendingProposals);
       }
-      const gate = toolGateOf(deps.host, call.name, input.webSearchEnabled, input.disabledTools);
+      const gate = toolGateOf(
+        deps.host,
+        call.name,
+        input.webSearchEnabled,
+        input.disabledTools,
+        profile
+      );
       if (!gate.allowed) {
         // §4 裁定：对模型的拒绝必须用中文回喂，绝不静默丢弃。
         // tool 回执保证上面那条 assistant 消息里的**每一条** tool_call 都有配对——缺回执时
@@ -432,7 +448,7 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnOut
       // 模型看得见原因能自我纠正，回合照常收尾，不再因为一枚工具崩掉整轮对话。
       let outcome: ToolOutcome;
       try {
-        outcome = await dispatchToolCall(deps.host, call, input.webSearchEnabled);
+        outcome = await dispatchToolCall(deps.host, call, input.webSearchEnabled, profile);
       } catch (error) {
         const text = `工具 ${call.name} 执行异常：${
           error instanceof Error ? error.message : String(error)

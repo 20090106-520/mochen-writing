@@ -43,7 +43,8 @@ describe("applyAppearanceThemeToDocument · 密度落进 data-density", () => {
         theme: settings.light,
         uiFontFamily: settings.uiFontFamily,
         editorFontFamily: settings.editorFontFamily,
-        density: "compact"
+        density: "compact",
+        liquidGlass: "auto"
       });
       expect(root.dataset.density).toBe("compact");
     });
@@ -53,7 +54,8 @@ describe("applyAppearanceThemeToDocument · 密度落进 data-density", () => {
         theme: settings.light,
         uiFontFamily: settings.uiFontFamily,
         editorFontFamily: settings.editorFontFamily,
-        density: "standard"
+        density: "standard",
+        liquidGlass: "auto"
       });
       expect(root.dataset.density).toBe("standard");
     });
@@ -68,7 +70,8 @@ describe("applyAppearanceThemeToDocument · 密度落进 data-density", () => {
           theme: settings[scheme],
           uiFontFamily: settings.uiFontFamily,
           editorFontFamily: settings.editorFontFamily,
-          density: "compact"
+          density: "compact",
+          liquidGlass: "auto"
         });
         expect(root.dataset.theme).toBe(scheme);
         expect(root.dataset.density).toBe("compact");

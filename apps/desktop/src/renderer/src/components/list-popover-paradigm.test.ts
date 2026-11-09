@@ -40,6 +40,8 @@ const MODEL_SELECT = "components/ModelSelect.vue";
 const PERMISSION = "components/PermissionMenu.vue";
 const CONTEXT_MENU = "components/ComposerContextMenu.vue";
 const REFERENCE = "components/ComposerReferenceMenu.vue";
+// P0-5 的「审稿」下拉也是「从一组入口里挑一个」，同一份范式。
+const REVIEW = "components/ReviewMenu.vue";
 
 /** 剥掉 CSS 注释（`ruleBlock` 只剥 JS 注释，剥不掉 CSS 的）。 */
 function stripCssComments(css: string): string {
@@ -64,7 +66,7 @@ describe("范式 · 高亮判据只有一份", () => {
    * 于是又变成多份实现。合成器那两件事是这一族浮层共用的行为，不该由各家重写。
    */
   it("三个浮层都走共用的合成器，不许直接引裸判据函数", () => {
-    for (const path of [MODEL_SELECT, PERMISSION, CONTEXT_MENU]) {
+    for (const path of [MODEL_SELECT, PERMISSION, CONTEXT_MENU, REVIEW]) {
       const script = scriptSource(path);
       expect(script, `${path} 没接共用的高亮合成器`).toContain(
         'from "../composables/useListHighlight"'
@@ -100,7 +102,7 @@ describe("范式 · ↑↓ 改高亮，不搬真焦点", () => {
    * 真的调了共用的 `move`**，以及**函数体里没有 `.focus()`**。
    */
   it("三个浮层的 ↑↓ 都调共用的 move，且都不搬真焦点", () => {
-    for (const path of [MODEL_SELECT, PERMISSION, CONTEXT_MENU]) {
+    for (const path of [MODEL_SELECT, PERMISSION, CONTEXT_MENU, REVIEW]) {
       const body = keydownBody(scriptSource(path));
       expect(body, `${path} 的 keydown 读不到`).not.toBe("");
       expect(body, `${path} 的 ↑↓ 没有走共用的 move`).toContain("highlight.move(");
@@ -109,7 +111,7 @@ describe("范式 · ↑↓ 改高亮，不搬真焦点", () => {
   });
 
   it("三个浮层的 Enter 都选高亮那条，不是第一条", () => {
-    for (const path of [MODEL_SELECT, PERMISSION, CONTEXT_MENU]) {
+    for (const path of [MODEL_SELECT, PERMISSION, CONTEXT_MENU, REVIEW]) {
       const body = keydownBody(scriptSource(path));
       expect(body, `${path} 的 Enter 没有选高亮那条`).toContain("highlight.pickActive()");
       // 旧形状（阶段选择那版）：Enter 选的是 buttons[0]。
@@ -120,7 +122,7 @@ describe("范式 · ↑↓ 改高亮，不搬真焦点", () => {
 
 describe("范式 · 名单是 listbox/option + aria-selected", () => {
   it("四个浮层的选项都是 option，且带 aria-selected 与 is-selected", () => {
-    for (const path of [MODEL_SELECT, PERMISSION, CONTEXT_MENU, REFERENCE]) {
+    for (const path of [MODEL_SELECT, PERMISSION, CONTEXT_MENU, REFERENCE, REVIEW]) {
       const markup = templateSource(path);
       expect(markup, `${path} 里没有 option`).toContain('role="option"');
       expect(markup, `${path} 里没有 aria-selected`).toContain(":aria-selected=");
@@ -144,7 +146,7 @@ describe("范式 · 名单是 listbox/option + aria-selected", () => {
 
 describe("范式 · 底部一枚键位提示行", () => {
   it("四个浮层都摆着键位提示行，且排版走共用的 `.list-keys`", () => {
-    for (const path of [MODEL_SELECT, PERMISSION, CONTEXT_MENU, REFERENCE]) {
+    for (const path of [MODEL_SELECT, PERMISSION, CONTEXT_MENU, REFERENCE, REVIEW]) {
       const markup = templateSource(path);
       expect(markup, `${path} 没有键位提示行`).toContain("<kbd>");
       expect(markup, `${path} 的提示行没用共用的排版`).toContain("list-keys");

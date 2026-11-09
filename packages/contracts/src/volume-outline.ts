@@ -140,6 +140,40 @@ function parseWordTarget(raw: string): number | null {
 }
 
 /**
+ * 这一行是不是章节的开头（解析与「写回原文」共用这一份判定）。
+ * 返回 null = 不是章；否则给出标题与「凭什么认成章」。
+ */
+function chapterStartOf(line: string): {
+  title: string;
+  detectedBy: ParsedChapter["detectedBy"];
+} | null {
+  const heading = HEADING_RE.exec(line);
+  if (heading !== null) {
+    return { title: (heading[2] ?? "").trim(), detectedBy: "heading" };
+  }
+  const numbered = NUMBERED_RE.exec(line);
+  if (numbered !== null) {
+    const rest = (numbered[2] ?? "").trim();
+    return { title: rest === "" ? line.trim() : rest, detectedBy: "numbered" };
+  }
+  return null;
+}
+
+/**
+ * 这一行是不是一条字段行（解析与「写回原文」共用这一份判定）。
+ * `value` 是 trim 之后的值；`label` 是原文里那个标签（写回时要保留作者原词）。
+ */
+function fieldOfLine(
+  line: string
+): { field: ChapterOutlineField; label: string; value: string } | null {
+  const fieldLine = FIELD_LINE.exec(line);
+  if (fieldLine === null) return null;
+  const field = FIELD_ALIASES[(fieldLine[1] ?? "").toLowerCase()];
+  if (field === undefined) return null;
+  return { field, label: fieldLine[1] ?? "", value: (fieldLine[2] ?? "").trim() };
+}
+
+/**
  * 把一篇卷纲 markdown 拆成结构化章节。
  *
  * **纯函数**：不读盘、不调模型、不看任何全局状态。同样的输入永远给同样的输出。
@@ -164,22 +198,16 @@ export function parseVolumeOutline(raw: string): VolumeOutline {
   /** 第一条章之前的内容（卷纲的引子/总纲）——不进任何一章的 body。 */
   const preamble: string[] = [];
 
-  const start = (title: string, detectedBy: Draft["detectedBy"]): Draft => {
+  const startDraft = (title: string, detectedBy: Draft["detectedBy"]): Draft => {
     const next: Draft = { title, detectedBy, fields: emptyFields(), bodyLines: [] };
     drafts.push(next);
     return next;
   };
 
   for (const line of lines) {
-    const heading = HEADING_RE.exec(line);
-    if (heading !== null) {
-      current = start((heading[2] ?? "").trim(), "heading");
-      continue;
-    }
-    const numbered = NUMBERED_RE.exec(line);
-    if (numbered !== null) {
-      const rest = (numbered[2] ?? "").trim();
-      current = start(rest === "" ? line.trim() : rest, "numbered");
+    const start = chapterStartOf(line);
+    if (start !== null) {
+      current = startDraft(start.title, start.detectedBy);
       continue;
     }
     if (current === null) {
@@ -187,20 +215,16 @@ export function parseVolumeOutline(raw: string): VolumeOutline {
       continue;
     }
     // 字段行：先按标签表归一，认出来才从正文里拿走。
-    // `field` 的类型是 `字段 | undefined`（不是 `| null`）——判据只判 `undefined`，
-    // 混进一个 null 分支的话 TS 不会把 null 从下标里剔掉，下一行就报 TS2538。
-    const fieldLine = FIELD_LINE.exec(line);
-    const field =
-      fieldLine === null ? undefined : FIELD_ALIASES[(fieldLine[1] ?? "").toLowerCase()];
-    if (fieldLine !== null && field !== undefined) {
+    const fieldLine = fieldOfLine(line);
+    if (fieldLine !== null) {
       // 同一字段重复写：后写的盖前面的，并把**被盖掉的那一句**留在 body 里标出「已作废」——
       // 「同一个字段说了两遍不同的话」是需要人判断的事，静默丢掉一句就是替作者做决定。
-      if (current.fields[field] !== "") {
+      if (current.fields[fieldLine.field] !== "") {
         current.bodyLines.push(
-          `- ${fieldLine[1] ?? ""}：${current.fields[field]}（这一项在下面又写了一遍，上面这句已作废）`
+          `- ${fieldLine.label}：${current.fields[fieldLine.field]}（这一项在下面又写了一遍，上面这句已作废）`
         );
       }
-      current.fields[field] = (fieldLine[2] ?? "").trim();
+      current.fields[fieldLine.field] = fieldLine.value;
       continue;
     }
     current.bodyLines.push(line);
@@ -295,4 +319,104 @@ export function buildChapterOutlineMarkdown(chapter: ParsedChapter, sourceTitle:
   }
   lines.push("", `> 来自《${sourceTitle}》第 ${chapter.order} 章。`);
   return `${lines.join("\n")}\n`;
+}
+
+/** 一条「把某章的六项字段写回原文」的改动（2026-11 章纲可编辑）。 */
+export interface ChapterFieldEdit {
+  /** 章的出场次序（1 起），与 `ParsedChapter.order` 同一口径。 */
+  order: number;
+  /**
+   * 只放**改过**的字段：没出现的键=这一项不动（连原词与标点都别碰）。
+   * 值 trim 后为空 = 把这一项从原文里删掉（「没写」在文件里就是没有这行）。
+   */
+  fields: Partial<Record<ChapterOutlineField, string>>;
+}
+
+/**
+ * 把章节字段的修改**就地写回**卷纲原文（2026-11 W-02 第一步）。
+ *
+ * **为什么不是重新拼一份**：原文是自由 markdown，除了六项字段还有引子、分组标题、
+ * 段落正文、作者自己写的说明。按解析结果重拼会把这些整段丢掉。这里只动字段行：
+ * 改过的行原地替换（保留作者原来的标签词，比如「阻力」不被改成「冲突」），
+ * 空值删掉这一项的所有行，原来没写的插在本章最后一条字段行之后（一条都没有就紧跟标题）。
+ * 其余每一个字节原样返回——包括 frontmatter、`第N章` 这种没有井号的标题行。
+ *
+ * 章按**出场次序**定位、不按标题：同一篇里两章同名是作者的自由，重名不该让改动落到错的章上。
+ * 纯函数，不读盘不调模型；与 `parseVolumeOutline` 共用 `chapterStartOf` / `fieldOfLine`
+ * 这一份「什么算章 / 什么算字段行」的判定（铁律 6）。
+ */
+export function applyChapterFieldEdits(raw: string, edits: readonly ChapterFieldEdit[]): string {
+  const source = raw ?? "";
+  const { block, body } = splitFrontmatter(source);
+  const bom = source.charCodeAt(0) === 0xfeff ? "\ufeff" : "";
+  const eol = source.includes("\r\n") ? "\r\n" : "\n";
+  const prefix = block === null ? "" : `${block}\n`;
+  const lines = body.split("\n");
+
+  const starts: number[] = [];
+  for (const [index, line] of lines.entries()) {
+    if (chapterStartOf(line) !== null) starts.push(index);
+  }
+  const editByOrder = new Map<number, ChapterFieldEdit["fields"]>();
+  for (const edit of edits) editByOrder.set(edit.order, edit.fields);
+
+  // 从最后一章往前改：前面章的插入/删除不会挪动已处理章的行号。
+  for (let i = starts.length - 1; i >= 0; i -= 1) {
+    const start = starts[i];
+    const fields = editByOrder.get(i + 1);
+    if (start === undefined || fields === undefined) continue;
+    const end = i + 1 < starts.length ? (starts[i + 1] as number) : lines.length;
+
+    const fieldLines: { line: number; field: ChapterOutlineField }[] = [];
+    for (let j = start + 1; j < end; j += 1) {
+      const parsed = fieldOfLine(lines[j] ?? "");
+      if (parsed !== null) fieldLines.push({ line: j, field: parsed.field });
+    }
+
+    const replacements: { line: number; text: string }[] = [];
+    const removals: number[] = [];
+    const insertions: string[] = [];
+    for (const field of CHAPTER_OUTLINE_FIELDS) {
+      const value = fields[field];
+      if (value === undefined) continue;
+      // 字段是单行：换行会被下一次解析当成另一行（不是这一项的值）。
+      const next = value.replace(/\r?\n/g, " ").trim();
+      const hits = fieldLines.filter((hit) => hit.field === field);
+      if (next === "") {
+        // 清空 = 「这一项没写」：所有写它的行都删掉。只删最后一条的话，
+        // 早先那句重复行（解析时被标成已作废的那句）会重新变成生效值。
+        removals.push(...hits.map((hit) => hit.line));
+        continue;
+      }
+      if (hits.length === 0) {
+        insertions.push(`- ${CHAPTER_OUTLINE_LABELS[field]}：${next}`);
+        continue;
+      }
+      const last = hits[hits.length - 1] as { line: number };
+      // 保留原文标签词，只换冒号后面的值。
+      const label = fieldOfLine(lines[last.line] ?? "")?.label ?? CHAPTER_OUTLINE_LABELS[field];
+      replacements.push({ line: last.line, text: `- ${label}：${next}` });
+    }
+
+    for (const replacement of replacements) lines[replacement.line] = replacement.text;
+    removals.sort((a, b) => b - a);
+    for (const line of removals) lines.splice(line, 1);
+
+    if (insertions.length > 0) {
+      // 删完之后重扫这一章，插在最后一条字段行之后；一条都没有就紧跟标题。
+      const shiftedEnd =
+        i + 1 < starts.length ? (starts[i + 1] as number) - removals.length : lines.length;
+      let anchor = start + 1;
+      for (let j = start + 1; j < shiftedEnd; j += 1) {
+        if (fieldOfLine(lines[j] ?? "") !== null) anchor = j + 1;
+      }
+      let offset = 0;
+      for (const text of insertions) {
+        lines.splice(anchor + offset, 0, text);
+        offset += 1;
+      }
+    }
+  }
+
+  return `${bom}${prefix}${lines.join("\n")}`.replace(/\n/g, eol);
 }

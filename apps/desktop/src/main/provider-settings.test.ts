@@ -84,6 +84,53 @@ describe("providerSettings · 连接与档案（v3：多连接并存）", () => 
     expect(await credentials.read(view.connections[0]!.id)).toBe("sk-abcdefg");
   });
 
+  it("上下文窗口随连接落盘，config() 原样带回（P0-3）", async () => {
+    const settings = createProviderSettings({ dir, credentials });
+    const view = await settings.saveConnection({
+      ...DEEPSEEK,
+      apiKey: "sk-abcdefg",
+      contextWindow: 65536
+    });
+    expect(view.connections[0]?.contextWindow).toBe(65536);
+    // config() 要的是「启用中那条档案 + 它那条连接」：先把档案挂上去再问。
+    await settings.upsertProfile({ model: "test-model", connectionId: view.connections[0]!.id });
+    const config = await settings.config();
+    expect(config?.contextWindow).toBe(65536);
+  });
+
+  it("旧连接没填过上下文窗口 ⇒ config() 不编一个假数，由读取方回退默认值", async () => {
+    const settings = createProviderSettings({ dir, credentials });
+    const view = await settings.saveConnection({ ...DEEPSEEK, apiKey: "sk-abcdefg" });
+    await settings.upsertProfile({ model: "test-model", connectionId: view.connections[0]!.id });
+    const config = await settings.config();
+    // 键都不在：设置页据此显示「默认值」，而不是把一个 24000 冒充成用户填过的值。
+    expect(config).not.toHaveProperty("contextWindow");
+  });
+
+  it("编辑连接：没带这一格沿用旧值，带 null 才清空（与 apiKey 同一族语义）", async () => {
+    const settings = createProviderSettings({ dir, credentials });
+    const saved = await settings.saveConnection({
+      ...DEEPSEEK,
+      apiKey: "sk-abcdefg",
+      contextWindow: 32000
+    });
+    const id = saved.connections[0]!.id;
+    await settings.upsertProfile({ model: "test-model", connectionId: id });
+
+    // undefined = 调用方没带：旧值必须留着，否则换个密钥窗口就被抹平。
+    await settings.saveConnection({ connectionId: id, ...DEEPSEEK, apiKey: null });
+    expect((await settings.config())?.contextWindow).toBe(32000);
+
+    // null = 明确清空：回到默认档。
+    await settings.saveConnection({
+      connectionId: id,
+      ...DEEPSEEK,
+      apiKey: null,
+      contextWindow: null
+    });
+    expect(await settings.config()).not.toHaveProperty("contextWindow");
+  });
+
   it("**两家并存，密钥各归各的**（这是这轮改动的目的，不能又退回全局一份）", async () => {
     const settings = createProviderSettings({ dir, credentials });
     await settings.saveConnection({ ...DEEPSEEK, apiKey: "sk-deep" });

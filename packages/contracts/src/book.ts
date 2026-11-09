@@ -48,6 +48,26 @@ export interface BookMeta {
    * 缺省值只住在 `permission.ts` 的 `workModeOf`，不许在这里或调用方各兜一个（铁律 6）。
    */
   workMode?: WorkMode | undefined;
+  /**
+   * 书级技能策略（P0-4）：新会话继承这份设置；线程级挂入仍可临时覆盖、不写回。
+   *
+   * 老书没有这一格，一律按 `EMPTY_SKILL_POLICY`（两个空清单）解析——与升级前的行为一致：
+   * 以前技能只活在渲染进程内存里，开书时本来就是「一个都没挂」。
+   * 缺省值的**唯一**归一化入口是 `skillPolicyOf`（铁律 6），调用方不许各兜一份。
+   */
+  skillPolicy?: BookSkillPolicy | undefined;
+}
+
+/**
+ * 书级技能策略：
+ * - `enabled`：书级默认挂入的技能 id（新开会话继承）。
+ * - `disabled`：全局停用的技能 id——不参与推荐排序，`use_skill` 也读不到。
+ *
+ * 两个清单互斥：同一 id 不会同时出现在两边（写入口 `useBookStore` 的两个动作各自保证）。
+ */
+export interface BookSkillPolicy {
+  enabled: string[];
+  disabled: string[];
 }
 
 export interface DocRef {
@@ -113,7 +133,14 @@ export const bookMetaSchema = z
     chapterOrder: z.array(z.string().min(1)),
     activeProfile: z.string().min(1).optional(),
     // 同 activeProfile：老书没这一格照样解析得过（迁移门槛不在这）。
-    workMode: z.enum(WORK_MODES).optional()
+    workMode: z.enum(WORK_MODES).optional(),
+    // 两个清单各自缺省为空：只写了 `enabled` 的半份策略也能解析。
+    skillPolicy: z
+      .object({
+        enabled: z.array(z.string().min(1)).default([]),
+        disabled: z.array(z.string().min(1)).default([])
+      })
+      .optional()
   })
   .superRefine((value, ctx) => {
     const ids = new Set<string>();

@@ -12,6 +12,7 @@ export * from "./agent-profile.js";
 export * from "./text.js";
 export * from "./frontmatter.js";
 export * from "./character-card.js";
+export * from "./story-bible.js";
 export * from "./foreshadow.js";
 export * from "./timeline-check.js";
 export * from "./search-match.js";

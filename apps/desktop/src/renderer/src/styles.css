@@ -26,6 +26,11 @@
 @import "./styles/outline.css";
 @import "./styles/foreshadow.css";
 @import "./styles/cast-check.css";
+/* 本章参考（2026-11-09 W-03）：右栏常驻的只读参考带，占 editor-pane 新加的第 6 行。
+   与 editor-pane.css 的布局规则分开住：这边只管这条带子自己的排版。 */
+@import "./styles/chapter-reference.css";
+/* 交稿体检（2026-11-09 W-04）：挂在参考栏标题行的浮层清单；Teleport 到 body，不占网格行。 */
+@import "./styles/submission-checklist.css";
 @import "./styles/material-panel.css";
 @import "./styles/toast.css";
 @import "./styles/theme-runtime.css";
@@ -41,6 +46,10 @@
    （`html[data-x] .cls` 这一形），平手只由先后裁决 —— 写在任何一个文件里都可能
    排在基规则之前，于是那一档从此不生效而且**界面上完全看不出来**
    （判据见 components/density-tier.test.ts 里那条「顺序」用例）。 */
+/* 液态玻璃材质（2026-11-09）。排在 density 之前：density 最后一条的守卫是「必须在全部
+   @import 之后」（同特异性只由先后裁决），而它只改 `.composer-chip` / `.composer-toolbar`
+   的高度，与本文件那几类浮层表面的背景/边框不相交，排在前面不会输。 */
+@import "./styles/liquid-glass.css";
 @import "./styles/density.css";
 
 :root {

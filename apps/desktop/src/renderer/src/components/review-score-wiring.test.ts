@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { scriptSource, styleSource, templateSource } from "../utils/vue-source-reader";
+import {
+  scriptSource,
+  styleSource,
+  templateSource,
+  typeScriptSource
+} from "../utils/vue-source-reader";
 
 /**
  * 多视角审稿打分的**接线契约**（2026-10-05，批次 4-②）。
@@ -19,34 +24,39 @@ import { scriptSource, styleSource, templateSource } from "../utils/vue-source-r
  */
 const paneScript = scriptSource("components/DocumentPane.vue");
 const paneTpl = templateSource("components/DocumentPane.vue");
+const menuTpl = templateSource("components/ReviewMenu.vue");
 const panelScript = scriptSource("components/ReviewScorePanel.vue");
 const panelTpl = templateSource("components/ReviewScorePanel.vue");
+const reviewTools = typeScriptSource("utils/review-tools.ts");
 const css = styleSource("review.css");
 const stylesCss = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 const icons = readFileSync(new URL("../types/icons.ts", import.meta.url), "utf8");
 
 describe("入口挂在哪", () => {
-  it("右栏头部有这颗按钮，禁用条件是「没开书」而不是永远可点", () => {
-    expect(paneTpl).toContain('aria-label="审稿打分"');
-    expect(paneTpl).toContain('@click="reviewOpen = !reviewOpen"');
-    expect(paneTpl).toContain(':disabled="!book.meta"');
+  // P0-5：这枚检查从平铺收进了「审稿」下拉，入口与判据不变，只是位置变了。
+  it("「审稿」下拉里有这一项，禁用条件是「没开书」而不是永远可点", () => {
+    expect(reviewTools).toContain('id: "review"');
+    expect(reviewTools).toContain('label: "审稿打分"');
+    expect(reviewTools).toContain('icon: "chart"');
+    expect(menuTpl).toContain('@click="choose(tool)"');
+    expect(menuTpl).toContain(':disabled="disabled"');
   });
 
   it("按钮用的图标名真实存在——挂一个不存在的名字会静默渲染成空白", () => {
-    const names = [...paneTpl.matchAll(/<AppIcon name="([a-z-]+)"/g)].map((m) => m[1]);
+    const names = [...(paneTpl + menuTpl).matchAll(/<AppIcon name="([a-z-]+)"/g)].map((m) => m[1]);
     expect(names.length).toBeGreaterThan(0);
     for (const name of names) {
       expect(icons).toContain(`| "${name}"`);
     }
   });
 
-  it("面板挂在 DocumentPane 里，锚点就是那颗按钮", () => {
-    expect(paneScript).toContain("const reviewButton = ref<HTMLElement>();");
+  it("面板挂在 DocumentPane 里，锚点是「审稿」那颗稳定按钮（不是菜单行）", () => {
+    expect(paneScript).toContain("const reviewMenuButton = ref<HTMLElement>();");
     expect(paneScript).toContain(
-      "const reviewAnchor = computed(() => reviewButton.value ?? null);"
+      "const reviewMenuAnchor = computed(() => reviewMenuButton.value ?? null);"
     );
     expect(paneTpl).toContain("<ReviewScorePanel");
-    expect(paneTpl).toContain(':anchor="reviewAnchor"');
+    expect(paneTpl).toContain(':anchor="reviewMenuAnchor"');
   });
 
   it("组件真的 import 了（漏 import 编译器不报、运行时才炸，4-① 踩过）", () => {

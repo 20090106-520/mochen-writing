@@ -12,18 +12,23 @@ import SlopPanel from "./SlopPanel.vue";
 import ReviewScorePanel from "./ReviewScorePanel.vue";
 import ForeshadowPanel from "./ForeshadowPanel.vue";
 import TimelineCheckPanel from "./TimelineCheckPanel.vue";
-import CastCheckButton from "./CastCheckButton.vue";
+import CastCheckPanel from "./CastCheckPanel.vue";
+import ChapterReference from "./ChapterReference.vue";
 import MaterialButton from "./MaterialButton.vue";
+import ReviewMenu from "./ReviewMenu.vue";
 import VolumeOutlinePanel from "./VolumeOutlinePanel.vue";
 import SnippetToolbar from "./SnippetToolbar.vue";
 import SelectionRewriteBar from "./SelectionRewriteBar.vue";
 import FindReplacePanel from "./FindReplacePanel.vue";
 import { useSnippetToolbar } from "../composables/useSnippetToolbar";
-import { imeOwnsKey } from "../utils/slash-commands";
+import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
 import { useEditUndo } from "../composables/useEditUndo";
 import { useBookStore, type EditorViewMode, type RightPaneMode } from "../stores/useBookStore";
 import { useFindReplaceStore } from "../stores/useFindReplaceStore";
 import { useTimelineStore } from "../stores/useTimelineStore";
+import { useCastCheckStore } from "../stores/useCastCheckStore";
+import type { ReviewToolId } from "../utils/review-tools";
+import type { HotkeyMods } from "../utils/hotkeys";
 import ChapterQuota from "./ChapterQuota.vue";
 import { useLayoutStore } from "../stores/layoutStore";
 import { isStructuredKind, useVolumeOutlineStore } from "../stores/useVolumeOutlineStore";
@@ -50,11 +55,9 @@ import { usePreviewDraft } from "../composables/usePreviewDraft";
 import { useTrailingValue } from "../composables/useTrailingValue";
 import { BAND_LABELS, VIEW_TABS } from "../utils/right-pane-labels";
 import { saveStateLabel } from "../utils/save-state";
-
 const emit = defineEmits<{ collapse: [] }>();
 const book = useBookStore();
 const find = useFindReplaceStore();
-
 /** 改稿历史浮层（2026-10-05）：锚点是那颗按钮本身；开关与在途标记都住 store（面板自己那份会与「回滚完要重载正文」各说各话）。 */
 const changeHistoryButton = ref<HTMLElement>();
 const changeHistoryAnchor = computed(() => changeHistoryButton.value ?? null);
@@ -71,34 +74,58 @@ function toggleChangeHistory(): void {
 }
 
 /**
- * 去 AI 味浮层（2026-10-05）。与改稿历史一样锚在按钮自己身上。
- * 开合住组件本地：纯本地查表（判定在 utils/ai-slop），进 store 只是给布尔搬家。
+ * 「审稿」下拉（P0-5）：五枚检查入口收进这一颗按钮（清单住在 utils/review-tools）。
+ * 五块面板共用这颗**常驻**按钮当锚点——菜单行一关就卸载，拿它当锚点面板会跟着消失；
+ * 也正因为锚点同一个，挑一项前先把其余几块收起来，免得精确叠在一起。
  */
-const slopOpen = ref(false);
-const slopButton = ref<HTMLElement>();
-const slopAnchor = computed(() => slopButton.value ?? null);
-
-/** 审稿打分浮层（2026-10-05，批次 4-②）：纯本地统计（判定在 utils/review-score），只在这一颗按钮上开合，故住组件本地。 */
-const reviewOpen = ref(false);
-const reviewButton = ref<HTMLElement>();
-const reviewAnchor = computed(() => reviewButton.value ?? null);
-
-/**
- * 伏笔台账浮层（2026-10-05）。同款锚在自己身上。
- * 开合住在 store：左栏「故事规划 → 伏笔台账」也要能打开它，跨组件不能只活在这里。
- */
-const foreshadowButton = ref<HTMLElement>();
-const foreshadowAnchor = computed(() => foreshadowButton.value ?? null);
-
-/**
- * 时间线核对浮层（2026-10-05，批次 5-①）。锚点同款；开合住 `useTimelineStore`（跨组件），
- * 判定在 contracts/timeline-check，这里只挂载。
- */
+const reviewMenuOpen = ref(false);
+const reviewMenuButton = ref<HTMLElement>();
+const reviewMenuAnchor = computed(() => reviewMenuButton.value ?? null);
+const cast = useCastCheckStore();
+/** 伏笔台账 / 时间线核对的开关住 store（左栏也要开它们）；去 AI 味 / 审稿打分仍住组件本地。 */
 const timeline = useTimelineStore();
-const timelineButton = ref<HTMLElement>();
-const timelineAnchor = computed(() => timelineButton.value ?? null);
+const slopOpen = ref(false);
+const reviewOpen = ref(false);
 
-/** 导出面板的开合住在 layoutStore（App 也读那一份，不另持本地 ref——铁律 6）。 */
+function pickReview(id: ReviewToolId): void {
+  reviewMenuOpen.value = false;
+  slopOpen.value = false;
+  reviewOpen.value = false;
+  timeline.close();
+  cast.close();
+  book.foreshadowsOpen = false;
+  if (id === "slop") {
+    slopOpen.value = true;
+  } else if (id === "review") {
+    reviewOpen.value = true;
+  } else if (id === "timeline") {
+    void timeline.toggle();
+  } else if (id === "cast") {
+    void cast.toggle();
+  } else {
+    void book.loadForeshadows();
+    book.foreshadowsOpen = true;
+  }
+}
+
+/** 焦点还停在触发钮上时按 Esc：这一层自己收菜单，stopPropagation 之后全局裁决看不见它。 */
+function onReviewMenuKeydown(event: KeyboardEvent): void {
+  if (!reviewMenuOpen.value) return;
+  const mods: HotkeyMods = {
+    ctrl: event.ctrlKey,
+    shift: event.shiftKey,
+    alt: event.altKey,
+    meta: event.metaKey
+  };
+  if (popoverOwnsKey(event.key, mods, imeOwnsKey(event))) {
+    event.stopPropagation();
+    reviewMenuOpen.value = false;
+  }
+}
+
+/**
+ * 导出面板的开合住在 layoutStore（App 也读那一份，不另持本地 ref——铁律 6）。
+ */
 const layout = useLayoutStore();
 
 /** 卷纲 → 章纲浮层（2026-10-05，批次 5-②）。锚点同款。只在打开的是分卷/大纲时亮（`isStructuredKind`）——章节正文拆不成章纲，按钮亮了却拆不出来就是骗人。 */
@@ -420,121 +447,80 @@ function switchMode(next: RightPaneMode): void {
       </div>
       <div class="editor-header-actions">
         <!-- 批次 5-⑳：这里原来还有一份保存状态，与底栏 `.editor-save-status` 读同一个值。
-             真机 1440 视口的账：右栏 490，栏头右侧为系统窗控留 146 ⇒ 内容盒 328px；
-             而这一行要 74（保存状态）+ 288（九枚 32px 按钮）+ 45（九个 5px 间隙）= 407px。
-             多出来的 79px 全砸在左端——面包屑被压成 0px 宽度（路径从不显示），
-             右端两枚按钮则画进为窗控预留的那条带里（伏笔台账 / 收起文本内容栏压在最小化、最大化上）。
-             去掉这份重复显示正好腾出 74 + 5 = 79px，与缺口分毫不差；保存状态仍在底栏。
-             `is-dirty` 的告警色一并搬到那一处，见 .editor-footer .editor-save-status.is-dirty。 -->
-        <!-- 改稿历史入口：批准提案留下的「改前备份」只有这里读得回来。
-             没开书时按钮禁用而不是灰着不管——这一格此刻确实没有内容可摆。 -->
-        <button
-          ref="changeHistoryButton"
-          class="icon-button"
-          type="button"
-          aria-label="改稿历史"
-          title="改稿历史：回滚到某一次改稿之前"
-          :disabled="!book.meta"
-          @click="toggleChangeHistory"
-        >
-          <AppIcon name="history" :size="17" />
-        </button>
-        <!-- 去 AI 味：纯本地查表，不用等也不用花 token，所以敢常驻在这一格。
-             扫的是活动文稿的当前草稿（含未保存手改），不是盘上那份。 -->
-        <button
-          ref="slopButton"
-          class="icon-button"
-          type="button"
-          aria-label="去 AI 味"
-          title="去 AI 味：扫一遍这一篇的套话与万能句式"
-          :disabled="!book.meta"
-          @click="slopOpen = !slopOpen"
-        >
-          <AppIcon name="wand" :size="17" />
-        </button>
-        <!-- 审稿打分：纯本地统计四个维度（句长/段落/对白/套话），不调模型。
-             与左栏那三项 AI 检查的分工是硬的：那三项要联网、要等，这颗即时出。 -->
-        <button
-          ref="reviewButton"
-          class="icon-button"
-          type="button"
-          aria-label="审稿打分"
-          title="审稿打分：句长、段落、对白、套话四个维度的本地读数"
-          :disabled="!book.meta"
-          @click="reviewOpen = !reviewOpen"
-        >
-          <AppIcon name="chart" :size="17" />
-        </button>
-        <!-- 时间线核对：把全书 timeline/ 文稿按 date 排一遍、查日期矛盾。纯本地，不调模型。 -->
-        <button
-          ref="timelineButton"
-          class="icon-button"
-          type="button"
-          aria-label="时间线核对"
-          title="时间线核对：按日期排全书的时间线，查前后矛盾"
-          :disabled="!book.meta"
-          @click="void timeline.toggle()"
-        >
-          <AppIcon name="arrow-up" :size="17" />
-        </button>
-        <!-- 人物设定核对：只判人物卡上写明的 aliases / voice / exit，不做语义推断。纯本地。 -->
-        <CastCheckButton />
-        <!-- 素材库：给 AI 读的参考材料，可导入文本、让 AI 整理入库（清单读 book.docs 的 material）。 -->
-        <MaterialButton />
-        <!-- 卷纲 → 章纲：把自由 markdown 拆成字段表，再一键落成大纲文稿。纯本地，不调模型。 -->
-        <button
-          ref="volumeOutlineButton"
-          class="icon-button"
-          type="button"
-          aria-label="卷纲转章纲"
-          title="卷纲转章纲：把这一篇拆成章节字段表，可一键生成大纲文稿"
-          :disabled="!canStructure"
-          @click="void volumeOutline.toggleFor(activeDoc)"
-        >
-          <AppIcon name="list" :size="17" />
-        </button>
-        <!-- 导出：Markdown / 纯文本 / HTML / 打印 / Word / 电子书 / JSON。
-             这颗按钮 2026-10-05 批次 5-② 之前**不存在**——对话框早就渲染在 App 里了，
-             但可见态两处对不上（App 持一个从不被置 true 的本地 ref，layoutStore 的那一格没人调），
-             于是整个导出功能够不着。入口补在这里：导出是**整本书**的事，不是当前这一篇。 -->
-        <button
-          class="icon-button"
-          type="button"
-          aria-label="导出作品"
-          title="导出作品：Markdown / 纯文本 / HTML / Word / 电子书 (.epub) / JSON"
-          :disabled="!book.meta"
-          @click="layout.openExport()"
-        >
-          <AppIcon name="download" :size="17" />
-        </button>
-        <!-- 字数统计：全书字数总览 + 章节分布 + 写作目标进度。
-             与导出同一族：面板早就渲染在 App 里了，可见态两处对不上（App 那个本地 ref
-             零写者），所以一直够不着。入口同样补在右栏头部。 -->
-        <button
-          class="icon-button"
-          type="button"
-          aria-label="字数统计"
-          title="字数统计：全书字数、章节分布与写作目标进度"
-          :disabled="!book.meta"
-          @click="layout.openWordCount()"
-        >
-          <AppIcon name="ledger" :size="17" />
-        </button>
-        <!-- 伏笔台账：一条伏笔一篇文稿，状态在 frontmatter；这张表是全仓唯一能查「还欠什么」的地方。 -->
-        <button
-          ref="foreshadowButton"
-          class="icon-button"
-          type="button"
-          aria-label="伏笔台账"
-          title="伏笔台账：哪条埋了还没收"
-          :disabled="!book.meta"
-          @click="
-            void book.loadForeshadows();
-            book.foreshadowsOpen = !book.foreshadowsOpen;
-          "
-        >
-          <AppIcon name="pin" :size="17" />
-        </button>
+             真机 1440 视口：这一行要 407px、内容盒只有 328px，多出的 79px 把面包屑压成 0 宽、
+             最右两枚按钮画进窗控预留带；去掉这份重复显示正好腾出 79px，保存状态仍在底栏。 -->
+        <!-- P0-5：写作组常驻（改稿历史、素材库、卷纲→章纲、导出、字数统计），检查组五项收进
+             「审稿」下拉。入口一个都没少——1440 视口下右栏内容盒只有 328px，八枚平铺时面包屑已被压成 0 宽。 -->
+        <div class="editor-tool-group" role="group" aria-label="写作工具">
+          <!-- 改稿历史：批准提案留下的改前备份只有这里读得回来。没开书时禁用。 -->
+          <button
+            ref="changeHistoryButton"
+            class="icon-button"
+            type="button"
+            aria-label="改稿历史"
+            title="改稿历史：回滚到某一次改稿之前"
+            :disabled="!book.meta"
+            @click="toggleChangeHistory"
+          >
+            <AppIcon name="history" :size="17" />
+          </button>
+          <!-- 素材库：给 AI 读的参考材料，可导入文本、让 AI 整理入库。 -->
+          <MaterialButton />
+          <!-- 卷纲 → 章纲：把自由 markdown 拆成字段表，再一键落成大纲文稿。纯本地。 -->
+          <button
+            ref="volumeOutlineButton"
+            class="icon-button"
+            type="button"
+            aria-label="卷纲转章纲"
+            title="卷纲转章纲：把这一篇拆成章节字段表，可一键生成大纲文稿"
+            :disabled="!canStructure"
+            @click="void volumeOutline.toggleFor(activeDoc)"
+          >
+            <AppIcon name="list" :size="17" />
+          </button>
+          <!-- 导出是整本书的事：面板住在 App 里，开合读 layoutStore 那一格。 -->
+          <button
+            class="icon-button"
+            type="button"
+            aria-label="导出作品"
+            title="导出作品：Markdown / 纯文本 / HTML / Word / 电子书 (.epub) / JSON"
+            :disabled="!book.meta"
+            @click="layout.openExport()"
+          >
+            <AppIcon name="download" :size="17" />
+          </button>
+          <button
+            class="icon-button"
+            type="button"
+            aria-label="字数统计"
+            title="字数统计：全书字数、章节分布与写作目标进度"
+            :disabled="!book.meta"
+            @click="layout.openWordCount()"
+          >
+            <AppIcon name="ledger" :size="17" />
+          </button>
+        </div>
+        <span class="editor-tools-divider" aria-hidden="true"></span>
+        <div class="editor-tool-group" role="group" aria-label="检查工具">
+          <button
+            ref="reviewMenuButton"
+            class="icon-button review-menu-toggle"
+            type="button"
+            aria-label="审稿工具"
+            aria-haspopup="listbox"
+            :aria-expanded="reviewMenuOpen"
+            title="审稿：去 AI 味、审稿打分、时间线核对、人物设定核对、伏笔台账"
+            :disabled="!book.meta"
+            @click="reviewMenuOpen = !reviewMenuOpen"
+            @keydown="onReviewMenuKeydown"
+          >
+            <AppIcon name="check" :size="17" />
+            <span class="review-menu-caret" aria-hidden="true">
+              <AppIcon name="chevron" :size="9" />
+            </span>
+          </button>
+        </div>
+
         <button
           class="icon-button"
           type="button"
@@ -546,24 +532,41 @@ function switchMode(next: RightPaneMode): void {
       </div>
     </header>
 
+    <ReviewMenu
+      v-if="reviewMenuOpen && reviewMenuAnchor"
+      :anchor="reviewMenuAnchor"
+      @pick="pickReview"
+      @close="reviewMenuOpen = false"
+    />
+
     <ChangeHistoryPanel
       v-if="changeHistoryOpen && changeHistoryAnchor"
       :anchor="changeHistoryAnchor"
       @close="book.closeChangeHistory()"
     />
 
-    <SlopPanel v-if="slopOpen && slopAnchor" :anchor="slopAnchor" @close="slopOpen = false" />
+    <SlopPanel
+      v-if="slopOpen && reviewMenuAnchor"
+      :anchor="reviewMenuAnchor"
+      @close="slopOpen = false"
+    />
 
     <ReviewScorePanel
-      v-if="reviewOpen && reviewAnchor"
-      :anchor="reviewAnchor"
+      v-if="reviewOpen && reviewMenuAnchor"
+      :anchor="reviewMenuAnchor"
       @close="reviewOpen = false"
     />
 
     <TimelineCheckPanel
-      v-if="timeline.open && timelineAnchor"
-      :anchor="timelineAnchor"
+      v-if="timeline.open && reviewMenuAnchor"
+      :anchor="reviewMenuAnchor"
       @close="timeline.close()"
+    />
+
+    <CastCheckPanel
+      v-if="cast.open && reviewMenuAnchor"
+      :anchor="reviewMenuAnchor"
+      @close="cast.close()"
     />
 
     <VolumeOutlinePanel
@@ -573,8 +576,8 @@ function switchMode(next: RightPaneMode): void {
     />
 
     <ForeshadowPanel
-      v-if="book.foreshadowsOpen && foreshadowAnchor"
-      :anchor="foreshadowAnchor"
+      v-if="book.foreshadowsOpen && reviewMenuAnchor"
+      :anchor="reviewMenuAnchor"
       @close="book.foreshadowsOpen = false"
     />
 
@@ -654,6 +657,7 @@ function switchMode(next: RightPaneMode): void {
       </button>
     </div>
 
+    <ChapterReference />
     <div
       class="editor-document"
       :style="editorLayoutStyle"

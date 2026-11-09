@@ -23,12 +23,19 @@ export type ComposerChipId =
   "permission" | "work-mode" | "thinking" | "web-search" | "draft" | "tools" | "model" | "palette";
 
 /**
- * chip 住在卡内 toolbar 的哪一端（#105 对齐 deepwrite 的左右分栏）。
- * 分栏是决策不是样式：它是这张决策表的字段，模板只按它过滤（铁律 6，模板里不许出现第二份顺序表）。
- * #112 照参考图定栏：左端=这一轮怎么跑（模型 / 思考等级 / 联网 / 多稿 / 工具清单 / 命令），
- * 右端=权限档（它挨着发送键，与 deepwrite 的 composer-actions 同一位置）。
+ * chip 住在输入卡工具行的哪一区。
+ * 分区是决策不是样式：它是这张决策表的字段，模板只按它过滤（铁律 6，模板里不许出现第二份顺序表）。
+ *
+ * 2026-11-08 用户裁定（参照 MiniMax Code 输入卡的分区逻辑）：
+ * - `left`  = 首行左端常驻（思考等级 / 联网），这一轮怎么跑的两枚真开关；
+ * - `right` = 首行右端常驻（模型 / 权限档），紧挨麦克风与发送键（2026-11-09 参考图②：
+ *           模型名在发送键左侧，权限档是「能碰多大」的那道闸）；
+ * - `more`  = 收进「更多」弹层（多稿 / 工具清单 / 命令面板 / 工作模式），低频但功能一个不丢。
+ * 判据不是「谁短谁留在首行」，而是「这一轮最常改的留在卡面、其余进一层弹层」。
+ * 折行（2026-10-22 的旧裁定）成本是右组整组掉到第二行、卡片高出一截；收进弹层后
+ * 664（1440 窗口右栏展开）与 840（1600 三栏全开）都一行放得下。
  */
-export type ComposerChipSlot = "left" | "right";
+export type ComposerChipSlot = "left" | "right" | "more";
 
 export interface ComposerChipView {
   id: ComposerChipId;
@@ -97,13 +104,14 @@ function workModeChip(input: { hasBook: boolean; workMode: WorkMode }): Composer
     return {
       id: "work-mode",
       // 刻意**不**借用 permission-chip 的 NO_BOOK_CHIP_LABEL（2026-10-14 真机截图）：
-      // 两枚 chip 同排右端，同一串「未打开作品目录」并排出现，读起来像渲染事故。
+      // 两枚 chip 同在卡上，同一串「未打开作品目录」并排出现，读起来像渲染事故。
       // 各自报各自的控制名，谁也不开口冒充档位名（与 permission-chip 同一口径）。
       text: WORK_MODE_NO_BOOK_LABEL,
       disabled: true,
       title: "还没打开作品目录，工作模式改不了（它是这本书的设置）。",
       active: false,
-      slot: "right",
+      // 低频开关：收进「更多」弹层（2026-11-08 首行常驻 + 更多弹层的分区裁定）。
+      slot: "more",
       icon: "folder",
       caret: false
     };
@@ -119,8 +127,8 @@ function workModeChip(input: { hasBook: boolean; workMode: WorkMode }): Composer
         : `工作模式：${label}。提案经你批准就会写入磁盘。点击切到「${WORK_MODE_LABELS.plan}」先看计划。`,
     // 真开关：计划档是「按下去生效」的两态，aria-pressed 用它才不撒谎。
     active: input.workMode === "plan",
-    // 与权限档同属右端「能碰多大」那一摞（分栏是决策表的字段，铁律 6）。
-    slot: "right",
+    // 与权限档同属「能碰多大」那一摞；但它不是每轮都改 ⇒ 收进「更多」弹层。
+    slot: "more",
     icon: WORK_MODE_CHIP_ICON[input.workMode],
     // 点一下就切换，没有第二层弹层可展开。
     caret: false
@@ -198,7 +206,7 @@ function draftChip(sampleCount: DraftSampleCount): ComposerChipView {
         ? `本轮出站请求带 sampleCount=1：一轮只跑一次生成，与不开这枚开关时一字不差。点击按 ${cycle} 循环。`
         : `本轮出站请求带 sampleCount=${sampleCount}：一轮里静默跑 ${sampleCount} 次生成，再把这几稿一起摆给你挑一稿落盘，token 成本是单稿的 ${sampleCount} 倍。点击按 ${cycle} 循环。`,
     active: sampleCount > 1,
-    slot: "left",
+    slot: "more",
     icon: "copy",
     caret: false
   };
@@ -232,7 +240,8 @@ function modelChip(input: { modelLabel: string; baseURL: string }): ComposerChip
     disabled: false,
     title,
     active: false,
-    slot: "left",
+    // 2026-11-09 参考图②：模型名落在发送键左侧（右端），不再占左端首格。
+    slot: "right",
     icon: "model",
     caret: true
   };
@@ -256,8 +265,10 @@ export function composerChips(input: {
   const permission = permissionChipView(input);
   // 清单跟着联网开关走：关掉那一轮 `web_search` 不出站，枚数也就从 6 变 5（不是手抄的两份数）。
   const roster = toolRoster(input.webSearchEnabled);
-  // 数组序 = 左端从左到右的渲染序（#112 照参考图）：模型 → 思考等级 → 联网 → 多稿 → 工具清单 → / 命令，
-  // 权限档单独落在右端（它挨着发送键，与 deepwrite 的 composer-actions 同一位置）。
+  // 数组序 = 渲染序（#112 / 2026-11-09 参考图②）：首行左端思考等级 → 联网；
+  // 首行右端模型 → 权限档（模型贴麦克风与发送键，权限档是它们前面那道闸）；
+  // 「更多」弹层里多稿 → 工具清单 → / 命令 → 工作模式。
+  // 2026-11-08：后四枚不再平铺，收进「更多」弹层——分区判据见 ComposerChipSlot 的注释。
   return [
     modelChip({ modelLabel: input.modelLabel, baseURL: input.baseURL }),
     thinkingChip(input.thinkingLevel, input.thinkingWire),
@@ -270,7 +281,7 @@ export function composerChips(input: {
       // 枚数从清单本身数出来，不手抄「5」：contracts 加工具时这条提示跟着变，不会指着一份不存在的名单。
       title: `看它带哪 ${roster.length} 枚工具（只读清单，工具由模型自己挑，这里不能单独禁用）`,
       active: false,
-      slot: "left",
+      slot: "more",
       icon: "list",
       caret: true
     },
@@ -282,7 +293,7 @@ export function composerChips(input: {
       // 旧文案宣传的「Ctrl+K 同一个入口」是不存在的键位，反向钉见 composer-chips.test.ts 第二条。
       title: "打开 / 命令菜单（与直接按 / 键同一个入口）",
       active: false,
-      slot: "left",
+      slot: "more",
       icon: "sparkles",
       caret: true
     },
@@ -294,7 +305,8 @@ export function composerChips(input: {
       title: permission.title,
       // 档位没有「按下/未按下」两态，只有三档；aria-pressed 用它只会撒谎，故恒假。
       active: false,
-      // #105：照 deepwrite，权限档是卡内右端「更多」那一摞的事；PermissionMenu 弹层真身跟着挂右端（见 ComposerBox）。
+      // #105：照 deepwrite，权限档是卡内右端「更多 + 发送」那一摞的事；PermissionMenu 弹层真身跟着挂右端（见 ComposerBox）。
+      // 2026-11-08：它不进「更多」弹层——这是「模型能动你的稿子到什么程度」的安全阀，必须常驻可见。
       slot: "right",
       icon: permission.icon,
       caret: true

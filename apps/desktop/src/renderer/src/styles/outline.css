@@ -206,6 +206,82 @@
   font-style: italic;
 }
 
+/* 就地编辑（2026-11 W-02）：值从只读文字变成单行输入框。
+   输入框不带自己的边框——外面那圈格子已经说明了「这里是一项」；只在焦点时给一条内底线，
+   否则六个框各带一圈边，这张表就画成了一张表单。 */
+.outline-field-input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 1px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.outline-field-input::placeholder {
+  color: var(--text-dim, #6b6f76);
+}
+
+.outline-field-input:focus-visible {
+  box-shadow: inset 0 -1px 0 var(--accent, #339cff);
+}
+
+/* 保存这一章：与「生成章纲」同一枚形状，只多一层「有未保存改动才亮」的禁用态。 */
+.outline-save {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #23262b);
+  font: inherit;
+  font-size: 0.785714rem;
+  cursor: pointer;
+}
+
+.outline-save:hover:not(:disabled) {
+  border-color: var(--accent, #339cff);
+  color: var(--accent, #339cff);
+}
+
+.outline-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 按纲起草：这一章真正要动笔的入口，和保存/生成同一枚形状，
+   但用强调色——一眼分得出「往正文走」与「整理文件」。 */
+.outline-draft {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--accent, #339cff);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--accent, #339cff);
+  font: inherit;
+  font-size: 0.785714rem;
+  cursor: pointer;
+}
+
+.outline-draft:hover:not(:disabled) {
+  background: var(--surface-dim, #f0f1f4);
+}
+
+.outline-draft:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .outline-chapter-foot {
   display: flex;
   align-items: center;

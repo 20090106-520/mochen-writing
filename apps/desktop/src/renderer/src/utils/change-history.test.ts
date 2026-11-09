@@ -285,6 +285,16 @@ describe("restoreBackupToDoc", () => {
     expect(result.notice).toContain("先打开那一篇正文");
   });
 
+  // P0-5 收紧这一格：以前只要「随便打开了某一篇」就放行，于是能在 A 篇的标签下
+  // 悄悄把 B 篇回滚掉。现在活动标签必须就是这一篇，否则连读盘都不发。
+  it("活动标签是**另一篇**：同样一次 IO 都不发，话仍是「先打开那一篇」", async () => {
+    const { io, seen } = restoreIo({});
+    const result = await restoreBackupToDoc(io, entry(), "chapters/02-潮信.md");
+    expect(seen).toEqual([]);
+    expect(result.refresh).toBe(false);
+    expect(result.notice).toContain("先打开那一篇正文");
+  });
+
   it("成功：指纹用的是**现读**那一篇的值（不是入参里带的旧的），refresh 才为真", async () => {
     const { io, seen } = restoreIo({ fingerprint: "fp-just-read" });
     const result = await restoreBackupToDoc(io, entry(), entry().docRelPath);

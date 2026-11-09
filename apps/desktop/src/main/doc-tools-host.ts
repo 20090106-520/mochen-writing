@@ -1,16 +1,21 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
-import { assertSafeRelPath, makeFingerprint, readDocFile } from "@mochen/fs-store";
+import { assertSafeRelPath, kindOfRelPath, makeFingerprint, readDocFile } from "@mochen/fs-store";
 import type {
+  AgentProfile,
   AgentToolName,
+  BookKind,
   DocRef,
   EditProposal,
   PatchMode,
   ProposalSource,
-  SkillRef
+  SkillRef,
+  WriteScope
 } from "@mochen/contracts";
 import {
   BOOK_KINDS,
+  defaultProfile,
+  writeScopeAllows,
   fuzzyEligible,
   fuzzyFindInLine,
   aiFlavorGate,
@@ -40,6 +45,102 @@ function capOf(label: string): number {
   return (AI_FLAVOR_STRUCTURE_MIN_COUNT[label] ?? 0) - 1;
 }
 
+/** 这一轮档案：生产装配必传；缺省只为兼容既有测试宿主（P0-1）。 */
+function profileOf(context: ToolContext): AgentProfile {
+  return context.profile ?? defaultProfile();
+}
+
+function scopeText(scope: WriteScope): string {
+  if (scope.kind === "none") return "只出提案、不直接写正文";
+  if (scope.kind === "current-chapter")
+    return scope.appendOnly ? "仅当前章、且只能文末追加" : "仅当前章";
+  return `仅 ${scope.kinds.join("、")} 类文稿`;
+}
+
+/**
+ * 写入范围闸（P0-1）：落在 `profile.writeScope` 上，不再只靠提示词自觉。
+ *
+ * - 审稿档案（`none`）：`write_doc` 一律拒；`propose_patch` 是它唯一的出口，放行。
+ * - 当前章档案：只有「目标 = 当前文稿且确实是章」才算 `current-chapter`；别章一律拒。
+ *   没选定当前文稿（unbound）时 `propose_patch` 放行、由批准那一步判，`write_doc` 仍拒（见下）。
+ * - 分类档案：目标类别必须在 `kinds` 里。
+ *
+ * 新稿不在 `docs()` 里，按路径推断类别（`kindOfRelPath`，与 scanBook 同一份目录判据）。
+ */
+function scopeDenial(
+  name: "propose_patch" | "write_doc",
+  doc: string,
+  context: ToolContext,
+  docs: readonly DocRef[]
+): string | null {
+  const profile = profileOf(context);
+  const scope = profile.writeScope;
+  if (scope.kind === "none")
+    return name === "write_doc"
+      ? `「${profile.name}」只出批注式提案，不直接改写文稿。这次 write_doc 已被拒，文件未改动；要落盘请换成主笔/续写档案，或由用户在提案卡上批准。`
+      : null;
+
+  const kind: BookKind | null =
+    docs.find((item) => item.relPath === doc)?.kind ?? kindOfRelPath(doc);
+  if (kind === null)
+    return `无法判断 ${doc} 属于哪一类文稿（目录不在书稿结构里），这次${
+      name === "write_doc" ? "写入" : "提案"
+    }没有生成，文件未改动。`;
+
+  const target =
+    scope.kind === "current-chapter" && kind === "chapter" && doc === context.docRelPath
+      ? ("current-chapter" as const)
+      : kind;
+  if (writeScopeAllows(scope, target)) return null;
+  // 没选定当前章（unbound 线程）时不拦提案：这时候「当前章」根本不存在，写盘能不能成由批准那一步
+  // 判定（checkWritePermission 会说「尚未选定当前章」，全开档则按提案点名的篇落盘）。
+  // 拦在这里会把既有流程锁死——提案都出不来，用户连拒绝的机会都没有。
+  // write_doc 不走这条：它是直接写盘，没有批准那一步可兜。
+  if (name === "propose_patch" && scope.kind === "current-chapter" && context.docRelPath === null)
+    return null;
+  return `「${profile.name}」的写入范围是${scopeText(scope)}，${doc} 不在范围内；这次${
+    name === "write_doc" ? "写入" : "提案"
+  }没有生成，文件未改动。`;
+}
+
+function isAppendOnly(context: ToolContext): boolean {
+  const scope = profileOf(context).writeScope;
+  return scope.kind === "current-chapter" && scope.appendOnly === true;
+}
+
+/**
+ * 文末追加闸（P0-1）：续写档案只能把新文字接在已有正文后面。
+ *
+ * `write_doc` 判「新全文是否以旧全文开头」；`propose_patch` 判「anchor 是否落在文末最后一段，
+ * 且 replace 以 anchor 开头」——两条都等价于净追加，改前文/整篇重写一律拒。
+ * 空文稿（新章）不设限。
+ */
+function appendOnlyDenialForWrite(content: string, body: string | null): string | null {
+  if (body === null || body === "") return null;
+  if (content.startsWith(body)) return null;
+  return "续写档案只能把新文字接在文末：整篇替换会抹掉已有正文，这次 write_doc 已被拒，文件未改动。要重写请切到「墨宸 · 主笔」档案。";
+}
+
+function appendOnlyDenialForPatch(
+  mode: PatchMode,
+  anchor: string,
+  replace: string,
+  body: string | null
+): string | null {
+  if (body === null || body === "") return null;
+  if (mode === "doc-overwrite") {
+    if (replace.startsWith(body)) return null;
+    return "续写档案只能把新文字接在文末：整篇替换会抹掉已有正文，这次提案没有生成，文件未改动。要重写请切到「墨宸 · 主笔」档案。";
+  }
+  if (anchor === "")
+    return "续写档案要在文末追加，必须在 anchor 里给出文末最后一段原文，并把新内容接在它后面；这次提案没有生成，文件未改动。";
+  if (!body.trimEnd().endsWith(anchor.trimEnd()))
+    return "续写档案只允许改文末：anchor 必须落在当前文稿的最后一段，这次提案没有生成，文件未改动。要改前文请切到「墨宸 · 主笔」档案。";
+  if (!replace.startsWith(anchor))
+    return "续写档案只能追加：replace 必须以 anchor 开头（保留原文，只在后面接新内容）；这次提案没有生成，文件未改动。";
+  return null;
+}
+
 export interface DocToolHostDeps {
   root(): string | null;
   docs(): DocRef[];
@@ -60,6 +161,12 @@ export interface DocToolHostDeps {
    */
   listSkills?: (() => Promise<SkillRef[]>) | undefined;
   readSkill?: ((id: string) => Promise<{ title: string; text: string }>) | undefined;
+  /**
+   * 本书是否已停用这条技能（P0-4）。**显式读取也要过这道闸**：
+   * 技能 id 会留在会话历史里，模型照着旧 id 调 use_skill 是常态；
+   * 只挡清单不挡正文，停用开关就等于没关。缺省 ⇒ 不停用任何技能。
+   */
+  skillDisabled?: ((id: string) => boolean) | undefined;
 }
 
 function str(args: Record<string, unknown>, key: string): string {
@@ -344,7 +451,10 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
         const wanted = str(args, "skill").trim();
         if (wanted === "") {
           if (deps.listSkills === undefined) return deny("技能库这一轮没接上，列不出来。");
-          const refs = await deps.listSkills();
+          // 停用的连清单都不出现（P0-4）：模型看不见它，就不会去挂/去读。
+          const refs = (await deps.listSkills()).filter(
+            (ref) => deps.skillDisabled?.(ref.id) !== true
+          );
           if (refs.length === 0) return { ok: true, text: "（技能库里还没有技能）", proposals: [] };
           return {
             ok: true,
@@ -355,6 +465,10 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
           };
         }
         if (deps.readSkill === undefined) return deny("技能库这一轮没接上，读不到技能正文。");
+        if (deps.skillDisabled?.(wanted) === true)
+          return deny(
+            `技能「${wanted}」在这本书里已停用，正文不读、也不带进这一轮上下文。要恢复就到技能库把它启用。`
+          );
         const one = await deps.readSkill(wanted).catch(() => null);
         if (one === null)
           return deny(
@@ -525,12 +639,20 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
         if (deps.root() === null) return deny("尚未打开作品目录。");
 
         const body = await text(doc);
+        // P0-1：档案写入范围。权限档管「能不能写盘」，这里管「这一轮能写哪些文稿」。
+        const scopeBlock = scopeDenial(name, doc, deps.context(), deps.docs());
+        if (scopeBlock !== null) return deny(scopeBlock);
         const fingerprint = makeFingerprint(body ?? "");
         const source: ProposalSource =
           str(args, "source") === "text-block" ? "text-block" : "tool-call";
 
         if (name === "write_doc") {
           const content = str(args, "content");
+          // P0-1：续写档案只允许净追加（新全文必须以旧全文开头）。
+          if (isAppendOnly(deps.context())) {
+            const appendBlock = appendOnlyDenialForWrite(content, body);
+            if (appendBlock !== null) return deny(appendBlock);
+          }
           const applied = applyPatch(body ?? "", "doc-overwrite", "", content);
           if (applied.status !== "unique") return deny(applied.message);
           if (body !== null && applied.content === body)
@@ -562,6 +684,11 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
           str(args, "mode") === "doc-overwrite" ? "doc-overwrite" : "anchor-replace";
         const anchor = str(args, "anchor");
         const replace = str(args, "replace");
+        // P0-1：续写档案只允许在文末最后一段之后接新内容。
+        if (isAppendOnly(deps.context())) {
+          const appendBlock = appendOnlyDenialForPatch(mode, anchor, replace, body);
+          if (appendBlock !== null) return deny(appendBlock);
+        }
         const applied = applyPatch(body ?? "", mode, anchor, replace);
         if (applied.status !== "unique")
           return deny(`${applied.message}（提案没有生成，文件未改动。）`);

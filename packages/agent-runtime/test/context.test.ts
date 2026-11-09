@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { findProfile } from "@mochen/contracts";
+import { findProfile, type BibleEntry } from "@mochen/contracts";
 import {
+  BIBLE_TOTAL_CHARS,
   PINNED_SKILL_CHARS,
   PRIOR_CHAPTER_TAIL_CHARS,
   assembleContext,
@@ -48,6 +49,9 @@ const base = {
   // pinnedExtra 会被 Partial<typeof base> 判成「不认识的字段」——vitest 不做类型检查，
   // 只有 tsc 那一关抓得到。
   pinnedExtra: [] as { relPath: string; title: string; text: string }[],
+  // 故事圣经（W-01）同理：类型先声明，哪怕默认值就是空表。
+  bible: [] as BibleEntry[],
+  bibleCorpus: "",
   chapterOrder: [
     "chapters/01-开篇.md",
     "chapters/02-暗流.md",
@@ -176,11 +180,11 @@ describe("assembleContext · 装什么由 profile.context 决定", () => {
       { relPath: "global:节奏", title: "节奏", text: "一章一节拍。" }
     ];
 
-    it("技能不在书内文稿树上，但挂了就一定装，且不受 scope 限制", () => {
+    it("技能不在书内文稿树上，但挂了就一定装，且不受 scope 限制（单独成「技能」一类）", () => {
       // world 档案的 scope 里一条技能也没有，照装不误
       const result = assemble("world", { pinned: ["book:伏笔"], pinnedExtra: SKILLS });
       const hit = result.items.find((i) => i.relPath === "book:伏笔");
-      expect(hit?.kind).toBe("pinned");
+      expect(hit?.kind).toBe("skill");
       expect(hit?.text).toBe("先埋线，三百字后收。");
     });
 
@@ -251,11 +255,11 @@ describe("assembleContext · 装什么由 profile.context 决定", () => {
       expect(withTwo.approxTokens).toBeGreaterThan(bare.approxTokens);
     });
 
-    it("给模型看的提示词块里，技能与书内挂入同形（都走 pinned 那一类）", () => {
+    it("给模型看的提示词块里，技能单独标「技能」而不是混进「挂入」", () => {
       const block = renderContextBlock(
         assemble("world", { pinned: ["book:伏笔"], pinnedExtra: SKILLS })
       );
-      expect(block).toContain("【挂入·伏笔】");
+      expect(block).toContain("【技能·伏笔】");
       expect(block).toContain("先埋线，三百字后收。");
     });
   });
@@ -282,6 +286,130 @@ describe("assembleContext · 装什么由 profile.context 决定", () => {
     const result = assemble("lead-writer");
     expect(result.chars).toBe(result.items.reduce((s, i) => s + i.chars, 0));
     expect(result.approxTokens).toBe(estimateTokens(result.items.map((i) => i.text).join("\n")));
+  });
+});
+
+describe("故事圣经进入上下文（2026-11-08 W-01）", () => {
+  const makeEntry = (
+    over: Partial<BibleEntry> & Pick<BibleEntry, "id" | "type" | "title">
+  ): BibleEntry => ({
+    content: "",
+    createdAt: 0,
+    updatedAt: 0,
+    tags: [],
+    ...over
+  });
+
+  it("正常注入：相关人物带身份/别名/正文，kind 归在「设定」这一族", () => {
+    const 林夜 = makeEntry({
+      id: "c1",
+      type: "character",
+      title: "林夜",
+      role: "主角",
+      aliases: ["夜哥"],
+      content: "码头守夜人，左手有旧伤。",
+      tags: ["主线"]
+    });
+    const result = assemble("lead-writer", {
+      bible: [林夜],
+      // 正文里只出现别名——别名命中同样算「本章相关」
+      bibleCorpus: "夜哥把灯挑亮。"
+    });
+    const item = result.items.find((one) => one.relPath === "bible:character:c1");
+    expect(item).toBeDefined();
+    expect(item?.kind).toBe("world");
+    expect(item?.title).toBe("林夜");
+    expect(item?.text).toContain("人物：林夜");
+    expect(item?.text).toContain("身份：主角");
+    expect(item?.text).toContain("别名：夜哥");
+    expect(item?.text).toContain("设定：码头守夜人，左手有旧伤。");
+    // 一条就装下了，不该报「未完整」
+    expect(result.bibleOmitted).toBeUndefined();
+  });
+
+  it("按相关性筛选：本章提到的优先占额度，没提到的低重要性被舍弃", () => {
+    // 每条正文不同：同文会被去重（见下面两条用例），这里要测的是「相关性」不是「去重」
+    const long = (title: string) => `${title}的设定：${"设".repeat(700)}`;
+    const matched = [
+      makeEntry({ id: "c1", type: "character", title: "林夜", content: long("林夜") }),
+      makeEntry({ id: "l1", type: "location", title: "码头", content: long("码头") }),
+      makeEntry({ id: "c2", type: "character", title: "苏晚", content: long("苏晚") })
+    ];
+    const unused = makeEntry({
+      id: "c3",
+      type: "character",
+      title: "沈砚",
+      content: `沈砚的设定：${"冷".repeat(300)}`
+    });
+    const result = assemble("lead-writer", {
+      bible: [...matched, unused],
+      bibleCorpus: "林夜在码头遇见苏晚。"
+    });
+    const biblePaths = paths(result.items).filter((p) => p.startsWith("bible:"));
+    expect(biblePaths).toContain("bible:character:c1");
+    expect(biblePaths).toContain("bible:location:l1");
+    expect(biblePaths).toContain("bible:character:c2");
+    // 额度被「本章真要用的」占满，没提到的低重要性条目被舍弃
+    expect(biblePaths).not.toContain("bible:character:c3");
+    expect(result.bibleOmitted).toBe(1);
+  });
+
+  it("超预算舍弃：装不下的整条跳过，不半句截断，并留下「未完整」提示", () => {
+    const entries = ["甲", "乙", "丙", "丁", "戊"].map((title, index) =>
+      makeEntry({
+        id: `c${index}`,
+        type: "character",
+        title,
+        content: `${title}的设定：${"设".repeat(700)}`
+      })
+    );
+    const result = assemble("lead-writer", {
+      bible: entries,
+      bibleCorpus: "甲、乙、丙、丁、戊都在。"
+    });
+    const bibleItems = result.items.filter((item) => item.relPath.startsWith("bible:"));
+    expect(bibleItems.length).toBe(3);
+    expect(bibleItems.every((item) => !item.text.endsWith("…"))).toBe(true);
+    expect(bibleItems.reduce((sum, item) => sum + item.chars, 0)).toBeLessThanOrEqual(
+      BIBLE_TOTAL_CHARS
+    );
+    expect(result.bibleOmitted).toBe(2);
+    const block = renderContextBlock(result);
+    expect(block).toContain("【设定库·未完整】");
+    expect(block).toContain("另有 2 条设定");
+  });
+
+  it("与已引用文稿去重：同名人物卡已经装进来，设定不重复说第二遍", () => {
+    const result = assemble("lead-writer", {
+      contents: {
+        ...CONTENTS,
+        "chapters/03-深渊之下.md": "李深把刀放下了。第三章正文。"
+      },
+      bible: [
+        makeEntry({
+          id: "c-dup",
+          type: "character",
+          title: "李深",
+          content: "另一段足够长的设定，不该在人物卡之外再讲一次。"
+        })
+      ],
+      bibleCorpus: "李深把刀放下了。"
+    });
+    // 人物卡在，设定这一条被去重掉；去重不是「没带全」，不该报未完整
+    expect(paths(result.items)).toContain("characters/李深.md");
+    expect(paths(result.items)).not.toContain("bible:character:c-dup");
+    expect(result.bibleOmitted).toBeUndefined();
+  });
+
+  it("与已引用文稿去重：设定正文与本章正文同文时不再注入", () => {
+    const same = "李深是闸口的守夜人，左手有一道旧伤，夜里从不点灯，只靠一盏旧煤油灯认路。";
+    const result = assemble("lead-writer", {
+      contents: { ...CONTENTS, "chapters/03-深渊之下.md": same },
+      bible: [makeEntry({ id: "t1", type: "timeline", title: "旧事", content: same })],
+      bibleCorpus: same
+    });
+    expect(paths(result.items)).not.toContain("bible:timeline:t1");
+    expect(result.bibleOmitted).toBeUndefined();
   });
 });
 

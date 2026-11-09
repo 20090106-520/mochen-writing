@@ -332,6 +332,39 @@ describe("回滚", () => {
   });
 });
 
+/**
+ * 一键撤销（P0-5）。
+ *
+ * 行为上与回滚是同一条路（`restoreBackupToDoc`），差别只在开头：撤销那一篇如果没摆在右栏，
+ * 先把那一篇打开再回写——否则「在 A 篇的标签下悄悄把 B 篇改掉」正是这次收紧要挡住的事。
+ */
+describe("一键撤销", () => {
+  it("撤销已经开在右栏的那一篇：不重复打开，回写与提示和回滚一致", async () => {
+    const store = await openedBook();
+    readDoc.mockClear();
+    await store.undoChange(entry);
+    expect(store.activeDocTab).toBe(DOC);
+    expect(readDoc).toHaveBeenCalledWith(DOC);
+    expect(restoreChange).toHaveBeenCalledWith(entry.backupRelPath, "fp-broken");
+    expect(store.notice).toContain("已回滚");
+  });
+
+  it("撤销另一篇：先把那一篇打开，再做指纹与回写（不会改错文稿）", async () => {
+    const store = await openedBook();
+    const other: ChangeEntry = {
+      ...entry,
+      docRelPath: "chapters/02-b.md",
+      backupRelPath: `.mochen/changes/2026-10-05T12-34-31-168Z/chapters/02-b.md.bak`
+    };
+    await store.undoChange(other);
+    // 打开动作把指针换到那一篇，后面的回滚守卫才肯放行。
+    expect(store.activeDocTab).toBe("chapters/02-b.md");
+    expect(readDoc).toHaveBeenCalledWith("chapters/02-b.md");
+    expect(restoreChange).toHaveBeenCalledWith(other.backupRelPath, "fp-broken");
+    expect(store.notice).toContain("已回滚");
+  });
+});
+
 describe("看改前", () => {
   it("读回的内容挂在选中那一条上", async () => {
     const store = await openedBook();

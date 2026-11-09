@@ -1,5 +1,6 @@
-import type { AgentProfile, ContextKind, ContextScope } from "@mochen/contracts";
+import type { AgentProfile, BibleEntry, ContextKind, ContextScope } from "@mochen/contracts";
 import {
+  CAST_MIN_NAME,
   castMention,
   castNames,
   contextKindLabel,
@@ -49,6 +50,20 @@ export interface AssembleContextInput {
   pinnedExtra?: readonly { relPath: string; title: string; text: string }[];
   /** 章节先后顺序；不给就按 docs 的出现顺序。 */
   chapterOrder?: readonly string[];
+  /**
+   * 故事圣经（`.mochen/data/story-bible.json`）的条目（2026-11-08 W-01）。
+   *
+   * 主进程读好、并按 contracts 的 `normalizeBibleEntries` 归好形状再传进来：
+   * 文件缺失 / JSON 损坏 / 形状不认一律传空表。装配层不碰盘，也不会因为设定坏掉而抛错。
+   */
+  bible?: readonly BibleEntry[];
+  /**
+   * 判定「这条设定与本章有没有关系」的语料：当前章正文 + 章纲/大纲。
+   *
+   * 缺省时退回当前章正文（`contents[activeDocRelPath]`）；再缺就是空串——此时只按
+   * importance 降级选取。语料只用于判名，不会成为上下文条目，所以不吃上下文额度。
+   */
+  bibleCorpus?: string;
 }
 
 export interface AssembledContext {
@@ -69,6 +84,11 @@ export interface AssembledContext {
    * 只含 voice / exit 有一项非空的卡；可选字段，老夹具不给就是空清单。
    */
   characterNotes?: CharacterNote[];
+  /**
+   * 因额度或相关性没装进来的设定条数（2026-11-08 W-01）：0 或 undefined 就不出「未完整」提示。
+   * 提示词装配据此补一句「还有 N 条没载入」，让模型知道信息不全、不要凭印象补设定。
+   */
+  bibleOmitted?: number;
 }
 
 /** 一张已装进上下文的角色卡上的约束。 */
@@ -125,27 +145,97 @@ function body(text: string): string {
 }
 
 /**
- * 挂入技能那份正文给模型留多少字（2026-10-07 真机逮到的）。
+ * 挂入技能在上下文包里**最多占多少字**（P0-2 起装的是清单行，不是正文）。
  *
- * 【原来是多少、为什么是错的】技能走的是 `clip(text, 800)`——那是**书内文稿摘录**的额度：
- * 一份稿子塞进上下文只取八百字是合理的。技能不是稿子，它是一套**方法**，
- * 而方法被砍掉尾巴等于让模型照着一份残缺的操作步骤干活，还没有一句「以下被截断」。
+ * 正文由 `use_skill` 按需读，所以这个额度正常碰不到；保留它是防一份异常夸张的
+ * SKILL.md 描述（把 frontmatter description 写成一篇长文）把整轮提示词摊薄。
  *
- * 真机证据：市场首批五条正文分别是 981 / 1000 / 723 / 690 / 843 字（整份 SKILL.md），
- * 剥掉 frontmatter 后 853 / 872 / 723 / 690 / 843。第一条与第五条都超过 800，
- * 于是**用户装上市场技能后，方法正好在结尾处被截掉**——
- * 而占用条安静地报 801（800 + 省略号），看上去像「装上了」。
- *
- * 【为什么是 4000 而不是不限】仍要一个上限：技能目录是用户可写的，
- * 一份十万字的 SKILL.md 不该把整轮上下文吃光。4000 足够装下任何一份正经方法，
- * 又比当前章的全量（full 时无上限）小一个量级。真到顶了仍然是**截断**而不是丢弃，
- * 用户至少还拿到前四千字。
+ * 历史：P0-2 之前这里装整份技能正文，4000 是为了不让方法在结尾处被 800 字的口径截掉；
+ * 现在技能只进清单，正文读取仍走 `readSkill`，不受这里的上限影响。
  */
 export const PINNED_SKILL_CHARS = 4000;
 
 function clip(text: string, max: number): string {
   const trimmed = text.trim();
   return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}…`;
+}
+
+/**
+ * 故事圣经（W-01）的额度：单条 800 字与世界观文稿同一档，整族 2400 字（约三条）。
+ *
+ * 设定面板不是正文——大书几十条人物/地点，整份塞进来会挤掉本章正文与前情，
+ * 所以这里和文稿一样按额度截断，只是多了一条「与本章相关」的取舍。
+ */
+export const BIBLE_ENTRY_CHARS = 800;
+export const BIBLE_TOTAL_CHARS = 2400;
+
+const BIBLE_TYPE_ORDER: Record<BibleEntry["type"], number> = {
+  character: 0,
+  location: 1,
+  timeline: 2
+};
+const BIBLE_TYPE_LABEL: Record<BibleEntry["type"], string> = {
+  character: "人物",
+  location: "地点",
+  timeline: "事件"
+};
+
+/**
+ * 取舍档位（2026-11-08 W-01）。超额度时**严格按这个顺序**舍弃：
+ * ① 标题/别名在本章正文或章纲里出现过（本章真要用的）；
+ * ② 本章没提到、但 importance=high（保住主线设定）；
+ * ③ 本章没提到、importance=medium；
+ * ④ 其余（low / 没填）。
+ *
+ * 同档内先人物、再地点、再事件（人物最容易写成另一个人）；
+ * 再按更新时间新的优先，最后按 id，保证同一份数据每次装出来的顺序都一样。
+ */
+function bibleTier(mentioned: boolean, importance: BibleEntry["importance"]): number {
+  if (mentioned) return 0;
+  if (importance === "high") return 1;
+  if (importance === "medium") return 2;
+  return 3;
+}
+
+/** 去空白后再比：两份文本只差换行/缩进时，语义上就是重复。 */
+function collapse(text: string): string {
+  return text.replace(/\s+/g, "");
+}
+
+/**
+ * 这条设定和本章有没有关系：标题（人物另加别名）出现在语料里。
+ * 名字短于 `CAST_MIN_NAME` 的不判——单字名在整章正文里必然到处命中，等于全装。
+ */
+function bibleMentioned(entry: BibleEntry, corpus: string): boolean {
+  if (corpus === "") return false;
+  const names =
+    entry.type === "character" ? [entry.title, ...(entry.aliases ?? [])] : [entry.title];
+  for (const raw of names) {
+    const name = raw.trim();
+    if ([...name].length < CAST_MIN_NAME) continue;
+    if (corpus.includes(name)) return true;
+  }
+  return false;
+}
+
+/**
+ * 一条设定变成给模型看的文字。只写「人物：林夜」而不写身份/别名，
+ * 模型就抓不到这个名字在本章该怎么用；限定只带该类型真有的那几格，不把别的类型的空字段念出来。
+ */
+function bibleEntryText(entry: BibleEntry): string {
+  const head = `${BIBLE_TYPE_LABEL[entry.type]}：${entry.title.trim() || "未命名"}`;
+  const extras: string[] = [];
+  if (entry.role !== undefined) extras.push(`身份：${entry.role}`);
+  if (entry.aliases !== undefined && entry.aliases.length > 0)
+    extras.push(`别名：${entry.aliases.join("、")}`);
+  if (entry.type === "location" && entry.parentLocation !== undefined)
+    extras.push(`位于：${entry.parentLocation}`);
+  if (entry.type === "timeline" && entry.eventDate !== undefined)
+    extras.push(`时间：${entry.eventDate}`);
+  if (entry.tags.length > 0) extras.push(`标签：${entry.tags.join("、")}`);
+  const content = entry.content.trim();
+  if (content !== "") extras.push(`设定：${content}`);
+  return [head, ...extras].join("；");
 }
 
 function makeItem(
@@ -263,7 +353,91 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
     }
   }
 
-  // ⑧ 用户显式挂入的（@ 引用 / 加入当前上下文 / 技能）—— 挂了就一定装，不看 scope
+  // ⑧ 故事圣经（2026-11-08 W-01）：设定面板里的条目过去从不进上下文，作者写「林夜」，
+  //    模型仍当新角色。这里**不看 profile.context.worldbuilding**——主笔档案通常不装世界观文稿，
+  //    而"说了不记得"正是主笔最要命的毛病；设定库只按本章相关性进，额度也单独限死。
+  //
+  //    去重两条：
+  //    ① 同名文稿已经装进来（人物卡 / 世界观文稿），同名的设定不再说第二遍；
+  //    ② 设定正文与已装条目同文（去空白后包含关系），也不再说第二遍。
+  //
+  //    超额度时按 `bibleTier` 的档位舍弃：本章提到的 → high → medium → 其余；
+  //    同档先人物、再地点、再事件。整条装不下就跳过（继续看后面更短的），
+  //    不做半句截断——半个设定比没有更误导。没装进去的条数记进 `bibleOmitted`，
+  //    提示词装配会补一句「信息没带全」，让模型别凭印象补设定。
+  const bible = input.bible ?? [];
+  let bibleOmitted = 0;
+  if (bible.length > 0) {
+    const corpus = input.bibleCorpus ?? (active === null ? "" : textOf(active));
+    const characterDocTitles = new Set(
+      items.filter((item) => item.kind === "character").map((item) => item.title.trim())
+    );
+    const worldDocTitles = new Set(
+      items.filter((item) => item.kind === "world").map((item) => item.title.trim())
+    );
+    const occupiedTexts = items
+      .map((item) => collapse(item.text))
+      .filter((text) => text.length >= 24);
+    const seenInBible = new Set<string>();
+    let deduped = 0;
+    let loaded = 0;
+    let budget = BIBLE_TOTAL_CHARS;
+    const ranked = bible
+      .filter((entry) => !entry.archived)
+      .filter((entry) => entry.title.trim() !== "" || entry.content.trim() !== "")
+      .map((entry) => ({ entry, mentioned: bibleMentioned(entry, corpus) }))
+      .sort((a, b) => {
+        const tier =
+          bibleTier(a.mentioned, a.entry.importance) - bibleTier(b.mentioned, b.entry.importance);
+        if (tier !== 0) return tier;
+        const type = BIBLE_TYPE_ORDER[a.entry.type] - BIBLE_TYPE_ORDER[b.entry.type];
+        if (type !== 0) return type;
+        if (a.entry.updatedAt !== b.entry.updatedAt) return b.entry.updatedAt - a.entry.updatedAt;
+        return a.entry.id.localeCompare(b.entry.id);
+      });
+    for (const { entry } of ranked) {
+      const title = entry.title.trim();
+      const key = `${entry.type}:${title}`;
+      // 同一份 JSON 里同类型同名重复（手工合并过的档）只留排序靠前的一条
+      if (seenInBible.has(key)) {
+        deduped += 1;
+        continue;
+      }
+      seenInBible.add(key);
+      // ① 同名文稿已经装进来：人物卡写过的角色、世界观文稿写过的地点/事件，不重复注入
+      if (
+        (entry.type === "character" && characterDocTitles.has(title)) ||
+        (entry.type !== "character" && worldDocTitles.has(title))
+      ) {
+        deduped += 1;
+        continue;
+      }
+      const text = bibleEntryText(entry);
+      const entryBody = collapse(entry.content);
+      // ② 正文与已装条目同文（只比 24 字以上的，避免"他笑了"这种短句误杀）
+      if (
+        text === "" ||
+        (entryBody.length >= 24 && occupiedTexts.some((known) => known.includes(entryBody)))
+      ) {
+        deduped += 1;
+        continue;
+      }
+      const relPath = `bible:${entry.type}:${entry.id}`;
+      if (seen.has(relPath)) {
+        deduped += 1;
+        continue;
+      }
+      const clipped = clip(text, BIBLE_ENTRY_CHARS);
+      if (clipped.length > budget) continue;
+      budget -= clipped.length;
+      push(makeItem("world", { relPath, title }, clipped, false));
+      occupiedTexts.push(collapse(clipped));
+      loaded += 1;
+    }
+    bibleOmitted = Math.max(0, ranked.length - deduped - loaded);
+  }
+
+  // ⑨ 用户显式挂入的（@ 引用 / 加入当前上下文 / 技能）—— 挂了就一定装，不看 scope
   //    挂入物分两类：书内文稿（在 docByPath 里）与书外的技能（不在）。先查书内，
   //    查不到再查 pinnedExtra——同一条通路，技能不是特例分支，只是「正文不在这本书的树上」。
   for (const relPath of input.pinned ?? []) {
@@ -276,11 +450,12 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
     }
     const extra = pinnedExtraOf.get(relPath);
     if (!extra) continue;
-    // 与书内挂入同形：先剥 frontmatter（`name:`/`stage:` 是元数据，不是给人读的方法），
-    // 再按**技能**的额度截断，而不是书内摘录那 800 字。
+    // P0-2：`pinnedExtra` 现在装的是**技能清单**（名称/用途/何时用），不是技能正文；
+    // 正文由 `use_skill` 按 id 按需读取。kind="skill" 让占用条把这一格单独计量，
+    // 不再和 @ 挂入的文稿混在同一行。clip 仍是安全上限：清单短句永远碰不到它。
     push(
       makeItem(
-        "pinned",
+        "skill",
         { relPath, title: extra.title },
         clip(body(extra.text), PINNED_SKILL_CHARS),
         false
@@ -304,7 +479,9 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
     chars,
     approxTokens: estimateTokens(items.map((i) => i.text).join("\n")),
     openings,
-    characterNotes: notes
+    characterNotes: notes,
+    // exactOptionalPropertyTypes 下不能显式写 undefined：没省略项就干脆不出这格
+    ...(bibleOmitted > 0 ? { bibleOmitted } : {})
   };
 }
 
@@ -358,6 +535,14 @@ export function renderContextBlock(assembled: AssembledContext): string {
   const lines: string[] = [];
   for (const item of assembled.items) {
     lines.push(`【${contextKindLabel(item.kind, item.active)}·${item.title}】`, item.text);
+  }
+  // 设定没带全时明说（W-01）：模型不会因为少了几条设定就停下，反而会顺手把缺的地方编圆。
+  // 这句话是给模型看的提示，不是给用户看的——用户侧由占用条显示"设定"这一族占了多少。
+  if ((assembled.bibleOmitted ?? 0) > 0) {
+    lines.push(
+      `【设定库·未完整】另有 ${assembled.bibleOmitted} 条设定因额度或与本章无关没有载入；` +
+        `写到这些人物/地点/事件时先向用户确认，不要凭印象补设定。`
+    );
   }
   return lines.join("\n");
 }

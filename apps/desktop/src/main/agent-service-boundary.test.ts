@@ -8,6 +8,7 @@ import {
   WEB_SEARCH_TOOL_NAME,
   type AgentEvent,
   type AgentOutbound,
+  type SkillRef,
   type StartTurnInput
 } from "@mochen/contracts";
 import {
@@ -106,8 +107,13 @@ async function build(
   options: {
     fetchImpl?: ProviderFetch;
     writeDoc?: BookService["writeDoc"];
-    /** 挂入技能的读取桩（spec §11）。不给 ⇒ 一条都读不到。 */
+    /** 挂入技能的读取桩（spec §11）。不给 ⇒ use_skill 读不到正文。 */
     readSkill?: (relPath: string) => Promise<{ title: string; text: string }>;
+    /**
+     * 技能库清单桩（P0-2）：系统提示只放清单，正文由 use_skill 按需读。
+     * 不给 ⇒ 挂入的技能一律算读不到（与漏接 readSkill 同一条纪律）。
+     */
+    listSkills?: () => Promise<SkillRef[]>;
   } = {}
 ): Promise<{
   service: AgentService;
@@ -181,7 +187,8 @@ async function build(
     newId: () => "id1",
     isoNow: () => "2026-10-01T08:00:00.000Z",
     promptFor: defaultPromptFor,
-    readSkill: options.readSkill
+    readSkill: options.readSkill,
+    listSkills: options.listSkills
   });
   return { service, writes, outbound };
 }
@@ -467,7 +474,22 @@ describe("agentService 边界拒绝与线程归一", () => {
   });
 });
 
-describe("挂入技能（spec §11）", () => {
+/** 技能库清单里的一行（P0-2）：只有名称 / 用途 / 适用面，正文不在清单里。 */
+function skillRefOf(id: string, description: string): SkillRef {
+  const dirName = id.slice(id.indexOf(":") + 1);
+  return {
+    id,
+    source: id.startsWith("global:") ? "global" : "book",
+    dirName,
+    displayName: dirName,
+    description,
+    stages: ["draft"],
+    appliesTo: ["chapters"],
+    relPath: `${dirName}/SKILL.md`
+  };
+}
+
+describe("挂入技能（spec §11 / P0-2 渐进披露）", () => {
   const input = (skillPaths: string[]): StartTurnInput => ({
     threadKey: CHAPTER,
     docRelPath: CHAPTER,
@@ -478,36 +500,41 @@ describe("挂入技能（spec §11）", () => {
     skillPaths,
     sampleCount: 1
   });
+  const BODY = "先埋线，三百字后收。";
 
-  it("挂入的技能正文真的进了这一轮发出去的系统提示", async () => {
+  it("系统提示只放技能清单：名称 + 用途 + 何时用，正文留给 use_skill 按需读", async () => {
     const { service } = await build({
-      readSkill: async (relPath) => ({ title: relPath, text: "先埋线，三百字后收。" })
+      listSkills: async () => [skillRefOf("book:伏笔", "埋线收线的方法")],
+      // 正文桩在装配阶段一次都不该被点名：它只属于 use_skill。
+      readSkill: async () => ({ title: "伏笔", text: BODY })
     });
     await service.startTurn(input(["book:伏笔"]));
     const sent = JSON.parse(requests[0]?.body ?? "{}") as { messages: { content: string }[] };
     const system = sent.messages[0]?.content ?? "";
-    expect(system).toContain("先埋线，三百字后收。");
     expect(system).toContain("伏笔");
+    expect(system).toContain("埋线收线的方法");
+    expect(system).toContain('use_skill("book:伏笔")');
+    // 必须说清「正文没载入」，否则模型看见名字会以为方法已经读过。
+    expect(system).toContain("正文没有载入");
+    // 模型没打算用这份方法时，整份正文不再跟着系统提示一起发出去。
+    expect(system).not.toContain(BODY);
     service.dispose();
   });
 
-  it("读不到的挂入技能 ⇒ 如实发一条 error 事件说清跳过几个，其余照常开轮", async () => {
+  it("清单里查不到的挂入技能 ⇒ 如实说跳过几个，其余照常进清单", async () => {
     const { service, outbound } = await build({
-      readSkill: async (relPath) => {
-        if (relPath === "book:好的") return { title: "好的", text: "这一条读到了。" };
-        throw new Error("读不到这份技能");
-      }
+      listSkills: async () => [skillRefOf("book:好的", "这一条在清单里")]
     });
     await service.startTurn(input(["book:好的", "book:坏的", "book:也坏的"]));
     const errors = errorEventsOf(outbound);
     expect(errors.map((e) => e.message)).toContain("有 2 个挂入技能读不到，已跳过。");
-    // 读得到的那一条照样装进去了：不因为另一条坏就整轮都丢
+    // 查得到的那一条照样进清单：不因为另一条坏就整轮都丢
     const sent = JSON.parse(requests[0]?.body ?? "{}") as { messages: { content: string }[] };
-    expect(sent.messages[0]?.content ?? "").toContain("这一条读到了。");
+    expect(sent.messages[0]?.content ?? "").toContain("这一条在清单里");
     service.dispose();
   });
 
-  it("没给读取通路（装配处漏接线）⇒ 当成一条都读不到并说出来，不静默当成「没挂技能」", async () => {
+  it("没给清单通路（装配处漏接线）⇒ 当成一条都读不到并说出来，不静默当成「没挂技能」", async () => {
     const { service, outbound } = await build();
     await service.startTurn(input(["book:伏笔"]));
     expect(errorEventsOf(outbound).map((e) => e.message)).toContain(

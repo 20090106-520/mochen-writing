@@ -3,7 +3,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { scanBook } from "@mochen/fs-store";
-import { sourceKey, type DocRef, type EditProposal, type PermissionMode } from "@mochen/contracts";
+import {
+  sourceKey,
+  findProfile,
+  type AgentProfile,
+  type DocRef,
+  type EditProposal,
+  type PermissionMode
+} from "@mochen/contracts";
 import { createDocToolHost } from "./doc-tools-host.js";
 import type { WebSearchResult } from "./web-search.js";
 import { WebSearchError } from "./web-search.js";
@@ -22,6 +29,8 @@ const OUTSIDE_TEXT = "盘外之书：这段正文不属于本书，host 永远�
 let collected: EditProposal[] = [];
 let baselines: string[] = [];
 let mode: PermissionMode = "read-only";
+// P0-1：这一轮档案。null = 不传，走 ToolContext 的既有兜底（主笔），既有用例一字不动。
+let profile: AgentProfile | null = null;
 // web_search 的假实现按用例换装：默认空手而归；要测失败就置 webSearchError / webSearchRawError。
 let webSearchResults: WebSearchResult[] = [];
 let webSearchAttempted = 1;
@@ -50,6 +59,7 @@ beforeEach(async () => {
   collected = [];
   baselines = [];
   mode = "read-only";
+  profile = null;
   webSearchResults = [];
   webSearchAttempted = 1;
   webSearchError = null;
@@ -64,7 +74,12 @@ function host() {
   return createDocToolHost({
     root: () => root,
     docs: () => docs,
-    context: () => ({ docRelPath: CHAPTER, permissionMode: mode, workMode: "act" }),
+    context: () => ({
+      docRelPath: CHAPTER,
+      permissionMode: mode,
+      workMode: "act",
+      ...(profile === null ? {} : { profile })
+    }),
     onProposal: (proposal, baseline) => {
       collected.push(proposal);
       baselines.push(baseline);
@@ -588,6 +603,8 @@ describe("AI 味自动退稿闸（2026-10-10 二段）", () => {
 
   it("设定文档（outline/）不闸：AI 腔的设定资料照样出提案", async () => {
     mode = "full-access";
+    // P0-1：写入范围生效后，outline 是「世界」档案的地盘；主笔只碰当前章。
+    profile = findProfile("world")!;
     const out = await host().call("write_doc", {
       doc: "outline/第一卷大纲.md",
       content: HEAVY,

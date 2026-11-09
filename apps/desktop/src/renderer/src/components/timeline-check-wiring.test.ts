@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { scriptSource, styleSource, templateSource } from "../utils/vue-source-reader";
+import {
+  scriptSource,
+  styleSource,
+  templateSource,
+  typeScriptSource
+} from "../utils/vue-source-reader";
 
 /**
  * 时间线一致性检查的**接线契约**（2026-10-05，批次 5-①）。
@@ -20,6 +25,9 @@ import { scriptSource, styleSource, templateSource } from "../utils/vue-source-r
  */
 const paneScript = scriptSource("components/DocumentPane.vue");
 const paneTpl = templateSource("components/DocumentPane.vue");
+const menuScript = scriptSource("components/ReviewMenu.vue");
+const menuTpl = templateSource("components/ReviewMenu.vue");
+const reviewTools = typeScriptSource("utils/review-tools.ts");
 const panelScript = scriptSource("components/TimelineCheckPanel.vue");
 const panelTpl = templateSource("components/TimelineCheckPanel.vue");
 const sidebarScript = scriptSource("components/LeftSidebar.vue");
@@ -29,14 +37,18 @@ const stylesCss = readFileSync(new URL("../styles.css", import.meta.url), "utf8"
 const icons = readFileSync(new URL("../types/icons.ts", import.meta.url), "utf8");
 
 describe("入口挂在哪", () => {
-  it("右栏头部有这颗按钮，禁用条件是「没开书」", () => {
-    expect(paneTpl).toContain('aria-label="时间线核对"');
-    expect(paneTpl).toContain(':disabled="!book.meta"');
+  // P0-5：右栏这一枚从平铺收进了「审稿」下拉，入口与判据不变，只是位置变了。
+  it("「审稿」下拉里有这一项，禁用条件是「没开书」", () => {
+    expect(menuTpl).toContain('aria-label="审稿工具"');
+    expect(reviewTools).toContain('id: "timeline"');
+    expect(reviewTools).toContain('label: "时间线核对"');
+    expect(menuTpl).toContain(':disabled="disabled"');
+    expect(menuScript).toContain("const disabled = computed(() => !book.meta);");
   });
 
   it("按钮切的是 store 那一格，不是组件本地布尔", () => {
-    expect(paneTpl).toContain('@click="void timeline.toggle()"');
-    expect(paneTpl).not.toMatch(/timelineOpen\s*=\s*ref/);
+    expect(paneScript).toContain("void timeline.toggle();");
+    expect(paneScript).not.toMatch(/timelineOpen\s*=\s*ref/);
   });
 
   it("左栏那一项走同一个 toggle（两个入口共用一格，不许各持一个）", () => {
@@ -60,9 +72,9 @@ describe("入口挂在哪", () => {
     }
   });
 
-  it("浮层挂载条件就是 store 那一格 + 锚点", () => {
+  it("浮层挂载条件就是 store 那一格 + 「审稿」锚点", () => {
     expect(paneTpl).toContain("<TimelineCheckPanel");
-    expect(paneTpl).toContain('v-if="timeline.open && timelineAnchor"');
+    expect(paneTpl).toContain('v-if="timeline.open && reviewMenuAnchor"');
   });
 });
 

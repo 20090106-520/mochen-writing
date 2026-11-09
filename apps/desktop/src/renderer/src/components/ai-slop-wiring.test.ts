@@ -5,6 +5,7 @@ import {
   scriptSource,
   styleSource,
   templateSource,
+  typeScriptSource,
   vueSource
 } from "../utils/vue-source-reader";
 
@@ -22,22 +23,30 @@ import {
  */
 const paneScript = scriptSource("components/DocumentPane.vue");
 const paneTpl = templateSource("components/DocumentPane.vue");
+const menuScript = scriptSource("components/ReviewMenu.vue");
+const menuTpl = templateSource("components/ReviewMenu.vue");
 const panelScript = scriptSource("components/SlopPanel.vue");
 const panelTpl = templateSource("components/SlopPanel.vue");
+const reviewTools = typeScriptSource("utils/review-tools.ts");
 const css = styleSource("ai-slop.css");
 
 describe("入口挂在哪", () => {
-  it("右栏头部有这颗按钮，禁用条件是「没开书」而不是永远可点", () => {
-    expect(paneTpl).toContain('aria-label="去 AI 味"');
-    expect(paneTpl).toContain('@click="slopOpen = !slopOpen"');
-    expect(paneTpl).toContain(':disabled="!book.meta"');
-    expect(paneTpl).toContain('<AppIcon name="wand"');
+  // P0-5 之后这枚检查从平铺按钮收进了「审稿」下拉：入口仍在，判据仍在，只是入口的位置变了。
+  it("「审稿」下拉里有这一项，禁用条件是「没开书」而不是永远可点", () => {
+    expect(reviewTools).toContain('id: "slop"');
+    expect(reviewTools).toContain('label: "去 AI 味"');
+    expect(reviewTools).toContain('icon: "wand"');
+    expect(menuTpl).toContain('@click="choose(tool)"');
+    expect(menuTpl).toContain(':disabled="disabled"');
+    expect(menuScript).toContain("const disabled = computed(() => !book.meta);");
   });
 
-  it("面板挂在 DocumentPane 里，锚点就是那颗按钮", () => {
+  it("面板挂在 DocumentPane 里，锚点是「审稿」那颗稳定按钮（不是菜单行）", () => {
     expect(paneTpl).toContain("<SlopPanel");
-    expect(paneTpl).toContain(':anchor="slopAnchor"');
-    expect(paneScript).toContain("slopButton");
+    expect(paneTpl).toContain(':anchor="reviewMenuAnchor"');
+    expect(paneScript).toContain("reviewMenuAnchor");
+    // 菜单行一关就卸载，拿它当锚点面板会跟着消失；锚点必须是常驻的触发钮。
+    expect(menuTpl).not.toContain("<SlopPanel");
   });
 
   it("浮层走 Teleport 到 body（本仓弹层规矩）", () => {

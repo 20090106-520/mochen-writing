@@ -12,6 +12,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   CUSTOM_PROVIDER_ID,
   CUSTOM_PROVIDER_LABEL,
+  DEFAULT_CONTEXT_WINDOW_TOKENS,
   LOCAL_MODEL_KEY_NOTE,
   OLLAMA_BASE_URL,
   OLLAMA_FILL_LABEL,
@@ -56,6 +57,15 @@ const apiKey = ref("");
 const showKey = ref(false);
 const keyTouched = ref(false);
 const modelId = ref(props.mode === "edit" ? (props.model ?? "") : "");
+/**
+ * 上下文窗口（P0-3）：模型配置里的一格，决定占用条分母与历史切多少。
+ * 空串 = 没填过 ⇒ 主进程按 `DEFAULT_CONTEXT_WINDOW_TOKENS` 估算。
+ */
+const contextWindowText = ref(
+  editingConnection.value?.contextWindow === undefined
+    ? ""
+    : String(editingConnection.value.contextWindow)
+);
 const saving = ref(false);
 /** 已保存的连接（刚存完那一条）：软校验结果挂在这里，别随对话框一起消失。 */
 const savedConnectionId = ref<string | null>(props.connectionId ?? null);
@@ -230,8 +240,21 @@ async function openKeyPage(): Promise<void> {
   }
 }
 
+/** 空串 ⇒ null（用默认值）；非正整数 ⇒ "invalid"（挡在保存之前，不把错的写进配置）。 */
+function parseContextWindow(): number | null | "invalid" {
+  const text = contextWindowText.value.trim();
+  if (text === "") return null;
+  const value = Number(text);
+  return Number.isInteger(value) && value > 0 ? value : "invalid";
+}
+
 async function save(): Promise<void> {
   if (saving.value) return;
+  const contextWindow = parseContextWindow();
+  if (contextWindow === "invalid") {
+    provider.error = `上下文窗口要填正整数（tokens）；留空表示按默认 ${DEFAULT_CONTEXT_WINDOW_TOKENS} 估算。`;
+    return;
+  }
   saving.value = true;
   // **软校验**：存照存，存完立刻体检一次，把「配好了没有」摆在明面上。
   // 此前不校验也不提示，用户存完以为配好了，直到真发请求才发现全挂。
@@ -241,6 +264,8 @@ async function save(): Promise<void> {
     baseURL: baseURL.value.trim(),
     authHeader: authHeader.value,
     thinkingWire: thinkingWire.value,
+    // null = 没填 ⇒ 主进程按默认窗口估算；数字 = 手动覆盖。
+    contextWindow,
     // 没碰过密钥框 ⇒ null（沿用）；碰过且清空 ⇒ ""（主进程据此 clear）。
     apiKey: keyTouched.value ? apiKey.value.trim() : null
   });
@@ -538,6 +563,27 @@ useDialogMotion({ root: dialogRoot });
               }}
             </small>
           </div>
+
+          <!--
+            P0-3：上下文窗口。它是本仓做上下文预算的唯一来源（占用条分母 + 历史切片），
+            所以必须有地方让用户按实际模型改，而不是永远吃默认 24000。
+            和上面几格一样是**连接级**：同一端点下的模型窗口在设置这一步就确认了。
+          -->
+          <label class="provider-field">
+            <span>上下文窗口（tokens）</span>
+            <input
+              v-model="contextWindowText"
+              type="number"
+              min="1"
+              step="1"
+              inputmode="numeric"
+              :placeholder="`默认 ${DEFAULT_CONTEXT_WINDOW_TOKENS}`"
+            />
+            <small class="provider-field-note">
+              填这个模型的上游窗口；留空按默认 {{ DEFAULT_CONTEXT_WINDOW_TOKENS }} 估算。
+              它决定占用条的分母与能带多少历史，不改变上游真实上限。
+            </small>
+          </label>
 
           <!--
  拉取状态不再单列一行：「正在拉取…」进了重新拉取那颗按钮，

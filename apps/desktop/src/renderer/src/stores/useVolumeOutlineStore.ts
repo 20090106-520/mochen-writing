@@ -3,24 +3,27 @@
  *
  * **为什么不并进 useBookStore**：那份已经 750 行（预算 800）。更重要的是职责不同——
  * useBookStore 管「当前打开的那一篇」的标签与草稿，这里管「把这一篇拆成结构化的章」。
- * 它读一篇、存一份解析结果，不碰草稿、不碰保存链。
+ * 它读一篇、存一份解析结果；章纲可编辑（2026-11 W-02）之后，写回也只**借用**那一份的既有落盘通路
+ * （`onEdit` + `saveActive`），不另开 IPC、不另存草稿——两处草稿是下一场「保存到底保存了哪一份」的祸根。
  *
  * 判定与拼装在 `contracts/volume-outline`（那里有 44 条真单测，含往返一致那条硬要求），
  * 这里只负责读盘、落盘与在途标记——同一判定不写第二份（铁律 6）。
  */
 import { defineStore } from "pinia";
 import {
+  applyChapterFieldEdits,
   buildChapterOutlineMarkdown,
   parseVolumeOutline,
   planDocRelPath,
   summedWordTarget,
+  type ChapterOutlineField,
   type ParsedChapter,
   type VolumeOutline
 } from "@mochen/contracts";
 import type { DocRef } from "@mochen/contracts";
 import { useBookStore } from "./useBookStore";
 
-/** 生成一章的结果：只给一句人话，不抛异常（面板要把它显示出来，不是记日志）。 */
+/** 生成一章 / 保存一章的结果：只给一句人话，不抛异常（面板要把它显示出来，不是记日志）。 */
 export interface GenerateResult {
   ok: boolean;
   message: string;
@@ -45,8 +48,10 @@ export const useVolumeOutlineStore = defineStore("volume-outline", {
     busy: false,
     /** 读盘失败时给用户看的中文原因；空串 = 没失败。 */
     notice: "" as string,
-    /** 正在落盘的那几章（按标题索引）：按钮据此禁用，重复点不会建出两篇同名文件。 */
-    generating: [] as number[]
+    /** 正在落盘的那几章（按章序索引）：按钮据此禁用，重复点不会建出两篇同名文件。 */
+    generating: [] as number[],
+    /** 正在写回字段的那几章（2026-11 W-02）：与 generating 分开——两类在途互相不该借别人的锁。 */
+    saving: [] as number[]
   }),
 
   getters: {
@@ -110,6 +115,88 @@ export const useVolumeOutlineStore = defineStore("volume-outline", {
 
     close(): void {
       this.open = false;
+    },
+
+    /**
+     * 把一章改过的字段**就地写回**卷纲原文（2026-11 W-02 第一步）。
+     *
+     * 写回的字面目标：原文里这一章那几行字段换掉，别的字节不动。拼装是纯函数
+     * `applyChapterFieldEdits`（contracts），这里只决定「往哪儿写、怎么写、写失败说什么」。
+     *
+     * **写盘通路只有既有那条**：这一篇正开着 → 把新正文放进编辑器草稿（`book.onEdit`）
+     * 再走 `book.saveActive()`——备份、指纹推进、外部改动拒写、失败原因都在那一处，不另开 IPC；
+     * 这一篇不是当前标签（面板开着时切走了）→ 用 `readDoc` 拿指纹后 `writeDoc` 写回同一个文件。
+     *
+     * **写成功才换解析结果**：失败时面板保留用户的输入，不发第二份「已改好」的假结论。
+     * 成功则整份重解析——完整度、还缺哪几项都从新原文重算，旧结论不留。
+     */
+    async saveChapter(
+      chapter: ParsedChapter,
+      fields: Partial<Record<ChapterOutlineField, string>>
+    ): Promise<GenerateResult> {
+      if (this.sourceRelPath === "") return { ok: false, message: "还没打开任何一篇卷纲。" };
+      const book = useBookStore();
+      this.saving.push(chapter.order);
+      try {
+        const isActive = book.activeDocTab === this.sourceRelPath;
+        let raw: string;
+        let fingerprint = "";
+        if (isActive) {
+          // 当前正文（可能含未保存的改动）才是要改的那一份；读盘会拿到旧字节并丢掉那些改动。
+          raw = book.draft;
+        } else {
+          const loaded = await window.mochen.readDoc(this.sourceRelPath);
+          raw = loaded.content;
+          fingerprint = loaded.fingerprint;
+        }
+
+        // 面板打开之后正文可能被改过：章序对不上标题就拒绝写——宁可让作者重开一次，
+        // 也不能把这一章的字段落到别的章上（同名章按出场次序定位，见 contracts 那头的注释）。
+        const now = parseVolumeOutline(raw);
+        const target = now.chapters[chapter.order - 1];
+        if (target === undefined || target.title !== chapter.title) {
+          return {
+            ok: false,
+            message: "这一篇在面板打开后被改过，章序对不上了：关掉再打开一次重改。"
+          };
+        }
+
+        const next = applyChapterFieldEdits(raw, [{ order: chapter.order, fields }]);
+        if (next === raw) return { ok: true, message: "这一章没有改动。" };
+
+        if (isActive) {
+          book.onEdit(next);
+          // 这一笔是我们自己立刻要落盘的，别让自动保存的定时器再写一遍（那会多一份备份）。
+          book.cancelAutoSave();
+          await book.saveActive();
+          if (book.dirty || book.conflict !== null) {
+            // 失败原因就在 book.notice（stale / 权限 / 无文件）；它同时上屏在编辑器栏头。
+            return { ok: false, message: book.notice || "保存失败，原因没写出来。" };
+          }
+        } else {
+          const written = await window.mochen.writeDoc(this.sourceRelPath, next, fingerprint);
+          if (!written.ok) {
+            return {
+              ok: false,
+              message:
+                written.reason === "stale"
+                  ? "这一篇在盘上被改过了，没覆盖；重新打开面板再改。"
+                  : `保存失败：${written.message}`
+            };
+          }
+        }
+
+        // 失效 + 重算：整份解析结果换成刚写回的那份，完整度与「还缺」都从它生。
+        this.outline = parseVolumeOutline(next);
+        return { ok: true, message: "已保存，完整度按新内容重算。" };
+      } catch (err) {
+        return {
+          ok: false,
+          message: `保存失败：${err instanceof Error && err.message !== "" ? err.message : String(err)}`
+        };
+      } finally {
+        this.saving = this.saving.filter((order) => order !== chapter.order);
+      }
     },
 
     /**

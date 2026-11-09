@@ -99,6 +99,34 @@ describe("先看改前，才给回滚", () => {
 });
 
 /**
+ * 一键撤销（P0-5）。
+ *
+ * 「提案落盘后能撤销这一次改动」在界面上是一颗按钮，在链路上必须是**真实写盘 + 真实改稿历史**：
+ * ① 面板行右侧那颗走 store 的 `undoChange`，组件不摸 IPC；
+ * ② `undoChange` 先把那一篇打开（回滚守卫要求活动标签就是它），再走 `restoreBackupToDoc`；
+ * ③ 同一条 `changes:restore` 会在写回前给盘上此刻的正文留一份备份，所以撤销本身也是一条新记录。
+ * 只改界面状态的那种实现（把列表里这一行划掉、盘上没动）在这里没有落脚点。
+ */
+describe("一键撤销某一次改动", () => {
+  it("每一行右侧都有一颗「撤销」，接的是 store 的 undoChange", () => {
+    expect(panelTpl).toContain('aria-label="撤销这次改动"');
+    expect(panelTpl).toContain('@click="book.undoChange(row)"');
+    // 行主体仍是「看改前」：这颗是另一颗键，不替换 peek。
+    expect(panelTpl).toContain('@click="book.peekChange(row)"');
+    expect(storeSource).toContain("undoChange(this, entry)");
+  });
+
+  it("撤销先打开那一篇，再走同一条回滚编排（不另开第二条写盘的路）", () => {
+    expect(changeHistorySource).toContain("await host.openDocTab(entry.docRelPath);");
+    expect(changeHistorySource).toContain("await restoreChange(host, entry);");
+  });
+
+  it("撤销那颗键的样式不是空壳", () => {
+    expect(ruleBlock(css, ".change-history-undo")).not.toBe("");
+  });
+});
+
+/**
  * 「跳到那一篇」（2026-10-13）。
  *
  * 它补的是这条链上真正的断点：`restoreChange` 要求先把那一篇打开（「先打开那一篇正文」那句拒绝），

@@ -292,17 +292,38 @@ describe("contextPressureReading（窗口压力 + 已挂入项数）", () => {
     expect(contextPressureReading(p).title).not.toContain("没有发给模型");
   });
 
-  it("已挂入只数 kind=pinned 的那些；一项都没挂就整句不提", () => {
+  it("设定单独报一行：世界观文稿与故事圣经条目合账，不与正文/人物卡混在一起", () => {
+    const p = withWindow({
+      items: [
+        item({ kind: "world", chars: 300, title: "林夜" }),
+        item({ kind: "world", chars: 200, title: "码头" }),
+        item({ kind: "chapter", chars: 500, title: "第三章 · 正文" }),
+        item({ kind: "character", chars: 400, title: "李深" })
+      ],
+      chars: 1400,
+      approxTokens: 1000
+    });
+    const r = contextPressureReading(p);
+    expect(r.text).toContain("设定 2 项 500 字");
+    expect(r.title).toContain("「设定」单独计量");
+    // 正文与人物卡不并进这一行
+    expect(r.text).not.toContain("设定 3 项");
+  });
+
+  it("已挂入与技能分开数：技能在系统提示里只有清单，不混进「已挂入」", () => {
     const withPinned = withWindow({
       items: [
         item(),
         item({ kind: "pinned", relPath: "materials/雾.md" }),
-        item({ kind: "pinned", relPath: "skills/节拍.md" })
+        item({ kind: "skill", relPath: "book:节拍" })
       ]
     });
-    expect(contextPressureReading(withPinned).text).toContain("已挂入 2 项");
-    expect(contextPressureReading(withPinned).title).toContain("@ 引用 / 加入上下文 / 技能");
+    expect(contextPressureReading(withPinned).text).toContain("已挂入 1 项");
+    expect(contextPressureReading(withPinned).text).toContain("技能 1 项");
+    expect(contextPressureReading(withPinned).title).toContain("@ 引用 / 加入上下文");
+    expect(contextPressureReading(withPinned).title).toContain("正文由 use_skill 按需读取");
     expect(contextPressureReading(withWindow()).text).not.toContain("已挂入");
+    expect(contextPressureReading(withWindow()).text).not.toContain("技能 ");
   });
 });
 

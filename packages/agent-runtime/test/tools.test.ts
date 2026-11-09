@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_TOOL_NAMES, type EditProposal } from "@mochen/contracts";
+import { AGENT_TOOL_NAMES, findProfile, type EditProposal } from "@mochen/contracts";
 import { wireToolsFor } from "../src/per-run-fields.js";
+import type { ChatToolSpec } from "../src/provider-client.js";
 import {
   TOOL_SPECS,
   dispatchToolCall,
@@ -65,6 +66,42 @@ describe("工具面板逐枚关掉（2026-10-21）", () => {
     const gate = toolGateOf(host, "web_search", false);
     expect(gate).toMatchObject({ kind: "off-this-round" });
     if (!gate.allowed) expect(gate.reason).toContain("联网开关是关闭的");
+  });
+});
+
+describe("档案工具白名单（P0-1）", () => {
+  const host = fakeHost([], { ok: true, text: "", proposals: [] });
+  const reviewer = findProfile("reviewer")!;
+  const lead = findProfile("lead-writer")!;
+
+  it("审稿档案拿不到 write_doc，但批注提案与 use_skill 保留", () => {
+    const names = toolsFor(host, false, [], reviewer).map((spec) => spec.name);
+    expect(names).toContain("read_doc");
+    expect(names).toContain("propose_patch");
+    expect(names).toContain("use_skill");
+    expect(names).not.toContain("write_doc");
+
+    const gate = toolGateOf(host, "write_doc", false, [], reviewer);
+    expect(gate.allowed).toBe(false);
+    expect(gate).toMatchObject({ kind: "not-for-profile" });
+    if (!gate.allowed) expect(gate.reason).toContain("不在这枚档案");
+  });
+
+  it("主笔仍拿得到 write_doc", () => {
+    const names = toolsFor(host, false, [], lead).map((spec) => spec.name);
+    expect(names).toContain("write_doc");
+    expect(isCallableTool(host, "write_doc", false, [], lead)).toBe(true);
+  });
+
+  it("插件工具不被档案白名单误伤（插件是用户显式装的）", () => {
+    const pluginSpec: ChatToolSpec = {
+      name: "rhythm_check",
+      description: "节奏检查（内置插件）",
+      parameters: { type: "object", properties: {} }
+    };
+    const pluginHost: ToolHost = { ...host, extraSpecs: () => [pluginSpec] };
+    const names = toolsFor(pluginHost, false, [], reviewer).map((spec) => spec.name);
+    expect(names).toContain("rhythm_check");
   });
 });
 

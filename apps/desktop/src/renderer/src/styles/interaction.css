@@ -30,6 +30,71 @@
   outline-offset: -2px;
 }
 
+/* 右栏「审稿」下拉（P0-5）。
+   与权限档菜单同一族，但这一份是 **Teleport 到 body** 的（右栏 `.editor-pane` 有 overflow:hidden，
+   行内绝对定位会被裁在头部 50px 里）；left / top / width 由 useComposerContextPopover 行内写，
+   这里只给面、边、阴影与焦点圈。选项行直接复用 `.permission-option`：同一族菜单的形状只有一份。 */
+.review-menu {
+  position: fixed;
+  z-index: 60;
+  padding: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--editor) 94%, transparent);
+  color: var(--text);
+  backdrop-filter: blur(14px) saturate(118%);
+  box-shadow: 0 12px 34px var(--shadow-color);
+}
+
+.review-menu:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* 【2026-11-08 浮层家族统一】右栏那五张检查浮层（审稿分 / 去 AI 味 / 人物 / 时间线 / 伏笔台账）
+   与改稿历史、卷纲，原本各自把那套「白底 + 硬编码阴影 + 旧名 token」写了一遍：
+   六份 `background: var(--surface, #fff)`、`box-shadow: 0 12px 32px rgb(0 0 0 / 18%)`。
+   而 `--surface` / `--surface-dim` / `--text-dim` 在本仓 :root 里并不存在——
+   命中的全是括号里的浅色兜底值，深色皮肤下这几张浮层仍是白纸。
+   这一条把它们收成与 `.review-menu` / 输入区「更多」同一张面：发丝线、12px 圆角、
+   编辑区半透明底、同一档浮层阴影。下面那组变量是**旧名到新名的接线**，
+   浮层内部的既有规则一行不动，颜色自动跟主题走。 */
+.review-score,
+.ai-slop,
+.cast-check,
+.timeline-check,
+.foreshadow-ledger,
+.volume-outline,
+.change-history {
+  --surface: var(--surface-card);
+  --surface-dim: color-mix(in srgb, var(--sidebar) 42%, transparent);
+  --line: var(--line-soft);
+  --line-strong: var(--line);
+  --text-dim: var(--text-faint);
+  --text-primary: var(--text);
+  --accent: var(--focus);
+  --accent-soft: color-mix(in srgb, var(--focus) 10%, transparent);
+  --hover: color-mix(in srgb, var(--text) 6%, transparent);
+  --ok: var(--success);
+  --warn: var(--warning);
+  --font-mono: var(--code-font);
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--editor) 94%, transparent);
+  color: var(--text);
+  backdrop-filter: blur(14px) saturate(118%);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--shadow-color) 70%, transparent);
+  font-size: 0.928571rem;
+  line-height: 1.6;
+}
+
+/* 没开书时整组不可点（与原来每一枚检查按钮各自的禁用条件同一条判据）。 */
+.review-menu .permission-option:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .permission-option {
   display: flex;
   width: 100%;
@@ -125,7 +190,9 @@
   border-radius: 7px;
   background: transparent;
   color: var(--text-soft);
-  font-size: 0.75rem;
+  /* 2026-11-08 UI 走查：0.75rem 在 14px 根字号下只有 10.5px，输入区一排小字
+     读起来像脚注。抬到 0.875rem（约 12.25px）——参照图里工具行的字号也是这个量级。 */
+  font-size: 0.875rem;
   white-space: nowrap;
   cursor: pointer;
 }

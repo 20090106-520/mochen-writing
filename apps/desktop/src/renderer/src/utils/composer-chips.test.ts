@@ -42,7 +42,7 @@ const CHIP_ORDER = [
 ];
 
 describe("composer-chips · 八枚真开关/入口，排队不做按钮（F-D + #101 + #104）", () => {
-  it("id 顺序逐字钉死：model/thinking/web-search/draft/tools/palette/permission（排队按钮不许长出来）", () => {
+  it("id 顺序逐字钉死：model/thinking/web-search/draft/tools/palette/work-mode/permission（排队按钮不许长出来）", () => {
     expect(composerChips(input()).map((c) => c.id)).toEqual(CHIP_ORDER);
   });
 
@@ -57,9 +57,9 @@ describe("composer-chips · 八枚真开关/入口，排队不做按钮（F-D + 
     expect(chip("work-mode", { workMode: "act" })?.text).toBe(WORK_MODE_LABELS.act);
   });
 
-  // 落在右端那一摞：它和权限档是同一族问题（「能碰多大」），分栏表是它的一部分（铁律 6）。
-  it("工作模式 chip 落在右端、挨着权限档", () => {
-    expect(chip("work-mode")?.slot).toBe("right");
+  // 2026-11-08：它仍是「能碰多大」那一族，但每轮改不到一次 ⇒ 收进「更多」弹层，不与权限档同排。
+  it("工作模式 chip 收进「更多」弹层（与权限档同族、不同区）", () => {
+    expect(chip("work-mode")?.slot).toBe("more");
   });
 
   it("两枚都是真开关，所以带按下态、不带下拉三角", () => {
@@ -79,7 +79,7 @@ describe("composer-chips · 八枚真开关/入口，排队不做按钮（F-D + 
     expect(c?.active).toBe(false);
     expect(c?.text).toBe(WORK_MODE_NO_BOOK_LABEL);
     // 反向钉（2026-10-14 真机截图）：不许和 permission chip 的无书文案撞成同一串——
-    // 两枚同排右端的 chip 并排一模一样，读起来像渲染事故。
+    // 两枚同时出现在卡上时一模一样，读起来像渲染事故（现在一枚在弹层、一枚在首行，仍不许撞）。
     expect(c?.text).not.toBe(NO_BOOK_CHIP_LABEL);
     expect(c?.title).toContain("作品目录");
   });
@@ -277,14 +277,19 @@ describe("composer-chips · #112 撤销合并口径，两枚控件各说各的",
       expect(chip(id)?.caret, `${id} 是开关，不该带三角`).toBe(false);
   });
 
-  // 2026-10-05 批次 4：右端从「只有权限」扩到「工作模式 + 权限」——
-  // 两者同属「能碰多大」这一族，分在同一端才看得出它们是一件事的两道闸。
-  it("分栏：左端全是运行配置，右端是工作模式与权限（发送键由模板自己管）", () => {
+  // 2026-11-08 用户裁定（参照 MiniMax Code 输入卡的分区逻辑）：
+  // 首行只留最常用的运行配置 + 权限档；其余低频开关收进「更多」弹层，功能一个不丢。
+  // 2026-11-09 参考图②：模型名落在发送键左侧（右端），左端只剩两枚真开关。
+  it("分区：首行左端思考/联网，右端模型/权限；多稿/工具/命令/工作模式进「更多」", () => {
     const chips = composerChips(input());
     const left = chips.filter((c) => c.slot === "left").map((c) => c.id);
     const right = chips.filter((c) => c.slot === "right").map((c) => c.id);
-    expect(left).toEqual(["model", "thinking", "web-search", "draft", "tools", "palette"]);
-    expect(right).toEqual(["work-mode", "permission"]);
+    const more = chips.filter((c) => c.slot === "more").map((c) => c.id);
+    expect(left).toEqual(["thinking", "web-search"]);
+    expect(right).toEqual(["model", "permission"]);
+    expect(more).toEqual(["draft", "tools", "palette", "work-mode"]);
+    // 反向钉：八枚一枚不少——分区变了，功能集合没变。
+    expect(new Set([...left, ...right, ...more]).size).toBe(8);
   });
 });
 

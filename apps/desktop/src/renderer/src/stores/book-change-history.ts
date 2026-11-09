@@ -29,6 +29,8 @@ export interface ChangeHistoryHost {
   activeDocTab: string | null;
   reloadActive(): Promise<void>;
   loadChanges(): Promise<void>;
+  /** 撤销前先把那一篇打开（P0-5）：撤销写的是正文，右栏得摆着它才看得见改了什么。 */
+  openDocTab(relPath: string): Promise<void>;
 }
 
 /** peek 一条改稿历史要用的两扇 IPC，模块级、不捕 `this`（编排的规矩全在 utils/change-history）。 */
@@ -104,4 +106,29 @@ export async function restoreChange(host: ChangeHistoryHost, entry: ChangeEntry)
   // 提示写在最后——reloadActive 自己也会写 notice（「已重载盘上内容」），
   // 顺序颠倒的话用户从头到尾看不见「已回滚」这三个字（2026-10-05 真机逮到）。
   host.notice = outcome.notice;
+}
+
+/**
+ * 一键撤销某一次改动（P0-5）。
+ *
+ * 与「回滚」是同一条编排（`restoreBackupToDoc`：现读指纹 → 主进程写盘 → 重拉列表），
+ * 多的只有开头一步：撤销写的是那一篇的正文，先把那一篇打开，右栏才看得见自己撤销了什么
+ * （`restoreBackupToDoc` 的守卫也要求活动标签就是这一篇）。
+ *
+ * **落盘与改稿历史都归主进程那条通路**：`changes:restore` 会先给盘上此刻的正文留一份备份，
+ * 再写回这条改前的版本；随后 `loadChanges()` 把列表重拉——所以这次撤销自己也是一条新记录，
+ * 撤销撤销还能回来。这里不碰界面状态以外的任何东西，也没有第二条写盘的路。
+ */
+export async function undoChange(host: ChangeHistoryHost, entry: ChangeEntry): Promise<void> {
+  if (host.changesBusy) return;
+  host.changesBusy = true;
+  try {
+    if (host.activeDocTab !== entry.docRelPath) await host.openDocTab(entry.docRelPath);
+  } catch (err) {
+    host.notice = `没能打开 ${entry.docRelPath}：${failureReasonOf(err)}`;
+    return;
+  } finally {
+    host.changesBusy = false;
+  }
+  await restoreChange(host, entry);
 }

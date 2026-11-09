@@ -14,7 +14,10 @@ html[data-platform="darwin"] .conversation-pane {
 .agent-timeline {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  /* 2026-11-08 垂直节奏分层：同一轮内（用户 → 思考 → 工具 → 回答）收紧到 9px，
+     轮与轮之间靠下面那条「用户块前再垫 12px」拉开到 21px。
+     旧值 18px 是均匀间距——每一块都像另起一轮，读长对话时找不到「这一问从哪开始」。 */
+  gap: 9px;
   min-width: 0;
 }
 
@@ -41,6 +44,12 @@ html[data-platform="darwin"] .conversation-pane {
    排除 user（它靠右）与 message（它自己那行有头像，左边缘已经在 36 上）。 */
 .agent-block:not([data-kind="user"]):not([data-kind="message"]) {
   padding-left: 36px;
+}
+
+/* 【2026-11-08 垂直节奏分层】每一条用户消息都是新的一轮开头：在它前面再垫 12px，
+   加上时间线的 9px gap ⇒ 轮与轮 21px、同一轮内 9px。首条不垫（`+` 选择器天然跳过）。 */
+.agent-block + .agent-block[data-kind="user"] {
+  margin-top: 12px;
 }
 
 /* 【2026-10-17 用户裁定·对话链】自己的话靠右：头像在右端、气泡贴着它。
@@ -98,11 +107,12 @@ html[data-platform="darwin"] .conversation-pane {
      两枚气泡几乎同色，链上「谁说的」又糊回一层。18% 之后自己的那一枚明显深一档，
      同时仍是浅底，正文的 `--text` 压在上面照样够对比。
      圆角 16/16/6/16：右下那一角收紧 6px 对着头像，是聊天链上「这句话出自这一侧」的那道口。
-     `max-width: 82%` 是把长问句收成气泡（不写就是通栏）；余下的 18% 不是留白，
+     `max-width: min(78%, 60ch)` 是把长问句收成气泡（不写就是通栏）；78% 那档是「不要拉满整栏」，
+     60ch 那档是行宽上限——中文一句读到头不用来回扫。余下的 22% 不是留白，
      是气泡与左侧助手那一列之间的气口，没了它两侧的气泡会撞上。 */
-  max-width: 82%;
+  max-width: min(78%, 60ch);
   margin: 0;
-  padding: 9px 13px;
+  padding: 10px 14px;
   border: 1px solid color-mix(in srgb, var(--focus) 30%, var(--line-soft));
   border-radius: 16px 16px 6px 16px;
   background: color-mix(in srgb, var(--focus) 18%, var(--editor));
@@ -123,9 +133,26 @@ html[data-platform="darwin"] .conversation-pane {
 .proposal-card {
   border: 1px solid var(--line-soft);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--sidebar) 62%, transparent);
+  background: color-mix(in srgb, var(--sidebar) 52%, transparent);
   backdrop-filter: blur(10px) saturate(115%);
-  box-shadow: 0 10px 26px -18px var(--shadow-color);
+  box-shadow: 0 8px 22px -18px var(--shadow-color);
+}
+
+/* 【2026-11-08 过程件分级】四类过程信息共用一套「发丝线 + 12px 圆角 + 侧栏底」的语言，
+   但不再每张卡都抢同样多的注意力：
+   ① 计划 / 工具 = 过程注脚（比提案卡更淡、更矮）；
+   ② 提案卡 = 等你回应的动作（保留最深一档底与阴影，且只有它带状态色）；
+   ③ 草稿候选 = 同一族但更扁（见 DraftCandidates.vue 的 scoped 样式）。
+   判据是「这张卡现在要你做什么」：不要你回应的就不该跟要你回应的同重量。 */
+.plan-card,
+.tool-card {
+  background: color-mix(in srgb, var(--sidebar) 42%, transparent);
+  box-shadow: 0 4px 14px -12px var(--shadow-color);
+}
+
+.proposal-card {
+  background: color-mix(in srgb, var(--sidebar) 60%, transparent);
+  box-shadow: 0 9px 24px -18px var(--shadow-color);
 }
 
 /* 思考摘要（批次 5-⑪）：**折起来时不是一张卡**。
@@ -142,9 +169,9 @@ html[data-platform="darwin"] .conversation-pane {
 .thinking-card[open] {
   border: 1px solid var(--line-soft);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--sidebar) 62%, transparent);
+  background: color-mix(in srgb, var(--sidebar) 42%, transparent);
   backdrop-filter: blur(10px) saturate(115%);
-  box-shadow: 0 10px 26px -18px var(--shadow-color);
+  box-shadow: 0 4px 14px -12px var(--shadow-color);
   color: var(--text-soft);
   font-size: 0.928571rem;
 }
@@ -187,6 +214,18 @@ html[data-platform="darwin"] .conversation-pane {
   display: block;
 }
 
+/* 思考摘要的展开/收起标记（2026-11-08）：与 `.tool-raw` 的 chevron 同一语言——
+   收起朝右（0°）、展开转 90°朝下。它是整行里唯一说明「这条还能点开」的东西。 */
+.thinking-caret {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  transition: transform 0.12s ease;
+}
+
+.thinking-card[open] .thinking-caret {
+  transform: rotate(90deg);
+}
+
 .thinking-text {
   padding: 0 12px 12px 34px;
   color: var(--text-soft);
@@ -210,10 +249,11 @@ html[data-platform="darwin"] .conversation-pane {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 9px 12px;
+  /* 2026-11-08 密度收敛：过程卡的头不再和提案卡一样厚，7px 上下留白就够分出行；字号也退半档。 */
+  padding: 7px 12px;
   border-bottom: 1px solid var(--line-soft);
   color: var(--text-soft);
-  font-size: 0.928571rem;
+  font-size: 0.892857rem;
 }
 
 .card-head em {
@@ -223,7 +263,7 @@ html[data-platform="darwin"] .conversation-pane {
 }
 
 .plan-list {
-  padding: 10px 12px;
+  padding: 8px 12px 10px;
 }
 
 .plan-list li {
@@ -264,7 +304,8 @@ html[data-platform="darwin"] .conversation-pane {
 
 .tool-args,
 .tool-result {
-  margin: 8px 12px;
+  /* 2026-11-08 密度收敛：参数/回执与卡框之间 8 → 6，跟卡头的 7px 上下留白对称。 */
+  margin: 6px 12px;
   color: var(--text-faint);
   font-family: var(--code-font);
   font-size: var(--code-font-size);
@@ -530,7 +571,7 @@ html[data-platform="darwin"] .conversation-pane {
    所以助手的话与自己的话在屏上没有一刻左右之分——两栏都从左边顶格开始。
    头像 26×26 与 `.user-tag` 同口径（两条要一起改），`flex: 0 0 auto` 是必需项：
    少了它，长正文会把这个圆压成椭圆（它是这一行的 flex item，默认会被收缩）。
-   `margin-top: 3px` 把头像与正文首行的视觉中线对齐（正文 line-height 1.85）。 */
+   `margin-top: 3px` 把头像与正文首行的视觉中线对齐（正文 line-height 1.8）。 */
 .message-line {
   display: flex;
   align-items: flex-start;
@@ -560,8 +601,12 @@ html[data-platform="darwin"] .conversation-pane {
    不追 `--surface-muted`：后者只在运行时注入，没注入时这一格会静默变透明。 */
 .message-line .message-body {
   width: auto;
-  max-width: 100%;
-  padding: 11px 14px;
+  /* 【2026-11-08 可读行宽】此前是 100%：长回答从头像一路铺到列尾，一行七十多个汉字，
+     眼要从左扫到右再折回，读三段就找不到行首（参考图里的回答明显留了右侧气口）。
+     `min(100%, 72ch)` = 列窄时照列宽走、列宽时封顶在约 36 个汉字（72ch），
+     上限之外留白而不是把字铺满。padding 12/16 是给这段行宽一点内呼吸。 */
+  max-width: min(100%, 72ch);
+  padding: 12px 16px;
   border: 1px solid var(--line-soft);
   border-radius: 6px 16px 16px 16px;
   background: var(--surface-card);
@@ -570,7 +615,8 @@ html[data-platform="darwin"] .conversation-pane {
 
 .message-text {
   color: var(--text);
-  line-height: 1.85;
+  /* 2026-11-08：1.85 → 1.8。行宽收到 72ch 后不需要再靠超大行距撑开，1.8 更接近参考图的段落呼吸。 */
+  line-height: 1.8;
   /* 2026-10-10：正文改走 markdown 渲染后**去掉 `white-space: pre-wrap`**。
      渲染器的输出是块级标签之间夹换行（`<p>a</p>\n<p>b</p>`），pre-wrap 会把那些夹缝
      也变成真换行，于是每两段之间凭空多出一行空白。
@@ -594,9 +640,10 @@ html[data-platform="darwin"] .conversation-pane {
   margin: 0;
 }
 
-/* 段落之间要留气口，否则整篇糊成一块——但只给「相邻两个块」留，不要给首尾。 */
+/* 段落之间要留气口，否则整篇糊成一块——但只给「相邻两个块」留，不要给首尾。
+   2026-11-08：0.6em → 0.8em。行宽收紧后段落密度更高，段间多给 2px 才分得开段。 */
 .message-markdown > * + * {
-  margin-top: 0.6em;
+  margin-top: 0.8em;
 }
 
 /* 列表：编号与圆点靠浏览器画，缩进交给 padding（归零外边距后没有缩进可继承）。
@@ -619,7 +666,8 @@ html[data-platform="darwin"] .conversation-pane {
 }
 
 .message-markdown li + li {
-  margin-top: 0.2em;
+  /* 2026-11-08：条目之间从 0.2em 抬到 0.35em——列表在窄行宽里最容易糊成一段连续文字。 */
+  margin-top: 0.35em;
 }
 
 .message-markdown code {
@@ -628,8 +676,11 @@ html[data-platform="darwin"] .conversation-pane {
 }
 
 .message-markdown pre {
-  padding: 0.7em 0.9em;
+  /* 2026-11-08：代码块内边距 0.7/0.9 → 0.85/1.05，行高按等宽字号单独给 1.65——
+     代码贴边与正文贴边是两种观感，参考图的代码块四周明显更松。 */
+  padding: 0.85em 1.05em;
   border-radius: 8px;
+  line-height: 1.65;
   overflow-x: auto;
 }
 
@@ -765,8 +816,9 @@ html[data-platform="darwin"] .conversation-pane {
 .proposal-stack {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  margin-top: 6px;
+  /* 2026-11-08：同一轮里的提案卡之间 14 → 10，与轮内其它块的 9px 节奏靠拢。 */
+  gap: 10px;
+  margin-top: 8px;
 }
 
 /* F-1：卡头的轮次锚点。文字由 utils/timeline 的 cardTurnLabel 生成，这里只管排布。
@@ -784,14 +836,14 @@ html[data-platform="darwin"] .conversation-pane {
 /* F-1：已裁决的卡收进默认折叠的分组。刻意用原生 details 的文档流排布——
    不绝对定位、不定高，所以折叠态盖不住任何东西，展开后卡里的按钮也照常可点。 */
 .settled-stack {
-  margin-top: 6px;
+  margin-top: 8px;
   border: 1px solid var(--line-soft);
   border-radius: 12px;
   background: color-mix(in srgb, var(--sidebar) 42%, transparent);
 }
 
 .settled-summary {
-  padding: 9px 12px;
+  padding: 8px 12px;
   color: var(--text-soft);
   font-size: 0.928571rem;
   cursor: pointer;
@@ -805,7 +857,8 @@ html[data-platform="darwin"] .conversation-pane {
 .settled-cards {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  /* 2026-11-08：归档卡之间 14 → 10，与轮内节奏一致。 */
+  gap: 10px;
   padding: 0 12px 12px;
 }
 
@@ -875,7 +928,7 @@ html[data-platform="darwin"] .conversation-pane {
 }
 
 .proposal-why {
-  padding: 10px 12px 0;
+  padding: 8px 12px 0;
   color: var(--text);
   font-size: 0.928571rem;
 }
@@ -1091,7 +1144,9 @@ html[data-platform="darwin"] .conversation-pane {
   flex-direction: column;
   overflow: visible;
   border: 1px solid var(--line);
-  border-radius: 28px;
+  /* 2026-11-09 参考图②：大圆角收到 16px——仍是「一张浮起来的卡」，
+     但不再是 28px 那种胶囊感，输入行与工具行读起来是同一块面。 */
+  border-radius: 16px;
   background: var(--editor);
   /* 【2026-10-17 用户裁定·装饰】从两层加到三层。原来那两层里有一层是 `0 1px 2px` 的贴沿硬边、
      另一层 `0 5px 18px` 直接糊到中景——中间缺一档，卡在屏上是「贴着一张纸」而不是「浮着」。
@@ -1123,10 +1178,13 @@ html[data-platform="darwin"] .conversation-pane {
    现在输入区**按内容走**（16 + 34 + 14 = 64px）：卡随内容长高（textarea 自增高、封顶 150px），
    空卡不再是一块空板。
    留白改成上下 16 / 14：原先 20 / 12 的下沿贴着发丝线，视觉上那行字像要掉进工具条里。 */
+/* 2026-11-09 参考图②：输入区上下收到 16 / 10（原 18 / 14）——
+   卡不再靠一条分区线切上下，垂直节奏由这两段内边距承担：上沿留够光标呼吸，
+   下沿只隔开工具行，避免文字像要掉进按钮里。 */
 .composer-input-zone {
   display: flex;
   align-items: flex-start;
-  padding: 16px 22px 14px;
+  padding: 16px 20px 10px;
 }
 
 .composer-textarea {
@@ -1142,12 +1200,15 @@ html[data-platform="darwin"] .conversation-pane {
   resize: none;
   background: transparent;
   color: var(--text);
+  /* 2026-11-08 UI 走查：输入区是作者盯得最久的一行，字号抬到 15px（与编辑器默认同一档），
+     行高 1.6 保持。写长句时不至于挤成一片。 */
+  font-size: 1.07143rem;
   line-height: 1.6;
   field-sizing: content;
 }
 
 .composer-textarea::placeholder {
-  color: var(--text-faint);
+  color: var(--text-tertiary);
 }
 
 /* 【2026-10-17 用户裁定「这个框，不要」】上面那条 `.composer-textarea { outline: none }`
@@ -1168,29 +1229,32 @@ html[data-platform="darwin"] .conversation-pane {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* 2026-10-17 设计稿：工具条 64px 高、gap 12、左右内边距 20。 */
-  min-height: 64px;
+  /* 2026-11-09 参考图②：工具条收到 48px（原 64）——参考图的按钮行贴着输入区，
+     整卡比例更像「一张输入卡」而不是上下两大块。 */
+  min-height: 48px;
   gap: 12px;
-  /* 【2026-10-22 用户裁定：放不下就折两行】此前照 deepwrite「永远一行、超宽出省略号」，
-     真机在 1600 宽 + 右栏展开（容器 840）上摆出「联网…」「多…」「工…」一排残片——
-     那不是省地方，是把标签读废。折行的判据交给 flex 自己：左端 basis auto 取自然宽，
-     右端整组 `0 0 auto`，两边加起来放不下时右端整组落到第二行。
-     窄档的两级容器查询（620 分配 / 560 换行 + 收右端文字）仍在，负责 560 以下的图标化。 */
-  flex-wrap: wrap;
-  row-gap: 6px;
+  /* 【2026-11-08 用户裁定：首行常驻 + 更多弹层，替换 2026-10-22 的「放不下就折两行」】
+     折行的代价是右组整组掉到第二行（664 容器量到工具条 93px、卡片高出一截），
+     而真正低频的开关（多稿 / 工具清单 / 命令 / 工作模式）每轮都用不到一次。
+     现在首行只留「引用素材 / 模型 / 思考 / 联网 / 更多」与「权限档 / 麦克风 / 发送」，
+     其余收进「更多」弹层（分区是 composerChips 表里的 slot 字段，模板只按它过滤）。
+     因此回到 nowrap：664（1440 窗口右栏展开）与 840（1600 三栏全开）都一行放得下。
+     560 以下那一档仍保留 wrap 作兜底——窗口地板 1000 + 面板全开时容器会到 278，
+     那时首行自己也放不下，折行仍是最后手段，不是常态。 */
+  flex-wrap: nowrap;
+  row-gap: 8px;
+  /* 2026-11-09 参考图②：左右内边距 20，与输入行文字左沿对齐（+ 号离卡沿就是这个距离）；
+     工具行不再是 16——那样 + 号会比上面的占位文字更靠外，读起来像两个栏位。 */
   padding: 0 20px;
-  /* 【2026-10-17 用户裁定·装饰】正文区与工具条之间补一条发丝线。
-     此前卡里上下两段是同一种底色、也没有任何分隔，整块读成一张没有结构的白板
-     ——用户那句「缺少一些东西」说的正是这一格。
-     用 `--line-soft` 再压到 85% 而不是 `--line`：这条线是**卡内的**分区，
-     不能比卡沿（`.composer-input-surface` 的 border 用 `--line`）还重，否则卡看起来像被切成两半。 */
-  border-top: 1px solid color-mix(in srgb, var(--line-soft) 85%, transparent);
+  /* 2026-11-09 参考图②：卡内不再画分区线。
+     参考图的输入区与工具行是同一块玻璃面上的两段，靠内边距与左侧圆钮簇分开；
+     2026-10-17 那条发丝线（以及它当初要解决的「白板」问题）随参考图撤掉。 */
 }
 
 .composer-toolbar-left {
   display: flex;
-  /* basis 取 auto（自然宽）而不是 0：折行时「左端自己放不放得下」才是折行判据；
-     basis:0 会让它永远\"放得下\"，右端先被挤死，折行永远轮不到。 */
+  /* basis 取 auto（自然宽）：这一组不再靠折行容纳，而是「自己放得下多少就占多少」，
+     余量留给右端；basis:0 会让它先吃满、右端被迫收缩。 */
   flex: 1 1 auto;
   align-items: center;
   min-width: 0;
@@ -1228,15 +1292,21 @@ html[data-platform="darwin"] .conversation-pane {
    （试过给 chip 自己写 `min-width: min-content` 让它按内容算地板：**更糟**。
    那把左端的最小宽度整个撑大，1440/1280/1200/1120 四档当场开始抖动，
    容器宽度在 758 / 626 / 466 / 386 之间来回跳。**地板不是 chip 的事，是 label 的事。**） */
-.composer-toolbar-left .composer-chip--model {
+/* 2026-11-09 参考图②：模型入口搬到右端、紧挨麦克风与发送键，并**撤掉** 2026-11-08
+   那层「实心浅底 + 描边」——参考图里它只是一行深色模型名 + 下拉三角，与左侧两枚开关
+   同为裸文字控件；层级靠字色/字重（--text + 600）而不是靠第二块底色。
+   flex-shrink 仍留 100：右端一旦要收缩（≤380 那档），先让模型名截断，权限档与发送键不让。 */
+.composer-toolbar-right .composer-chip--model {
   flex-shrink: 100;
+  color: var(--text);
+  font-weight: 600;
 }
 
 /* 批次 5-⑪：上面那条「模型先让」没有地板，于是它一路让到 5.6px（真机读数）——
    那不是省略号，是几乎归零，连「这是一个模型名」都看不出来，比四枚一起出省略号更糟。
    4.5em 是「还能认出是模型名」的下限；正常布局下轮不到它生效（阶梯重算后 664 容器一行不出省略号），
-   它只负责兜住那些极窄窗口。 */
-.composer-toolbar-left .composer-chip--model .composer-chip-label {
+   它只负责兜住那些极窄窗口。2026-11-09 随模型一起搬到右端。 */
+.composer-toolbar-right .composer-chip--model .composer-chip-label {
   min-width: 4.5em;
 }
 
@@ -1246,23 +1316,118 @@ html[data-platform="darwin"] .conversation-pane {
   min-width: 0;
 }
 
+/* 【2026-11-08 用户裁定】「更多」弹层：首行只留最常用的几枚，多稿 / 工具清单 / 命令面板 /
+   工作模式收在这里（功能一个不丢，仍是同一张 chip 决策表与同一套事件）。
+   面与权限档菜单同族（12px 圆角 / --line-soft 边 / 淡阴影），向上开、锚在触发钮左沿——
+   输入卡贴着视口底部，向下开会顶出窗口。 */
+.composer-more {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+}
+
+/* 弹层开着时触发钮亮一档：它此刻是这一摞的把手，不再是一枚普通圆钮。 */
+.composer-more.is-open .composer-more-trigger {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
+}
+
+/* 弹层里只要有一枚在生效（多稿开着 / 工作模式=先计划），入口自己提一档；
+   否则这些状态藏进弹层后，卡面上没有任何地方说「它们开着」。 */
+.composer-more-trigger.is-active {
+  color: var(--text);
+}
+
+.composer-more-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 208px;
+  padding: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--editor) 94%, transparent);
+  backdrop-filter: blur(14px) saturate(118%);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--shadow-color) 70%, transparent);
+}
+
+.composer-more-item {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.928571rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* 浅底一档（前景色 8%）而不是 var(--hover)：弹层是新面，深浅两套皮肤用同一个公式即可压/提，
+   也不必给「深档底普查表」再添一条。 */
+.composer-more-item:hover:not(:disabled),
+.composer-more-item:focus-visible {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
+}
+
+.composer-more-item:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.composer-more-item:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+/* 生效中的开关（aria-pressed=true）：只提字重与字色，不加第二种底色。 */
+.composer-more-item[aria-pressed="true"] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.composer-more-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 弹层里的 chevron 跟着文字色走，不另造一套。 */
+.composer-more-item .composer-chip-caret {
+  color: var(--text-faint);
+}
+
 .composer-toolbar-right {
   position: relative;
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 4px;
-  /* 折行后右端整组落在第二行：`justify-content: space-between` 在**单项目的行**上等同 flex-start，
-     不给这一句就会贴到左边、跟上一行的左端起始位置对齐着掉下来。 */
+  /* 首行常驻后，右端不再靠 margin 抢占折行位置：`margin-left: auto` 只在真有剩余空间时
+     把它推到最右；`justify-content: space-between` 已经负责首尾分栏。保留这一句是为了
+     560 以下折行兜底时右端仍贴右（单项目的行上它等同 flex-start）。 */
   margin-left: auto;
 }
 
 .send-button {
   display: grid;
   place-items: center;
-  /* 2026-10-17 设计稿「用这个对话框」：发送键 46×46（原 30×30 照 deepwrite）。 */
-  width: 46px;
-  height: 46px;
+  /* 2026-11-09 参考图②：发送键收到 34×34（原 46×46）。
+     参考图里它与麦克风、加号是同一档视觉重量——一枚圆钮，不是卡上最大的那块面；
+     46px 在 48px 高的工具行里会顶满上下，读起来像「第二张卡」。 */
+  width: 34px;
+  height: 34px;
   flex: 0 0 auto;
   border-radius: 50%;
   /* 设计稿：实心键外面一圈淡描边 + 顶沿高光，让它从玻璃卡上「立」起来。 */
@@ -1311,21 +1476,18 @@ html[data-platform="darwin"] .conversation-pane {
 .round-tool-button {
   display: grid;
   place-items: center;
-  /* 2026-10-17 设计稿「用这个对话框」：加号与麦克风是 38×38 的玻璃圆钮（原 30×30 照 deepwrite）。 */
+  /* 2026-10-17 设计稿「用这个对话框」：加号与麦克风是 38×38 的命中区（原 30×30 照 deepwrite）。 */
   width: 38px;
   height: 38px;
   flex: 0 0 auto;
   border-radius: 50%;
-  /* 设计稿的玻璃圆面：淡底 + 一圈描边 + 顶沿高光（色值一律 token / color-mix）。
-     淡底取 `--text` 的 8% 而不是 `--hover`：`--hover` 是**深档**，拿它当底就得进
-     `appearance-surface-ladder` 的深档普查并连带压字色——这枚钮是**静态玻璃面**、
-     不是状态档底（悬停那一档另有 `.round-tool-button:hover` 一条，早就在普查表里）。
-     `--text` 自带的明暗方向在浅底/深底上都读得出：浅底压一点灰、深底提一点亮。 */
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
-  box-shadow:
-    inset 0 1px 0 var(--glass-highlight),
-    0 2px 8px color-mix(in srgb, var(--shadow-color) 20%, transparent);
+  /* 2026-11-08 UI 走查（参照图）：加号与麦克风在参照图里是**没有圆底的裸图标**——
+     它们不是「按钮面」，而是输入区左侧的两个操作点。保留 38×38 的命中区（尺寸另有设计稿与测试），
+     只把玻璃圆面撤掉：透明底 + 无描边，悬停时才浮出一层淡底。
+     （旧版这里是 `--text` 8% 的静态玻璃面 + 描边 + 顶沿高光。） */
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   color: var(--text-soft);
   cursor: pointer;
   /* 【2026-10-17 装饰】补一条过渡与一圈 focus 环：`＋` 与麦克风是卡里出现最频繁的两枚，
@@ -1401,6 +1563,20 @@ html[data-platform="darwin"] .conversation-pane {
    内容盒 628 落在 722/696/662 三级内 ⇒ 工具、/ 命令、联网三枚只留图标，
    行宽降到 341.7 ≤ 354 ⇒ **一枚省略号都不出，思考档与模型名都整条显示**。
    对照旧值 628 只触发 680 一级，省下 26px，剩下 34.7px 全砸在模型名上。 */
+/* 2026-11-08 UI 走查（参照图）：工具行字号从 0.75rem 抬到 0.875rem 之后，
+   整排控件的自然宽比 2026-10-06 那轮实测宽出约 8%。这一档先把「图标自解释」的五枚提前收成图标
+   （参照图里麦克风/加号也是纯图标，工具行本来就不该是一排小字），
+   让 664 容器（1440 窗口右栏展开）仍是一行、不折行；更窄的 722/696/662/615 四级照旧兜底。 */
+@container composer (max-width: 800px) {
+  .composer-toolbar-left .composer-chip[data-chip="thinking"] .composer-chip-label,
+  .composer-toolbar-left .composer-chip[data-chip="web-search"] .composer-chip-label,
+  .composer-toolbar-left .composer-chip[data-chip="draft"] .composer-chip-label,
+  .composer-toolbar-left .composer-chip[data-chip="tools"] .composer-chip-label,
+  .composer-toolbar-left .composer-chip[data-chip="palette"] .composer-chip-label {
+    display: none;
+  }
+}
+
 @container composer (max-width: 722px) {
   /* 模型名的 4.5em 地板比 chip 自己的地板（44px）**还大** ⇒ 框画得比内容窄，
      而 chip 是 `overflow: visible` ⇒ 内容整个画到框外，压在下一枚上。
@@ -1411,7 +1587,8 @@ html[data-platform="darwin"] .conversation-pane {
      为什么原来那条 ≤620 救不了：它写的是同一件事（把 label 的 min-width 归零），
      但本机窗口地板是 1000px ⇒ 容器最窄只量到 **676.7**，620 那一档及以下
      （620 / 615 / 589 / 560 / 380）**永远够不着**，是死代码。详见上面那段重算依据。 */
-  .composer-toolbar-left .composer-chip--model .composer-chip-label {
+  /* 2026-11-09：模型名住右端之后，这一档撤地板的对象跟着挪过去。 */
+  .composer-toolbar-right .composer-chip--model .composer-chip-label {
     min-width: 0;
   }
 
@@ -1443,7 +1620,8 @@ html[data-platform="darwin"] .conversation-pane {
    「怎么切换模型看不见」：控制权还在（点开/hover title 都在），但状态不用猜。
    注释写在块外：本文件的块级断言按花括号切原文，块内写字会让 display:none 那条误判。 */
 @container composer (max-width: 589px) {
-  .composer-toolbar-left .composer-chip--model .composer-chip-label {
+  /* 模型名在右端，仍按 9em 截断（它比权限档的 8em 宽一档，是这一排里最该读全的那个）。 */
+  .composer-toolbar-right .composer-chip--model .composer-chip-label {
     max-width: 9em;
   }
 
@@ -1522,8 +1700,9 @@ html[data-platform="darwin"] .conversation-pane {
     min-width: 44px;
   }
 
-  /* 与其余标签一样出省略号：4.5em 的地板比 chip 自己的地板还大，内容注定画到框外 */
-  .composer-toolbar-left .composer-chip--model .composer-chip-label {
+  /* 与其余标签一样出省略号：4.5em 的地板比 chip 自己的地板还大，内容注定画到框外。
+     2026-11-09：模型名在右端，这一格也跟到右端。 */
+  .composer-toolbar-right .composer-chip--model .composer-chip-label {
     min-width: 0;
     max-width: 6em;
   }
@@ -1549,8 +1728,11 @@ html[data-platform="darwin"] .conversation-pane {
      2026-10-22 真机（窗口 1000、容器 278）量到「工作模式：未定」「未打开作品目录」被切成
      「工作…」「未…」——两个字加一枚省略号，读起来像渲染残片，而且这一行本来就折出来了，
      不是「一行里没地方」。按 5-㓜 的同一条口径收文字、不收控件：图标与下拉三角全在，
-     名字交给 title（Chromium 的 AccName 在无内容时回落到 title）。宽档一个字都不动。 */
-  .composer-toolbar-right .composer-chip-label {
+     名字交给 title（Chromium 的 AccName 在无内容时回落到 title）。
+     2026-11-09：模型名搬进右端之后成了这一排的主标签，**不再跟着一起藏**——
+     折行后这一整行都是它的地方，没有理由把「正在用哪个模型」藏成一颗图标。
+     所以这一档只收权限档那一枚的文字。宽档一个字都不动。 */
+  .composer-toolbar-right .composer-chip[data-chip="permission"] .composer-chip-label {
     display: none;
   }
 }
@@ -1858,6 +2040,26 @@ html[data-platform="darwin"] .conversation-pane {
   .composer-context-item {
     transition: none;
   }
+}
+
+/* 2026-11-09 参考图③：输入面**下方**常驻的一行「选择作品」。
+   位置在 .composer-input-surface 之后、.composer 之内；与卡上方的绑定条并存（那一格的显隐逻辑不动）。
+   胶囊沿用 .composer-context-item 那一枚（同一份高度/内边距/悬停底），这里只补一行容器与次一级字色，
+   不再造第二种胶囊——两处胶囊长得不一样时，用户会以为其中一枚不是按钮。 */
+.composer-project-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px 0;
+}
+
+.composer-project-trigger {
+  color: var(--text-secondary);
+  max-width: 100%;
+}
+
+.composer-project-trigger:hover:not(:disabled) {
+  color: var(--text-primary);
 }
 
 @container composer (max-width: min(32rem, 560px)) {

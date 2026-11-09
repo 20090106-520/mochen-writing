@@ -149,10 +149,19 @@ describe("阶段弹层真身 · 对齐他的 DOM 与键盘，删干净永不为�
     expect(m).toContain('<Teleport to="body">');
     expect(m).toContain('class="composer-context-menu"');
     expect(m).toContain('role="dialog"');
-    expect(m).toContain("选择本书阶段");
+    // 【2026-11-09 改钉 · 参考图③】这份弹层改成了「从一组里挑一个」的通用面：标题 / 搜索占位 /
+    // 空态两句由调用处传入（阶段半截在 ComposerContextBar，作品目录半截在 ComposerProjectBar）。
+    // 旧断言要求弹层自己写死「选择本书阶段」，那会逼第二个消费者再抄一遍键盘与结构；新规则是
+    // 「弹层只渲染，文案在各调用处」，于是这两句改钉到 BAR 的挂载属性上。
+    expect(m).toContain("{{ heading }}");
+    expect(m).toContain(':placeholder="searchPlaceholder"');
     expect(m).toContain('class="context-search"');
     expect(m).toContain('class="context-option"');
-    expect(m).toContain("阶段列在作品目录的 book.json 里");
+    const bar = templateSource(BAR);
+    expect(bar).toContain('heading="选择本书阶段"');
+    expect(bar).toContain('search-placeholder="搜索阶段名称"');
+    expect(bar).toContain('empty-title="这本书没有可切的阶段"');
+    expect(bar).toContain('empty-hint="阶段列在作品目录的 book.json 里"');
     expect(countNeedle('class="context-option-icon"', m)).toBe(1);
   });
 

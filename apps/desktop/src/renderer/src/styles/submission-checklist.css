@@ -1,0 +1,229 @@
+/* 交稿体检浮层（2026-11-09 W-04）。骨架与伏笔台账 / 变更历史同款：
+   Teleport 到 body、贴 W-03 参考栏的「体检」按钮定位；宽度由
+   `useComposerContextPopover` 的 widthPx 给出（480），样式表不写死 width。 */
+
+.submission-check {
+  position: fixed;
+  z-index: 60;
+  max-height: min(620px, 80vh);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  font-size: 0.928571rem;
+  line-height: 1.6;
+}
+
+.submission-check-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.submission-check-head strong {
+  flex: none;
+}
+
+.submission-check-who {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.857143rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.submission-check-count {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.submission-check-refresh,
+.submission-check-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-dim, #6b6f76);
+  cursor: pointer;
+}
+
+.submission-check-refresh:hover,
+.submission-check-close:hover {
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-primary, #23262b);
+}
+
+.submission-check-refresh:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.submission-check-note,
+.submission-check-foot,
+.submission-check-hint {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+}
+
+.submission-check-empty {
+  margin: 0;
+  padding: 8px 2px;
+  color: var(--text-dim, #6b6f76);
+}
+
+.submission-check-error {
+  margin: 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--danger-soft, #fdecec);
+  color: var(--danger, #b42318);
+  font-size: 0.857143rem;
+}
+
+.submission-check-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.submission-check-group-title {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  font-weight: 600;
+}
+
+.submission-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.submission-check-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+}
+
+.submission-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.submission-check-jump {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary, #23262b);
+  font: inherit;
+  font-size: 0.928571rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.submission-check-jump:hover {
+  color: var(--accent, #339cff);
+  text-decoration: underline;
+}
+
+.submission-check-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-primary, #23262b);
+  font-size: 0.928571rem;
+}
+
+.submission-check-where {
+  flex: none;
+  max-width: 46%;
+  overflow: hidden;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.714286rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.submission-check-where.is-blind {
+  background: var(--warning-soft, #fff6e5);
+  color: var(--warning, #8a5a00);
+}
+
+.submission-check-detail {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  overflow-wrap: anywhere;
+}
+
+.submission-check-status {
+  display: flex;
+  gap: 4px;
+}
+
+.submission-check-mark {
+  padding: 1px 8px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--text-dim, #6b6f76);
+  font: inherit;
+  font-size: 0.714286rem;
+  cursor: pointer;
+}
+
+.submission-check-mark.is-todo.is-active {
+  border-color: var(--warning, #8a5a00);
+  background: var(--warning-soft, #fff6e5);
+  color: var(--warning, #8a5a00);
+}
+
+.submission-check-mark.is-fixed.is-active {
+  border-color: var(--success, #1f7a4d);
+  background: var(--success-soft, #e8f6ee);
+  color: var(--success, #1f7a4d);
+}
+
+.submission-check-mark.is-ignored.is-active {
+  border-color: var(--line, #dedfdf);
+  background: var(--surface-dim, #f0f1f4);
+  color: var(--text-primary, #23262b);
+}
+
+.submission-check-hint {
+  padding-top: 4px;
+  border-top: 1px dashed var(--line, #dedfdf);
+}

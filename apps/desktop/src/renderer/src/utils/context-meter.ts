@@ -147,10 +147,11 @@ export interface ContextPressureReading {
  * 「这一轮大概占掉上游窗口的多少」＋「显式挂入了几项」。
  *
  * 分子与折叠条**同一个数**（同一个 `meterTotals`，所以不许在这里再加一遍）；
- * 分母只有回包里的 `windowApproxTokens` 一份——它就是主进程切历史用的那枚保守假设窗口
- * （`agent-runtime` 的 `UPSTREAM_WINDOW_TOKENS`，经契约递过来，因为渲染层过不了包边界闸）。
+ * 分母只有回包里的 `windowApproxTokens` 一份——它是主进程切历史用的那枚窗口，
+ * P0-3 起来自模型配置的 `contextWindow`；没填过才回退到保守假设窗口
+ * （`DEFAULT_CONTEXT_WINDOW_TOKENS`，经契约递过来，因为渲染层过不了包边界闸）。
  * 换句话说这一行报的是**真那个闸门的刻度**，不是模型真实上限；title 里必须把这句说明白，
- * 否则用户会以为 100% 等于模型拒绝服务。这里也绝不许多写一个 24000（铁律 6）。
+ * 否则用户会以为 100% 等于模型拒绝服务。这里也绝不许再写一个 24000（铁律 6）。
  *
  * 三种不显形：没问过主进程、装不出东西、回包没给分母。最后一条是硬规矩——
  * 拿不到分母就宁可缺一行，也不许编一个数骗人。
@@ -170,25 +171,43 @@ export function contextPressureReading(preview: ContextPreview | null): ContextP
   const ratio = (totals.approxTokens / windowTokens) * 100;
   const percent = totals.approxTokens === 0 ? 0 : Math.max(1, Math.round(ratio));
   const pinned = preview.items.filter((item) => item.kind === "pinned").length;
+  // P0-2：技能不再混进「已挂入」——系统提示里只有清单，正文由 use_skill 按需读，
+  // 两路占的额度完全不同，合成一行会让用户按正文的量去估预算。
+  const skills = preview.items.filter((item) => item.kind === "skill").length;
+  // W-01：设定单独报一行，别让作者以为「设定」是装饰。这一族 = 世界观文稿 + 故事圣经里
+  // 本轮真正装进来的条目（名字命中的、importance 高的），与正文/人物卡/大纲分开计量。
+  const settings = preview.items.filter((item) => item.kind === "world");
+  const settingsChars = settings.reduce((sum, item) => sum + item.chars, 0);
 
   const parts = [
     `窗口 ≈${percent}%`,
     `${formatApproxTokens(totals.approxTokens)} / ${formatApproxTokens(windowTokens)} tokens`
   ];
+  if (settings.length > 0) parts.push(`设定 ${settings.length} 项 ${settingsChars} 字`);
   if (pinned > 0) parts.push(`已挂入 ${pinned} 项`);
+  if (skills > 0) parts.push(`技能 ${skills} 项`);
 
   const ceiling =
     percent >= 100
       ? "已过保守窗口上界——更早的历史会被切掉，切了什么看下方那一行"
       : "到 100% 后更早的历史会被切掉";
 
+  const hints: string[] = [];
+  if (settings.length > 0)
+    hints.push(
+      "「设定」单独计量：世界观文稿 + 故事圣经里本轮真正装进来的条目（本章提到的、importance 高的），不含正文与人物卡。"
+    );
+  if (pinned > 0) hints.push("「已挂入」只数你显式挂进来的书内文稿（@ 引用 / 加入上下文）。");
+  if (skills > 0) hints.push("「技能」单独计量：系统提示只带清单，正文由 use_skill 按需读取。");
+
   return {
     visible: true,
     text: parts.join(" · "),
     title:
-      `分母 ${formatApproxTokens(windowTokens)} tokens 是切历史用的保守假设窗口，不是模型真实上限；` +
+      `分母 ${formatApproxTokens(windowTokens)} tokens 取自模型配置的上下文窗口（没填时回退到保守假设窗口），` +
+      `不是模型真实上限；切历史时按 40% / 35% / 25% 分给系统提示 / 上下文包 / 历史。` +
       `分子与上方折叠条同一个数（装配 + 会话历史的上界）。${ceiling}。` +
-      (pinned > 0 ? "「已挂入」只数你显式挂进来的那些（@ 引用 / 加入上下文 / 技能）。" : "")
+      hints.join("")
   };
 }
 

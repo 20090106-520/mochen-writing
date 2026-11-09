@@ -32,7 +32,7 @@
  *
  * 【两档实测数（2026-10-15，临时 user-data 实例 + CDP，逐族量真实几何）】
  * 标准→紧凑：nav-row 34→30、nav-subrow 30→27、tree-row 30→25、resource-section-heading 34→30、
- * section-toggle 32→28、icon-button 32→28、section-tab 41→37、view-tabs 与 editor-view-switch
+ * section-toggle 32→28、icon-button 32→28、section-tab 29→27、view-tabs 与 editor-view-switch
  * 的钮 25→23、format-button 27→25、send 与 round-tool 的钮 30→28、composer-chip 29→27、
  * composer-toolbar 43→38、workbench-cards 354→320（gap 10→8）、workbench-card 117→107、
  * workbench-intro 259→255、message-list 上下留白 34/72→26/56。
@@ -71,7 +71,8 @@ html[data-density="compact"] .icon-button {
 }
 
 html[data-density="compact"] .section-tab {
-  height: 37px;
+  /* 2026-11-08：标签页改成 29px 软胶囊后，紧凑档跟着落到 27px（原来 41→37 的绝对值已不成立）。 */
+  height: 27px;
 }
 
 html[data-density="compact"] .view-tabs button,

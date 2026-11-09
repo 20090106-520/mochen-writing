@@ -1,0 +1,160 @@
+/* 液态玻璃材质（2026-11-09）。
+   参数全部在 `composables/appearanceLiquidGlass.ts` 现算、由 `appearanceThemeRuntime.ts`
+   写到 `<html>` 上（`--lg-*` 一族）；**本文件是这族 token 唯一的应用点**——
+   组件里不许再自己写一套 backdrop-filter 数值。
+
+   【总闸】
+   规则挂在 `html[data-liquid-glass="on"]` 下面：关掉时连选择器都不命中，
+   比逐条 `backdrop-filter: none` 干净，也不会因为漏写一条而半开半关。
+
+   【只给浮在内容之上的表面】
+   输入卡、弹出菜单、检查浮层、对话框、标题带、状态提示。
+   正文阅读区（`.message-body` / `.message-markdown` / 编辑器正文）**刻意不在此列**：
+   长文压在玻璃上会掉对比度与清晰度，这是材质边界，不是漏改。
+
+   【性能取舍】
+   ① 模糊只落在这几类表面本身，不往子元素上叠——同一块玻璃上永远只有一层 backdrop-filter。
+   ② 模糊上限 20px（在 TS 参数表里封顶），没有大面积铺满整屏的玻璃。
+   ③ 对话框不重复模糊：`.dialog-backdrop` 已经把整窗糊过一次，
+      再在弹窗自己身上加一层 backdrop-filter 只是把同一件事做两遍。
+   ④ 标题带不加模糊：它下面压的是本栏自己的不透明底，糊了也看不出差别，白付 GPU。
+   ⑤ 系统开了「减少透明度」或「增强对比度」时整族退回不透明底；
+      「减少动效」时去掉高光位移的过渡。 */
+
+html[data-liquid-glass="on"] .composer-input-surface,
+html[data-liquid-glass="on"] .review-menu,
+html[data-liquid-glass="on"] .permission-menu,
+html[data-liquid-glass="on"] .composer-more-menu,
+html[data-liquid-glass="on"] .composer-reference-menu,
+html[data-liquid-glass="on"] .conversation-history-panel,
+html[data-liquid-glass="on"] .tree-node-action-menu,
+html[data-liquid-glass="on"] .review-score,
+html[data-liquid-glass="on"] .ai-slop,
+html[data-liquid-glass="on"] .cast-check,
+html[data-liquid-glass="on"] .timeline-check,
+html[data-liquid-glass="on"] .foreshadow-ledger,
+html[data-liquid-glass="on"] .volume-outline,
+html[data-liquid-glass="on"] .change-history,
+html[data-liquid-glass="on"] .toast {
+  border-color: var(--lg-ring);
+  background-color: var(--lg-fill);
+  /* 两层渐变：一条斜向光带 + 左上角镜面反光。位置与尺寸让位移只挪光、不挪盒子。 */
+  background-image: var(--lg-sheen);
+  background-position: var(--lg-sheen-rest);
+  background-repeat: no-repeat;
+  background-size: 180% 180%;
+  box-shadow: var(--lg-shadow);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+  transition:
+    background-position 220ms ease,
+    background-color 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+/* 对话框：同样的底/边/光，但**不加** backdrop-filter（背板已经糊过一层，见文件头）。 */
+html[data-liquid-glass="on"] .workspace-dialog {
+  border-color: var(--lg-ring);
+  background-color: var(--lg-fill);
+  background-image: var(--lg-sheen);
+  background-position: var(--lg-sheen-rest);
+  background-repeat: no-repeat;
+  background-size: 180% 180%;
+  box-shadow: var(--lg-shadow);
+}
+
+/* 标题带：只加一层薄薄的玻璃底色与光，不加模糊（底下是本栏的不透明底）。 */
+html[data-liquid-glass="on"] .conversation-header,
+html[data-liquid-glass="on"] .editor-header {
+  background-color: var(--lg-fill);
+  background-image: var(--lg-sheen);
+  background-position: var(--lg-sheen-rest);
+  background-repeat: no-repeat;
+  background-size: 180% 180%;
+  border-bottom-color: var(--lg-ring);
+}
+
+/* hover / 聚焦：高光沿斜向位移一档、阴影抬一档。只动 background-position 与 box-shadow，
+   不碰 transform——标题带与输入卡都是布局里的固定块，位移会带着整列抖一下。 */
+html[data-liquid-glass="on"] .composer-input-surface:hover,
+html[data-liquid-glass="on"] .composer:focus-within .composer-input-surface,
+html[data-liquid-glass="on"] .review-menu:hover,
+html[data-liquid-glass="on"] .review-menu:focus-within,
+html[data-liquid-glass="on"] .permission-menu:hover,
+html[data-liquid-glass="on"] .composer-more-menu:hover,
+html[data-liquid-glass="on"] .composer-reference-menu:hover,
+html[data-liquid-glass="on"] .conversation-history-panel:hover,
+html[data-liquid-glass="on"] .toast:hover {
+  background-position: var(--lg-sheen-hover);
+  box-shadow: var(--lg-shadow-hover);
+}
+
+/* 检查浮层与对话框只在「获得焦点/被操作」时抬一档，避免大面积阴影常驻。 */
+html[data-liquid-glass="on"] .review-score:hover,
+html[data-liquid-glass="on"] .ai-slop:hover,
+html[data-liquid-glass="on"] .cast-check:hover,
+html[data-liquid-glass="on"] .timeline-check:hover,
+html[data-liquid-glass="on"] .foreshadow-ledger:hover,
+html[data-liquid-glass="on"] .volume-outline:hover,
+html[data-liquid-glass="on"] .change-history:hover,
+html[data-liquid-glass="on"] .workspace-dialog:focus-within {
+  background-position: var(--lg-sheen-hover);
+  box-shadow: var(--lg-shadow-hover);
+}
+
+/* 系统偏好：减少透明度 / 增强对比度 ⇒ 整族退回不透明底。
+   这里宁可「玻璃消失」也不留半透明——这两项偏好本身就是可读性诉求。 */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  html[data-liquid-glass="on"] .composer-input-surface,
+  html[data-liquid-glass="on"] .review-menu,
+  html[data-liquid-glass="on"] .permission-menu,
+  html[data-liquid-glass="on"] .composer-more-menu,
+  html[data-liquid-glass="on"] .composer-reference-menu,
+  html[data-liquid-glass="on"] .conversation-history-panel,
+  html[data-liquid-glass="on"] .tree-node-action-menu,
+  html[data-liquid-glass="on"] .review-score,
+  html[data-liquid-glass="on"] .ai-slop,
+  html[data-liquid-glass="on"] .cast-check,
+  html[data-liquid-glass="on"] .timeline-check,
+  html[data-liquid-glass="on"] .foreshadow-ledger,
+  html[data-liquid-glass="on"] .volume-outline,
+  html[data-liquid-glass="on"] .change-history,
+  html[data-liquid-glass="on"] .toast {
+    background-color: var(--surface-card);
+    background-image: none;
+    box-shadow: var(--shadow-md);
+    backdrop-filter: none;
+  }
+
+  html[data-liquid-glass="on"] .workspace-dialog {
+    background-color: var(--surface-main);
+    background-image: none;
+    box-shadow: var(--shadow-lg);
+  }
+
+  html[data-liquid-glass="on"] .conversation-header,
+  html[data-liquid-glass="on"] .editor-header {
+    background-color: var(--surface-main);
+    background-image: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-liquid-glass="on"] .composer-input-surface,
+  html[data-liquid-glass="on"] .review-menu,
+  html[data-liquid-glass="on"] .permission-menu,
+  html[data-liquid-glass="on"] .composer-more-menu,
+  html[data-liquid-glass="on"] .composer-reference-menu,
+  html[data-liquid-glass="on"] .conversation-history-panel,
+  html[data-liquid-glass="on"] .tree-node-action-menu,
+  html[data-liquid-glass="on"] .review-score,
+  html[data-liquid-glass="on"] .ai-slop,
+  html[data-liquid-glass="on"] .cast-check,
+  html[data-liquid-glass="on"] .timeline-check,
+  html[data-liquid-glass="on"] .foreshadow-ledger,
+  html[data-liquid-glass="on"] .volume-outline,
+  html[data-liquid-glass="on"] .change-history,
+  html[data-liquid-glass="on"] .toast {
+    transition: none;
+  }
+}

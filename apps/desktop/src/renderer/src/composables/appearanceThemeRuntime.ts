@@ -15,6 +15,7 @@ import {
   type AppearanceColorScheme,
   type AppearanceDensity,
   type AppearanceEditorFontSelection,
+  type AppearanceLiquidGlass,
   type AppearanceThemeConfig,
   type AppearanceUiFontSelection
 } from "@mochen/contracts";
@@ -23,6 +24,7 @@ import {
    让既有调用方（守卫的 __testingMixRgba 等）**一行都不用改**。
    依赖方向因此是单向的：appearanceColor ← appearanceThemeRuntime ← appearanceSkinVisual。 */
 import { hexToRgb, mix, mixChannels, mixHex, mixRgba, rgba } from "./appearanceColor";
+import { liquidGlassMaterial } from "./appearanceLiquidGlass";
 export { mixChannels, mixHex, mixRgba, rgba };
 
 export const FONT_SIZE_LIMITS = APPEARANCE_FONT_SIZE_LIMITS;
@@ -308,6 +310,7 @@ export function applyAppearanceThemeToDocument(input: {
   uiFontFamily: AppearanceUiFontSelection;
   editorFontFamily: AppearanceEditorFontSelection;
   density: AppearanceDensity;
+  liquidGlass: AppearanceLiquidGlass;
 }): void {
   const { scheme, theme } = input;
   const root = document.documentElement;
@@ -442,6 +445,38 @@ export function applyAppearanceThemeToDocument(input: {
   );
 
   /**
+   * 【2026-11-09 液态玻璃材质】
+   *
+   * 参数全部由 `appearanceLiquidGlass.ts` 现算（按这套皮肤的背景/前景/强调色与玻璃档），
+   * 本文件只负责把 `--lg-*` 这一族写到 `<html>` 上，并落一个 `data-liquid-glass` 总闸。
+   *
+   * **为什么写属性、不只是写 token**：样式表里那一族规则挂在
+   * `html[data-liquid-glass="on"]` 下面，关掉时**连选择器都不命中**——
+   * 比逐条 `backdrop-filter: none` 干净，也不会因为某条规则漏写而半开半关。
+   *
+   * 这里刻意逐条 `setProperty("--lg-…"`，而不是循环写对象：
+   * `theme-token-guard.test.ts` 静态扫的就是这个形状，名字写在明面上才扫得到。
+   */
+  const glass = liquidGlassMaterial({
+    setting: input.liquidGlass,
+    glass: theme.glass,
+    accent: theme.accent,
+    background: theme.background,
+    foreground: theme.foreground
+  });
+  root.dataset.liquidGlass = glass.enabled ? "on" : "off";
+  root.style.setProperty("--lg-fill", glass.fill);
+  root.style.setProperty("--lg-sheen", glass.sheen);
+  root.style.setProperty("--lg-ring", glass.ring);
+  root.style.setProperty("--lg-specular", glass.specular);
+  root.style.setProperty("--lg-blur", glass.blur);
+  root.style.setProperty("--lg-saturate", glass.saturate);
+  root.style.setProperty("--lg-shadow", glass.shadow);
+  root.style.setProperty("--lg-shadow-hover", glass.shadowHover);
+  root.style.setProperty("--lg-sheen-rest", glass.sheenRest);
+  root.style.setProperty("--lg-sheen-hover", glass.sheenHover);
+
+  /**
    * 旧别名层（2026-10-06 真机撞出来的）。
    *
    * **问题**：约 250 处样式消费的这批名字（`--surface` / `--surface-dim` / `--dropdown-bg` /
@@ -537,6 +572,7 @@ export function applyAppearanceSettingsToDocument(settings: {
   uiFontFamily: AppearanceUiFontSelection;
   editorFontFamily: AppearanceEditorFontSelection;
   density: AppearanceDensity;
+  liquidGlass: AppearanceLiquidGlass;
 }): void {
   const theme = settings.scheme === "dark" ? settings.dark : settings.light;
   applyAppearanceThemeToDocument({
@@ -544,7 +580,8 @@ export function applyAppearanceSettingsToDocument(settings: {
     theme,
     uiFontFamily: settings.uiFontFamily,
     editorFontFamily: settings.editorFontFamily,
-    density: settings.density
+    density: settings.density,
+    liquidGlass: settings.liquidGlass
   });
 }
 

@@ -39,6 +39,7 @@
 .tool-roster,
 .model-select,
 .permission-menu,
+.review-menu,
 .composer-context-menu,
 .composer-reference-menu,
 .conversation-history-panel,
@@ -51,7 +52,8 @@
 .volume-outline,
 .cast-check,
 .material-panel,
-.foreshadow-ledger {
+.foreshadow-ledger,
+.submission-check {
   animation: mochen-pop-in var(--dur-pop) var(--ease-out-soft);
 }
 

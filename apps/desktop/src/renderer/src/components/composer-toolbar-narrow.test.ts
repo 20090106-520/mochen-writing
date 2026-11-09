@@ -57,8 +57,9 @@ describe("工具栏窄档：两级门槛与修法", () => {
 
   it("分配级：模型名不再被 4.5em 钉住（那条地板比 chip 自己的 44px 还大，内容注定出框）", () => {
     const block = atRuleBlock(CSS, ALLOC_TIER);
+    // 2026-11-09 参考图②：模型 chip 搬到右端，撤地板的对象跟着过去。
     expect(block).toMatch(
-      /\.composer-toolbar-left \.composer-chip--model \.composer-chip-label\s*\{[^}]*min-width:\s*0/
+      /\.composer-toolbar-right \.composer-chip--model \.composer-chip-label\s*\{[^}]*min-width:\s*0/
     );
   });
 
@@ -79,8 +80,9 @@ describe("工具栏窄档：两级门槛与修法", () => {
    */
   it("撤掉 4.5em 地板那格，必须落在**真机会走到**的阶梯里（窗口地板 1000 ⇒ 容器最窄 676.7）", () => {
     const REACHABLE_FLOOR = 676.7;
+    // 2026-11-09：模型 chip 在右端，规则选择器也随之改。
     const modelLabelFloorOff =
-      /\.composer-toolbar-left \.composer-chip--model \.composer-chip-label\s*\{[^}]*min-width:\s*0/;
+      /\.composer-toolbar-right \.composer-chip--model \.composer-chip-label\s*\{[^}]*min-width:\s*0/;
     const tiers: number[] = [];
     for (const m of CSS.matchAll(/@container composer \(max-width: (\d+(?:\.\d+)?)px\)\s*\{/g)) {
       const n = Number(m[1]);
@@ -98,12 +100,12 @@ describe("工具栏窄档：两级门槛与修法", () => {
 
   it("反向钉：4.5em 那道地板本身仍在（正常宽档下模型名要还能认出是模型名）", () => {
     expect(CSS).toMatch(
-      /\.composer-toolbar-left \.composer-chip--model \.composer-chip-label\s*\{[^}]*min-width:\s*4\.5em/
+      /\.composer-toolbar-right \.composer-chip--model \.composer-chip-label\s*\{[^}]*min-width:\s*4\.5em/
     );
     // 并且它写在阶梯之外——基础规则，不受任何容器查询控制。
     const base = ruleBlock(
       CSS,
-      ".composer-toolbar-left .composer-chip--model .composer-chip-label"
+      ".composer-toolbar-right .composer-chip--model .composer-chip-label"
     );
     expect(base).toContain("min-width: 4.5em");
   });
@@ -126,11 +128,17 @@ describe("工具栏窄档：两级门槛与修法", () => {
    * 可文字仍按 8em 挤，量到「工作…」「未…」两枚残片——两个字加省略号读起来像渲染事故。
    * 修法与左端五枚同一口径：收文字、不收控件（图标、三角、title 全在）。
    * 反向钉：宽档的基础规则里不许出现这条,否则正常窗口会把两枚 chip 一并变成图标。
+   *
+   * 2026-11-09 参考图②：模型名搬进右端后成了这一排的主标签；折行级整行都是它的地方，
+   * 所以这一档**只收权限档那一枚的文字**，模型名不许跟着藏（藏了就等于「用哪个模型」只剩一颗立方体）。
    */
-  it("换行级：右端 chip 收文字不收控件，且只在这一档收", () => {
+  it("换行级：右端只收权限档文字，模型名不跟着藏", () => {
     const block = atRuleBlock(CSS, WRAP_TIER);
     expect(block).toMatch(
-      /\.composer-toolbar-right \.composer-chip-label\s*\{[^}]*display:\s*none/
+      /\.composer-toolbar-right \.composer-chip\[data-chip="permission"\] \.composer-chip-label\s*\{[^}]*display:\s*none/
+    );
+    expect(block, "模型名是右排的主标签，折行后不许 display:none").not.toMatch(
+      /composer-chip--model[^{]*display:\s*none/
     );
     expect(ruleBlock(CSS, ".composer-toolbar-right")).not.toContain("composer-chip-label");
   });
@@ -145,7 +153,7 @@ describe("工具栏窄档：顺序", () => {
 
   it("分配级晚于模型名的 4.5em 地板与 589 级的 9em 上限", () => {
     expect(CSS.indexOf(ALLOC_TIER)).toBeGreaterThan(
-      CSS.indexOf(".composer-toolbar-left .composer-chip--model .composer-chip-label")
+      CSS.indexOf(".composer-toolbar-right .composer-chip--model .composer-chip-label")
     );
     expect(CSS.indexOf(ALLOC_TIER)).toBeGreaterThan(
       CSS.indexOf("@container composer (max-width: 589px)")
@@ -158,8 +166,16 @@ describe("工具栏窄档：顺序", () => {
 });
 
 describe("工具栏窄档：宽档一个字都不该动", () => {
-  it("基础规则是「自然宽 + 可缩」：左端 1 1 auto（2026-10-22 起，折行判据要它取自然宽）、右端 0 0 auto", () => {
+  it("基础规则是「自然宽 + 可缩」：左端 1 1 auto（2026-11-08 起按自然宽占位，余量留给右端）、右端 0 0 auto", () => {
     expect(ruleBlock(CSS, ".composer-toolbar-left")).toContain("flex: 1 1 auto");
     expect(ruleBlock(CSS, ".composer-toolbar-right")).toContain("flex: 0 0 auto");
+  });
+
+  // 2026-11-08 用户裁定：首行常驻 + 「更多」弹层落位后，基础档回到 nowrap——
+  // 664（1440 右栏展开）与 840（1600 三栏全开）都一行放得下，折行只留作 560 以下的兜底。
+  it("基础档不折行：nowrap 是常态，wrap 只许出现在 560 那档", () => {
+    const bar = ruleBlock(CSS, ".composer-toolbar");
+    expect(bar).toContain("flex-wrap: nowrap");
+    expect(bar).not.toContain("flex-wrap: wrap");
   });
 });

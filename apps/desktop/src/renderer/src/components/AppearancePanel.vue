@@ -7,6 +7,7 @@ import { MorphIcon } from "morphicons/vue";
 import {
   APPEARANCE_FONT_FAMILY_LABELS,
   type AppearanceDensity,
+  type AppearanceLiquidGlass,
   type AppearanceMode
 } from "@mochen/contracts";
 import { useAppearanceStore } from "../stores/useAppearanceStore";
@@ -143,6 +144,20 @@ const DENSITY_OPTIONS: Array<{ value: AppearanceDensity; label: string }> = [
 
 function setDensity(density: AppearanceDensity): void {
   void appearance.update({ density });
+}
+
+/**
+ * 液态玻璃材质（2026-11-09）：一层可开关的材质，不是又一套皮肤。
+ * `auto` 读皮肤自己的玻璃档——素面皮（`glass: "none"`）在 auto 下就是关的。
+ */
+const LIQUID_GLASS_OPTIONS: Array<{ value: AppearanceLiquidGlass; label: string }> = [
+  { value: "auto", label: "跟随皮肤" },
+  { value: "on", label: "开" },
+  { value: "off", label: "关" }
+];
+
+function setLiquidGlass(liquidGlass: AppearanceLiquidGlass): void {
+  void appearance.update({ liquidGlass });
 }
 
 /**
@@ -294,6 +309,28 @@ const editorFontOptions = Object.entries(APPEARANCE_FONT_FAMILY_LABELS).filter((
          而正文版式在这儿已经有三档（写作页），不写清就会有人以为这一档也管正文。 -->
     <p class="settings-group-note">
       紧凑只把导航行、页签、输入卡与卡片内距各降一档，一屏多看几行；正文的行距、字号与列宽照旧由「写作」页那三档决定。
+    </p>
+
+    <div class="appearance-field">
+      <span class="appearance-field-label">液态玻璃</span>
+      <div class="appearance-segment" role="radiogroup" aria-label="液态玻璃">
+        <button
+          v-for="option in LIQUID_GLASS_OPTIONS"
+          :key="option.value"
+          class="appearance-segment-button"
+          :class="{ 'is-active': appearance.settings.liquidGlass === option.value }"
+          type="button"
+          role="radio"
+          :aria-checked="appearance.settings.liquidGlass === option.value"
+          @click="setLiquidGlass(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+    </div>
+    <!-- 边界同样写在屏上：玻璃只给「浮在内容之上」的表面，正文区刻意不玻璃化。 -->
+    <p class="settings-group-note">
+      玻璃只加在输入卡、菜单、检查浮层、对话框、标题带与状态提示上；正文阅读区保持不透明，长文不掉对比度。跟随皮肤时，素面皮肤不启用。
     </p>
 
     <label class="appearance-field appearance-toggle-row">

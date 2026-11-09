@@ -156,6 +156,7 @@ onMounted(() => {
           <li
             v-for="row in rows"
             :key="row.backupRelPath"
+            class="change-history-item"
             :class="{ 'is-selected': selected?.backupRelPath === row.backupRelPath }"
           >
             <button
@@ -166,6 +167,18 @@ onMounted(() => {
             >
               <span class="change-history-doc" :title="row.docRelPath">{{ row.docRelPath }}</span>
               <span class="change-history-when">{{ changeTimeLabel(row.stamp) }}</span>
+            </button>
+            <!-- 一键撤销（P0-5）：不必先点开这一条，直接回到这条改前。撤销本身也会先留一份备份
+                 （主进程 `changes:restore` 的规矩），所以撤销撤销还能回来；行内那颗仍是「看改前」。 -->
+            <button
+              class="change-history-undo"
+              type="button"
+              aria-label="撤销这次改动"
+              title="撤销这一次改动：把这一篇写回这条改前的样子（撤销会先留一份，撤销还能撤销）"
+              :disabled="book.changesBusy"
+              @click="book.undoChange(row)"
+            >
+              撤销
             </button>
           </li>
         </ul>

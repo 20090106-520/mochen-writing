@@ -1,0 +1,222 @@
+/* 本章参考（2026-11-09 W-03）：右栏常驻的一条只读参考带。
+   位置在视图切换条与正文之间，占 `.editor-pane` 新加的第 6 行；
+   它不 Teleport、不浮在正文上——写作时一直看得见，又不会压住字。
+   默认展开，折叠只收起正文区，标题行仍在；展开态限高并自己滚，
+   免得三块内容把正文挤没。 */
+
+.chapter-brief {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: min(30vh, 220px);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-dim, #f6f7f9);
+}
+
+/* 标题行外壳：左边仍是整行的折叠按钮，右边挂 W-04 的「体检」入口。 */
+.chapter-brief-head {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.chapter-brief-toggle {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  min-width: 0;
+  padding: 7px 8px 7px clamp(18px, 2vw, 24px);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary, #23262b);
+  font: inherit;
+  font-size: 0.857143rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chapter-brief-toggle:hover {
+  color: var(--accent, #339cff);
+}
+
+/* 交稿体检入口（2026-11-09 W-04）：只是一枚小按钮，清单本身走 Teleport 浮层。 */
+.chapter-brief-check {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: clamp(18px, 2vw, 24px);
+  padding: 3px 8px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--text-dim, #6b6f76);
+  font: inherit;
+  font-size: 0.714286rem;
+  cursor: pointer;
+}
+
+.chapter-brief-check:hover {
+  border-color: var(--accent, #339cff);
+  color: var(--accent, #339cff);
+}
+
+/* 与 AgentTimeline 的 chevron 同一个语言：收=0°（朝右）、开=90°（朝下）。 */
+.chapter-brief-chevron {
+  flex: none;
+  transform: rotate(90deg);
+  transition: transform 120ms var(--ease-out-soft, ease);
+}
+
+.chapter-brief-chevron.is-collapsed {
+  transform: rotate(0deg);
+}
+
+.chapter-brief-who {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-brief-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 clamp(18px, 2vw, 24px) 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.chapter-brief-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chapter-brief-label {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  font-weight: 600;
+}
+
+.chapter-brief-source {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.714286rem;
+}
+
+/* 摘要是两列小格子，不是整段章纲：值单行截断，原文仍留在章纲文件里。 */
+.chapter-brief-fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 10px;
+}
+
+.chapter-brief-field {
+  display: flex;
+  gap: 5px;
+  min-width: 0;
+  font-size: 0.785714rem;
+  line-height: 1.5;
+}
+
+.chapter-brief-field dt {
+  flex: none;
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+}
+
+.chapter-brief-field dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-primary, #23262b);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-brief-people {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chapter-brief-person {
+  padding: 1px 7px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #23262b);
+  font-size: 0.785714rem;
+  line-height: 1.5;
+}
+
+.chapter-brief-foreshadows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chapter-brief-foreshadow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.785714rem;
+  line-height: 1.5;
+}
+
+.chapter-brief-tag {
+  flex: none;
+  padding: 0 5px;
+  border: 1px solid var(--line, #dedfdf);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.714286rem;
+}
+
+.chapter-brief-foreshadow-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary, #23262b);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-brief-empty {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  line-height: 1.55;
+}
+
+.chapter-brief-more {
+  margin: 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  line-height: 1.55;
+}
+
+.chapter-brief-note {
+  margin: 0;
+  color: var(--warn, #a8791f);
+  font-size: 0.785714rem;
+  line-height: 1.55;
+}

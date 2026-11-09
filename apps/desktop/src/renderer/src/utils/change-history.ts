@@ -191,20 +191,32 @@ export interface ChangeRestoreResult {
 }
 
 /**
+ * 回滚/撤销只需要「哪一篇」与「哪一份备份」两格。
+ * ChangeEntry 结构上就满足它——一键撤销（P0-5）手里只有提案落盘回传的两个句柄，
+ * 不必为了凑一个 ChangeEntry 去编 stamp / bytes。
+ */
+export interface ChangeRestoreTarget {
+  docRelPath: string;
+  backupRelPath: string;
+}
+
+/**
  * 回滚的编排（2026-10-13 从 store 搬进来：store 只摆状态，判定与 IO 编排住 utils，
  * 与 `readChangePeek`、`doc-read`、`draft-flush` 同一套路；这一搬也让那句「已回滚」的
  * 顺序规矩有了一份能被 vitest 钉死的落点）。
  *
  * 守卫在前：**没打开那一篇就一个字都不动**——回滚的是正文，右栏还摆着别的内容时
  * 把它换掉，用户看不见自己刚刚失去了什么。这里连一次 IPC 都不发。
+ * P0-5 把守卫收紧了一格：以前只要「随便打开了某一篇」就放行，于是能在 A 篇的标签下
+ * 悄悄把 B 篇回滚掉；现在活动标签必须就是这一篇。
  */
 export async function restoreBackupToDoc(
   io: ChangeRestoreIo,
-  entry: ChangeEntry,
+  entry: ChangeRestoreTarget,
   activeDocTab: string | null
 ): Promise<ChangeRestoreResult> {
   const untouched = (notice: string): ChangeRestoreResult => ({ refresh: false, notice });
-  if (activeDocTab === null) {
+  if (activeDocTab === null || activeDocTab !== entry.docRelPath) {
     return untouched("先打开那一篇正文，才能把它回滚回去。");
   }
   try {

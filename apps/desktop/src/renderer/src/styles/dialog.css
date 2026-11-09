@@ -22,8 +22,9 @@
   width: min(560px, calc(100vw - 48px));
   max-height: min(860px, calc(100vh - 48px));
   overflow: hidden;
-  border: 1px solid var(--theme-line);
-  border-radius: 15px;
+  /* 2026-11-08 表面统一：外框与浮层家族同一条发丝线；圆角抬到 16px（浮层 12 / 对话框 16 两档）。 */
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
   background: var(--surface-main, #ffffff);
   /* 原来写死 rgba(27,29,31,…) —— 换主题不跟、深色下也偏淡。统一收进 --shadow-lg，
      高程三档与明暗分家都在 appearanceThemeRuntime 一处算。 */
@@ -36,7 +37,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 22px 15px;
+  padding: 18px 22px 14px;
   border-bottom: 1px solid var(--line-soft);
 }
 
@@ -44,17 +45,17 @@
   display: block;
   margin-bottom: 6px;
   color: var(--text-tertiary);
-  font-size: 0.642857rem;
+  font-size: 0.714286rem;
   font-weight: 650;
   line-height: 1.4;
-  letter-spacing: 0.11em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
 .workspace-dialog h2 {
   margin-top: 3px;
   color: var(--text-primary);
-  font-size: 1.35714rem;
+  font-size: 1.42857rem;
   font-weight: 620;
   letter-spacing: -0.02em;
 }
@@ -64,7 +65,7 @@
   place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-tertiary);
   font-size: 1.57143rem;
@@ -80,7 +81,7 @@
 .dialog-content {
   min-height: 0;
   overflow-y: auto;
-  padding: 20px 22px 23px;
+  padding: 18px 22px 20px;
 }
 
 .dialog-description {
@@ -96,7 +97,7 @@
   padding: 12px;
   resize: vertical;
   border: 1px solid var(--theme-line);
-  border-radius: 9px;
+  border-radius: 8px;
   outline: 0;
   background: var(--surface-raised);
   color: var(--text-primary);
@@ -130,9 +131,9 @@
   display: flex;
   flex: 0 0 auto;
   justify-content: flex-end;
-  gap: 7px;
+  gap: 8px;
   margin: 0;
-  padding: 13px 22px 20px;
+  padding: 12px 22px 18px;
   border-top: 1px solid var(--line-soft);
   background: var(--surface-main, #ffffff);
 }
@@ -145,8 +146,8 @@
   gap: 6px;
   min-height: 32px;
   padding: 0 12px;
-  border-radius: 7px;
-  font-size: 0.785714rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
   cursor: pointer;
 }
 

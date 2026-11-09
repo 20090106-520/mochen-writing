@@ -10,10 +10,10 @@
     "pnpm": ">=11.0.0"
   },
   "scripts": {
-    "dev": "corepack pnpm --filter @mochen/desktop dev",
-    "build": "corepack pnpm --filter @mochen/desktop build",
+    "dev": "pnpm --filter @mochen/desktop dev",
+    "build": "pnpm --filter @mochen/desktop build",
     "mock-provider": "node tools/mock-provider.mjs --port 8787",
-    "smoke": "corepack pnpm build && corepack pnpm --filter @mochen/desktop exec electron .",
+    "smoke": "pnpm build && pnpm --filter @mochen/desktop exec electron .",
     "typecheck": "tsc --noEmit -p packages/contracts/tsconfig.json && tsc --noEmit -p packages/fs-store/tsconfig.json && tsc --noEmit -p packages/agent-runtime/tsconfig.json && tsc --noEmit -p packages/plugin-kernel/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p apps/desktop/tsconfig.web.json",
     "test": "vitest run --maxWorkers=4",
     "lint:eslint": "eslint . --max-warnings=0",

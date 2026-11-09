@@ -22,6 +22,7 @@ import { useSkillMarketStore } from "../stores/useSkillMarketStore";
 import { useAgentStore, threadKeyFor } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
 import { activeStageOf } from "../utils/composer-context";
+import { skillPolicyOf } from "@mochen/contracts";
 import {
   INSTALLED_FILTER,
   PLUGIN_FILTERS,
@@ -52,6 +53,13 @@ const hasConditions = computed(() => browse.hasConditions(page.value));
 /** 挂入是按线程记的，所以「本轮已挂入」这个标记也按当前线程算：换章之后标记要跟着换。 */
 const threadKey = computed(() => threadKeyFor(book.activeDocTab));
 
+/** 书级技能策略（P0-4）：默认挂入清单 + 停用清单，都从 `book.json` 的唯一归一化入口读。 */
+const skillPolicy = computed(() => skillPolicyOf(book.meta));
+const skillDefaults = computed(() => skillPolicy.value.enabled);
+const skillDisabled = computed(() => skillPolicy.value.disabled);
+/** 本会话有没有临时改过挂入（决定界面上标「书级默认」还是「本会话临时改过」）。 */
+const skillOverridden = computed(() => agent.hasSkillOverride(threadKey.value));
+
 const pluginRows = computed(() => browse.pluginEntries(plugins, "plugins"));
 
 /** 市场那一侧传 `entries` 全量：分类筛选由本 store 按 `categoryLabel` 判，不借市场那侧的 `filter`。 */
@@ -59,6 +67,9 @@ const skillRows = computed(() =>
   browse.skillEntries({
     library: agent.skills,
     pinned: agent.skillPathsOf(threadKey.value),
+    defaults: skillDefaults.value,
+    disabled: skillDisabled.value,
+    overridden: skillOverridden.value,
     market: market.entries,
     marketBusy: (dirName) => market.isBusyOn(dirName),
     page: "skills"
@@ -74,7 +85,8 @@ const recommendations = computed(() =>
         pinned: agent.skillPathsOf(threadKey.value),
         stageName: activeStageOf(book.meta)?.name ?? "",
         docKind: book.docs.find((one) => one.relPath === book.activeDocTab)?.kind ?? null,
-        instruction: agent.draftOf(threadKey.value)
+        instruction: agent.draftOf(threadKey.value),
+        disabled: skillDisabled.value
       })
     : []
 );
@@ -228,12 +240,22 @@ onMounted(() => {
 
       <!-- 技能那一处。
            一张表 = 盘上有的 + 市场清单里的（按目录名并成一行，见 useExtensionBrowse.skillEntries）。
-           每张卡两枚钮，**因为是两件事**：「装上/卸掉」写盘、全局到处能用；
-           「挂入/取下」只对当前这条线程生效、重启清空。合成一枚就是把两者混成同一个「已安装」。 -->
+           每张卡最多四枚钮，**因为是四件不同的事**：「装上/卸掉」写盘、全局到处能用；
+           「挂入/取下」只对当前这条会话生效；「设为默认」写 book.json 的书级默认清单；
+           「停用/启用」写 book.json 的停用清单（停用的不进推荐、use_skill 也读不到）。 -->
       <template v-else>
         <p class="extensions-note">
-          技能是一段提示词。装上就落在全局技能目录里、所有作品都能用；挂入只对当前这条线程生效，
-          重启后清空。两者都只进这个应用，不写进书目录。
+          技能是一段提示词。装上就落在全局技能目录里、所有作品都能用；挂入只对当前这条会话生效，
+          新会话继承这本书的「默认挂入」，在本会话改过之后会标「本会话临时改过」（不写回书）。
+          「设为默认」与「停用」会写进这本书的 book.json。
+        </p>
+        <!-- 本会话覆盖的还原入口：覆盖键在就说明「这一条会话不再跟着书级默认」，
+             这里给一颗明确的「恢复书级默认」，而不是让用户自己一次次点回原样。 -->
+        <p v-if="skillOverridden" class="extensions-note">
+          本会话的技能挂入临时改过了，只影响「{{ threadKey }}」这一条会话，不写回书。
+          <button class="extension-btn" type="button" @click="agent.resetSkillOverride(threadKey)">
+            恢复书级默认
+          </button>
         </p>
         <!-- 推荐条：得分的判定全在 stores/useExtensionBrowse 的 skillRecommendations，
              模板只 v-for。**推荐不等于挂入**——点「挂入」才真正带进这一轮上下文（spec §11）。 -->
@@ -290,16 +312,19 @@ onMounted(() => {
                 <strong :title="row.displayName">{{ row.displayName }}</strong>
                 <span class="extension-card-origin">{{ row.sourceLabel }}</span>
               </div>
-              <!-- 三枚标记**穷尽**且互斥（真机撞出来才补齐的第三枚）：
-                   重启之后「本轮已挂入」会清空，于是「已经安装但这一轮没带」那一种
-                   一度没有任何徽标——那一行看上去和「可以装」的只差两颗钮的形状，
-                   而「装没装」与「没装」是完全不同的两件事，藏起来就等于界面在少说一件事。
-                   第二枚写「已安装」而不是「在盘上」：用户指正「技能库那边应该也加一个已安装」。
-                   「在盘上」说的是事实，不是状态——它和这一页另一枚钮上的「装上」对不上，
-                   而「已安装 / 卸掉」「可以装 / 装上」才是同一件事的两头。 -->
-              <span v-if="row.pinned" class="extension-badge is-on">本轮已挂入</span>
+              <!-- 状态标记 + 来源标记。状态四枚**穷尽**：停用 / 本轮已挂入 / 已安装 / 可以装。
+                   来源那一枚（书级默认 / 本会话临时改过）回答的是另一件事：这一轮的挂入是谁定的。
+                   ——「重启之后会清空」不再是事实：书级默认活在 book.json 里，重启后新会话照样继承。 -->
+              <span v-if="row.disabled" class="extension-badge is-stopped">已停用</span>
+              <span v-else-if="row.pinned" class="extension-badge is-on">本轮已挂入</span>
               <span v-else-if="row.onDisk" class="extension-badge is-quiet">已安装</span>
               <span v-else class="extension-badge is-quiet">可以装</span>
+              <span v-if="row.onDisk && row.overridden" class="extension-badge is-quiet">
+                本会话临时改过
+              </span>
+              <span v-else-if="row.onDisk && row.defaultOn" class="extension-badge is-quiet">
+                书级默认
+              </span>
             </div>
             <p v-if="row.summary" class="extension-card-desc">{{ row.summary }}</p>
             <!-- 书内同名那份会盖住全局这份（contracts 的 shadowedByBook）。
@@ -310,21 +335,51 @@ onMounted(() => {
             <div class="extension-card-foot">
               <span class="extension-card-tags">{{ row.categoryLabel }}</span>
               <span class="extension-card-actions">
-                <!-- 挂入/取下：只在盘上才有得挂（onDisk 为假时这一枚不出现，
-                     而不是出现一颗永远失败的钮）。 -->
+                <!-- 挂入/取下：只在盘上、且没被停用时才有得挂（而不是给一颗永远失败的钮）。
+                     标题随「书级默认」/「本会话临时改过」改口径，别让用户以为这一下会写回书。 -->
                 <button
-                  v-if="row.onDisk"
+                  v-if="row.onDisk && !row.disabled"
                   class="extension-btn is-pin"
                   type="button"
                   :aria-pressed="row.pinned"
                   :title="
                     row.pinned
-                      ? `从「${threadKey}」这条线程的上下文里取下`
-                      : `加入「${threadKey}」这条线程的上下文`
+                      ? `从「${threadKey}」这条会话取下${row.overridden ? '（本会话临时覆盖）' : '（继承书级默认）'}`
+                      : `加入「${threadKey}」这条会话的上下文${row.overridden ? '（本会话临时覆盖）' : ''}`
                   "
                   @click="browse.togglePinned(row)"
                 >
                   {{ row.pinned ? "取下" : "挂入" }}
+                </button>
+                <!-- 书级默认：写 book.json，新会话继承。与「挂入」是两件事，所以是两枚钮。 -->
+                <button
+                  v-if="row.onDisk"
+                  class="extension-btn"
+                  type="button"
+                  :title="
+                    row.defaultOn
+                      ? '取消这本书的默认挂入（新会话不再自动带上它）'
+                      : '设为这本书的默认挂入（新会话自动带上它）'
+                  "
+                  :disabled="book.metaSaving"
+                  @click="book.setSkillDefault(row.skillId, !row.defaultOn)"
+                >
+                  {{ row.defaultOn ? "取消默认" : "设为默认" }}
+                </button>
+                <!-- 全局启停（P0-4）：停用的技能不进推荐，use_skill 也读不到正文。 -->
+                <button
+                  v-if="row.onDisk"
+                  class="extension-btn"
+                  type="button"
+                  :title="
+                    row.disabled
+                      ? '启用：重新让它参与推荐与 use_skill'
+                      : '停用：不进推荐，本轮模型也读不到它的正文'
+                  "
+                  :disabled="book.metaSaving"
+                  @click="book.setSkillDisabled(row.skillId, !row.disabled)"
+                >
+                  {{ row.disabled ? "启用" : "停用" }}
                 </button>
                 <!-- 装上/卸掉：只在市场清单里才有得装。 -->
                 <button

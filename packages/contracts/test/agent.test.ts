@@ -206,6 +206,23 @@ describe("provider 与掩码", () => {
     ).toBe(false);
   });
 
+  it("上下文窗口（P0-3）：正整数可存、null 表示清空、0/负数/小数当场拒", () => {
+    const base = {
+      providerId: "custom",
+      baseURL: "http://127.0.0.1:8787/v1",
+      authHeader: "bearer",
+      thinkingWire: "standard",
+      apiKey: null
+    };
+    expect(connectionDraftSchema.safeParse({ ...base, contextWindow: 65536 }).success).toBe(true);
+    // null = 明确清空（回到默认档）；undefined = 没带这一格（沿用旧值），两者都合法。
+    expect(connectionDraftSchema.safeParse({ ...base, contextWindow: null }).success).toBe(true);
+    expect(connectionDraftSchema.safeParse(base).success).toBe(true);
+    expect(connectionDraftSchema.safeParse({ ...base, contextWindow: 0 }).success).toBe(false);
+    expect(connectionDraftSchema.safeParse({ ...base, contextWindow: -1 }).success).toBe(false);
+    expect(connectionDraftSchema.safeParse({ ...base, contextWindow: 1.5 }).success).toBe(false);
+  });
+
   it("掩码只露末 4 位且长度不足时全遮", () => {
     // 计划正文此处的期望值写成 "••••cdefg"（末 5 位），与用例名「只露末 4 位」、
     // provider.ts 的 slice(-4) 实现以及 Task 9 的 keyMask 断言 "••••defg" 三处都矛盾，按 4 位修正。

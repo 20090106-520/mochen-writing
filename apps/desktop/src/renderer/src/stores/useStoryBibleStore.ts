@@ -12,36 +12,17 @@
  * 两条口径不在这里重复实现：
  * - 「按档位/搜索该显示哪些条目」住在 `utils/bible-scope.ts`，这里只给 `activeEntries`
  *   与 `archivedEntries` 两份视图；
- * - 「这份文件是不是我们认识的那份」住在 `utils/bible-shape.ts`：认不得的形状判读不懂（通路随即
+ * - 「这份文件是不是我们认识的那份」住在 contracts 的 `story-bible`（2026-11-08 W-01 下沉，
+ *   主进程的上下文装配与本面板共用同一份）：认不得的形状判读不懂（通路随即
  *   停止写盘），只是缺了后加字段的补默认值放行。
  */
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { normalizeBibleEntries, type BibleEntry, type BibleEntryType } from "@mochen/contracts";
 import { useBookFileData } from "../composables/useBookFileData";
-import { normalizeBibleEntries } from "../utils/bible-shape";
 
-export type BibleEntryType = "character" | "location" | "timeline";
-
-export interface BibleEntry {
-  id: string;
-  type: BibleEntryType;
-  title: string;
-  content: string;
-  createdAt: number;
-  updatedAt: number;
-  tags: string[];
-  color?: string;
-  // 人物类型专属
-  aliases?: string[];
-  role?: string;
-  // 地点类型专属
-  parentLocation?: string;
-  // 时间线专属
-  eventDate?: string;
-  importance?: "high" | "medium" | "low";
-  // 归档态
-  archived?: boolean;
-}
+/** 类型与形状校验的真身住 contracts；这里转导出，面板与工具沿原来的 import 路径照用。 */
+export type { BibleEntry, BibleEntryType };
 
 /** 迁移来源：P0-7 之前那份不带书标识的全局数据。盘上有东西时绝不碰它。 */
 const LEGACY_STORAGE_KEY = "mochen.story-bible.v1";

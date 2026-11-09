@@ -1,5 +1,7 @@
 import {
   AGENT_TOOL_NAMES,
+  defaultProfile,
+  type AgentProfile,
   type AgentToolName,
   type EditProposal,
   type PermissionMode,
@@ -20,6 +22,11 @@ export interface ToolContext {
    * 把整个 meta 摊给 host 不合适，而在这里兜个默认值就等于两处各有一份（铁律 6）。
    */
   workMode: WorkMode;
+  /**
+   * 这一轮用的档案（P0-1）。工具白名单与写入范围都以它为准。
+   * 可缺省只为兼容既有测试宿主；生产装配（agent-service.buildHost）每一轮都显式传。
+   */
+  profile?: AgentProfile;
 }
 
 export interface ToolOutcome {
@@ -88,13 +95,22 @@ function rosterSpecs(host: ToolHost): ChatToolSpec[] {
  * （`wireToolsFor` 在 provider-client 那一处），于是「关掉联网」只是**看不见**，
  * 模型仿历史里那条 `web_search` 调一次照样真出网——清单和权限用了两套判据。
  * 现在两边都从这一个函数取，`wireToolsFor` 仍是唯一那份映射（这里调它，不改它）。
+ *
+ * P0-1（2026-11-08）：花名册工具再按 `profile.tools` 过一道白名单。此前只按联网开关
+ * 与本轮禁用过滤，六档案的 `tools` 字段只是数据、运行时没生效——审稿档案名义上只读，
+ * 实际仍拿得到 `write_doc`。插件工具不受档案限制：那是用户显式装的扩展。
  */
 export function toolsFor(
   host: ToolHost,
   webSearchEnabled: boolean,
-  disabledTools: readonly string[] = []
+  disabledTools: readonly string[] = [],
+  profile: AgentProfile = defaultProfile()
 ): ChatToolSpec[] {
-  return wireToolsFor(rosterSpecs(host), webSearchEnabled).filter(
+  const allowed = rosterSpecs(host).filter((spec) => {
+    const known = toolNameOf(spec.name);
+    return known === null || profile.tools.includes(known);
+  });
+  return wireToolsFor(allowed, webSearchEnabled).filter(
     (spec) => !disabledTools.includes(spec.name)
   );
 }
@@ -109,15 +125,17 @@ export function toolsFor(
  * 用户在时间线上看得见「它想搜，被闸住了」，而不是一句飘着的错误）。
  */
 export type ToolGate =
-  { allowed: true } | { allowed: false; kind: "unknown" | "off-this-round"; reason: string };
+  | { allowed: true }
+  | { allowed: false; kind: "unknown" | "off-this-round" | "not-for-profile"; reason: string };
 
 export function toolGateOf(
   host: ToolHost,
   name: string,
   webSearchEnabled: boolean,
-  disabledTools: readonly string[] = []
+  disabledTools: readonly string[] = [],
+  profile: AgentProfile = defaultProfile()
 ): ToolGate {
-  const round = toolsFor(host, webSearchEnabled, disabledTools);
+  const round = toolsFor(host, webSearchEnabled, disabledTools, profile);
   if (round.some((spec) => spec.name === name)) return { allowed: true };
   const roster = round.map((spec) => spec.name).join("、");
   if (!rosterSpecs(host).some((spec) => spec.name === name))
@@ -125,6 +143,15 @@ export function toolGateOf(
       allowed: false,
       kind: "unknown",
       reason: `模型请求了不存在的工具「${name}」，这条调用已被忽略。可用工具只有 ${roster}。`
+    };
+  // 工具在花名册里，但当前档案的白名单没开它（P0-1）：与「本轮被开关摘掉」是两回事，
+  // 理由必须说对——否则模型会以为用户关了什么开关，反复换个写法重试。
+  const known = toolNameOf(name);
+  if (known !== null && !profile.tools.includes(known))
+    return {
+      allowed: false,
+      kind: "not-for-profile",
+      reason: `「${name}」不在这枚档案「${profile.name}」的工具范围里，这条调用已被忽略。当前可用工具只有 ${roster}。`
     };
   return {
     allowed: false,
@@ -145,9 +172,10 @@ export function isCallableTool(
   host: ToolHost,
   name: string,
   webSearchEnabled: boolean,
-  disabledTools: readonly string[] = []
+  disabledTools: readonly string[] = [],
+  profile: AgentProfile = defaultProfile()
 ): boolean {
-  return toolGateOf(host, name, webSearchEnabled, disabledTools).allowed;
+  return toolGateOf(host, name, webSearchEnabled, disabledTools, profile).allowed;
 }
 
 const object = (
@@ -262,17 +290,22 @@ export const TOOL_SPECS: ChatToolSpec[] = [
   }
 ];
 
-/** 本轮真正叫得动的全部工具名（花名册 + 插件，再按本轮开关过滤），按清单顺序。 */
-export function callableToolNames(host: ToolHost, webSearchEnabled: boolean): string[] {
-  return toolsFor(host, webSearchEnabled).map((spec) => spec.name);
+/** 本轮真正叫得动的全部工具名（花名册 + 插件，再按档案白名单与本轮开关过滤），按清单顺序。 */
+export function callableToolNames(
+  host: ToolHost,
+  webSearchEnabled: boolean,
+  profile: AgentProfile = defaultProfile()
+): string[] {
+  return toolsFor(host, webSearchEnabled, [], profile).map((spec) => spec.name);
 }
 
 export async function dispatchToolCall(
   host: ToolHost,
   call: AssistantToolCall,
-  webSearchEnabled: boolean
+  webSearchEnabled: boolean,
+  profile: AgentProfile = defaultProfile()
 ): Promise<ToolOutcome> {
-  const gate = toolGateOf(host, call.name, webSearchEnabled);
+  const gate = toolGateOf(host, call.name, webSearchEnabled, [], profile);
   if (!gate.allowed)
     return {
       ok: false,

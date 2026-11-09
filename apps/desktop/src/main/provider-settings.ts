@@ -187,6 +187,10 @@ export function createProviderSettings(deps: {
         baseURL: connection.baseURL,
         authHeader: connection.authHeader,
         thinkingWire: connection.thinkingWire,
+        // 没填过就不写这个键：设置页能看出「用的是默认值」，配置里也不留一个假数（P0-3）。
+        ...(connection.contextWindow === undefined
+          ? {}
+          : { contextWindow: connection.contextWindow }),
         hasKey: key !== null,
         keyMask: key === null ? "" : maskApiKey(key)
       });
@@ -218,7 +222,12 @@ export function createProviderSettings(deps: {
         authHeader: connection.authHeader,
         // 最高档思考在线上叫什么（Agnes 那类端点叫 xhigh）。和 authHeader 一样**整个递下去**：
         // agent-service 把 config 铺进 TurnDeps.provider，tool-loop 再铺进出站请求。
-        thinkingWire: connection.thinkingWire
+        thinkingWire: connection.thinkingWire,
+        // P0-3：上下文窗口从模型配置读取。旧配置没有这一项 ⇒ 不写这个键，
+        // 由 agent-service 回退到 DEFAULT_CONTEXT_WINDOW_TOKENS（单一默认值在 contracts）。
+        ...(connection.contextWindow === undefined
+          ? {}
+          : { contextWindow: connection.contextWindow })
       };
     },
 
@@ -263,12 +272,21 @@ export function createProviderSettings(deps: {
       if (parsed.data.connectionId !== undefined && existing === null)
         throw new Error("没有找到这条连接，可能已经被删除。");
 
+      // 上下文窗口（P0-3）：undefined = 调用方没带这一格（沿用旧值）；null = 明确清空。
+      const contextWindow =
+        parsed.data.contextWindow === undefined
+          ? existing?.contextWindow
+          : parsed.data.contextWindow === null
+            ? undefined
+            : parsed.data.contextWindow;
       const connection: ProviderConnection = providerConnectionSchema.parse({
         id: existing?.id ?? randomUUID(),
         providerId: parsed.data.providerId,
         baseURL: parsed.data.baseURL,
         authHeader: parsed.data.authHeader,
-        thinkingWire: parsed.data.thinkingWire
+        thinkingWire: parsed.data.thinkingWire,
+        // 没填过就不写这个键：旧配置文件保持原样，默认值由读取方回退。
+        ...(contextWindow === undefined ? {} : { contextWindow })
       });
       const connections =
         store === null

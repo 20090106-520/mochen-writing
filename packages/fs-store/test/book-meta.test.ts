@@ -78,6 +78,17 @@ describe("writeBookMetaFile", () => {
     expect(await stat(path.join(dir, "book.json"))).toBeTruthy();
   });
 
+  it("技能策略随 book.json 一起落盘并原样读回（P0-4）", async () => {
+    const dir = await mkdtemp(path.join(root, "skill-policy-"));
+    const withPolicy: BookMeta = {
+      ...meta,
+      skillPolicy: { enabled: ["global:rhythm"], disabled: ["book:foreshadow"] }
+    };
+    await writeBookMetaFile(dir, withPolicy);
+    const parsed = parseBookMeta(JSON.parse(await readFile(path.join(dir, "book.json"), "utf8")));
+    expect(parsed.skillPolicy).toEqual(withPolicy.skillPolicy);
+  });
+
   it("建书骨架与改设置写出的是**同一串字节**（不许有第二份 book.json 形状）", async () => {
     const built = await mkdtemp(path.join(root, "via-skeleton-"));
     const edited = await mkdtemp(path.join(root, "via-save-"));

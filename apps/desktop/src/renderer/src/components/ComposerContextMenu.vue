@@ -24,6 +24,13 @@ const props = defineProps<{
   anchor: HTMLElement;
   options: readonly ContextOption[];
   busy: boolean;
+  /* 2026-11-09 参考图③：这份弹层成了「从一组里挑一个」的通用面——
+     标题 / 搜索占位 / 空态两句由调用处传入（阶段半截在 ComposerContextBar，
+     作品目录半截在 ComposerProjectBar）。弹层自己只渲染，不再写死任何一处文案。 */
+  heading: string;
+  searchPlaceholder: string;
+  emptyTitle: string;
+  emptyHint: string;
 }>();
 const emit = defineEmits<{ close: []; select: [id: string] }>();
 const titleId = useId();
@@ -135,7 +142,7 @@ onMounted(async () => {
       @keydown="keydown"
     >
       <header class="context-picker-heading">
-        <strong :id="titleId">选择本书阶段</strong>
+        <strong :id="titleId">{{ heading }}</strong>
         <button class="context-picker-close" type="button" aria-label="关闭选择浮层" @click="close">
           <AppIcon name="close" :size="15" />
         </button>
@@ -148,11 +155,11 @@ onMounted(async () => {
             v-model="query"
             class="context-search-input"
             type="search"
-            placeholder="搜索阶段名称"
-            aria-label="搜索阶段名称"
+            :placeholder="searchPlaceholder"
+            :aria-label="searchPlaceholder"
           />
         </label>
-        <div class="context-picker-list" role="listbox" aria-label="本书阶段">
+        <div class="context-picker-list" role="listbox" :aria-label="heading">
           <button
             v-for="option in filtered"
             :key="option.id"
@@ -171,7 +178,7 @@ onMounted(async () => {
             <span class="context-option-copy"
               ><strong :title="option.label">{{ option.label }}</strong
               ><small v-if="option.detail || option.disabled" :title="option.detail">{{
-                option.disabled ? "暂不可用" : option.detail
+                option.detail || "暂不可用"
               }}</small></span
             >
             <span v-if="option.current" class="context-current"
@@ -182,9 +189,9 @@ onMounted(async () => {
         </div>
         <div v-if="!filtered.length" class="context-picker-empty">
           <AppIcon name="search" :size="26" /><strong>{{
-            query.trim() ? "没有找到匹配项" : "这本书没有可切的阶段"
+            query.trim() ? "没有找到匹配项" : emptyTitle
           }}</strong
-          ><span>{{ query.trim() ? "试试其他关键词" : "阶段列在作品目录的 book.json 里" }}</span>
+          ><span>{{ query.trim() ? "试试其他关键词" : emptyHint }}</span>
         </div>
       </div>
       <!-- 键位提示行（2026-10-25）：与 @ 引用菜单、模型选择器、权限档同一枚形状，

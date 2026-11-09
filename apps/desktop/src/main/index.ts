@@ -25,7 +25,7 @@ console.error = ((...args: unknown[]) => {
     if ((err as NodeJS.ErrnoException)?.code !== "EPIPE") throw err;
   }
 }) as typeof _rawError;
-import { IPC_CHANNELS, splitSkillId } from "@mochen/contracts";
+import { IPC_CHANNELS, skillPolicyOf, splitSkillId } from "@mochen/contracts";
 import type { BookMeta, ExportableDoc, ExportOptions, FlushQuitReply } from "@mochen/contracts";
 import { buildExportContent } from "@mochen/fs-store/export-service";
 import { parseFrontmatter } from "@mochen/fs-store";
@@ -292,10 +292,26 @@ app.whenReady().then(async () => {
   // 模型枚举只在这条线上出网：baseURL 与密钥都从 settings 里取，渲染层递不进任何一个字。
   const modelLister = createModelLister({ settings });
   // 挂入技能的读取走同一条真身（skill-service 的读取守卫），装配层不自己拼路径。
+  /** 本书全局停用的技能 id（P0-4）：没开书 / 老书没写策略，一律空集（与升级前行为一致）。 */
+  const disabledSkillIds = (): string[] => skillPolicyOf(service.current()?.meta).disabled;
+  /** 递给 `use_skill` 的清单：停用的不出现（推荐排序在渲染层另按同一清单过滤）。 */
+  const listSkillsForTurn = async () => {
+    const disabled = new Set(disabledSkillIds());
+    return (await skillService.list()).filter((ref) => !disabled.has(ref.id));
+  };
   const readSkillForTurn = async (id: string): Promise<{ title: string; text: string }> => {
     const parsed = splitSkillId(id);
     // 拆不出 id ⇒ 不猜来源、不去读盘：抛中文，让装配层把「读不到」如实说出去。
     if (parsed === null) throw new Error(`认不出这份技能：${id}。`);
+    // 【停用是一道硬闸，不是建议】P0-4：被停用的技能**显式读取也不放行**。
+    // 理由：技能 id 会长期留在会话历史与提示词里，模型完全照着旧 id 调 use_skill；
+    // 若显式读能绕过，停用开关就只会挡住清单，挡不住真正注入上下文的正文——
+    // 用户以为关了，其实没关。要恢复只能回技能库把它启用（那是一份写进 book.json 的显式动作）。
+    if (disabledSkillIds().includes(id)) {
+      throw new Error(
+        `技能「${id}」在这本书里已停用，正文不读、也不带进这一轮上下文。要恢复就到技能库把它启用。`
+      );
+    }
     const content = await skillService.read(parsed.source, `${parsed.dirName}/SKILL.md`);
     // 【标题为什么不是目录名】占用条与给模型看的提示词块都用这个 title。
     // 目录名是给机器认的（chapter-intent），用户读到的是技能自己 frontmatter 里
@@ -353,8 +369,9 @@ app.whenReady().then(async () => {
     isoNow: () => new Date().toISOString(),
     promptFor: defaultPromptFor,
     readSkill: readSkillForTurn,
-    // 技能自选（use_skill，2026-10-23）：清单走只读的 skillService.list()。
-    listSkills: () => skillService.list(),
+    // 技能自选（use_skill，2026-10-23）：清单走只读的 skillService.list()，停用的先滤掉（P0-4）。
+    listSkills: listSkillsForTurn,
+    skillDisabled: (id: string) => disabledSkillIds().includes(id),
     plugins
   });
   registerAgentIpc((channel, fn) => ipcMain.handle(channel, fn), agent);

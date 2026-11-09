@@ -22,6 +22,7 @@ import { SIDE_NAV_GROUPS } from "../utils/side-nav";
  */
 const paneScript = scriptSource("components/DocumentPane.vue");
 const paneTpl = templateSource("components/DocumentPane.vue");
+const menuTpl = templateSource("components/ReviewMenu.vue");
 const panelScript = scriptSource("components/ForeshadowPanel.vue");
 const panelTpl = templateSource("components/ForeshadowPanel.vue");
 const sideScript = scriptSource("components/LeftSidebar.vue");
@@ -29,6 +30,7 @@ const sideScript = scriptSource("components/LeftSidebar.vue");
 const store = typeScriptSource("stores/useBookStore.ts");
 // 读原文那段的家（2026-10-09 从 store 搬进 utils），契约跟着搬：判定在哪就钉哪。
 const foreshadowUtil = typeScriptSource("utils/foreshadow.ts");
+const reviewTools = typeScriptSource("utils/review-tools.ts");
 const css = styleSource("foreshadow.css");
 
 describe("文稿体系认了这一类", () => {
@@ -58,18 +60,21 @@ describe("文稿体系认了这一类", () => {
 });
 
 describe("两个入口，一份台账", () => {
-  it("右栏头部有颗按钮，开合读 store 那一格", () => {
-    expect(paneTpl).toContain('aria-label="伏笔台账"');
-    expect(paneTpl).toContain("book.foreshadowsOpen = !book.foreshadowsOpen");
-    expect(paneTpl).toContain(':disabled="!book.meta"');
-    // 不许组件自己再持一个本地布尔（左栏也要开它，本地布尔两边就对不上了）
+  // P0-5：右栏这一枚从平铺收进了「审稿」下拉；左栏那个入口、store 那一格都没动。
+  it("「审稿」下拉里有这一项，开合读 store 那一格", () => {
+    expect(reviewTools).toContain('id: "foreshadow"');
+    expect(reviewTools).toContain('label: "伏笔台账"');
+    expect(menuTpl).toContain(':disabled="disabled"');
+    // 开合仍写 store（左栏也要开它），不是组件本地布尔：
+    expect(paneScript).toContain("book.foreshadowsOpen = true;");
     expect(paneScript).not.toMatch(/const foreshadowOpen\s*=\s*ref\(/);
   });
 
-  it("面板挂在 DocumentPane，锚点就是那颗按钮", () => {
+  it("面板挂在 DocumentPane，锚点是「审稿」那颗稳定按钮（不是菜单行）", () => {
     expect(paneTpl).toContain("<ForeshadowPanel");
-    expect(paneTpl).toContain(':anchor="foreshadowAnchor"');
-    expect(paneScript).toContain("foreshadowButton");
+    expect(paneTpl).toContain(':anchor="reviewMenuAnchor"');
+    expect(paneScript).toContain("reviewMenuAnchor");
+    expect(menuTpl).not.toContain("<ForeshadowPanel");
   });
 
   it("浮层走 Teleport 到 body（本仓弹层规矩）", () => {

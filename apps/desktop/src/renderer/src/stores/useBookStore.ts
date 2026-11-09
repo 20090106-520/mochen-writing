@@ -50,6 +50,8 @@ import {
 } from "../utils/draft-flush";
 import { installQuitFlushListener } from "../utils/quit-flush-client";
 import { bumpDocLoadToken, readDocIntoTab } from "../utils/doc-read";
+import { useAgentStore } from "./useAgentStore";
+import { applySkillDefault, applySkillDisabled } from "../utils/skill-policy-writes";
 import { browseFailureNotice, readBrowseBody, resetBrowseReadGates } from "../utils/browse-read";
 import {
   closeChangeHistory,
@@ -57,6 +59,7 @@ import {
   openChangeHistory,
   peekChange,
   restoreChange,
+  undoChange,
   type ChangePreview
 } from "./book-change-history";
 import { bookDataFlushNotice, withBookDataFlush } from "../composables/bookDataRegistry";
@@ -85,10 +88,8 @@ export const useBookStore = defineStore("book", {
   state: () => ({
     rootPath: null as string | null,
     /**
-     * 作品库（2026-10-21）：最近打开/新建过的书，按时间倒序。
-     *
-     * 真身在主进程（`book:open` / `book:create` 成功那一刻记账），这里只是它的一份只读镜像：
-     * 渲染层不自己往里塞条目，避免「界面记得、盘上不记得」两套账。
+     * 作品库（2026-10-21）：最近打开/新建过的书，按时间倒序；真身在主进程
+     * （`book:open` / `book:create` 成功那一刻记账），这里只是只读镜像——渲染层不自己往里塞条目。
      */
     recentBooks: [] as RecentBookEntry[],
     /** 作品库清单的一次在读（切书后刷新用它，按钮据此禁用）。 */
@@ -122,8 +123,7 @@ export const useBookStore = defineStore("book", {
     /** 文稿区当前视图态（编辑 / 分栏 / 预览）；切文档、开新作品时归 edit。 */
     editorViewMode: "edit" as EditorViewMode,
     /**
-     * 改稿历史面板的槽位（2026-10-05）。单格、不是页签堆——同 skillBrowser 一个理由：
-     * 一次只看一条改动的「改前/改后」，看清了再决定回不回滚。
+     * 改稿历史面板的槽位（2026-10-05）：单格、不是页签堆——一次只看一条改动的「改前/改后」。
      * `null` = 面板关着。
      */
     changeHistory: null as ChangeEntry | null,
@@ -142,9 +142,8 @@ export const useBookStore = defineStore("book", {
     foreshadowChapterTexts: new Map<string, string>(),
     foreshadowsBusy: false,
     /**
-     * 正文这一格的在途标志（2026-10-05 批次 3 尾巴）。
-     * `activeDocTab` 是先换的、`draft` 是后换的，中间那段中栏摆的是新标题配旧正文——
-     * 这格标志让中栏改摆骨架。判定在 utils/editor-readout，这里只报事实。
+     * 正文这一格的在途标志（2026-10-05）：`activeDocTab` 先换、`draft` 后换，中间那段会摆
+     * 「新标题配旧正文」——这格标志让中栏改摆骨架。判定在 utils/editor-readout。
      */
     docLoading: false,
     /** 退出握手订阅的退订句柄：装配那一行先摘它、再写新的进去，所以屏上永远不会叠两层。 */
@@ -153,10 +152,8 @@ export const useBookStore = defineStore("book", {
 
   getters: {
     /**
-     * T7-1：「有没有打开作品」这一概念的**单一真身**，判据取 meta（5 个读点里 4 个原本就读它，
-     * 且权限档 / 作品资料 / 状态回报三条通路都要读 meta）。
-     * 此前 CenterColumn / useAgentStore 读 `meta !== null`、SlashPalette / useHotkeys 读
-     * `rootPath !== null`，同一个 hasBook 字段两套口径——一律改读本 getter。
+     * T7-1：「有没有打开作品」的**单一真身**（判据取 meta）：权限档 / 作品资料 / 状态回报都要读 meta；
+     * 此前 CenterColumn / useAgentStore 读 `meta !== null`、SlashPalette / useHotkeys 读 `rootPath !== null`。
      */
     hasBook: (state) => state.meta !== null
   },
@@ -225,6 +222,8 @@ export const useBookStore = defineStore("book", {
       this.rightPaneMode = "manuscript";
       this.editorViewMode = "edit";
       this.draftsByPath = {};
+      // 线程级技能覆盖同属上一本书：线程键就是 relPath，不清的话同名章会继承上一本的口味。
+      useAgentStore().skillPathsByThread = {};
       Object.assign(this, EMPTY_DOC);
       // 换书 = 上一本书的在途读全部作废。不作废的话，那次读回来会把**上一本书的正文**
       // 写进这一本的中栏：令牌对不上，`utils/doc-read` 那道闸会把它丢掉。
@@ -520,6 +519,11 @@ export const useBookStore = defineStore("book", {
       await restoreChange(this, entry);
     },
 
+    /** 一键撤销（P0-5）：先打开那一篇，再走与回滚同一条落盘通路（写盘与留备份都在主进程那条 IPC 上）。 */
+    undoChange(entry: ChangeEntry): Promise<void> {
+      return undoChange(this, entry);
+    },
+
     /** 循环切换编辑视图三态：edit → split → preview → edit。 */
     cycleEditorViewMode(): void {
       const order: EditorViewMode[] = ["edit", "split", "preview"];
@@ -691,19 +695,10 @@ export const useBookStore = defineStore("book", {
       else this.openPermissionMenu();
     },
 
-    /**
-     * book.json 那几格可写字段的**唯一落盘通路**（铁律 6）。
-     * 切权限档 / 工作模式 / 阶段 / 档案四段曾逐条抄过同一件事；抄四份的代价不是难看，
-     * 是第四份迟早漏掉「先写后回读」——赋进 pinia state 的对象会被 Vue 包成响应式代理，
-     * 手里的裸对象与 `this.meta` 是「同一个 target、两套拦截」，组件里的 computed 只认回读那份
-     * （这条坑在 9625c52 的绑定条上真实发生过）。
-     *
-     * @returns 成功落盘并已回读则 true；失败则 false（`this.meta` 一个字没动，notice 已写明原因）。
-     */
+    /** book.json 可写字段的**唯一落盘通路**（铁律 6）：先写后回读，失败时 meta 一字不动、原因进 notice。 */
     async persistMeta(patch: Partial<BookMeta>, failPrefix: string): Promise<boolean> {
       if (!this.meta) return false;
-      // 展开响应式代理再展开 meta：Electron 在 IPC 的 send 端做结构化克隆，代理当场抛
-      // 「An object could not be cloned.」⇒ 必须先 toRaw。
+      // IPC 的 send 端做结构化克隆，代理会抛「could not be cloned」⇒ 必须先 toRaw 再展开。
       const next: BookMeta = { ...toRaw(this.meta), ...patch };
       this.metaSaving = true;
       try {
@@ -781,11 +776,15 @@ export const useBookStore = defineStore("book", {
       this.notice = step.doneNotice;
     },
 
-    /**
-     * 拖拽重排章节：先落盘，**成功了屏上才跟着动**。
-     * 旧写法是 `void window.mochen.saveMeta(next)`——绕过 `persistMeta` 那条唯一通路，
-     * 于是「屏上已重排、盘上未改」，还把那次 rejection 抛成未处理拒绝（2026-10-09 扫描 P2-4）。
-     */
+    setSkillDefault(id: string, on: boolean): Promise<void> {
+      return applySkillDefault(this, id, on);
+    },
+
+    setSkillDisabled(id: string, disabled: boolean): Promise<void> {
+      return applySkillDisabled(this, id, disabled);
+    },
+
+    /** 拖拽重排章节：先落盘，成功了屏上才跟着动（旧写法绕过唯一通路，会假重排 + 未处理拒绝）。 */
     async moveChapterByRelPath(fromRelPath: string, toIndex: number): Promise<void> {
       if (!this.meta) return;
       // 挪位与重排是纯计算，住在 utils/doc-order；这里只管「落盘 → 回读 → 屏上跟上」这一条通路。

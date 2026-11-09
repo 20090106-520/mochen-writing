@@ -56,39 +56,42 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
 </template>
 
 <style scoped>
-/* 颜色一律走既有 token（不新造一份字面量）；形状只写这一层需要的：三稿并排、窄栏自动换行。 */
+/* 颜色一律走既有 token（不新造一份字面量）；形状只写这一层需要的：三稿并排、窄栏自动换行。
+   2026-11-08：与计划卡/工具卡收敛成同一族语言——发丝线 + 12px 圆角 + 侧栏底；
+   标题与说明按「过程注脚」退半档，候选正文回到可读字号（0.8125 → 0.875），
+   说明行从 9.6px 抬到 10.5px——密度收敛不等于把字缩到看不清。 */
 .draft-candidates {
-  margin: 0 0 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface-card);
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sidebar) 42%, transparent);
 }
 
 .draft-candidates-title {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--text-soft);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
 }
 
 .draft-candidates-vitality-note {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--text-faint);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.5;
 }
 
 .draft-candidates-degeneration-note {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--text-faint);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.5;
 }
 
 .draft-candidate-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .draft-candidate {
@@ -96,7 +99,7 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
   flex: 1 1 0;
   flex-direction: column;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 9px 11px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
 }
@@ -110,7 +113,7 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
 
 .draft-candidate-ordinal {
   color: var(--text);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 600;
 }
 
@@ -121,32 +124,32 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
      直接读 --accent 会让这枚徽标在换肤后停在默认蓝上，跟整块界面脱节。 */
   background: color-mix(in srgb, var(--focus) 14%, transparent);
   color: var(--focus);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
 }
 
 .draft-candidate-text {
   margin-bottom: 6px;
   color: var(--text);
-  font-size: 0.8125rem;
-  line-height: 1.5;
+  font-size: 0.875rem;
+  line-height: 1.55;
 }
 
 .draft-candidate-reading {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--text-faint);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
 }
 
 .draft-candidate-vitality {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--text-faint);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
 }
 
 .draft-candidate-degeneration {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--text-faint);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
 }
 
 .draft-candidate-pick,
@@ -157,13 +160,13 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
   border-radius: 7px;
   background: transparent;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
 }
 
 .draft-candidates-foot {
   display: flex;
   justify-content: flex-end;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .draft-candidates-discard {

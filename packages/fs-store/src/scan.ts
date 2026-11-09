@@ -62,7 +62,7 @@ export async function scanBook(root: string): Promise<DocRef[]> {
  */
 export async function docRefFor(root: string, relPath: string): Promise<DocRef | null> {
   const rel = toPosixRelPath(relPath);
-  const kind = kindOf(rel);
+  const kind = kindOfRelPath(rel);
   if (kind === null) return null;
   const full = path.join(root, ...rel.split("/"));
   // 一次 stat 问「这一篇在不在、是不是普通文件」：过去这里是 readdir 父目录再 includes，
@@ -102,13 +102,14 @@ async function collect(
     }
     if (!entry.name.endsWith(".md")) continue;
     const rel = toPosixRelPath(path.relative(root, full));
-    const kind = kindOf(rel);
+    const kind = kindOfRelPath(rel);
     if (!kind) continue;
     out.push({ full, rel, kind });
   }
 }
 
-function kindOf(rel: string): BookKind | null {
+/** 书内相对路径 → 文稿类别（目录判据与 scanBook 同一份）。写入范围校验也用它判新稿。 */
+export function kindOfRelPath(rel: string): BookKind | null {
   if (rel.startsWith("materials/")) return "material";
   const top = rel.split("/")[0] ?? "";
   return KIND_BY_DIR[top] ?? null;

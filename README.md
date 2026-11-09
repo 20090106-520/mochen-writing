@@ -41,7 +41,7 @@
 ## 怎么跑
 
 ```bash
-pnpm install                 # pnpm 由 corepack 提供，版本见 package.json 的 packageManager
+pnpm install                 # 直接调系统里的 pnpm，版本见 package.json 的 packageManager
 pnpm mock-provider           # 本地假模型服务（8787），不联网也能把整条链路跑通
 pnpm dev                     # 开发
 pnpm build && pnpm smoke     # 构建后起一次真实例做冒烟

@@ -27,11 +27,16 @@
  * 同日用户第三次裁定：阶梯**次序按「图标能否自解释」排**（tools→palette→web-search→thinking 先收，
  * 模型名只截断永不隐藏）——判据从「谁最长」换成「藏掉文字还剩多少信息」。
  *
- * 2026-10-22 用户裁定反转「永远一行」（上面 2611-2655 那条 deepwrite 原值不再照搬）：
- * 1600 宽 + 右栏展开（容器 840）真机上左端五枚 + 右端整组放不下，摆出「联网…」「多…」「工…」一排残片——
- * 在**宽窗**就把标签读废，这已经不是「窄窗才付的代价」。改为 `.composer-toolbar` 自带 `flex-wrap: wrap`：
- * 左端 basis 取自然宽（auto）、放不下时右端整组 `margin-left: auto` 落到第二行。
- * 收缩阶梯（722/696/662/615/589）与窄档两级（620 分配 / 560 换行 + 收右端文字）原样保留。
+ * 2026-10-22 用户裁定反转「永远一行」：1600 宽 + 右栏展开（容器 840）真机上左端五枚 + 右端整组放不下，
+ * 摆出「联网…」「多…」「工…」一排残片 ⇒ 改为 `.composer-toolbar { flex-wrap: wrap }`，右端整组落到第二行。
+ *
+ * **2026-11-08 用户裁定再反转：首行常驻 + 「更多」弹层（本文件这几条断言随裁定一起改）。**
+ * 折两行在 664（1440 窗口右栏展开）上量到工具条 93px——不是「窄窗才付的代价」，而是每天都在付：
+ * 右组整组掉到第二行、卡片高出一截。新口径：
+ * - 首行常驻 = 模型 / 思考 / 联网（左端）+ 权限档 / 麦克风 / 发送（右端）；
+ * - 低频开关（多稿 / 工具清单 / 命令面板 / 工作模式）进「更多」弹层，功能一个不丢；
+ * - `.composer-toolbar` 回到 `flex-wrap: nowrap`：664 与 840 都一行放得下。
+ * 560 以下的 wrap 仍保留作**兜底**（窗口地板 1000 + 面板全开时容器会到 278），不是常态。
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -71,20 +76,21 @@ function blocks(css: string, at: string): string[] {
   return out;
 }
 
-describe("chip 行 · 放不下就折两行（2026-10-22 用户裁定，反转 deepwrite 的「永远一行」）", () => {
-  it("工具栏允许折行；左端取自然宽 flex:1 1 auto，自身仍是单行（折行只发生在工具栏这一层）", () => {
+describe("chip 行 · 首行常驻 + 更多弹层（2026-11-08 裁定，替换 2026-10-22 的「折两行」）", () => {
+  it("工具栏不折行（nowrap）；左端取自然宽 flex:1 1 auto，自身仍是单行", () => {
     const bar = ruleBlock(CARD, ".composer-toolbar");
-    expect(bar).toContain("flex-wrap: wrap");
+    // 2026-11-08：八枚平铺改成「首行常驻 + 更多弹层」后，664 / 840 一行放得下；
+    // 再折行只会把右组甩到第二行、白抬 29px 卡高，所以基础档回到 nowrap。
+    // 560 以下那一档仍写 wrap 兜底（见 composer-toolbar-narrow.test.ts 的两级门槛）。
+    expect(bar).toContain("flex-wrap: nowrap");
     const body = ruleBlock(CARD, ".composer-toolbar-left");
     // 规则体内不留注释：下一条 not.toContain 的鉴别力全靠这一条守着（注释里写着 flex-wrap 不算做）。
     expect(body).not.toContain("/*");
-    // basis 取 auto 而不是 0：折行判据问的是「左端自己放不放得下」，basis:0 让它永远「放得下」，
-    // 折行轮不到、右端先被挤死。
+    // basis 取 auto 而不是 0：这一组按自然宽占位，余量留给右端；basis:0 会先吃满、右端被迫收缩。
     expect(body).toContain("flex: 1 1 auto");
     expect(body).toContain("min-width: 0");
     expect(body).not.toContain("flex-wrap");
-    // 折行后右端整组落在第二行：单项目的行上 `justify-content: space-between` 等同 flex-start，
-    // 必须靠 margin-left:auto 才靠右。
+    // 右端仍是 `margin-left: auto`：首行要贴最右；560 以下兜底折行时也仍靠它贴右。
     expect(ruleBlock(CARD, ".composer-toolbar-right")).toContain("margin-left: auto");
   });
 
@@ -109,8 +115,9 @@ describe("chip 行 · 放不下就折两行（2026-10-22 用户裁定，反转 d
     expect(floorOf(".composer-toolbar-left .composer-chip:has(.composer-chip-caret)")).toBe(44);
   });
 
-  it("让位有先后：模型那一枚的 flex-shrink 远大于 1，13px 的小缺额全落在它身上，其余四枚保持自然宽", () => {
-    const chip = ruleBlock(CARD, ".composer-toolbar-left .composer-chip--model");
+  it("让位有先后：模型那一枚的 flex-shrink 远大于 1，右端缺额先落在它身上，权限档与按钮保持自然宽", () => {
+    // 2026-11-09 参考图②：模型 chip 搬到右端，收缩加权跟着过去。
+    const chip = ruleBlock(CARD, ".composer-toolbar-right .composer-chip--model");
     const factor = chip.match(/flex-shrink:\s*(\d+)/);
     expect(factor).not.toBeNull();
     expect(Number(factor?.[1])).toBeGreaterThanOrEqual(50);
@@ -176,7 +183,7 @@ describe("chip 行 · 放不下就折两行（2026-10-22 用户裁定，反转 d
     }
     // 窄到最狠的那一级也只收窄不消失（9em 截断，完整模型名仍在 title 里）。
     const last = blocks(CARD, "@container composer (max-width: 589px)")[0] ?? "";
-    expect(last).toContain(".composer-toolbar-left .composer-chip--model .composer-chip-label");
+    expect(last).toContain(".composer-toolbar-right .composer-chip--model .composer-chip-label");
     expect(last).toContain("max-width: 9em");
     expect(last).not.toContain("display: none");
   });
@@ -197,14 +204,16 @@ describe("chip 行 · 放不下就折两行（2026-10-22 用户裁定，反转 d
   it("模型名有地板：4.5em 认得出是个模型名，不至于被 flex-shrink 压成一根竖线", () => {
     const floor = ruleBlock(
       CARD,
-      ".composer-toolbar-left .composer-chip--model .composer-chip-label"
+      ".composer-toolbar-right .composer-chip--model .composer-chip-label"
     );
     expect(floor).toContain("min-width: 4.5em");
   });
 
-  it("阶梯的钩子在模板里：data-chip 挂满两条循环，没有钩子的阶梯就是死规则", () => {
+  it("阶梯的钩子在模板里：data-chip 挂满三条循环（左端 / 右端 / 更多弹层），没有钩子的阶梯就是死规则", () => {
     const tpl = templateSource(COMPOSER);
-    expect(countNeedle(':data-chip="chip.id"', tpl)).toBe(2);
+    // 2026-11-08：第三条循环是「更多」弹层——阶梯规则只命中首行那两枚，
+    // 弹层里的同名类不进来，所以这里的计数只回答「钩子还在不在」，不回答「哪一枚在首行」。
+    expect(countNeedle(':data-chip="chip.id"', tpl)).toBe(3);
   });
 
   it("权限档是状态，最后两级只收宽度不出局：589 收到 8em，380 起右端参与收缩", () => {
@@ -267,7 +276,8 @@ describe("chip 行 · 放不下就折两行（2026-10-22 用户裁定，反转 d
     expect(hidden.filter((c) => c === "doc-context-kind").length).toBeGreaterThan(0);
     expect(hidden.filter((c) => c === "context-meter-text").length).toBeGreaterThan(0);
     const tpl = templateSource(COMPOSER);
-    expect(countNeedle('v-for="chip in chips', tpl)).toBe(2);
+    // 2026-11-08：三个区各一条循环（左端常驻 / 右端常驻 / 更多弹层），功能一枚不少。
+    expect(countNeedle('v-for="chip in chips', tpl)).toBe(3);
   });
 });
 

@@ -44,7 +44,8 @@ export interface ContextScope {
  * 占用条显示的是同一批条目，两边各写一份迟早会把「本章」标到不同的类上。
  * Record<联合, string> 是穷尽表——加一类不写标签，编译不过。
  */
-export type ContextKind = "chapter" | "outline" | "character" | "material" | "world" | "pinned";
+export type ContextKind =
+  "chapter" | "outline" | "character" | "material" | "world" | "pinned" | "skill";
 
 export const CONTEXT_KIND_LABELS: Record<ContextKind, string> = {
   chapter: "正文",
@@ -52,7 +53,9 @@ export const CONTEXT_KIND_LABELS: Record<ContextKind, string> = {
   character: "人物",
   material: "素材",
   world: "设定",
-  pinned: "挂入"
+  pinned: "挂入",
+  // P0-2：技能只装清单（名称/用途/何时用），正文由 use_skill 按需读取，占用条单独计量。
+  skill: "技能"
 };
 
 /** 当前正在写的那一章：条目前缀「（本章）」，只在这一条上打标。 */
@@ -89,7 +92,14 @@ export interface AgentProfile {
 const READ_TOOLS = [
   "read_doc",
   "list_docs",
-  "search_docs"
+  "search_docs",
+  // P0-1 起工具白名单真正生效：use_skill 是「读技能正文」的只读工具，
+  // 六档案都该能按需载入技能，所以放进公共只读集，而不是每份 tools 里各抄一遍。
+  "use_skill",
+  // 联网两枚也归公共只读集：**是否真的出网由输入区联网开关决定**，不由档案决定。
+  // 放进白名单只是让「档案过滤」不把它们误伤；关着时 wireToolsFor 与派发闸仍会摘掉。
+  "web_search",
+  "web_read"
 ] as const satisfies readonly AgentToolName[];
 const WRITE_TOOLS_ALLOWED = [
   ...READ_TOOLS,
@@ -297,9 +307,14 @@ export function profilesForStage(
   return out;
 }
 
-/** 写盘范围是否允许某一类目标（spec §5.1 约束 3：这是上限，不是授权）。 */
+/**
+ * 写盘范围是否允许某一类目标（spec §5.1 约束 3：这是上限，不是授权）。
+ *
+ * `current-chapter` 只认调用方算出的「current-chapter」这一枚目标，**不再放宽到所有 chapter**：
+ * 放宽等于「主笔可以随手改别章」，与档案职责不符。调用方拿当前文稿路径比对后再传。
+ */
 export function writeScopeAllows(scope: WriteScope, target: BookKind | "current-chapter"): boolean {
   if (scope.kind === "none") return false;
-  if (scope.kind === "current-chapter") return target === "current-chapter" || target === "chapter";
+  if (scope.kind === "current-chapter") return target === "current-chapter";
   return scope.kinds.includes(target as BookKind);
 }

@@ -10,7 +10,8 @@ import {
   UPSTREAM_WINDOW_TOKENS,
   buildBlocks,
   fitHistoryToWindow,
-  foldOrphanUserMessages
+  foldOrphanUserMessages,
+  windowBudgetPlan
 } from "../src/history-window.js";
 
 /**
@@ -75,6 +76,64 @@ describe("fitHistoryToWindow · 基本分配", () => {
     // 30 条 x 200 字 ≈ 6030 tokens：默认档 6000 装不下全部，一定至少丢一条。
     expect(r.keptTokens).toBeLessThanOrEqual(HISTORY_TOKEN_BUDGET);
     expect(r.droppedCount).toBeGreaterThan(0);
+  });
+});
+
+describe("窗口预算按占比分配（P0-3）", () => {
+  it("默认窗口（24000）下三格按 40/35/25 拆，历史额度与 P0-3 之前一样是 6000", () => {
+    const plan = windowBudgetPlan(UPSTREAM_WINDOW_TOKENS);
+    expect(plan.windowTokens).toBe(24000);
+    expect(plan.systemBudget).toBe(9600);
+    expect(plan.contextPackBudget).toBe(8400);
+    expect(plan.historyBudget).toBe(6000);
+    expect(HISTORY_TOKEN_BUDGET).toBe(6000);
+    expect(plan.systemBudget + plan.contextPackBudget + plan.historyBudget).toBe(24000);
+  });
+
+  it("模型配置给了更大的窗口 ⇒ 历史按占比跟着涨，不再固定卡在 6000", () => {
+    const history = Array.from({ length: 400 }, (_, i) =>
+      plain(i % 2 === 0 ? "user" : "assistant", `m${i}`, 20)
+    );
+    const small = fitHistoryToWindow({
+      history,
+      systemTokens: 0,
+      userTokens: 0,
+      windowTokens: 24000
+    });
+    const big = fitHistoryToWindow({
+      history,
+      systemTokens: 0,
+      userTokens: 0,
+      windowTokens: 64000
+    });
+    expect(small.droppedCount).toBeGreaterThan(0);
+    expect(big.droppedCount).toBe(0);
+    expect(big.kept.length).toBeGreaterThan(small.kept.length);
+  });
+
+  it("系统提示 + 上下文包把窗口吃光 ⇒ 历史额度按剩余为零，绝不越过窗口", () => {
+    const history = [plain("user", "a"), plain("assistant", "b")];
+    const r = fitHistoryToWindow({
+      history,
+      systemTokens: 50000,
+      userTokens: 1000,
+      contextPackTokens: 13000,
+      windowTokens: 64000
+    });
+    expect(r.kept).toEqual([]);
+    expect(r.droppedCount).toBe(history.length);
+  });
+
+  it("给了显式 budgetTokens 就只按它切，占比不再参与", () => {
+    const history = [plain("user", "a", 20), plain("assistant", "b", 20)];
+    const r = fitHistoryToWindow({
+      history,
+      systemTokens: 0,
+      userTokens: 0,
+      budgetTokens: 30,
+      windowTokens: 64000
+    });
+    expect(r.kept.map((m) => m.content)).toEqual([history[1]?.content]);
   });
 });
 

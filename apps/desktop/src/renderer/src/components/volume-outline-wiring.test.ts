@@ -182,6 +182,67 @@ describe("生成章纲落盘这一段", () => {
   });
 });
 
+describe("章纲可编辑：写回只走既有落盘通路（2026-11 W-02）", () => {
+  it("当前打开的那一篇走 book.onEdit + saveActive，不另开 IPC、不另存草稿", () => {
+    expect(storeScript).toContain("book.onEdit(next);");
+    expect(storeScript).toContain("book.cancelAutoSave();");
+    expect(storeScript).toContain("await book.saveActive();");
+    expect(storeScript).toContain("book.activeDocTab === this.sourceRelPath");
+  });
+
+  it("面板只调 store，不自己碰 window.mochen（两处写盘＝两套冲突判定）", () => {
+    expect(panelScript).not.toMatch(/window\.mochen/);
+    expect(panelScript).toContain("outline.saveChapter(chapter, fields)");
+  });
+
+  it("保存失败的原因上屏（沿用 lastMessage 那一格，不吞）", () => {
+    expect(panelScript).toContain("lastMessageFailed.value = !result.ok");
+    expect(panelTpl).toContain(":class=\"{ 'is-failed': lastMessageFailed }\"");
+  });
+
+  it("保存成功后整份重解析：完整度与「还缺」都从新原文重算，旧结论不留", () => {
+    expect(storeScript).toContain("this.outline = parseVolumeOutline(next);");
+    expect(storeScript).toContain("已保存，完整度按新内容重算。");
+  });
+
+  it("章序对不上就拒绝写（同名章按出场次序定位，不能落到别的章上）", () => {
+    expect(storeScript).toContain("target.title !== chapter.title");
+    expect(storeScript).toContain("章序对不上了");
+  });
+});
+
+describe("按纲起草：只预填，不发送（2026-11 W-02 第二步）", () => {
+  it("走既有 prefillComposer，不自己发送、不开新模型调用", () => {
+    expect(panelScript).toContain("agent.prefillComposer(");
+    expect(panelScript).toContain("threadKeyFor(targetRelPath)");
+    expect(panelScript).toContain("chapterDraftPrompt(");
+    expect(panelScript).not.toMatch(/agent\.send\(|startTurn\(/);
+  });
+
+  it("目标路径问 planDocRelPath，不在组件里拼目录名", () => {
+    expect(panelScript).toContain('planDocRelPath("chapter", chapter.title)');
+    expect(panelScript).not.toMatch(/chapters\//);
+  });
+
+  it("切到正文档案与「直接动手」；已经是这一档就不重复写盘", () => {
+    expect(panelScript).toContain("book.setActiveProfile(DRAFT_PROFILE_ID)");
+    expect(panelScript).toContain("book.setWorkMode(DRAFT_WORK_MODE)");
+    expect(panelScript).toContain("activeProfileOf(book.meta).id !== DRAFT_PROFILE_ID");
+    expect(panelScript).toContain("workModeOf(book.meta) !== DRAFT_WORK_MODE");
+  });
+
+  it("目标不是眼前那篇时，面板点名会写到哪一篇", () => {
+    expect(panelScript).toContain("chapterDraftTargetHint(");
+    expect(panelTpl).toContain("按纲起草");
+    expect(panelTpl).toContain('@click="void draftFromOutline(chapter)"');
+  });
+
+  it("一个字段都没写的分组节不给按纲起草（没纲可按）", () => {
+    expect(panelTpl).toContain("chapter.isLoose");
+    expect(panelTpl).toContain("没纲可按");
+  });
+});
+
 describe("结构与诚实边界", () => {
   it("三段式：滚动区是 .volume-outline-body 自己滚，行内按钮跟着自己那一行走", () => {
     expect(panelTpl).toContain('<div class="volume-outline-body">');

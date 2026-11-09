@@ -164,11 +164,13 @@ describe("输入卡装饰 · 2026-10-17 用户裁定「缺少一些东西」", (
     ).toBeGreaterThanOrEqual(3);
   });
 
-  it("正文与工具条之间有一条发丝分隔线", () => {
+  it("2026-11-09 参考图②：卡内不再画正文与工具条的分区线", () => {
+    // 2026-10-17 的发丝线曾被用来解决「上下同底色读成一块白板」；参考图②的形态是
+    // 一块连续的玻璃面 + 20px 内边距分段，所以这一刀把线撤掉，改由内边距承担节奏。
     expect(
       ruleBlock(CARD, ".composer-toolbar"),
-      "上下两段同一种底色时整卡读成一块没有结构的白板——用户说的「缺少东西」就是这一格"
-    ).toContain("border-top:");
+      "参考图②里输入区与工具行之间没有线；还有 border-top 就是两套形态叠在一起"
+    ).not.toContain("border-top:");
   });
 
   it("发送键有手感：悬停抬一层、按下收回、还有 focus-visible 环", () => {
@@ -192,9 +194,11 @@ describe("输入卡装饰 · 2026-10-17 用户裁定「缺少一些东西」", (
   // 只落地卡片本体：设计稿的极光背景 / 光斑 / 星点是演示页画布，归皮肤广场，不在这一刀。
   // 尺寸与形状照设计稿逐字，颜色一律 token / color-mix（卡段零色值字面量硬门禁）。
 
-  it("设计稿：卡是 28px 大圆角的玻璃面，顶沿有一道高光，三层景深仍在", () => {
+  it("2026-11-09 参考图②：卡是 16px 圆角的玻璃面，顶沿有一道高光，三层景深仍在", () => {
     const surface = ruleBlock(CARD, ".composer-input-surface");
-    expect(surface, "设计稿的卡是 28px 圆角").toContain("border-radius: 28px");
+    expect(surface, "参考图②的卡是 16px 圆角（原 28px 的胶囊感撤掉）").toContain(
+      "border-radius: 16px"
+    );
     expect(
       surface,
       "玻璃卡的顶沿高光（设计稿的 inset 0 1px 0 rgba(255,255,255,.7)）没落成 token 消费"
@@ -202,18 +206,18 @@ describe("输入卡装饰 · 2026-10-17 用户裁定「缺少一些东西」", (
     expect(shadowLayers(surface), "顶沿高光不许把三层景深挤掉").toBeGreaterThanOrEqual(3);
   });
 
-  it("设计稿：工具条 64px 高，正文与工具条之间的发丝分隔线仍在", () => {
+  it("2026-11-09 参考图②：工具条 48px 高，卡内无分区线", () => {
     const bar = ruleBlock(CARD, ".composer-toolbar");
-    expect(bar, "设计稿工具条高 64px").toContain("min-height: 64px");
-    expect(bar, "分隔线不能丢").toContain("border-top:");
+    expect(bar, "参考图②的按钮行贴着输入区，工具条收到 48px").toContain("min-height: 48px");
+    expect(bar, "参考图②里没有分区线").not.toContain("border-top:");
   });
 
-  it("设计稿：发送键 46×46、两枚圆钮 38×38（照设计稿放大）", () => {
+  it("参考图②：发送键 34×34、两枚圆钮 38×38（圆钮命中区不变）", () => {
     const send = ruleBlock(CARD, ".send-button");
-    expect(send, "设计稿的发送键是 46×46").toContain("width: 46px");
-    expect(send).toContain("height: 46px");
+    expect(send, "参考图②的发送键是与麦克风同档的圆钮，不是卡上最大的面").toContain("width: 34px");
+    expect(send).toContain("height: 34px");
     const round = ruleBlock(CARD, ".round-tool-button");
-    expect(round, "设计稿的加号 / 麦克风是 38×38").toContain("width: 38px");
+    expect(round, "加号 / 麦克风的 38×38 命中区不动").toContain("width: 38px");
     expect(round).toContain("height: 38px");
   });
 

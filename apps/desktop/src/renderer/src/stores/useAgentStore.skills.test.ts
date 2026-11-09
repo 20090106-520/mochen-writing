@@ -7,10 +7,12 @@ import {
   listSkills,
   openChapter,
   readSkill,
+  saveMeta,
   setupAgentFixture,
   started,
   store
 } from "./agent-store-fixture";
+import { useBookStore } from "./useBookStore";
 
 /**
  * 技能挂入（spec §11）。这组用例钉的是三件事：
@@ -50,11 +52,12 @@ describe("挂入与取下", () => {
     expect(s.skillPathsOf(CH)).toEqual([]);
   });
 
-  it("取下最后一条 ⇒ 键整个删掉（不留一个空数组占着，切线程时也判得清）", () => {
+  it("取下最后一条 ⇒ 留一个**空覆盖**（P0-4：删键会退回书级默认，那就表达不出「本会话一个都不挂」）", () => {
     const s = store();
     s.toggleSkillForThread(CH, "book:伏笔");
     s.toggleSkillForThread(CH, "book:伏笔");
-    expect(Object.keys(s.skillPathsByThread)).toEqual([]);
+    expect(s.skillPathsOf(CH)).toEqual([]);
+    expect(s.hasSkillOverride(CH)).toBe(true);
   });
 
   it("按线程隔离：A 章挂的不跟着漏到 B 章（挂入是每条线程的事）", () => {
@@ -230,5 +233,62 @@ describe("/skills 命令", () => {
     const layout = useLayoutStore();
     expect(layout.currentView).toBe("workspace");
     expect(layout.centerView).toBe("plugins");
+  });
+});
+
+describe("书级策略与线程覆盖（P0-4）", () => {
+  it("老书没有 skillPolicy ⇒ 两个清单都空，与升级前「开书一个都没挂」一致", async () => {
+    await openChapter();
+    expect(useBookStore().meta?.skillPolicy).toBeUndefined();
+    expect(store().skillPathsOf(CH)).toEqual([]);
+    expect(store().hasSkillOverride(CH)).toBe(false);
+  });
+
+  it("新会话继承书级默认：没有覆盖时直接读 enabled", async () => {
+    await openChapter();
+    useBookStore().meta!.skillPolicy = { enabled: ["book:伏笔", "global:节奏"], disabled: [] };
+    const s = store();
+    expect(s.skillPathsOf(CH)).toEqual(["book:伏笔", "global:节奏"]);
+    // 继承不是覆盖：界面据此标「书级默认」。
+    expect(s.hasSkillOverride(CH)).toBe(false);
+  });
+
+  it("线程覆盖只影响这一条会话，**不写回书**，也不影响别的会话", async () => {
+    await openChapter();
+    const book = useBookStore();
+    book.meta!.skillPolicy = { enabled: ["book:伏笔"], disabled: [] };
+    saveMeta.mockClear();
+    const s = store();
+    s.toggleSkillForThread(CH, "book:伏笔");
+    expect(s.skillPathsOf(CH)).toEqual([]);
+    expect(s.hasSkillOverride(CH)).toBe(true);
+    // 书那一份一个字没动，也没发 IPC。
+    expect(book.meta?.skillPolicy?.enabled).toEqual(["book:伏笔"]);
+    expect(saveMeta).not.toHaveBeenCalled();
+    // 另一条会话仍继承书级默认。
+    expect(s.skillPathsOf("chapters/02-b.md")).toEqual(["book:伏笔"]);
+  });
+
+  it("恢复书级默认：删掉覆盖键，回到继承状态", async () => {
+    await openChapter();
+    useBookStore().meta!.skillPolicy = { enabled: ["book:伏笔"], disabled: [] };
+    const s = store();
+    s.toggleSkillForThread(CH, "book:伏笔");
+    expect(s.hasSkillOverride(CH)).toBe(true);
+    s.resetSkillOverride(CH);
+    expect(s.hasSkillOverride(CH)).toBe(false);
+    expect(s.skillPathsOf(CH)).toEqual(["book:伏笔"]);
+  });
+
+  it("已停用的技能即便写进默认清单也不生效（默认与覆盖两条路都滤）", async () => {
+    await openChapter();
+    useBookStore().meta!.skillPolicy = {
+      enabled: ["book:伏笔", "global:节奏"],
+      disabled: ["book:伏笔"]
+    };
+    const s = store();
+    expect(s.skillPathsOf(CH)).toEqual(["global:节奏"]);
+    s.skillPathsByThread[CH] = ["book:伏笔", "global:节奏"];
+    expect(s.skillPathsOf(CH)).toEqual(["global:节奏"]);
   });
 });

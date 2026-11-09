@@ -41,7 +41,9 @@ const LOGIC = "composables/voice-input.ts";
 const flat = (text: string): string => text.replace(/\s+/g, " ");
 
 /**
- * 两枚圆钮（`＋` 与麦克风）共用 `round-tool-button` 类名，所以按「哪一枚接了 voice 判定」区分。
+ * 三枚圆钮（`＋`、麦克风、「更多」）共用 `round-tool-button` 类名，所以按「哪一枚接了 voice 判定」区分。
+ * 2026-11-08 新增第三枚（「更多」弹层入口，见 ComposerBox 的分区注释）：它也不接 voice，
+ * 所以这里只认「接了 voice 判定恰好一枚」这一条事实，不把「总数=2」当成不变量。
  *
  * 注意不能用 `name="mic"` 定位：`tagAttributes` 取的是**标签自己的属性串**（到第一个引号外的 `>` 为止），
  * 麦克风那枚的 `name="mic"` 在它内部的 `<AppIcon>` 上，不在按钮的属性串里——
@@ -51,16 +53,18 @@ const flat = (text: string): string => text.replace(/\s+/g, " ");
 function voiceRoundButton(): string {
   const tags = tagAttributes(templateSource(COMPOSER), "round-tool-button");
   const wired = tags.filter((attrs) => attrs.includes(':disabled="voice.button.disabled"'));
-  expect(tags.length, "圆钮仍是两枚（＋ 与麦克风）").toBe(2);
+  expect(tags.length, "圆钮三枚（＋、麦克风、更多）").toBe(3);
   expect(wired.length, "接了 voice 判定的圆钮必须恰好一枚").toBe(1);
   return wired[0] ?? "";
 }
 
-/** 另一枚圆钮（`＋`）：它接的是引用素材，不许被顺手接到语音上去。 */
+/** 不接 voice 的圆钮（`＋` 与「更多」）：它们各自的入口不许被顺手接到语音上去。 */
 function mentionRoundButton(): string {
   const tags = tagAttributes(templateSource(COMPOSER), "round-tool-button");
   const other = tags.filter((attrs) => !attrs.includes(':disabled="voice.button.disabled"'));
-  expect(other.length, "除麦克风外只有一枚圆钮").toBe(1);
+  expect(other.length, "除麦克风外另两枚圆钮（＋ 与更多）").toBe(2);
+  // DOM 序里 `＋` 是第一枚；「更多」在左组末尾，不能把它当成引用素材入口。
+  expect(other[0]).toContain('aria-label="引用素材"');
   return other[0] ?? "";
 }
 

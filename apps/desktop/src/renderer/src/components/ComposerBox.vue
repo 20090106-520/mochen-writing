@@ -14,7 +14,7 @@
      不靠 title 兜（Chromium 不给 disabled 元素弹 title）。绝不允许画成可点、点了没反应。
      这里不含业务判断，一切交给 store；输入值本身也由 store 持有（F-A 前置）。 -->
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import type {
   DraftSampleCount,
   PermissionMode,
@@ -24,6 +24,7 @@ import type {
 } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import ComposerContextBar from "./ComposerContextBar.vue";
+import ComposerProjectBar from "./ComposerProjectBar.vue";
 import ComposerReferenceMenu from "./ComposerReferenceMenu.vue";
 import PermissionMenu from "./PermissionMenu.vue";
 import { useVoiceInput } from "../composables/useVoiceInput";
@@ -113,6 +114,100 @@ const chips = computed(() =>
 // #105 左右分栏：栏位是 composerChips 表里的 slot 字段，这里只过滤——模板不养第二份顺序表（铁律 6）。
 const chipsLeft = computed(() => chips.value.filter((c) => c.slot === "left"));
 const chipsRight = computed(() => chips.value.filter((c) => c.slot === "right"));
+// 2026-11-08 首行常驻 + 更多弹层：低频开关住在 slot === "more"，由这一组收进弹层渲染。
+// 功能一个不丢；弹层里的每一行仍走同一张 CHIP_EMIT 表与同一份 click 处理器（见 onMoreChipClick）。
+const chipsMore = computed(() => chips.value.filter((c) => c.slot === "more"));
+// 藏在弹层里的开关只要有一枚在生效，入口自己亮一档——否则卡面上没有任何地方说「它们开着」。
+const moreHasActive = computed(() => chipsMore.value.some((c) => c.active && !c.disabled));
+
+/**
+ * 「更多」弹层（2026-11-08）。
+ *
+ * 为什么不是又一枚平铺 chip：1440 窗口右栏展开时工具行容器只有 664px，
+ * 八枚平铺放不下（2026-10-22 的旧裁定是折两行，代价是右组整组掉到第二行）。
+ * 收成「首行常驻 + 一层弹层」后，664 与 840 都一行放得下，且低频开关仍可到达。
+ *
+ * 键盘：打开即把焦点落到第一枚可用项；Tab 继续在弹层里走；↑/↓ 在项间移动；
+ * Esc 收起并把焦点还回触发钮（不把焦点丢到 body）。点弹层外面也收起（pointerdown 捕获）。
+ */
+const moreOpen = ref(false);
+const moreWrap = ref<HTMLElement | null>(null);
+const moreTrigger = ref<HTMLElement | null>(null);
+const morePanel = ref<HTMLElement | null>(null);
+
+/** 弹层里可用的行（直接子元素就是那些按钮，不用 querySelector 搜 DOM——模型锚点那条纪律同样适用于焦点收口）。 */
+function moreItems(): HTMLButtonElement[] {
+  const panel = morePanel.value;
+  if (panel === null) return [];
+  return Array.from(panel.children).filter(
+    (child): child is HTMLButtonElement => child instanceof HTMLButtonElement && !child.disabled
+  );
+}
+
+function openMore(): void {
+  moreOpen.value = true;
+  void nextTick(() => {
+    (moreItems()[0] ?? moreTrigger.value)?.focus();
+  });
+}
+
+function closeMore(returnFocus: boolean): void {
+  if (!moreOpen.value) return;
+  moreOpen.value = false;
+  if (returnFocus) moreTrigger.value?.focus();
+}
+
+function toggleMore(): void {
+  if (moreOpen.value) closeMore(true);
+  else openMore();
+}
+
+function onMoreKeydown(event: KeyboardEvent): void {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closeMore(true);
+    return;
+  }
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  event.preventDefault();
+  const items = moreItems();
+  if (items.length === 0) return;
+  const at = items.indexOf(document.activeElement as HTMLButtonElement);
+  const step = event.key === "ArrowDown" ? 1 : -1;
+  const next = at === -1 ? 0 : (at + step + items.length) % items.length;
+  items[next]?.focus();
+}
+
+// 入口类（工具清单 / 命令面板）点开的是第二层浮层：先收这一层，避免两层叠在同一块。
+// 开关类（多稿 / 工作模式）留在弹层里，连按几枚不必反复开合。
+function onMoreChipClick(id: ComposerChipId): void {
+  const chip = chipsMore.value.find((c) => c.id === id);
+  if (chip?.caret === true) closeMore(false);
+  onChipClick(id);
+}
+
+function onDocumentPointerDown(event: PointerEvent): void {
+  if (event.target instanceof Node && moreWrap.value?.contains(event.target)) return;
+  closeMore(false);
+}
+
+watch(moreOpen, (open) => {
+  if (open) document.addEventListener("pointerdown", onDocumentPointerDown, true);
+  else document.removeEventListener("pointerdown", onDocumentPointerDown, true);
+});
+
+// 开始生成时收起：弹层里的开关此刻都是禁用的，留着一层死菜单只会挡路。
+watch(
+  () => props.running,
+  (running) => {
+    if (running) closeMore(false);
+  }
+);
+
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", onDocumentPointerDown, true);
+});
 // 计数条与主进程边界共用 USER_TEXT_MAX_LEN：这里说没超，发出去就不会被拒。
 const counter = computed(() => composerCounter(props.modelValue));
 
@@ -198,7 +293,8 @@ function submit(): void {
         >
           {{ voice.hint.text }}
         </div>
-        <div class="composer-toolbar">
+        <!-- Esc 在工具行任意位置都能收起「更多」弹层（焦点跑到别枚钮上时也不失效）。 -->
+        <div class="composer-toolbar" @keydown.esc="closeMore(true)">
           <div class="composer-toolbar-left" role="group" aria-label="输入区开关">
             <!-- #112 照参考图：`＋` 是左端第一枚圆钮。他那里是「上传附件」，本仓没有附件通道（contracts 无
                  attachment 字段、无落盘通路），所以这枚钮接的是我们真有的那条：与手打 @ 同一个入口 ⇒ 名字如实叫「引用素材」。 -->
@@ -216,11 +312,11 @@ function submit(): void {
               :key="chip.id"
               :ref="(el) => setChipRef(chip.id, el)"
               class="composer-chip"
-              :class="{ 'composer-chip--model': chip.id === 'model' }"
               type="button"
               :data-chip="chip.id"
               :disabled="chip.disabled || running"
               :title="chip.title"
+              :aria-label="chip.text"
               :aria-pressed="chip.active"
               @click="onChipClick(chip.id)"
             >
@@ -228,19 +324,72 @@ function submit(): void {
               <span class="composer-chip-label">{{ chip.text }}</span>
               <AppIcon v-if="chip.caret" class="composer-chip-caret" name="chevron" :size="11" />
             </button>
+            <!-- 2026-11-08 首行常驻 + 更多弹层（参照 MiniMax Code 输入卡的分区逻辑）：
+                 首行左端留「引用素材 / 思考 / 联网」，右端留「模型 / 权限档 / 麦克风 / 发送」
+                 （2026-11-09 参考图②：模型名落在发送键左侧）；多稿、工具清单、命令面板、
+                 工作模式收进这一枚「更多」。664 容器因此不再折行。
+                 弹层挂在这一枚触发钮上（它自己是定位祖先），向上开——输入卡贴着视口底部。 -->
+            <div ref="moreWrap" class="composer-more" :class="{ 'is-open': moreOpen }">
+              <button
+                ref="moreTrigger"
+                class="round-tool-button composer-more-trigger"
+                :class="{ 'is-active': moreHasActive }"
+                type="button"
+                aria-label="更多输入选项"
+                title="多稿、工具清单、命令面板与工作模式"
+                aria-haspopup="true"
+                :aria-expanded="moreOpen"
+                :disabled="running"
+                @click="toggleMore()"
+              >
+                <AppIcon name="ellipsis" :size="18" />
+              </button>
+              <div
+                v-if="moreOpen"
+                ref="morePanel"
+                class="composer-more-menu"
+                role="group"
+                aria-label="更多输入选项"
+                @keydown="onMoreKeydown"
+              >
+                <button
+                  v-for="chip in chipsMore"
+                  :key="chip.id"
+                  class="composer-more-item"
+                  type="button"
+                  :data-chip="chip.id"
+                  :disabled="chip.disabled || running"
+                  :title="chip.title"
+                  :aria-label="chip.text"
+                  :aria-pressed="chip.active"
+                  @click="onMoreChipClick(chip.id)"
+                >
+                  <AppIcon class="composer-chip-icon" :name="chip.icon" :size="14" />
+                  <span class="composer-more-label">{{ chip.text }}</span>
+                  <AppIcon
+                    v-if="chip.caret"
+                    class="composer-chip-caret"
+                    name="chevron"
+                    :size="11"
+                  />
+                </button>
+              </div>
+            </div>
           </div>
-          <div class="composer-toolbar-right" role="group" aria-label="模型与发送">
-            <!-- 两端 chip 都挂同一个 ref 收集器：模型 chip 现在住在左端，但它哪天挪到右端时锚点不该跟着断。
-                 setChipRef 按 id 取，右端那枚是权限档，收集器会自己跳过。 -->
+          <div class="composer-toolbar-right" role="group" aria-label="权限、语音与发送">
+            <!-- 两端 chip 都挂同一个 ref 收集器：模型 chip 住在右端（2026-11-09 参考图②），
+                 锚点仍按 id 收集；权限档那一枚跳过。 -->
             <button
               v-for="chip in chipsRight"
               :key="chip.id"
               :ref="(el) => setChipRef(chip.id, el)"
               class="composer-chip"
+              :class="{ 'composer-chip--model': chip.id === 'model' }"
               type="button"
               :data-chip="chip.id"
               :disabled="chip.disabled || running"
               :title="chip.title"
+              :aria-label="chip.text"
               :aria-pressed="chip.active"
               @click="onChipClick(chip.id)"
             >
@@ -275,7 +424,7 @@ function submit(): void {
               title="停止生成"
               @click="emit('stop')"
             >
-              <AppIcon name="stop" :size="15" />
+              <AppIcon name="stop" :size="13" />
             </button>
             <button
               v-else
@@ -285,11 +434,15 @@ function submit(): void {
               :disabled="modelValue.trim() === '' || counter.over"
               @click="submit()"
             >
-              <AppIcon name="arrow-up" :size="18" />
+              <AppIcon name="arrow-up" :size="16" />
             </button>
           </div>
         </div>
       </div>
+      <!-- 2026-11-09 参考图③：输入面**下方**常驻的一行「选择作品」（新建 / 打开目录 / 最近作品）。
+           与卡上方的绑定条并存、互不接管：那一条是「已开书 + 空线程」时的书/阶段/文档，显隐不动；
+           这一行不开书时也在，所以没有 v-if。 -->
+      <ComposerProjectBar :running="running" />
     </div>
   </footer>
 </template>

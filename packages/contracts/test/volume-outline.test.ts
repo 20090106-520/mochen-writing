@@ -3,6 +3,7 @@ import {
   CHAPTER_OUTLINE_FIELDS,
   CHAPTER_OUTLINE_LABELS,
   VOLUME_OUTLINE_BLIND_SPOTS,
+  applyChapterFieldEdits,
   buildChapterOutlineMarkdown,
   chapterCompleteness,
   parseVolumeOutline,
@@ -331,5 +332,70 @@ describe("生成章纲：往返一致（读回来就是原来那几个字段）"
     const loose = parseVolumeOutline(vol("## 人物线", "三个人的动机。")).chapters[0]!;
     const md = buildChapterOutlineMarkdown(loose, "第一卷");
     expect(parseVolumeOutline(md).chapters[0]?.missing).toEqual([...CHAPTER_OUTLINE_FIELDS]);
+  });
+});
+
+/**
+ * 章纲可编辑（2026-11 W-02 第一步）：把改过的六项字段**就地写回**卷纲原文。
+ * 这一组的硬要求是「其余字节一个都不许动」——原文里还有引子、分组标题、作者自己的说明，
+ * 重拼一份会把这些整段丢掉；所以每条都拿 `raw.replace(...)` 当对照，不是只看某个字段对不对。
+ */
+describe("写回原文：只动该动的那几行（2026-11 W-02）", () => {
+  it("改一项：原地替换，frontmatter / 正文 / 换行都原样", () => {
+    const raw = [
+      "---",
+      "title: 第一卷",
+      "---",
+      "## 第一章 潮信",
+      "- 视角：林晚",
+      "- 目标：她必须上船",
+      "",
+      "开头一句引子。",
+      ""
+    ].join("\n");
+    const out = applyChapterFieldEdits(raw, [{ order: 1, fields: { goal: "她必须下船" } }]);
+    expect(out).toBe(raw.replace("- 目标：她必须上船", "- 目标：她必须下船"));
+    expect(parseVolumeOutline(out).chapters[0]?.fields.goal).toBe("她必须下船");
+  });
+
+  it("补一项：插在本章最后一条字段行之后（不是塞在文件末尾），重解析就是这一项的值", () => {
+    const raw = vol("## 第一章 潮信", "- 视角：林晚", "", "她站在甲板上。");
+    const out = applyChapterFieldEdits(raw, [{ order: 1, fields: { hook: "船票是假的" } }]);
+    expect(out.split("\n")).toContain("- 钩子：船票是假的");
+    const chapter = parseVolumeOutline(out).chapters[0]!;
+    expect(chapter.fields.hook).toBe("船票是假的");
+    expect(chapter.missing).not.toContain("hook");
+    // 插在字段行之后、正文之前：字段成组，不能被正文隔开。
+    expect(out.indexOf("- 钩子：船票是假的")).toBeLessThan(out.indexOf("她站在甲板上。"));
+  });
+
+  it("清空一项：那一行从原文里拿掉，重解析照实算成「还缺」", () => {
+    const raw = vol("## 第一章 潮信", "- 视角：林晚", "- 钩子：船票是假的");
+    const out = applyChapterFieldEdits(raw, [{ order: 1, fields: { hook: "" } }]);
+    expect(out).not.toContain("钩子");
+    const chapter = parseVolumeOutline(out).chapters[0]!;
+    expect(chapter.fields.hook).toBe("");
+    expect(chapter.missing).toContain("hook");
+  });
+
+  it("两章同名：按出场次序定位，改动只落到点的那一章", () => {
+    const raw = vol("## 重名", "- 钩子：甲", "## 重名", "- 钩子：乙");
+    const out = applyChapterFieldEdits(raw, [{ order: 2, fields: { hook: "丙" } }]);
+    const chapters = parseVolumeOutline(out).chapters;
+    expect(chapters[0]?.fields.hook).toBe("甲");
+    expect(chapters[1]?.fields.hook).toBe("丙");
+  });
+
+  it("CRLF 文件写回后仍是 CRLF（保存不把整篇换成 LF）", () => {
+    const raw = "# 第一卷\r\n## 第一章 潮信\r\n- 视角：林晚\r\n";
+    const out = applyChapterFieldEdits(raw, [{ order: 1, fields: { pov: "程野" } }]);
+    expect(out).toBe("# 第一卷\r\n## 第一章 潮信\r\n- 视角：程野\r\n");
+  });
+
+  it("作者自己写的标签词保留（「阻力」不被改成「冲突」）", () => {
+    const raw = vol("## 第一章 潮信", "- 阻力：她不认这个爹");
+    const out = applyChapterFieldEdits(raw, [{ order: 1, fields: { conflict: "她认了，但晚了" } }]);
+    expect(out).toContain("- 阻力：她认了，但晚了");
+    expect(out).not.toContain("冲突");
   });
 });

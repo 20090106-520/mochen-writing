@@ -16,7 +16,7 @@ import {
   type SkillContent,
   type SkillRef
 } from "@mochen/contracts";
-import { SKILL_FILE_NAME, splitSkillId } from "@mochen/contracts";
+import { SKILL_FILE_NAME, effectiveSkillIds, skillPolicyOf, splitSkillId } from "@mochen/contracts";
 import {
   CLEAR_VIEW_SENTENCE,
   EMPTY_STREAM,
@@ -71,9 +71,8 @@ export const useAgentStore = defineStore("agent", {
     skills: [] as SkillRef[],
     skillsListed: false,
     /**
-     * 每条线程显式挂入的技能 id（spec §11）。
-     * **内存态**：重启清空，UI 上如实说明「挂入的技能不跨重启」——
-     * 落盘它就得进 book.json，而挂入是每轮临时的事，不该占用户作品的配置位。
+     * 线程级技能覆盖（P0-4）。**键在 = 本会话临时改过**（空数组也留着，表示「本会话明确一个都不挂」）；
+     * 键不在 = 继承书级默认（`book.json` 的 `skillPolicy.enabled`）。覆盖只活在内存里，不写回书。
      */
     skillPathsByThread: {} as Record<string, string[]>,
     proposals: {} as Record<string, ProposalView>,
@@ -593,19 +592,39 @@ export const useAgentStore = defineStore("agent", {
     },
 
     /**
-     * 挂入 / 取下本线程的技能（spec §11）。**这是唯一让技能进入上下文的动作**：
+     * 挂入 / 取下**本线程**的技能（spec §11）。**这是唯一让技能进入上下文的动作**：
      * 点技能行、浏览技能库都不产生任何装配效果（spec §10 第 4 条）。
+     *
+     * P0-4：第一次点就写下显式覆盖（**不再「取到空就删键」**）——删键会退回书级默认，
+     * 「本会话把最后一条也取下」就永远表达不出来。空数组是一个明确的「本会话一个都不挂」。
      */
     toggleSkillForThread(threadKey: string, id: string): void {
       const current = this.skillPathsOf(threadKey);
       const next = current.includes(id) ? current.filter((one) => one !== id) : [...current, id];
-      if (next.length === 0) delete this.skillPathsByThread[threadKey];
-      else this.skillPathsByThread[threadKey] = next;
+      this.skillPathsByThread[threadKey] = next;
     },
 
-    /** 本线程挂入的技能 id。判定与增删全在本 store，组件不许自己拿那份数组去 filter。 */
+    /**
+     * 本线程这一轮实际会带进上下文的技能 id：
+     * 有覆盖就用覆盖，没有就继承书级默认（`skillPolicy.enabled`）；两边都剔除已停用的。
+     * 判定与增删全在本 store，组件不许自己拿那份数组去 filter。
+     */
     skillPathsOf(threadKey: string): string[] {
-      return this.skillPathsByThread[threadKey] ?? [];
+      const policy = skillPolicyOf(useBookStore().meta);
+      const override = Object.prototype.hasOwnProperty.call(this.skillPathsByThread, threadKey)
+        ? this.skillPathsByThread[threadKey]
+        : null;
+      return effectiveSkillIds(policy, override);
+    },
+
+    /** 本线程有没有显式覆盖：界面据此区分「书级默认」与「本会话临时改过」。 */
+    hasSkillOverride(threadKey: string): boolean {
+      return Object.prototype.hasOwnProperty.call(this.skillPathsByThread, threadKey);
+    },
+
+    /** 「恢复书级默认」：删掉覆盖键，这一条会话回到继承状态。 */
+    resetSkillOverride(threadKey: string): void {
+      delete this.skillPathsByThread[threadKey];
     },
 
     /**

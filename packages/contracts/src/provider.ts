@@ -2,13 +2,27 @@ import { z } from "zod";
 
 const httpUrl = /^https?:\/\//;
 
+/**
+ * 模型上下文窗口的**保守默认值**（tokens，P0-3）。
+ *
+ * 为什么取 24000：本仓实测过的国内端点（DeepSeek、GLM、Kimi 的 8k 档、MiMo）里，
+ * 最紧的输入档在 32k 上下；按 32k 打七折留一份安全余量给输出与工具回执，就是 24000。
+ * 这只是**旧配置没有填过**时的回退值：设置里填了 `contextWindow` 就以那一份为准。
+ *
+ * 住在 contracts 而不是 agent-runtime，是因为设置页要把它作为输入框占位文案显示；
+ * 渲染层过不了包边界闸（不许 import agent-runtime），只能从这里取。
+ */
+export const DEFAULT_CONTEXT_WINDOW_TOKENS = 24000;
+
 export const providerConfigSchema = z.object({
   baseURL: z.string().min(1).regex(httpUrl, "baseURL 必须以 http:// 或 https:// 开头"),
   model: z.string().min(1),
   /** 密钥放哪个头。带 default 是为了让 v1 旧形状（没有这一项）照样能读。 */
   authHeader: z.enum(["bearer", "api-key"]).default("bearer"),
   /** 最高档思考在线上叫什么。同样带 default：老配置里没有这一项，按通用值走。 */
-  thinkingWire: z.enum(["standard", "xhigh"]).default("standard")
+  thinkingWire: z.enum(["standard", "xhigh"]).default("standard"),
+  /** 上下文窗口（tokens）。老配置没有这一项 ⇒ 调用方回退到 DEFAULT_CONTEXT_WINDOW_TOKENS。 */
+  contextWindow: z.number().int().positive().optional()
 });
 export type ProviderConfig = z.infer<typeof providerConfigSchema>;
 
@@ -400,7 +414,15 @@ export const providerConnectionSchema = z.object({
    * 不给默认值的话 schema 直接判失败 → 用户的连接**全部读不出来**，
    * 界面上变成「还没有模型」，而他明明配过。
    */
-  thinkingWire: z.enum(["standard", "xhigh"]).default("standard")
+  thinkingWire: z.enum(["standard", "xhigh"]).default("standard"),
+  /**
+   * 这个模型的上游上下文窗口（tokens，P0-3）。可选：旧配置没有这一项，
+   * 读取方回退到 `DEFAULT_CONTEXT_WINDOW_TOKENS`，行为与 P0-3 之前一致。
+   *
+   * 存在**连接**上而不是全局设置：不同端点（甚至同一 hub 的不同模型）窗口并不相同，
+   * 而用户是在「添加/编辑模型」这一步把地址与窗口一起确认的。
+   */
+  contextWindow: z.number().int().positive().optional()
 });
 export type ProviderConnection = z.infer<typeof providerConnectionSchema>;
 
@@ -506,7 +528,9 @@ export function migrateProviderStore(parsed: unknown): MigrationOutcome {
       providerId,
       baseURL: v1.data.baseURL,
       authHeader: defaultAuthHeaderOf(providerId),
-      thinkingWire: "standard"
+      thinkingWire: "standard",
+      // v1 本来没有这一格；若用户手改过就带过来，否则保持缺省（读取方回退默认窗口）。
+      ...(v1.data.contextWindow === undefined ? {} : { contextWindow: v1.data.contextWindow })
     };
     return {
       store: {
@@ -538,6 +562,11 @@ export interface ProviderConnectionView {
   authHeader: AuthHeader;
   /** 最高档思考在线上叫什么。界面上要能看见它——不然用户只能靠撞 400 才知道自己这条端点的口径。 */
   thinkingWire: ThinkingWire;
+  /**
+   * 这个模型的上游上下文窗口（tokens）。没填过就是 undefined，
+   * 界面显示与预算计算都回退到 `DEFAULT_CONTEXT_WINDOW_TOKENS`（P0-3）。
+   */
+  contextWindow?: number;
   /** 这一条有没有存过密钥（只有这个，没有明文）。 */
   hasKey: boolean;
   keyMask: string;
@@ -585,6 +614,11 @@ export const connectionDraftSchema = z.object({
     ),
   authHeader: z.enum(["bearer", "api-key"]),
   thinkingWire: z.enum(["standard", "xhigh"]),
+  /**
+   * 上下文窗口（tokens，P0-3）。`null` = 明确清空（改用默认值），
+   * `undefined` = 调用方没带这一格（保持现状）。与 apiKey 的「沿用 / 明确清空」同一族语义。
+   */
+  contextWindow: z.number().int().positive().nullable().optional(),
   apiKey: z.string().nullable()
 });
 export type ConnectionDraft = z.infer<typeof connectionDraftSchema>;

@@ -128,6 +128,10 @@ function unbindDoc(): void {
     :anchor="anchor"
     :options="options"
     :busy="book.metaSaving"
+    heading="选择本书阶段"
+    search-placeholder="搜索阶段名称"
+    empty-title="这本书没有可切的阶段"
+    empty-hint="阶段列在作品目录的 book.json 里"
     @select="void choose($event)"
     @close="menuOpen = false"
   />

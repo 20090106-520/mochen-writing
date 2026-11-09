@@ -170,6 +170,9 @@ function runAction(action: MessageActionView, text: string): void {
                正文整段藏在折起来的身体里——三行加起来信息量是零，看着像卡住了。
                显不显示交给 CSS（`:not([open])`），模板不自己判一次。 -->
           <span class="thinking-peek">{{ block.text }}</span>
+          <!-- 2026-11-08：折起来时这里是一行灰字、展开后是一张卡，形态变化要有一枚可读的开关标记。
+               与 `.tool-raw` 同一个 chevron 语言（收=0°、开=90°），11px 不抢标题。 -->
+          <AppIcon class="thinking-caret" name="chevron" :size="11" />
         </summary>
         <p class="thinking-text">{{ block.text }}</p>
       </details>

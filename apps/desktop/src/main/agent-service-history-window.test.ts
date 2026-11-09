@@ -82,7 +82,7 @@ interface Built {
   sessionRel: () => string;
 }
 
-async function build(): Promise<Built> {
+async function build(contextWindow?: number): Promise<Built> {
   const dir = await mkdtemp(path.join(tmpdir(), "mochen-hw-"));
   const secrets = await mkdtemp(path.join(tmpdir(), "mochen-hw-secret-"));
   tempDirs.push(dir, secrets);
@@ -120,7 +120,8 @@ async function build(): Promise<Built> {
     baseURL: "https://mock/v1",
     authHeader: "bearer",
     thinkingWire: "standard",
-    apiKey: null
+    apiKey: null,
+    ...(contextWindow === undefined ? {} : { contextWindow })
   });
   const connectionId = seeded.connections[0]?.id ?? "";
   if (connectionId === "") throw new Error("连接没建起来");
@@ -218,7 +219,7 @@ describe("agent-service · P1-3 历史切片与 notice", () => {
     built.service.dispose();
   });
 
-  it("contextPreview 的压力分母就是切片用的那枚常量：主进程递引用，不递第二份数字", async () => {
+  it("模型配置没填上下文窗口 ⇒ 压力分母回退到默认常量（主进程递引用，不递第二份数字）", async () => {
     const built = await build();
     await seedLongHistory(built, 3);
     await built.service.startTurn(turn(CHAPTER, "预热"));
@@ -228,9 +229,23 @@ describe("agent-service · P1-3 历史切片与 notice", () => {
       pinned: []
     });
     // 渲染层过不了包边界闸（禁止 import agent-runtime），所以窗口数只能由这里递出去。
-    // 钉的是**同一枚常量本身**：切片闸门哪天改了假设窗口，压力百分比必须跟着动；
+    // 钉的是**同一枚常量本身**：切片闸门哪天改了默认窗口，压力百分比必须跟着动；
     // 若这里改成写死一个字面量，两侧就会安静地分家（铁律 6）。
     expect(preview.windowApproxTokens).toBe(UPSTREAM_WINDOW_TOKENS);
+    built.service.dispose();
+  });
+
+  it("模型配置填了上下文窗口 ⇒ 压力分母跟着换成配置值（P0-3）", async () => {
+    const built = await build(64000);
+    await seedLongHistory(built, 3);
+    await built.service.startTurn(turn(CHAPTER, "预热"));
+    const preview = await built.service.contextPreview({
+      docRelPath: CHAPTER,
+      profileId: null,
+      pinned: []
+    });
+    // 与 startTurn 里的 fitHistoryToWindow 同一格：config.contextWindow ?? 默认常量。
+    expect(preview.windowApproxTokens).toBe(64000);
     built.service.dispose();
   });
 });

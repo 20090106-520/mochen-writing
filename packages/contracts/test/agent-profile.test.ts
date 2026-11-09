@@ -93,10 +93,12 @@ describe("writeScopeAllows · 写入范围是上限（spec §5.1 约束 3）", (
     expect(writeScopeAllows(reviewer.writeScope, "outline")).toBe(false);
   });
 
-  it("主笔只碰当前章，碰不到人物卡", () => {
+  it("主笔只碰当前章，碰不到别章，也碰不到人物卡", () => {
     const lead = findProfile("lead-writer")!;
     expect(writeScopeAllows(lead.writeScope, "current-chapter")).toBe(true);
-    expect(writeScopeAllows(lead.writeScope, "chapter")).toBe(true);
+    // 2026-11-08（P0-1）：`chapter` 不再等同于当前章——放宽到所有 chapter 等于
+    // 「主笔可以随手改别章」，与档案职责不符。装配层比对当前文稿路径后才传 current-chapter。
+    expect(writeScopeAllows(lead.writeScope, "chapter")).toBe(false);
     expect(writeScopeAllows(lead.writeScope, "character")).toBe(false);
   });
 

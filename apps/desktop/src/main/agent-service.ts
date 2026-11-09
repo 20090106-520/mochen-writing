@@ -10,6 +10,7 @@ import {
   workModeOf,
   type AgentEvent,
   type AgentOutbound,
+  type AgentProfile,
   type ContextPreview,
   type ContextPreviewQuery,
   type DecideInput,
@@ -35,7 +36,6 @@ import {
   findLatestSession,
   foldOrphanUserMessages,
   historyNotice,
-  historyStatFor,
   readSession,
   renderContextBlock,
   runTurn,
@@ -59,6 +59,8 @@ import { listBookSessions, loadSavedSession } from "./agent-session-read.js";
 import { createMultiSample, type CapturedDraftSet, type TurnCapture } from "./multi-sample.js";
 // 装配三件套（该装哪些篇 / 读挂入技能 / 解析档案）住在 turn-context.ts（同 agent-session-read.ts 的拆法）。
 import { createTurnContext } from "./turn-context.js";
+// 上下文占用条的装配与历史统计住在 agent-context-preview.ts（为 800 行预算拆出去，P0-3）。
+import { createContextPreview } from "./agent-context-preview.js";
 import { webSearch } from "./web-search.js";
 import { webRead } from "./web-read.js";
 // 打断与出网时限的接线住在 provider-fetch.ts：这一层只负责把「这一轮那只 signal」递进去。
@@ -97,6 +99,8 @@ export interface AgentServiceDeps {
    * 不给 ⇒ use_skill 只能回「技能库这一轮没接上」。与 readSkill 同一条只读边界。
    */
   listSkills?: (() => Promise<SkillRef[]>) | undefined;
+  /** 本书是否停用这条技能（P0-4）：装配层只递判定，不给 ⇒ 不停用任何技能。 */
+  skillDisabled?: ((id: string) => boolean) | undefined;
   /** 插件运行时（2026-10-07 批次 5-㉘）。不给 ⇒ 没有插件工具，行为与插件之前逐字一致。 */
   plugins?: PluginTools | undefined;
 }
@@ -188,9 +192,35 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
   }
   const bookScope = createBookScope(currentRoot, clearBookScoped);
 
-  // 装配三件套（按档案算该装哪些篇 / 读挂入技能正文 / 解析这一轮用哪枚档案）住在 turn-context.ts：
-  // 为 800 行预算拆出去，依赖只有 `book` 与 `readSkill` 两项，不跑 turn、不共享状态。
-  const turnContext = createTurnContext({ book: deps.book, readSkill: deps.readSkill });
+  // 装配三件套（按档案算该装哪些篇 / 解析挂入技能清单 / 解析这一轮用哪枚档案）住在 turn-context.ts：
+  // 为 800 行预算拆出去，依赖只有 `book` 与 `listSkills` 两项，不跑 turn、不共享状态。
+  const turnContext = createTurnContext({
+    book: deps.book,
+    // P0-2：挂入技能只进清单（名称 / 用途 / 何时用），正文由 use_skill 按需读。
+    listSkills: deps.listSkills
+  });
+
+  /**
+   * 模型配置里的上下文窗口（P0-3）。没填 / 读不出 / 旧配置 ⇒ 回退到默认值。
+   * 只给占用条预览用：startTurn 手里已经有 config，直接读同一格，不重复读盘。
+   */
+  async function contextWindowTokens(): Promise<number> {
+    try {
+      const config = await deps.settings.config();
+      return config?.contextWindow ?? UPSTREAM_WINDOW_TOKENS;
+    } catch {
+      return UPSTREAM_WINDOW_TOKENS;
+    }
+  }
+
+  // 占用条的装配与历史统计住在 agent-context-preview.ts（同 multi-sample.ts 的拆法：为 800 行预算
+  // 拆出去，不跑 turn、不碰提案；线程表借用这里那张 threads 的真身）。
+  const contextPreviewOf = createContextPreview({
+    book: deps.book,
+    turnContext,
+    threadOf: (threadKey) => threads.get(threadKey),
+    windowTokens: contextWindowTokens
+  });
 
   async function drain(): Promise<void> {
     for (let attempt = 0; attempt < 64; attempt += 1) {
@@ -312,6 +342,7 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     threadKey: string,
     docRelPath: string | null,
     signal: AbortSignal,
+    profile: AgentProfile,
     onProposal?: ((proposal: EditProposal, baseline: string) => void) | undefined
   ): ToolHost {
     const register =
@@ -324,7 +355,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         docRelPath,
         permissionMode: deps.book.current()?.meta.permissionMode ?? DEFAULT_PERMISSION_MODE,
         // 没开书时没有 meta：那一轮本来也写不了盘，工作模式按直接动手兜（同档位的既有兜法）。
-        workMode: workModeOf(deps.book.current()?.meta ?? {})
+        workMode: workModeOf(deps.book.current()?.meta ?? {}),
+        // P0-1：工具白名单已在 toolsFor 里生效；写入范围由 doc-tools-host 在落盘前再验一次。
+        profile
       }),
       onProposal: register,
       newId: deps.newId,
@@ -336,7 +369,8 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
       webRead: (url) => webRead(url, { fetchImpl: abortableFetch(fetch, signal) }),
       // 技能自选（use_skill，2026-10-23）：列清单与按 id 读正文，都用装配层传进来的那份。
       listSkills: deps.listSkills,
-      readSkill: deps.readSkill
+      readSkill: deps.readSkill,
+      skillDisabled: deps.skillDisabled
     });
     // 插件工具**叠加**（2026-10-07 批次 5-㉘）；那层住 plugin-host.ts。
     return withPlugins(base, deps.plugins);
@@ -594,14 +628,28 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         // 档案的写入范围写进提示词：它是上限不是授权，模型自己先知道能碰哪些目录。
         const prompt = `${deps.promptFor(context)}\n${writeScopeSentence(profile)}`;
         const contextBlock = renderContextBlock(assembled);
-        const systemPromptText =
-          contextBlock === "" ? prompt : `${prompt}\n\n【已装配的上下文】\n${contextBlock}`;
-        // P1-3 历史切片：整段历史不再上桌。预留递的是**最终**系统提示词整串——上下文包已并进
-        // 它里再单独报 contextPackTokens 会双重扣减、历史被冤枉切掉；判据只在 fitHistoryToWindow 一处。
+        // P0-2：技能只进清单。必须补一句「正文未载入」，否则模型看见名字会以为方法已经读过，
+        // 直接照印象动笔——那正是整段注入被拿掉之后最容易撞上的退化。
+        const skillHint = assembled.items.some((item) => item.kind === "skill")
+          ? "上面标注「技能」的条目只是清单（名称与用途），正文没有载入；要按其中一份方法动笔，先用 use_skill 读出全文。"
+          : "";
+        // P0-3：上下文包单独成串算 token，系统提示只算 prompt 那一截——
+        // 三路预算要按比例分，就得各自可量。两者拼回去仍是系统提示整串，语义没有变。
+        const contextPackText =
+          contextBlock === ""
+            ? ""
+            : `\n\n【已装配的上下文】\n${contextBlock}${skillHint === "" ? "" : `\n${skillHint}`}`;
+        const systemPromptText = `${prompt}${contextPackText}`;
+        // P1-3 历史切片 / P0-3 三路预算：窗口取自模型配置的 contextWindow（没填就回退到
+        // DEFAULT_CONTEXT_WINDOW_TOKENS）。系统提示与上下文包分开报（见上），两者之和
+        // 仍是原来的预留；判据只在 fitHistoryToWindow / windowBudgetPlan 一处。
+        const windowTokens = config.contextWindow ?? UPSTREAM_WINDOW_TOKENS;
         const fitted = fitHistoryToWindow({
           history: fullHistory,
-          systemTokens: estimateTokens(systemPromptText),
-          userTokens: estimateTokens(input.userText)
+          systemTokens: estimateTokens(prompt),
+          contextPackTokens: estimateTokens(contextPackText),
+          userTokens: estimateTokens(input.userText),
+          windowTokens
         });
         // 截断必须让用户看见（spec §9）：走 emitOnly 既有 notice 通路（落一条 error 事件），
         // 不新造事件类型；句子由 historyNotice 组，数字只有 fitted 那一份。
@@ -612,7 +660,14 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
           runTurn(
             {
               stream: (req) => streamChat({ ...req, fetchImpl: deps.fetchImpl }),
-              host: buildHost(turnId, threadKey, docRelPath, controller.signal, capture.onProposal),
+              host: buildHost(
+                turnId,
+                threadKey,
+                docRelPath,
+                controller.signal,
+                profile,
+                capture.onProposal
+              ),
               emit: capture.emit,
               emitDelta: capture.emitDelta,
               newId: deps.newId,
@@ -631,7 +686,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
               thinkingLevel: input.thinkingLevel,
               webSearchEnabled: input.webSearchEnabled,
               // 工具面板关掉的那几枚（2026-10-21）：原样递进循环，清单与闸两处同时摘。
-              disabledTools: input.disabledTools ?? []
+              disabledTools: input.disabledTools ?? [],
+              // P0-1：这一轮的档案。报给模型的工具清单、派发闸、落盘范围都以它为准。
+              profile
             }
           );
         // 多稿（P0-②）：静默跑 N 稿、由 multi-sample 摆候选（采样期零 publish、零落盘），
@@ -718,65 +775,13 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     },
 
     /**
-     * 上下文占用条（spec §5）。与 startTurn 走**同一条**装配路径（assembleFor），所以占用条上
-     * 显示的条目数与字数就是这一轮真会发出去的那些——两处各装一遍的话，它就是骗人的装饰。
+     * 上下文占用条（spec §5）。装配与历史统计住在 agent-context-preview.ts（为 800 行预算拆出去）：
+     * 那里与 startTurn 走**同一条**装配路径（assembleFor），所以占用条上显示的条目数与字数就是
+     * 这一轮真会发出去的那些——两处各装一遍的话，它就是骗人的装饰。
      * 读盘失败只少装一条、不抛：占用条是辅助信息，不该让界面因此报错（历史那一格同口径）。
      */
     async contextPreview(query: ContextPreviewQuery): Promise<ContextPreview> {
-      const current = deps.book.current();
-      if (current === null)
-        return {
-          profileId: "",
-          profileName: "",
-          items: [],
-          chars: 0,
-          approxTokens: 0,
-          empty: true,
-          // 没开书＝没历史：给全零而不是省略，面板不必再猜 undefined 的含义。
-          history: historyStatFor(null)
-        };
-      const profile = turnContext.profileOf(current, query.profileId ?? current.meta.activeStage);
-      const { skills } = await turnContext.readPinnedSkills(query.pinned ?? []);
-      const assembled = await turnContext.assembleFor(
-        current,
-        query.docRelPath,
-        profile,
-        [],
-        skills
-      );
-      // P1-3：占用条必须把历史这一格算进去——不报历史，剩余预算就是假的（面板上的「还能塞」骗人）。
-      // 数字只有 `historyStatFor` 那一份判据：这里再手搓一遍字段映射，就是第二套口径（铁律 6）。
-      let historyStat = historyStatFor(null);
-      try {
-        const key = query.docRelPath ?? UNBOUND;
-        const rel = threads.get(key) ?? (await findLatestSession(current.root, key));
-        if (rel !== null) {
-          const stored = await readSession(current.root, rel);
-          // 预览按「预留为零」的上界算（historyStatFor 里钉着）：真实 startTurn 只会切得更狠、
-          // 不会更松，占用条宁可略保守也不骗人说还有余量。
-          historyStat = historyStatFor(eventsToMessages(stored.events));
-        }
-      } catch {
-        // 坏线程/坏 JSONL：历史这一格归零，占用条其余部分照常。
-      }
-      return {
-        profileId: profile.id,
-        profileName: profile.name,
-        // 只回标签与字数：渲染层不需要正文，也不该拿到正文
-        items: assembled.items.map((item) => ({
-          kind: item.kind,
-          relPath: item.relPath,
-          title: item.title,
-          chars: item.chars,
-          active: item.active
-        })),
-        chars: assembled.chars,
-        approxTokens: assembled.approxTokens,
-        empty: assembled.items.length === 0,
-        history: historyStat,
-        // 分母只递引用：那枚保守假设窗口住在 agent-runtime，渲染层过不了包边界闸（铁律 6）。
-        windowApproxTokens: UPSTREAM_WINDOW_TOKENS
-      };
+      return contextPreviewOf(query);
     },
 
     dispose(): void {

@@ -1,28 +1,59 @@
-import type { ContextHistoryStat } from "@mochen/contracts";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, type ContextHistoryStat } from "@mochen/contracts";
 import { estimateTokens } from "./context.js";
 import type { ChatMessage } from "./chat-message.js";
 
 /**
- * 上游窗口的**假设值**（tokens）。
+ * 上游窗口的**回退值**（tokens）：模型配置里没填 `contextWindow` 时用这一枚。
  *
- * 为什么要有这一枚而不是让调用方传：`packages/contracts/provider.ts` 与
- * `providerConnectionSchema` 里没有一处声明窗口大小——那是模型属性而不是连接属性，
- * 契约目前装不下它。P1-3 要的是「不再把整段历史端出去」，得先有个保守上限起手。
- *
- * 为什么取 24000：本仓实测过的国内端点（DeepSeek、GLM、Kimi 的 8k 档、MiMo）里，
- * 最紧的输入档在 32k 上下；按 32k 打七折留一份安全余量给输出与工具回执，就是 24000。
- * 真接入 `contextWindow` 字段后，`agent-service` 那一路显式传 `windowTokens` 覆盖即可——
- * **不许**在别处再抄一份 24000（铁律 6：一个判据只许一处）。
+ * 真身住在 contracts 的 `DEFAULT_CONTEXT_WINDOW_TOKENS`（设置页要显示它，渲染层过不了包边界闸），
+ * 这里只重导出，**不另抄一份数字**（铁律 6：一个判据只许一处）。
  */
-export const UPSTREAM_WINDOW_TOKENS = 24000;
+export const UPSTREAM_WINDOW_TOKENS = DEFAULT_CONTEXT_WINDOW_TOKENS;
+
+/**
+ * 窗口按三路分配的占比（P0-3）：系统提示 / 上下文包 / 历史，**按百分比整数**而不是小数——
+ * 0.35 × 24000 在双精度里是 8399.999…，floor 完少一格，预算会无声无息地缩小。
+ * 三个数相加必须等于 100。
+ *
+ * 为什么历史只拿 25%：系统提示与上下文包是**这一轮的事实**（档案职责、当前章、人物卡），
+ * 切掉它们不是「省预算」而是让模型答非所问；历史是**可回溯的旧话**，切掉只影响回忆深度。
+ * 25% 也让默认 24000 窗口下的历史额度保持 6000——与 P0-3 之前的行为逐字相同。
+ *
+ * 系统提示与上下文包这两份**不截断**：它们由装配层按档案产出的固定内容，
+ * 悄悄砍掉正文比少读几轮历史更糟。占比在这里是「预算刻度」，不是硬切刀。
+ */
+export const WINDOW_SHARES = {
+  system: 40,
+  contextPack: 35,
+  history: 25
+} as const;
+
+export interface WindowBudgetPlan {
+  windowTokens: number;
+  /** 系统提示这一路的预算刻度。 */
+  systemBudget: number;
+  /** 上下文包这一路的预算刻度。 */
+  contextPackBudget: number;
+  /** 历史这一路的预算刻度（真正会用来切片）。 */
+  historyBudget: number;
+}
+
+/** 一个窗口按占比拆成三份预算。纯函数：窗口一变，三格一起变，不靠调用方各算各的。 */
+export function windowBudgetPlan(windowTokens: number): WindowBudgetPlan {
+  const window = Math.max(0, Math.floor(windowTokens));
+  return {
+    windowTokens: window,
+    systemBudget: Math.floor((window * WINDOW_SHARES.system) / 100),
+    contextPackBudget: Math.floor((window * WINDOW_SHARES.contextPack) / 100),
+    historyBudget: Math.floor((window * WINDOW_SHARES.history) / 100)
+  };
+}
 
 /**
  * 历史这一路的**默认预算上限**（tokens），不含系统提示、上下文包与本轮用户输入。
- *
- * 为什么这一枚单独存在：调用方在装配前只想知道「历史能吃多少」，而不是把整套预留算完再传。
- * 有 `windowTokens` 显式覆盖时按 min(默认档, 窗口 − 预留) 取小者——保守那一头永远压得住。
+ * 由占比推出来（默认窗口的 25%）：改占比或改默认窗口，这一枚自动跟着走。
  */
-export const HISTORY_TOKEN_BUDGET = 6000;
+export const HISTORY_TOKEN_BUDGET = windowBudgetPlan(UPSTREAM_WINDOW_TOKENS).historyBudget;
 
 /**
  * 一条消息在**上游 wire 上**大致占多少 tokens。
@@ -127,7 +158,10 @@ export interface FitHistoryInput {
   userTokens: number;
   /** 装配好的上下文包（章节正文/大纲/人物卡那一叠）的 token 估算。 */
   contextPackTokens?: number;
-  /** 上游整段窗口；契约没有 `contextWindow` 字段可读（见 UPSTREAM_WINDOW_TOKENS 注释）。 */
+  /**
+   * 上游整段窗口；不给就回退到 `UPSTREAM_WINDOW_TOKENS`。
+   * P0-3 起由 `agent-service` 从模型配置的 `contextWindow` 递进来。
+   */
   windowTokens?: number;
   /** 显式给历史这一路定预算；给了就覆盖上面的窗口扣减，只按这一枚切。 */
   budgetTokens?: number;
@@ -157,10 +191,13 @@ export interface FitHistoryResult {
  * 宁可撑爆预算让上游报错，也不冒充「没有系统提示」把用户蒙在鼓里。
  */
 export function fitHistoryToWindow(input: FitHistoryInput): FitHistoryResult {
-  const window = input.windowTokens ?? UPSTREAM_WINDOW_TOKENS;
+  const plan = windowBudgetPlan(input.windowTokens ?? UPSTREAM_WINDOW_TOKENS);
+  const window = plan.windowTokens;
   const reserved = input.systemTokens + input.userTokens + (input.contextPackTokens ?? 0);
   const availableFromWindow = Math.max(0, window - reserved);
-  const budget = input.budgetTokens ?? Math.min(HISTORY_TOKEN_BUDGET, availableFromWindow);
+  // 三路预算：历史先拿「窗口占比」这一格，再跟「扣掉系统提示与上下文包后的剩余」取小。
+  // 系统提示/上下文包不截断，所以实际剩余比占比更紧时，以剩余为准——永远不越窗口。
+  const budget = input.budgetTokens ?? Math.min(plan.historyBudget, availableFromWindow);
 
   const blocks = buildBlocks(input.history);
   const kept = new Set<Block>();
@@ -219,9 +256,12 @@ const NO_HISTORY_STAT: ContextHistoryStat = {
  * 所以报的是**上界**——真实 startTurn 只会切得更狠、不会更松，
  * 占用条宁可略保守也不骗人说还有余量。`null`＝没历史可读，给全零而不是省略字段。
  */
-export function historyStatFor(history: readonly ChatMessage[] | null): ContextHistoryStat {
+export function historyStatFor(
+  history: readonly ChatMessage[] | null,
+  windowTokens: number = UPSTREAM_WINDOW_TOKENS
+): ContextHistoryStat {
   if (history === null) return NO_HISTORY_STAT;
-  const f = fitHistoryToWindow({ history, systemTokens: 0, userTokens: 0 });
+  const f = fitHistoryToWindow({ history, systemTokens: 0, userTokens: 0, windowTokens });
   return {
     entries: f.kept.length,
     chars: f.kept.reduce((sum, m) => sum + m.content.length, 0),

@@ -26,6 +26,7 @@ import {
   scriptSource,
   styleSource,
   templateSource,
+  typeScriptSource,
   vueSource
 } from "../utils/vue-source-reader";
 
@@ -170,15 +171,16 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     expect(sendTag).toContain("v-else");
   });
 
-  it("slot 是 .ts 表的新字段：左=运行配置六枚，右=工作模式与权限（#112 定栏，批次 4 扩右端）", () => {
+  it("slot 是 .ts 表的新字段：首行左=思考/联网，首行右=模型/权限，more=低频开关（2026-11-09 参考图②）", () => {
     const want: Record<string, ComposerChipSlot> = {
-      model: "left",
+      // 2026-11-09 参考图②：模型名落在发送键左侧，slot 从 left 改到 right。
+      model: "right",
       thinking: "left",
       "web-search": "left",
-      draft: "left",
-      tools: "left",
-      palette: "left",
-      "work-mode": "right",
+      draft: "more",
+      tools: "more",
+      palette: "more",
+      "work-mode": "more",
       permission: "right"
     };
     const slots = composerChips(chipInput()).map((c) => [c.id, c.slot]);
@@ -195,14 +197,16 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     ]);
   });
 
-  it("模板只渲染 chipsLeft/chipsRight（源自 chips computed 的过滤），不出现第二份顺序表", () => {
+  it("模板只渲染 chipsLeft/chipsRight/chipsMore（源自 chips computed 的过滤），不出现第二份顺序表", () => {
     const m = markup();
     const script = scriptSource(COMPOSER);
     expect(m).toContain('v-for="chip in chipsLeft"');
     expect(m).toContain('v-for="chip in chipsRight"');
+    expect(m).toContain('v-for="chip in chipsMore"');
     expect(m).not.toContain('v-for="chip in chips"');
     expect(script).toContain('c.slot === "left"');
     expect(script).toContain('c.slot === "right"');
+    expect(script).toContain('c.slot === "more"');
   });
 
   it("忙态：chip 一律禁用、整卡挂 is-disabled 且样式表把它压到 0.75；textarea 不 disabled（裁定 B）", () => {
@@ -223,15 +227,18 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     expect(chip("thinking", { thinkingLevel: "low" })?.icon).toBe("brain");
     expect(chip("web-search", { webSearchEnabled: true })?.icon).toBe("globe");
     const m = markup();
-    // 左右两条循环各自带全「图形 + 可截断文字 + 三角」三件套 ⇒ 数次数而不是 toContain：
+    // 三条循环（左端 / 右端 / 更多弹层）各自带全三件套 ⇒ 数次数而不是 toContain：
     // 实测把左栏循环里那行下拉三角整行删掉，22 条断言全绿（toContain 只看见右栏那一处）。
-    expect(countNeedle(':name="chip.icon"', m), "两条 chip 循环都要渲染图标").toBe(2);
+    expect(countNeedle(':name="chip.icon"', m), "三条 chip 循环都要渲染图标").toBe(3);
+    // 首行两条用可截断的 `.composer-chip-label`；弹层行用同一手法的 `.composer-more-label`
+    // （它不在 `.composer-toolbar-left` 里，不能复用 chip 的阶梯选择器）。
     expect(
       countNeedle('class="composer-chip-label"', m),
-      "两条 chip 循环都要包一层可截断文字"
+      "首行两条 chip 循环都要包一层可截断文字"
     ).toBe(2);
-    expect(countNeedle('v-if="chip.caret"', m), "两条 chip 循环都要按 caret 挂下拉三角").toBe(2);
-    expect(countNeedle('name="chevron"', m)).toBe(2);
+    expect(countNeedle('class="composer-more-label"', m), "弹层行也要包一层可截断文字").toBe(1);
+    expect(countNeedle('v-if="chip.caret"', m), "三条 chip 循环都要按 caret 挂下拉三角").toBe(3);
+    expect(countNeedle('name="chevron"', m)).toBe(3);
     // 合并口径与 badge 字段一起退役：模型名里再不许缀思考等级，也不许挂地球角标。
     expect(chip("model", { thinkingLevel: "high" })?.text).toBe("mochen-mock");
     expect(m).not.toContain("chip.badge");
@@ -295,12 +302,12 @@ describe("样式硬门禁 · #105 新增段零色值字面量", () => {
     expect(off).toContain("cursor: not-allowed");
   });
 
-  it("#112 chip 从描边药丸改成无边框触发器（deepwrite 的 config-trigger 原值：高 29 / 圆角 7 / 字号 0.75rem）", () => {
+  it("#112 chip 从描边药丸改成无边框触发器（2026-11-08 UI 走查：字号抬到 0.875rem，其余仍照 deepwrite 的 config-trigger）", () => {
     const chipRule = ruleBlock(styleSource("interaction.css"), ".composer-chip");
     expect(chipRule).toContain("height: 29px");
     expect(chipRule).toContain("border-radius: 7px");
     expect(chipRule).toContain("border: 0");
-    expect(chipRule).toContain("font-size: 0.75rem");
+    expect(chipRule).toContain("font-size: 0.875rem");
     expect(chipRule).toContain("padding: 0 7px");
     // 下拉三角：本仓 chevron 画的是「>」，靠 rotate 90° 才朝下（同一手法在 deepwrite 的 config-chevron）。
     expect(ruleBlock(styleSource("interaction.css"), ".composer-chip-caret")).toContain(
@@ -451,7 +458,8 @@ describe("输入卡版心 · 与消息列同宽（2026-10-25 改钉：同一个�
  * 读数（1440 / 右栏折叠）：输入区 88px 而里面只有一行 34px 的 textarea ⇒ 上下共 54px 是净空。
  * 占位文字孤零零挂在卡的上沿，下面一整条空带，再往下才是那条发丝线——整卡上半部读起来
  * 是一块没写字的白板（卡总高 153px，却只是「一格字 + 一排开关」）。
- * ⇒ 输入区改成**按内容走**：上下内边距 16 / 14 ⇒ 16 + 34 + 14 = 64px，卡随内容长高。
+ * ⇒ 输入区改成**按内容走**：上下内边距 16 / 10 ⇒ 16 + 34 + 10 = 60px，卡随内容长高。
+ * （2026-11-09 参考图②：卡内发丝线撤掉，下沿从 14 收到 10，节奏改由内边距承担。）
  */
 describe("输入区 · 按内容走，不留空带（2026-10-25）", () => {
   it("不再有撑高度的 min-height：那条最小高度容得下一行字，剩下的全是净空", () => {
@@ -459,7 +467,7 @@ describe("输入区 · 按内容走，不留空带（2026-10-25）", () => {
     expect(zone, "min-height 又回来了 ⇒ 上半部又变回一块空板").not.toContain("min-height");
   });
 
-  it("上下内边距之和 ≤ 32px（16 + 14）：留白要撑得起呼吸，又不能撑成一条空带", () => {
+  it("上下内边距之和 ≤ 32px（16 + 10）：留白要撑得起呼吸，又不能撑成一条空带", () => {
     const zone = ruleBlock(cardSection("agent-pane.css"), ".composer-input-zone");
     const padding = /padding:\s*([\d.]+)px\s+([\d.]+)px\s+([\d.]+)px/.exec(zone);
     expect(padding, "读不到 .composer-input-zone 的 padding").not.toBeNull();
@@ -472,5 +480,48 @@ describe("输入区 · 按内容走，不留空带（2026-10-25）", () => {
     const textarea = ruleBlock(cardSection("agent-pane.css"), ".composer-textarea");
     expect(textarea).toContain("field-sizing: content");
     expect(textarea).toContain("max-height: 150px");
+  });
+});
+
+/**
+ * 输入卡下方 · 「选择作品」一行（2026-11-09 参考图③）。
+ * 参考图那一层是「选择文件夹 / 本地 + 场景预设」；本仓只落**有真通路**的一半：
+ * 新建作品 / 打开作品目录 / 最近作品。远程项目、不需要项目、场景预设都没有契约，
+ * 一条都不编（编出来就是点了没反应的假控件）。
+ * 两条反向钉：① 这一行常驻——不许挂 v-if，尤其不许借卡上方绑定条的显隐；
+ * ② 三个动作只许走既有入口，渲染层不许新开 IPC 或新数据字段。
+ */
+describe("输入卡下方 · 选择作品一行（2026-11-09 参考图③）", () => {
+  const BAR = "components/ComposerProjectBar.vue";
+  const OPTIONS = "utils/composer-project.ts";
+
+  it("常驻在输入面之后：不挂 v-if，也不依赖卡上方绑定条", () => {
+    const m = markup();
+    const surface = m.indexOf('class="composer-input-surface"');
+    const row = m.indexOf("<ComposerProjectBar");
+    expect(surface, "读不到 .composer-input-surface").toBeGreaterThan(-1);
+    expect(row, "参考图③那一行没有挂进卡里").toBeGreaterThan(surface);
+    // 常驻 = 不开书时也在（那正是最需要它的时候）；挂 v-if 就会退回「只有开书后才看得见」。
+    expect(m).not.toContain("<ComposerProjectBar v-if");
+  });
+
+  it("三个动作只走既有入口：新建作品 / 打开目录 / 最近作品", () => {
+    const s = scriptSource(BAR);
+    expect(s, "新建作品没走 left 栏 / 工作台同一个对话框入口").toContain("layout.openNewBook()");
+    expect(s, "打开目录没走 Ctrl+O 那条真通路").toContain("book.pickAndOpen()");
+    expect(s, "最近作品没走作品库那一行的打开方式").toContain("book.openBook(rootPath)");
+    const options = typeScriptSource(OPTIONS);
+    expect(options).toContain('export const PROJECT_NEW_ID = "new"');
+    expect(options).toContain('export const PROJECT_PICK_ID = "pick"');
+    expect(options).toContain('export const PROJECT_BOOK_PREFIX = "book:"');
+  });
+
+  it("弹层沿用同一份通用面：标题 / 搜索 / 键盘都不另起一份", () => {
+    const m = templateSource(BAR);
+    expect(m).toContain("<ComposerContextMenu");
+    expect(m).toContain('heading="选择作品"');
+    expect(m).toContain('search-placeholder="搜索作品名称"');
+    expect(m).toContain('aria-haspopup="dialog"');
+    expect(m).toContain("选择作品");
   });
 });
