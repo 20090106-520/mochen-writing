@@ -542,8 +542,24 @@ const ORNAMENT_SIZE = "min(18vmin, 184px)";
  * ⇒ 纱就是这条皮肤自己的底色盖一层：底色深 → 压暗，底色浅 → 提亮，
  *   与当前是浅色还是深色模式无关。正文压在画上时对比度也一定够。
  */
+/**
+ * 【2026-11-10 用户裁定「按皮肤调纱」】亮日景画的纱覆盖表。
+ *
+ * 起因：「晴窗 · 昼颜」整屏发黄发浑——它是**暖米黄底（#FAF4E6）× 落日暖橙插画**，
+ * 纱若还照通用口径拿自己的底色盖一层，等于暖上加暖；阅读区放行 76% 之后，
+ * 透进来的仍是那片暖光，色温拉不回来。
+ * ⇒ 只对这类**图本身是亮暖调**的画，把纱换成**冷调浅灰蓝并加深一档**：
+ *   压得住暖橙，又把色温往冷里带；其他画的通用口径（底色 0.22）一律不动。
+ * 判据仍是「按这条皮肤自己的画给」，不按明暗模式分支（上一条注释的教训同源）。
+ */
+const ART_VEIL_OVERRIDES: Partial<Record<AppearanceArt, string>> = {
+  "lamp-tower-day": "rgb(238 243 247 / 0.34)"
+};
+
 const artVeil = (art: AppearanceArt, paper: string): string =>
-  art === "none" ? "transparent" : rgba(paper, 0.22);
+  art === "none"
+    ? "transparent"
+    : (ART_VEIL_OVERRIDES[art] ?? rgba(paper, 0.22));
 
 /** 供皮肤广场卡片预览与运行时共用：把四层换算成一份可直接内联到 style 的自定义属性表。 */
 export function skinStyleVariables(input: {
