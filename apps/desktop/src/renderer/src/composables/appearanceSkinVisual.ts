@@ -557,9 +557,7 @@ const ART_VEIL_OVERRIDES: Partial<Record<AppearanceArt, string>> = {
 };
 
 const artVeil = (art: AppearanceArt, paper: string): string =>
-  art === "none"
-    ? "transparent"
-    : (ART_VEIL_OVERRIDES[art] ?? rgba(paper, 0.22));
+  art === "none" ? "transparent" : (ART_VEIL_OVERRIDES[art] ?? rgba(paper, 0.22));
 
 /** 供皮肤广场卡片预览与运行时共用：把四层换算成一份可直接内联到 style 的自定义属性表。 */
 export function skinStyleVariables(input: {
