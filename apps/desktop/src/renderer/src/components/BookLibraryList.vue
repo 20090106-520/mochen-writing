@@ -8,7 +8,7 @@
 <script setup lang="ts">
 import AppIcon from "./AppIcon.vue";
 import { useBookStore } from "../stores/useBookStore";
-import { shortenRootPath } from "../utils/book-path";
+import { bookDisplayTitle, shortenRootPath } from "../utils/book-path";
 
 withDefaults(defineProps<{ variant?: "list" | "cards" }>(), { variant: "list" });
 
@@ -41,13 +41,15 @@ function forget(event: MouseEvent, rootPath: string): void {
         <button
           class="book-library-open"
           type="button"
-          :title="`打开《${entry.title}》\n${entry.rootPath}`"
+          :title="`打开《${bookDisplayTitle(entry.title, entry.rootPath)}》\n${entry.rootPath}`"
           :aria-current="entry.rootPath === book.rootPath ? 'true' : undefined"
           @click="openBook(entry.rootPath)"
         >
           <span class="book-library-icon"><AppIcon name="book" :size="15" /></span>
           <span class="book-library-main">
-            <span class="book-library-title">{{ entry.title }}</span>
+            <span class="book-library-title">
+              {{ bookDisplayTitle(entry.title, entry.rootPath) }}
+            </span>
             <span class="book-library-path">{{ shortenRootPath(entry.rootPath) }}</span>
           </span>
           <span v-if="entry.rootPath === book.rootPath" class="book-library-state">正在写</span>
@@ -55,7 +57,7 @@ function forget(event: MouseEvent, rootPath: string): void {
         <button
           class="book-library-forget"
           type="button"
-          :aria-label="`从作品库移除《${entry.title}》（不删除文件）`"
+          :aria-label="`从作品库移除《${bookDisplayTitle(entry.title, entry.rootPath)}》（不删除文件）`"
           title="从作品库移除（不会删除书目录）"
           @click="forget($event, entry.rootPath)"
         >

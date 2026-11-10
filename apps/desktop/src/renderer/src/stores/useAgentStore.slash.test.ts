@@ -159,7 +159,7 @@ describe("useAgentStore · / 面板动作", () => {
    * 无书时旧实现走 `PERMISSION_LABELS[... ?? DEFAULT_PERMISSION_MODE]`，照样播报「只读参考」——
    * 与本任务要杀的是同一句谎言，只是另一个表面。反向那条循环把「任何档位名都不许出现」钉死。
    */
-  it("无书时 /status 不捏造档位名：权限档那一格报「未打开作品目录」", () => {
+  it("无书时 /status 不捏造档位名：权限档那一格报「未选作品」", () => {
     store().runSlashCommand("status", "");
     const notice = store().notice;
     expect(notice).toBe(

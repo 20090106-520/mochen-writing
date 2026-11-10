@@ -110,12 +110,16 @@ describe("LeftSidebar · 功能导航（2026-10-04 演示图裁定：完整按�
     // 2026-10-04 三次裁定：该行与「AI 写作」重复、是摆设——删行不删真身。
     // 2026-10-23：审核四项迁出导航表（改为内置技能），aiCheckOf 分派删除；
     // revealAgentPanel 改由伏笔台账 / 时间线核对两个动作消费，真身仍在。
+    // 2026-11-09：那两次调用收成 action 分派里**共用的一次前置**（先展右栏、再判是哪枚台账），
+    // 于是先后次序反过来。这里钉的是「共用真身仍在，且发生在台账分派之前」，
+    // 而不是旧代码里那一条已经不成立的次序。
     expect(template).not.toContain('data-nav-id="agent"');
     expect(script).not.toContain('data-nav-id="agent"');
     expect(script).toContain("function revealAgentPanel(): void");
     expect(script).toContain('layout.setPaneCollapsed("right", false)');
     expect(script).not.toContain("aiCheckOf");
-    expect(script).toMatch(/foreshadow-ledger[\s\S]*?revealAgentPanel\(\)/);
+    const actionDispatch = script.slice(script.indexOf('if (child.reality.kind === "action")'));
+    expect(actionDispatch).toMatch(/revealAgentPanel\(\);[\s\S]*?foreshadow-ledger/);
   });
 
   it("「去开一章」引导随 AI 检查迁出：needChapterState 删除，缺章规则只剩 side-nav 一处（5-㊳→2026-10-23）", () => {
@@ -138,7 +142,12 @@ describe("LeftSidebar · 功能导航（2026-10-04 演示图裁定：完整按�
     // 两者由 `@stats="openStats"` 那一处接上——钉的是这条接线，不是按钮待在哪。
     const library = vueSource("components/LibraryNavRows.vue");
     expect(library).toMatch(/data-nav-id="stats"[\s\S]*?@click="emit\('stats'\)"/);
-    expect(template).toContain('<LibraryNavRows @open="openLibraryDialog" @stats="openStats" />');
+    // W-05 给这枚壳加了 `:require-book`（存稿仪表的闸门）；把空白压平后再钉整条接线，
+    // 免得「少了哪一枚监听」被换行掩盖。
+    const flat = template.replace(/\s+/g, " ");
+    expect(flat).toContain(
+      '<LibraryNavRows :require-book="requireBook" @open="openLibraryDialog" @stats="openStats" />'
+    );
     // 提示文案读 side-nav 那一份真身（按钮搬到了 LibraryNavRows，真身没搬走）。
     expect(library).toContain(':title="STATS_HINT"');
     expect(script).toContain("function openStats(): void");

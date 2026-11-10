@@ -8,6 +8,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, watch } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { COMPOSER_SELECTOR } from "../utils/hotkey-markers";
+import { referenceGroupHeadingAt } from "../utils/inline-reference-menu";
 import { threadKeyFor, useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
 import { useReferenceMenuStore } from "../stores/useReferenceMenuStore";
@@ -104,26 +105,35 @@ watch(
       <kbd>Esc</kbd>
     </div>
     <div v-if="menu.visibleOptions.length" class="composer-reference-options">
-      <button
-        v-for="(option, index) in menu.visibleOptions"
-        :id="`composer-reference-option-${index}`"
-        :key="option.id"
-        type="button"
-        role="option"
-        :aria-selected="index === menu.activeIndex"
-        :class="{ 'is-selected': index === menu.activeIndex }"
-        @mouseenter="menu.activate(index)"
-        @mousedown.prevent="menu.select(option)"
-      >
-        <span class="composer-reference-icon">
-          <AppIcon :name="menu.copy.icon" :size="17" />
-        </span>
-        <span class="composer-reference-copy">
-          <strong>{{ option.label }}</strong>
-          <small>{{ option.detail }}</small>
-        </span>
-        <span class="composer-reference-token">{{ menu.trigger }}</span>
-      </button>
+      <template v-for="(option, index) in menu.visibleOptions" :key="option.id">
+        <!-- 命令按用途分组，分组标题只在每组第一行画一次（判定在 utils 一处）。 -->
+        <div
+          v-if="referenceGroupHeadingAt(menu.visibleOptions, index)"
+          class="composer-reference-group"
+        >
+          {{ referenceGroupHeadingAt(menu.visibleOptions, index) }}
+        </div>
+        <button
+          :id="`composer-reference-option-${index}`"
+          type="button"
+          role="option"
+          :title="option.detail"
+          :aria-label="`${option.title ?? option.label}：${option.detail}`"
+          :aria-selected="index === menu.activeIndex"
+          :class="{ 'is-selected': index === menu.activeIndex }"
+          @mouseenter="menu.activate(index)"
+          @mousedown.prevent="menu.select(option)"
+        >
+          <span class="composer-reference-icon">
+            <AppIcon :name="option.icon ?? menu.copy.icon" :size="17" />
+          </span>
+          <span class="composer-reference-copy">
+            <strong>{{ option.title ?? option.label }}</strong>
+            <small>{{ option.detail }}</small>
+          </span>
+          <span class="composer-reference-token">{{ option.token ?? menu.trigger }}</span>
+        </button>
+      </template>
     </div>
     <div v-else class="composer-reference-empty">{{ menu.emptyText }}</div>
     <div class="composer-reference-footer list-keys">

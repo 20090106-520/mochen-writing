@@ -50,6 +50,14 @@
    @import 之后」（同特异性只由先后裁决），而它只改 `.composer-chip` / `.composer-toolbar`
    的高度，与本文件那几类浮层表面的背景/边框不相交，排在前面不会输。 */
 @import "./styles/liquid-glass.css";
+/* 欢迎首页（2026-11-09 参考图）：空态那组「logo + 问候 + 窄输入卡 + 快捷入口」。
+   排在 density 之前 —— density 的守卫是「必须最后」，而本文件的选择器比紧凑档那几条高，
+   写在前面不会被紧凑档覆盖。 */
+@import "./styles/welcome-home.css";
+@import "./styles/skill-redeem.css";
+@import "./styles/skill-workshop.css";
+@import "./styles/auto-skills.css";
+@import "./styles/panel-kit.css";
 @import "./styles/density.css";
 
 :root {
@@ -101,8 +109,11 @@
      而窄窗（≤1220px）里正文列**另起一条** `calc(100% - 34px)`，卡侧不跟
      ⇒ 真机读数 1200 / 1000 / 860 三档卡比正文列**窄 14px**（每侧差 7px），只有 1440 齐。
      收成 token：默认 24px（合计 48），窄窗 17px（合计 34，与窄窗那档同值）。
-     ⇒ 窄窗那块 @media 只许改这一个数，不许再写第二条宽度公式。 */
-  --conversation-inline-inset: 24px;
+     ⇒ 窄窗那块 @media 只许改这一个数，不许再写第二条宽度公式。
+     【2026-11-09 用户裁定「两边边框太大了」】每侧 24 → 12（窄窗 17 → 10）：
+     参考图里输入卡几乎贴着中栏两缘，24px 那道空带在屏上读作「两条厚边框」。
+     两条公式仍读同一个数，逐档恒等不变。 */
+  --conversation-inline-inset: 12px;
   /* 中栏滚动条让出来的那条槽宽（2026-10-25）。**一个数两处读**：
      `.conversation-scroll` 的滚动条自身宽度（conversation-pane.css）与输入卡右侧的让位
      （agent-pane.css 的 `.composer-wrap`）。两处必须是同一个数——
@@ -202,6 +213,16 @@ textarea:focus-visible {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+/* 选区（2026-11-10）：Chromium 默认那层蓝 #3390ff 与十六套皮肤的暖纸底全部打架——
+   在米色正文里选中一段，屏幕上像贴了一张蓝色便签。改成**本套皮肤的强调色**兑水，
+   字色不动（`color` 留空即继承原文色）；正文字色压在浅色选区上远高于只看选中那一眼的要求，
+   而深色皮肤下 accent 偏亮、原文色是浅字，一深一浅仍分得开。
+   不写 `::selection` 的 `color` 是刻意的：各皮肤的前景色差得比 accent 还大，
+   写死一个色等于让一半皮肤掉到不可读。 */
+::selection {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
 /* —— 原生控件归一（2026-10-23）——
@@ -346,12 +367,15 @@ html[data-platform="darwin"] .desktop-shell {
   transition: none;
 }
 
+/* 分栏拖拽条只剩右栏那一枚（2026-11-09 左栏固定后 pane-resizer-left 整条撤掉）。
+   热区从 9px 收到 6px：它是一条**看不见的**命中带，宽了只会让贴着栏缘的按钮
+   误触成拖拽；6px 仍够指针落上去，hover 那根发丝线照旧提示「这儿能拖」。 */
 .pane-resizer {
   position: absolute;
   z-index: 20;
   top: 0;
   bottom: 0;
-  width: 9px;
+  width: 6px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -365,7 +389,7 @@ html[data-platform="darwin"] .desktop-shell {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 4px;
+  left: 0;
   width: 1px;
   background: transparent;
   content: "";
@@ -385,24 +409,16 @@ html[data-platform="darwin"] .desktop-shell {
   outline: none;
 }
 
-.pane-resizer-left {
-  left: var(--left-pane-width);
-}
-
 .pane-resizer-right {
   right: var(--right-pane-width);
   transform: translateX(100%);
-}
-
-.pane-resizer-right::after {
-  left: 0;
 }
 
 /* 左栏收起后左缘那枚图标钮「展开左侧栏」（2026-10-17）。
    它恒挂在 shell 上、只读 leftCollapsed，于是对话 / 插件·技能 / 皮肤广场 / 设置四页都在——
    原先那枚住在 CenterColumn 头上，而 CenterColumn 只在 centerView === 'chat' 渲染，
    非对话视图收起左栏后没有任何可见入口（真机实测 hasExpandBtn=false）。
-   落点与 .pane-resizer-left 同源：都是 shell 的绝对定位元素，贴着左缘，与兄弟的书写顺序无关。
+   落点与分栏拖拽条同源：都是 shell 的绝对定位元素，贴着左缘，与兄弟的书写顺序无关。
    【2026-10-17 同日】它不再是一枚自己画的竖条，而是纯图标钮：上面那三条维度的写法
    （flex 竖排、padding、border、圆角、底色、hover、focus-visible）整段撤掉，观感全借
    `conversation-pane.css` 的 `.icon-button`——左栏自己那枚「收起左侧栏」用的就是它。
@@ -452,11 +468,11 @@ html[data-platform="darwin"] .desktop-shell {
     --left-pane-width: 262px;
     --right-pane-width: 395px;
     --center-pane-min: 320px;
-    /* 窄窗时两侧留白收窄：34px ÷ 2 = 每侧 17px（默认 24px，合计 48）。
+    /* 窄窗时两侧留白收窄：20px ÷ 2 = 每侧 10px（默认 12px，合计 24；2026-11-09 收薄）。
        【2026-10-25】原先窄窗里给正文列另写过一条专属的宽度公式，而输入卡不跟
        ⇒ 窄窗三档卡比正文列窄 14px（每侧 7px），只有 1440 那档齐。
        现在只改这一个数：两条公式（`.message-list` 与 `.composer`）逐档恒等。 */
-    --conversation-inline-inset: 17px;
+    --conversation-inline-inset: 10px;
   }
 
   .desktop-shell,
@@ -486,7 +502,7 @@ html[data-platform="darwin"] .desktop-shell {
 
   /* 【2026-10-25 退役】原先这里给正文列另写过一条窄窗专属的宽度公式（合计 34px 留白），
      而输入卡那侧不跟 ⇒ 窄窗三档卡比正文列窄 14px（每侧 7px），只有 1440 齐。
-     现在窄窗只改 `--conversation-inline-inset`（34px ÷ 2 = 每侧 17px），
+     现在窄窗只改 `--conversation-inline-inset`（2026-11-09 起 20px ÷ 2 = 每侧 10px），
      正文列与输入卡走同一条公式。 */
 
   .context-caption {

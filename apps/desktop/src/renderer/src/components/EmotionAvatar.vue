@@ -14,10 +14,11 @@ const props = withDefaults(
     emotion: string;
     /** false = 只渲染一张静态帧（时间线里的历史消息不参与 rAF，长对话才不烧 CPU）。 */
     animated?: boolean;
-    /** 小尺寸（26px 头像）按引擎建议放大的眼睛倍率。 */
+    /** 眼睛放大倍率。34px 头像（2026-11-10 起）用 2.0：1.8 是按 26px 调的，
+        尺寸上来后眼睛占比偏小，球看起来又是「空的」。 */
     eyeScale?: number;
   }>(),
-  { animated: true, eyeScale: 1.8 }
+  { animated: true, eyeScale: 2 }
 );
 
 const host = ref<HTMLDivElement | null>(null);

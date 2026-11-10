@@ -210,10 +210,15 @@
   outline-offset: 1px;
 }
 
+/* 2026-11-10：禁用态原来同时叠了**两层灰**——`--text-faint` 的字色，再加 50% 的整枚透明。
+   两层叠起来，图形控件直接糊没了：真机（342 容器、无书态）看到权限档那一枚只剩
+   一个**空方框 + 下拉三角**，谁都认不出那是文件夹。禁用该由**颜色**表达，
+   不该把控件本身做没——所以撤掉那层透明度，颜色仍留 `--text-faint`，
+   「按不了」由 cursor 与 title 说明（Chromium 不给 disabled 弹 title，故 title 只是补充，
+   真正的理由是看得见的那层浅色）。 */
 .composer-chip:disabled {
   color: var(--text-faint);
   cursor: not-allowed;
-  opacity: 0.5;
 }
 
 /* 模型名可以很长（右栏窄时更不能把它撑破），所以文字独占一层可截断的 span——
@@ -311,8 +316,9 @@
   padding: 16px 18px 16px;
   border: 1px solid var(--line-soft);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--editor) 92%, transparent);
-  backdrop-filter: blur(18px) saturate(120%);
+  /* 2026-11-09：半透明底与模糊收归 liquid-glass.css 总闸——这里留不透明底，
+     玻璃开关关掉时这张清单是真的不透明，而不是剩一层关不掉的毛玻璃。 */
+  background: var(--surface-raised);
   box-shadow: 0 14px 42px var(--shadow-color);
 }
 
@@ -486,8 +492,8 @@
   padding: 6px;
   border: 1px solid var(--line-soft);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--editor) 96%, transparent);
-  backdrop-filter: blur(18px) saturate(120%);
+  /* 2026-11-09：同 .tool-roster——玻璃归 liquid-glass.css 总闸，基态不透明。 */
+  background: var(--surface-raised);
   box-shadow: 0 14px 42px var(--shadow-color);
 }
 

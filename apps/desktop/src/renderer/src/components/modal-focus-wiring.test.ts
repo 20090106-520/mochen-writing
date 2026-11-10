@@ -139,7 +139,7 @@ describe("退役的那些机制不许回来", () => {
 
 /**
  * 面板那一族（5-㊲）。与上面四个对话框是同一个病的另一半：
- * 八个 `.xxx-overlay` + `.xxx-panel` 的整屏浮层，形状一模一样地复制过去，
+ * 九个 `.xxx-overlay` + `.xxx-panel` 的整屏浮层，形状一模一样地复制过去，
  * 而真机量测（p536h 之前那一版 p536g）实测**六处全部**：焦点从不在层内、Esc 一次也收不掉。
  *
  * 逐个点名而不是数「全仓有几个 -panel」：点名才有鉴别力，新加一个浮层时
@@ -193,6 +193,12 @@ const PANELS = [
     panel: "bible-panel",
     overlay: "bible-overlay",
     name: "故事圣经"
+  },
+  {
+    file: "components/ChapterInventoryPanel.vue",
+    panel: "ci-panel",
+    overlay: "ci-overlay",
+    name: "存稿仪表"
   }
 ] as const;
 
@@ -205,7 +211,7 @@ describe("面板族 · 焦点与 Esc 同样只由 useModalFocus 提供", () => {
         'from "../composables/useModalFocus"'
       );
       expect(script).toContain("useModalFocus({");
-      // 八个全是「组件常驻 + 自己 v-if 那一格」⇒ 必须显式传 isOpen。
+      // 九个全是「组件常驻 + 自己 v-if 那一格」⇒ 必须显式传 isOpen。
       expect(script).toContain("isOpen: toRef(() => props.visible)");
       expect(script).toContain('close: () => emit("close")');
 

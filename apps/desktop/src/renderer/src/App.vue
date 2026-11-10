@@ -28,7 +28,7 @@ import {
   loadReducedMotion,
   motionPreferenceStorage
 } from "./utils/motion-preference";
-import { LEFT_PANE_MAX, LEFT_PANE_MIN, RIGHT_PANE_MIN, useLayoutStore } from "./stores/layoutStore";
+import { RIGHT_PANE_MIN, useLayoutStore } from "./stores/layoutStore";
 import {
   shouldAutoCollapseRightPaneWithoutBook,
   shouldAutoCollapseRightPaneWithoutDoc
@@ -37,6 +37,7 @@ import { runViewTransition } from "./utils/view-transition";
 import SearchPanel from "./components/SearchPanel.vue";
 import NotesPanel from "./components/NotesPanel.vue";
 import WordCountPanel from "./components/WordCountPanel.vue";
+import ChapterInventoryPanel from "./components/ChapterInventoryPanel.vue";
 import ExportDialog from "./components/ExportDialog.vue";
 import PromptTemplatePanel from "./components/PromptTemplatePanel.vue";
 import OutlinePanel from "./components/OutlinePanel.vue";
@@ -63,7 +64,6 @@ const {
   shellStyle,
   leftCollapsed,
   rightCollapsed,
-  leftPaneWidth,
   rightPaneWidth,
   newBookOpen
 } = storeToRefs(layout);
@@ -390,21 +390,9 @@ function onTemplateApply(text: string): void {
 
     <LeftSidebar v-if="!leftCollapsed" @collapse="layout.togglePane('left')" />
 
-    <!-- 左栏宽度的拖拽条跟着左栏一起在：设置视图下左栏也在，这条是 shell 的绝对定位元素
-         （left: var(--left-pane-width)），与兄弟节点的书写顺序无关，搬出来不会跑位。 -->
-    <div
-      v-if="!leftCollapsed"
-      class="pane-resizer pane-resizer-left"
-      role="separator"
-      aria-label="调整左侧栏宽度"
-      aria-orientation="vertical"
-      :aria-valuemin="LEFT_PANE_MIN"
-      :aria-valuemax="LEFT_PANE_MAX"
-      :aria-valuenow="leftPaneWidth"
-      tabindex="0"
-      @pointerdown="layout.startPaneResize('left', $event)"
-      @keydown="layout.handleResizeKeydown('left', $event)"
-    />
+    <!-- 左栏是**固定宽度**的导航轴（2026-11-09 用户裁定「那个侧边栏应该是固定的」）：
+         这里原先有一枚 pane-resizer-left 拖拽条，现已撤掉——左栏宽度只跟视口档位走
+         （layoutStore.defaultLeftPaneWidth），不再可拖。右栏那条拖拽条保留（见下方）。 -->
 
     <!-- 左栏收起后左缘那枚竖条（2026-10-17）：**恒挂 shell、只读 leftCollapsed**，
          与 currentView / centerView 都无涉 —— 于是对话 / 插件·技能 / 皮肤广场 / 设置四页都在。
@@ -454,9 +442,7 @@ function onTemplateApply(text: string): void {
         @collapse="layout.togglePane('right')"
       />
 
-      <!-- 左栏那条拖拽条已经搬到这个 template 外面（它跟着左栏走，设置视图下也要在）。
-           旧的那一份同批删掉：留着就是两枚 aria-label 一样的 separator，
-           读屏会报出两条一模一样的分隔条，而 `elementFromPoint` 只能量到后画的那一枚。 -->
+      <!-- 左栏固定宽度、没有拖拽条（2026-11-09）；这里只剩右栏这一枚 separator。 -->
 
       <div
         v-if="!rightCollapsed && centerView === 'chat'"
@@ -468,8 +454,8 @@ function onTemplateApply(text: string): void {
         :aria-valuemax="rightPaneMax"
         :aria-valuenow="rightPaneWidth"
         tabindex="0"
-        @pointerdown="layout.startPaneResize('right', $event)"
-        @keydown="layout.handleResizeKeydown('right', $event)"
+        @pointerdown="layout.startPaneResize($event)"
+        @keydown="layout.handleResizeKeydown($event)"
       />
     </template>
 
@@ -485,6 +471,10 @@ function onTemplateApply(text: string): void {
     <WordCountPanel
       :visible="layout.panelVisibility.wordCount"
       @close="layout.closePanel('wordCount')"
+    />
+    <ChapterInventoryPanel
+      :visible="layout.panelVisibility.chapterStatus"
+      @close="layout.closePanel('chapterStatus')"
     />
     <ExportDialog :visible="layout.panelVisibility.export" @close="layout.closePanel('export')" />
     <PromptTemplatePanel

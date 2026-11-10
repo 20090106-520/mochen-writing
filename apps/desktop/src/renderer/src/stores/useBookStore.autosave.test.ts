@@ -15,6 +15,7 @@ import {
 } from "@mochen/contracts";
 import { AUTOSAVE_PREFERENCE_KEY } from "../utils/autosave-preference";
 import { useBookStore } from "./useBookStore";
+import { SKILL_API_STUBS } from "./skill-api-stub";
 
 const openResult: BookOpenResult = {
   rootPath: "/book",
@@ -157,6 +158,8 @@ const api = {
   // 但这些 store 一个都不用。给的是「空表 + 没问过」的默认档，
   // 真被调到也只会拿到「市场里什么都没有」这一种结果——不会让无关的断言莫名其妙地红。
   listMarket: async () => ({ entries: [], listed: false, notice: "" }),
+  redeemSkill: async () => ({ ok: false, notice: "", dirName: "", displayName: "" }),
+  ...SKILL_API_STUBS,
   installMarketSkill: async () => {
     throw new Error("不该装技能");
   },

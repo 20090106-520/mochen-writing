@@ -1,0 +1,156 @@
+/* 欢迎首页（2026-11-09 用户参考图）。
+ *
+ * 中栏在「没打开作品 + 这一格还没有消息」时，不再摆黑卡、五张能力卡和贴底的通栏输入卡，
+ * 改成图里那一组：小 logo → 一句问候 → 一张窄输入卡 → 一行胶囊快捷入口，整组在中部居中。
+ * 左栏仍是固定宽度的导航轴，右栏按既有策略收起 —— 图里那种「两边没有厚边框」。
+ * 只在 `.conversation-pane.is-welcome` 下生效；有书空线程与正常对话的布局一个像素都不动。
+ */
+
+/* 栅格三行不改，只把输入卡那一格（footer）抬到第 2 行、与滚动区同格垂直居中。
+   scroll-shell 仍留在第 2 行但内容隐去：它得在，conversation-scroll 的滚动槽与
+   composer 的宽度公式是配对的，整块撤掉会让长会话回来时宽度跳一下。
+   pointer-events:none + footer 自带的 z-index:2 ⇒ 欢迎组一定吃得到点击。 */
+/* 只留一列：`.conversation-pane` 原本没声明列，靠隐式列自动放置。把 footer 也抬到
+   第 2 行之后，两个显式占行的元素会被自动放置算法分到**两列**（真机量到 754 / 400 两列，
+   欢迎组整块跑到右边 400px 那一列）。钉死一列 + 两个元素同格，才是「重叠居中」。 */
+.conversation-pane.is-welcome {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.conversation-pane.is-welcome > .conversation-header {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.conversation-pane.is-welcome > .conversation-scroll-shell {
+  grid-row: 2;
+  grid-column: 1;
+  pointer-events: none;
+}
+
+.conversation-pane.is-welcome .conversation-empty {
+  display: none;
+}
+
+/* 状态条在首页只写「就绪」，与问候语争同一屏；撤掉不丢信息（出错时 notice 仍走 toast）。 */
+.conversation-pane.is-welcome > .agent-statusbar {
+  display: none;
+}
+
+.conversation-pane.is-welcome > .composer-wrap {
+  grid-row: 2;
+  grid-column: 1;
+  align-self: center;
+  width: min(680px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 0;
+}
+
+/* 宽度交给上面的 footer 一次限定；`.composer` 不再跟正文列读那条逐档同宽公式，
+   否则首页会拿到一条 1118px 的输入卡，与图里那张窄卡完全两回事。 */
+.conversation-pane.is-welcome .composer {
+  width: 100%;
+}
+
+/* 顶部：图里只有右上角一枚小图标。状态词已在标题里说过一次就别重复；
+   历史对话 / 新建对话不撤，只收成图标，不制造「功能不见了」。 */
+.conversation-pane.is-welcome > .conversation-header {
+  border-bottom-color: transparent;
+}
+
+.conversation-pane.is-welcome .conversation-heading-start {
+  visibility: hidden;
+}
+
+.conversation-pane.is-welcome .conversation-header-actions .header-text-button-label {
+  display: none;
+}
+
+.welcome-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 26px;
+  text-align: center;
+}
+
+/* 矮窗口（2026-11-10 真机 1110×330）：
+   整组「logo + 问候 + 卡 + 快捷入口」高 337，而这一格只有 330——
+   快捷入口那行**被切掉 7px**，而 `.conversation-pane` 是 `overflow: hidden`，
+   于是它既看不全也滚不动，屏幕上像一行被裁断的胶囊。
+   不能在 `.composer-wrap` 上加滚动：输入卡的「更多」「引用」弹层是**向上开**的绝对定位，
+   套进 overflow 容器就被裁掉（那是比切 7px 更严重的缺陷）。
+   所以按高度收一档自身尺寸：少的是留白与 logo 的 8px，字阶只降半档，读起来仍是那一组。 */
+@media (max-height: 560px) {
+  .welcome-hero {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .welcome-hero-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .welcome-hero-title {
+    font-size: 1.28rem;
+  }
+
+  .welcome-shortcuts {
+    margin-top: 10px;
+  }
+}
+
+.welcome-hero-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: var(--shadow-sm);
+}
+
+.welcome-hero-title {
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 640;
+  letter-spacing: -0.025em;
+  line-height: 1.35;
+}
+
+.welcome-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.welcome-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-family: var(--ui-font);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.welcome-shortcut:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.welcome-shortcut:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}

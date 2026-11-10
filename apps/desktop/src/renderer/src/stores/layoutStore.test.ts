@@ -6,7 +6,6 @@ import { isReactive, nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RIGHT_PANE_PREFERENCES_STORAGE_KEY } from "../utils/rightPanePreferences";
 import {
-  LEFT_PANE_MAX,
   NARROW_AUTO_COLLAPSE_WIDTH,
   RIGHT_PANE_MAX,
   defaultLeftPaneWidth,
@@ -370,18 +369,14 @@ describe("layout store", () => {
     expect(isReactive(refs.rightPanePreferences.value)).toBe(false);
   });
 
-  it("clamps panes against their own limits and the remaining center width", () => {
+  it("clamps the right pane against its own limits and the remaining center width", () => {
     installRuntime(1200);
     const store = useLayoutStore();
     store.desktopShell = shell(1200);
 
-    store.setPaneCollapsed("right", true);
-    store.setPaneWidth("left", 2_000);
-    expect(store.leftPaneWidth).toBe(LEFT_PANE_MAX);
-
     store.setPaneCollapsed("right", false);
     store.setPaneCollapsed("left", true);
-    store.setPaneWidth("right", 2_000);
+    store.setPaneWidth(2_000);
     expect(store.rightPaneWidth).toBe(880);
     expect(store.rightPaneWidth).toBeLessThan(RIGHT_PANE_MAX);
   });
@@ -391,7 +386,7 @@ describe("layout store", () => {
     const store = useLayoutStore();
     store.desktopShell = shell(1920, 0);
     store.setPaneCollapsed("left", true);
-    store.startPaneResize("right", {
+    store.startPaneResize({
       preventDefault: vi.fn()
     } as unknown as PointerEvent);
     store.handleResizeMove({ clientX: 100 } as PointerEvent);
@@ -401,7 +396,7 @@ describe("layout store", () => {
 
     store.desktopShell = shell(1000, 0);
     store.reconcilePaneWidths();
-    store.setPaneWidth("right", 1600);
+    store.setPaneWidth(1600);
     expect(store.rightPaneWidth).toBe(680);
     expect(store.writingRightPaneViewModel.maxWidth).toBe(680);
   });
@@ -441,59 +436,57 @@ describe("layout store", () => {
     expect(store.leftPaneWidth).toBe(262);
   });
 
-  it("用户亲手拖过 / 键盘调过左栏之后，窗口缩放不再替他改宽度（手动优先）", () => {
+  it("左栏固定：拖拽条只拖右栏，左栏宽度不被任何拖拽通路改写（2026-11-09 用户裁定）", () => {
     installRuntime(1400);
     const store = useLayoutStore();
-    store.setPaneCollapsed("right", true);
+    store.setPaneCollapsed("right", false);
     store.desktopShell = shell(1400, 0);
 
-    store.startPaneResize("left", { preventDefault: vi.fn() } as unknown as PointerEvent);
+    store.startPaneResize({ preventDefault: vi.fn() } as unknown as PointerEvent);
     store.handleResizeMove({ clientX: 320 } as PointerEvent);
     store.stopPaneResize();
-    expect(store.leftPaneWidth).toBe(320);
-    expect(store.leftPaneUserAdjusted).toBe(true);
-
-    store.desktopShell = shell(1100, 0);
-    store.reconcilePaneWidths();
-    expect(store.leftPaneWidth, "用户定的 320 不该被自动档顶掉").toBe(320);
+    expect(store.leftPaneWidth, "左栏是固定导航轴，拖拽只作用于右栏").toBe(286);
+    expect(store.rightPaneWidth, "右栏照旧可拖").not.toBe(defaultRightPaneWidth(1400));
   });
 
-  it("键盘调宽（分隔条上的方向键）同样算用户表达过意图", () => {
+  it("键盘调宽只改右栏；左栏仍跟视口档位走（固定 ≠ 不响应窗口缩放）", () => {
     installRuntime(1400);
     const store = useLayoutStore();
-    store.setPaneCollapsed("right", true);
     store.desktopShell = shell(1400, 0);
 
-    store.handleResizeKeydown("left", {
-      key: "ArrowRight",
+    store.handleResizeKeydown({
+      key: "ArrowLeft",
       preventDefault: vi.fn()
     } as unknown as KeyboardEvent);
-    expect(store.leftPaneWidth).toBe(298);
+    expect(store.leftPaneWidth).toBe(286);
 
     store.desktopShell = shell(1100, 0);
     store.reconcilePaneWidths();
-    expect(store.leftPaneWidth).toBe(298);
+    expect(store.leftPaneWidth, "≤1220 视口下左栏该收窄到 262").toBe(262);
   });
 
   it("tracks pointer resizing and removes global listeners on completion", () => {
     const runtime = installRuntime(1200);
     const store = useLayoutStore();
     store.desktopShell = shell(1000, 100);
-    store.setPaneCollapsed("right", true);
+    store.setPaneCollapsed("right", false);
     const preventDefault = vi.fn();
 
-    store.startPaneResize("left", {
+    store.startPaneResize({
       preventDefault
     } as unknown as PointerEvent);
     expect(preventDefault).toHaveBeenCalledOnce();
-    expect(store.resizingPane).toBe("left");
+    expect(store.resizingPane).toBe(true);
     expect(runtime.addEventListener).toHaveBeenCalledTimes(3);
 
+    // 分隔条在 clientX 450：右栏宽 = shell 右缘 1100 − 450 = 650，再夹到
+    // 1000 − 左 262（1200 视口属窄档）− 中栏最小 320 = 418（中栏不能被挤没）。
     store.handleResizeMove({ clientX: 450 } as PointerEvent);
-    expect(store.leftPaneWidth).toBe(350);
+    expect(store.rightPaneWidth).toBe(418);
+    expect(store.leftPaneWidth, "左栏固定，不随拖拽改").toBe(262);
     store.stopPaneResize();
 
-    expect(store.resizingPane).toBeNull();
+    expect(store.resizingPane).toBe(false);
     expect(runtime.removeEventListener.mock.calls.map(([type]) => type)).toEqual(
       expect.arrayContaining(["pointermove", "pointerup", "pointercancel"])
     );
@@ -514,7 +507,7 @@ describe("layout store", () => {
         releasePointerCapture
       });
 
-      store.startPaneResize("right", {
+      store.startPaneResize({
         currentTarget: target,
         pointerId: 7,
         preventDefault: vi.fn()
@@ -530,7 +523,7 @@ describe("layout store", () => {
       } else {
         runtime.addEventListener.mock.calls.find(([type]) => type === completion)?.[1]();
       }
-      expect(store.resizingPane).toBeNull();
+      expect(store.resizingPane).toBe(false);
       expect(releasePointerCapture).toHaveBeenCalledExactlyOnceWith(7);
       store.stopPaneResize();
       expect(releasePointerCapture).toHaveBeenCalledOnce();
@@ -545,7 +538,7 @@ describe("layout store", () => {
     const previousWidth = store.rightPaneWidth;
     const preventDefault = vi.fn();
 
-    store.handleResizeKeydown("right", {
+    store.handleResizeKeydown({
       key: "ArrowLeft",
       preventDefault
     } as unknown as KeyboardEvent);

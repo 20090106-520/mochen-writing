@@ -15,6 +15,7 @@ import {
   findReferenceMatch,
   materialReferenceText,
   referenceEmptyText,
+  referenceGroupHeadingAt,
   referenceOptionPool,
   referenceVisibleOptions,
   resolveReferenceSelection,
@@ -100,12 +101,32 @@ describe("referenceOptionPool · 条目只从既有唯一真身来（铁律 6）
     const match = findReferenceMatch("/", 1);
     expect(match).not.toBeNull();
     const options = referenceOptionPool(match!, commandPool(["model", "status"]));
-    expect(options.map((option) => option.label)).toEqual(["model", "status"]);
+    // 2026-11-09：按用途归堆，会话排在配置之前（与「更多 → / 命令」二级目录同序）。
+    expect(options.map((option) => option.label)).toEqual(["status", "model"]);
     expect(options.map((option) => option.detail)).toEqual([
-      SLASH_COMMAND_DESCRIPTIONS.model,
-      SLASH_COMMAND_DESCRIPTIONS.status
+      SLASH_COMMAND_DESCRIPTIONS.status,
+      SLASH_COMMAND_DESCRIPTIONS.model
     ]);
-    expect(options[0]).toMatchObject({ trigger: "/", command: "model" });
+    expect(options[0]).toMatchObject({ trigger: "/", command: "status" });
+  });
+
+  it("命令归堆后分组标题只画一次：书稿 → 会话 → 视图 → 配置", () => {
+    const match = findReferenceMatch("/", 1)!;
+    const options = referenceOptionPool(
+      match,
+      commandPool(["model", "status", "stage", "clear", "plugins"])
+    );
+    expect(options.map((option) => option.label)).toEqual([
+      "stage",
+      "status",
+      "clear",
+      "plugins",
+      "model"
+    ]);
+    const headings = options
+      .map((_, index) => referenceGroupHeadingAt(options, index))
+      .filter((value): value is string => value !== null);
+    expect(headings).toEqual(["书稿", "会话", "视图", "配置"]);
   });
 
   it("`@` 的条目 = book store 的 DocRef 列表，detail 用 book-kinds 那张中文标签表（不再写一份）", () => {

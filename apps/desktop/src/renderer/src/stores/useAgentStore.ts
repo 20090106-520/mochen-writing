@@ -41,6 +41,7 @@ import { type SlashCommand } from "../utils/slash-commands";
 import { prefillText } from "../utils/composer-draft";
 import { clearComposerAfterSend } from "../utils/auto-behavior-preference";
 import { sessionRowAction, type SessionRowAction } from "../utils/session-row-action";
+import { useAutoSkillStore } from "./useAutoSkillStore";
 import {
   loadWebSearchDefault,
   saveWebSearchDefault,
@@ -144,6 +145,9 @@ export const useAgentStore = defineStore("agent", {
 
     setDraft(threadKey: string, value: string): void {
       this.composerDrafts[threadKey] = value;
+      // 自动技能看的就是「输入框里正敲的字」：草稿一变，这一轮该挂谁跟着变。
+      // 判据在 utils/skill-auto.ts，清单没变时 sync 一个字都不写（不会每敲一键就重渲染）。
+      useAutoSkillStore().sync(threadKey);
     },
 
     /**
@@ -573,6 +577,8 @@ export const useAgentStore = defineStore("agent", {
       if (read.ok) {
         this.skills = read.value;
         this.skillsListed = true;
+        // 盘上技能变了（兑换 / 市场安装 / 换书）就重算一次自动挂入，否则新技能要等下次敲字才被看见。
+        useAutoSkillStore().sync(threadKeyFor(useBookStore().activeDocTab));
       } else this.notice = read.notice;
     },
 
@@ -600,8 +606,11 @@ export const useAgentStore = defineStore("agent", {
      */
     toggleSkillForThread(threadKey: string, id: string): void {
       const current = this.skillPathsOf(threadKey);
-      const next = current.includes(id) ? current.filter((one) => one !== id) : [...current, id];
+      const pinnedNow = !current.includes(id);
+      const next = pinnedNow ? [...current, id] : current.filter((one) => one !== id);
       this.skillPathsByThread[threadKey] = next;
+      // 亲手取下 = 否决这枚技能的自动挂入；亲手挂回 = 解除否决。所有入口都经这里。
+      useAutoSkillStore().noteManual(threadKey, id, pinnedNow);
     },
 
     /**

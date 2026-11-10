@@ -56,8 +56,6 @@ export type SettingsTab =
   | "about";
 export type PaneSide = "left" | "right";
 
-export const LEFT_PANE_MIN = 220;
-export const LEFT_PANE_MAX = 480;
 export const RIGHT_PANE_MIN = RIGHT_PANE_MIN_WIDTH;
 export const RIGHT_PANE_MAX = RIGHT_PANE_MAX_WIDTH;
 export const CENTER_PANE_MIN_FALLBACK = 320;
@@ -70,6 +68,12 @@ function initialViewportWidth(): number {
   return runtimeWindow()?.innerWidth ?? 1440;
 }
 
+/**
+ * 左栏是**固定宽度**的导航轴（2026-11-09 用户裁定「那个侧边栏应该是固定的」）：
+ * 只有视口档位（≤1220 → 262，否则 286），没有拖拽条也没有键盘调宽。
+ * 导航轴的宽度若是可拖变量，用户拖宽一点整屏版心就跟着歪一点；档位化之后它与
+ * styles.css 的 `@media (max-width: 1220px)` 读同一个函数、同一个口径。
+ */
 export function defaultLeftPaneWidth(viewportWidth: number): number {
   return viewportWidth <= 1220 ? 262 : 286;
 }
@@ -194,28 +198,11 @@ export const useLayoutStore = defineStore("layout", () => {
   const rightPaneManuallyToggled = ref(false);
   const desktopShell = shallowRef<HTMLElement | null>(null);
   const leftPaneWidth = ref(defaultLeftPaneWidth(viewportWidth.value));
-  /**
-   * 用户亲手拖过 / 键盘调过左栏宽度没有（2026-10-14 设计稿对表批次）。
-   *
-   * 【为什么需要这一位】`shellStyle` 把 `--left-pane-width` 作为**内联自定义属性**写在
-   * `.desktop-shell` 自己身上，而栅格读的正是这个元素（`styles.css:176`）。
-   * 内联赢过 `:root` 的 `@media (max-width: 1220px)`（`styles.css:271`）——
-   * 于是那条 CSS 判据从来没机会生效：窗口从宽拖窄，左栏卡在 286 不动。
-   * 更糟的是 `leftPaneWidth` 只在 store 创建那一刻按当时的视口算过一次，
-   * resize 通路 `reconcilePaneWidths` 只把同一个值重新夹一遍，等于「两份真相、都不更新」。
-   *
-   * 【为什么不是删掉 @media 让 JS 独走】删了它，脚本尚未跑起来的白屏期与
-   * jsdom 里没有 resize 的场合就没有兜底值；留着它，JS 必须跟着同一条判据走——
-   * 于是这里在 resize 时按 `defaultLeftPaneWidth` 重算，两边算的是同一个函数、同一个口径。
-   *
-   * 【为什么用户调过就不再自动改】与右栏那条 `rightPaneManuallyToggled` 同一条纪律：
-   * 用户亲手定的宽度是表达过的意图，窗口缩放不该替他改回来（否则拖窄一点栏就自己弹回去）。
-   */
-  const leftPaneUserAdjusted = ref(false);
   const rightPaneWidth = ref(initialRightPaneWidth);
   const rightPanePreferences = shallowRef<RightPanePreferences>(initialRightPanePreferences());
   const activeRightPanePreferenceKey = ref<string>();
-  const resizingPane = ref<PaneSide | null>(null);
+  /** 只有右栏可拖（左栏固定，见 defaultLeftPaneWidth）：这一位就是「右栏拖拽在飞」。 */
+  const resizingPane = ref(false);
   const paneTransitionSuppressed = ref(false);
   /**
    * 走本 store 的开合态（App 层持有，避免浮层互制）。
@@ -229,7 +216,9 @@ export const useLayoutStore = defineStore("layout", () => {
    */
   const panelVisibility = ref({
     wordCount: false,
-    export: false
+    export: false,
+    // W-05 存稿仪表：整本书的章节状态与汇总。模板在 App.vue 读这一格，入口在稿件区工具组。
+    chapterStatus: false
   });
   /** 首次引导流程：因为 onboarding store 独立，这里只负责「App 这边要不要展示浮层」的信号桥 */
   const showOnboarding = ref(false);
@@ -242,7 +231,7 @@ export const useLayoutStore = defineStore("layout", () => {
   const shellClasses = computed(() => ({
     "is-left-collapsed": leftCollapsed.value,
     "is-right-collapsed": rightCollapsed.value,
-    "is-resizing": resizingPane.value !== null,
+    "is-resizing": resizingPane.value,
     "is-pane-transition-suppressed": paneTransitionSuppressed.value
   }));
 
@@ -254,7 +243,7 @@ export const useLayoutStore = defineStore("layout", () => {
   const writingRightPaneViewModel = computed(() => ({
     collapsed: rightCollapsed.value,
     minWidth: RIGHT_PANE_MIN,
-    maxWidth: maximumPaneWidth("right"),
+    maxWidth: maximumPaneWidth(),
     width: rightPaneWidth.value
   }));
 
@@ -419,34 +408,21 @@ export const useLayoutStore = defineStore("layout", () => {
     return Number.isFinite(value) ? value : CENTER_PANE_MIN_FALLBACK;
   }
 
-  function maximumPaneWidth(side: PaneSide): number {
+  // 只有右栏可拖（左栏固定，见 defaultLeftPaneWidth）：这一族宽度函数不再收 side 参数。
+  function maximumPaneWidth(): number {
     const currentViewportWidth = viewportWidth.value;
     const shellWidth = desktopShell.value?.getBoundingClientRect().width ?? currentViewportWidth;
-    const otherWidth =
-      side === "left"
-        ? rightCollapsed.value
-          ? 0
-          : rightPaneWidth.value
-        : leftCollapsed.value
-          ? 0
-          : leftPaneWidth.value;
-    const paneMin = side === "left" ? LEFT_PANE_MIN : RIGHT_PANE_MIN;
-    const paneMax = side === "left" ? LEFT_PANE_MAX : RIGHT_PANE_MAX;
-    const availableMax = Math.max(paneMin, shellWidth - otherWidth - centerPaneMinWidth());
-    return Math.min(paneMax, availableMax);
+    const otherWidth = leftCollapsed.value ? 0 : leftPaneWidth.value;
+    const availableMax = Math.max(RIGHT_PANE_MIN, shellWidth - otherWidth - centerPaneMinWidth());
+    return Math.min(RIGHT_PANE_MAX, availableMax);
   }
 
-  function clampPaneWidth(side: PaneSide, width: number): number {
-    const paneMin = side === "left" ? LEFT_PANE_MIN : RIGHT_PANE_MIN;
-    return Math.round(Math.min(Math.max(width, paneMin), maximumPaneWidth(side)));
+  function clampPaneWidth(width: number): number {
+    return Math.round(Math.min(Math.max(width, RIGHT_PANE_MIN), maximumPaneWidth()));
   }
 
-  function setPaneWidth(side: PaneSide, width: number): void {
-    if (side === "left") {
-      leftPaneWidth.value = clampPaneWidth(side, width);
-    } else {
-      rightPaneWidth.value = clampPaneWidth(side, width);
-    }
+  function setPaneWidth(width: number): void {
+    rightPaneWidth.value = clampPaneWidth(width);
   }
 
   function preferredRightPaneWidth(key = activeRightPanePreferenceKey.value): number {
@@ -456,7 +432,7 @@ export const useLayoutStore = defineStore("layout", () => {
   }
 
   function restoreRightPaneWidth(key = activeRightPanePreferenceKey.value): void {
-    setPaneWidth("right", preferredRightPaneWidth(key));
+    setPaneWidth(preferredRightPaneWidth(key));
   }
 
   function releasePaneTransitionAfterPaint(requestId: number): void {
@@ -526,12 +502,9 @@ export const useLayoutStore = defineStore("layout", () => {
       rightCollapsed.value = true;
     }
     if (!leftCollapsed.value) {
-      // 用户没亲手定过宽度时，跟着**当前**真实布局宽度重算默认档（窄窗 262 / 宽窗 286）。
+      // 左栏固定档：跟着**当前**真实布局宽度重算（窄窗 262 / 宽窗 286），没有用户拖拽这一维。
       // 判据用 layoutViewportWidth 而不是 viewportWidth：与上面右栏那条同一个口径。
-      if (!leftPaneUserAdjusted.value) {
-        leftPaneWidth.value = defaultLeftPaneWidth(layoutViewportWidth());
-      }
-      setPaneWidth("left", leftPaneWidth.value);
+      leftPaneWidth.value = defaultLeftPaneWidth(layoutViewportWidth());
     }
     if (!rightCollapsed.value) {
       restoreRightPaneWidth();
@@ -541,56 +514,50 @@ export const useLayoutStore = defineStore("layout", () => {
   function handleResizeMove(event: PointerEvent): void {
     if (!resizingPane.value || !desktopShell.value) return;
     const bounds = desktopShell.value.getBoundingClientRect();
-    const width =
-      resizingPane.value === "left" ? event.clientX - bounds.left : bounds.right - event.clientX;
-    // 拖拽条上动一下就是用户表达过意图了（与右栏 rightPaneManuallyToggled 同一纪律）：
-    // 此后窗口缩放不再替他重算默认档。
-    if (resizingPane.value === "left") leftPaneUserAdjusted.value = true;
-    setPaneWidth(resizingPane.value, width);
+    setPaneWidth(bounds.right - event.clientX);
   }
 
   function stopPaneResize(): void {
     pointerCapture.release();
-    const resizedPane = resizingPane.value;
+    const wasResizing = resizingPane.value;
     const initialWidth = resizeInitialPaneWidth;
-    resizingPane.value = null;
+    resizingPane.value = false;
     resizeInitialPaneWidth = undefined;
     const currentWindow = runtimeWindow();
     currentWindow?.removeEventListener("pointermove", handleResizeMove);
     currentWindow?.removeEventListener("pointerup", stopPaneResize);
     currentWindow?.removeEventListener("pointercancel", stopPaneResize);
-    if (resizedPane === "right" && rightPaneWidth.value !== initialWidth) {
+    if (wasResizing && rightPaneWidth.value !== initialWidth) {
       persistActiveRightPaneWidth(rightPaneWidth.value);
     }
   }
 
-  function startPaneResize(side: PaneSide, event: PointerEvent): void {
+  function startPaneResize(event: PointerEvent): void {
     event.preventDefault();
     stopPaneResize();
-    resizingPane.value = side;
+    resizingPane.value = true;
     pointerCapture.start(event);
-    resizeInitialPaneWidth = side === "left" ? leftPaneWidth.value : rightPaneWidth.value;
+    resizeInitialPaneWidth = rightPaneWidth.value;
     const currentWindow = runtimeWindow();
     currentWindow?.addEventListener("pointermove", handleResizeMove);
     currentWindow?.addEventListener("pointerup", stopPaneResize);
     currentWindow?.addEventListener("pointercancel", stopPaneResize);
   }
 
-  function handleResizeKeydown(side: PaneSide, event: KeyboardEvent): void {
+  function handleResizeKeydown(event: KeyboardEvent): void {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
-    const direction = event.key === "ArrowLeft" ? -1 : 1;
-    const currentWidth = side === "left" ? leftPaneWidth.value : rightPaneWidth.value;
-    const nextWidth = currentWidth + direction * (side === "left" ? 12 : -12);
-    if (side === "left") leftPaneUserAdjusted.value = true;
-    setPaneWidth(side, nextWidth);
-    if (side === "right" && rightPaneWidth.value !== currentWidth) {
+    // 右栏在屏幕右侧：分隔条往左（ArrowLeft）= 右栏变宽，往右 = 变窄。
+    const step = event.key === "ArrowLeft" ? 12 : -12;
+    const currentWidth = rightPaneWidth.value;
+    setPaneWidth(currentWidth + step);
+    if (rightPaneWidth.value !== currentWidth) {
       persistActiveRightPaneWidth(rightPaneWidth.value);
     }
   }
 
-  // 新面板开关（只剩真被模板读过的那两枚，见上面 panelVisibility 那段）
-  type PanelKey = "wordCount" | "export";
+  // 新面板开关（只剩真被模板读过的那几枚，见上面 panelVisibility 那段）
+  type PanelKey = "wordCount" | "export" | "chapterStatus";
 
   function openPanel(panel: PanelKey): void {
     panelVisibility.value[panel] = true;
@@ -609,6 +576,9 @@ export const useLayoutStore = defineStore("layout", () => {
   }
   function openExport(): void {
     openPanel("export");
+  }
+  function openChapterStatus(): void {
+    openPanel("chapterStatus");
   }
 
   // 引导流程桥
@@ -654,7 +624,6 @@ export const useLayoutStore = defineStore("layout", () => {
     leftCollapsed,
     rightCollapsed,
     rightPaneManuallyToggled,
-    leftPaneUserAdjusted,
     desktopShell,
     leftPaneWidth,
     rightPaneWidth,
@@ -699,6 +668,7 @@ export const useLayoutStore = defineStore("layout", () => {
     closePanel,
     togglePanel,
     openWordCount,
-    openExport
+    openExport,
+    openChapterStatus
   };
 });

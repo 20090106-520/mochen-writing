@@ -155,10 +155,19 @@ interface FileSites {
  * `exempt`（三类豁免之一），可以同时有；但四项全空就是「画了深档底却什么都没写」。
  */
 const STATE_RUNG_SITES: readonly FileSites[] = [
+  /* 欢迎首页胶囊（2026-11-09 参考图）：hover 换的是 --hover 状态档底，块里自己写了
+     --text-primary 字色 ⇒ primary，不靠基规则带。新族登记在此，别绕开结构律。 */
+  {
+    file: "styles/welcome-home.css",
+    sites: [{ needle: ".welcome-shortcut:hover", primary: true }]
+  },
   {
     file: "styles/agent-pane.css",
     sites: [
       { needle: ".card-turn", primary: true },
+      /* 2026-11-10：消息操作条那几枚小字钮从「只改字色」改成带悬停底（命中区 19 → 24px，
+         见 agent-pane.css 那段注释）。底是 hover 档，字色同时升到正文级。 */
+      { needle: ".message-action:hover", primary: true },
       { needle: ".proposal-mode", primary: true },
       { needle: ".proposal-buttons button:hover", primary: true },
       { needle: ".round-tool-button:hover", primary: true },
@@ -171,7 +180,14 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
       /* 阶段选择的键盘高亮（2026-10-25）：↑↓ 改的是高亮不是真焦点（改之前是搬真焦点，
          Enter 还按第一条选）。这一格与 hover 同一块、同样的升档。 */
       { needle: ".context-option.is-selected", shadow: ["--text-secondary", "--text-tertiary"] },
-      { needle: ".context-option:active", shadow: ["--text-secondary", "--text-tertiary"] }
+      { needle: ".context-option:active", shadow: ["--text-secondary", "--text-tertiary"] },
+      /* 「更多」二级选项卡（2026-11-09 四组统一打开方式）：标题图标自带深底并写明字色；
+         行 hover / 键盘高亮换的是 --selected 档，块里把本族两档灰字升成 --text-on-state。 */
+      { needle: ".composer-sheet-icon", primary: true },
+      {
+        needle: ".composer-sheet-option:hover:not(:disabled)",
+        shadow: ["--text-soft", "--text-faint"]
+      }
     ]
   },
   {
@@ -357,10 +373,13 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
       /* 带完整前缀才唯一：`.view-tabs button.is-active` 这串在上面那条 `:where()` 里也出现一次。 */
       { needle: "html[data-theme] .view-tabs button.is-active", primary: true },
       {
-        needle: ".send-button:disabled",
+        /* 2026-11-10：针串从 `.send-button:disabled` 改成 `.save-button:disabled`——
+           发送键的失活态不再画 selected 档底（改成空环，见 theme-runtime.css 那条注释），
+           而 `.save-button:disabled` 仍是实心钮、仍画这一档。 */
+        needle: ".save-button:disabled",
         exempt: {
           kind: "inactive-control",
-          why: "同 `.save-button:disabled`：主题层给这两枚失活态定的就是 selected + tertiary，属 1.4.3 Incidental 例外"
+          why: "同 `.send-button:disabled`：主题层给这两枚失活态定的就是 selected + tertiary，属 1.4.3 Incidental 例外"
         }
       }
     ]

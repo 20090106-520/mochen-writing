@@ -49,6 +49,16 @@ export interface LiquidGlassMaterial {
   shadow: string;
   /** hover / 聚焦时抬一档的阴影。 */
   shadowHover: string;
+  /** 按下时收一档的阴影：卡片被压向桌面，远景那一档几乎收干净。 */
+  shadowPress: string;
+  /**
+   * 跟随指针的镜面高光（`radial-gradient`）。
+   *
+   * 中心读 `--lg-pointer-x` / `--lg-pointer-y`（组件在 pointermove 里逐帧写，
+   * 根上那两个是静置默认值）。这是「液态」这一笔唯一的真身：
+   * 光随指针走，玻璃才有厚度；固定不动的高光只是一张贴图。
+   */
+  pointer: string;
   /** 高光静置位置与 hover 位置（`background-position`：只挪光，不挪盒子）。 */
   sheenRest: string;
   sheenHover: string;
@@ -108,12 +118,48 @@ export function isLiquidGlassEnabled(
 export function liquidGlassMaterial(input: LiquidGlassInput): LiquidGlassMaterial {
   const deep = isDeepTone(input.background);
   const tone = deep ? "deep" : "light";
-  const tier = GLASS_TIERS[input.glass];
+  const enabled = isLiquidGlassEnabled(input.setting, input.glass);
+  /* 「强开」落到素面皮上时，`none` 档那组值只是关闸时的占位（blur 0 / 不透明）——
+     照抄就是「设置里点了开，屏幕上什么都没变」。强开要真的给玻璃：落最轻的 subtle 档，
+     底色不透明度仍由深浅色调决定。`auto` + 素面皮依旧是关的，走不到这里。 */
+  const tier = GLASS_TIERS[input.glass === "none" && enabled ? "subtle" : input.glass];
   const alpha = deep ? tier.darkAlpha : tier.lightAlpha;
   const specular = deep ? "rgb(255 255 255 / 0.16)" : "rgb(255 255 255 / 0.72)";
 
+  /**
+   * 玻璃的**厚度**（2026-11-10）。
+   *
+   * 单层模糊 + 单色边读起来是一张「磨砂贴纸」：影子在卡外，卡面本身是平的。
+   * 真正的玻璃板在边缘有一道收束——顶沿接光、底沿落影、四周一圈极淡的冷光。
+   * 这三笔都写进 `box-shadow` 的 inset 段，不占额外图层也不改布局。
+   */
+  const depth = deep
+    ? `inset 0 -1px 0 rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.05)`
+    : `inset 0 -1px 0 rgb(0 0 0 / 0.05), inset 0 0 0 1px rgb(255 255 255 / 0.34)`;
+
+  /**
+   * 指针高光：只给**色标**（从中心到透明的三段），圆心与半径写在样式表那条规则里。
+   *
+   * 【为什么圆心不能写进这个值】(2026-11-10 真机撞的)
+   * 这一族 token 全部落在 `:root` 上，而**自定义属性里的 `var()` 是在定义它的元素上
+   * 就地求值的**：`--lg-pointer: radial-gradient(… at var(--lg-pointer-x) …)` 写在根上，
+   * 根上那对指针变量是多少，它就被烤成多少（50% / 0%）。组件往卡片上写的 70% / 30%
+   * 一点用没有——真机读数：变量写进去了，计算出来的 `background-image` 还是 `at 50% 0%`。
+   * ⇒ 圆心必须留在**消费处**（`.composer-input-surface::after` 那条规则里），
+   *   那里才是「哪个元素、哪一刻」的上下文。
+   */
+  const pointer = deep
+    ? "rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.04) 42%, rgb(255 255 255 / 0) 72%"
+    : /* 浅色档这套色标是**冷调**的，不是白色（2026-11-10 真机量出来的）：
+         纸色卡面本身已经接近 `#FDFBF6`，纯白高光叠上去只差 2–3 个亮度级——
+         放大 4 倍看也「什么都没有」（试过 0.9 的白）。冷色才是这里唯一看得见的对比：
+         玻璃把背后的暖光折成一束偏冷的高光，正是真玻璃在暖光下的样子。 */
+      "rgb(228 240 255 / 0.5) 0%, rgb(240 247 255 / 0.2) 45%, rgb(240 247 255 / 0) 76%";
+
+  const accentGlow = rgba(input.accent, deep ? 0.34 : 0.42);
+
   return {
-    enabled: isLiquidGlassEnabled(input.setting, input.glass),
+    enabled,
     fill: mixRgba(input.background, input.accent, TINT_RATIO[tone], alpha),
     /* 高光两层：一条斜向的宽光带 + 左上角一小块镜面反光。大幅位移靠 background-position，
        位移不改布局、也不触发重排——hover 时只挪光。 */
@@ -125,17 +171,23 @@ export function liquidGlassMaterial(input: LiquidGlassInput): LiquidGlassMateria
     blur: `${tier.blur}px`,
     saturate: String(tier.saturate),
     shadow: deep
-      ? `0 1px 2px rgb(0 0 0 / 0.45), 0 16px 38px -16px ${rgba(input.accent, 0.34)}, inset 0 1px 0 ${specular}`
+      ? `0 1px 2px rgb(0 0 0 / 0.45), 0 16px 38px -16px ${rgba(input.accent, 0.34)}, inset 0 1px 0 ${specular}, ${depth}`
       : `0 1px 2px ${rgba(input.foreground, 0.1)}, 0 14px 34px -16px ${rgba(
           input.accent,
           0.42
-        )}, inset 0 1px 0 ${specular}`,
+        )}, inset 0 1px 0 ${specular}, ${depth}`,
     shadowHover: deep
-      ? `0 2px 4px rgb(0 0 0 / 0.5), 0 22px 46px -16px ${rgba(input.accent, 0.46)}, inset 0 1px 0 rgb(255 255 255 / 0.22)`
+      ? `0 2px 4px rgb(0 0 0 / 0.5), 0 22px 46px -16px ${rgba(input.accent, 0.46)}, inset 0 1px 0 rgb(255 255 255 / 0.22), ${depth}`
       : `0 2px 4px ${rgba(input.foreground, 0.12)}, 0 20px 44px -16px ${rgba(
           input.accent,
           0.54
-        )}, inset 0 1px 0 rgb(255 255 255 / 0.9)`,
+        )}, inset 0 1px 0 rgb(255 255 255 / 0.9), ${depth}`,
+    /* 按下：远景那一档收到 8px，卡像被指尖压向桌面。近档与内高光保留——
+       全收掉会变成「卡沉进背景里」，那是下沉，不是按压。 */
+    shadowPress: `0 1px 2px ${
+      deep ? "rgb(0 0 0 / 0.5)" : rgba(input.foreground, 0.08)
+    }, 0 4px 10px -8px ${accentGlow}, inset 0 1px 0 ${specular}, ${depth}`,
+    pointer,
     sheenRest: "18% 0%",
     sheenHover: "34% 8%"
   };

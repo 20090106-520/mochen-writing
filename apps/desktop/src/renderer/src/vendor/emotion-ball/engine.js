@@ -689,7 +689,18 @@
       this._open.v = 0;
       var seq = this._seq;
       this._seq = null;
-      this._tick(performance.now());
+      /* 【本仓改动，非上游 2026-11-10】静态帧必须真的静止。
+         上游这里直接 _tick(performance.now())，而 _compose 里有三段按**真实时钟**算的
+         位移：glance/sine 的 anims、常驻「眼神微漂移」、呼吸。结果是同一条历史消息
+         每次重渲染眼睛都停在不同位置——34px 头像上肉眼可见地「眼睛跑到球边上」，
+         截图每次都换一张脸。`_static` 让这三段在静态帧里落在零位：
+         眼睛回到 def.base 的正中，且每张完全一致。 */
+      this._static = true;
+      try {
+        this._tick(performance.now());
+      } finally {
+        this._static = false;
+      }
       this._seq = seq;
     },
     destroy: function () {
@@ -725,7 +736,8 @@
     /** 合成当前帧姿态：base → sequence → animators → 过渡插值 */
     _compose: function (now, depth) {
       var def = this._def;
-      var t = now - this._emoStart;
+      /* 静态帧取 t=0（见 renderStatic）：所有动画落在起始相位，脸才可复现。 */
+      var t = this._static ? 0 : now - this._emoStart;
       var pose;
 
       if (this._seq) {
@@ -742,12 +754,14 @@
       /* 内置呼吸（相位用绝对时间，切换表情不跳变） */
       var br = pose.body.breathe || 0;
       if (br) {
-        var ph = (TAU * now) / 3600;
+        var ph = this._static ? 0 : (TAU * now) / 3600;
         pose.body.scale += br * Math.sin(ph);
         pose.body.y += br * 55 * Math.sin(ph + 0.6);
       }
 
-      for (var i = 0; i < def.anims.length; i++) applyAnim(pose, def.anims[i], t, this);
+      if (!this._static) {
+        for (var i = 0; i < def.anims.length; i++) applyAnim(pose, def.anims[i], t, this);
+      }
 
       pose.body.sketch = Math.max(pose.body.sketch || 0, this._style.sketch || 0);
 
@@ -834,8 +848,8 @@
 
       /* 鼠标注视：帧率无关的指数平滑（60fps 基准下每帧收敛约 9%） */
       var k = 1 - Math.exp(-5.66 * dt);
-      var gx = def.gaze !== false ? this._gaze.tx : 0;
-      var gy = def.gaze !== false ? this._gaze.ty : 0;
+      var gx = def.gaze !== false && !this._static ? this._gaze.tx : 0;
+      var gy = def.gaze !== false && !this._static ? this._gaze.ty : 0;
       this._gaze.x += (gx - this._gaze.x) * k;
       this._gaze.y += (gy - this._gaze.y) * k;
       pose.left.lookX += this._gaze.x;
@@ -843,8 +857,8 @@
       pose.left.lookY += this._gaze.y;
       pose.right.lookY += this._gaze.y;
 
-      /* 常驻眼神微漂移：每只眼相位错开，永不完全静止 */
-      if (def.gaze !== false) {
+      /* 常驻眼神微漂移：每只眼相位错开，永不完全静止（静态帧除外，见 renderStatic） */
+      if (def.gaze !== false && !this._static) {
         var w = now / 1000;
         pose.left.lookX += 1.4 * Math.sin(0.42 * w) + 0.5 * Math.sin(1.0 * w);
         pose.right.lookX += 1.4 * Math.sin(0.42 * w + 1) + 0.5 * Math.sin(1.0 * w + 2);

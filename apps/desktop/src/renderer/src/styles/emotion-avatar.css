@@ -1,7 +1,9 @@
 /* 助手表情头像（2026-10-21）。
    来源：https://github.com/sam70361/aora-bot —— Emotion Ball，32 种表情，纯 SVG。
    这一份只写「落点与壳」：球体、眼睛、动画全在 vendor 引擎里画，这里不碰任何表情图形。
-   头像边长沿用 agent-pane.css 的 26px（与 .user-tag 同口径，两处要一起改）。
+   头像边长沿用 agent-pane.css 的 34px（与 .user-tag 同口径，两处要一起改）。
+   2026-11-10 从 26 提到 34：26px 时球上只剩两条黑线，表情（眯眼/张嘴/问号）全糊没了，
+   用户当场批「这两边的头像也不行」。球体细节要多那 8px 才读得出。
    用户裁定「表情是自动的，不需要自己手动点击切换」⇒ 这里没有按钮壳、也没有图鉴样式。 */
 
 /* 引擎会把 <svg> 直接塞进这一格；它自带 100% 宽高与 viewBox，
@@ -15,10 +17,12 @@
   border-radius: inherit;
 }
 
-/* 26px 的奶油色球体落在白卡上几乎没有边界（本地试片实测：无阴影时只剩两只眼睛能看见）。
-   drop-shadow 沿 SVG 的透明轮廓投影——不改上游造型、不加描边，是唯一能把球「托起来」的写法。 */
+/* 34px 的奶油色球体落在白卡上边界仍偏弱（本地试片实测：无阴影时只剩两只眼睛能看见）。
+   drop-shadow 沿 SVG 的透明轮廓投影——不改上游造型、不加描边，是唯一能把球「托起来」的写法。
+   2026-11-10：半径 1.4 → 1.8、透明度 42% → 50%。壳那一层现在只有一圈 46% 的内描边，
+   球的轮廓全靠这条投影立住，原来那一档在米色卡上几乎看不见边。 */
 .emotion-avatar svg {
   filter: drop-shadow(
-    0 1px 1.4px color-mix(in srgb, var(--theme-foreground, #1a1c1f) 42%, transparent)
+    0 1px 1.8px color-mix(in srgb, var(--theme-foreground, #1a1c1f) 50%, transparent)
   );
 }

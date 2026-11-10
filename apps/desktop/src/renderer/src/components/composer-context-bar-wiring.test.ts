@@ -292,7 +292,9 @@ describe("样式硬门禁 · 对齐他的原值，色值一律走 token", () => 
     const menu = ruleBlock(pane, ".composer-context-menu");
     expect(menu).toContain("z-index: 1000");
     expect(menu).toContain("border-radius: 18px");
-    expect(menu).toContain("backdrop-filter: blur(18px) saturate(1.15)");
+    // 2026-11-09：毛玻璃收归 liquid-glass.css 总闸，基态只留不透明底（否则「关」关不干净）。
+    expect(menu).toContain("background: var(--surface-raised)");
+    expect(menu).not.toContain("backdrop-filter");
     expect(pane).toContain('html[data-theme="dark"] .composer-context-menu');
     expect(pane).not.toContain(":global(");
     for (const selector of [

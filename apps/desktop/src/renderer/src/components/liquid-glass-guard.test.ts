@@ -84,9 +84,41 @@ describe("液态玻璃 · 只给浮在内容之上的表面", () => {
       ".review-score",
       ".workspace-dialog",
       ".conversation-header",
-      ".toast"
+      ".toast",
+      ".model-select",
+      ".tool-roster",
+      ".context-meter-panel",
+      ".composer-context-menu"
     ]) {
       expect(all, `缺了 ${target}`).toContain(target);
+    }
+  });
+
+  it("收进白名单的菜单基态不再自带毛玻璃（否则「关」关不干净）", () => {
+    // 2026-11-09：这四张菜单原先各写一份 blur(18px)，开关关掉后它们依旧糊着——
+    // 同一屏上「关掉的玻璃」和「关不掉的玻璃」并存。基态只留不透明底，玻璃全归总闸。
+    const menus: Array<[string, string]> = [
+      ["interaction.css", ".model-select"],
+      ["interaction.css", ".tool-roster"],
+      ["context-meter.css", ".context-meter-panel"],
+      ["agent-pane.css", ".composer-context-menu"],
+      ["left-nav.css", ".tree-node-action-menu"]
+    ];
+    for (const [file, selector] of menus) {
+      const source = readFileSync(path.join(SRC, "styles", file), "utf8").replace(
+        /\/\*[\s\S]*?\*\//g,
+        " "
+      );
+      const blocks = [...source.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((match) =>
+        match[1]!.split(",").some((sel) => sel.trim() === selector)
+      );
+      expect(blocks.length, `${file} 里找不到 ${selector} 的基规则`).toBeGreaterThan(0);
+      for (const block of blocks) {
+        expect(
+          block[2],
+          `${file} 的 ${selector} 基态还自带 backdrop-filter：玻璃开关关不掉它`
+        ).not.toContain("backdrop-filter");
+      }
     }
   });
 
@@ -169,5 +201,79 @@ describe("液态玻璃 · 十六套皮肤 × 两个色调的文字对比度", ()
     expect(isLiquidGlassEnabled("auto", "standard")).toBe(true);
     expect(isLiquidGlassEnabled("on", "none")).toBe(true);
     expect(isLiquidGlassEnabled("off", "regions")).toBe(false);
+  });
+
+  it("强开在素面皮肤上也真的给玻璃：不落 `none` 档的占位参数", () => {
+    const plain = appearanceSkins.find((skin) => skin.glass === "none");
+    expect(plain, "表里至少要有一套素面皮肤，否则这条守卫量不到东西").toBeDefined();
+    const tone = plain!.light;
+    const material = liquidGlassMaterial({
+      setting: "on",
+      glass: "none",
+      accent: tone.accent,
+      background: tone.background,
+      foreground: tone.foreground
+    });
+    expect(material.enabled).toBe(true);
+    expect(material.blur).not.toBe("0px");
+    expect(parseFill(material.fill).alpha).toBeLessThan(1);
+  });
+});
+
+describe("液态玻璃 · 指针高光（2026-11-10）", () => {
+  /** 取出某个选择器名下的规则体（本文件的形状：一条规则一个选择器组）。 */
+  function blockOf(selector: string): string {
+    const index = stripped.indexOf(selector);
+    expect(index, `样式表里找不到 ${selector}`).toBeGreaterThan(-1);
+    const open = stripped.indexOf("{", index);
+    const close = stripped.indexOf("}", open);
+    return stripped.slice(open + 1, close);
+  }
+
+  it("光斑挂的是伪元素，不往已经管着 sheen 的 background-image 上再叠一层", () => {
+    // 叠在同一属性上的话，hover 时得同时写两组位置：改一处漏一处。
+    expect(stripped).toContain(".composer-input-surface::after");
+    const block = blockOf(".composer-input-surface::after");
+    expect(block).toContain("radial-gradient(");
+    expect(block).toContain("var(--lg-pointer)");
+    expect(block).toContain("pointer-events: none");
+  });
+
+  it("光斑压在文字之下（z-index: -1），且不吃点击", () => {
+    // 光扫过正文时把字洗淡是「质感」类改动最容易付的代价；`pointer-events: none`
+    // 少一条，整张输入卡就点不进 textarea。
+    const block = blockOf(".composer-input-surface::after");
+    expect(block).toMatch(/z-index:\s*-1/);
+    expect(block).toContain("pointer-events: none");
+  });
+
+  it("静置时不可见：常态 opacity 0，hover / 聚焦才淡入", () => {
+    expect(blockOf(".composer-input-surface::after")).toMatch(/opacity:\s*0/);
+    expect(stripped).toContain(".composer-input-surface:hover::after");
+  });
+
+  it("两个圆心变量由运行时给默认值（`var()` 落空会让整条 background 失效）", () => {
+    for (const token of ["--lg-pointer", "--lg-pointer-x", "--lg-pointer-y"]) {
+      expect(runtimeSource, `运行时没写 ${token}`).toContain(`setProperty("${token}"`);
+    }
+    // 圆心必须在消费处求值：写进根上的 token 会被烤成静置值（真机撞过）。
+    expect(blockOf(".composer-input-surface::after")).toContain("at var(--lg-pointer-x)");
+    const material = liquidGlassMaterial({
+      setting: "on",
+      glass: "standard",
+      accent: "#8a6a3a",
+      background: "#f6eed4",
+      foreground: "#2c2415"
+    });
+    expect(material.pointer).not.toContain("var(");
+    // 色标以「零透明度」收尾（浅色档是冷调白，深色档是纯白）：不写 `transparent` 关键字，
+    // 因为中间两档带着色相，收尾那一档必须与它同色系才不会在边缘收出一圈灰。
+    expect(material.pointer).toMatch(/\/ 0\) \d+%$/);
+  });
+
+  it("按下收一档阴影，但不用 transform（卡里正在打字的那一行不能跟着跳）", () => {
+    const block = blockOf(".composer-input-surface:active");
+    expect(block).toContain("box-shadow: var(--lg-shadow-press)");
+    expect(block).not.toContain("transform");
   });
 });

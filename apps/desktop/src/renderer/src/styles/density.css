@@ -30,39 +30,40 @@
  * `.resource-tree > .tree-node > .tree-row`（0,3,0）而不是裸 `.tree-row`，
  * 裸选择器挂总闸只有 (0,2,1)，源码四道闸全绿而屏幕上纹丝不动。
  *
- * 【两档实测数（2026-10-15，临时 user-data 实例 + CDP，逐族量真实几何）】
- * 标准→紧凑：nav-row 34→30、nav-subrow 30→27、tree-row 30→25、resource-section-heading 34→30、
- * section-toggle 32→28、icon-button 32→28、section-tab 29→27、view-tabs 与 editor-view-switch
+ * 【两档实测数（2026-10-15，临时 user-data 实例 + CDP，逐族量真实几何；
+ *   2026-11-09 用户裁定标准档间隔太大，基线整体收紧后紧凑档跟着再降一档）】
+ * 标准→紧凑：nav-row 30→26、nav-subrow 26→23、tree-row 26→22、resource-section-heading 30→26、
+ * section-toggle 28→24、icon-button 32→28、section-tab 29→27、view-tabs 与 editor-view-switch
  * 的钮 25→23、format-button 27→25、send 与 round-tool 的钮 30→28、composer-chip 29→27、
- * composer-toolbar 43→38、workbench-cards 354→320（gap 10→8）、workbench-card 117→107、
+ * composer-toolbar 40→34、workbench-cards 354→320（gap 10→8）、workbench-card 117→107、
  * workbench-intro 259→255、message-list 上下留白 34/72→26/56。
  * 这张表的用处是「声明值 ≠ 屏幕值」的对账：上面每一条都在屏幕上落到过，量不到的一律不当已验。
  */
 
-/* 左栏三族行：一级 34→30、子项 30→27、文稿树 30→25。
+/* 左栏三族行：一级 30→26、子项 26→23、文稿树 26→22。
    这三条放最前面是因为它们是一屏里数量最多的一族，紧凑多出来的行数主要来自这里。 */
 html[data-density="compact"] .nav-row {
-  min-height: 30px;
+  min-height: 26px;
 }
 
 html[data-density="compact"] .nav-subrow {
-  min-height: 27px;
+  min-height: 23px;
 }
 
 /* 这条必须照抄基规则那条复合链（`.resource-tree > .tree-node > .tree-row`，min-height:30）：
    裸 `html[data-density="compact"] .tree-row` 特异性 (0,2,1) 低于它的 (0,3,0)，
    真机量过——写裸的那一条时文稿树在两档下都是 30px，紧凑档白切一次。 */
 html[data-density="compact"] .resource-tree > .tree-node > .tree-row {
-  min-height: 25px;
+  min-height: 22px;
 }
 
 html[data-density="compact"] .resource-section-heading {
-  min-height: 30px;
+  min-height: 26px;
 }
 
 html[data-density="compact"] .section-toggle {
-  min-height: 28px;
-  padding: 3px 7px;
+  min-height: 24px;
+  padding: 2px 7px;
 }
 
 html[data-density="compact"] .icon-button {
@@ -98,7 +99,8 @@ html[data-density="compact"] .composer-chip {
 }
 
 html[data-density="compact"] .composer-toolbar {
-  padding: 4px 8px 6px;
+  min-height: 34px;
+  padding: 2px 12px 4px;
 }
 
 html[data-density="compact"] .workbench-cards {

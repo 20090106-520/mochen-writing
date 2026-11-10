@@ -57,11 +57,27 @@ describe("对话链 · 手机式人机气泡链（2026-10-17 用户裁定）", (
     ).toContain("flex-direction: row-reverse");
   });
 
+  it("助手那枚头像是一张真画像，不是图标或表情球（2026-11-10 用户批注「这两边的头像也不行」）", () => {
+    const tpl = templateSource("components/AgentTimeline.vue");
+    const script = scriptSource("components/AgentTimeline.vue");
+    expect(tpl, "头像格里没有画像").toContain('class="message-avatar-image"');
+    expect(tpl, "画像没接上资产").toContain(':src="assistantAvatar"');
+    expect(script).toContain('import assistantAvatar from "../assets/avatar/assistant-avatar.png"');
+    // 引一个不存在的文件构建期不报错，只会静默变成一枚空圆。
+    expect(
+      fs.existsSync(new URL("../assets/avatar/assistant-avatar.png", import.meta.url)),
+      "assets/avatar/assistant-avatar.png 不在盘上"
+    ).toBe(true);
+    const image = ruleBlock(CARD, ".message-avatar-image");
+    expect(image).toContain("width: 100%");
+    expect(image).toContain("object-fit: cover");
+  });
+
   it("那枚「你」是一个圆头像，不是第二枚标签（2026-10-25 用户批注：圆标里换成真的头像）", () => {
     const tag = ruleBlock(CARD, ".user-tag");
     expect(tag).toContain("border-radius: 50%");
-    expect(tag).toContain("width: 26px");
-    expect(tag).toContain("height: 26px");
+    expect(tag).toContain("width: 34px");
+    expect(tag).toContain("height: 34px");
     // 圆裁由**这层**做：图铺满圆框、多余的裁掉。不在图上做圆角的话边缘会留锯齿。
     expect(tag, "圆裁没做在这一层 ⇒ 头像的四角会露出方角").toContain("overflow: hidden");
     // 底色与字色留着当兜底：图没加载出来时（离线 / 缓存失效）它就是那枚深色圆标。
@@ -115,7 +131,7 @@ describe("对话链 · 手机式人机气泡链（2026-10-17 用户裁定）", (
     const avatar = ruleBlock(CARD, ".message-avatar");
     expect(avatar, "少了这一行头像会被长正文挤扁").toContain("flex: 0 0 auto");
     expect(avatar).toContain("border-radius: 50%");
-    expect(avatar).toContain("width: 26px");
+    expect(avatar).toContain("width: 34px");
     const body = ruleBlock(CARD, ".message-line .message-body");
     expect(
       body,
@@ -125,11 +141,11 @@ describe("对话链 · 手机式人机气泡链（2026-10-17 用户裁定）", (
     expect(body).toMatch(/background:/);
   });
 
-  it("过程块缩进到助手那一列（头像 26 + 间隙 10 = 36），别顶格成「另一个人的发言」", () => {
+  it("过程块缩进到助手那一列（头像 34 + 间隙 10 = 44），别顶格成「另一个人的发言」", () => {
     expect(
       ruleBlock(CARD, '.agent-block:not([data-kind="user"]):not([data-kind="message"])'),
       "思考/计划/工具卡从 x=0 开始，而正文裹在气泡里从 36px 开始——同一条链上两种左边距"
-    ).toContain("padding-left: 36px");
+    ).toContain("padding-left: 44px");
   });
 
   it("这几条新规则里零色值字面量（全走 token 与 color-mix）", () => {
@@ -206,9 +222,9 @@ describe("输入卡装饰 · 2026-10-17 用户裁定「缺少一些东西」", (
     expect(shadowLayers(surface), "顶沿高光不许把三层景深挤掉").toBeGreaterThanOrEqual(3);
   });
 
-  it("2026-11-09 参考图②：工具条 48px 高，卡内无分区线", () => {
+  it("2026-11-09 参考图②＋用户裁定「间隔太大」：工具条 40px 高，卡内无分区线", () => {
     const bar = ruleBlock(CARD, ".composer-toolbar");
-    expect(bar, "参考图②的按钮行贴着输入区，工具条收到 48px").toContain("min-height: 48px");
+    expect(bar, "按钮行贴着输入区，工具条 48 再收到 40").toContain("min-height: 40px");
     expect(bar, "参考图②里没有分区线").not.toContain("border-top:");
   });
 

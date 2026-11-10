@@ -72,14 +72,15 @@ describe("useReferenceMenuStore · 条目来源与可用性闸", () => {
     // 【plugins / skins / newbook 留下】它们没有书内来源——插件面板与皮肤广场列的是应用自己的
     // 目录，与当前书无关；newbook 恰恰是无书时的第一步（理由见 slash-commands.test.ts 那条同样的改动）。
     // 【export / wordcount 被拿掉】它们都要有书才有内容。
-    expect(labels()).toEqual(["model", "status", "plugins", "skins", "newbook", "clear"]);
+    // 2026-11-09：按用途归堆（书稿 → 会话 → 视图 → 配置），分组标题才不会重名。
+    expect(labels()).toEqual(["newbook", "status", "clear", "plugins", "skins", "model"]);
   });
 
   it("那一轮正在跑：只剩 model / permissions / status / clear（与 slash-commands 同一道闸，不在这里再写一份）", async () => {
     await openChapter();
     store().viewOf(CH).running = true;
     menu().summon("/");
-    expect(labels()).toEqual(["model", "permissions", "status", "clear"]);
+    expect(labels()).toEqual(["status", "clear", "model", "permissions"]);
   });
 
   it("前缀过滤吃的是闸后的集合：有书空闲时 /sta 命中 status 与 stage，/stag 只剩 stage", async () => {
@@ -88,7 +89,8 @@ describe("useReferenceMenuStore · 条目来源与可用性闸", () => {
     await openChapter();
     store().setDraft(CH, "/sta");
     menu().syncFrom("/sta", 4, true);
-    expect(labels()).toEqual(["status", "stage"]);
+    // /sta 命中 stage（书稿）与 status（会话）；归堆后书稿在前。
+    expect(labels()).toEqual(["stage", "status"]);
     store().setDraft(CH, "/stag");
     menu().syncFrom("/stag", 5, true);
     expect(labels()).toEqual(["stage"]);
@@ -145,8 +147,10 @@ describe("useReferenceMenuStore · syncFrom 的开合与高亮", () => {
   it("↑↓ 环绕：首条再往上落到末条，末条再往下回到首条", async () => {
     await openChapter();
     menu().summon("/");
+    // 末条是谁由分组顺序决定（2026-11-09 归堆后不再是 clear）——这里守的是「绕到末条」本身。
+    const last = labels().at(-1);
     menu().move(-1);
-    expect(labels()[menu().activeIndex]).toBe("clear");
+    expect(labels()[menu().activeIndex]).toBe(last);
     menu().move(1);
     expect(menu().activeIndex).toBe(0);
   });

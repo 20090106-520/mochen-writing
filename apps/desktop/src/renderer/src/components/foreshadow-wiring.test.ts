@@ -49,6 +49,14 @@ describe("文稿体系认了这一类", () => {
     expect(sideScript).toContain("revealAgentPanel();");
   });
 
+  it("点了必有可见响应：先回对话视图（面板宿主在那儿），没书先过引导闸（2026-11-09）", () => {
+    // 面板真身住在 DocumentPane，它只在对话视图且右栏展开时挂载；
+    // 人在技能库 / 皮肤广场 / 设置时点入口，不回对话视图就是「点了没反应」。
+    expect(sideScript).toContain("layout.showWorkspace();");
+    // 没书时右栏整格不挂载：置开关只会留下一个等不到锚点的真值 ⇒ 先弹引导对话框。
+    expect(sideScript).toContain("if (requireBook(child.label)) return;");
+  });
+
   it("KIND_ICON 有伏笔这一行（.vue 不进 tsc，编译器抓不到这张表）", () => {
     // 2026-10-10 改钉：LeftSidebar 那份 KIND_ICON 表已抽进 utils/kind-icons（单一真身，
     // LeftSidebar 只 import），图标拼写的双向对齐由 utils/icons-coverage.test 钉；

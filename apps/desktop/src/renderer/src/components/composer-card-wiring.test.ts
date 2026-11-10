@@ -171,7 +171,7 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     expect(sendTag).toContain("v-else");
   });
 
-  it("slot 是 .ts 表的新字段：首行左=思考/联网，首行右=模型/权限，more=低频开关（2026-11-09 参考图②）", () => {
+  it("slot 是 .ts 表的新字段：左=思考/联网/自动技能，右=模型/权限，more=四组低频开关（2026-11-09 参考图② + 11-10 裁定）", () => {
     const want: Record<string, ComposerChipSlot> = {
       // 2026-11-09 参考图②：模型名落在发送键左侧，slot 从 left 改到 right。
       model: "right",
@@ -180,6 +180,7 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
       draft: "more",
       tools: "more",
       palette: "more",
+      "auto-skills": "left",
       "work-mode": "more",
       permission: "right"
     };
@@ -192,6 +193,7 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
       ["draft", want.draft],
       ["tools", want.tools],
       ["palette", want.palette],
+      ["auto-skills", want["auto-skills"]],
       ["work-mode", want["work-mode"]],
       ["permission", want.permission]
     ]);
@@ -408,18 +410,19 @@ describe("输入卡版心 · 与消息列同宽（2026-10-25 改钉：同一个�
     expect(list).not.toContain("760px");
   });
 
-  it("两侧留白来自同一个 token：默认每侧 24px、窄窗每侧 17px，窄窗只改这一个数", () => {
+  it("两侧留白来自同一个 token：默认每侧 12px、窄窗每侧 10px，窄窗只改这一个数", () => {
     // 【2026-10-25 窄档那一刀】原先窄窗（≤1220px）里正文列另起一条 `calc(100% - 34px)`，
     // 卡侧不跟 ⇒ 真机读数 1200 / 1000 / 860 三档卡比正文列窄 14px（每侧 7px），只有 1440 齐。
+    // 【2026-11-09 用户裁定「两边边框太大了」】24/17 收到 12/10：参考图里卡几乎贴着中栏两缘。
     const root = vueSource("styles.css");
     const base = /--conversation-inline-inset:\s*(\d+)px/.exec(root);
     expect(base, "styles.css 的 :root 里必须定义 --conversation-inline-inset").not.toBeNull();
-    expect(Number(base?.[1]), "默认两侧留白应当是每侧 24px（合计 48px）").toBe(24);
-    // 窄窗只改这一个数（34px ÷ 2 = 每侧 17px）。
+    expect(Number(base?.[1]), "默认两侧留白应当是每侧 12px（合计 24px）").toBe(12);
+    // 窄窗只改这一个数（20px ÷ 2 = 每侧 10px）。
     const narrow =
       /@media \(max-width: 1220px\)\s*\{[\s\S]*?--conversation-inline-inset:\s*(\d+)px/.exec(root);
     expect(narrow, "窄窗那块必须改 --conversation-inline-inset").not.toBeNull();
-    expect(Number(narrow?.[1]) * 2, "窄窗两侧留白合计应当还是 34px").toBe(34);
+    expect(Number(narrow?.[1]) * 2, "窄窗两侧留白合计应当是 20px").toBe(20);
     // 这个 token 只有两处定义：默认值一处、窄窗覆盖一处——再多一处就是分家的开始。
     const hits = root.match(/--conversation-inline-inset:/g) ?? [];
     expect(hits.length, "--conversation-inline-inset 的定义处不止「默认 + 窄窗」两处").toBe(2);

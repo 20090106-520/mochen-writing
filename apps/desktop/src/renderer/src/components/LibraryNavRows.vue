@@ -6,7 +6,7 @@
 
      【2026-10-11 整组收进「更多」】连同「数据统计」一起，被 LeftSidebar 包进一个默认收起的
      「更多」分组。分组的壳与那枚开合 ref 一并搬到这里，而不是留在 LeftSidebar：
-     **这一组四枚入口的归属地本来就是这个文件**，把壳也放进来，它就是一个自洽的组件，
+     **这一组入口的归属地本来就是这个文件**，把壳也放进来，它就是一个自洽的组件，
      LeftSidebar 那头只剩一行调用，不必知道里面有几枚、怎么折叠。
      为什么收：左栏十几行全是同样重量的 14px 一行，「导入 TXT」与「写作」看起来一样重，
      而后者每天用、前者一年未必用一次——视觉权重不反映使用频率。 -->
@@ -14,6 +14,11 @@
 import { ref } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { STATS_HINT } from "../utils/side-nav";
+import { useLayoutStore } from "../stores/layoutStore";
+
+/** `requireBook` 由 LeftSidebar 递进来：没开整本书时统一弹「未打开作品」，不另写一套。 */
+defineProps<{ requireBook: (label: string) => boolean }>();
+const layout = useLayoutStore();
 
 const emit = defineEmits<{
   open: [kind: "trash" | "backup" | "terms" | "import"];
@@ -42,6 +47,19 @@ const moreOpen = ref(false);
     </button>
 
     <div v-show="moreOpen" class="nav-group-children">
+      <!-- 存稿仪表（W-05）：整本书的章节状态 / 字数 / 最近改动。开合直接走既有 layout 开关；
+           没开书时先过 LeftSidebar 递进来的 requireBook（与上面几枚同一道闸）。 -->
+      <button
+        class="nav-row"
+        type="button"
+        data-nav-id="inventory"
+        title="按既有章节次序看每章状态、字数与最近改动"
+        @click="requireBook('存稿仪表') || layout.openChapterStatus()"
+      >
+        <AppIcon name="ledger" :size="17" />
+        <span>存稿仪表</span>
+      </button>
+
       <!-- 数据统计（2026-10-11 随本组一起收进来）：数字全来自 book.docs 的扫描元数据，
            聚合真身在 utils/stats-rows；点它的响应仍住在 LeftSidebar 的 openStats。
            提示文案读 side-nav 的 STATS_HINT 那一份真身，不在此处另写一句。 -->

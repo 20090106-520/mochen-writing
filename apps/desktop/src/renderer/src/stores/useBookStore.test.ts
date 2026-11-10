@@ -10,6 +10,7 @@ import {
   type RendererApi
 } from "@mochen/contracts";
 import { useBookStore } from "./useBookStore";
+import { SKILL_API_STUBS } from "./skill-api-stub";
 
 const result: BookOpenResult = {
   rootPath: "/book",
@@ -102,6 +103,8 @@ const api = {
   readSkill: offLimits("readSkill"),
   // 技能市场三枚（2026-10-07 批次 5-㉖）：与上面同一口径，桩成「越权就抛」。
   listMarket: offLimits("listMarket"),
+  redeemSkill: async () => ({ ok: false, notice: "", dirName: "", displayName: "" }),
+  ...SKILL_API_STUBS,
   installMarketSkill: offLimits("installMarketSkill"),
   uninstallMarketSkill: offLimits("uninstallMarketSkill"),
   // 插件四枚（2026-10-07 批次 5-㉚）：与上面同一口径——这一批测的是书，

@@ -12,9 +12,15 @@
  *    本任务不新增 IPC 通道，也不假装这是结构化上下文注入。
  */
 import type { DocRef } from "@mochen/contracts";
-import { SLASH_COMMAND_DESCRIPTIONS, type SlashCommand } from "./slash-commands";
+import {
+  SLASH_COMMAND_DESCRIPTIONS,
+  SLASH_COMMAND_GROUPS,
+  SLASH_COMMAND_META,
+  type SlashCommand
+} from "./slash-commands";
 import { BOOK_KIND_LABELS } from "./book-kinds";
 import type { IconName } from "../types/icons";
+import { groupHeadingAt } from "./composer-more";
 
 export const REFERENCE_TRIGGERS = ["/", "@"] as const;
 export type ReferenceTrigger = (typeof REFERENCE_TRIGGERS)[number];
@@ -39,8 +45,15 @@ export interface ReferenceMenuPool {
 interface ReferenceOptionBase {
   /** v-for 的 key：`/model`、`@chapters/ch01.md` 形态，天然唯一。 */
   id: string;
+  /** 机器名：命令名 / 文档标题，仍是过滤与选中时用的那一个（不自造第二份）。 */
   label: string;
   detail: string;
+  /** 命令那条另有中文短名、自己的图标与用途分组；`label` 保留给键帽与派发。 */
+  title?: string;
+  icon?: IconName;
+  group?: string;
+  /** 右端键帽：命令显示完整的 `/model`，素材仍显示 `@`（由模板回落到 menu.trigger）。 */
+  token?: string;
 }
 
 /** 穷尽联合（铁律 6）：加一枚触发符不写这一型，下面的 switch 编译不过。 */
@@ -73,10 +86,10 @@ export interface ReferenceMenuCopy {
 export const REFERENCE_MENU_COPY: Record<ReferenceTrigger, ReferenceMenuCopy> = {
   "/": {
     title: "调用命令",
-    hint: "输入名称搜索命令",
+    hint: "输入名称搜索 · 选中即执行，不会当成消息发出去",
     icon: "sparkles",
     // 与 SlashPalette 的旧空态同口径：没接通的通路不列出来，也不列出一堆死的。
-    poolEmpty: "这一版没有可执行的命令——还没接通的通路不会列出来。",
+    poolEmpty: "这一刻没有可执行的命令：先打开作品，或在设置里配好模型。",
     queryEmpty: "没有匹配的命令"
   },
   "@": {
@@ -115,14 +128,28 @@ export function findReferenceMatch(value: string, caret: number): ReferenceMatch
 }
 
 function commandOption(command: SlashCommand): ReferenceOption {
+  const meta = SLASH_COMMAND_META[command];
   return {
     id: `/${command}`,
     trigger: "/",
     label: command,
     detail: SLASH_COMMAND_DESCRIPTIONS[command],
+    // 中文短名、图标、分组都从命令元数据那张穷尽表来；这里不写第二份文案。
+    title: meta.title,
+    icon: meta.icon,
+    group: meta.group,
+    token: `/${command}`,
     command,
     doc: null
   };
+}
+
+/** 分组标题只画在每组第一行：真身是 composer-more 的 groupHeadingAt，这里只转调一次。 */
+export function referenceGroupHeadingAt(
+  options: readonly ReferenceOption[],
+  index: number
+): string | null {
+  return groupHeadingAt(options, index);
 }
 
 function documentOption(doc: DocRef): ReferenceOption {
@@ -143,8 +170,21 @@ export function referenceOptionPool(
   pool: ReferenceMenuPool
 ): ReferenceOption[] {
   switch (match.trigger) {
-    case "/":
-      return pool.commands.map(commandOption);
+    case "/": {
+      // 按用途归堆：分组标题只画在每组第一行，命令名原序（可用性闸的顺序）不归堆的话
+      // 「会话 / 配置 / 会话」会冒出重名标题。与「更多 → / 命令」二级目录同一份组序，
+      // 两个菜单看到的次序一致，键盘高亮索引也仍对得上 DOM。组内是稳定排序，不重排。
+      const rank = new Map<string, number>(
+        SLASH_COMMAND_GROUPS.map((group, index) => [group, index])
+      );
+      return pool.commands
+        .map(commandOption)
+        .sort(
+          (a, b) =>
+            (a.group === undefined ? 99 : (rank.get(a.group) ?? 99)) -
+            (b.group === undefined ? 99 : (rank.get(b.group) ?? 99))
+        );
+    }
     case "@":
       return pool.docs.map(documentOption);
     default: {

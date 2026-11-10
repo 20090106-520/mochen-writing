@@ -24,10 +24,15 @@
 html[data-liquid-glass="on"] .composer-input-surface,
 html[data-liquid-glass="on"] .review-menu,
 html[data-liquid-glass="on"] .permission-menu,
-html[data-liquid-glass="on"] .composer-more-menu,
-html[data-liquid-glass="on"] .composer-reference-menu,
+/* 「更多」弹层与行内 `/` 命令菜单都不进玻璃族：两者都向上开、正压着欢迎首页的居中大字，
+   玻璃底会让那句话透进来糊在条目上。它们统一走 agent-pane.css 里的实底。
+   同理，下面 hover / 减少透明度 / 减少动效 三处也都不再列这两个。 */
 html[data-liquid-glass="on"] .conversation-history-panel,
 html[data-liquid-glass="on"] .tree-node-action-menu,
+html[data-liquid-glass="on"] .model-select,
+html[data-liquid-glass="on"] .tool-roster,
+html[data-liquid-glass="on"] .context-meter-panel,
+html[data-liquid-glass="on"] .composer-context-menu,
 html[data-liquid-glass="on"] .review-score,
 html[data-liquid-glass="on"] .ai-slop,
 html[data-liquid-glass="on"] .cast-check,
@@ -81,12 +86,57 @@ html[data-liquid-glass="on"] .composer:focus-within .composer-input-surface,
 html[data-liquid-glass="on"] .review-menu:hover,
 html[data-liquid-glass="on"] .review-menu:focus-within,
 html[data-liquid-glass="on"] .permission-menu:hover,
-html[data-liquid-glass="on"] .composer-more-menu:hover,
-html[data-liquid-glass="on"] .composer-reference-menu:hover,
 html[data-liquid-glass="on"] .conversation-history-panel:hover,
+html[data-liquid-glass="on"] .model-select:hover,
+html[data-liquid-glass="on"] .tool-roster:hover,
+html[data-liquid-glass="on"] .context-meter-panel:hover,
+html[data-liquid-glass="on"] .composer-context-menu:hover,
 html[data-liquid-glass="on"] .toast:hover {
   background-position: var(--lg-sheen-hover);
   box-shadow: var(--lg-shadow-hover);
+}
+
+/* ── 跟随指针的镜面高光（2026-11-10）────────────────────────────────────────────
+   玻璃要读成「玻璃」，靠的不是模糊，而是**光会动**：指针在卡上走，一枚光斑跟着走，
+   面才有厚度。固定高光只是一张贴图，模糊再大也还是贴纸。
+   组件在 `pointermove` 里往本元素写 `--lg-pointer-x/y`（根上是静置默认值）。
+
+   为什么用伪元素而不是往 `background-image` 里再塞一层：
+   那一层已经由总闸管着（sheen 的位移要换 `background-position`），
+   两件事叠在同一条属性上，hover 时就得同时写两组位置，改一处漏一处。
+   伪元素还能单独做淡入淡出（`opacity`），离开时不至于光斑「啪」地消失。
+
+   `z-index: -1`：本层在 `.composer-input-surface`（它自己 `position: relative; z-index: 1`）
+   的层叠上下文里排到**内容之下**——光扫过文字时不能把字洗淡。 */
+html[data-liquid-glass="on"] .composer-input-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  /* 圆心与半径写在这里，不写进 token：`--lg-pointer` 落在 `:root` 上，
+     自定义属性里的 `var()` 在**定义处**求值，圆心会被烤成根上的静置值（真机撞过）。
+     椭圆而不是正圆：输入卡是横长条，正圆光斑在 1118px 宽的卡上只像一颗痣；
+     480×340 铺开一片，才读得出「光扫过一整块玻璃」。 */
+  background-image: radial-gradient(
+    480px 340px at var(--lg-pointer-x) var(--lg-pointer-y),
+    var(--lg-pointer)
+  );
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+
+html[data-liquid-glass="on"] .composer-input-surface:hover::after,
+html[data-liquid-glass="on"] .composer:focus-within .composer-input-surface::after {
+  opacity: 1;
+}
+
+/* 按下：只收阴影，不动 transform。卡里是文本框，位移会让正在打的那一行跟着跳。 */
+html[data-liquid-glass="on"] .composer-input-surface:active {
+  box-shadow: var(--lg-shadow-press);
 }
 
 /* 检查浮层与对话框只在「获得焦点/被操作」时抬一档，避免大面积阴影常驻。 */
@@ -108,8 +158,6 @@ html[data-liquid-glass="on"] .workspace-dialog:focus-within {
   html[data-liquid-glass="on"] .composer-input-surface,
   html[data-liquid-glass="on"] .review-menu,
   html[data-liquid-glass="on"] .permission-menu,
-  html[data-liquid-glass="on"] .composer-more-menu,
-  html[data-liquid-glass="on"] .composer-reference-menu,
   html[data-liquid-glass="on"] .conversation-history-panel,
   html[data-liquid-glass="on"] .tree-node-action-menu,
   html[data-liquid-glass="on"] .review-score,
@@ -137,14 +185,17 @@ html[data-liquid-glass="on"] .workspace-dialog:focus-within {
     background-color: var(--surface-main);
     background-image: none;
   }
+
+  /* 玻璃已经退回实底，指针光斑失去载体——留着就是一块白色污渍。 */
+  html[data-liquid-glass="on"] .composer-input-surface::after {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   html[data-liquid-glass="on"] .composer-input-surface,
   html[data-liquid-glass="on"] .review-menu,
   html[data-liquid-glass="on"] .permission-menu,
-  html[data-liquid-glass="on"] .composer-more-menu,
-  html[data-liquid-glass="on"] .composer-reference-menu,
   html[data-liquid-glass="on"] .conversation-history-panel,
   html[data-liquid-glass="on"] .tree-node-action-menu,
   html[data-liquid-glass="on"] .review-score,

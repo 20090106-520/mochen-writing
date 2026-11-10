@@ -1,8 +1,10 @@
 import { PERMISSION_LABELS, type PermissionMode } from "@mochen/contracts";
 import type { IconName } from "../types/icons";
 
-/** 无书时档位那一格的诚实文案（设计决定 4：不开口冒充任何档位名）。 */
-export const NO_BOOK_CHIP_LABEL = "未打开作品目录";
+/** 无书时档位那一格的诚实文案（设计决定 4：不开口冒充任何档位名）。
+ *  2026-11-10 由「未打开作品目录」收到四个字：它是右端那一排最长的一串灰字（真机 135px），
+ *  而同一句话在卡底「选择作品」那一行已经说过了，这里只需要一个不冒充档位的短标签。 */
+export const NO_BOOK_CHIP_LABEL = "未选作品";
 
 /**
  * 每一档的图标（#112 照参考图：档位那一枚前面带一枚图形，右端带下拉三角）。

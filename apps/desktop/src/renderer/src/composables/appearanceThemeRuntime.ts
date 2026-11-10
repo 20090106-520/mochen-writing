@@ -473,6 +473,12 @@ export function applyAppearanceThemeToDocument(input: {
   root.style.setProperty("--lg-saturate", glass.saturate);
   root.style.setProperty("--lg-shadow", glass.shadow);
   root.style.setProperty("--lg-shadow-hover", glass.shadowHover);
+  root.style.setProperty("--lg-shadow-press", glass.shadowPress);
+  root.style.setProperty("--lg-pointer", glass.pointer);
+  /* 指针高光的静置位：顶部正中。组件在 pointermove 里覆盖到本元素上；
+     根上这一对是「没进过这张卡」时的合法值（`var()` 落空会让整条 background 失效）。 */
+  root.style.setProperty("--lg-pointer-x", "50%");
+  root.style.setProperty("--lg-pointer-y", "0%");
   root.style.setProperty("--lg-sheen-rest", glass.sheenRest);
   root.style.setProperty("--lg-sheen-hover", glass.sheenHover);
 

@@ -328,9 +328,10 @@ const editorFontOptions = Object.entries(APPEARANCE_FONT_FAMILY_LABELS).filter((
         </button>
       </div>
     </div>
-    <!-- 边界同样写在屏上：玻璃只给「浮在内容之上」的表面，正文区刻意不玻璃化。 -->
+    <!-- 边界同样写在屏上：玻璃只给「浮在内容之上」的表面，正文区刻意不玻璃化。
+         2026-11-10 补一句指针高光：那一笔是这次「像玻璃」的关键，不写就没人会去试。 -->
     <p class="settings-group-note">
-      玻璃只加在输入卡、菜单、检查浮层、对话框、标题带与状态提示上；正文阅读区保持不透明，长文不掉对比度。跟随皮肤时，素面皮肤不启用。
+      玻璃只加在输入卡、菜单、检查浮层、对话框、标题带与状态提示上；正文阅读区保持不透明，长文不掉对比度。输入卡上那枚高光会跟着指针走。出厂默认开；选跟随皮肤时，素面皮肤不启用。
     </p>
 
     <label class="appearance-field appearance-toggle-row">

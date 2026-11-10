@@ -13,6 +13,7 @@ import {
   type FlushQuitReply,
   type RendererApi
 } from "@mochen/contracts";
+import { SKILL_API_STUBS } from "./skill-api-stub";
 
 /**
  * 「丢字」这三条用例（P0-2 / P0-3 / P0-6）共用的渲染层 API 假身。
@@ -167,6 +168,8 @@ export function createBookApi(): BookApiFixture {
     changesRetentionSave: async (retention: typeof DEFAULT_CHANGE_RETENTION) => retention,
     changesPruneNow: async () => ({ removed: 0, kept: 0, freedBytes: 0, keptBytes: 0 }),
     listMarket: async () => ({ entries: [], listed: false, notice: "" }),
+    redeemSkill: async () => ({ ok: false, notice: "", dirName: "", displayName: "" }),
+    ...SKILL_API_STUBS,
     installMarketSkill: offLimits("installMarketSkill"),
     uninstallMarketSkill: offLimits("uninstallMarketSkill"),
     listPlugins: async () => ({ entries: [], listed: true }),

@@ -102,7 +102,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
 .primary-nav {
   display: grid;
   gap: 2px;
-  padding: 4px 7px 11px;
+  padding: 4px 7px 8px;
 }
 
 /* 书名 + 工作目录（示意稿 B 顶栏的两条事实；deepwrite 也把工作目录放侧栏而非自绘标题栏）。
@@ -143,7 +143,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
    全体导航与文稿树同住 .sidebar-scroll 滚动区；分组判定与占位判定的真身在 utils/side-nav.ts。 */
 
 .side-nav {
-  padding: 4px 7px 11px;
+  padding: 4px 7px 8px;
 }
 
 /* 【2026-11-08 分区】功能导航与「我的作品」文稿树是两类东西：中间用一条发丝线断开，
@@ -197,7 +197,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
 .nav-group-body {
   display: grid;
   gap: 2px;
-  margin: 1px 0 4px;
+  margin: 0 0 2px;
 }
 
 /* 子项行：比一级项缩进、右端一个箭头（chevron 原向即是 ›，不需旋转）。 */
@@ -207,7 +207,8 @@ html[data-platform="darwin"] .sidebar-brand-row {
   align-items: center;
   gap: 7px;
   width: 100%;
-  min-height: 30px;
+  /* 2026-11-09 用户裁定「间隔太大」：子项 30→26，与一级行 30 只差一行字的高度。 */
+  min-height: 26px;
   padding: 0 9px 0 30px;
   border-radius: 8px;
   background: transparent;
@@ -319,7 +320,8 @@ html[data-platform="darwin"] .sidebar-brand-row {
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 34px;
+  /* 2026-11-09 用户裁定「间隔太大」：一级行 34→30（pitch 32），左栏一屏多容纳三行。 */
+  min-height: 30px;
   padding: 0 9px;
   border-radius: 8px;
   background: transparent;
@@ -357,7 +359,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   overflow-y: auto;
   /* Keep title widths stable when expanded trees start or stop scrolling. */
   scrollbar-gutter: stable;
-  padding-bottom: 18px;
+  padding-bottom: 12px;
   overscroll-behavior: contain;
 }
 
@@ -366,13 +368,13 @@ html[data-platform="darwin"] .sidebar-brand-row {
 }
 
 .resource-section + .resource-section {
-  margin-top: 9px;
+  margin-top: 6px;
 }
 
 .resource-section-heading {
   display: flex;
   align-items: center;
-  min-height: 34px;
+  min-height: 30px;
 }
 
 .section-toggle {
@@ -381,8 +383,8 @@ html[data-platform="darwin"] .sidebar-brand-row {
   gap: 6px;
   min-width: 0;
   flex: 1;
-  min-height: 32px;
-  padding: 5px 7px;
+  min-height: 28px;
+  padding: 3px 7px;
   border-radius: 8px;
   background: transparent;
   color: var(--text-primary);
@@ -440,7 +442,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   position: relative;
-  margin: 2px 0 4px 16px;
+  margin: 1px 0 2px 16px;
   padding-left: 7px;
   /* 2026-11-08：树的引导线原来用重一档的 --theme-line，在浅色皮肤上像一道分割栏；
      换发丝线，让它只是「这几行是一组」的暗示。 */
@@ -519,8 +521,8 @@ html[data-platform="darwin"] .sidebar-brand-row {
      与界面上其余弹层各写了一套）。 */
   border: 1px solid var(--line-soft);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--editor) 94%, transparent);
-  backdrop-filter: blur(14px) saturate(118%);
+  /* 2026-11-09：半透明底与模糊收归 liquid-glass.css 总闸（本选择器已在白名单里），基态不透明。 */
+  background: var(--surface-raised);
   box-shadow: 0 12px 34px color-mix(in srgb, var(--shadow-color) 70%, transparent);
 }
 
@@ -570,7 +572,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
 }
 
 .resource-tree > .tree-node > .tree-row {
-  min-height: 30px;
+  min-height: 26px;
   color: var(--text-secondary);
   font-weight: 560;
 }

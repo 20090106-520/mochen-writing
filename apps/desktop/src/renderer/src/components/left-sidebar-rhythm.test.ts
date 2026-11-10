@@ -8,6 +8,8 @@
  * 于是同一栏出现两种节奏，其中一种还是奇数——它既不与导航对齐（36），也不是任何整除关系，
  * 读起来像手滑而不是取舍。改成 2px 后树 pitch 32，整栏落在同一个间隙单位上；
  * 行与行的密度差（36 vs 32）**仍然保留**，因为那是有意的层级（树要装得下一整本书的章节）。
+ * 2026-11-09 用户裁定「间隔太大」：基线整体收紧到 nav 30 / pitch 32、树 26 / pitch 28，
+ * 间隙单位与「树比导航密」这两条不变，下面钉的绝对值跟着落一档。
  *
  * **为什么自己读规则、不用 `vue-source-reader` 的 `ruleBlock`**：那条的匹配是
  * `selector\s*\{`，没有行首锚点，于是 `ruleBlock(css, ".nav-row")` 读到的是文件里**第一个**
@@ -23,7 +25,7 @@ const navCss = readFileSync(
   "utf8"
 );
 
-/** 左栏的行间隙单位：nav 那几行的 36px pitch = 34 高 + 2 缝，全栏都按这个缝。 */
+/** 左栏的行间隙单位：nav 那几行的 32px pitch = 30 高 + 2 缝，全栏都按这个缝。 */
 const PANEL_ROW_GAP_PX = 2;
 
 /** 顶层规则的正文：选择器必须**行首**（前面是行首或 `}`），不许命中后代选择器。 */
@@ -62,7 +64,7 @@ describe("树行与导航行用同一个间隙单位", () => {
   it("反向：树行不许比导航行更高（那样整栏头轻脚重）", () => {
     const navH = minHeightOf(navCss, ".nav-row");
     const treeH = minHeightOf(navCss, ".resource-tree > .tree-node > .tree-row");
-    expect(navH).toBe(34);
+    expect(navH).toBe(30);
     expect(treeH).toBeGreaterThan(0);
     expect(treeH).toBeLessThanOrEqual(navH);
   });
@@ -75,8 +77,8 @@ describe("树行与导航行用同一个间隙单位", () => {
     // 旧值树 pitch = 31（30 + 1px），奇数 —— 那一条就是「看着像手滑」的来源。
     expect(navPitch % 2).toBe(0);
     expect(treePitch % 2).toBe(0);
-    expect(navPitch).toBe(36);
-    expect(treePitch).toBe(32);
+    expect(navPitch).toBe(32);
+    expect(treePitch).toBe(28);
   });
 
   it("树比导航更密是**有意的层级**，不是失误（所以这条只钉方向，不钉差值）", () => {

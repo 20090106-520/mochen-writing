@@ -24,7 +24,7 @@ import {
 // 上下键环绕与夹下标（2026-10-25）：从 utils/inline-reference-menu.ts 收到 utils/list-highlight.ts ——
 // 它们与「引用菜单」无关，是「一组选项的高亮」这一族通用的一件事（铁律 6：判据只有一份）。
 import { clampHighlightIndex, moveHighlightIndex } from "../utils/list-highlight";
-import { availableCommands, type PaletteFocus } from "../utils/slash-commands";
+import { availableCommands, type PaletteFocus, type SlashCommand } from "../utils/slash-commands";
 import { threadKeyFor, useAgentStore } from "./useAgentStore";
 import { useBookStore } from "./useBookStore";
 
@@ -58,6 +58,14 @@ export const useReferenceMenuStore = defineStore("reference-menu", {
         turnRunning: agent.threads[threadKeyFor(book.activeDocTab)]?.running ?? false
       };
       return { commands: availableCommands(focus), docs: book.docs };
+    },
+
+    /**
+     * 「更多 → / 命令」二级目录的命令名单（2026-11-09）。
+     * 不是第二份命令表：它就是 pool 里那道可用性闸过滤后的结果，目录与行内菜单共用。
+     */
+    commandCatalog(): readonly SlashCommand[] {
+      return this.pool.commands;
     },
 
     /** 过滤前的池子条数——空态文案要区分「池子空」与「没搜到」。 */
@@ -170,6 +178,16 @@ export const useReferenceMenuStore = defineStore("reference-menu", {
       agent.setDraft(key, next);
       this.caretRequest = next.length;
       this.syncFrom(next, next.length, true);
+    },
+
+    /**
+     * 二级目录里选中一条命令（2026-11-09）。
+     * 与行内菜单的 Enter 是同一个派发口 `agent.runSlashCommand`，命令落点仍只在
+     * `agent-slash-dispatch.ts` 那张表决定一次；目录不改草稿、不补 `/` token、不发送消息。
+     */
+    runCommand(command: SlashCommand): void {
+      this.close();
+      useAgentStore().runSlashCommand(command, "");
     },
 
     clearCaretRequest(): void {

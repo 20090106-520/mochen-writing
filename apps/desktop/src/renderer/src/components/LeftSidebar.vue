@@ -257,25 +257,33 @@ function onChildAction(child: SideNavChild): void {
     return;
   }
   if (child.reality.kind === "action") {
+    // 三块面板的真身都住在右栏 DocumentPane，而它只在**对话视图且右栏展开**时挂载。
+    // 人在技能库 / 皮肤广场 / 设置时点这些入口，开关置真也没有宿主 ⇒ 先回对话视图，
+    // 否则就是「点了没反应」（2026-11-09 用户裁定「有些功能不能使用」的真因）。
+    layout.showWorkspace();
     // 素材库（2026-10-23）：有真面板了——锚点那枚按钮同样在右栏头部，先展右栏再开面板。
     if (child.reality.action === "materials-panel") {
       revealAgentPanel();
       material.toggle();
       return;
     }
-    // 伏笔台账（2026-10-05）：锚点那枚按钮住在右栏头部，所以先把右栏展开再开台账——
+    // 伏笔台账 / 时间线核对：没书时右栏整格不挂载，置开关只会留下一个等不到锚点的真值。
+    // 先过「要有书」那道闸（弹引导对话框，两个 CTA 都是真入口），点了必有可见响应。
+    if (requireBook(child.label)) return;
+    // 锚点那枚按钮住在右栏头部，所以先把右栏展开再开台账——
     // 与 AI 检查三项共用 revealAgentPanel 那个真身，不另写一份「展开某栏」。
+    revealAgentPanel();
     if (child.reality.action === "foreshadow-ledger") {
-      revealAgentPanel();
       book.foreshadowsOpen = true;
       void book.loadForeshadows();
       return;
     }
-    // 时间线核对（2026-10-05 批次 5-①）：同款——先展右栏（锚点在那儿），再开台账并读盘。
+    // 时间线核对（2026-10-05 批次 5-①）：同款——共用上面那一次展右栏，再走 store 的 toggle。
+    // 【判据留着，别再收成 fallthrough】action 联合目前是三档，删掉这层判断确实也能走对，
+    // 但将来加第四档时它会**静默**把时间线也打开；而 `timeline-check-wiring.test.ts`
+    // 钉的正是「左栏这一项走同一个 toggle」这条接线。展开可以共用，分派必须点名。
     if (child.reality.action === "timeline-ledger") {
-      revealAgentPanel();
       void timeline.toggle();
-      return;
     }
   }
 }
@@ -740,10 +748,11 @@ function onChapterDragEnd(): void {
              打开它只列与只读渲染，不挂入任何技能——挂入只有技能卡上那颗按钮。 -->
         <ExtensionsNavRow />
 
-        <!-- 低频书务入口（数据统计 / 回收站 / 整书备份 / 书稿体检 / 导入 TXT）：
+        <!-- 低频书务入口（存稿仪表 / 数据统计 / 回收站 / 整书备份 / 书稿体检 / 导入 TXT）：
              连同折叠壳一起住在 LibraryNavRows 里（2026-10-11）——那一组本来就归那个文件；
-             响应仍在本文件：openStats 与 openLibraryDialog。 -->
-        <LibraryNavRows @open="openLibraryDialog" @stats="openStats" />
+             响应仍在本文件：openStats 与 openLibraryDialog；存稿仪表在按钮里直接走 layout 开关，
+             requireBook 由本文件递进去，闸门只有这一份。 -->
+        <LibraryNavRows :require-book="requireBook" @open="openLibraryDialog" @stats="openStats" />
       </nav>
     </div>
 

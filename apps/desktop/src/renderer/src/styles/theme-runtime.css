@@ -164,7 +164,18 @@ html[data-theme] .composer-input-surface {
   border-color: var(--theme-line);
   background: var(--surface-raised);
   background-color: var(--skin-glass-card-fill);
-  background-image: var(--skin-glass-sheen, none);
+  /* 【2026-11-10 卡面读不出来】皮肤给的纸色是 68% 半透，压在**76% 纱的照片底**上——
+     两层都是纸白 ⇒ 卡与背景只差约 4%，整张卡糊进米色里，用户读数「还是太丑陋」。
+     这里不删皮肤那层（玻璃档仍归它管：模糊/罩光/alpha 都还在），只在**它底下垫一层纸色**：
+     0.68 再叠 0.62 ⇒ 有效不透明度约 88%，卡面浮起来，而底下照片的暖调仍透一口气进来。
+     用 `--editor` 而不是写死白：暗色主题下它自己会翻成深纸色，卡不会突然变成一块亮砖。
+     层序：垫纸在下、皮肤罩光在上（`--skin-glass-sheen` 那道斜光必须压在纸面上才看得见）。 */
+  background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--editor) 62%, transparent),
+      color-mix(in srgb, var(--editor) 62%, transparent)
+    ),
+    var(--skin-glass-sheen, none);
   backdrop-filter: blur(var(--skin-glass-blur, 0)) saturate(var(--skin-glass-saturate, 1));
   color: var(--text-primary);
 }
@@ -243,7 +254,16 @@ html[data-theme] .view-tabs button.is-active {
   color: var(--text-primary);
 }
 
-html[data-theme] .send-button:disabled,
+/* 【2026-11-10】发送键失活态从「一块 selected 灰底」改成**空环**（2026-11-10 真机：
+   那档灰与玻璃卡只差一点明度，34px 里箭头几乎看不见，像卡角沾灰而不是一枚钮）。
+   `.save-button:disabled` 不改：它是对话框里的实心钮，去掉底就丢了形状。
+   这一条的选择器 (0,2,1) 必须压过 agent-pane 里那条基线 (0,2,0)，所以改在这里、不搬回去。 */
+html[data-theme] .send-button:disabled {
+  background: transparent;
+  border-color: var(--theme-line);
+  color: var(--text-tertiary);
+}
+
 html[data-theme] .save-button:disabled {
   background: var(--surface-selected);
   color: var(--text-tertiary);
