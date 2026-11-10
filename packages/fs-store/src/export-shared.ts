@@ -56,6 +56,59 @@ export function escapeHtml(text: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/**
+ * GFM 表格分隔行里的一个单元格：`---` / `:---` / `---:` / `:---:`。
+ *
+ * 横线**从宽到两条**：规范里一条就算数，模型手写对齐时常写 `:--`（两条）。
+ * 卡三条会把它判成「不是表格」，整块原样露在屏上——正是这条规则要治的东西。
+ * 从宽不会误伤：调用方还要求每行首尾都有 `|`、且第二行每个单元格都长这样。
+ */
+const TABLE_SEPARATOR_CELL = /^:?-{2,}:?$/;
+
+/**
+ * 表格（2026-11-10）：模型摆「两版对比、人物对照」时最常用的排法，此前**完全不支持**。
+ *
+ * 后果是整块原样躺在屏上——一排竖线夹着 `---`，读起来跟代码块没什么区别。
+ * 用户报「输出的东西不要代码」，有一部分就是它：模型不是写了代码，是写了个表格。
+ *
+ * **只认最标准的一种写法**：每行首尾都有 `|`，且第二行是分隔行。缺一样就把原 block
+ * 原样退回去，让段落规则照旧当文本处理——宁可显示得朴素，也不要猜错把正文拆坏。
+ * 对齐标记（`:---:`）不保留：它只会变成 `style` 或 `align` 属性，导出到 docx/epub
+ * 时还要多养一条样式，收益不值。
+ *
+ * 传入的 block 已经过 `escapeHtml`，所以单元格里的裸标签是 `&lt;` 文本，
+ * 这里拼的 `<th>` / `<td>` 才有资格被当成标签。
+ */
+function renderTableBlock(block: string): string {
+  const rows = block
+    .replace(/\n+$/, "")
+    .split("\n")
+    .map((row) => row.trim())
+    .filter((row) => row !== "");
+  if (rows.length < 2) return block;
+  if (!rows.every((row) => row.startsWith("|") && row.endsWith("|"))) return block;
+  const cellsOf = (row: string): string[] =>
+    row
+      .slice(1, -1)
+      .split("|")
+      .map((cell) => cell.trim());
+  const [headRow, separatorRow, ...bodyRows] = rows;
+  if (headRow === undefined || separatorRow === undefined) return block;
+  if (!cellsOf(separatorRow).every((cell) => TABLE_SEPARATOR_CELL.test(cell))) return block;
+  const head = cellsOf(headRow)
+    .map((cell) => `<th>${cell}</th>`)
+    .join("");
+  const body = bodyRows
+    .map(
+      (row) =>
+        `<tr>${cellsOf(row)
+          .map((cell) => `<td>${cell}</td>`)
+          .join("")}</tr>`
+    )
+    .join("");
+  return `<table><thead><tr>${head}</tr></thead>${body === "" ? "" : `<tbody>${body}</tbody>`}</table>`;
+}
+
 /** 简易 Markdown → HTML 转换（零依赖，基础正则替换） */
 export function markdownToSimpleHtml(markdown: string): string {
   // 先把源文整体转义，再套 markdown 规则 —— 顺序不能反。
@@ -110,6 +163,10 @@ export function markdownToSimpleHtml(markdown: string): string {
   html = html.replace(/(<li class="ol-item">.*<\/li>\n?)+/g, (_m) => {
     return `<ol>${_m.replace(/ class="ol-item"/g, "")}</ol>`;
   });
+
+  // 表格（2026-11-10）：必须排在段落规则**之前**——段落会先把这些行包成 `<p>`，
+  // 之后再想拼 `<table>` 就得从标签里往外抠文本了。
+  html = html.replace(/(?:^\|.*\|[ \t]*\n?)+/gm, (block) => renderTableBlock(block));
 
   // 段落：连续非空文本行合并为 <p>。跳过行首是 `<` 的（前面规则自己生成的标签）与空行。
   html = html.replace(/^(?!<[a-z/]|$)(.+)$/gm, (_m, text) => `<p>${text}</p>`);

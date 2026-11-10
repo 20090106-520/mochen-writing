@@ -315,7 +315,17 @@ function assembleDocx(
       color: #555;
     }
     hr { border: none; border-top: 1pt solid #999; margin: 12pt 0; }
-    table { border-collapse: collapse; }
+    table { border-collapse: collapse; margin: 8pt 0; }
+    /* 正文表格（2026-11-10）：渲染器才认表格，导出也得给线，否则导出的 HTML/EPUB
+       里表格只是几个字并排。排除扉页那张 border=0 的信息表——它自己有内联 margin。 */
+    table:not([border="0"]) th,
+    table:not([border="0"]) td {
+      border: 0.5pt solid #ccc;
+      padding: 4pt 8pt;
+      text-align: left;
+      vertical-align: top;
+    }
+    table:not([border="0"]) th { background: #f5f5f5; }
   </style>
 </head>
 <body>

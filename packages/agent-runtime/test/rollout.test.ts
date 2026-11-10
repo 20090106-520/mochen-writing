@@ -155,9 +155,9 @@ describe("eventsToMessages", () => {
       { ...turn, id: "e11", type: "interrupted", pendingProposals: 1 }
     ];
     const messages = eventsToMessages(events);
+    // 2026-11-10 起思考不回放：assistant 只剩正文与工具调用两条，其余顺序不变。
     expect(messages.map((m) => m.role)).toEqual([
       "user",
-      "assistant",
       "assistant",
       "assistant",
       "tool",
@@ -165,20 +165,26 @@ describe("eventsToMessages", () => {
       "user"
     ]);
     expect(messages[0]?.content).toBe("改一下");
-    expect(messages[1]?.content).toBe("（思考摘要）先读");
-    expect(messages[2]?.content).toBe("建议如下");
-    expect(messages[3]?.toolCalls.map((c) => c.name)).toEqual(["read_doc"]);
-    expect(messages[4]?.toolCallId).toBe("c1");
-    expect(messages[5]?.content).toContain("别动第一段");
-    expect(messages[6]?.content).toContain("原稿备份在");
+    expect(messages[1]?.content).toBe("建议如下");
+    expect(messages[2]?.toolCalls.map((c) => c.name)).toEqual(["read_doc"]);
+    expect(messages[3]?.toolCallId).toBe("c1");
+    expect(messages[4]?.content).toContain("别动第一段");
+    expect(messages[5]?.content).toContain("原稿备份在");
   });
 
-  it("reasoning 单独存在时作为 assistant 前置内容，不丢", () => {
+  /**
+   * 2026-11-10 反转了这条：原本把思考回放成 `assistant:（思考摘要）…`，结果是
+   * ① 模型照着这个格式把思考写进正文（真机上真出现了两条这样的回复）；
+   * ② 英文推理回喂之后，它接着用英文想、用英文答。
+   * 现在只回放正文，思考留在会话里给 UI 看。
+   */
+  it("reasoning 不进模型历史（它会教模型把思考写进正文）", () => {
     const messages = eventsToMessages([
       { ...turn, type: "reasoning", text: "想", interrupted: false },
       { ...turn, id: "e2", type: "message", text: "说", interrupted: false }
     ]);
-    expect(messages.map((m) => m.role)).toEqual(["assistant", "assistant"]);
+    expect(messages.map((m) => m.role)).toEqual(["assistant"]);
+    expect(messages[0]?.content).toBe("说");
   });
 
   it("纯空白的 reasoning/message 不进模型历史（否则小模型收到空轮）", () => {

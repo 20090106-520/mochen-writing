@@ -86,4 +86,14 @@ describe("工具卡那一行：人话，不是 JSON", () => {
     // 数组也不是对象，不许被当参数表硬解
     expect(toolArgsText("propose_patch", "[1,2]").plain).toBe(false);
   });
+
+  /**
+   * 2026-11-10：真机截图上有一张卡写着「列出文档 {}」——一对花括号是机器话。
+   * 空参数没有排查价值（不是「参数写坏了」那种线索），所以兜底那条不适用。
+   */
+  it("空参数不摆 `{}`，直说一句", () => {
+    expect(toolArgsText("list_docs", "{}")).toEqual({ text: "不带参数", plain: true });
+    // 真空串仍然原样（模板靠它决定这一行显不显示），别被这条顺手改掉
+    expect(toolArgsText("list_docs", "")).toEqual({ text: "", plain: false });
+  });
 });

@@ -89,7 +89,16 @@ describe("思考摘要：折起来也得有字（2026-10-06 批次 5-⑭）", ()
   it("summary 里挂着摘要正文（.thinking-peek），不是只挂一个标签", () => {
     expect(cardTpl).toContain("thinking-peek");
     // 它读的就是 block.text —— 模板不自己截、不自己取首句
-    expect(cardTpl).toMatch(/<span class="thinking-peek">\{\{ block\.text \}\}<\/span>/);
+    expect(cardTpl).toMatch(/<span[^>]*class="thinking-peek"[^>]*>\{\{ block\.text \}\}<\/span>/);
+  });
+
+  /**
+   * 2026-11-10：模型常拿英文推理（真机那条 `The user is greeting me with 你好…`），
+   * 露在折叠态第一行就是一屏英文。用户要的是「输出全是中文」，所以这一行按语种决定露不露。
+   * 判据在 utils/text-script.ts ——模板只调它、不自己数中文字。
+   */
+  it("非中文的思考不露这一行（存量英文推理仍然躺在展开后的正文里）", () => {
+    expect(cardTpl).toContain('v-if="isMostlyChinese(block.text)"');
   });
 
   it("折起来时露那行字，展开时让位给正文（不重复一遍）", () => {

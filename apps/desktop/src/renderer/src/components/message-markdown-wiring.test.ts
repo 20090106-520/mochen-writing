@@ -165,3 +165,24 @@ describe("对话正文容器本身没被拆散", () => {
     expect(attrs.some((a) => a.includes("message-markdown"))).toBe(true);
   });
 });
+
+describe("AgentTimeline · 中文正文被围栏包住时不再渲染成灰块（2026-11-10）", () => {
+  /**
+   * 用户报「输出的东西不要代码」。提示词那一头改在 `DIALOGUE_REPLY_INSTRUCTION`，
+   * 但**已经存在的消息改不回来**：模型以前把整段正文包进围栏，渲染器照规矩出 `<pre><code>`，
+   * 屏上是一片等宽小字的灰块。解围栏这一步不接，存量消息一辈子是灰块。
+   */
+  it("messageHtml 先拆围栏再交给 markdown 渲染器（顺序不能反）", () => {
+    const script = scriptSource(TIMELINE);
+    expect(script, "没引 utils/chat-fence").toContain("unfenceProseBlocks");
+    const body = /function messageHtml\(text: string\): string \{([\s\S]*?)\n\}/.exec(script)?.[1];
+    expect(body, "找不到 messageHtml 的函数体").toBeTruthy();
+    expect(body).toContain("unfenceProseBlocks(text)");
+    expect(body).toContain("markdownToSimpleHtml");
+    // 顺序就在这一个形状里：解围栏是**内层调用**，渲染器拿到的是拆完的字符串。
+    // 写成两句（先算给变量、再渲染）时这条会红——那时得同时确认变量赋值在先，别只改形状。
+    expect(body, "渲染器拿到的必须是拆完的串").toContain(
+      "markdownToSimpleHtml(unfenceProseBlocks(text).text)"
+    );
+  });
+});

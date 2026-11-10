@@ -301,9 +301,19 @@ export function eventsToMessages(events: AgentEvent[]): ChatMessage[] {
       case "user-message":
         out.push(chatMessage("user", event.text));
         break;
+      /*
+       * reasoning 不进模型历史（2026-11-10 改）。
+       *
+       * 原来这里把思考拼成 `assistant:（思考摘要）…` 回喂。真机撞出两个后果，都不是推测：
+       * ① **模型学会了模仿这个格式**。历史里有几条回复正文真的以「（思考摘要）」开头——
+       *    思考被写进了正文，本该折叠的两段字直接摊在屏上。
+       * ② **语言惯性**。回放的是英文推理，模型于是接着用英文想、用英文答。
+       *    用户报「输出的东西全是中文」，这是被自己的历史喂出来的。
+       *
+       * 推理本来就是中间过程：正文、工具调用与工具结果都在历史里，连贯性不靠它。
+       * UI 那头照常显示思考卡片（事件还在会话里，只是不进 provider 的 messages）。
+       */
       case "reasoning":
-        if (event.text.trim() !== "")
-          out.push(chatMessage("assistant", `（思考摘要）${event.text}`));
         break;
       case "message":
         if (event.text.trim() !== "") out.push(chatMessage("assistant", event.text));

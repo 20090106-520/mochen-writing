@@ -13,6 +13,12 @@ import {
   type DocRef
 } from "@mochen/contracts";
 import type { AssembledContext } from "@mochen/agent-runtime";
+// 对话回复口径（2026-11-10 拆到 prompt-dialogue.ts，理由见那边的文件头——
+// 这一段连注释三十来行，留在本文件里当场 814 行，破了 800 行预算）。
+// 从这里转出去，原来从 prompt-assembly 引它的地方不必改。
+import { DIALOGUE_REPLY_INSTRUCTION } from "./prompt-dialogue.js";
+
+export { DIALOGUE_REPLY_INSTRUCTION };
 
 /**
  * 提示词装配（2026-10-08 从 agent-service.ts 拆出）。
@@ -440,6 +446,7 @@ export function styleProfileSentence(assembled: AssembledContext): string {
     parts.join("；") +
     "。写新内容时保持同一腔调——句长别忽然整齐、标点别忽然换一套、对白比例别大幅偏离；" +
     "写完拿这几条对一遍，对不上的先分清是「这一章不适合这条（那就算一次例外）」还是「跑偏了」。" +
+    "交稿时系统还会拿这一稿跟这份读数再比一次：偏得厉害会把偏离项写进回执（不拦稿，只报数）。" +
     "与上面的文风硬约束冲突时硬约束优先：那是下限，这条只是这本书自己的习惯。" +
     "叙述距离、冲突戏写情绪还是写动作，这两样读不出来，本段不报——按前文自己的写法来。"
   );
@@ -734,6 +741,9 @@ export function defaultPromptFor(context: PromptContext): string {
       "materials/素材库、glossary/专有名词、skills/技能库。",
     "用户让你生成或补全世界观、人物、设定等内容时，直接用 write_doc 写进对应目录" +
       "（如 worldview/北境.md），文件名用简短中文标题；用户批准后左侧文稿树会自动出现。",
+    // 对话回复口径（2026-11-10）：排在这里而不是文风那几段中间——先定「怎么跟人说话」，
+    // 再定「怎么写小说」。放后面会被七八段写作约束淹没，模型照着写正文的架势回话。
+    DIALOGUE_REPLY_INSTRUCTION,
     // 文风硬约束（2026-10-10）：去 AI 味，词表与体检同源。
     AI_FLAVOR_INSTRUCTION,
     // 结构级去味（2026-10-16）：词库管词与句，这一段管结构——融合技能库三条去味技能，常驻。

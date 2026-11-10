@@ -1,7 +1,7 @@
 <!-- 中栏骨架（conversation-pane / conversation-header / conversation-scroll-shell / conversation-empty）
      取自 deepwrite；卡片与时间线为自有。 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   PROPOSAL_STATUS_LABELS,
   presentableFailureMessage,
@@ -43,6 +43,7 @@ import {
   type ThreadView
 } from "../stores/useAgentStore";
 import { assistantEmotion } from "../utils/emotion-signal";
+import { isStuckToBottom, streamKey, type ScrollMetrics } from "../utils/stick-to-bottom";
 import { useNotificationStore } from "../stores/useNotificationStore";
 import { PREFILL_NOTICE } from "../utils/message-actions";
 
@@ -122,6 +123,12 @@ const contextBarVisible = computed(() =>
   showContextBar({ hasBook: book.hasBook, threadEmpty: messagesEmpty.value })
 );
 /**
+ * 欢迎首页（2026-11-09 用户给的参考图）：**只有「没打开作品 + 这一格还没有消息」才是首页**。
+ * 有书的空线程仍摆作品工作台（五张能力卡），有消息就是正常对话——首页不接管那两态。
+ * 这一格判据只有这一份，中栏的 is-welcome 与输入卡的 welcome 都读它，不各写一遍。
+ */
+const welcomeHome = computed(() => messagesEmpty.value && !book.hasBook);
+/**
  * 助手头像这一刻的表情（2026-10-21）：判定真身在 utils/emotion-signal.ts，
  * 这里只负责把本线程的六路信号喂进去——不在这写第二份「running ? …」。
  */
@@ -136,6 +143,133 @@ const assistantFace = computed(() =>
     hydrating: hydrating.value
   })
 );
+/**
+ * 对话自动跟随（2026-11-10 用户原话：「对话自动往下拉」）。
+ *
+ * **原来整仓一处滚动代码都没有**：中栏 `.conversation-scroll` 是原生滚动容器，
+ * 模型吐字时它只会老老实实变高，**谁也不会往下走**——用户得自己一路跟着拖滚动条。
+ * 这一块补的就是这件事，规则只有两条：
+ * ① 贴着底（离底 ≤ `STICK_SLACK`）⇒ 一有新内容就继续贴住；
+ * ② 他自己往上翻了 ⇒ **松手**，一个像素都不许动，改成在右下角报一句「有新内容」。
+ * 只做 ① 就是抢滚动条：用户回去读上一段，字一吐就把他拽回底部。
+ *
+ * 判据（什么算贴底、什么算有新内容）住在 `utils/stick-to-bottom.ts`，这里只接线。
+ */
+const scrollEl = ref<HTMLElement | null>(null);
+/** 现在是不是允许跟着走。用户的每一次滚动都重算它，不许有第二个写者。 */
+const sticking = ref(true);
+/** 松手期间下面来了新内容——给那一刻才出的那枚钮用。 */
+const unseenBelow = ref(false);
+/** 本帧的挂起句柄（`0` = 没有挂着的）。 */
+let pinFrame = 0;
+
+/**
+ * 内容形状：**只有它变了才谈滚不滚**。
+ * 不能 watch `tail` 那个对象——store 收 delta 是 `thread.streaming.message += text`（就地改写），
+ * 引用自始至终不变，watch 一次都不会响（真机踩过：跟随「写好了但不动」）。
+ * 所以这里读的是**长度**，见 utils/stick-to-bottom.ts 的 streamKey。
+ */
+const streamShape = computed(() =>
+  streamKey({
+    itemCount: items.value.length,
+    messageChars: tail.value.message.length,
+    reasoningChars: tail.value.reasoning.length,
+    openCards: openCards.value.length,
+    settledCards: settledCards.value.length,
+    expiredCards: expiredCards.value.length
+  })
+);
+
+function scrollMetrics(): ScrollMetrics | null {
+  const el = scrollEl.value;
+  if (el === null) return null;
+  return { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight };
+}
+
+/** 贴到底。**不做平滑滚动**：正在吐字时动画每帧都会被新内容打断，抖得比直接跳更难看。 */
+function pinToBottom(): void {
+  const el = scrollEl.value;
+  if (el === null) return;
+  el.scrollTop = el.scrollHeight;
+}
+
+/**
+ * 推迟到下一帧再贴。
+ *
+ * 直接写 `scrollTop` 会读到**还没排完版**的 `scrollHeight`——delta 是一帧好几个地到的，
+ * 每次渲染后都同步贴一次，贴出来的位置会落后半行到一行。一帧只贴一次，且贴在排版之后。
+ *
+ * **但窗口不可见时浏览器根本不产帧**（真机撞过：开发窗口被别的窗口挡住，
+ * `visibilityState` 是 `hidden`，`requestAnimationFrame` 的回调一次也不来），
+ * 那种时候跟随会静静地停住。所以可见性不是 `visible` 就直接贴：
+ * 没有渲染就没有「贴早了」这回事，而排版照样在算，`scrollHeight` 是准的。
+ */
+function schedulePin(): void {
+  if (document.visibilityState !== "visible") {
+    pinToBottom();
+    return;
+  }
+  if (pinFrame !== 0) return;
+  pinFrame = requestAnimationFrame(() => {
+    pinFrame = 0;
+    pinToBottom();
+  });
+}
+
+/**
+ * 窗口重新可见时补一次。
+ *
+ * 挂后台那段时间里布局可能已经长了好几屏（那一轮还在跑），回来看到的是「半截」。
+ * 只在仍处于跟随状态时补：他自己滚上去的那一段位置不该被这次回前台冲掉。
+ */
+function onWindowVisibility(): void {
+  if (document.visibilityState !== "visible") return;
+  if (sticking.value) schedulePin();
+}
+
+/** 用户的滚动：唯一的重算点。滚回底部即恢复跟随，并把「有新内容」收掉。 */
+function onConversationScroll(): void {
+  const metrics = scrollMetrics();
+  if (metrics === null) return;
+  sticking.value = isStuckToBottom(metrics);
+  if (sticking.value) unseenBelow.value = false;
+}
+
+watch(
+  streamShape,
+  () => {
+    if (sticking.value) {
+      schedulePin();
+      return;
+    }
+    // 松手时不抢滚动条，但要让他知道下面在长东西。只在跑的时候报；
+    // 回放历史那一波（水合）不该弹一枚「有新内容」。
+    if (running.value) unseenBelow.value = true;
+  },
+  { flush: "post" }
+);
+
+/**
+ * 换线程（换章 / 换书 / 新建对话）：回到「跟着最新那一条」。
+ * 内容还没到时先贴一次——同一格原来是别的线程的滚动位置，留着它等于开新章先看到半截。
+ */
+watch(
+  threadKey,
+  () => {
+    sticking.value = true;
+    unseenBelow.value = false;
+    void nextTick(pinToBottom);
+  },
+  { flush: "post" }
+);
+
+/** 松手之后点这枚钮：回去，并恢复跟随。 */
+function jumpToBottom(): void {
+  sticking.value = true;
+  unseenBelow.value = false;
+  pinToBottom();
+}
+
 function turnLabel(card: ProposalView): string {
   return cardTurnLabel(anchors.value, card.proposal.turnId);
 }
@@ -312,6 +446,11 @@ function openModelSettings(): void {
  * 字留在格子里由自己删。清空点只有这一处与 useHotkeys 的 submit 分支，两处读同一枚偏好。 */
 function onComposerSend(text: string): void {
   agent.send(text);
+  // 自己刚发的话必须先出现在眼前：他可能刚刚翻到上面在读，这一下要算「主动回到最新」，
+  // 而不是「松手状态继续松着」（松手的话他连自己那句都看不见）。
+  sticking.value = true;
+  unseenBelow.value = false;
+  schedulePin();
   if (clearComposerAfterSend()) {
     agent.clearDraft(threadKey.value);
   }
@@ -339,18 +478,25 @@ function startNewConversation(): void {
 let timer: number | undefined;
 onMounted(() => {
   agent.startListening();
+  document.addEventListener("visibilitychange", onWindowVisibility);
+  // 挂载就先贴一次底：切页回来 / 从设置中心回对话时，这一格里已经有整段历史，
+  // 它默认停在最顶上——那是「上一轮的结尾」，不是「现在」。watch 只在**变化**时响，
+  // 这一下只能在这里补。
+  void nextTick(pinToBottom);
   // 挂载即读配置并**预拉模型清单**（2026-10-11）：过去名单只在点开「模型 ▾」那一刻才拉，
   // 首开必等一次网络往返；预拉进缓存后点开就是秒开。失败不落缓存，真打开时再试。
   void provider.warmModelCache();
   timer = window.setInterval(() => agent.tick(), 1000);
 });
 onBeforeUnmount(() => {
+  document.removeEventListener("visibilitychange", onWindowVisibility);
+  if (pinFrame !== 0) cancelAnimationFrame(pinFrame);
   if (timer !== undefined) window.clearInterval(timer);
 });
 </script>
 
 <template>
-  <main class="conversation-pane" aria-label="智能体对话">
+  <main class="conversation-pane" :class="{ 'is-welcome': welcomeHome }" aria-label="智能体对话">
     <header class="conversation-header">
       <div class="conversation-heading-start">
         <div>
@@ -391,7 +537,11 @@ onBeforeUnmount(() => {
     </header>
 
     <div class="conversation-scroll-shell">
-      <div class="conversation-scroll transient-scrollbar">
+      <div
+        ref="scrollEl"
+        class="conversation-scroll transient-scrollbar"
+        @scroll.passive="onConversationScroll"
+      >
         <div v-if="messagesEmpty" class="conversation-empty">
           <BookWorkbench
             :has-book="book.hasBook"
@@ -460,6 +610,13 @@ onBeforeUnmount(() => {
           <p v-if="orphanError" class="turn-error">{{ orphanError }}</p>
         </div>
       </div>
+
+      <!-- 松手之后才会出现（`unseenBelow`）：下面在长东西，给一枚回去的钮。
+           它挂在 scroll-shell 上、不跟着滚——挂在滚动容器里的话，滚上去之后它自己也滚没了。 -->
+      <button v-if="unseenBelow" class="scroll-to-bottom" type="button" @click="jumpToBottom">
+        <AppIcon class="scroll-to-bottom-icon" name="chevron" :size="13" />
+        <span>回到最新</span>
+      </button>
     </div>
 
     <!-- 多稿候选面板（P0-②）：贴在中栏转录区与输入区之间——它说的是「刚刚这一轮跑出来的几稿」，
@@ -479,6 +636,7 @@ onBeforeUnmount(() => {
     </div>
 
     <ComposerBox
+      :welcome="welcomeHome"
       :running="running"
       :ready="ready"
       :model-value="agent.draftOf(threadKey)"
@@ -492,6 +650,7 @@ onBeforeUnmount(() => {
       :thinking-wire="provider.activeThinkingWire"
       :web-search-enabled="agent.webSearchEnabled"
       :sample-count="agent.sampleCount"
+      :disabled-tools="agent.disabledTools"
       :model-label="provider.modelLabel"
       :base-url="provider.activeBaseURL"
       @update:model-value="agent.setDraft(threadKey, $event)"
@@ -504,8 +663,10 @@ onBeforeUnmount(() => {
       @toggle-web-search="agent.toggleWebSearch()"
       @cycle-draft-sample="agent.cycleDraftSample()"
       @open-tool-roster="rosterOpen = true"
+      @toggle-tool="agent.toggleTool($event)"
       @open-model-select="openModelSelect"
       @open-palette="referenceMenu.summon('/')"
+      @run-command="referenceMenu.runCommand($event)"
       @open-mention="referenceMenu.summon('@')"
     />
 

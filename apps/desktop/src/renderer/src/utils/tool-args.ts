@@ -83,6 +83,9 @@ const PHRASE: Record<string, (a: Record<string, unknown>) => string | null> = {
 
 export function toolArgsText(tool: string, raw: string): ToolArgsText {
   const args = parse(raw);
+  // 空参数（`{}`）：真机截图上那是「列出文档 {}」——一对花括号是机器话，不是人话。
+  // 这类工具本来就不需要参数，直说一句更诚实；它也没有排查价值，兜底那条不适用。
+  if (args !== null && Object.keys(args).length === 0) return { text: "不带参数", plain: true };
   const phrase = args === null ? null : (PHRASE[tool]?.(args) ?? null);
   // 解析不了、或这个工具还没有人话版：原样摆。那是排查入口，不是要藏起来的东西。
   if (phrase === null) return { text: raw, plain: false };

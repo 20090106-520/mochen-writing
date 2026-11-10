@@ -3,6 +3,7 @@
 import { computed } from "vue";
 import { sourceKey, type AgentEvent } from "@mochen/contracts";
 import userAvatar from "../assets/avatar/user-avatar.png";
+import assistantAvatar from "../assets/avatar/assistant-avatar.png";
 import {
   buildTimeline,
   SOURCE_LIST_PREVIEW,
@@ -10,11 +11,11 @@ import {
   type StreamingTail,
   type TimelineBlock
 } from "../utils/timeline";
-import { EMOTION_DONE } from "../utils/emotion-signal";
-import EmotionAvatar from "./EmotionAvatar.vue";
 import AppIcon from "./AppIcon.vue";
 import ThinkingWindow from "./ThinkingWindow.vue";
 import { THINKING_LIVE_LABEL, thinkingWindowState } from "../utils/thinking-window";
+import { unfenceProseBlocks } from "../utils/chat-fence";
+import { isMostlyChinese } from "../utils/text-script";
 import { markdownToSimpleHtml } from "@mochen/fs-store/export-shared";
 import { formatHistoryTime } from "../utils/history-time";
 import { useNotificationStore } from "../stores/useNotificationStore";
@@ -34,22 +35,12 @@ const props = defineProps<{
   /** 助手头像这一刻该画哪种表情；判定唯一真身在 utils/emotion-signal.ts。 */
   emotion: string;
 }>();
-const blocks = computed<TimelineBlock[]>(() => buildTimeline(props.items, props.tail));
-
 /**
- * 头像只给**最后一条**助手正文做「活的那一枚」（2026-10-21）。
- * 历史消息的球用 `autostart:false` 静态渲染：一条长对话里几十枚同时跑 rAF，
- * 只为让翻过去的旧消息眨眼，是纯烧电。
- * 用户 2026-10-21 补充裁定：「它那个表情是自动的，不需要我自己手动点击切换」
- * ⇒ 这里不设任何图鉴 / 钉住 / 点击入口，画哪张脸完全由 emotion prop 自动决定。
+ * 头像改成固定画像后（2026-11-10），「只给最后一条动」这套判据连同 emotion prop 一起退场：
+ * 静态图不需要分谁是 live 谁不是。表情球与 emotion-signal 仍留在仓库里，
+ * 以后要拿它做独立的状态指示再接线。
  */
-const liveBlockId = computed(() => {
-  for (let i = blocks.value.length - 1; i >= 0; i -= 1) {
-    const block = blocks.value[i];
-    if (block?.kind === "message") return block.id;
-  }
-  return "";
-});
+const blocks = computed<TimelineBlock[]>(() => buildTimeline(props.items, props.tail));
 
 /**
  * 助手正文走 markdown 渲染（2026-10-10）。
@@ -68,7 +59,9 @@ const liveBlockId = computed(() => {
  * 模板只调用它、自己不判定。
  */
 function messageHtml(text: string): string {
-  return markdownToSimpleHtml(text);
+  // 先拆「中文正文被包进围栏」的块（2026-11-10）：提示词已要求不出代码块，
+  // 但历史消息改不回来，那类块渲染出来是一片等宽小字的灰块。判据在 utils/chat-fence.ts。
+  return markdownToSimpleHtml(unfenceProseBlocks(text).text);
 }
 /**
  * 空窗期那一格（批次 5-㊹）。判据在 utils 里，模板只读 `open`——
@@ -169,7 +162,10 @@ function runAction(action: MessageActionView, text: string): void {
                真机量到一整轮里三行「思考摘要」，每行 24px，summary 上的字只有标签、
                正文整段藏在折起来的身体里——三行加起来信息量是零，看着像卡住了。
                显不显示交给 CSS（`:not([open])`），模板不自己判一次。 -->
-          <span class="thinking-peek">{{ block.text }}</span>
+          <!-- 2026-11-10：非中文的思考不露这一行。模型常拿英文推理（真机那条是
+               「The user is greeting me with 你好…」），露出来就是一屏英文；
+               判据在 utils/text-script.ts，展开后原文一字不少。 -->
+          <span v-if="isMostlyChinese(block.text)" class="thinking-peek">{{ block.text }}</span>
           <!-- 2026-11-08：折起来时这里是一行灰字、展开后是一张卡，形态变化要有一枚可读的开关标记。
                与 `.tool-raw` 同一个 chevron 语言（收=0°、开=90°），11px 不抢标题。 -->
           <AppIcon class="thinking-caret" name="chevron" :size="11" />
@@ -291,16 +287,16 @@ function runAction(action: MessageActionView, text: string): void {
       </p>
 
       <div v-else class="message-line" :class="{ 'is-streaming': block.streaming }">
-        <!-- 【2026-10-21 用户裁定·助手头像】原先是品牌 sparkles 图标，现在换成 Emotion Ball：
-             用户原话「对话的那个头像 32 种表情都要用」。球画哪种表情由 emotion prop 决定
-             （utils/emotion-signal.ts 判定，组件不自己判）：最后一条正文那枚跟着本轮状态
-             自动换脸（思考 / 调工具 / 搜索 / 写作 / 完成 / 出错 / 被打断），
-             历史消息全部静态定格在「任务完成」；用户另有裁定「表情是自动的，不需要自己
-             手动点击切换」⇒ 这里没有任何按钮或图鉴入口，脸只随状态走。
-             球本身是装饰，谁说的由气泡位置说明，所以整块 aria-hidden。 -->
+        <!-- 【2026-11-10 用户裁定·助手头像换代】Emotion Ball 退役，换成一张真的角色画像。
+             用户原话「这两边的头像也不行」；放大、加对比、修静态帧之后那颗球仍是
+             「一颗球加两个点」，34px 下认不出是脸，问题不在尺寸而在形态。
+             现在这一格是 assets/avatar/assistant-avatar.png（墨灵：浅色脸 + 墨色外轮廓），
+             与用户那一侧同一套水彩画风（同一轮生成，prompt 共用同一段风格描述）。
+             表情球整套代码留在 components/EmotionAvatar.vue 与 vendor/emotion-ball，
+             本轮不再挂载——若之后要拿它做「工作状态指示」，不必重写。
+             头像是装饰，谁说的由气泡位置说明，所以整块 aria-hidden。 -->
         <span class="message-avatar" aria-hidden="true">
-          <EmotionAvatar v-if="block.id === liveBlockId" :emotion="props.emotion" />
-          <EmotionAvatar v-else :emotion="EMOTION_DONE" :animated="false" />
+          <img class="message-avatar-image" :src="assistantAvatar" alt="" />
         </span>
         <div class="message-body">
           <div class="message-content message-markdown">

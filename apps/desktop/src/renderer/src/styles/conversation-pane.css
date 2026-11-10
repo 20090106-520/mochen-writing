@@ -204,6 +204,47 @@ html[data-platform="darwin"] .conversation-header {
   border-width: 2px;
 }
 
+/* 「回到最新」（2026-11-10 · 对话自动跟随的另一半）。
+   只在用户自己往上翻、且下面又长出新内容时出现（`unseenBelow`），平时完全不占位。
+   挂在 `.conversation-scroll-shell` 上而不是滚动容器里：挂里面的话，用户一往上滚，
+   这枚钮自己也跟着滚出视口——它恰恰只在那时才有用。
+   浅底 + 细线 + 本仓那层小投影，与工作台那几张浅卡同一套语言，不新增色值。
+   右下角让出的那点内边距是给它自己的圆角留位置，不与输入卡争。 */
+.scroll-to-bottom {
+  position: absolute;
+  right: var(--conversation-inline-inset, 24px);
+  bottom: 10px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 11px 5px 7px;
+  border: 1px solid var(--theme-line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-soft);
+  font-size: 0.785714rem;
+  line-height: 1.4;
+  cursor: pointer;
+  animation: mochen-pop-in var(--dur-pop, 170ms) var(--ease-out-soft, ease-out);
+  transition:
+    color var(--dur-fast) var(--ease-out-soft),
+    border-color var(--dur-fast) var(--ease-out-soft);
+}
+
+.scroll-to-bottom:hover {
+  border-color: var(--text-faint);
+  color: var(--text-primary);
+}
+
+/* chevron 字形朝右（`.thinking-caret` 那枚是 0°/90° 竖着开合），这里要朝下。 */
+.scroll-to-bottom-icon {
+  flex: 0 0 auto;
+  transform: rotate(90deg);
+  color: var(--text-faint);
+}
+
 .conversation-empty {
   display: flex;
   align-items: center;
