@@ -8,6 +8,7 @@ import {
   APPEARANCE_FONT_FAMILY_LABELS,
   type AppearanceDensity,
   type AppearanceLiquidGlass,
+  type AppearanceLiquidGlassIntensity,
   type AppearanceMode
 } from "@mochen/contracts";
 import { useAppearanceStore } from "../stores/useAppearanceStore";
@@ -158,6 +159,22 @@ const LIQUID_GLASS_OPTIONS: Array<{ value: AppearanceLiquidGlass; label: string 
 
 function setLiquidGlass(liquidGlass: AppearanceLiquidGlass): void {
   void appearance.update({ liquidGlass });
+}
+
+/**
+ * 玻璃浓度（2026-11-10）：克制=出厂观感，浓郁=网上那种重模糊+高光环的「湿」玻璃。
+ * 只在玻璃本体开着时才有意义——关着时这行连 DOM 都不渲染，不摆一个拨不动的钮。
+ */
+const LIQUID_GLASS_INTENSITY_OPTIONS: Array<{
+  value: AppearanceLiquidGlassIntensity;
+  label: string;
+}> = [
+  { value: "calm", label: "克制" },
+  { value: "vivid", label: "浓郁" }
+];
+
+function setLiquidGlassIntensity(liquidGlassIntensity: AppearanceLiquidGlassIntensity): void {
+  void appearance.update({ liquidGlassIntensity });
 }
 
 /**
@@ -327,6 +344,26 @@ const editorFontOptions = Object.entries(APPEARANCE_FONT_FAMILY_LABELS).filter((
           {{ option.label }}
         </button>
       </div>
+    </div>
+    <div v-if="appearance.settings.liquidGlass !== 'off'" class="appearance-field">
+      <span class="appearance-field-label">玻璃浓度</span>
+      <div class="appearance-segment" role="radiogroup" aria-label="玻璃浓度">
+        <button
+          v-for="option in LIQUID_GLASS_INTENSITY_OPTIONS"
+          :key="option.value"
+          class="appearance-segment-button"
+          :class="{ 'is-active': appearance.settings.liquidGlassIntensity === option.value }"
+          type="button"
+          role="radio"
+          :aria-checked="appearance.settings.liquidGlassIntensity === option.value"
+          @click="setLiquidGlassIntensity(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+      <p class="settings-group-note">
+        浓郁档把模糊、高光与边缘那圈亮光整体推上去，是网上流行的那种「湿玻璃」；克制档保持出厂观感。
+      </p>
     </div>
     <!-- 边界同样写在屏上：玻璃只给「浮在内容之上」的表面，正文区刻意不玻璃化。
          2026-11-10 补一句指针高光：那一笔是这次「像玻璃」的关键，不写就没人会去试。 -->

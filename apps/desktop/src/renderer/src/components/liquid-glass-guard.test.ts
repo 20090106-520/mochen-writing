@@ -228,6 +228,90 @@ describe("液态玻璃 · 十六套皮肤 × 两个色调的文字对比度", ()
   });
 });
 
+describe("液态玻璃 · 浓度档（2026-11-10）", () => {
+  const base = {
+    setting: "on" as const,
+    glass: "standard" as const,
+    accent: "#8a6a3a",
+    background: "#f6eed4",
+    foreground: "#2c2415"
+  };
+
+  it("不传 intensity 就是克制档：老调用点一行不改，观感与从前一致", () => {
+    const implicit = liquidGlassMaterial(base);
+    const calm = liquidGlassMaterial({ ...base, intensity: "calm" });
+    expect(implicit).toEqual(calm);
+  });
+
+  it("浓郁档五处都往上推：模糊、饱和、光斑、亮带、内缘高光环", () => {
+    const calm = liquidGlassMaterial(base);
+    const vivid = liquidGlassMaterial({ ...base, intensity: "vivid" });
+    expect(parseFloat(vivid.blur)).toBeGreaterThan(parseFloat(calm.blur));
+    expect(parseFloat(vivid.blur)).toBeLessThanOrEqual(30);
+    expect(Number(vivid.saturate)).toBeGreaterThan(Number(calm.saturate));
+    expect(vivid.pointer).not.toBe(calm.pointer);
+    expect(vivid.sheen).not.toBe(calm.sheen);
+    // 内缘那圈亮边写进 shadow 的 inset 段（depth 一族），浓郁档必须更亮。
+    expect(vivid.shadow).not.toBe(calm.shadow);
+    expect(vivid.shadow).toMatch(/inset 0 0 0 1px rgb\(255 255 255 \/ 0\.5/);
+  });
+
+  it("浓郁档只许「湿」不许「实」：不透明度抬幅有上限，且不越过 0.94", () => {
+    for (const skin of appearanceSkins) {
+      for (const scheme of ["light", "dark"] as const) {
+        const tone = skin[scheme];
+        const calmAlpha = parseFill(
+          liquidGlassMaterial({
+            setting: "on",
+            glass: skin.glass,
+            accent: tone.accent,
+            background: tone.background,
+            foreground: tone.foreground
+          }).fill
+        ).alpha;
+        const vividAlpha = parseFill(
+          liquidGlassMaterial({
+            setting: "on",
+            glass: skin.glass,
+            intensity: "vivid",
+            accent: tone.accent,
+            background: tone.background,
+            foreground: tone.foreground
+          }).fill
+        ).alpha;
+        expect(
+          vividAlpha - calmAlpha,
+          `${skin.id}/${scheme} 浓郁档不透明度抬幅超了`
+        ).toBeLessThanOrEqual(0.05);
+        expect(vividAlpha, `${skin.id}/${scheme} 玻璃变磨砂板了`).toBeLessThan(0.95);
+      }
+    }
+  });
+
+  it("浓郁档的文字对比度同样要过 4.5:1（十六套皮肤 × 两个色调）", () => {
+    const failures: string[] = [];
+    for (const skin of appearanceSkins) {
+      for (const scheme of ["light", "dark"] as const) {
+        const tone = skin[scheme];
+        const material = liquidGlassMaterial({
+          setting: "on",
+          glass: skin.glass,
+          intensity: "vivid",
+          accent: tone.accent,
+          background: tone.background,
+          foreground: tone.foreground
+        });
+        const fill = parseFill(material.fill);
+        const worstBackdrop = mixHex(tone.background, tone.foreground, 0.5);
+        const effective = compositeOver(fill, worstBackdrop);
+        const ratio = contrastRatio(tone.foreground, effective);
+        if (ratio < 4.5) failures.push(`${skin.id}/${scheme} 只有 ${ratio.toFixed(2)}:1`);
+      }
+    }
+    expect(failures, `浓郁档深色玻璃掉到可读阈值以下：\n${failures.join("\n")}`).toEqual([]);
+  });
+});
+
 describe("液态玻璃 · 指针高光（2026-11-10）", () => {
   /** 取出某个选择器名下的规则体（本文件的形状：一条规则一个选择器组）。 */
   function blockOf(selector: string): string {

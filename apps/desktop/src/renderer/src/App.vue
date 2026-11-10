@@ -118,7 +118,8 @@ function applyTheme(): void {
       uiFontFamily: view.uiFontFamily,
       editorFontFamily: view.editorFontFamily,
       density: view.density,
-      liquidGlass: view.liquidGlass
+      liquidGlass: view.liquidGlass,
+      liquidGlassIntensity: view.liquidGlassIntensity
     });
   };
   const key = skinPaintKey(scheme, view);

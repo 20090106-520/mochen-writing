@@ -20,7 +20,11 @@
  * 而它到这块底色的对比度守卫（`liquid-glass-guard.test.ts`）按每套皮肤逐条量过。
  */
 
-import type { AppearanceGlass, AppearanceLiquidGlass } from "@mochen/contracts";
+import type {
+  AppearanceGlass,
+  AppearanceLiquidGlass,
+  AppearanceLiquidGlassIntensity
+} from "@mochen/contracts";
 import { hexToRgb, mixRgba, rgba } from "./appearanceColor";
 
 export interface LiquidGlassInput {
@@ -28,6 +32,8 @@ export interface LiquidGlassInput {
   setting: AppearanceLiquidGlass;
   /** 这套皮肤自己的玻璃档（`none` 表示它是素面）。 */
   glass: AppearanceGlass;
+  /** 浓度档（2026-11-10）：calm=克制（出厂默认），vivid=网上那种重模糊+高光环的「浓郁」。 */
+  intensity?: AppearanceLiquidGlassIntensity;
   accent: string;
   background: string;
   foreground: string;
@@ -123,7 +129,16 @@ export function liquidGlassMaterial(input: LiquidGlassInput): LiquidGlassMateria
      照抄就是「设置里点了开，屏幕上什么都没变」。强开要真的给玻璃：落最轻的 subtle 档，
      底色不透明度仍由深浅色调决定。`auto` + 素面皮依旧是关的，走不到这里。 */
   const tier = GLASS_TIERS[input.glass === "none" && enabled ? "subtle" : input.glass];
-  const alpha = deep ? tier.darkAlpha : tier.lightAlpha;
+  /* 浓郁档（2026-11-10）：不另立一张参数表，在皮肤档上乘一份增量——
+     皮肤档决定「这层玻璃多重」，浓度档决定「整体再往上推多少」，两件事各管各的。
+     blur 上限从 20 抬到 30：浓郁档就是冲着「网上那种」去的，30px 仍是少数浮层的局部模糊，
+     不铺满整屏，GPU 付得起。不透明度只加 0.03/0.04——浓郁要的是「湿」，不是「实」，
+     加多了就把玻璃推向磨砂板，可读性守卫那 4.5:1 也会更紧。 */
+  const vivid = input.intensity === "vivid";
+  const blur = vivid ? Math.min(tier.blur + 10, 30) : tier.blur;
+  const saturate = vivid ? tier.saturate + 0.15 : tier.saturate;
+  const alphaBoost = vivid ? (deep ? 0.03 : 0.04) : 0;
+  const alpha = Math.min(deep ? tier.darkAlpha : tier.lightAlpha, 0.94) + alphaBoost;
   const specular = deep ? "rgb(255 255 255 / 0.16)" : "rgb(255 255 255 / 0.72)";
 
   /**
@@ -132,10 +147,15 @@ export function liquidGlassMaterial(input: LiquidGlassInput): LiquidGlassMateria
    * 单层模糊 + 单色边读起来是一张「磨砂贴纸」：影子在卡外，卡面本身是平的。
    * 真正的玻璃板在边缘有一道收束——顶沿接光、底沿落影、四周一圈极淡的冷光。
    * 这三笔都写进 `box-shadow` 的 inset 段，不占额外图层也不改布局。
+   * 浓郁档把内缘那圈冷光加亮一倍——「网上那种」的第一眼特征就是这圈亮边。
    */
-  const depth = deep
-    ? `inset 0 -1px 0 rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.05)`
-    : `inset 0 -1px 0 rgb(0 0 0 / 0.05), inset 0 0 0 1px rgb(255 255 255 / 0.34)`;
+  const depth = vivid
+    ? deep
+      ? `inset 0 -1px 0 rgb(0 0 0 / 0.4), inset 0 0 0 1px rgb(255 255 255 / 0.1)`
+      : `inset 0 -1px 0 rgb(0 0 0 / 0.06), inset 0 0 0 1px rgb(255 255 255 / 0.52)`
+    : deep
+      ? `inset 0 -1px 0 rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.05)`
+      : `inset 0 -1px 0 rgb(0 0 0 / 0.05), inset 0 0 0 1px rgb(255 255 255 / 0.34)`;
 
   /**
    * 指针高光：只给**色标**（从中心到透明的三段），圆心与半径写在样式表那条规则里。
@@ -148,13 +168,17 @@ export function liquidGlassMaterial(input: LiquidGlassInput): LiquidGlassMateria
    * ⇒ 圆心必须留在**消费处**（`.composer-input-surface::after` 那条规则里），
    *   那里才是「哪个元素、哪一刻」的上下文。
    */
-  const pointer = deep
-    ? "rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.04) 42%, rgb(255 255 255 / 0) 72%"
-    : /* 浅色档这套色标是**冷调**的，不是白色（2026-11-10 真机量出来的）：
-         纸色卡面本身已经接近 `#FDFBF6`，纯白高光叠上去只差 2–3 个亮度级——
-         放大 4 倍看也「什么都没有」（试过 0.9 的白）。冷色才是这里唯一看得见的对比：
-         玻璃把背后的暖光折成一束偏冷的高光，正是真玻璃在暖光下的样子。 */
-      "rgb(228 240 255 / 0.5) 0%, rgb(240 247 255 / 0.2) 45%, rgb(240 247 255 / 0) 76%";
+  const pointer = vivid
+    ? deep
+      ? "rgb(255 255 255 / 0.2) 0%, rgb(255 255 255 / 0.07) 42%, rgb(255 255 255 / 0) 74%"
+      : "rgb(228 240 255 / 0.62) 0%, rgb(240 247 255 / 0.3) 45%, rgb(240 247 255 / 0) 78%"
+    : deep
+      ? "rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.04) 42%, rgb(255 255 255 / 0) 72%"
+      : /* 浅色档这套色标是**冷调**的，不是白色（2026-11-10 真机量出来的）：
+           纸色卡面本身已经接近 `#FDFBF6`，纯白高光叠上去只差 2–3 个亮度级——
+           放大 4 倍看也「什么都没有」（试过 0.9 的白）。冷色才是这里唯一看得见的对比：
+           玻璃把背后的暖光折成一束偏冷的高光，正是真玻璃在暖光下的样子。 */
+        "rgb(228 240 255 / 0.5) 0%, rgb(240 247 255 / 0.2) 45%, rgb(240 247 255 / 0) 76%";
 
   const accentGlow = rgba(input.accent, deep ? 0.34 : 0.42);
 
@@ -162,14 +186,25 @@ export function liquidGlassMaterial(input: LiquidGlassInput): LiquidGlassMateria
     enabled,
     fill: mixRgba(input.background, input.accent, TINT_RATIO[tone], alpha),
     /* 高光两层：一条斜向的宽光带 + 左上角一小块镜面反光。大幅位移靠 background-position，
-       位移不改布局、也不触发重排——hover 时只挪光。 */
-    sheen: deep
-      ? "linear-gradient(145deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.04) 32%, rgb(255 255 255 / 0) 58%), radial-gradient(120% 90% at 16% -12%, rgb(255 255 255 / 0.12), transparent 62%)"
-      : "linear-gradient(145deg, rgb(255 255 255 / 0.4) 0%, rgb(255 255 255 / 0.12) 30%, rgb(255 255 255 / 0) 56%), radial-gradient(120% 90% at 16% -12%, rgb(255 255 255 / 0.34), transparent 62%)",
-    ring: deep ? "rgb(255 255 255 / 0.14)" : rgba(input.foreground, 0.1),
+       位移不改布局、也不触发重排——hover 时只挪光。浓郁档整层加亮：那道斜向光带要
+       「看得见在流」，克制档它只负责静置时的层次。 */
+    sheen: vivid
+      ? deep
+        ? "linear-gradient(145deg, rgb(255 255 255 / 0.2) 0%, rgb(255 255 255 / 0.07) 32%, rgb(255 255 255 / 0) 58%), radial-gradient(120% 90% at 16% -12%, rgb(255 255 255 / 0.18), transparent 62%)"
+        : "linear-gradient(145deg, rgb(255 255 255 / 0.52) 0%, rgb(255 255 255 / 0.18) 30%, rgb(255 255 255 / 0) 56%), radial-gradient(120% 90% at 16% -12%, rgb(255 255 255 / 0.46), transparent 62%)"
+      : deep
+        ? "linear-gradient(145deg, rgb(255 255 255 / 0.14) 0%, rgb(255 255 255 / 0.04) 32%, rgb(255 255 255 / 0) 58%), radial-gradient(120% 90% at 16% -12%, rgb(255 255 255 / 0.12), transparent 62%)"
+        : "linear-gradient(145deg, rgb(255 255 255 / 0.4) 0%, rgb(255 255 255 / 0.12) 30%, rgb(255 255 255 / 0) 56%), radial-gradient(120% 90% at 16% -12%, rgb(255 255 255 / 0.34), transparent 62%)",
+    ring: vivid
+      ? deep
+        ? "rgb(255 255 255 / 0.2)"
+        : rgba(input.foreground, 0.14)
+      : deep
+        ? "rgb(255 255 255 / 0.14)"
+        : rgba(input.foreground, 0.1),
     specular,
-    blur: `${tier.blur}px`,
-    saturate: String(tier.saturate),
+    blur: `${blur}px`,
+    saturate: String(saturate),
     shadow: deep
       ? `0 1px 2px rgb(0 0 0 / 0.45), 0 16px 38px -16px ${rgba(input.accent, 0.34)}, inset 0 1px 0 ${specular}, ${depth}`
       : `0 1px 2px ${rgba(input.foreground, 0.1)}, 0 14px 34px -16px ${rgba(

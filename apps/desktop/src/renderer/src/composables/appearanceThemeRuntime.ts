@@ -16,6 +16,7 @@ import {
   type AppearanceDensity,
   type AppearanceEditorFontSelection,
   type AppearanceLiquidGlass,
+  type AppearanceLiquidGlassIntensity,
   type AppearanceThemeConfig,
   type AppearanceUiFontSelection
 } from "@mochen/contracts";
@@ -311,6 +312,8 @@ export function applyAppearanceThemeToDocument(input: {
   editorFontFamily: AppearanceEditorFontSelection;
   density: AppearanceDensity;
   liquidGlass: AppearanceLiquidGlass;
+  /** 玻璃浓度（2026-11-10）。缺省按克制档算——老调用点不传时观感与从前一致。 */
+  liquidGlassIntensity?: AppearanceLiquidGlassIntensity;
 }): void {
   const { scheme, theme } = input;
   const root = document.documentElement;
@@ -460,6 +463,7 @@ export function applyAppearanceThemeToDocument(input: {
   const glass = liquidGlassMaterial({
     setting: input.liquidGlass,
     glass: theme.glass,
+    ...(input.liquidGlassIntensity === undefined ? {} : { intensity: input.liquidGlassIntensity }),
     accent: theme.accent,
     background: theme.background,
     foreground: theme.foreground

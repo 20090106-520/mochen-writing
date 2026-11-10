@@ -128,6 +128,8 @@ describe("createRendererApi", () => {
       density: "standard",
       // 2026-11-09：液态玻璃也是顶层开关，缺字段补 auto（跟随皮肤自己的玻璃档）。
       liquidGlass: "auto",
+      // 2026-11-10：浓度档同在顶层，缺字段补 calm（克制=出厂观感）。
+      liquidGlassIntensity: "calm",
       // 2026-10-07 批次 5-㊴：质感四层与 skin 是 AppearanceThemeConfig 的一部分，
       // 夹具必须照抄出厂默认（appearance.json 里的老文件也正是这样被补齐的）。
       light: {

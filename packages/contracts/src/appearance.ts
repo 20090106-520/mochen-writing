@@ -47,6 +47,12 @@ export const AppearanceLiquidGlassSchema = z.enum(APPEARANCE_LIQUID_GLASSES);
 export type AppearanceLiquidGlass = z.infer<typeof AppearanceLiquidGlassSchema>;
 export const DEFAULT_APPEARANCE_LIQUID_GLASS: AppearanceLiquidGlass = "on";
 
+/** 液态玻璃的浓度档（2026-11-10）。calm=克制（出厂），vivid=网上那种重模糊+高光环的「浓郁」档。 */
+export const APPEARANCE_LIQUID_GLASS_INTENSITIES = ["calm", "vivid"] as const;
+export const AppearanceLiquidGlassIntensitySchema = z.enum(APPEARANCE_LIQUID_GLASS_INTENSITIES);
+export type AppearanceLiquidGlassIntensity = z.infer<typeof AppearanceLiquidGlassIntensitySchema>;
+export const DEFAULT_APPEARANCE_LIQUID_GLASS_INTENSITY: AppearanceLiquidGlassIntensity = "calm";
+
 export const APPEARANCE_FONT_SIZE_LIMITS = {
   uiFontSize: { min: 10, max: 24 },
   codeFontSize: { min: 10, max: 24 }
@@ -535,6 +541,10 @@ export const AppearanceSettingsSchema = z.object({
   density: AppearanceDensitySchema.default(DEFAULT_APPEARANCE_DENSITY),
   /** 液态玻璃材质（2026-11-09）。带 default：老 `appearance.json` 没这个字段时跟随皮肤。 */
   liquidGlass: AppearanceLiquidGlassSchema.default(DEFAULT_APPEARANCE_LIQUID_GLASS),
+  /** 玻璃浓度（2026-11-10）。带 default：老 JSON 没这个字段时落在克制档，观感与此前完全一致。 */
+  liquidGlassIntensity: AppearanceLiquidGlassIntensitySchema.default(
+    DEFAULT_APPEARANCE_LIQUID_GLASS_INTENSITY
+  ),
   light: AppearanceThemeConfigSchema,
   dark: AppearanceThemeConfigSchema,
   uiFontFamily: AppearanceUiFontSelectionSchema.default(DEFAULT_APPEARANCE_UI_FONT_FAMILY),
@@ -586,6 +596,7 @@ export function createDefaultAppearanceSettings(): AppearanceSettings {
     mode: "system",
     density: DEFAULT_APPEARANCE_DENSITY,
     liquidGlass: DEFAULT_APPEARANCE_LIQUID_GLASS,
+    liquidGlassIntensity: DEFAULT_APPEARANCE_LIQUID_GLASS_INTENSITY,
     light: createDefaultAppearanceTheme("light"),
     dark: createDefaultAppearanceTheme("dark"),
     uiFontFamily: DEFAULT_APPEARANCE_UI_FONT_FAMILY,
