@@ -80,6 +80,95 @@ export function skillBriefLine(ref: SkillRef): string {
 }
 
 /**
+ * 技能库索引的额度（2026-11-10）。
+ *
+ * 【它解决的是哪件事】挂入机制只能把**用户或自动识别挑中的**那几枚摆到模型眼前。
+ * 库里另外那几十枚——装进来的、网上扒的、自己写的——模型根本不知道存在，
+ * 于是「按需自己调用」实际退化成了「只能用手挑的」。这一段把整库的名字摆出去，
+ * 正文仍旧留在盘上（`use_skill` 现读），所以不吃技能正文额度。
+ *
+ * 【为什么要双闸】条数与字数各一道：只限条数挡不住「一份技能写了一千字 description」，
+ * 只限字数挡不住「三百条各一行」——后者会把提示词里的技能段挤到让人无法阅读。
+ * 超出的部分不静默丢弃，末尾如实报「还有 N 条没列出」并给出列全的办法。
+ */
+export const SKILL_INDEX_MAX_ITEMS = 24;
+export const SKILL_INDEX_MAX_CHARS = 1800;
+
+/** 索引里单条 description 的截断长度：够认出「它是干什么的」，不够塞进一份说明书。 */
+const SKILL_INDEX_DESC_CHARS = 48;
+
+export interface SkillIndexOptions {
+  maxItems?: number;
+  maxChars?: number;
+}
+
+export interface SkillIndexResult {
+  /** 直接拼进系统提示的整段文本；没有可列的技能时是空串（调用方据此不写这一段）。 */
+  text: string;
+  /** 剔掉挂入之后，库里还剩多少条。 */
+  total: number;
+  /** 这一段真正列出来几条。 */
+  shown: number;
+}
+
+/** 压成一行并截断：索引里每条只占一行，description 里换行会把清单拆成两段。 */
+function briefDesc(description: string): string {
+  const flat = description.replace(/\s+/g, " ").trim();
+  if (flat === "") return "（无说明）";
+  const chars = [...flat];
+  return chars.length <= SKILL_INDEX_DESC_CHARS
+    ? flat
+    : `${chars.slice(0, SKILL_INDEX_DESC_CHARS).join("")}…`;
+}
+
+/**
+ * 拼「技能库索引」这一段：库里**没挂入**的技能，一行一条（名称 · id · 一句说明）。
+ *
+ * 【为什么排除挂入的那些】挂入的技能已经在上下文里有一行清单（`skillBriefLine`，
+ * 带「何时用」），再列一遍等于同一份技能在提示词里出现两次，模型会当成两条。
+ *
+ * 【为什么按 id 排序】提示词要可复现：同一份技能库在同一本书里，每一轮拼出来的这一段
+ * 必须逐字相同，否则前缀缓存每轮都失效，而且用户看到的读数会莫名其妙地抖。
+ * 按 `id` 排是稳定序，且与技能库列表的排序口径无关（那页是按分类与推荐度排的）。
+ */
+export function skillIndexBlock(
+  refs: readonly SkillRef[],
+  pinned: readonly string[] = [],
+  options: SkillIndexOptions = {}
+): SkillIndexResult {
+  const maxItems = options.maxItems ?? SKILL_INDEX_MAX_ITEMS;
+  const maxChars = options.maxChars ?? SKILL_INDEX_MAX_CHARS;
+  const skip = new Set(pinned);
+  const rest = refs.filter((ref) => !skip.has(ref.id)).sort((a, b) => (a.id < b.id ? -1 : 1));
+  const total = rest.length;
+  if (total === 0) return { text: "", total: 0, shown: 0 };
+
+  const lines: string[] = [];
+  let used = 0;
+  for (const ref of rest) {
+    if (lines.length >= maxItems) break;
+    const line = `- ${ref.displayName || ref.dirName}（${ref.id}）：${briefDesc(ref.description)}`;
+    // +1 是换行符：按拼起来之后的实际长度算，否则「刚好卡在额度上」的那一条会被多算。
+    if (used + [...line].length + 1 > maxChars) break;
+    lines.push(line);
+    used += [...line].length + 1;
+  }
+  // 一条都塞不进（额度被调得过小）时不硬塞半条：返回空段，让调用方当「没有索引」。
+  if (lines.length === 0) return { text: "", total, shown: 0 };
+
+  const head =
+    "技能库里还有下面这些技能，本轮**没有挂入**、正文也没有载入：" +
+    '看中哪一份，先 use_skill("<id>") 读出全文再照它做；' +
+    "**没读正文之前，不要凭名字猜它的做法**（名字只说明它治什么，不说明怎么治）。";
+  const tail =
+    lines.length < total
+      ? `（库里共 ${total} 条，这里先列 ${lines.length} 条；剩下的用 use_skill 不带参数可以列全。）`
+      : "";
+  const text = [head, ...lines, tail].filter((one) => one !== "").join("\n");
+  return { text, total, shown: lines.length };
+}
+
+/**
  * 拆 id。渲染层把 `${source}:${dirName}` 递进 startTurn，主进程要还原成 (来源, 目录名) 才读得到盘。
  * 拆不出来（没有冒号、来源不认识）⇒ 返回 null，调用方给一句中文——绝不猜一个来源去读盘。
  */

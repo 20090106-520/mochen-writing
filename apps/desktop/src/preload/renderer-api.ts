@@ -85,6 +85,16 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     appearanceSave: (settings) => invoke(IPC_CHANNELS.appearanceSave, settings),
     listSkills: () => invoke(IPC_CHANNELS.skillsList),
     readSkill: (source, relPath) => invoke(IPC_CHANNELS.skillsRead, source, relPath),
+    // 技能兑换码：只递一整串码，装到哪个目录由主进程解码后自己拼——preload 不加判定。
+    redeemSkill: (code) => invoke(IPC_CHANNELS.skillsRedeem, code),
+    // 在线技能源（2026-11-10）：只递一个地址字符串。仓库坐标、目录名、落盘位置全由主进程解析，
+    // preload 不拼 URL、不加判定——多加一份判据就是第二份，迟早与主进程不一致。
+    listRemoteSkills: (idOrUrl) => invoke(IPC_CHANNELS.skillsRemoteList, idOrUrl),
+    previewRemoteSkill: (url) => invoke(IPC_CHANNELS.skillsRemotePreview, url),
+    installRemoteSkill: (url) => invoke(IPC_CHANNELS.skillsRemoteInstall, url),
+    // 自己写 / 删：草稿与目录名由主进程校验，preload 只转手。
+    saveAuthoredSkill: (draft) => invoke(IPC_CHANNELS.skillsAuthorSave, draft),
+    removeSkill: (dirName) => invoke(IPC_CHANNELS.skillsRemove, dirName),
     // 技能市场三条（2026-10-07）。装/卸只传清单里的 dirName 字符串，
     // 路径一律由主进程按清单自己拼——渲染层碰不到绝对路径（见 skill-market-service.ts）。
     listMarket: () => invoke(IPC_CHANNELS.marketList),

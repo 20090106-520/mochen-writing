@@ -294,10 +294,10 @@ describe("≤1220px 三栏收窄 · 必须排在 styles.css 自己的默认值�
     expect(body).toContain("--left-pane-width: 262px");
     expect(body).toContain("--right-pane-width: 395px");
     expect(body).toContain("--center-pane-min: 320px");
-    // 【2026-10-25】窄窗的两侧留白收成一个数（34px ÷ 2 = 每侧 17px），
-    // 不再是「给正文列另写一条宽度公式」——那正是卡与正文列分家的原因
-    // （真机读数：1200 / 1000 / 860 三档卡比正文列窄 14px，每侧差 7px）。
-    expect(body).toContain("--conversation-inline-inset: 17px");
+    // 【2026-10-25】窄窗的两侧留白收成一个数，不再是「给正文列另写一条宽度公式」——
+    // 那正是卡与正文列分家的原因（真机读数：1200 / 1000 / 860 三档卡比正文列窄 14px）。
+    // 【2026-11-09】用户裁定「两边边框太大了」：每侧 17 → 10（合计 20）。
+    expect(body).toContain("--conversation-inline-inset: 10px");
     expect(body).toContain(".context-caption");
   });
 

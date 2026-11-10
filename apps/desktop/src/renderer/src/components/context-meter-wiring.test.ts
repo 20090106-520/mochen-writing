@@ -155,7 +155,9 @@ describe("样式", () => {
     const panelRule = ruleBlock(css, ".context-meter-panel");
     expect(panelRule).toContain("var(--theme-line)");
     expect(panelRule).toContain("border-radius: 18px");
-    expect(panelRule).toContain("backdrop-filter: blur(18px)");
+    // 2026-11-09：毛玻璃收归 liquid-glass.css 总闸，基态只留不透明底（否则「关」关不干净）。
+    expect(panelRule).toContain("background: var(--surface-raised)");
+    expect(panelRule).not.toContain("backdrop-filter");
   });
 
   it("深色覆写跟着来（漏了就是深色下浮层没有层次）", () => {

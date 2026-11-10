@@ -56,6 +56,9 @@ import { resolveTitleBarOverlayColors, resolveTitleBarPreferDark } from "./title
 import { createSkillService, registerSkillIpc } from "./skill-service.js";
 import { seedBuiltinSkills } from "./builtin-skills.js";
 import { createSkillMarketService, registerSkillMarketIpc } from "./skill-market-service.js";
+import { createSkillRedeemService, registerSkillRedeemIpc } from "./skill-redeem-service.js";
+import { createSkillRemoteService, registerSkillRemoteIpc } from "./skill-remote-service.js";
+import { createSkillAuthorService, registerSkillAuthorIpc } from "./skill-author-service.js";
 import { SKILL_CATALOG } from "./skill-catalog.js";
 import { createPluginService, registerPluginIpc } from "./plugin-service.js";
 import { seedBuiltinPlugins } from "./builtin-plugins.js";
@@ -405,6 +408,18 @@ app.whenReady().then(async () => {
     dirOf: (source) => skillService.dirOf(source)
   });
   registerSkillMarketIpc((channel, fn) => ipcMain.handle(channel, fn), skillMarket);
+  // 技能兑换码（离线自包含）：与市场一样只写全局技能目录，且装之前先查同名、**绝不覆盖**。
+  // 全局根仍借只读那套的 dirOf，装配层不重拼 `<appData>/skills`（第二份判据）。
+  const skillRedeem = createSkillRedeemService({ dirOf: skillService.dirOf });
+  registerSkillRedeemIpc((channel, fn) => ipcMain.handle(channel, fn), skillRedeem);
+  // 在线技能源（2026-11-10）：列源 / 取正文 / 装进全局目录。正文运行时从上游取，仓里不存副本；
+  // 只写全局技能目录，且装之前查同名、绝不覆盖（与市场、兑换码同一条边界）。
+  const skillRemote = createSkillRemoteService({ dirOf: skillService.dirOf });
+  registerSkillRemoteIpc((channel, fn) => ipcMain.handle(channel, fn), skillRemote);
+  // 自己写技能与删除（同一条写边界）。删除独立成一条，是因为内置市场的卸载只认它自己的清单，
+  // 网上装的、自写的都不在清单里——不给这条通道就是「装得进来、删不掉」。
+  const skillAuthor = createSkillAuthorService({ dirOf: skillService.dirOf });
+  registerSkillAuthorIpc((channel, fn) => ipcMain.handle(channel, fn), skillAuthor);
   // 改稿历史：列、读一条、把一篇文稿回滚到某条备份。回滚要落盘，所以它跟着**当前书**走——
   // 换书之后句柄就失效了，fs-store 那边的 realpath 守卫会直接拒掉越界的那条。
   const changesService = createChangesService({

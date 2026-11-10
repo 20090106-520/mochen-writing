@@ -233,6 +233,21 @@ describe("createRendererApi", () => {
     await api.listMarket();
     await api.installMarketSkill("chapter-intent");
     await api.uninstallMarketSkill("chapter-intent");
+    // 在线技能源五条（2026-11-10）：三条只递**一段地址文本**，一条递草稿对象、一条递目录名。
+    // 一律不递路径——落盘位置由主进程按解析出的目录名自己拼（skill-remote-service.ts）。
+    await api.listRemoteSkills("anthropics/skills");
+    await api.previewRemoteSkill("https://github.com/anthropics/skills/tree/main/skills/docx");
+    await api.installRemoteSkill("https://github.com/anthropics/skills/tree/main/skills/docx");
+    await api.saveAuthoredSkill({
+      dirName: "scene-smell",
+      displayName: "场景里的气味",
+      description: "",
+      stages: [],
+      appliesTo: [],
+      body: "正文",
+      overwrite: false
+    });
+    await api.removeSkill("scene-smell");
     // 插件四枚（2026-10-07 批次 5-㉚）：与技能市场同一条铁律——
     // 渲染层只递**安装名**（dirName），不递路径。多递一个参数就该红：
     // 它拿到路径就能决定读哪、删哪，那道闸就没了。
@@ -270,7 +285,7 @@ describe("createRendererApi", () => {
     await api.webdavList();
     await api.webdavPull("book-2026-10-15-12-00-00");
 
-    expect(calls.length).toBe(67);
+    expect(calls.length).toBe(72);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -332,6 +347,12 @@ describe("createRendererApi", () => {
       "market:list",
       "market:install",
       "market:uninstall",
+      // 在线技能源五条（2026-11-10）。同样不许从 IPC_CHANNELS 派生，理由同上。
+      "skills:remote-list",
+      "skills:remote-preview",
+      "skills:remote-install",
+      "skills:author-save",
+      "skills:remove",
       // 插件四枚（2026-10-07 批次 5-㉚）。同样不许从 IPC_CHANNELS 派生，理由同上。
       "plugins:list",
       "plugins:toggle",
@@ -416,6 +437,23 @@ describe("createRendererApi", () => {
       [],
       ["chapter-intent"],
       ["chapter-intent"],
+      // 在线技能源五条的实参（2026-11-10）：三条各只收一段地址文本，存收整个草稿对象，
+      // 删收目录名。**一个落盘路径都不许出现**——位置由主进程按解析出的目录名自己拼。
+      ["anthropics/skills"],
+      ["https://github.com/anthropics/skills/tree/main/skills/docx"],
+      ["https://github.com/anthropics/skills/tree/main/skills/docx"],
+      [
+        {
+          dirName: "scene-smell",
+          displayName: "场景里的气味",
+          description: "",
+          stages: [],
+          appliesTo: [],
+          body: "正文",
+          overwrite: false
+        }
+      ],
+      ["scene-smell"],
       // 插件四枚的实参：listPlugins 不收；toggle 收「目录名 + 一个布尔」；
       // uninstall 与读源码各只收目录名。**一个路径都不许出现**——
       // 这一列就是那道闸的形状证明，多一个字符串（比如 "/root/plugins/x"）就说明闸漏了。
@@ -478,6 +516,8 @@ describe("createRendererApi", () => {
       "importTxtCommit",
       "importTxtPreview",
       "installMarketSkill",
+      // 在线技能源（2026-11-10）：只递地址文本 / 草稿 / 目录名，落盘位置由主进程解析。
+      "installRemoteSkill",
       "interruptTurn",
       "listBookBackups",
       "listChanges",
@@ -486,6 +526,7 @@ describe("createRendererApi", () => {
       "listPlugins",
       // 作品库（2026-10-21）：最近打开/新建过的书，按时间倒序。
       "listRecentBooks",
+      "listRemoteSkills",
       "listSessions",
       "listSkills",
       // 回收站三条（2026-10-10）：删=移动进 .mochen/trash，还原=按小抄搬回。
@@ -506,6 +547,7 @@ describe("createRendererApi", () => {
       "openWebSource",
       "pickBookDirectory",
       "pickDraft",
+      "previewRemoteSkill",
       "profileEnable",
       "profileRemove",
       "profileUpsert",
@@ -521,15 +563,19 @@ describe("createRendererApi", () => {
       "readDoc",
       "readPluginSource",
       "readSkill",
+      // 技能兑换码（离线自包含）：只递一整串码，多一枚就是多开的口子。
+      "redeemSkill",
       // 只重算一篇（2026-10-10 P1-4 后半）：它进这份点名册的理由与别的改稿通道一样——
       // 少一枚渲染层就调不到（退回整本重扫），多一枚就是多开的口子。
       "refreshDoc",
+      "removeSkill",
       // 全书替换（2026-10-15）：这条通道会把整本书翻一遍，和其它改稿通道一样进这份点名册：
       // 少一枚面板点不到、多一枚就是多开的口子。
       "replaceAllInBook",
       "restoreBookBackup",
       "restoreChange",
       "restoreTrash",
+      "saveAuthoredSkill",
       "saveFile",
       "saveMeta",
       "startTurn",

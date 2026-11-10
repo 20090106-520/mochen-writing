@@ -37,6 +37,7 @@ const CHIP_ORDER = [
   "draft",
   "tools",
   "palette",
+  "auto-skills",
   "work-mode",
   "permission"
 ];
@@ -62,12 +63,12 @@ describe("composer-chips · 八枚真开关/入口，排队不做按钮（F-D + 
     expect(chip("work-mode")?.slot).toBe("more");
   });
 
-  it("两枚都是真开关，所以带按下态、不带下拉三角", () => {
+  it("有按下态；2026-11-09 起也带三角（先展开两档再选，不再点一下就切）", () => {
     // 计划档是**按下去生效**的两态，`aria-pressed` 用 active 才不撒谎；
-    // 点一下就切换、没有第二层可展开 ⇒ caret 恒假。
+    // 打开方式统一后它仍是开关态，但入口一律展开二级列表 ⇒ caret 为真。
     expect(chip("work-mode", { workMode: "plan" })?.active).toBe(true);
     expect(chip("work-mode", { workMode: "act" })?.active).toBe(false);
-    expect(chip("work-mode")?.caret).toBe(false);
+    expect(chip("work-mode")?.caret).toBe(true);
     // 事件名走 CHIP_EMIT 这张穷尽表（铁律 6）：少一格 tsc 当场报，少一个事件这里报。
     expect(CHIP_EMIT["work-mode"]).toBe("toggle-work-mode");
   });
@@ -112,7 +113,7 @@ describe("composer-chips · 八枚真开关/入口，排队不做按钮（F-D + 
   it("无书 ⇒ permission chip disabled 且文案不是任何档位名（透传 permissionChipView 的诚实）", () => {
     const permission = chip("permission", { hasBook: false, mode: null });
     expect(permission?.disabled).toBe(true);
-    expect(permission?.text).toBe("未打开作品目录");
+    expect(permission?.text).toBe("未选作品");
     expect(permission?.text).not.toBe("只读参考"); // 波 1 缺陷②「捏造档位名」的反向钉
   });
 
@@ -270,33 +271,46 @@ describe("composer-chips · #112 撤销合并口径，两枚控件各说各的",
     expect(chip("permission", { hasBook: false, mode: null })?.icon).toBe("folder");
   });
 
-  it("只有打开弹层的入口带下拉三角：真开关（思考循环 / 联网开关 / 多稿循环 / 工作模式）没有「更多」可展开", () => {
-    for (const id of ["model", "tools", "palette", "permission"])
-      expect(chip(id)?.caret, `${id} 是入口，该带三角`).toBe(true);
-    for (const id of ["thinking", "web-search", "draft", "work-mode"])
-      expect(chip(id)?.caret, `${id} 是开关，不该带三角`).toBe(false);
+  it("2026-11-09/10 裁定：「更多」四组 + 独立的自动技能入口一律带三角，两枚真开关仍不带", () => {
+    // 截图里四行形态不齐（工具/命令有下拉，多稿/工作模式点一下就切），现在四组全是
+    // 「展开同款二级列表」的入口；自动技能独立成 chip 但同样展开一张卡片，所以也带三角。
+    // 首行常驻的思考/联网仍是点一下走一格的真开关。
+    for (const id of [
+      "model",
+      "permission",
+      "draft",
+      "tools",
+      "palette",
+      "auto-skills",
+      "work-mode"
+    ])
+      expect(chip(id)?.caret, `${id} 该带三角`).toBe(true);
+    for (const id of ["thinking", "web-search"])
+      expect(chip(id)?.caret, `${id} 是首行真开关，不该带三角`).toBe(false);
   });
 
   // 2026-11-08 用户裁定（参照 MiniMax Code 输入卡的分区逻辑）：
   // 首行只留最常用的运行配置 + 权限档；其余低频开关收进「更多」弹层，功能一个不丢。
-  // 2026-11-09 参考图②：模型名落在发送键左侧（右端），左端只剩两枚真开关。
-  it("分区：首行左端思考/联网，右端模型/权限；多稿/工具/命令/工作模式进「更多」", () => {
+  // 2026-11-09 参考图②：模型名落在发送键左侧（右端）。
+  // 2026-11-10「自动技能不要在里面」：它从 more 分区挪到首行左端，独立成一枚入口。
+  it("分区：左端思考/联网/自动技能，右端模型/权限；多稿/工具/命令/工作模式进「更多」", () => {
     const chips = composerChips(input());
     const left = chips.filter((c) => c.slot === "left").map((c) => c.id);
     const right = chips.filter((c) => c.slot === "right").map((c) => c.id);
     const more = chips.filter((c) => c.slot === "more").map((c) => c.id);
-    expect(left).toEqual(["thinking", "web-search"]);
+    expect(left).toEqual(["thinking", "web-search", "auto-skills"]);
     expect(right).toEqual(["model", "permission"]);
     expect(more).toEqual(["draft", "tools", "palette", "work-mode"]);
-    // 反向钉：八枚一枚不少——分区变了，功能集合没变。
-    expect(new Set([...left, ...right, ...more]).size).toBe(8);
+    // 反向钉：九枚一枚不少——分区变了，功能集合没变。
+    expect(new Set([...left, ...right, ...more]).size).toBe(9);
   });
 });
 
 describe("composer-chips · CHIP_EMIT 与 ComposerChipId 同集", () => {
-  it("八枚 chip 各有唯一事件名，漏一键就会发出 undefined 事件长成死按钮", () => {
+  it("九枚 chip 各有唯一事件名，漏一键就会发出 undefined 事件长成死按钮", () => {
     // 键集必须与 ComposerChipId 完全一致：这枚「按了没反应的 chip」正是红线。
     expect(Object.keys(CHIP_EMIT).sort()).toEqual([
+      "auto-skills",
       "draft",
       "model",
       "palette",
@@ -306,7 +320,7 @@ describe("composer-chips · CHIP_EMIT 与 ComposerChipId 同集", () => {
       "web-search",
       "work-mode"
     ]);
-    expect(new Set(Object.values(CHIP_EMIT)).size).toBe(8);
+    expect(new Set(Object.values(CHIP_EMIT)).size).toBe(9);
     expect(CHIP_EMIT.permission).toBe("open-permission-menu");
     expect(CHIP_EMIT.palette).toBe("open-palette");
     expect(CHIP_EMIT.thinking).toBe("cycle-thinking");
@@ -314,6 +328,7 @@ describe("composer-chips · CHIP_EMIT 与 ComposerChipId 同集", () => {
     expect(CHIP_EMIT.draft).toBe("cycle-draft-sample");
     expect(CHIP_EMIT.tools).toBe("open-tool-roster");
     expect(CHIP_EMIT.model).toBe("open-model-select");
+    expect(CHIP_EMIT["auto-skills"]).toBe("open-auto-skills");
   });
 
   it("八枚 chip 的 id 都能在 CHIP_EMIT 里取到事件名（穷尽性运行时钉）", () => {

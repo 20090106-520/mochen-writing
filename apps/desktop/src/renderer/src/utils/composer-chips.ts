@@ -20,7 +20,15 @@ import { permissionChipView } from "./permission-chip";
 import { toolRoster } from "./tool-roster";
 
 export type ComposerChipId =
-  "permission" | "work-mode" | "thinking" | "web-search" | "draft" | "tools" | "model" | "palette";
+  | "permission"
+  | "work-mode"
+  | "thinking"
+  | "web-search"
+  | "draft"
+  | "tools"
+  | "model"
+  | "palette"
+  | "auto-skills";
 
 /**
  * chip 住在输入卡工具行的哪一区。
@@ -51,7 +59,11 @@ export interface ComposerChipView {
    * 比在模板里拼字符串可靠（`.vue` 的 `<script setup>` 根本不进类型程序）。
    */
   icon: IconName;
-  /** 带不带下拉三角：只有「点开一层弹层」的入口为真；两枚真开关（循环 / 开关）没有「更多」可展开。 */
+  /**
+   * 带不带下拉三角。
+   * 2026-11-09 用户裁定：「更多」弹层里四项一律是「展开下一层」的入口，全部为真；
+   * 首行常驻的真开关（思考 / 联网）才没有第二层可展开。
+   */
   caret: boolean;
 }
 
@@ -63,7 +75,8 @@ export type ComposerChipEvent =
   | "cycle-draft-sample"
   | "open-tool-roster"
   | "open-model-select"
-  | "open-palette";
+  | "open-palette"
+  | "open-auto-skills";
 
 // CHIP_EMIT 住在这一 `.ts` 文件而不是 ComposerBox.vue：本仓 verify 链用裸 tsc，
 // tsconfig.web.json 的 include 只收 `.ts`/`.d.ts`，`.vue` 的 `<script setup>` 永远不进类型程序——
@@ -78,7 +91,10 @@ export const CHIP_EMIT: Record<ComposerChipId, ComposerChipEvent> = {
   draft: "cycle-draft-sample",
   tools: "open-tool-roster",
   model: "open-model-select",
-  palette: "open-palette"
+  palette: "open-palette",
+  // 这一枚常驻首行，ComposerBox 的 onChipClick 就地展开自己的卡片，不会真的 emit 这个事件；
+  // 键留着只为 Record<ComposerChipId, …> 穷尽表不漏。入口本身有真身，不是死键。
+  "auto-skills": "open-auto-skills"
 };
 
 /**
@@ -111,9 +127,10 @@ function workModeChip(input: { hasBook: boolean; workMode: WorkMode }): Composer
       title: "还没打开作品目录，工作模式改不了（它是这本书的设置）。",
       active: false,
       // 低频开关：收进「更多」弹层（2026-11-08 首行常驻 + 更多弹层的分区裁定）。
+      // 2026-11-09：禁用态也带三角——四项形态一致，点开后能看见「为什么改不了」。
       slot: "more",
       icon: "folder",
-      caret: false
+      caret: true
     };
   }
   const label = WORK_MODE_LABELS[input.workMode];
@@ -123,15 +140,15 @@ function workModeChip(input: { hasBook: boolean; workMode: WorkMode }): Composer
     disabled: false,
     title:
       input.workMode === "plan"
-        ? `工作模式：${label}。这一轮它只讲打算、不动稿，提案批了也不落盘。点击切到「${WORK_MODE_LABELS.act}」。`
-        : `工作模式：${label}。提案经你批准就会写入磁盘。点击切到「${WORK_MODE_LABELS.plan}」先看计划。`,
+        ? `工作模式：${label}。这一轮它只讲打算、不动稿，提案批了也不落盘。点击展开两档选一（另一档「${WORK_MODE_LABELS.act}」）。`
+        : `工作模式：${label}。提案经你批准就会写入磁盘。点击展开两档选一（另一档「${WORK_MODE_LABELS.plan}」）。`,
     // 真开关：计划档是「按下去生效」的两态，aria-pressed 用它才不撒谎。
     active: input.workMode === "plan",
     // 与权限档同属「能碰多大」那一摞；但它不是每轮都改 ⇒ 收进「更多」弹层。
     slot: "more",
     icon: WORK_MODE_CHIP_ICON[input.workMode],
-    // 点一下就切换，没有第二层弹层可展开。
-    caret: false
+    // 2026-11-09：点开同款二级列表再选，不再一下就切档。
+    caret: true
   };
 }
 
@@ -203,12 +220,13 @@ function draftChip(sampleCount: DraftSampleCount): ComposerChipView {
     disabled: false,
     title:
       sampleCount === 1
-        ? `本轮出站请求带 sampleCount=1：一轮只跑一次生成，与不开这枚开关时一字不差。点击按 ${cycle} 循环。`
-        : `本轮出站请求带 sampleCount=${sampleCount}：一轮里静默跑 ${sampleCount} 次生成，再把这几稿一起摆给你挑一稿落盘，token 成本是单稿的 ${sampleCount} 倍。点击按 ${cycle} 循环。`,
+        ? `本轮出站请求带 sampleCount=1：一轮只跑一次生成，与不开这枚开关时一字不差。点击展开档位列表（${cycle}）。`
+        : `本轮出站请求带 sampleCount=${sampleCount}：一轮里静默跑 ${sampleCount} 次生成，再把这几稿一起摆给你挑一稿落盘，token 成本是单稿的 ${sampleCount} 倍。点击展开档位列表（${cycle}）。`,
     active: sampleCount > 1,
     slot: "more",
     icon: "copy",
-    caret: false
+    // 2026-11-09：不再按一下就切档，先展开同款二级列表再选。
+    caret: true
   };
 }
 
@@ -279,7 +297,7 @@ export function composerChips(input: {
       text: "工具",
       disabled: false,
       // 枚数从清单本身数出来，不手抄「5」：contracts 加工具时这条提示跟着变，不会指着一份不存在的名单。
-      title: `看它带哪 ${roster.length} 枚工具（只读清单，工具由模型自己挑，这里不能单独禁用）`,
+      title: `展开这一轮带的 ${roster.length} 枚工具：点一行即可摘下或带回（工具仍由模型自己挑）`,
       active: false,
       slot: "more",
       icon: "list",
@@ -291,10 +309,25 @@ export function composerChips(input: {
       disabled: false,
       // T9-1：实测 hotkeys.ts 的全局 Ctrl 族没有 k，键位真身是裸 / 键；
       // 旧文案宣传的「Ctrl+K 同一个入口」是不存在的键位，反向钉见 composer-chips.test.ts 第二条。
-      title: "打开 / 命令菜单（与直接按 / 键同一个入口）",
+      title: "展开命令列表：选中即执行，与直接按 / 键是同一批命令",
       active: false,
       slot: "more",
       icon: "sparkles",
+      caret: true
+    },
+    {
+      id: "auto-skills",
+      text: "技能",
+      disabled: false,
+      // 2026-11-10 用户裁定后这张卡是**整库**：不只能看自动挑的，也能自己挂/取。
+      // 文案从「自动技能」改成「技能」——挂着名字写「自动」，用户会以为只能看不能选。
+      title: "这一轮用哪几枚技能：整库可选，自动挑的会标出来；点开就能挂上或取下",
+      // 按下态不摆在这里：开关与这一轮挂了什么都在二级卡片里，卡面这行只是个入口。
+      active: false,
+      // 2026-11-10 用户裁定「不要在里面」：这一枚不进「更多」弹层，常驻输入卡首行左端。
+      // 点它直接展开自己的那张卡片，不先经过「更多」的四行首层。
+      slot: "left",
+      icon: "wand",
       caret: true
     },
     workModeChip({ hasBook: input.hasBook, workMode: input.workMode }),

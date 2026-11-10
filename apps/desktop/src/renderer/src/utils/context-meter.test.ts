@@ -267,6 +267,38 @@ describe("contextPressureReading（窗口压力 + 已挂入项数）", () => {
     expect(contextMeterSummary(p).text).toContain(formatApproxTokens(1100));
   });
 
+  it("技能库索引单列一格（2026-11-10）：那格是「挂了 20 项」还是「涨了 20 行名字」，不能混", () => {
+    const p = withWindow({ skillIndex: { chars: 1600, shown: 20, total: 23 } });
+    const r = contextPressureReading(p);
+    expect(r.detail).toContain("库索引 20/23 条 1600 字");
+    // 主读那一行只有百分比与 tokens：分项再挤进去会折行，还会断在数字中间。
+    expect(r.text).toBe("窗口 ≈4% · 900 / 24.0k tokens");
+    expect(r.detail).not.toContain("技能 ");
+    expect(r.title).toContain("没挂入");
+  });
+
+  it("只有库索引、一条正文都不装时也显形：二十行技能名也是真会发出去的字", () => {
+    const p = withWindow({
+      items: [],
+      chars: 1600,
+      approxTokens: 1200,
+      skillIndex: { chars: 1600, shown: 20, total: 20 }
+    });
+    expect(contextPressureReading(p).visible).toBe(true);
+    expect(contextMeterSummary(p).visible).toBe(true);
+  });
+
+  it("折叠条把索引字数与装配字数分开报，两段相加正好等于总字数（同一批字不许报两遍）", () => {
+    const p = withWindow({
+      items: [item({ chars: 400 })],
+      chars: 2000,
+      skillIndex: { chars: 1600, shown: 3, total: 3 }
+    });
+    const s = contextMeterSummary(p);
+    expect(s.title).toContain("装配 1 条 400 字");
+    expect(s.title).toContain("技能库索引 3/3 条 1600 字");
+  });
+
   it("超过 100% 原样报，不夹顶：夹到 100 等于把「已经超了」这件最要紧的事藏起来", () => {
     const p = withWindow({ approxTokens: 30000 });
     expect(contextPressureReading(p).text).toContain("≈125%");
@@ -304,10 +336,10 @@ describe("contextPressureReading（窗口压力 + 已挂入项数）", () => {
       approxTokens: 1000
     });
     const r = contextPressureReading(p);
-    expect(r.text).toContain("设定 2 项 500 字");
+    expect(r.detail).toContain("设定 2 项 500 字");
     expect(r.title).toContain("「设定」单独计量");
     // 正文与人物卡不并进这一行
-    expect(r.text).not.toContain("设定 3 项");
+    expect(r.detail).not.toContain("设定 3 项");
   });
 
   it("已挂入与技能分开数：技能在系统提示里只有清单，不混进「已挂入」", () => {
@@ -318,12 +350,12 @@ describe("contextPressureReading（窗口压力 + 已挂入项数）", () => {
         item({ kind: "skill", relPath: "book:节拍" })
       ]
     });
-    expect(contextPressureReading(withPinned).text).toContain("已挂入 1 项");
-    expect(contextPressureReading(withPinned).text).toContain("技能 1 项");
+    expect(contextPressureReading(withPinned).detail).toContain("已挂入 1 项");
+    expect(contextPressureReading(withPinned).detail).toContain("技能 1 项");
     expect(contextPressureReading(withPinned).title).toContain("@ 引用 / 加入上下文");
     expect(contextPressureReading(withPinned).title).toContain("正文由 use_skill 按需读取");
-    expect(contextPressureReading(withWindow()).text).not.toContain("已挂入");
-    expect(contextPressureReading(withWindow()).text).not.toContain("技能 ");
+    expect(contextPressureReading(withWindow()).detail).not.toContain("已挂入");
+    expect(contextPressureReading(withWindow()).detail).not.toContain("技能 ");
   });
 });
 

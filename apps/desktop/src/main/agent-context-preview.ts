@@ -7,6 +7,7 @@
  */
 import { UNBOUND, type ContextPreview, type ContextPreviewQuery } from "@mochen/contracts";
 import {
+  estimateTokens,
   eventsToMessages,
   findLatestSession,
   historyStatFor,
@@ -48,6 +49,9 @@ export function createContextPreview(
       query.profileId ?? current.meta.activeStage
     );
     const { skills } = await deps.turnContext.readPinnedSkills(query.pinned ?? []);
+    // 技能库索引也占系统提示的字数（2026-11-10）：不算进来的话占用条就少报一截，
+    // 而「少报」和「多报」一样是骗人。它不进 items（没有正文，只有名字与一句说明）。
+    const indexText = await deps.turnContext.readSkillIndex(query.pinned ?? []);
     const assembled = await deps.turnContext.assembleFor(
       current,
       query.docRelPath,
@@ -83,9 +87,14 @@ export function createContextPreview(
         chars: item.chars,
         active: item.active
       })),
-      chars: assembled.chars,
-      approxTokens: assembled.approxTokens,
-      empty: assembled.items.length === 0,
+      chars: assembled.chars + [...indexText.text].length,
+      approxTokens: assembled.approxTokens + estimateTokens(indexText.text),
+      empty: assembled.items.length === 0 && indexText.text === "",
+      skillIndex: {
+        chars: [...indexText.text].length,
+        shown: indexText.shown,
+        total: indexText.total
+      },
       history: historyStat,
       // 分母递引用：窗口真身取自模型配置；没填过就是 agent-runtime 回退的那枚默认值
       // （DEFAULT_CONTEXT_WINDOW_TOKENS 住在 contracts，渲染层同源读它）。

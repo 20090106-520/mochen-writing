@@ -424,6 +424,25 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   ],
 
   [IPC_CHANNELS.skillsRead]: [id("技能来源"), relPath("技能文件")],
+  // 兑换码是一整段文本：这里只管形状（是文本、无 NUL、别长到离谱）；
+  // 「长度 ≤ SKILL_REDEEM_MAX_CHARS / 字段合法」那层语义判定住在 contracts 的解码端。
+  [IPC_CHANNELS.skillsRedeem]: [textRule({ maxLength: MAX_BODY_CHARS, label: "兑换码" })],
+  // 在线技能源（2026-11-10）：三条都只收一段地址文本。
+  // 形状闸只管「是文本、无 NUL、别长到离谱」；「是不是 https、是不是 GitHub 的哪种形态」
+  // 住在 contracts 的 parseSkillUrl（主进程与渲染层共用同一份判据）。
+  // 上限按绝对路径那一档给：仓库地址带分支与多层目录，256 那档会把正常地址误杀。
+  [IPC_CHANNELS.skillsRemoteList]: [
+    textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "技能源地址" })
+  ],
+  [IPC_CHANNELS.skillsRemotePreview]: [
+    textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "技能地址" })
+  ],
+  [IPC_CHANNELS.skillsRemoteInstall]: [
+    textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "技能地址" })
+  ],
+  // 自写技能的草稿是对象：字段级校验在 contracts 的 skillAuthorDraftSchema（返回中文 issue）。
+  [IPC_CHANNELS.skillsAuthorSave]: [objectRule("技能草稿")],
+  [IPC_CHANNELS.skillsRemove]: [id("要删的技能目录")],
   [IPC_CHANNELS.marketInstall]: [id("要装的技能")],
   [IPC_CHANNELS.marketUninstall]: [id("要卸的技能")],
   [IPC_CHANNELS.pluginsToggle]: [id("插件目录名"), booleanRule("启用还是停用")],

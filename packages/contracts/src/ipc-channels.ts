@@ -71,6 +71,27 @@ export const IPC_CHANNELS = {
   skillsList: "skills:list",
   skillsRead: "skills:read",
   /**
+   * 技能兑换码（离线自包含）：渲染层只递一整串码，主进程解码后把技能装进全局目录。
+   * 不收路径、不收来源——码里带着技能本身，路径全由主进程按解码出的目录名拼
+   * （与 market:install 同一条铁律，理由见 skill-redeem-service.ts）。
+   */
+  skillsRedeem: "skills:redeem",
+  /**
+   * 在线技能源三条（2026-11-10）：列源、取一份正文预览、把它装进全局技能目录。
+   * 只收**一个地址字符串**——仓库坐标、目录名、落盘位置全由主进程解析
+   * （见 skill-remote-service.ts），渲染层递不了路径，也就没有越界写这一条路。
+   */
+  skillsRemoteList: "skills:remote-list",
+  skillsRemotePreview: "skills:remote-preview",
+  skillsRemoteInstall: "skills:remote-install",
+  /**
+   * 自己写技能：存一份（会在报已有同名时拒，除非显式 overwrite），删掉全局目录里的一份。
+   * 删除必须在这里，不能并进 market:uninstall——市场那条只认内置清单，
+   * 网上装的与自己写的都不在清单里，否则会「装得进来、删不掉」（见 skill-author-service.ts）。
+   */
+  skillsAuthorSave: "skills:author-save",
+  skillsRemove: "skills:remove",
+  /**
    * 技能市场三条（2026-10-07）。装/卸只收一个清单里的 dirName，
    * 渲染层不能传路径也不能传来源——路径由主进程按清单自己拼（见 skill-market-service.ts）。
    */

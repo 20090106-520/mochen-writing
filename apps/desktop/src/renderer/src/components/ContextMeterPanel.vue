@@ -78,9 +78,11 @@ function keydown(event: KeyboardEvent): void {
         </button>
       </header>
       <p class="context-meter-note">按当前档案「{{ profileName }}」装配</p>
-      <!-- 窗口压力行：可见性与文案都在 util，这里只挂 v-if="pressure?.visible"。 -->
+      <!-- 窗口压力：主读一行（百分比 + tokens，不折行）＋ 分项一行（设定 / 挂入 / 技能 / 库索引）。
+           2026-11-10 拆两行：分项加到六项之后，一行在 460px 面板里必然折，且断在数字中间。 -->
       <p v-if="pressure?.visible" class="context-meter-pressure" :title="pressure.title">
-        {{ pressure.text }}
+        <span class="context-meter-pressure-main">{{ pressure.text }}</span>
+        <span v-if="pressure.detail" class="context-meter-pressure-sub">{{ pressure.detail }}</span>
       </p>
       <ul class="context-meter-list">
         <li v-for="row in rows" :key="row.key" :class="{ 'is-active': row.active }">

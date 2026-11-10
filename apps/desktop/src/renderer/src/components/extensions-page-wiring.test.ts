@@ -124,14 +124,13 @@ describe("5-㉝ · 左栏恒定，右栏不跟，这一处占中栏+右栏一整
     expect(app).toContain(`<SettingsPage v-if="currentView === 'settings'" />`);
   });
 
-  it("左栏那条拖拽条只有一枚：它搬出 v-else 之后，旧的那一份同批删掉了", () => {
+  it("左栏固定宽度：拖拽条整枚撤掉（2026-11-09 用户裁定「侧边栏应该是固定的」）", () => {
     const app = templateSource("App.vue");
-    // 两枚 aria-label 一模一样的 separator：读屏会报出两条一样的分隔条，
-    // 而 elementFromPoint 只能量到后画的那一枚 ⇒ 第一枚成了永远点不到的死元素。
-    expect(countNeedle('class="pane-resizer pane-resizer-left"', app)).toBe(1);
-    expect(countNeedle('aria-label="调整左侧栏宽度"', app)).toBe(1);
-    // 它必须排在 v-else 之前：设置视图下左栏也在，这条跟着在才对。
-    expect(app.indexOf("pane-resizer-left")).toBeLessThan(app.indexOf("<template v-else>"));
+    // 留着拖拽条就等于左栏还可拖宽拖窄——那正是用户点名不要的「不固定」。
+    expect(countNeedle("pane-resizer-left", app)).toBe(0);
+    expect(countNeedle('aria-label="调整左侧栏宽度"', app)).toBe(0);
+    // 右栏那一枚照旧在（可拖的只有右栏），且仍跟着对话视图显隐。
+    expect(countNeedle('class="pane-resizer pane-resizer-right"', app)).toBe(1);
   });
 
   it("三个内容页占同一格落点 `2 / -1`：设置 / 插件·技能 / 皮肤广场", () => {
@@ -265,7 +264,7 @@ describe("2026-10-17 · 左栏收起后「出得来」：抓手恒在 shell 上�
     expect(app).not.toContain(":left-collapsed");
   });
 
-  it("抓手是 shell 的绝对定位元素，落在左缘（与 .pane-resizer-left 同源）", () => {
+  it("抓手是 shell 的绝对定位元素，落在左缘（与分栏拖拽条同源）", () => {
     const shell = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
     const block = ruleBlock(shell, ".pane-edge-toggle");
     expect(block).toContain("position: absolute;");

@@ -104,13 +104,23 @@ function meterTotals(preview: ContextPreview): MeterTotals {
 }
 
 export function contextMeterSummary(preview: ContextPreview | null): ContextMeterSummary {
-  if (preview === null || preview.empty || preview.items.length === 0) {
+  if (preview === null) return { visible: false, text: "", title: "" };
+  const index = preview.skillIndex;
+  const hasIndex = index !== undefined && index.shown > 0;
+  // 条目为空且没有库索引才算「这一轮什么都不带」——只挂着二十条技能名也是一份占用。
+  if (preview.empty || (preview.items.length === 0 && !hasIndex)) {
     return { visible: false, text: "", title: "" };
   }
   const totals = meterTotals(preview);
   const tokens = formatApproxTokens(totals.approxTokens);
   // 拆项先摆出来再给合计：一眼读到的那个数是总账，但「哪一路占多少」不能糊掉。
-  const parts = [`装配 ${preview.items.length} 条 ${preview.chars} 字`];
+  // 索引那一段是主进程加进 `preview.chars` 的（它确实要发出去），所以第一段先把它减掉，
+  // 两段相加正好等于总字数——不这么写就会把同一批字报两遍。
+  const parts: string[] = [];
+  if (preview.items.length > 0) {
+    parts.push(`装配 ${preview.items.length} 条 ${preview.chars - (index?.chars ?? 0)} 字`);
+  }
+  if (hasIndex) parts.push(`技能库索引 ${index.shown}/${index.total} 条 ${index.chars} 字`);
   if (totals.hasHistory) {
     parts.push(`会话历史 ${totals.historyEntries} 条 ${totals.historyChars} 字`);
   }
@@ -137,8 +147,16 @@ export function contextMeterSummary(preview: ContextPreview | null): ContextMete
 /** 展开面板头部那一行「窗口压力」读数。 */
 export interface ContextPressureReading {
   visible: boolean;
-  /** 一行短文案：压力百分比 + 挂入项数。 */
+  /** 主读那一行：窗口百分比 + tokens。面板最窄 300px 里这一行**不许折**。 */
   text: string;
+  /**
+   * 分项明细（设定 / 已挂入 / 技能 / 库索引），空串＝这一轮没有可分的项。
+   *
+   * 2026-11-10 从 `text` 里拆出来：加了「库索引」之后那一行到 70 多个字符，
+   * 460px 面板里必然折成两行，而且断在哪儿全看字数——「库索引 20/23 条」被拆成
+   * 「库索引 20/23」和「条 1600 字」这种事真发生过。主读与分项分开，折行就只折分项。
+   */
+  detail: string;
   /** 这两个数各自从哪儿来、边界在哪儿——悬停/无障碍读这个。 */
   title: string;
 }
@@ -164,8 +182,14 @@ export interface ContextPressureReading {
  */
 export function contextPressureReading(preview: ContextPreview | null): ContextPressureReading {
   const windowTokens = preview?.windowApproxTokens ?? 0;
-  if (preview === null || preview.empty || preview.items.length === 0 || windowTokens <= 0) {
-    return { visible: false, text: "", title: "" };
+  const indexShown = preview?.skillIndex?.shown ?? 0;
+  if (
+    preview === null ||
+    preview.empty ||
+    (preview.items.length === 0 && indexShown === 0) ||
+    windowTokens <= 0
+  ) {
+    return { visible: false, text: "", detail: "", title: "" };
   }
   const totals = meterTotals(preview);
   const ratio = (totals.approxTokens / windowTokens) * 100;
@@ -174,18 +198,27 @@ export function contextPressureReading(preview: ContextPreview | null): ContextP
   // P0-2：技能不再混进「已挂入」——系统提示里只有清单，正文由 use_skill 按需读，
   // 两路占的额度完全不同，合成一行会让用户按正文的量去估预算。
   const skills = preview.items.filter((item) => item.kind === "skill").length;
+  // 技能库索引（2026-11-10）：没挂入的那些也摆在提示词里（只有名字与一句说明）。
+  // 单列一项而不是并进「技能」：那一格数是「挂入几项」，两者混在一行会让用户
+  // 以为「挂了 20 项」，实际是「涨了 20 行名字」。
+  const index = preview.skillIndex;
   // W-01：设定单独报一行，别让作者以为「设定」是装饰。这一族 = 世界观文稿 + 故事圣经里
   // 本轮真正装进来的条目（名字命中的、importance 高的），与正文/人物卡/大纲分开计量。
   const settings = preview.items.filter((item) => item.kind === "world");
   const settingsChars = settings.reduce((sum, item) => sum + item.chars, 0);
 
-  const parts = [
+  // 主读一行只放「占了多少」：百分比与 tokens。分项另起一行——
+  // 两批信息混在一行，窄面板里折行会断在数字中间（见接口注释里的现场）。
+  const main = [
     `窗口 ≈${percent}%`,
     `${formatApproxTokens(totals.approxTokens)} / ${formatApproxTokens(windowTokens)} tokens`
   ];
-  if (settings.length > 0) parts.push(`设定 ${settings.length} 项 ${settingsChars} 字`);
-  if (pinned > 0) parts.push(`已挂入 ${pinned} 项`);
-  if (skills > 0) parts.push(`技能 ${skills} 项`);
+  const details: string[] = [];
+  if (settings.length > 0) details.push(`设定 ${settings.length} 项 ${settingsChars} 字`);
+  if (pinned > 0) details.push(`已挂入 ${pinned} 项`);
+  if (skills > 0) details.push(`技能 ${skills} 项`);
+  if (index !== undefined && index.shown > 0)
+    details.push(`库索引 ${index.shown}/${index.total} 条 ${index.chars} 字`);
 
   const ceiling =
     percent >= 100
@@ -199,10 +232,15 @@ export function contextPressureReading(preview: ContextPreview | null): ContextP
     );
   if (pinned > 0) hints.push("「已挂入」只数你显式挂进来的书内文稿（@ 引用 / 加入上下文）。");
   if (skills > 0) hints.push("「技能」单独计量：系统提示只带清单，正文由 use_skill 按需读取。");
+  if (index !== undefined && index.shown > 0)
+    hints.push(
+      "「库索引」是技能库里没挂入的那些，只摆了名字与一句说明（不含正文），模型看中哪份会自己用 use_skill 去读。"
+    );
 
   return {
     visible: true,
-    text: parts.join(" · "),
+    text: main.join(" · "),
+    detail: details.join(" · "),
     title:
       `分母 ${formatApproxTokens(windowTokens)} tokens 取自模型配置的上下文窗口（没填时回退到保守假设窗口），` +
       `不是模型真实上限；切历史时按 40% / 35% / 25% 分给系统提示 / 上下文包 / 历史。` +

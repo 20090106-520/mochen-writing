@@ -16,11 +16,11 @@
   padding: 9px;
   border: 1px solid var(--theme-line);
   border-radius: 18px;
-  background: color-mix(in srgb, var(--surface-raised) 96%, transparent);
+  /* 2026-11-09：毛玻璃收归 liquid-glass.css 总闸，基态不透明。 */
+  background: var(--surface-raised);
   box-shadow:
     0 18px 46px color-mix(in srgb, var(--theme-foreground) 16%, transparent),
     0 3px 10px color-mix(in srgb, var(--theme-foreground) 10%, transparent);
-  backdrop-filter: blur(18px) saturate(1.15);
   color: var(--text-primary);
   font-family: var(--ui-font);
   font-size: 0.857143rem;
@@ -42,9 +42,26 @@
    只在真出事（超上界）时才该抢眼睛，所以给次级正文色 + 等宽数字，不给底色。
    数字取自保守假设窗口，「假设」这两个字由 util 写在 title 里，这里不另起一句。 */
 .context-meter-pressure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin: 0;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
+}
+
+/* 主读那一行：面板最窄 300px 时也放得下「窗口 ≈23% · 5.6k / 24.0k tokens」。
+   不许折——折了之后百分比与分母分成两行，读数就没法一眼扫。
+   真放不下时宁可溢出被父级裁（面板有 padding，不会切字），也不换行。 */
+.context-meter-pressure-main {
+  white-space: nowrap;
+}
+
+/* 分项一行：设定 / 已挂入 / 技能 / 库索引。容许折行，字号收一档——
+   它是「点开才看的细节」，不该与主读抢同一档重量。 */
+.context-meter-pressure-sub {
+  color: var(--text-tertiary);
+  font-size: 0.92em;
 }
 
 .context-meter-list {

@@ -1,0 +1,196 @@
+/* ---- 技能兑换框（2026-11-09 用户裁定：「兑换框添加技能」）----
+   版式直接复用「更多 → / 命令」那张二级卡片的骨架类（.composer-sheet / -heading /
+   -options / -footer），这里只补兑换框自己需要的输入控件与定位：
+   同一族浮层不该有两套圆角、两套标题行、两套页脚（铁律 6）。
+   底色一律用 --surface-* 实底，不进玻璃族、不画深档底：卡片下方就是技能列表，
+   半透明会把列表文字糊进来。 ---- */
+
+.redeem-block {
+  position: relative;
+  flex: 0 0 auto;
+  padding-bottom: 10px;
+}
+
+.redeem-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.redeem-trigger.is-open {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.redeem-trigger-caret {
+  transition: transform 0.16s ease;
+}
+
+.redeem-trigger.is-open .redeem-trigger-caret {
+  transform: rotate(180deg);
+}
+
+.redeem-sheet {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% - 4px);
+  left: 0;
+  width: min(430px, 100%);
+  max-height: min(560px, calc(100vh - 200px));
+  background: var(--surface-main);
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  box-shadow: 0 14px 38px var(--shadow-color);
+  overflow: auto;
+}
+
+/* 兑换 / 生成两档：与卡片标题行同一条水平带，沿用弹层的 chip 语言。 */
+.redeem-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.redeem-tab {
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.redeem-tab.is-active {
+  border-color: var(--line-soft);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+.redeem-body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 10px;
+}
+
+.redeem-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.redeem-label {
+  color: var(--text-faint);
+  font-size: 0.714286rem;
+}
+
+.redeem-input,
+.redeem-textarea {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-family: var(--ui-font);
+  font-size: 0.8125rem;
+  resize: vertical;
+}
+
+.redeem-textarea {
+  min-height: 76px;
+  line-height: 1.5;
+}
+
+.redeem-textarea.is-code {
+  min-height: 62px;
+  font-family: monospace;
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
+.redeem-preview {
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.redeem-preview-name {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.redeem-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.redeem-button {
+  padding: 6px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.redeem-button.is-primary {
+  /* 不拿 --accent 当底：它在深浅皮肤下明度差很大，压深色字会看不清。
+     改成描边 + 主色字，两种皮肤都保持可读，也不算「深档底」那一族。 */
+  border-color: var(--accent);
+  background: var(--surface-raised);
+  color: var(--accent);
+}
+
+.redeem-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.redeem-notice {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.redeem-notice.is-ok {
+  color: var(--text-primary);
+}
+
+.redeem-hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.714286rem;
+  line-height: 1.5;
+}
+
+.redeem-code-out {
+  width: 100%;
+  min-height: 60px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 0.6875rem;
+  word-break: break-all;
+  resize: vertical;
+}

@@ -130,11 +130,22 @@ describe("工具栏窄档：两级门槛与修法", () => {
    * 反向钉：宽档的基础规则里不许出现这条,否则正常窗口会把两枚 chip 一并变成图标。
    *
    * 2026-11-09 参考图②：模型名搬进右端后成了这一排的主标签；折行级整行都是它的地方，
-   * 所以这一档**只收权限档那一枚的文字**，模型名不许跟着藏（藏了就等于「用哪个模型」只剩一颗立方体）。
+   * 所以这一档只动权限档那一枚，模型名不许跟着藏（藏了就等于「用哪个模型」只剩一颗立方体）。
+   *
+   * 2026-11-10：权限档从「藏文字」改成「留 3em」——档位那枚的图标在**无书态**是一枚 folder，
+   * 文字一藏，它连「这一格在说作品」都不剩，只剩一个空方框。
    */
-  it("换行级：右端只收权限档文字，模型名不跟着藏", () => {
+  it("换行级：权限档留 3em 文字、模型名不跟着藏", () => {
     const block = atRuleBlock(CSS, WRAP_TIER);
+    // 2026-11-10 用户裁定「还是太丑陋」后改的口径，理由写在样式表那条规则上：
+    // 原来这一档是 `display: none`，而没开书时权限档报「未选作品」、图标是一枚 folder，
+    // 于是它缩成 **14px 空方框 + 下拉三角**——比两个字加省略号更像渲染事故，
+    // 因为连「这一格在说什么」都没有了。现在留 3em（「未选…」），折行后这一行本来就有空处。
+    // 反向钉仍在：模型名是右排主标签，任何一档都不许 display:none。
     expect(block).toMatch(
+      /\.composer-toolbar-right \.composer-chip\[data-chip="permission"\] \.composer-chip-label\s*\{[^}]*max-width:\s*3em/
+    );
+    expect(block).not.toMatch(
       /\.composer-toolbar-right \.composer-chip\[data-chip="permission"\] \.composer-chip-label\s*\{[^}]*display:\s*none/
     );
     expect(block, "模型名是右排的主标签，折行后不许 display:none").not.toMatch(

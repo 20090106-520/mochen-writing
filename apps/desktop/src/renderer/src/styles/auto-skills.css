@@ -1,0 +1,44 @@
+/* ---- 自动技能的可见提示（2026-11-09）----
+   这一行不是装饰：它列出的是**这一轮真会跟着请求发出去**的技能 id 对应的名字。
+   自动装配容易被做成黑箱，所以挂了什么、点哪里能关，必须在输入卡上就地看得见。
+   只用 --surface-raised / --line-soft 这类浅底，不画深档底、不进玻璃族：
+   它贴着输入框，半透明会把下面的字糊进来。 ---- */
+
+.composer-auto-skills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 0;
+  color: var(--text-faint);
+  font-size: 0.714286rem;
+  line-height: 1.5;
+}
+
+.composer-auto-skill-name {
+  max-width: 160px;
+  overflow: hidden;
+  padding: 1px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-auto-manage {
+  margin-left: auto;
+  padding: 1px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.composer-auto-manage:hover {
+  color: var(--text-primary);
+}

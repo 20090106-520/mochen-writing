@@ -17,7 +17,9 @@ import {
 import {
   resolveProfile,
   skillBriefLine,
+  skillIndexBlock,
   type AgentProfile,
+  type SkillIndexResult,
   type SkillRef
 } from "@mochen/contracts";
 import { readDocFile } from "@mochen/fs-store";
@@ -58,6 +60,8 @@ export interface TurnContext {
   readPinnedSkills(
     skillPaths: readonly string[]
   ): Promise<{ skills: PinnedSkill[]; missing: number }>;
+  /** 「库里还有哪些技能没挂入」那一段（2026-11-10）。读不到清单时回空结果—— */
+  readSkillIndex(skillPaths: readonly string[]): Promise<SkillIndexResult>;
   profileOf(book: BookSnapshot, stageId: string): AgentProfile;
 }
 
@@ -155,6 +159,33 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
   }
 
   /**
+   * 取一次技能库清单。**通路没接上**与**读失败**都回 null，但两者在下游的处置不同：
+   * 挂入技能那边要把「读不到」如实数出来（用户挂了却没生效，必须可见）；
+   * 索引那边只回空段（少一段索引不影响这一轮能不能写）。
+   */
+  async function listAll(): Promise<readonly SkillRef[] | null> {
+    if (deps.listSkills === undefined) return null;
+    try {
+      return await deps.listSkills();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 「库里还有哪些技能没挂入」那一段（2026-11-10）。只列名称 / id / 一句说明，正文不读。
+   *
+   * 挂入机制只能摆出被挑中的那几枚；库里的其余技能模型无从知道存在，
+   * 「按需自己调用」就退化成了「只能用手挑」。这一段把整库摊开，读正文仍要 `use_skill`。
+   * 额度由 `skillIndexBlock` 一处管（条数 + 字数双闸），这里不加第二份判据。
+   */
+  async function readSkillIndex(skillPaths: readonly string[]): Promise<SkillIndexResult> {
+    const refs = await listAll();
+    if (refs === null) return { text: "", total: 0, shown: 0 };
+    return skillIndexBlock(refs, skillPaths);
+  }
+
+  /**
    * 把渲染层传来的 `skillPaths` 解析成**清单行**（P0-2）。
    *
    * 只列清单、不读正文：技能正文由 `use_skill` 按 id 按需读取，系统提示里只留
@@ -170,13 +201,8 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     if (skillPaths.length === 0) return { skills: [], missing: 0 };
     // 清单通路没接上 ⇒ 全部算读不到。**不**当成「没挂技能」悄悄放过：
     // 那会让装配处漏接 listSkills 变成一条「用户挂了技能但模型没看见」的死链路。
-    if (deps.listSkills === undefined) return { skills: [], missing: skillPaths.length };
-    let refs: readonly SkillRef[];
-    try {
-      refs = await deps.listSkills();
-    } catch {
-      return { skills: [], missing: skillPaths.length };
-    }
+    const refs = await listAll();
+    if (refs === null) return { skills: [], missing: skillPaths.length };
     const byId = new Map(refs.map((ref) => [ref.id, ref]));
     const skills: PinnedSkill[] = [];
     let missing = 0;
@@ -206,5 +232,5 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     });
   }
 
-  return { assembleFor, readPinnedSkills, profileOf };
+  return { assembleFor, readPinnedSkills, readSkillIndex, profileOf };
 }

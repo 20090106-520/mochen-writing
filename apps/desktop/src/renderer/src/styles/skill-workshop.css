@@ -1,0 +1,244 @@
+/* ---- 添加技能：从网上装 / 自己写（2026-11-10）----
+   外框、输入控件、按钮全部沿用 skill-redeem.css 那一套（同族浮层只有一份圆角与标题行），
+   这里只补三样这张卡特有的东西：
+   ① 更宽的卡片（源列表与地址输入要横得开）；
+   ② 源 chips、技能条目行、条目展开后的正文预览；
+   ③ 「技能库里的全局技能」那张可删清单。
+   底色一律 --surface-*，不进玻璃族：卡片下面就是技能列表，半透明会糊字。 ---- */
+
+/* 固定宽而不是百分比：这张卡挂在 .redeem-block 里，那个盒子是收缩宽度（跟着触发钮走），
+   `100%` 会算成 340 多一点，长目录名一撑就把右侧的「装」挤成竖排。 */
+.redeem-sheet.is-wide {
+  width: 520px;
+  max-width: min(520px, calc(100vw - 48px));
+  max-height: min(620px, calc(100vh - 180px));
+}
+
+.skill-source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.skill-source-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.skill-source-chip.is-active {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+.skill-url-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.skill-url-row .redeem-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 与技能行同一个坑：不写 nowrap，输入框会把这两颗字压成竖排。 */
+.skill-url-row .redeem-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.skill-entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 316px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.skill-entry {
+  border-radius: 9px;
+}
+
+.skill-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 9px;
+}
+
+.skill-entry-head:hover {
+  background: var(--surface-raised);
+}
+
+/* min-width: 0 + 省略号：长目录名不许把右侧的「装」挤出容器。
+   上一版没有这三行，19 条里只要有两条长名字，按钮就被压成一列竖排的字。 */
+.skill-entry-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 2px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--ui-font);
+  font-size: 0.8125rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.skill-entry-caret {
+  color: var(--text-faint);
+  transition: transform 0.16s ease;
+}
+
+.skill-entry-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.skill-entry-badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  color: var(--text-faint);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+
+.skill-entry-install {
+  flex: 0 0 auto;
+  min-width: 44px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.skill-entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 4px 8px 20px;
+}
+
+.skill-entry-desc {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.skill-entry-meta {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.714286rem;
+  line-height: 1.5;
+}
+
+.skill-entry-md {
+  max-height: 150px;
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-family: monospace;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+}
+
+.skill-field-pair {
+  display: flex;
+  gap: 8px;
+}
+
+.skill-field-pair > .redeem-field {
+  flex: 1 1 0;
+}
+
+.redeem-textarea.is-tall {
+  min-height: 128px;
+}
+
+.skill-check {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.skill-owned {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.skill-owned-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 168px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.skill-owned-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  border-radius: 8px;
+}
+
+.skill-owned-row:hover {
+  background: var(--surface-raised);
+}
+
+.skill-owned-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-owned-dir {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-family: monospace;
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-owned-remove {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+}

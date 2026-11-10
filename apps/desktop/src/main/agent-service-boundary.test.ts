@@ -521,6 +521,35 @@ describe("挂入技能（spec §11 / P0-2 渐进披露）", () => {
     service.dispose();
   });
 
+  it("库里没挂入的也摊给模型看：看中哪一份自己 use_skill 去读（2026-11-10）", async () => {
+    const { service } = await build({
+      listSkills: async () => [
+        skillRefOf("book:伏笔", "埋线收线的方法"),
+        skillRefOf("global:节奏", "章末留钩子的办法")
+      ]
+    });
+    await service.startTurn(input(["book:伏笔"]));
+    const sent = JSON.parse(requests[0]?.body ?? "{}") as { messages: { content: string }[] };
+    const system = sent.messages[0]?.content ?? "";
+    expect(system).toContain("【技能库】");
+    expect(system).toContain("global:节奏");
+    expect(system).toContain("章末留钩子的办法");
+    // 挂入的那条已经在清单行里出现过，索引里不许再列一遍——同一份技能在提示词里
+    // 出现两次，模型会当成两条。
+    expect(system.split("book:伏笔").length - 1).toBe(1);
+    service.dispose();
+  });
+
+  it("全挂入时没有【技能库】段：索引为空就不该留一个空标题", async () => {
+    const { service } = await build({
+      listSkills: async () => [skillRefOf("book:伏笔", "埋线收线的方法")]
+    });
+    await service.startTurn(input(["book:伏笔"]));
+    const sent = JSON.parse(requests[0]?.body ?? "{}") as { messages: { content: string }[] };
+    expect(sent.messages[0]?.content ?? "").not.toContain("【技能库】");
+    service.dispose();
+  });
+
   it("清单里查不到的挂入技能 ⇒ 如实说跳过几个，其余照常进清单", async () => {
     const { service, outbound } = await build({
       listSkills: async () => [skillRefOf("book:好的", "这一条在清单里")]

@@ -68,6 +68,7 @@ import { abortableFetch } from "./provider-fetch.js";
 import { withPlugins, type PluginTools } from "./plugin-host.js";
 // 提示词装配（含「档案写入范围」那句人话）住在 prompt-assembly.ts：那里只把「一轮的现场」排成一段话，不共享状态。
 import { writeScopeSentence, type PromptContext } from "./prompt-assembly.js";
+import { buildContextPack } from "./system-pack.js";
 
 // UNBOUND 取自 contracts（与渲染层 utils/agent-thread.ts 那份同值只是巧合）——这里不再另立一份。
 const MAX_TOOL_ROUNDS = 4;
@@ -605,7 +606,12 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         const fullHistory: ChatMessage[] = folded.kept;
         // 档案与上下文包（spec §5 / §5.1）：换档案只换提示词与上下文构造器，不换这条线程。
         const profile = turnContext.profileOf(current, input.stageId);
-        const { skills, missing } = await turnContext.readPinnedSkills(input.skillPaths);
+        // 挂入技能的清单行与「库里还没挂入的那些」的索引并行取：两者都走 listSkills，
+        // 技能目录只有几十个小文件，多扫一次的代价远小于串行的等待。
+        const [{ skills, missing }, skillIndex] = await Promise.all([
+          turnContext.readPinnedSkills(input.skillPaths),
+          turnContext.readSkillIndex(input.skillPaths)
+        ]);
         if (missing > 0) {
           // 走 emitOnly：它会落一条 type:"error" 的 AgentEvent（外层信封仍是 event）。
           // 挂入技能读不到不是致命错误，但必须让用户看见——总 spec §9「失败可见，不只进日志」。
@@ -628,17 +634,13 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         // 档案的写入范围写进提示词：它是上限不是授权，模型自己先知道能碰哪些目录。
         const prompt = `${deps.promptFor(context)}\n${writeScopeSentence(profile)}`;
         const contextBlock = renderContextBlock(assembled);
-        // P0-2：技能只进清单。必须补一句「正文未载入」，否则模型看见名字会以为方法已经读过，
-        // 直接照印象动笔——那正是整段注入被拿掉之后最容易撞上的退化。
+        // P0-2：技能只进清单。必须补一句「正文未载入」，否则模型看见名字会以为方法已读过、照印象动笔。
         const skillHint = assembled.items.some((item) => item.kind === "skill")
           ? "上面标注「技能」的条目只是清单（名称与用途），正文没有载入；要按其中一份方法动笔，先用 use_skill 读出全文。"
           : "";
         // P0-3：上下文包单独成串算 token，系统提示只算 prompt 那一截——
-        // 三路预算要按比例分，就得各自可量。两者拼回去仍是系统提示整串，语义没有变。
-        const contextPackText =
-          contextBlock === ""
-            ? ""
-            : `\n\n【已装配的上下文】\n${contextBlock}${skillHint === "" ? "" : `\n${skillHint}`}`;
+        // 三路预算要按比例分，就得各自可量。拼法住在 system-pack.ts 一处。
+        const contextPackText = buildContextPack({ contextBlock, skillHint, skillIndex });
         const systemPromptText = `${prompt}${contextPackText}`;
         // P1-3 历史切片 / P0-3 三路预算：窗口取自模型配置的 contextWindow（没填就回退到
         // DEFAULT_CONTEXT_WINDOW_TOKENS）。系统提示与上下文包分开报（见上），两者之和

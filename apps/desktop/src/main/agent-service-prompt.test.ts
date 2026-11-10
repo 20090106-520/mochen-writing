@@ -724,3 +724,44 @@ describe("本书原句样本（2026-10-20 七段／八段：把通用范例句�
     expect(build(withItems(finished([D_SHORT, D_MID].join("\n"))))).not.toContain("本书对白样本");
   });
 });
+
+describe("defaultPromptFor · 对话回复口径（用户原话：输出的东西全是中文，不要代码）", () => {
+  const build = () =>
+    defaultPromptFor({
+      title: "深渊之下",
+      stageName: "正文",
+      chapter: CHAPTER,
+      permissionLabel: "全开",
+      workModeLabel: "直接动手",
+      profile: defaultProfile(),
+      context: NO_CONTEXT,
+      webSearchEnabled: true
+    });
+
+  /**
+   * 用户报的是「聊天的回复里全是代码和英文」。此前提示词里九成在说「正文怎么改」，
+   * 提到对话回复的只有 AI_FLAVOR 末尾那半句，管腔调不管形式——模型于是照旧甩围栏。
+   */
+  it("语言、代码块、报告腔、篇幅，四件事各有一条", () => {
+    const text = build();
+    expect(text).toContain("一律用简体中文");
+    expect(text).toContain("不写代码块");
+    expect(text).toContain("别把回答做成报告");
+    expect(text).toContain("篇幅跟着问题走");
+    // 真机撞出来的：思考摘要那一格整段是英文，用户看得见，所以推理也得指定语言。
+    expect(text).toContain("想事情也用中文");
+  });
+
+  it("先定怎么说话，再定怎么写小说：排在文风硬约束之前", () => {
+    const text = build();
+    const dialogue = text.indexOf("对话回复口径");
+    const flavor = text.indexOf("文风硬约束");
+    expect(dialogue).toBeGreaterThan(-1);
+    expect(flavor).toBeGreaterThan(dialogue);
+  });
+
+  it("这一段自己是分点写的，必须点明「这几条是口径本身」", () => {
+    // 不点明的话，模型会把这一段的分点排版当成「回复该长这样」的示范，正好反过来。
+    expect(build()).toContain("这几条是口径本身");
+  });
+});

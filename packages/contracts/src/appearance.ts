@@ -36,14 +36,16 @@ export const DEFAULT_APPEARANCE_DENSITY: AppearanceDensity = APPEARANCE_DENSITIE
  * 它是一层**可开关的材质**，不是第 17 套皮肤：只改「浮在内容之上」的那几类表面的
  * 半透明底、模糊与高光，不重刷配色、不动正文阅读区。
  *
- * `auto` 必须是第一档，也是出厂值：**跟随皮肤自己的玻璃档**——皮肤 `glass: "none"` 的
+ * `auto` 是选项里的第一档：**跟随皮肤自己的玻璃档**——皮肤 `glass: "none"` 的
  * 那套（素面）在 `auto` 下就是关的，用户不必为了同一件事跑到设置里再关一次。
- * 三档与皮肤设置同级、落在 `appearance.json` 顶层，老文件缺这个键时补 `auto`。
+ * 出厂值是 `on`（2026-11-09 用户裁定：默认素面皮 + auto 会让这层材质开箱 invisible，
+ * 「做了等于没做」）：素面皮强开落最轻的 subtle 档，玻璃开箱就看得见；想跟皮肤走的人选 auto。
+ * 三档与皮肤设置同级、落在 `appearance.json` 顶层，老文件缺这个键时补出厂值。
  */
 export const APPEARANCE_LIQUID_GLASSES = ["auto", "on", "off"] as const;
 export const AppearanceLiquidGlassSchema = z.enum(APPEARANCE_LIQUID_GLASSES);
 export type AppearanceLiquidGlass = z.infer<typeof AppearanceLiquidGlassSchema>;
-export const DEFAULT_APPEARANCE_LIQUID_GLASS: AppearanceLiquidGlass = APPEARANCE_LIQUID_GLASSES[0];
+export const DEFAULT_APPEARANCE_LIQUID_GLASS: AppearanceLiquidGlass = "on";
 
 export const APPEARANCE_FONT_SIZE_LIMITS = {
   uiFontSize: { min: 10, max: 24 },

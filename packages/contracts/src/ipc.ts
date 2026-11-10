@@ -14,6 +14,14 @@ import type { AppearanceSettings, AppearanceSettingsSnapshot } from "./appearanc
 import type { ChangeDiffResult, ChangeEntry, ChangePruneReport } from "./changes.js";
 import type { ChangeRetention, ChangeRetentionSnapshot } from "./change-retention.js";
 import type { SkillContent, SkillRef, SkillSource } from "./skill.js";
+import type { SkillRedeemResult } from "./skill-redeem.js";
+import type {
+  RemoteInstallResult,
+  RemoteListResult,
+  RemoteSkillPreview,
+  SkillAuthorDraft,
+  SkillAuthorResult
+} from "./skill-source.js";
 import type { MarketListResult } from "./market.js";
 import type { PluginListResult } from "./plugin.js";
 import type { ContextKind } from "./agent-profile.js";
@@ -250,7 +258,14 @@ export interface ContextPreviewQuery {
   docRelPath: string | null;
   /** 书级当前档案 id；null 时由主进程按 阶段 → 阶段默认 → 兜底 解析。 */
   profileId: string | null;
-  /** 显式挂入的文稿（@ 引用 / 加入当前上下文）。 */
+  /**
+   * 本线程显式挂入的**技能 id**（`${source}:${dirName}`），与 startTurn 的 `skillPaths`
+   * 同一个来源（渲染层传的就是 `skillPathsOf(threadKey)`）。
+   *
+   * 2026-11-10 复查时这条注释曾写作「显式挂入的文稿」，照着它去接技能库索引就会把
+   * 「扣掉已挂入」写成「扣掉文稿」——两套 id 长得很像（都是字符串），错了也不会报错，
+   * 只会让同一份技能在提示词里出现两遍。记在这里。
+   */
   pinned?: readonly string[];
 }
 
@@ -294,6 +309,13 @@ export interface ContextPreview {
    * 新字段只加不改，契约里已有序列化路径一个字都不动。
    */
   history?: ContextHistoryStat;
+  /**
+   * 「技能库里还有哪些没挂入」那一段的计量（2026-11-10）。**可选**：老渲染层读不到就当没有。
+   *
+   * 它不属于 `items`——那些行是「进了上下文的正文或清单」，而这一段只有名字与一句说明。
+   * 但它确实占了系统提示的字数，所以占用条必须把它算进分子，否则读数会少报一截。
+   */
+  skillIndex?: { chars: number; shown: number; total: number };
   /**
    * 占用条「窗口压力」那一行的**分母**（tokens）。
    *
@@ -438,6 +460,35 @@ export interface RendererApi {
    * 解析后必须仍在该来源的 skills 目录内。超出 64 KB 截断并标 truncated。
    */
   readSkill(source: SkillSource, relPath: string): Promise<SkillContent>;
+  /**
+   * 兑换一段离线自包含的兑换码：只递一整串字符串，装到全局技能目录由主进程解码后自己拼。
+   * 结果成功失败都带一句中文 notice（渲染层直接上屏），不抛过 IPC。
+   */
+  redeemSkill(code: string): Promise<SkillRedeemResult>;
+  /**
+   * 列一个网上技能源里有哪些技能（2026-11-10）。入参是「内置源的 id」或「一段地址」，
+   * 两种都由主进程用 `sourceUrlOf` 归一成地址再解析——渲染层不拼 URL，也不猜目录名。
+   * 正文不在这一条里：点开某一条才取（见 `previewRemoteSkill`），列表不该拖着一堆文本。
+   */
+  listRemoteSkills(idOrUrl: string): Promise<RemoteListResult>;
+  /**
+   * 取一份远端技能的预览：名字、说明、会写进盘的那份全文，以及**实际**从哪个地址取到的
+   * （raw 走镜像回退时与粘进来的地址不同，这件事必须让人看见）。
+   * 装之前先预览，是这个通道存在的唯一理由：不许出现「预览的是 A、装进来的是 B」。
+   */
+  previewRemoteSkill(url: string): Promise<RemoteSkillPreview>;
+  /** 把远端那一份装进全局技能目录。已存在同名就拒，不覆盖用户手里那份。 */
+  installRemoteSkill(url: string): Promise<RemoteInstallResult>;
+  /**
+   * 自己写一份技能并落盘（全局技能目录）。frontmatter 由主进程按名字/说明/阶段拼，
+   * 不用手写 YAML；同名已存在时默认拒，`overwrite` 才覆盖。
+   */
+  saveAuthoredSkill(draft: SkillAuthorDraft): Promise<SkillAuthorResult>;
+  /**
+   * 删掉全局技能目录里的一份（要求该目录里真有 SKILL.md）。
+   * 内置市场的卸载通道只认它自己的清单，网上装的与自写的都删不掉，这条补的就是它。
+   */
+  removeSkill(dirName: string): Promise<SkillAuthorResult>;
   /**
    * 技能市场：列内置清单（带「装没装」与「会不会被书内同名盖住」两态）。
    * 与 `listSkills` 分开是刻意的——那张表是**盘上有什么**（用户自己放的也在内），

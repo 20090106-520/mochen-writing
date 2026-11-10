@@ -6,6 +6,7 @@
  * 键→动作的真身现在是 utils/hotkeys.ts，留着就是第二份实现（铁律 6）。
  */
 import { PERMISSION_LABELS, type PermissionMode } from "@mochen/contracts";
+import type { IconName } from "../types/icons";
 import { hasNoMods, type HotkeyMods } from "./hotkeys";
 
 export const SLASH_COMMANDS = [
@@ -29,20 +30,57 @@ export interface PaletteFocus {
   turnRunning: boolean;
 }
 
-/** 穷尽表（铁律 6）：加成员不写说明就编译不过。说明里不重抄权限档名，档位文案的唯一来源仍是 PERMISSION_LABELS。 */
+/**
+ * 穷尽表（铁律 6）：加成员不写说明就编译不过。说明里不重抄权限档名，档位文案的唯一来源仍是 PERMISSION_LABELS。
+ *
+ * 2026-11-09「命令面板优化」：说明一律写成「这条命令替你做什么」，不写实现细节、
+ * 不写「与某处同一处」这类只有开发者看得懂的出处；命令名与分组另见 SLASH_COMMAND_META。
+ */
 export const SLASH_COMMAND_DESCRIPTIONS: Record<SlashCommand, string> = {
-  model: "打开模型设置：baseURL、模型名与密钥",
-  permissions: "打开权限档选择器（当前档显示在中栏头部）",
-  status: "把这条线程的现状写进状态条",
-  stage: "切换创作阶段（带阶段名可直接切，如 /stage 大纲）",
-  skills: "打开技能库浏览（只读；选中技能不装配，要挂入得按卡片上的「加入当前上下文」）",
-  plugins: "打开插件面板（看装了哪些、它们加了哪些能力；可停用或卸载）",
-  skins: "打开皮肤广场（挑外观皮肤并整窗预览，与左栏那枚钮同一处）",
-  export: "导出这本书（Markdown / TXT / EPUB 等格式，与右栏头部那枚钮同一处）",
-  wordcount: "打开字数统计看板（总字数、章节分布与写作目标）",
-  newbook: "新建一本作品（选目录、起书名，与左栏「+」同一路）",
-  resume: "重新读取这条线程的历史",
-  clear: "只清空本页显示，不动盘上的会话历史"
+  model: "换模型：API 地址、模型名和密钥都在设置里改",
+  permissions: "调权限档：决定 AI 能不能直接改你的稿子",
+  status: "把本轮进度和待批提案数写进状态条",
+  stage: "切创作阶段，可直接带阶段名，如 /stage 大纲",
+  skills: "打开技能库浏览；要挂进上下文按卡片上的「加入当前上下文」",
+  plugins: "打开插件面板：看装了什么、能停用或卸载",
+  skins: "打开皮肤广场，挑外观并整窗预览",
+  export: "导出这本书：Markdown / TXT / EPUB",
+  wordcount: "字数统计：总字数、章节分布与写作目标",
+  newbook: "新建一本作品：选目录、起书名",
+  resume: "重新读取这条线程的历史消息",
+  clear: "只清屏，不动盘上保存的会话历史"
+};
+
+/** 命令的用途分组（目录与行内菜单共用这一份顺序，不在组件里再排一次）。 */
+export const SLASH_COMMAND_GROUPS = ["书稿", "会话", "视图", "数据", "配置"] as const;
+export type SlashCommandGroup = (typeof SLASH_COMMAND_GROUPS)[number];
+
+export interface SlashCommandMeta {
+  /** 中文短名：命令名给人看要能一眼认出，裸 `/model` 只留在右端键帽里。 */
+  title: string;
+  group: SlashCommandGroup;
+  /** 每条一枚，类型就是 IconName——写错图标名裸 tsc 当场拒绝。 */
+  icon: IconName;
+}
+
+/**
+ * 命令面板「里面所有东西」的唯一装饰表（2026-11-09）。
+ * 仍是 Record 穷尽：SLASH_COMMANDS 加一条而这里漏写，编译就红，绝不会长出一条没有名字和图标的裸命令。
+ * 说明文案不在这里重抄——`SLASH_COMMAND_DESCRIPTIONS` 仍是那一处（铁律 6）。
+ */
+export const SLASH_COMMAND_META: Record<SlashCommand, SlashCommandMeta> = {
+  model: { title: "模型设置", group: "配置", icon: "model" },
+  permissions: { title: "权限档", group: "配置", icon: "shield" },
+  status: { title: "本轮状态", group: "会话", icon: "chart" },
+  stage: { title: "创作阶段", group: "书稿", icon: "map" },
+  skills: { title: "技能库", group: "视图", icon: "wand" },
+  plugins: { title: "插件", group: "视图", icon: "library" },
+  skins: { title: "皮肤广场", group: "视图", icon: "image" },
+  export: { title: "导出书稿", group: "数据", icon: "download" },
+  wordcount: { title: "字数统计", group: "数据", icon: "chart" },
+  newbook: { title: "新建作品", group: "书稿", icon: "plus" },
+  resume: { title: "重读历史", group: "会话", icon: "history" },
+  clear: { title: "清空本页", group: "会话", icon: "trash" }
 };
 
 /** turn 运行中仍可用的命令（换上下文/重建视图的那几条会和进行中的一轮抢状态）。 */
