@@ -248,6 +248,8 @@ describe("createRendererApi", () => {
       overwrite: false
     });
     await api.removeSkill("scene-smell");
+    // 网页转技能（2026-11-10）：只递**一条网页 URL**——抓什么、转成什么名、写到哪全在主进程。
+    await api.convertWebpageSkill("https://example.com/writing-guide");
     // 插件四枚（2026-10-07 批次 5-㉚）：与技能市场同一条铁律——
     // 渲染层只递**安装名**（dirName），不递路径。多递一个参数就该红：
     // 它拿到路径就能决定读哪、删哪，那道闸就没了。
@@ -285,7 +287,7 @@ describe("createRendererApi", () => {
     await api.webdavList();
     await api.webdavPull("book-2026-10-15-12-00-00");
 
-    expect(calls.length).toBe(72);
+    expect(calls.length).toBe(73);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -353,6 +355,8 @@ describe("createRendererApi", () => {
       "skills:remote-install",
       "skills:author-save",
       "skills:remove",
+      // 网页转技能（2026-11-10）：同样只递一段 URL 文本，落盘位置由主进程解析。
+      "skills:webpage-convert",
       // 插件四枚（2026-10-07 批次 5-㉚）。同样不许从 IPC_CHANNELS 派生，理由同上。
       "plugins:list",
       "plugins:toggle",
@@ -454,6 +458,8 @@ describe("createRendererApi", () => {
         }
       ],
       ["scene-smell"],
+      // 网页转技能：只收一条 URL，**一个路径都不许出现**。
+      ["https://example.com/writing-guide"],
       // 插件四枚的实参：listPlugins 不收；toggle 收「目录名 + 一个布尔」；
       // uninstall 与读源码各只收目录名。**一个路径都不许出现**——
       // 这一列就是那道闸的形状证明，多一个字符串（比如 "/root/plugins/x"）就说明闸漏了。
@@ -497,6 +503,8 @@ describe("createRendererApi", () => {
       "changesRetentionGet",
       "changesRetentionSave",
       "contextPreview",
+      // 网页转技能（2026-11-10）：进点名册与其它技能通道同一规矩——多一枚就是多开的口子。
+      "convertWebpageSkill",
       "createBook",
       // 整书备份三枚（2026-10-10）：「备不备/备到哪」的档位与目录名是渲染层仅有的发言权，
       // 和其它改稿通道一样进这份点名册：少一枚面板调不到，多一枚就是多开的口子。

@@ -29,6 +29,15 @@ export const SKILL_API_STUBS = {
     fetchedFrom: ""
   }),
   installRemoteSkill: async () => ({ ok: false, notice: "", dirName: "", displayName: "" }),
+  convertWebpageSkill: async () => ({
+    ok: false,
+    notice: "",
+    dirName: "",
+    displayName: "",
+    bytes: 0,
+    truncated: false,
+    sourceUrl: ""
+  }),
   saveAuthoredSkill: async () => ({ ok: false, notice: "", dirName: "", displayName: "" }),
   removeSkill: async () => ({ ok: false, notice: "", dirName: "", displayName: "" })
 } satisfies Pick<
@@ -36,6 +45,7 @@ export const SKILL_API_STUBS = {
   | "listRemoteSkills"
   | "previewRemoteSkill"
   | "installRemoteSkill"
+  | "convertWebpageSkill"
   | "saveAuthoredSkill"
   | "removeSkill"
 >;

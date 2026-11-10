@@ -440,6 +440,10 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   [IPC_CHANNELS.skillsRemoteInstall]: [
     textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "技能地址" })
   ],
+  // 网页转技能：同样只收一条 URL 文本（长度上限与技能地址同档）。
+  [IPC_CHANNELS.skillsWebpageConvert]: [
+    textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "网页地址" })
+  ],
   // 自写技能的草稿是对象：字段级校验在 contracts 的 skillAuthorDraftSchema（返回中文 issue）。
   [IPC_CHANNELS.skillsAuthorSave]: [objectRule("技能草稿")],
   [IPC_CHANNELS.skillsRemove]: [id("要删的技能目录")],

@@ -92,6 +92,8 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     listRemoteSkills: (idOrUrl) => invoke(IPC_CHANNELS.skillsRemoteList, idOrUrl),
     previewRemoteSkill: (url) => invoke(IPC_CHANNELS.skillsRemotePreview, url),
     installRemoteSkill: (url) => invoke(IPC_CHANNELS.skillsRemoteInstall, url),
+    // 网页转技能：只递一条 URL，抓取、转写、落盘全在主进程。
+    convertWebpageSkill: (url) => invoke(IPC_CHANNELS.skillsWebpageConvert, url),
     // 自己写 / 删：草稿与目录名由主进程校验，preload 只转手。
     saveAuthoredSkill: (draft) => invoke(IPC_CHANNELS.skillsAuthorSave, draft),
     removeSkill: (dirName) => invoke(IPC_CHANNELS.skillsRemove, dirName),

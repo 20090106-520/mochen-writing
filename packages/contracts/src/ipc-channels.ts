@@ -85,6 +85,12 @@ export const IPC_CHANNELS = {
   skillsRemotePreview: "skills:remote-preview",
   skillsRemoteInstall: "skills:remote-install",
   /**
+   * 网页转技能（2026-11-10 用户裁定「任意网页当技能」）：渲染层只递一个网页 URL，
+   * 主进程抓正文、剥成纯文本、补上 frontmatter 落进全局技能目录。
+   * 与 remote 三条同一条边界：不收路径、不收正文——抓什么、叫什么、写到哪，全由主进程判。
+   */
+  skillsWebpageConvert: "skills:webpage-convert",
+  /**
    * 自己写技能：存一份（会在报已有同名时拒，除非显式 overwrite），删掉全局目录里的一份。
    * 删除必须在这里，不能并进 market:uninstall——市场那条只认内置清单，
    * 网上装的与自己写的都不在清单里，否则会「装得进来、删不掉」（见 skill-author-service.ts）。

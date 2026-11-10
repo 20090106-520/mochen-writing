@@ -326,6 +326,23 @@ export interface RemoteInstallResult {
   displayName: string;
 }
 
+/**
+ * 网页转技能的回执（2026-11-10）。主进程抓网页、剥正文、落盘之后的全部事实：
+ * ok=false 时 notice 里说为什么（链接不对 / 抓不到 / 剥不出正文 / 同名已装）；
+ * truncated=true 表示网页正文太长、只取了前段——装进来的是前段，不是全文，必须如实说。
+ */
+export interface WebpageSkillResult {
+  ok: boolean;
+  notice: string;
+  dirName: string;
+  displayName: string;
+  /** 落盘那份 SKILL.md 的字节数（给人看大小用）。 */
+  bytes: number;
+  truncated: boolean;
+  /** 实际转写的那条 URL（跳转后的最终地址）。 */
+  sourceUrl: string;
+}
+
 /* ───────────────────────────── 自己写技能 ───────────────────────────── */
 
 /**

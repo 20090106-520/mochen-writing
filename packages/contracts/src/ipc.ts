@@ -20,7 +20,8 @@ import type {
   RemoteListResult,
   RemoteSkillPreview,
   SkillAuthorDraft,
-  SkillAuthorResult
+  SkillAuthorResult,
+  WebpageSkillResult
 } from "./skill-source.js";
 import type { MarketListResult } from "./market.js";
 import type { PluginListResult } from "./plugin.js";
@@ -479,6 +480,12 @@ export interface RendererApi {
   previewRemoteSkill(url: string): Promise<RemoteSkillPreview>;
   /** 把远端那一份装进全局技能目录。已存在同名就拒，不覆盖用户手里那份。 */
   installRemoteSkill(url: string): Promise<RemoteInstallResult>;
+  /**
+   * 网页转技能（2026-11-10）：递一条网页 URL，主进程抓正文、剥纯文本、补 frontmatter
+   * 落进全局技能目录。抓不到、剥不出正文、同名已装都回 ok=false 加一句中文原因；
+   * 正文过长时只装前段并如实回报（`truncated`）。
+   */
+  convertWebpageSkill(url: string): Promise<WebpageSkillResult>;
   /**
    * 自己写一份技能并落盘（全局技能目录）。frontmatter 由主进程按名字/说明/阶段拼，
    * 不用手写 YAML；同名已存在时默认拒，`overwrite` 才覆盖。

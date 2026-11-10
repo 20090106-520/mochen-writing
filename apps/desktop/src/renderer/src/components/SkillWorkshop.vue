@@ -15,12 +15,34 @@ import { computed, ref } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useSkillFetchStore } from "../stores/useSkillFetchStore";
 import { useSkillAuthorStore } from "../stores/useSkillAuthorStore";
+import { useSkillWebpageStore } from "../stores/useSkillWebpageStore";
 
 const fetchStore = useSkillFetchStore();
 const author = useSkillAuthorStore();
+const webpage = useSkillWebpageStore();
 
-/** 两档：网上装 / 自己写。档位是这一张卡内部的状态，不往上提（提到 layout store 就成了全局状态）。 */
-const tab = ref<"web" | "write">("web");
+/** 三档：网上装 / 网页转技能 / 自己写。档位是这一张卡内部的状态，不往上提（提到 layout store 就成了全局状态）。 */
+const tab = ref<"web" | "page" | "write">("web");
+
+/** 标题行随档位换文案：一张卡三个动作，头部那句话说的是当前这个。 */
+const HEADING: Record<typeof tab.value, { strong: string; sub: string }> = {
+  web: { strong: "从网上装技能", sub: "直接读远端的 SKILL.md，装进你的全局技能库" },
+  page: {
+    strong: "网页转技能",
+    sub: "粘一篇文章的链接，正文转写成一份技能落进技能库"
+  },
+  write: { strong: "自己写一个技能", sub: "填完就落盘，与手放、与装进来的完全同形" }
+};
+const heading = computed(() => HEADING[tab.value]);
+
+const TAB_LABEL: Record<typeof tab.value, string> = {
+  web: "从网上装",
+  page: "网页转技能",
+  write: "自己写"
+};
+
+/** 档位键的穷尽表：用 `Record<typeof tab.value, string>` 钉住，少一档编译期就红（铁律 6）。 */
+const TAB_KEYS = ["web", "page", "write"] as const satisfies readonly (typeof tab.value)[];
 
 /** 预览里的正文给人看前 20 行——全文太长，列表里放不下；装进去的还是全文。 */
 const previewBody = computed(() => {
@@ -67,34 +89,23 @@ const canSave = computed(
         </button>
         <span class="composer-sheet-icon"><AppIcon name="globe" :size="17" /></span>
         <div class="composer-sheet-heading-copy">
-          <strong>{{ tab === "web" ? "从网上装技能" : "自己写一个技能" }}</strong>
-          <span>{{
-            tab === "web"
-              ? "直接读远端的 SKILL.md，装进你的全局技能库"
-              : "填完就落盘，与手放、与装进来的完全同形"
-          }}</span>
+          <strong>{{ heading.strong }}</strong>
+          <span>{{ heading.sub }}</span>
         </div>
         <kbd>Esc</kbd>
       </div>
 
       <div class="redeem-tabs" role="group" aria-label="添加方式">
         <button
+          v-for="key in TAB_KEYS"
+          :key="key"
           class="redeem-tab"
-          :class="{ 'is-active': tab === 'web' }"
+          :class="{ 'is-active': tab === key }"
           type="button"
-          :aria-pressed="tab === 'web'"
-          @click="tab = 'web'"
+          :aria-pressed="tab === key"
+          @click="tab = key"
         >
-          从网上装
-        </button>
-        <button
-          class="redeem-tab"
-          :class="{ 'is-active': tab === 'write' }"
-          type="button"
-          :aria-pressed="tab === 'write'"
-          @click="tab = 'write'"
-        >
-          自己写
+          {{ TAB_LABEL[key] }}
         </button>
       </div>
 
@@ -220,6 +231,39 @@ const canSave = computed(
           </p>
         </template>
 
+        <!-- ── 网页转技能 ── -->
+        <template v-else-if="tab === 'page'">
+          <form class="skill-url-row" @submit.prevent="void webpage.convert()">
+            <input
+              v-model="webpage.url"
+              class="redeem-input"
+              type="text"
+              placeholder="https:// 一篇文章、一篇教程、一份方法论的链接"
+              aria-label="网页地址"
+              spellcheck="false"
+            />
+            <button class="redeem-button is-primary" type="submit" :disabled="webpage.busy">
+              {{ webpage.busy ? "转…" : "转成技能" }}
+            </button>
+          </form>
+          <p
+            v-if="webpage.result"
+            class="redeem-notice"
+            :class="{ 'is-ok': webpage.ok }"
+            role="status"
+          >
+            {{ webpage.result }}
+          </p>
+          <p v-if="webpage.last?.ok" class="skill-entry-meta">
+            {{ Math.round(webpage.last.bytes / 102.4) / 10 }} KB · 目录名
+            {{ webpage.last.dirName }}
+            <span v-if="webpage.last.truncated"> · 正文过长只取了前段</span>
+          </p>
+          <p class="redeem-hint">
+            正文剥成纯文本再落盘，末尾钉着来源链接；同名不覆盖。转完在这张卡下面点「挂入」才进这一轮上下文。
+          </p>
+        </template>
+
         <!-- ── 自己写 ── -->
         <template v-else>
           <div class="redeem-field">
@@ -333,7 +377,9 @@ const canSave = computed(
           {{
             tab === "web"
               ? "正文从上游现取，仓里不存副本"
-              : "写好之后，开着自动技能它会自己按需挂上"
+              : tab === "page"
+                ? "转出来的技能与手写的完全同形，模型按需自取"
+                : "写好之后，开着自动技能它会自己按需挂上"
           }}
         </span>
       </div>

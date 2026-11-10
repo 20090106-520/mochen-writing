@@ -58,6 +58,7 @@ import { seedBuiltinSkills } from "./builtin-skills.js";
 import { createSkillMarketService, registerSkillMarketIpc } from "./skill-market-service.js";
 import { createSkillRedeemService, registerSkillRedeemIpc } from "./skill-redeem-service.js";
 import { createSkillRemoteService, registerSkillRemoteIpc } from "./skill-remote-service.js";
+import { createSkillWebpageService, registerSkillWebpageIpc } from "./skill-webpage-service.js";
 import { createSkillAuthorService, registerSkillAuthorIpc } from "./skill-author-service.js";
 import { SKILL_CATALOG } from "./skill-catalog.js";
 import { createPluginService, registerPluginIpc } from "./plugin-service.js";
@@ -416,6 +417,10 @@ app.whenReady().then(async () => {
   // 只写全局技能目录，且装之前查同名、绝不覆盖（与市场、兑换码同一条边界）。
   const skillRemote = createSkillRemoteService({ dirOf: skillService.dirOf });
   registerSkillRemoteIpc((channel, fn) => ipcMain.handle(channel, fn), skillRemote);
+  // 网页转技能（2026-11-10）：抓网页正文转写成技能落盘。抓取复用 web_read 那一套
+  // （URL 闸/超时/中文错误），写盘与 remote 同一条边界——只写全局、绝不覆盖。
+  const skillWebpage = createSkillWebpageService({ dirOf: skillService.dirOf });
+  registerSkillWebpageIpc((channel, fn) => ipcMain.handle(channel, fn), skillWebpage);
   // 自己写技能与删除（同一条写边界）。删除独立成一条，是因为内置市场的卸载只认它自己的清单，
   // 网上装的、自写的都不在清单里——不给这条通道就是「装得进来、删不掉」。
   const skillAuthor = createSkillAuthorService({ dirOf: skillService.dirOf });
