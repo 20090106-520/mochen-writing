@@ -52,3 +52,7 @@ release-e2e/
 # `packages/contracts/corpus/` —— 喂给 `flavor-calibration` 出表的**真人语料**：多为受版权保护的
 # 出版文本，只在本地当对照算出分位与误报率，本体不跟着代码走（既例见上面那几条语料/工具目录）。
 packages/contracts/corpus/
+
+# ---- 2026-11-10 补：真机巡检工作目录 ----
+# .screenshots/ 装的是 CDP 巡检截图、验证日志与探针脚本，全部可再生产，不进仓库。
+.screenshots/
