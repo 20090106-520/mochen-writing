@@ -33,8 +33,10 @@ import {
 } from "@mochen/contracts";
 import {
   analyzeAiFlavor,
+  bookStyleSentence,
   chapterDialogueRows,
   chapterReadoutRows,
+  chapterStyleRows,
   findDuplicateSentences,
   findPunctuationIssues,
   findTermVariants,
@@ -44,6 +46,7 @@ import {
   trackCharacterAppearances,
   type ChapterDialogueRow,
   type ChapterReadoutRow,
+  type ChapterStyleRow,
   type CharacterAppearance,
   type DuplicateSentence,
   type PhraseRow,
@@ -81,6 +84,10 @@ const driftRows = ref<VoiceDriftSuspect[]>([]);
 const phraseRows = ref<PhraseRow[]>([]);
 /** 逐章活性／退化读数（2026-10-20）：纯读数表，不判定、不排序（真身住 contracts）。 */
 const chapterReadouts = ref<ChapterReadoutRow[]>([]);
+/** 逐章腔调偏离（2026-11-10 第十类）：参照物是这本书自己，不是通用阈值。 */
+const styleRows = ref<ChapterStyleRow[]>([]);
+/** 本书常态那一句话（样本不足时是「立不起基线」的实话）。 */
+const styleHead = ref("");
 /** 有问题的篇（标点/重复句按 docIndex 报），映射回篇名给表格用。 */
 const checkupDocs = ref<BookDoc[]>([]);
 
@@ -98,6 +105,8 @@ watch(
     driftRows.value = [];
     phraseRows.value = [];
     chapterReadouts.value = [];
+    styleRows.value = [];
+    styleHead.value = "";
     checkupDocs.value = [];
     if (book.docs.length === 0) return;
     termsScanning.value = true;
@@ -120,6 +129,8 @@ watch(
           .filter((entry) => entry.kind === "chapter");
         dialogueRows.value = chapterDialogueRows(chapterEntries);
         chapterReadouts.value = chapterReadoutRows(chapterEntries);
+        styleRows.value = chapterStyleRows(contents, chapterEntries);
+        styleHead.value = bookStyleSentence(contents);
         const characterNames = book.docs
           .filter((doc) => doc.kind === "character")
           .map((doc) => doc.title);
@@ -187,6 +198,14 @@ function dialogueLabel(verdict: DialogueVerdict): string {
 /** 漂移方向的说法（判定已在 doc-checkup 里做掉，这里只把方向说成人话）。 */
 function driftLabel(row: VoiceDriftSuspect): string {
   return row.chapterMean > row.baselineMean ? "话变多了" : "话变短了";
+}
+
+/** 腔调偏离的判读（2026-11-10）：三档之外还有「没法比」——短文不是「一致」，别混着说。 */
+function styleLabel(row: ChapterStyleRow): string {
+  if (!row.checked) return "太短，没法比";
+  if (row.severity === "off") return "偏离大";
+  if (row.severity === "warn") return "小偏";
+  return "一致";
 }
 
 /**
@@ -406,6 +425,45 @@ function openCharacterCard(name: string): void {
       <p class="stats-note">
         排序把话太密和全叙述的章顶在最前。一章全是你一句我一句就没了呼吸，全是叙述就没了戏——占比过
         65% 或低于 3% 值得回章里找补节拍。
+      </p>
+
+      <p class="stats-section-head">腔调偏离（{{ styleRows.length }}）</p>
+      <table v-if="styleRows.length > 0" class="stats-table">
+        <thead>
+          <tr>
+            <th scope="col">章</th>
+            <th scope="col">偏在哪</th>
+            <th scope="col" class="num">这一章</th>
+            <th scope="col" class="num">本书常态</th>
+            <th scope="col">判读</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="row in styleRows"
+            :key="row.docIndex"
+            class="is-openable"
+            :title="
+              row.advice === ''
+                ? `点开《${row.title}》查看`
+                : `${row.advice}（点开《${row.title}》查看）`
+            "
+            @click="openCheckupDoc(row.docIndex)"
+          >
+            <td>{{ row.title }}</td>
+            <td>{{ row.label === "" ? "—" : row.label }}</td>
+            <td class="num">{{ row.draft === "" ? "—" : row.draft }}</td>
+            <td class="num">{{ row.base === "" ? "—" : row.base }}</td>
+            <td>{{ styleLabel(row) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="stats-note">这本书还没有章节，腔调无从比起。</p>
+      <p class="stats-note">
+        {{ styleHead }}
+        这一栏的参照物是这本书自己：先把已完稿正文量成一份腔调档案，再拿每一章去比句长、
+        长短句落差、对白占比、标点脾气。它只报「疑似」——打斗章本来就该比抒情章句子短，判读交给你。
+        鼠标停在「判读」格上看具体改法。
       </p>
 
       <p class="stats-section-head">角色腔调漂移（{{ driftRows.length }}）</p>

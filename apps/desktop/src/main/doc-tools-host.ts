@@ -20,7 +20,10 @@ import {
   fuzzyFindInLine,
   aiFlavorGate,
   AI_FLAVOR_STRUCTURE_MIN_COUNT,
-  textSimilarity
+  styleProfileOf,
+  styleDriftOf,
+  textSimilarity,
+  type StyleProfile
 } from "@mochen/contracts";
 import {
   applyPatch,
@@ -286,10 +289,53 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
   const COSMETIC_REWRITE_RATIO = 0.75;
 
   /**
+   * 这本书自己的腔调常态（2026-11-10）。`undefined` = 还没量过；`null` = 量过但没有可比样本。
+   * 每轮 host 只量一次：完稿字数没变的话，量第二遍得到的还是同一份读数，白读一遍全书。
+   */
+  let bookProfile: StyleProfile | null | undefined;
+
+  /** 把已完稿正文读出来量一份腔调档案。读不到任何一章就当「没有常态」。 */
+  async function bookProfileOf(): Promise<StyleProfile | null> {
+    if (bookProfile !== undefined) return bookProfile;
+    const root = deps.root();
+    if (root === null) {
+      bookProfile = null;
+      return null;
+    }
+    const contents: string[] = [];
+    for (const doc of deps.docs()) {
+      if (doc.kind !== "chapter") continue;
+      const file = await readDocFile(root, doc.relPath).catch(() => null);
+      if (file !== null && file.content !== "") contents.push(file.content);
+    }
+    bookProfile = styleProfileOf(contents);
+    return bookProfile;
+  }
+
+  /**
+   * 腔调偏离的措辞。**过闸时只报「off」档**（warn 档每稿都有几处，写进回执只会变噪音）；
+   * 已经退稿时全报——那时候需要的是「往哪儿改」，不是省字。
+   */
+  async function driftNote(nextText: string, mode: "pass" | "block"): Promise<string> {
+    const profile = await bookProfileOf();
+    if (profile === null) return "";
+    const drift = styleDriftOf(profile, nextText);
+    if (!drift.checked || drift.worst === null) return "";
+    if (mode === "pass" && drift.worst.severity !== "off") return "";
+    const rows = mode === "pass" ? drift.items.slice(0, 1) : drift.items.slice(0, 2);
+    const body = rows
+      .map((item) => `${item.label} ${item.draft}（本书 ${item.base}）——${item.advice}`)
+      .join(" ");
+    if (mode === "pass") return ` 腔调提示：${body}`;
+    const rest = drift.items.length - rows.length;
+    return ` 不像你自己写的：${body}${rest > 0 ? `（另有 ${rest} 处小偏）` : ""}`;
+  }
+
+  /**
    * 对新增正文做退稿判定。返回 pass（note 非空 = 二次重交的附加提醒）或 block。
    * 判定、退稿信措辞的单一真身都在这里；write_doc 与 propose_patch 共吃。
    */
-  function flavorGate(text: string): GateResult {
+  async function flavorGate(text: string, driftText: string = text): Promise<GateResult> {
     if (text === "") return { action: "pass", note: "" };
     const verdict = aiFlavorGate(text);
     if (verdict.pass) {
@@ -297,7 +343,8 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
       lastBlockedFingerprint = null;
       lastBlockedContent = null;
       blockedStreak = 0;
-      return { action: "pass", note: "" };
+      // 词干净但腔调跑了：不拦（打斗章本来就短），但把读数交给模型，下一稿自己校回来。
+      return { action: "pass", note: await driftNote(driftText, "pass") };
     }
     const fingerprint = makeFingerprint(text);
     if (fingerprint === lastBlockedFingerprint) {
@@ -306,7 +353,9 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
       blockedStreak = 0;
       return {
         action: "pass",
-        note: "（同一稿第二次提交，系统放行交用户审批——AI 味仍超标，用户可能整段退回。）"
+        note:
+          "（同一稿第二次提交，系统放行交用户审批——AI 味仍超标，用户可能整段退回。）" +
+          (await driftNote(driftText, "pass"))
       };
     }
     // 「换汤不换药」点破：这版跟上一版被拦的稿几乎一样（只换了几个词），退稿信直说——
@@ -352,6 +401,9 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
         ? ""
         : ` 句长节奏：平均句长 ${verdict.flatRhythm.mean} 字，几乎句句一样长——长短句要错开：该停顿的地方用短句，该铺开的地方用长句，让长短替你打节拍。`;
     const again = cosmetic ? " 注意：这一版和上一版几乎一样——要**换写法**，不是换几个词。" : "";
+    // 腔调条（2026-11-10）：词干净也可能「写得挺好，但不是这本书」。已经在退稿了，
+    // 就把这本书自己的常态一并摆出来——这时候模型要的是往哪儿改，不是省字。
+    const drift = await driftNote(driftText, "block");
     // 连续退稿升级（五段）：连吃两轮退稿说明「照着改」的路子没走通，第三封信说重话——
     // 要求回到场景本身重构，而不是继续在原稿上修修补补。
     const escalation =
@@ -371,6 +423,7 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
             repeat +
             rhythm +
             flatLine +
+            drift +
             again +
             escalation +
             " 重写要求：套话换成具体的动作、对话和细节；心理活动别用「他知道，……」汇报，" +
@@ -474,7 +527,13 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
           return deny(
             `技能库里没有 id 为「${wanted}」的技能。先不带参数调一次 use_skill 看看有哪些。`
           );
-        return { ok: true, text: `【技能：${one.title}】\n${one.text}`, proposals: [] };
+        // 回执里点明「正文已载入」：模型读到一份方法后，下一轮常会忘了它已经在手上又去读一遍
+        // （历史被切片后尤其如此），白烧一整轮工具往返。这句把它按在「已经读到了」。
+        return {
+          ok: true,
+          text: `【技能：${one.title}（正文已载入，这一轮不必再读）】\n${one.text}`,
+          proposals: []
+        };
       }
 
       if (name === "search_docs") {
@@ -659,7 +718,7 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
             return deny("提案没有生成：新内容与盘上文字未发生变化，这一改等于没改；文件未改动。");
           // 自动退稿闸：正文超标先退给模型重写，不生成提案——用户批不到一稿重度 AI 味。
           const gate = gatedDoc(doc)
-            ? flavorGate(content)
+            ? await flavorGate(content)
             : ({ action: "pass", note: "" } as const);
           if (gate.action === "block") return gate.outcome;
           const item = proposal({
@@ -696,7 +755,9 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
         if (body !== null && applied.content === body)
           return deny("提案没有生成：替换后文字未发生变化，这一改等于没改；文件未改动。");
         // 自动退稿闸：与 write_doc 同一口径——正文替换片段超标先退给模型重写。
-        const gate = gatedDoc(doc) ? flavorGate(replace) : ({ action: "pass", note: "" } as const);
+        const gate = gatedDoc(doc)
+          ? await flavorGate(replace, applied.content)
+          : ({ action: "pass", note: "" } as const);
         if (gate.action === "block") return gate.outcome;
         const item = proposal({
           doc,

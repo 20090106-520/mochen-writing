@@ -30,6 +30,9 @@ import {
   splitFrontmatter,
   degenerationOf,
   vitalityOf,
+  styleProfileOf,
+  styleDriftOf,
+  STYLE_PROFILE_PUNCTUATION,
   type RepeatedSentence
 } from "@mochen/contracts";
 import type { BookDoc } from "../types/book-doc";
@@ -623,4 +626,90 @@ export async function loadAllDocContents(docs: BookDoc[]): Promise<BookDoc[]> {
   return results
     .filter((r): r is PromiseFulfilledResult<BookDoc> => r.status === "fulfilled")
     .map((r) => r.value);
+}
+
+/* ────────────────────────── ⑩ 腔调偏离（2026-11-10） ────────────────────────── */
+
+/**
+ * 逐章「还像不像这本书」的读数。
+ *
+ * 前九类报的都是**通用**病（套话、标点、重复句、对话失衡），这一类的参照物是**这本书自己**：
+ * 先把已完稿正文量成一份腔调档案（`styleProfileOf`），再拿每一章去比（`styleDriftOf`）。
+ * 它治的是另一种塌房——每章单独看都没毛病，合起来不像同一个人写的。
+ *
+ * 与⑦角色腔调漂移分工不同：⑦看**引语长度**（这个人说话变长了），这里看**叙述**（句长、
+ * 长短句落差、对白比、标点脾气）。两条都只报「疑似」，不设判退线。
+ */
+export interface ChapterStyleRow {
+  docIndex: number;
+  title: string;
+  /** 这一章量不出来（正文太短），此时下面四格全空。 */
+  checked: boolean;
+  /** 最该看的那一项（人话名，如「句长均值」）。 */
+  label: string;
+  /** 这一章的读数（已带单位）。 */
+  draft: string;
+  /** 这本书的常态（同一套单位）。 */
+  base: string;
+  severity: "off" | "warn" | "";
+  advice: string;
+}
+
+/** 本书常态的一句话。样本不足时**明说不报**——立一份全 0 的档案比不报更误导。 */
+export function bookStyleSentence(contents: readonly string[]): string {
+  const profile = styleProfileOf(contents);
+  if (profile === null || profile.rhythm === null) {
+    return "完稿还不足 500 字，立不起这本书的腔调基线——开书前立手册，立出来的只会是别人的东西。";
+  }
+  const marks = STYLE_PROFILE_PUNCTUATION.map(({ key, label }) => {
+    const density = profile.punctuation[key];
+    return density > 0 ? `${label} ${density} 处/千字` : "";
+  })
+    .filter((text) => text !== "")
+    .join("、");
+  return (
+    `这本书的常态：平均句长 ${profile.rhythm.mean} 字、长短句落差 ${profile.rhythm.spread}、` +
+    `对白 ${Math.round(profile.dialogueRatio * 100)}%${marks === "" ? "" : `、${marks}`}` +
+    `（样本 ${profile.charCount} 字）。`
+  );
+}
+
+/**
+ * 逐章比一次。排序：偏离大的在前（off → warn → 一致），同档按偏离量降序；
+ * 量不出的章排在最后（它们不是「一致」，是「没法比」）。
+ */
+export function chapterStyleRows(
+  contents: readonly string[],
+  chapters: readonly { docIndex: number; title: string; content: string }[]
+): ChapterStyleRow[] {
+  const profile = styleProfileOf(contents);
+  const rows = chapters.map((chapter): ChapterStyleRow => {
+    const drift = styleDriftOf(profile, chapter.content);
+    const worst = drift.worst;
+    if (!drift.checked || worst === null) {
+      return {
+        docIndex: chapter.docIndex,
+        title: chapter.title,
+        checked: drift.checked,
+        label: "",
+        draft: "",
+        base: "",
+        severity: "",
+        advice: ""
+      };
+    }
+    return {
+      docIndex: chapter.docIndex,
+      title: chapter.title,
+      checked: true,
+      label: worst.label,
+      draft: worst.draft,
+      base: worst.base,
+      severity: worst.severity,
+      advice: worst.advice
+    };
+  });
+  const rank = (row: ChapterStyleRow): number =>
+    row.severity === "off" ? 0 : row.severity === "warn" ? 1 : 2;
+  return rows.sort((x, y) => rank(x) - rank(y));
 }

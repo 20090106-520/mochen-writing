@@ -4,8 +4,10 @@ import {
   DUPLICATE_SENTENCE_LIMIT,
   PUNCTUATION_ISSUE_LIMIT,
   TERM_SUSPECT_LIMIT,
+  bookStyleSentence,
   chapterDialogueRows,
   chapterReadoutRows,
+  chapterStyleRows,
   findDuplicateSentences,
   findPunctuationIssues,
   findTermVariants,
@@ -368,5 +370,49 @@ describe("chapterReadoutRows：逐章活性／退化读数（第九节）", () =
     expect(emptyRow).toMatchObject({ charCount: 0, particlePerThousand: null });
 
     expect(chapterReadoutRows([])).toHaveLength(0);
+  });
+});
+
+describe("chapterStyleRows / bookStyleSentence：逐章腔调偏离（第十类）", () => {
+  /** 基线句：12 个非空白字、含 3 字对白；50 行 = 600 字（过 500 字样本线）。 */
+  const LINE = "他说：「走吧。」她把碗放下。";
+  const BASELINE = Array.from({ length: 50 }, () => LINE).join("\n");
+  /** 另一章：30 字一句、连 12 句（360 字）——句长约为基线的 4.6 倍、零对白。 */
+  const LONG_FLAT = Array.from({ length: 12 }, () => `${"雾".repeat(29)}。`).join("\n");
+
+  it("样本不足时明说立不起基线，不报一份全 0 的档案", () => {
+    expect(bookStyleSentence([LINE])).toContain("立不起");
+  });
+
+  it("样本够了就报出本书常态的四枚读数", () => {
+    const text = bookStyleSentence([BASELINE]);
+    expect(text).toContain("平均句长");
+    expect(text).toContain("对白 25%");
+    expect(text).toContain("样本 600 字");
+  });
+
+  it("偏离大的章排在前面，并点名偏在哪一项", () => {
+    // 基线只喂 BASELINE：全书一起量时，跑掉的那章会把基线自己拽跑（那是下一档的事）。
+    const rows = chapterStyleRows(
+      [BASELINE],
+      [
+        { docIndex: 0, title: "一致的章", content: BASELINE },
+        { docIndex: 1, title: "跑掉的章", content: LONG_FLAT }
+      ]
+    );
+    expect(rows[0]?.title).toBe("跑掉的章");
+    expect(rows[0]?.label).toBe("句长均值");
+    expect(rows[0]?.severity).toBe("off");
+    expect(rows[0]?.advice).toContain("拉长");
+    // 与自己一致的那章不该被报（零偏离不是「小偏」）
+    expect(rows[1]).toMatchObject({ title: "一致的章", checked: true, label: "", severity: "" });
+  });
+
+  it("太短的章标「没法比」，不当成「一致」", () => {
+    const rows = chapterStyleRows(
+      [BASELINE],
+      [{ docIndex: 0, title: "短章", content: "雾从海面涌上来。" }]
+    );
+    expect(rows[0]).toMatchObject({ checked: false, label: "", severity: "" });
   });
 });
