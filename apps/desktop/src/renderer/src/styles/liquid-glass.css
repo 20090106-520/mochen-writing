@@ -40,7 +40,15 @@ html[data-liquid-glass="on"] .timeline-check,
 html[data-liquid-glass="on"] .foreshadow-ledger,
 html[data-liquid-glass="on"] .volume-outline,
 html[data-liquid-glass="on"] .change-history,
-html[data-liquid-glass="on"] .toast {
+html[data-liquid-glass="on"] .toast,
+/* 2026-11-10 铺开面三处（都是浮在内容之上、此前漏网的）：
+   ① 素材库浮层——注释自报「骨架与 cast-check / timeline 同款」，那两个早进了玻璃族；
+   ② 「回到最新」胶囊——浮在滚动的消息流上，底色本来就是 88% 半透明；
+   ③ 技能工坊弹层——**向下**开，压的是对话区，不碰欢迎页大字，
+      「更多」弹层与 `/` 菜单的排除理由（向上开正压 hero）在这里不成立。 */
+html[data-liquid-glass="on"] .material-panel,
+html[data-liquid-glass="on"] .scroll-to-bottom,
+html[data-liquid-glass="on"] .redeem-sheet {
   border-color: var(--lg-ring);
   background-color: var(--lg-fill);
   /* 两层渐变：一条斜向光带 + 左上角镜面反光。位置与尺寸让位移只挪光、不挪盒子。 */
@@ -54,7 +62,10 @@ html[data-liquid-glass="on"] .toast {
     background-position 220ms ease,
     background-color 220ms ease,
     border-color 220ms ease,
-    box-shadow 220ms ease;
+    box-shadow 220ms ease,
+    /* 组件自己的 color 过渡会被这条 transition 整体盖掉（比如「回到最新」hover 变色），
+       在这里并上一份，玻璃开着时 hover 依旧有渐变。 */
+    color 220ms ease;
 }
 
 /* 对话框：同样的底/边/光，但**不加** backdrop-filter（背板已经糊过一层，见文件头）。 */
@@ -91,6 +102,8 @@ html[data-liquid-glass="on"] .model-select:hover,
 html[data-liquid-glass="on"] .tool-roster:hover,
 html[data-liquid-glass="on"] .context-meter-panel:hover,
 html[data-liquid-glass="on"] .composer-context-menu:hover,
+html[data-liquid-glass="on"] .material-panel:hover,
+html[data-liquid-glass="on"] .redeem-sheet:hover,
 html[data-liquid-glass="on"] .toast:hover {
   background-position: var(--lg-sheen-hover);
   box-shadow: var(--lg-shadow-hover);
@@ -167,7 +180,10 @@ html[data-liquid-glass="on"] .workspace-dialog:focus-within {
   html[data-liquid-glass="on"] .foreshadow-ledger,
   html[data-liquid-glass="on"] .volume-outline,
   html[data-liquid-glass="on"] .change-history,
-  html[data-liquid-glass="on"] .toast {
+  html[data-liquid-glass="on"] .toast,
+  html[data-liquid-glass="on"] .material-panel,
+  html[data-liquid-glass="on"] .scroll-to-bottom,
+  html[data-liquid-glass="on"] .redeem-sheet {
     background-color: var(--surface-card);
     background-image: none;
     box-shadow: var(--shadow-md);
@@ -205,7 +221,10 @@ html[data-liquid-glass="on"] .workspace-dialog:focus-within {
   html[data-liquid-glass="on"] .foreshadow-ledger,
   html[data-liquid-glass="on"] .volume-outline,
   html[data-liquid-glass="on"] .change-history,
-  html[data-liquid-glass="on"] .toast {
+  html[data-liquid-glass="on"] .toast,
+  html[data-liquid-glass="on"] .material-panel,
+  html[data-liquid-glass="on"] .scroll-to-bottom,
+  html[data-liquid-glass="on"] .redeem-sheet {
     transition: none;
   }
 }

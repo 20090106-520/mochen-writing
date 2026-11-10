@@ -88,7 +88,11 @@ describe("液态玻璃 · 只给浮在内容之上的表面", () => {
       ".model-select",
       ".tool-roster",
       ".context-meter-panel",
-      ".composer-context-menu"
+      ".composer-context-menu",
+      // 2026-11-10 铺开面：素材库浮层、「回到最新」胶囊、技能工坊弹层（向下开，不压 hero）。
+      ".material-panel",
+      ".scroll-to-bottom",
+      ".redeem-sheet"
     ]) {
       expect(all, `缺了 ${target}`).toContain(target);
     }
@@ -102,7 +106,11 @@ describe("液态玻璃 · 只给浮在内容之上的表面", () => {
       ["interaction.css", ".tool-roster"],
       ["context-meter.css", ".context-meter-panel"],
       ["agent-pane.css", ".composer-context-menu"],
-      ["left-nav.css", ".tree-node-action-menu"]
+      ["left-nav.css", ".tree-node-action-menu"],
+      // 铺开面进玻璃族后，基态同样不许自带毛玻璃（「关」要关得干净）。
+      ["material-panel.css", ".material-panel"],
+      ["conversation-pane.css", ".scroll-to-bottom"],
+      ["skill-redeem.css", ".redeem-sheet"]
     ];
     for (const [file, selector] of menus) {
       const source = readFileSync(path.join(SRC, "styles", file), "utf8").replace(
