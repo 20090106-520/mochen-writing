@@ -1,0 +1,16 @@
+/* 自带西文字体（2026-11-10 字体精致化）。
+   起因：UI 字体栈里 `Inter` 排第一位，但应用从没打包过它——用户机器上没装就是死条目，
+   西文一路掉到 Segoe UI：没有真实的 500 字重（medium 全塌成 regular），层级靠字重撑的
+   地方（标签、徽标、按钮）全部糊成一片；而中文落到 Noto Sans SC（可变字体，100–900
+   全真身），两边字重体系对不上，同一段「semibold 标签」中文粗、西文不粗。
+   打包 InterVariable（352KB，OFL 许可，可变字体带 100–900 + 光学字号轴）后：
+   西文有真 500/600，与 Noto Sans SC 的连续字重正好配对——这是 UI 排版里最稳的一对组合。
+   CJK 不打包：Noto Sans SC 全量 17MB，装不起；没装的用户落「Microsoft YaHei UI」
+   （栈里已排在 YaHei 之前——UI 版字面更紧、行高更小，专为界面文本调的）。 */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../assets/fonts/InterVariable.woff2") format("woff2");
+}

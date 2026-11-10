@@ -53,6 +53,7 @@
 /* 欢迎首页（2026-11-09 参考图）：空态那组「logo + 问候 + 窄输入卡 + 快捷入口」。
    排在 density 之前 —— density 的守卫是「必须最后」，而本文件的选择器比紧凑档那几条高，
    写在前面不会被紧凑档覆盖。 */
+@import "./styles/fonts.css";
 @import "./styles/welcome-home.css";
 @import "./styles/skill-redeem.css";
 @import "./styles/skill-workshop.css";
@@ -67,13 +68,14 @@
   font-family: var(
     --ui-font,
     Inter,
+    "Noto Sans SC",
     ui-sans-serif,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
     "PingFang SC",
-    "Noto Sans SC",
+    "Microsoft YaHei UI",
     "Microsoft YaHei",
     sans-serif
   );
@@ -166,9 +168,11 @@
   );
   --ui-font-size: 14px;
   --code-font-size: 13px;
+  /* 2026-11-10 字体精致化：与 contracts 的 system 栈逐字同步（那是运行时真身，这是
+     JS 起来前的首帧兜底——两边漂了，首帧到主题就绪之间会闪一次字体）。 */
   --ui-font:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-    "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    Inter, "Noto Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
   --editor-font: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif;
   --code-font:
     ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;

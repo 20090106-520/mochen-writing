@@ -182,8 +182,14 @@ export const APPEARANCE_FONT_FAMILY_LABELS = {
    缺族名会一路掉到 `serif` 兜底，于是「选楷体」在某些机器上其实显示的是宋体。
    每条栈都补上「通用中文名 + 常见同义名 + 英文回退」，让认不出族名的那一档也有个像样的落点。 */
 export const APPEARANCE_UI_FONT_STACKS = {
+  /* 2026-11-10 字体精致化：Inter 已随应用打包（styles/fonts.css @font-face，可变字体），
+     首位不再是无装便死的空条目——西文有了真实的 500/600 字重，与 Noto Sans SC VF 的
+     连续字重配对，标签/徽标的字重层级不再「中文粗、西文塌」。
+     「Noto Sans SC」提到 Segoe UI 之前：西文归 Inter、CJK 直接落 Noto（装了的机器），
+     跳过没有任何 CJK 的 Segoe UI；没装 Noto 的机器落「Microsoft YaHei UI」——
+     UI 版比普通版字面紧、行高小，专为界面文本调的，排在 YaHei 前面。 */
   system:
-    'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif',
+    'Inter, "Noto Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
   sans: '"Noto Sans SC", "Source Han Sans SC", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", "Heiti SC", sans-serif',
   yuan: '"Yuanti SC", "YouYuan", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif',
   // 界面里的衬线：给长文工具、批注类页面用；中文回退到宋体族，英文回退到 Georgia。

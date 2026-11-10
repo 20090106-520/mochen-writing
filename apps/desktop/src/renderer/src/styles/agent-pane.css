@@ -1441,6 +1441,12 @@ html[data-platform="darwin"] .conversation-pane {
      糊在条目上。首层四行与二级卡片同底，才像同一张卡的两个层级。 */
   background: var(--editor);
   box-shadow: 0 12px 34px color-mix(in srgb, var(--shadow-color) 70%, transparent);
+  /* 入场（2026-11-10）：与 motion.css 那张浮层表同一条关键帧同一档时长——
+     十四个浮层都有软入场，唯独这扇「更多」是硬弹的，同屏对比很明显。
+     不进那张表：表由 overlay-chrome.test.ts 从 useComposerContextPopover
+     的消费者反推校验，这扇菜单是自己的 keydown 接线，不归那张表管。
+     减动效由 theme-runtime 的 CSS 总闸统一关。 */
+  animation: mochen-pop-in var(--dur-pop) var(--ease-out-soft);
 }
 
 .composer-more-item {

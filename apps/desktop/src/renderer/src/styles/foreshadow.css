@@ -49,7 +49,11 @@
   padding: 0 4px;
   border-radius: 4px;
   background: var(--surface-dim, #f0f1f4);
-  font-family: var(--font-mono, ui-monospace, monospace);
+  /* 2026-11-10：原来读 `var(--font-mono, …)`，但那个变量只在 `.change-history`
+     作用域里定义（interaction.css）——伏笔台账不在这个作用域，永远吃 fallback 的
+     裸 `ui-monospace`（Windows 上就是一档 Consolas，没有后面的栈兜底）。
+     直接读全局的 --code-font，与改动历史/工具卡同一条等宽栈。 */
+  font-family: var(--code-font);
   font-size: 0.785714rem;
 }
 

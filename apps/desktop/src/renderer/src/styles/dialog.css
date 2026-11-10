@@ -14,6 +14,10 @@
      暗色那份覆写在 theme-runtime.css（html[data-theme="dark"]），这边只管浅色。 */
   background: color-mix(in srgb, var(--theme-foreground) 20%, transparent);
   backdrop-filter: blur(10px) saturate(1.05);
+  /* 【2026-11-10 差点犯的错，留档】这里不要加 CSS 入场 animation——
+     六个 workspace-dialog 全走 useDialogMotion（GSAP）入场，CSS animation 与它
+     抢 opacity/transform 就是「抖一下」。useDialogMotion.ts 头注写明：
+     CSS 那两条动画是 2026-10-11 刻意删掉的，别再长回来。 */
 }
 
 .workspace-dialog {
@@ -58,6 +62,8 @@
   font-size: 1.42857rem;
   font-weight: 620;
   letter-spacing: -0.02em;
+  /* 两行标题（「导入 TXT」「保存冲突」一类）逐行平衡，不出现孤字行。 */
+  text-wrap: balance;
 }
 
 .dialog-close {

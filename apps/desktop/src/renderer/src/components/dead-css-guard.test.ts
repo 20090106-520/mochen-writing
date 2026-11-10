@@ -38,7 +38,13 @@ const MARKDOWN_RENDERER = fileURLToPath(
   new URL("../../../../../../packages/fs-store/src/export-shared.ts", import.meta.url)
 );
 
-const stripComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, " ");
+const stripComments = (css: string): string =>
+  css
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    /* url(...) 里是文件路径不是选择器——fonts.css 的
+       `url("../assets/fonts/InterVariable.woff2")` 会被下面的类名正则抠出
+       一个 `.woff2` 孤儿。url 内容永远不会是类选择器，先整体摘掉再扫。 */
+    .replace(/url\([^)]*\)/g, " ");
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
