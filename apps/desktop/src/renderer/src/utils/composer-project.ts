@@ -14,7 +14,7 @@
  * 选项表写在组件里就等于没有关卡（与 composer-chips.ts 同一条纪律）。
  */
 import type { RecentBookEntry } from "@mochen/contracts";
-import { shortenRootPath } from "./book-path";
+import { bookDisplayTitle, shortenRootPath } from "./book-path";
 import type { ContextOption } from "./composer-context";
 
 export const PROJECT_NEW_ID = "new";
@@ -79,7 +79,7 @@ export function projectPickOptions(input: {
   for (const entry of input.books) {
     options.push({
       id: `${PROJECT_BOOK_PREFIX}${entry.rootPath}`,
-      label: entry.title,
+      label: bookDisplayTitle(entry.title, entry.rootPath),
       detail: shortenRootPath(entry.rootPath),
       icon: "book",
       current: entry.rootPath === input.currentRoot,

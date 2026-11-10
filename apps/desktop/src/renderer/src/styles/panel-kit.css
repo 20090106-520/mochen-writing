@@ -1,0 +1,49 @@
+/* ---- 整屏面板 / 锚定浮层的共用骨架（2026-11-09「全部地方优化」）----
+   【已经统一的那一半】这些层的**打开方式**本来就是同一套：
+   - 整屏类（章节盘点 / 大纲 / 设定集 / 笔记 / 模板 / 搜索 / 导出 / 工具清单）
+     统一走 useModalFocus（Esc、Tab 困在层内、焦点归位、顶层栈）+ useDialogMotion 入场；
+   - 贴锚点类（素材库 / 伏笔台账 / 时间线核对 / 卷纲 / 人物核对）
+     统一走 useComposerContextPopover + <Teleport to="body">，动效在 motion.css 那张表。
+   所以这里**不再造第二套开合机制**，只补它们各自写歪了的那一半：卡片圆角、
+   描边、投影、标题字重与副标题色。十几份 CSS 里各写一个数字，改一个皮肤就要改十几处，
+   而用户看到的是「同一个应用里十几种不同的浮层」。
+   【刻意不碰】width / height / padding / position / overflow / 内部列表：
+   各面板内容密度不同，强行统一版式会把长表格挤坏。这里只收「外框」。
+   选择器里的类名逐个核过源码——写进一个不存在的类名会被 dead-css-guard 当场判成死规则。 ---- */
+
+:is(
+  .ci-panel,
+  .outline-panel,
+  .bible-panel,
+  .notes-panel,
+  .tpl-panel,
+  .search-panel,
+  .export-dialog,
+  .tool-roster,
+  .material-panel
+) {
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  box-shadow: 0 18px 48px var(--shadow-color);
+}
+
+/* 头部：标题一律 600、副标题一律淡一档。只改字重与颜色，不改栅格和按钮位置。 */
+:is(
+    .ci-header,
+    .outline-header,
+    .bible-header,
+    .notes-header,
+    .tpl-header,
+    .material-panel-head,
+    .foreshadow-head,
+    .tool-roster-head
+  )
+  :is(h2, h3) {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+:is(.ci-header, .outline-header, .bible-header, .notes-header, .tpl-header, .tool-roster-head)
+  :is(p, small) {
+  color: var(--text-faint);
+}
