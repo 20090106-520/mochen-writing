@@ -9,6 +9,21 @@
  * 为什么值得单独立一份：同一屏里大纲写着"12.3 千字"、统计面板写着"12,345 字"、
  * 另一个面板写着"1.23 万字"，作者无法判断哪个是真的。字数是这本书的核心数字，口径必须只有一处。
  */
+/**
+ * 正文非空白字数的**唯一真身**（2026-11-11 W-06）。
+ *
+ * 口径：去掉所有空白字符，其余一律算字（含标点，中英混排各算一个）。原本
+ * `useWritingGoalStore` 的 `countWords`、`ai-slop.ts` 的密度分母各写了一遍
+ * `replace(/\s/g,"")`，加上进度读数就是第三份。字数是这本书的核心数字，
+ * 同一份事实不许有三种算法——三处同读这一枚。
+ *
+ * 与 `formatCharCount` 分工：这里给数，那边给「1,240 字 / 1.2 万字」的上屏串。
+ */
+export function bodyCharCount(text: string): number {
+  if (typeof text !== "string" || text === "") return 0;
+  return text.replace(/\s/g, "").length;
+}
+
 export function formatCharCount(chars: number | undefined): string {
   const raw = typeof chars === "number" && Number.isFinite(chars) ? Math.max(0, chars) : 0;
   const n = Math.round(raw);

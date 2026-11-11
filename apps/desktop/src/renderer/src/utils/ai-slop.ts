@@ -12,6 +12,8 @@
  *   报出来是提醒不是判决——UI 与交给 AI 的指令里都不许说成"错误"。
  */
 
+import { bodyCharCount } from "./char-count";
+
 /** 命中强度：strong = 几乎必是 AI 腔；suspect = 提醒作者自己判断。 */
 export type SlopStrength = "strong" | "suspect";
 
@@ -159,7 +161,7 @@ export interface SlopVerdict {
  */
 export function slopVerdict(hits: SlopHit[], content: string): SlopVerdict {
   const strong = hits.filter((h) => h.strength === "strong").length;
-  const chars = content.replace(/\s/g, "").length;
+  const chars = bodyCharCount(content);
   const perThousand = chars === 0 ? 0 : Math.round((hits.length / chars) * 1000 * 10) / 10;
   if (strong === 0) {
     return {

@@ -25,6 +25,8 @@ import {
 } from "@mochen/contracts";
 import { permissionChipView } from "./permission-chip";
 import { sessionUsageText } from "./token-usage";
+import { formatCharCount } from "./char-count";
+import type { StatusProgress } from "./turn-progress";
 
 /**
  * 与主进程同名的哨兵：定义只有 contracts 那一份，两侧都从它拿。
@@ -209,16 +211,60 @@ export function decisionViewPatch(
   return { message: result.message };
 }
 
-/** 状态行文案（spec §7 的运行态、§6.3 的打断残留、§9 第 4 行的中断原因、§5.1 的排队数）。 */
+function num(value: number): string {
+  return value.toLocaleString("zh-CN");
+}
+
+/** 等待时长的上屏串：不到一分钟报秒，之后报分钟。负数与坏值一律按 0s。 */
+function elapsedLabel(seconds: number): string {
+  const whole = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+  return whole < 60 ? `${whole}s` : `${Math.floor(whole / 60)}min`;
+}
+
+/** 状态行文案（spec §7 的运行态、§6.3 的打断残留、§9 第 4 行的中断原因、§5.1 的排队数；W-06 的字数进度）。
+ *
+ * 第五参是可选的：不递进度时，**旧四态逐字不变**（守卫钉着）。递了才在「工作中」与
+ * 「上一轮已完成」两态插入读数——打断与失败态故意不加，那两态第一句该是原因，不是成绩单。
+ */
 export function composeStatusLine(
   thread: ThreadView | undefined,
   seconds: number,
   pending: number,
-  queued: number
+  queued: number,
+  extra?: StatusProgress
 ): string {
+  const progress = extra?.progress;
+  const chars = Number.isFinite(progress?.chars)
+    ? Math.max(0, Math.floor(progress?.chars ?? 0))
+    : 0;
+  const target = Number.isFinite(extra?.targetChars)
+    ? Math.max(0, Math.floor(extra?.targetChars ?? 0))
+    : 0;
+  const paragraphs = progress?.paragraphs ?? 0;
+  const edits = progress?.edits ?? 0;
+  const wrote = chars > 0;
+  // W-06：等待时长按人读的单位走——过了 1 分钟再报 137s 没人会换算。
+  const elapsed = elapsedLabel(seconds);
   // 排队数只在运行中出现：那条队列要等这一轮结束才生效，状态行必须如实说明（spec §5.1）。
-  if (thread?.running)
-    return `工作中 · ${seconds}s · Esc 打断${queued > 0 ? ` · 排队 ${queued} 条` : ""}`;
+  if (thread?.running) {
+    const readouts: string[] = [];
+    if (wrote) {
+      readouts.push(
+        target > 0 ? `已写 ${num(chars)} / ${num(target)} 字` : `已写 ${formatCharCount(chars)}`
+      );
+      if (paragraphs > 0) readouts.push(`${paragraphs} 段`);
+    }
+    readouts.push(elapsed);
+    return `${["工作中", ...readouts].join(" · ")} · Esc 打断${queued > 0 ? ` · 排队 ${queued} 条` : ""}`;
+  }
+  // 一轮正常收场后留一行成绩单：写了多少字、真落盘几处、还剩几条等批。
+  // 数字只从事件流来，「改了 0 处」「待批 0 条」这类空话不摆。
+  if (thread && thread.endedAs === "done" && wrote) {
+    const readouts = [`本轮 ${formatCharCount(chars)}`];
+    if (edits > 0) readouts.push(`改了 ${edits} 处`);
+    if (pending > 0) readouts.push(`${pending} 条待审`);
+    return ["上一轮已完成", ...readouts].join(" · ");
+  }
   if (thread && thread.endedAs !== "" && thread.endedAs !== "done") {
     const head =
       thread.endedAs === "failed"

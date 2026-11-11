@@ -31,6 +31,7 @@ import {
   type WorkbenchSuggestion
 } from "../utils/workbench-state";
 import { useBookStore } from "../stores/useBookStore";
+import { useWritingGoalStore } from "../stores/useWritingGoalStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useProviderStore } from "../stores/useProviderStore";
 import { useReferenceMenuStore } from "../stores/useReferenceMenuStore";
@@ -46,6 +47,7 @@ import { assistantEmotion } from "../utils/emotion-signal";
 import { isStuckToBottom, streamKey, type ScrollMetrics } from "../utils/stick-to-bottom";
 import { useNotificationStore } from "../stores/useNotificationStore";
 import { PREFILL_NOTICE } from "../utils/message-actions";
+import { turnProgressOf } from "../utils/turn-progress";
 
 /**
  * `leftCollapsed` 与 `toggleLeft` 在 2026-10-17 一并退役：那枚「展开左侧栏」搬去了
@@ -65,6 +67,7 @@ const emit = defineEmits<{ toggleRight: [] }>();
 
 const book = useBookStore();
 const agent = useAgentStore();
+const goal = useWritingGoalStore();
 const layout = useLayoutStore();
 const provider = useProviderStore();
 const notif = useNotificationStore();
@@ -285,12 +288,19 @@ watch(
   },
   { immediate: true }
 );
+// W-06：进度读数只从事件流与在途残字推，不让模型自报；目标字数取逐章设置（0 = 没设）。
+// 两者都在装配层算好递给状态文案的唯一入口，组件模板一个字没改。
+const turnProgress = computed(() => turnProgressOf(thread.value));
 const statusLine = computed(() =>
   composeStatusLine(
     thread.value,
     agent.seconds,
     agent.pendingOf(threadKey.value),
-    thread.value?.queued.length ?? 0
+    thread.value?.queued.length ?? 0,
+    {
+      progress: turnProgress.value,
+      targetChars: goal.chapterTargetOf(book.activeDocTab ?? undefined)
+    }
   )
 );
 const ready = computed(() => book.hasBook);

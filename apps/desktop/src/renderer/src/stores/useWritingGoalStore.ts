@@ -18,6 +18,7 @@ import {
   normalizeWritingGoalData,
   type WritingGoalData
 } from "../utils/goal-shape";
+import { bodyCharCount } from "../utils/char-count";
 
 export interface WritingGoal {
   /** 每日字数目标（默认 1000） */
@@ -94,11 +95,10 @@ function genId(): string {
   return `ws_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-/** 简单中文字数：所有非空白字符都视为字（含标点）。与 @mochen/contracts 的 proseCharCount 视角不同，这里只用于「增量」累计，无需完全对齐。 */
+/** 简单中文字数：所有非空白字符都视为字（含标点）。与 @mochen/contracts 的 proseCharCount 视角不同，这里只用于「增量」累计，无需完全对齐。
+ * 算法本身不在这儿：`utils/char-count.ts` 的 bodyCharCount 是全仓唯一真身（W-06 三处同读）。 */
 function countWords(text: string): number {
-  if (!text) return 0;
-  // 去掉空白后计数：兼容中英文混合
-  return text.replace(/\s/g, "").length;
+  return bodyCharCount(text);
 }
 
 /** 某一日的字数与时长总数。三个出口（今日 / 本周 / getRecentDays）以前各算各的，收成这一处。 */
