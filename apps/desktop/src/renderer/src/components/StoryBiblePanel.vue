@@ -17,6 +17,7 @@ import {
 } from "../utils/bible-scope";
 import { parseTags } from "../utils/tag-input";
 import { useModalFocus } from "../composables/useModalFocus";
+import { BIBLE_DIVISION_NOTE } from "../utils/bible-brief";
 
 const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -242,6 +243,9 @@ const importanceLabel: Record<string, string> = {
           </button>
         </div>
       </header>
+
+      <!-- W-01：两套设定的分工写在这里，与输入卡弹层同读一句（不许各写一份）。 -->
+      <p class="bible-division-note">{{ BIBLE_DIVISION_NOTE }}</p>
 
       <!-- Filter Tabs：档位表来自 utils/bible-scope，第五档「已归档」把取回通路摆在明面上 -->
       <nav class="bible-tabs">

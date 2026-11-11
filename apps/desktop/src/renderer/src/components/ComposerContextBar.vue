@@ -17,10 +17,13 @@ import { stageContextOptions, stageLabelOf } from "../utils/composer-context";
 import { BOOK_KIND_LABELS } from "../utils/book-kinds";
 import { splitFrontmatter } from "@mochen/contracts";
 import { useBookStore } from "../stores/useBookStore";
+import { useAgentStore } from "../stores/useAgentStore";
+import { BIBLE_DIVISION_NOTE, bibleBriefOf } from "../utils/bible-brief";
 
 const props = defineProps<{ running: boolean }>();
 
 const book = useBookStore();
+const agent = useAgentStore();
 // 弹层开合是这一格的局部 UI 态（同 ToolRoster / ModelSelect：关掉不带走状态），不进 store。
 const menuOpen = shallowRef(false);
 const anchor = shallowRef<HTMLElement>();
@@ -30,6 +33,9 @@ const stageLabel = computed(() => stageLabelOf(book.meta));
 // 落盘在途与本轮在跑都算忙：忙时两枚都不许再点（他的 responding 门同一义）。
 const busy = computed(() => book.metaSaving || props.running);
 const options = computed(() => stageContextOptions(book.meta, busy.value));
+// W-01：只读主进程那一轮真装进来的设定条目，名字摆到输入区；没有条目就不占位。
+// 用 <details> 而不是另起一套弹层状态：原生展开/收起与键盘可达都是白送的。
+const bibleBrief = computed(() => bibleBriefOf(agent.contextPreview));
 
 // 文档绑定胶囊的数据源：当前活动标签对应的 DocRef 与摘要字数。
 const activeDocRef = computed(() =>
@@ -108,6 +114,24 @@ function unbindDoc(): void {
     <!-- 上下文占用条（spec §5）：只读的「这一轮会带多少」读数，排在档案之后——
          它是「已经定了」的量，不是可以再点的开关，所以排在两个选择器后面。 -->
     <ContextMeter />
+    <!-- W-01：这一轮带入了哪几条设定，名字要看得见。只读预览，不改装配。 -->
+    <details v-if="bibleBrief.count > 0" class="bible-brief">
+      <summary class="bible-brief-chip" :title="bibleBrief.fullText">
+        <AppIcon name="ledger" :size="14" />
+        <span class="bible-brief-chip-text">{{ bibleBrief.chipText }}</span>
+      </summary>
+      <div class="bible-brief-pop" role="group" aria-label="本章带入的设定">
+        <p class="bible-brief-pop-head">本轮带入 {{ bibleBrief.count }} 条设定</p>
+        <ul class="bible-brief-list">
+          <li v-for="row in bibleBrief.rows" :key="row.key" class="bible-brief-row">
+            <span class="bible-brief-type">{{ row.typeLabel }}</span>
+            <span class="bible-brief-name">{{ row.title }}</span>
+            <span class="bible-brief-chars">{{ row.chars }} 字</span>
+          </li>
+        </ul>
+        <p class="bible-brief-note">{{ BIBLE_DIVISION_NOTE }}</p>
+      </div>
+    </details>
     <button
       class="composer-context-item composer-stage-context"
       type="button"

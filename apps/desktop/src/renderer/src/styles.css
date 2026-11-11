@@ -14,6 +14,7 @@
    它覆写的 .import-chapter-title 焦点态要与对话框族那组环挨着，改一处能看见另一处。 */
 @import "./styles/import-txt.css";
 @import "./styles/publish-check.css";
+@import "./styles/bible-brief.css";
 @import "./styles/settings-page.css";
 @import "./styles/agent-pane.css";
 @import "./styles/context-meter.css";

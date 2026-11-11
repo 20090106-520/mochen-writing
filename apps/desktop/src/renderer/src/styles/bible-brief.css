@@ -1,0 +1,130 @@
+/* W-01 补完：输入区「本章带入」芯片 + 逐条弹层；设定面板的分工说明也住这一份。
+   芯片刻意**不复用** .composer-context-item：那三枚是书 / 文档 / 阶段的绑定选择器
+   （既有守卫按这个类名数三枚），这一枚是只读读数 + 原生展开，不该混进同一族。 */
+.bible-brief-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  max-width: 210px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--ui-font);
+  font-size: 0.857143rem;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  list-style: none;
+}
+
+.bible-brief-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.bible-brief-chip > svg {
+  flex: 0 0 auto;
+}
+
+.bible-brief-chip::-webkit-details-marker {
+  display: none;
+}
+
+.bible-brief-chip::marker {
+  content: "";
+}
+
+.bible-brief {
+  /* details 保持 UA 的块级显示（改成 flex 会动到原生展开那套内部规则），
+     只作为绑定条的 flex item 竖直居中。 */
+  position: relative;
+  align-self: center;
+}
+
+.bible-brief-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bible-brief-pop {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: 292px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: var(--dropdown-bg, #1e1e2a);
+  border: 1px solid var(--theme-line, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  z-index: var(--z-menu);
+  font-size: 0.785714rem;
+  color: var(--text-secondary, #bbb);
+}
+
+.bible-brief-pop-head {
+  margin: 0 0 8px;
+  font-weight: 500;
+  color: var(--text-primary, #e8e8e8);
+}
+
+.bible-brief-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bible-brief-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line-soft, rgba(255, 255, 255, 0.06));
+}
+
+.bible-brief-row:last-child {
+  border-bottom: none;
+}
+
+.bible-brief-type {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 0.714286rem;
+}
+
+.bible-brief-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-primary, #e8e8e8);
+}
+
+.bible-brief-chars {
+  flex: none;
+  color: var(--text-faint, #888);
+}
+
+.bible-brief-note {
+  margin: 10px 0 0;
+  line-height: 1.6;
+  color: var(--text-tertiary, #999);
+}
+
+.bible-division-note {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  font-size: 0.785714rem;
+  line-height: 1.6;
+  color: var(--text-tertiary, #999);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-radius: 8px;
+}
