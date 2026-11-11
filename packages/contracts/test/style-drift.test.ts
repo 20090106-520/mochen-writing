@@ -93,3 +93,52 @@ describe("styleDriftOf 四维判定", () => {
     expect(report.items[0]).toBe(report.worst);
   });
 });
+
+/**
+ * 阈值档位钉住（2026-11-11 放宽一档后补）。
+ *
+ * 上面那组用例的偏离全是极端值（+114%、−30pp），线怎么挪都判 off——钉不住线本身。
+ * 这里的夹具卡在**新旧线之间**：旧线（句长 32%、对白 15pp）会把它们判 off，
+ * 新线（40%、25pp）判 warn。阈值要是悄悄改回去，这两条立刻红——
+ * 跟出处前缀那组守卫同一个道理：判据的字面量写在测试里，不从生产代码 import。
+ *
+ * 依据是《呐喊》四篇的对照（scratch/out/style-drift-calibration.md）：
+ * 社戏的题材差（对白 −22pp、句长 +28%）在旧线下被判 off，而真人章节在自己的书里
+ * 不该判 off——该报（warn）不该拦，这条裁定本来就有，线放宽是把它落实。
+ */
+describe("阈值档位钉住：题材级偏离报 warn 不判 off", () => {
+  /** 19 字一句（18 字+句号）、连 16 句共 304 字：对基准 14 字偏 +35.7%，卡在 32% 旧线之外、40% 新线之内。 */
+  const LONGER_36 = Array.from({ length: 16 }, () => `${"字".repeat(18)}。`).join("\n");
+
+  it("句长偏 36% 级判 warn（旧 32% 线会判 off）", () => {
+    const report = styleDriftOf(PROFILE, LONGER_36);
+    const mean = report.items.find((item) => item.key === "rhythm-mean");
+    expect(mean?.severity).toBe("warn");
+    expect(mean?.draft).toBe("19 字");
+  });
+
+  /** 15 句叙述（各 14 字）+ 15 句对白（各引 13 字+句号）：占比 210/420 = 50%，对白偏 +20pp，
+   *  卡在 15pp 旧线之外、25pp 新线之内。 */
+  const HALF_DIALOGUE = [
+    ...Array.from({ length: 15 }, () => `${"字".repeat(13)}。`),
+    ...Array.from({ length: 15 }, () => `「${"字".repeat(13)}。」`)
+  ].join("\n");
+
+  it("对白偏 20pp 级判 warn（旧 15pp 线会判 off）", () => {
+    const report = styleDriftOf(PROFILE, HALF_DIALOGUE);
+    const dialogue = report.items.find((item) => item.key === "dialogue");
+    expect(dialogue?.severity).toBe("warn");
+    expect(dialogue?.draft).toBe("50%");
+  });
+
+  it("对白偏 6pp 级不报：真人书里的正常题材差不值得打扰", () => {
+    // 故乡 −12pp、阿Q +11pp 顶在旧 8pp warn 线上；新 warn 线 12pp 让这一级安静下来。
+    // 夹具按 9 句对白 : 16 句叙述配平，占比 36%，对基准 30% 只偏 +6pp。
+    const mild = [
+      ...Array.from({ length: 16 }, () => `${"字".repeat(13)}。`),
+      ...Array.from({ length: 9 }, () => `「${"字".repeat(13)}。」`)
+    ].join("\n");
+    const report = styleDriftOf(PROFILE, mild);
+    expect(report.items.some((item) => item.key === "dialogue")).toBe(false);
+  });
+});

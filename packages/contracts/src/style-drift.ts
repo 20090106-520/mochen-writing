@@ -55,12 +55,21 @@ export interface StyleDrift {
   note: string;
 }
 
-/** 句长两维的相对偏离档（18% 起报、32% 判「不像你」）。 */
-const RHYTHM_LIMITS = { warn: 0.18, off: 0.32 };
+/**
+ * 句长两维的相对偏离档（22% 起报、40% 判「不像你」）。
+ * 2026-11-11 按《呐喊》四篇对照放宽一档：原 18%/32% 下，社戏的题材差（24.7→31.7 字，+28%）
+ * 被判成 off——真人章节在自己的书里不该判 off，题材差该报（warn）不该拦。
+ */
+const RHYTHM_LIMITS = { warn: 0.22, off: 0.4 };
 /** 句长波动放宽一档：波动本来就该随题材起伏，它比均值更容易飘。 */
 const SPREAD_LIMITS = { warn: 0.35, off: 0.6 };
-/** 对白占比按百分点算（8 个点起报、15 个点判「不像你」）——比例小时相对值会夸张。 */
-const DIALOGUE_LIMITS_PP = { warn: 0.08, off: 0.15 };
+/**
+ * 对白占比按百分点算（12 个点起报、25 个点判「不像你」）——比例小时相对值会夸张。
+ * 2026-11-11 按《呐喊》四篇对照放宽一档：对白比最吃题材（社戏 30%→8%，−22pp，原 15pp 线判 off；
+ * 故乡 −12pp、阿Q +11pp 都顶在原 8pp warn 线上）。题材差该报不该拦：22pp 级的差降到 warn，
+ * 12pp 级的正常差不再报。
+ */
+const DIALOGUE_LIMITS_PP = { warn: 0.12, off: 0.25 };
 /** 标点按倍数差；基准低于这个密度就不判（每千字 0.5 处以下，抖动没有意义）。 */
 const PUNCTUATION_BASE_FLOOR = 0.5;
 const PUNCTUATION_LIMITS = { warn: 1, off: 2 };
