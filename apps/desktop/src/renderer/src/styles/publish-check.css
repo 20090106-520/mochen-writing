@@ -1,0 +1,69 @@
+/* 发布前检查（W-08）：导出面板里的那一节。样式单独放一份，是为了不让
+   ExportDialog.vue 越过 800 行预算；类名全以 publish-check- 打头，全局也不会撞。
+   问题条沿用「读盘失败」那一档 warning 色系，不引新颜色。 */
+.publish-check-summary {
+  font-size: 0.785714rem;
+  color: var(--warning, #c28b35);
+}
+
+.publish-check-summary.is-clean {
+  color: var(--text-faint, #888);
+}
+
+.publish-check-note {
+  margin: 0 0 8px;
+  font-size: 0.785714rem;
+  line-height: 1.6;
+  color: var(--text-tertiary, #999);
+}
+
+.publish-check-words {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.857143rem;
+  color: var(--text-primary, #e8e8e8);
+  background: var(--surface-raised, transparent);
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
+  border-radius: 6px;
+}
+
+.publish-check-words:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.publish-check-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 128px;
+  overflow-y: auto;
+}
+
+.publish-check-item {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 3px;
+  padding: 5px 8px;
+  font-size: 0.785714rem;
+  color: var(--text-secondary, #bbb);
+  background: var(--warning-soft, rgb(194 139 53 / 12%));
+  border-radius: 6px;
+}
+
+.publish-check-kind {
+  flex: none;
+  color: var(--warning, #c28b35);
+}
+
+.publish-check-detail {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.publish-check-actions {
+  margin-top: 6px;
+  text-align: right;
+}

@@ -13,6 +13,14 @@ import { useBookStore } from "../stores/useBookStore";
 import { useNotificationStore } from "../stores/useNotificationStore";
 import { useModalFocus } from "../composables/useModalFocus";
 import { decideCopy, shouldAssemble } from "../utils/export-clipboard";
+import {
+  PUBLISH_ISSUE_LABELS,
+  parseBannedWords,
+  passingChapterPaths,
+  publishCheck,
+  publishCheckSummary,
+  type PublishChapter
+} from "../utils/publish-check";
 import { copyText } from "../utils/clipboard";
 import type { DocRef } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
@@ -309,6 +317,36 @@ async function copyToClipboard(): Promise<void> {
   setTimeout(() => (copyDone.value = false), 2000);
 }
 
+/* ── 发布前检查（W-08）─────────────────────────────────────────────────────
+ * 结构项只吃扫描结果（DocRef.chars / title），零额外读盘、覆盖全书；
+ * 禁词要对正文查，而正文只有勾选中的那些章读过——覆盖率由判据如实回报，界面照抄。
+ * 词表只活在这次打开里：不落盘、不进书、不联网，也不内置任何「敏感词库」。
+ */
+const bannedWordsInput = ref("");
+const checkedChapters = computed<PublishChapter[]>(() => {
+  const loaded = new Map(docsWithContent.value.map((doc) => [doc.relPath, doc.content]));
+  return chapterDocs.value.map((doc) => {
+    const content = loaded.get(doc.relPath);
+    return {
+      relPath: doc.relPath,
+      title: doc.title,
+      chars: doc.chars ?? 0,
+      ...(content === undefined ? {} : { content })
+    };
+  });
+});
+const publishResult = computed(() =>
+  publishCheck(checkedChapters.value, parseBannedWords(bannedWordsInput.value))
+);
+const publishSummary = computed(() => publishCheckSummary(publishResult.value));
+
+/** 显式动作而非开关：点一下把勾选收敛到「没有被章级问题点名」的那些章，之后仍可手动改。 */
+function selectPassingChapters(): void {
+  selectedChapters.value = new Set(
+    passingChapterPaths(checkedChapters.value, publishResult.value.issues)
+  );
+}
+
 const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
   { id: "markdown", label: "Markdown (.md)", desc: "纯文本，保留章节标题与格式标记" },
   { id: "plaintext", label: "纯文本 (.txt)", desc: "无任何排版标记的纯文字" },
@@ -382,6 +420,43 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
             />
             <span class="export-chapter-title">{{ ch.title }}</span>
           </label>
+        </div>
+      </section>
+
+      <!-- 发布前检查（W-08）：只报不改。结构项查全书，禁词只查已读出正文的章，覆盖率如实写出来。 -->
+      <section class="export-section publish-check">
+        <div class="export-section-head">
+          <label class="export-section-label">发布前检查</label>
+          <span
+            class="publish-check-summary"
+            :class="{ 'is-clean': publishResult.issues.length === 0 }"
+            >{{ publishSummary }}</span
+          >
+        </div>
+        <p class="publish-check-note">
+          只查本地文稿，不联网不改正文：结构项覆盖全书 {{ publishResult.checkedChapterCount }} 章；
+          禁词只查已勾选且读出正文的 {{ publishResult.checkedContentCount }} 章，词表不保存到书里。
+        </p>
+        <input
+          v-model="bannedWordsInput"
+          class="publish-check-words"
+          type="text"
+          placeholder="自定义禁词，用逗号分隔；只用于本次检查"
+        />
+        <ul v-if="publishResult.issues.length > 0" class="publish-check-list">
+          <li
+            v-for="(issue, index) in publishResult.issues"
+            :key="issue.kind + '-' + issue.relPath + '-' + index"
+            class="publish-check-item"
+          >
+            <span class="publish-check-kind">{{ PUBLISH_ISSUE_LABELS[issue.kind] }}</span>
+            <span class="publish-check-detail">{{ issue.title }} · {{ issue.detail }}</span>
+          </li>
+        </ul>
+        <div class="publish-check-actions">
+          <button class="link-btn" type="button" @click="selectPassingChapters">
+            只勾检查通过的章
+          </button>
         </div>
       </section>
 
