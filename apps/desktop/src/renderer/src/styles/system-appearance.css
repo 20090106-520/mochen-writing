@@ -1,0 +1,62 @@
+/* 系统级外观适配（2026-11-11）：Windows 高对比度与「增强对比度」两档。
+ *
+ * 【病灶】本仓几乎所有描边与焦点环都由 `color-mix(...)` 兑出来的半透明色画成。
+ * Windows 开启高对比度（forced-colors: active）时，Chromium 会把这些颜色强制换成系统色，
+ * 而 `button { border: 0 }` / `outline: 2px solid color-mix(...)` 这类声明里的**形状**还在、
+ * 颜色却可能被抹平 —— 按钮没有边、键盘环看不见、选区读不出字。
+ * Fluent / macOS / WCAG 2.2 的做法都是：系统偏好优先级最高，这一档改吃系统色关键字。
+ *
+ * 【不与已有处理重复】「减少透明度 / 增强对比 ⇒ 玻璃退回实底」那一族已经住在
+ * liquid-glass.css 的 @media 里，本文件一根玻璃选择器都不碰；这里只管**焦点环、
+ * 选区、按钮描边、Tooltip 反色**四件那族没覆盖的事。
+ *
+ * 选择器带 `:root` 前缀不是装饰：styles.css 的 `button:focus-visible`（0,1,1）与
+ * dialog.css 的 `.dialog-*:focus-visible`（0,2,0）都比零特异性规则高，
+ * 不带前缀这一整段会「写了却不生效」，而且界面上完全看不出来。
+ */
+
+@media (forced-colors: active) {
+  :root button:focus-visible,
+  :root input:focus-visible,
+  :root select:focus-visible,
+  :root textarea:focus-visible,
+  :root [role="button"]:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  /* 带 `html ` 前缀是为了压过 styles.css 里那条 `::selection`：@import 全在文件头部，
+     主文件的同特异性规则永远排在后面，不带前缀这一段会被它盖掉。 */
+  html ::selection {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  /* 唯一靠「深底浅字」这一反色关系读内容的层；系统换色会把两头刷成同一个色。
+     forced-color-adjust: none 让它保留自己的 --neutral-solid 那一对。 */
+  .mochen-tooltip {
+    forced-color-adjust: none;
+  }
+
+  /* 高对比度下 Chromium 本会给 button 一条系统边，被本仓 `button { border: 0 }` 去掉了；
+     补回来，别让可点控件在纯色背景里消失。border-box 是全局口径，形状不涨。 */
+  :root button:not(:disabled),
+  :root [role="button"]:not(:disabled) {
+    border: 1px solid CanvasText;
+  }
+}
+
+@media (prefers-contrast: more) {
+  /* 只加粗，不改颜色：各按钮自己那条环色仍按皮肤走。 */
+  :root button:focus-visible,
+  :root input:focus-visible,
+  :root select:focus-visible,
+  :root textarea:focus-visible,
+  :root [role="button"]:focus-visible {
+    outline-width: 3px;
+  }
+
+  html ::selection {
+    background: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}

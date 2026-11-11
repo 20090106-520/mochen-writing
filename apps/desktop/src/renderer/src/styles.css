@@ -67,6 +67,12 @@
 /* 应用内 Tooltip（2026-11-11）：Teleport 到 body 的那一层，选择器不落在三栏壳里，
    所以放在哪里都不影响布局；排在 density 之前只为守住「density 必须是最后一条 @import」。 */
 @import "./styles/tooltip.css";
+/* 统一交互态（2026-11-11）：三条零特异性规则给「没写过渡 / 没写按压」的控件兜底。
+   排在 density 之前，density 仍是最后一条 @import；特异性为 0，放哪儿都不抢已有规则。 */
+@import "./styles/state-layer.css";
+/* 系统高对比度 / 增强对比度（2026-11-11）：只覆盖焦点环、选区、按钮描边与 Tooltip 反色；
+   「玻璃退回实底」那一族在 liquid-glass.css，不在这里重复。同样排在 density 之前。 */
+@import "./styles/system-appearance.css";
 @import "./styles/density.css";
 
 :root {

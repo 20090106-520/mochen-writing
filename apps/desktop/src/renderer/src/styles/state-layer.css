@@ -1,0 +1,50 @@
+/* 统一交互态（2026-11-11）：对标 Material 3 的 state layer / Fluent 2 的状态过渡。
+ *
+ * 【病灶】全仓 140 条 :hover 规则，只有 36 条写了 transition —— 大多数按钮的悬停是
+ * **硬切**：指针一进去底色瞬间换掉，一出来又瞬间弹回。同一屏里，设置了过渡的那几枚
+ * 显得「有手感」，其余像卡了一下。按下去的反馈更零散：只有八份样式表各自写了 :active，
+ * 其余控件按下去什么都没有。
+ *
+ * 【修法：只补缺的，不覆盖已有的】三条规则的选择器全部包在 :where() 里 ⇒ 特异性为 0。
+ * 于是任何一条已有的 `.foo { transition: ... }` / `.foo { cursor: ... }` / `.foo:active { ... }`
+ * 都压得住这一层，本文件只给「什么都没写」的控件兜底；按钮族的形状、配色、动效一律不动。
+ *
+ * 为什么按压用 filter 而不是叠色：Material 3 的 state layer 是叠一层半透明色，
+ * 纯 CSS 全局实现要么借 background-image（会顶掉 select 的自绘箭头）、要么借
+ * box-shadow inset（会顶掉玻璃卡自己的投影）、要么借 ::after（要给按钮加 position:relative，
+ * 一动就改了内部绝对定位子元素的包含块）。filter 只作用于绘制结果，不碰布局、不碰
+ * background/box-shadow 两个已被大量规则占用的属性，且**可过渡**。
+ *
+ * 浅色皮肤按下去叠黑（变暗），深色皮肤叠白（变亮）—— 与 state layer 的方向一致。
+ */
+
+:root {
+  --state-press-brightness: 0.96;
+}
+
+html[data-theme="dark"] {
+  --state-press-brightness: 1.1;
+}
+
+/* 零特异性：按钮族统一的软过渡 + 指针 + 去掉 Chromium 触屏点击那块蓝高亮。 */
+:where(
+  button:not(:disabled):not([aria-disabled="true"]),
+  [role="button"]:not(:disabled):not([aria-disabled="true"])
+) {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--dur-fast) var(--ease-out-soft),
+    border-color var(--dur-fast) var(--ease-out-soft),
+    color var(--dur-fast) var(--ease-out-soft),
+    box-shadow var(--dur-fast) var(--ease-out-soft),
+    filter var(--dur-fast) var(--ease-out-soft);
+}
+
+/* 同样零特异性：已有 :active 规则的那八份样式表照常赢，其余控件终于有按下去的回应。 */
+:where(
+  button:not(:disabled):not([aria-disabled="true"]):active,
+  [role="button"]:not(:disabled):not([aria-disabled="true"]):active
+) {
+  filter: brightness(var(--state-press-brightness));
+}
