@@ -47,6 +47,7 @@ import ExportDialog from "./components/ExportDialog.vue";
 import PromptTemplatePanel from "./components/PromptTemplatePanel.vue";
 import OutlinePanel from "./components/OutlinePanel.vue";
 import NotificationToast from "./components/NotificationToast.vue";
+import TooltipLayer from "./components/TooltipLayer.vue";
 import OnboardingGuide from "./components/OnboardingGuide.vue";
 import WritingGoalPanel from "./components/WritingGoalPanel.vue";
 import StoryBiblePanel from "./components/StoryBiblePanel.vue";
@@ -551,6 +552,9 @@ function onTemplateApply(text: string): void {
     <WritingGoalPanel :visible="goalPanelOpen" @close="goalPanelOpen = false" />
     <StoryBiblePanel :visible="bibleOpen" @close="bibleOpen = false" />
     <NotificationToast />
+    <!-- 全站提示层：挂在通知之后（两者同用 --z-toast，同档时后画者在上）。
+         恒挂、无 v-if：它自己靠事件委托接管 DOM 上的 title，不随视图切换重建。 -->
+    <TooltipLayer />
     <OnboardingGuide v-if="layout.showOnboarding" />
   </div>
 </template>

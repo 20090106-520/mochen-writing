@@ -1,0 +1,74 @@
+/* 应用内 Tooltip（2026-11-11；components/TooltipLayer.vue 的形状层）。
+ *
+ * 对标 macOS / Figma / Linear 那族提示：一块实心、跟着**当前皮肤**翻色的短卡，
+ * 8px 圆角、12px 字号、一行半的行高、120ms 软出场；没有系统描边，没有蓝色选中味。
+ * 底色刻意用 `--neutral-solid` 那一对：theme-runtime.css 会按明暗把它翻过来
+ * （浅色皮肤⇒近黑的实心块配浅字，深色皮肤⇒近白的实心块配深字），
+ * 十六套皮肤下都不用再写第二条配色规则。
+ *
+ * 层级用 `--z-toast`：提示要压得住所有抽屉与浮层，又与通知同一档；
+ * App.vue 把它挂在 NotificationToast 之后，同档时由 DOM 顺序裁决谁在上。
+ * 减少动效走 motion.css 那道全局总闸（`animation-duration: 0.01ms !important`），
+ * 这里不另开第二份开关。
+ */
+
+.mochen-tooltip {
+  position: fixed;
+  z-index: var(--z-toast);
+  max-width: 280px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--neutral-solid);
+  color: var(--neutral-solid-contrast);
+  box-shadow: var(--shadow-md);
+  /* 12px ÷ 14px：界面字号档要能整体缩放，写死 px 会被 ui-font-scale-guard 拦下。 */
+  font-size: 0.857143rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  /* 书架那枚提示是「打开《书名》\n完整路径」：换行要真换行，长路径还得能断。 */
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  animation: mochen-tip-in var(--dur-fast) var(--ease-out-soft) both;
+}
+
+.mochen-tooltip-text {
+  display: block;
+}
+
+/* 量尺寸的那一帧：元素得在布局里才测得准，但不能被看见，也不许放入场动画。 */
+.mochen-tooltip.is-measuring {
+  opacity: 0;
+  animation: none;
+}
+
+.mochen-tooltip-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 1px;
+  background: var(--neutral-solid);
+  transform: rotate(45deg);
+}
+
+.mochen-tooltip[data-side="top"] .mochen-tooltip-arrow {
+  bottom: -3px;
+}
+
+.mochen-tooltip[data-side="bottom"] .mochen-tooltip-arrow {
+  top: -3px;
+}
+
+@keyframes mochen-tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

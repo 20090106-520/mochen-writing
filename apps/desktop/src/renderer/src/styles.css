@@ -64,6 +64,9 @@
 @import "./styles/skill-workshop.css";
 @import "./styles/auto-skills.css";
 @import "./styles/panel-kit.css";
+/* 应用内 Tooltip（2026-11-11）：Teleport 到 body 的那一层，选择器不落在三栏壳里，
+   所以放在哪里都不影响布局；排在 density 之前只为守住「density 必须是最后一条 @import」。 */
+@import "./styles/tooltip.css";
 @import "./styles/density.css";
 
 :root {
