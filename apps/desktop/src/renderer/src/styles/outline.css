@@ -63,7 +63,7 @@
 .volume-outline-error {
   margin: 0;
   padding: 6px 8px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--danger-soft, rgb(214 69 69 / 12%));
   color: var(--danger, #d64545);
   font-size: 0.857143rem;
@@ -172,7 +172,7 @@
 
 .outline-field {
   padding: 3px 6px;
-  border-radius: 5px;
+  border-radius: 6px;
   background: var(--surface, #fff);
   border: 1px solid var(--line, #dedfdf);
   min-width: 0;
@@ -328,7 +328,7 @@
   flex: none;
   margin: 0;
   padding: 5px 8px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface-dim, #f0f1f4);
   color: var(--text-dim, #6b6f76);
   font-size: 0.785714rem;
@@ -344,7 +344,7 @@
   flex: none;
   padding: 7px 8px;
   border: 1px dashed var(--line-strong, #c9ccd2);
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 .volume-outline-blind-title {

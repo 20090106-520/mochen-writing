@@ -61,7 +61,7 @@
 .cast-check-error {
   margin: 0;
   padding: 6px 8px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--danger-soft, rgb(214 69 69 / 12%));
   color: var(--danger, #d64545);
   font-size: 0.857143rem;

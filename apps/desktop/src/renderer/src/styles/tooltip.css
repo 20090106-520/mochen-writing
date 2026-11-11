@@ -48,7 +48,7 @@
   width: 8px;
   height: 8px;
   margin-left: -4px;
-  border-radius: 1px;
+  border-radius: 2px;
   background: var(--neutral-solid);
   transform: rotate(45deg);
 }

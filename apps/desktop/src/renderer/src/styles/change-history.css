@@ -80,7 +80,7 @@
   gap: 8px;
   padding: 6px 8px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 8px;
   background: none;
   color: inherit;
   font: inherit;
@@ -184,7 +184,7 @@
   padding: 8px;
   overflow: auto;
   background: var(--surface-dim, #f6f7f9);
-  border-radius: 7px;
+  border-radius: 8px;
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 0.857143rem;
   line-height: 1.65;
@@ -202,7 +202,7 @@
   margin-top: 8px;
   padding: 7px 10px;
   border: 1px solid var(--danger, #d64545);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface, #fff);
   color: var(--danger, #d64545);
   font: inherit;
@@ -248,7 +248,7 @@
   margin-top: 8px;
   padding: 6px 10px;
   border: 1px solid var(--line, #dedfdf);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface, #fff);
   color: var(--text);
   font: inherit;
@@ -267,7 +267,7 @@
   margin-top: 8px;
   padding: 6px 10px;
   border: 1px solid var(--line, #dedfdf);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface, #fff);
   color: var(--text);
   font: inherit;

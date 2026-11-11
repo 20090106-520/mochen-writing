@@ -104,7 +104,7 @@
 
 .bible-tab {
   padding: 8px 14px;
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -234,7 +234,7 @@
   border: none;
   outline: none;
   color: var(--text-primary, #e8e8e8);
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
 }
 
 .bible-search-input::placeholder {
@@ -342,7 +342,7 @@
 .bible-type-tag {
   font-size: 0.714286rem;
   padding: 0 5px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 5%, transparent);
   color: var(--text-muted, #777);
 }
@@ -467,7 +467,7 @@
 }
 
 .bible-detail-content {
-  font-size: 0.964286rem;
+  font-size: 1rem;
   line-height: 1.7;
   color: var(--text-secondary, #bbb);
   margin: 0 0 12px;
@@ -644,7 +644,7 @@
   display: inline-block;
   padding: 1px 4px;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: 3px;
+  border-radius: 4px;
   margin: 0 2px;
   font-size: 0.714286rem;
 }

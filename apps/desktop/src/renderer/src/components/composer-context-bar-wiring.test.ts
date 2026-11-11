@@ -266,14 +266,14 @@ describe("样式硬门禁 · 对齐他的原值，色值一律走 token", () => 
       "min-height: 58px",
       "margin: 0 14px -15px",
       "padding: 5px 10px 20px",
-      "border-radius: 21px"
+      "border-radius: 20px"
     ]) {
       expect(bar, `.composer-context-bar 缺 ${value}`).toContain(value);
     }
     const item = ruleBlock(pane, ".composer-context-item");
     expect(item).toContain("min-height: 34px");
     expect(item).toContain("border: 1px solid transparent");
-    expect(item).toContain("border-radius: 9px");
+    expect(item).toContain("border-radius: 10px");
     expect(item).toContain("font-size: 0.857143rem");
     expect(ruleBlock(pane, ".composer-book-context")).toContain("max-width: min(58%, 360px)");
   });
@@ -291,7 +291,7 @@ describe("样式硬门禁 · 对齐他的原值，色值一律走 token", () => 
     const pane = cardSection("agent-pane.css");
     const menu = ruleBlock(pane, ".composer-context-menu");
     expect(menu).toContain("z-index: var(--z-menu)");
-    expect(menu).toContain("border-radius: 18px");
+    expect(menu).toContain("border-radius: 20px");
     // 2026-11-09：毛玻璃收归 liquid-glass.css 总闸，基态只留不透明底（否则「关」关不干净）。
     expect(menu).toContain("background: var(--surface-raised)");
     expect(menu).not.toContain("backdrop-filter");

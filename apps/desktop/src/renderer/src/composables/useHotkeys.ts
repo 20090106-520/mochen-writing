@@ -28,6 +28,8 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { useReferenceMenuStore } from "../stores/useReferenceMenuStore";
 import { useFindReplaceStore } from "../stores/useFindReplaceStore";
 import { useSkinBrowseStore } from "../stores/useSkinBrowse";
+import { useAppearanceStore } from "../stores/useAppearanceStore";
+import { stepUiFontSize, UI_FONT_SIZE_RESET } from "../utils/ui-font-size";
 
 export interface HotkeyHandlers {
   openPalette(): void;
@@ -88,6 +90,8 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
   const findReplace = useFindReplaceStore();
   // 5-㊷：整窗预览与并排对比的开合真身在皮肤广场的浏览 store 里，这里只派「收最外那一层」。
   const skins = useSkinBrowseStore();
+  // 界面缩放（Ctrl + = / - / 0）：档位真身在契约的 appearance 设置里，与外观页那个下拉同一份。
+  const appearance = useAppearanceStore();
 
   function elementOf(target: EventTarget | null): HTMLElement | null {
     return target instanceof HTMLElement ? target : null;
@@ -261,6 +265,33 @@ export function useGlobalHotkeys(handlers: HotkeyHandlers): void {
         event.preventDefault();
         handlers.openPalette();
         return;
+      case "zoom-in":
+      case "zoom-out":
+      case "zoom-reset": {
+        /**
+         * 界面缩放：改的是外观页那个「界面字号」档（`appearance.settings.*.uiFontSize`），
+         * 不是浏览器的 zoomFactor——整屏 rem 因此一起缩放，而工具提示、浮层坐标这些
+         * 读 CSS 像素的地方不会被浏览器缩放搞出半像素。
+         *
+         * 两套皮肤各存一份字号，这里必须**同时写两边**：外观面板改字号也是这么写的
+         * （`setUiFontSize` 的 patch 同时给 light 与 dark），只写当前那一套的话，
+         * 换肤之后字号会莫名其妙跳回去。
+         *
+         * 写盘失败由 store 自己播报并弹回原值（update 的既有语义），这里不另做提示。
+         */
+        event.preventDefault();
+        const current = appearance.settings.light.uiFontSize;
+        const next =
+          action === "zoom-reset"
+            ? UI_FONT_SIZE_RESET
+            : stepUiFontSize(current, action === "zoom-in" ? 1 : -1);
+        if (next === current) return; // 已经顶到头：不写盘、不闪一下
+        void appearance.update({
+          light: { ...appearance.settings.light, uiFontSize: next },
+          dark: { ...appearance.settings.dark, uiFontSize: next }
+        });
+        return;
+      }
       case "open-find-replace":
         // Ctrl+F：文档内查找替换。唯一真身是 store.open()——每次按都把面板打开、复位查询。
         // 没有落点时**连标记都不落**：连 preventDefault 也不做，把这一键原样还给浏览器。

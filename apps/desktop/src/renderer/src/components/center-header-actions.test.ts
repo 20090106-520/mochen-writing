@@ -126,9 +126,9 @@ describe("对齐他的头部钮 · 「新建对话」取代自造的「模型设
       "display: inline-flex",
       "align-items: center",
       "gap: 6px",
-      "min-height: 30px",
+      "min-height: 32px",
       "padding: 0 9px",
-      "border-radius: 7px",
+      "border-radius: 8px",
       "cursor: pointer"
     ]) {
       expect(base, `基态少了 ${decl}`).toContain(decl);

@@ -430,7 +430,7 @@ function cloneTemplate(id: string, name: string): void {
 }
 
 .tpl-card-name {
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
   color: var(--text-primary, #e8e8e8);
   font-weight: 500;
 }

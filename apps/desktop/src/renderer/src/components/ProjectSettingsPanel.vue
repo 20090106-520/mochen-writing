@@ -120,7 +120,7 @@ onMounted(() => {
   gap: 6px;
   padding: 8px 14px;
   border: 1px solid var(--line-soft);
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--surface-card);
   box-shadow: var(--shadow-sm);
   color: var(--text);
@@ -146,7 +146,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line-soft);
-  border-radius: 13px;
+  border-radius: 12px;
   background: var(--surface-card);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
@@ -176,7 +176,7 @@ onMounted(() => {
   min-width: 0;
   padding: 10px 8px;
   border: none;
-  border-radius: 9px;
+  border-radius: 10px;
   background: transparent;
   color: inherit;
   font: inherit;

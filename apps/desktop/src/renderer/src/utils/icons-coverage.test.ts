@@ -66,8 +66,10 @@ describe("图标体系 · IconName 与 AppIcon 字形分支一一对应", () => 
 
 describe("图标体系 · 描边质感统一（2026-10-05）", () => {
   it("AppIcon 小尺寸描边补偿：<16px 提到 2，其余维持 1.8（1.5 倍屏上小图标不发虚）", () => {
+    expect(iconComponent).toContain("const box = computed(() => snapIconSize(props.size))");
     expect(iconComponent).toContain("const strokeWidth = computed");
-    expect(iconComponent).toContain("props.size >= 16 ? 1.8 : 2");
+    // 描边按吸附后的尺寸判：写 15 被吸到 16 时，线也该跟着按 16 算。
+    expect(iconComponent).toContain("box.value >= 16 ? 1.8 : 2");
     expect(iconComponent).toContain(':stroke-width="strokeWidth"');
     // 写死的那份 1.8 不许再出现在 svg 开标签上（真身只有 computed 一份）。
     expect(iconComponent).not.toMatch(/<svg[^>]*stroke-width="1\.8"/);

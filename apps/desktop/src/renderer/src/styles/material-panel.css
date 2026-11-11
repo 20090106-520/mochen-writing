@@ -131,7 +131,7 @@
   min-width: 0;
   padding: 6px 10px;
   border: 1px solid var(--line, #dedfdf);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface, #fff);
   color: var(--text-primary, #23262b);
   font-size: 0.857143rem;
@@ -162,7 +162,7 @@
 /* 来源站点：搜索结果那一行最要紧的是「这是谁家的」——站点名比摘要更早让人认出来。 */
 .material-hit-meta {
   color: var(--text-dim, #6b6f76);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   line-height: 1.4;
 }
 
@@ -194,7 +194,7 @@
   gap: 5px;
   padding: 5px 10px;
   border: 1px solid var(--line, #dedfdf);
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-primary, #23262b);
   font-size: 0.857143rem;

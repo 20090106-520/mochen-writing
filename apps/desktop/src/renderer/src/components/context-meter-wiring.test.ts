@@ -154,7 +154,7 @@ describe("样式", () => {
   it("浮层语言与阶段弹层同源：同样的描边、圆角、投影", () => {
     const panelRule = ruleBlock(css, ".context-meter-panel");
     expect(panelRule).toContain("var(--theme-line)");
-    expect(panelRule).toContain("border-radius: 18px");
+    expect(panelRule).toContain("border-radius: 20px");
     // 2026-11-09：毛玻璃收归 liquid-glass.css 总闸，基态只留不透明底（否则「关」关不干净）。
     expect(panelRule).toContain("background: var(--surface-raised)");
     expect(panelRule).not.toContain("backdrop-filter");

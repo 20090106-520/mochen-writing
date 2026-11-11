@@ -512,9 +512,11 @@ function onChapterDragEnd(): void {
             </button>
           </div>
           <div v-if="worksOpen" class="nav-group-body">
-            <!-- 作品库（2026-10-21）：先列「我打开过哪几本」（清单真身在主进程，点一行即切书，× 只移出清单），再放当前这本的文稿树。 -->
-            <section class="sidebar-library" aria-label="作品库">
-              <span class="sidebar-library-title">作品库</span>
+            <!-- 作品库（2026-10-21）：先列「我打开过哪几本」（清单真身在主进程，点一行即切书，× 只移出清单），再放当前这本的文稿树。
+                 2026-11-11：标题从「作品库」改成「最近打开」——外层分组已经叫「我的作品」，再挂一个同义小标题是重复层级；
+                 而这份清单的实际语义就是按时间倒序的最近打开（recent-books-store），叫准名字比叫全名字有用。 -->
+            <section class="sidebar-library" aria-label="最近打开">
+              <span class="sidebar-library-title">最近打开</span>
               <BookLibraryList />
             </section>
             <div v-if="workdirFallback" class="sidebar-workdir">

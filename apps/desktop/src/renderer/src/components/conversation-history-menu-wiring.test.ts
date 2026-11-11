@@ -265,7 +265,7 @@ describe("样式硬门禁 · 对齐他的原值，色值一律走 token", () => 
       "font-size: 0.928571rem"
     );
     expect(cssRule(".conversation-history-panel > header > button")).toContain("width: 2rem");
-    expect(cssRule(".conversation-history-title-row strong")).toContain("font-size: 0.821429rem");
+    expect(cssRule(".conversation-history-title-row strong")).toContain("font-size: 0.857143rem");
     expect(cssRule(".conversation-history-title-row time")).toContain("font-size: 0.642857rem");
     expect(cssRule(".conversation-history-copy small")).toContain("font-size: 0.714286rem");
     expect(cssRule(".conversation-history-empty")).toContain("min-height: 190px");

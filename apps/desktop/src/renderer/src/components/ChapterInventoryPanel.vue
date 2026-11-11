@@ -319,7 +319,7 @@ function goSetTotalTarget(): void {
 
 .ci-goal-bar {
   height: 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--border, rgba(255, 255, 255, 0.08));
   overflow: hidden;
 }

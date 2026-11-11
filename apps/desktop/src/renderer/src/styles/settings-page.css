@@ -59,7 +59,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   gap: 8px;
   width: fit-content;
   padding: 5px 8px;
-  border-radius: 7px;
+  border-radius: 8px;
   font-size: 0.928571rem;
   font-weight: 560;
 }
@@ -123,7 +123,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 .settings-section-label {
   padding: 0 8px 6px;
   color: var(--text-faint);
-  font-size: 0.821429rem;
+  font-size: 0.857143rem;
   font-weight: 620;
   letter-spacing: 0.03em;
 }
@@ -135,8 +135,8 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   width: 100%;
   min-height: 34px;
   padding: 6px 8px;
-  border-radius: 7px;
-  font-size: 0.964286rem;
+  border-radius: 8px;
+  font-size: 1rem;
   font-weight: 540;
   text-align: left;
 }
@@ -171,7 +171,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 .settings-title {
   margin: 0 0 60px;
   color: var(--text);
-  font-size: 2.57143rem;
+  font-size: 2.571429rem;
   font-weight: 520;
   letter-spacing: -0.035em;
   /* 设置页盖过整个窗口：大标题这一片空白给窗口顶部拖动用（无边框窗口）。 */
@@ -192,7 +192,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 .settings-group-title {
   margin: 0 0 14px;
   color: var(--text);
-  font-size: 1.07143rem;
+  font-size: 1.071429rem;
   font-weight: 640;
 }
 
@@ -202,7 +202,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   margin-bottom: 28px;
   padding: 6px 0;
   border: 1px solid var(--line-soft);
-  border-radius: 13px;
+  border-radius: 12px;
   background: var(--surface-card);
   /* 卡片从"一块描边的色块"变成"浮在底板上的东西"：sm 档高程 + 一道 1px 的高光边，
      深色下那道边替代阴影把卡片从底色里托出来。 */
@@ -244,7 +244,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 
 .settings-item-text small {
   color: var(--text-soft);
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
   line-height: 1.45;
 }
 
@@ -289,7 +289,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   margin: 10px 0 0;
   max-width: var(--settings-measure);
   color: var(--text-soft);
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
   line-height: 1.5;
 }
 
@@ -317,7 +317,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   gap: 6px;
   padding: 12px 14px;
   border: 1px solid var(--line-soft);
-  border-radius: 11px;
+  border-radius: 10px;
   background: var(--surface-card);
   box-shadow: var(--shadow-sm);
   color: var(--text);
@@ -353,7 +353,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 
 .agent-mode-head strong {
   color: var(--text);
-  font-size: 0.964286rem;
+  font-size: 1rem;
   font-weight: 620;
 }
 
@@ -391,13 +391,13 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 
 .provider-panel-title {
   margin: 0 0 6px;
-  font-size: 1.75rem;
+  font-size: 1.714286rem;
 }
 
 .provider-panel-note {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.928571rem;
 }
 
 .provider-add-button {
@@ -422,7 +422,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   gap: 14px;
   padding: 13px 18px;
   border: 1px solid var(--line-soft);
-  border-radius: 13px;
+  border-radius: 12px;
   background: var(--surface-card);
   box-shadow: var(--shadow-sm);
   transition: box-shadow var(--dur-fast) var(--ease-out-soft);
@@ -438,7 +438,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   width: 34px;
   height: 34px;
   flex: 0 0 auto;
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--hover);
   /* 这枚图标坐在 hover 档上：二级灰在这里只有 4.38:1，图标本身还要过 1.4.11 的 3:1，
      统一升到状态档灰。判据见 composables/appearance-surface-ladder.test.ts。 */
@@ -462,7 +462,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 
 .provider-profile-text span {
   color: var(--text-tertiary);
-  font-size: 0.82rem;
+  font-size: 0.785714rem;
 }
 
 /* 模态标记（2026-10-22）：与对话下拉的 .model-select-tag 同一套判定与画法。
@@ -500,10 +500,10 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 
 .provider-profile-menu button {
   padding: 8px 10px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: 0.928571rem;
   text-align: left;
   cursor: pointer;
 }
@@ -608,7 +608,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   gap: 10px;
   padding: 14px 16px;
   border: 1px solid var(--line-soft);
-  border-radius: 13px;
+  border-radius: 12px;
   background: var(--surface-card);
   box-shadow: var(--shadow-sm);
 }
@@ -792,7 +792,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 .model-picker-refresh {
   padding: 3px 8px;
   border: 1px solid var(--line-soft);
-  border-radius: 7px;
+  border-radius: 8px;
   background: none;
   color: var(--text-tertiary);
   font: inherit;

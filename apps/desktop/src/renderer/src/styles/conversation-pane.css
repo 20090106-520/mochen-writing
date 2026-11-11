@@ -6,7 +6,7 @@
   width: 32px;
   height: 32px;
   flex: 0 0 auto;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -122,7 +122,7 @@ html[data-platform="darwin"] .conversation-header {
   overflow: hidden;
   color: var(--text-faint);
   /* 2026-10-05 质感：0.75rem 在 14px 基准下只有 10.5px，屏上发虚；提到 0.8rem 并保持单行省略。 */
-  font-size: 0.8rem;
+  font-size: 0.785714rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -132,12 +132,14 @@ html[data-platform="darwin"] .conversation-header {
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
-  min-height: 30px;
+  /* 30 → 32（2026-11-11 热区收口）：它和同排的 .icon-button（32×32）并排，
+     矮 2px 时两枚按钮的上沿差一行像素——截图上读作「三个图标不齐」。 */
+  min-height: 32px;
   padding: 0 9px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.821429rem;
+  font-size: 0.857143rem;
   /* 5-㉓：没有这一行时，按钮被挤到比文字还窄就按字断行（真机量到三行、五行）。
      断行的是中文，实测一行「历史对话」要 46px + 图标 16 + 间隙 6 + 内边距 18 + 边框 2 = 88px。 */
   white-space: nowrap;
@@ -267,7 +269,7 @@ html[data-platform="darwin"] .conversation-header {
 
 .conversation-empty h1 {
   color: var(--text-primary);
-  font-size: 1.57143rem;
+  font-size: 1.571429rem;
   font-weight: 610;
   letter-spacing: -0.03em;
 }
@@ -299,7 +301,7 @@ html[data-platform="darwin"] .conversation-header {
   width: 100%;
   padding: 16px 18px;
   border: 1px solid var(--theme-line);
-  border-radius: 14px;
+  border-radius: 16px;
   background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
   box-shadow: var(--shadow-sm);
   /* 2026-10-22 窄窗逐页走查（1000 CSS）：三栏全开时中栏只有 ~300px，
@@ -383,7 +385,7 @@ html[data-platform="darwin"] .conversation-header {
   margin-top: 18px;
   padding: 14px 16px;
   border: 1px solid var(--line-soft);
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--surface-card);
   box-shadow: var(--shadow-sm);
 }
@@ -517,13 +519,13 @@ html[data-platform="darwin"] .conversation-header {
 }
 
 .workbench-card-label {
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
   font-weight: 620;
 }
 
 .workbench-card-hint {
   color: var(--text-tertiary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   line-height: 1.6;
 }
 
@@ -567,7 +569,7 @@ html[data-platform="darwin"] .conversation-header {
   border-color: var(--neutral-solid);
   background: var(--neutral-solid);
   color: var(--neutral-solid-contrast);
-  font-size: 0.875rem;
+  font-size: 0.857143rem;
   font-weight: 600;
 }
 

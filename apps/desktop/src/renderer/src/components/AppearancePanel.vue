@@ -20,6 +20,8 @@ import {
   motionPreferenceStorage,
   saveReducedMotion
 } from "../utils/motion-preference";
+// 界面字号七档的唯一真身：Ctrl+= / Ctrl+- / Ctrl+0 的键盘缩放读同一张表（utils/ui-font-size.ts）。
+import { UI_FONT_SIZE_STEPS } from "../utils/ui-font-size";
 
 const appearance = useAppearanceStore();
 const layout = useLayoutStore();
@@ -99,7 +101,7 @@ function setEditorFont(event: Event): void {
 // 字号档位：schema 边界 [10,24] 内取常用档；默认 14（界面）/ 13（代码）。
 // uiFontSize / codeFontSize / translucentSidebar 住在 light / dark 两套主题里（不在 settings
 // 顶层）——写时两套一并应用（与主题配色同款先例），显示读浅色那套；两套恒等，不存在分裂。
-const UI_FONT_SIZE_OPTIONS = [12, 13, 14, 15, 16, 18, 20];
+const UI_FONT_SIZE_OPTIONS = UI_FONT_SIZE_STEPS;
 const CODE_FONT_SIZE_OPTIONS = [11, 12, 13, 14, 16, 18, 20];
 
 function setUiFontSize(event: Event): void {

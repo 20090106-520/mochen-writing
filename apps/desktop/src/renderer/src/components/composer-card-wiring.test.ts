@@ -304,12 +304,12 @@ describe("样式硬门禁 · #105 新增段零色值字面量", () => {
     expect(off).toContain("cursor: not-allowed");
   });
 
-  it("#112 chip 从描边药丸改成无边框触发器（2026-11-08 UI 走查：字号抬到 0.875rem，其余仍照 deepwrite 的 config-trigger）", () => {
+  it("#112 chip 从描边药丸改成无边框触发器（2026-11-08 UI 走查：字号抬到 0.857143rem，其余仍照 deepwrite 的 config-trigger）", () => {
     const chipRule = ruleBlock(styleSource("interaction.css"), ".composer-chip");
     expect(chipRule).toContain("height: 29px");
-    expect(chipRule).toContain("border-radius: 7px");
+    expect(chipRule).toContain("border-radius: 8px");
     expect(chipRule).toContain("border: 0");
-    expect(chipRule).toContain("font-size: 0.875rem");
+    expect(chipRule).toContain("font-size: 0.857143rem");
     expect(chipRule).toContain("padding: 0 7px");
     // 下拉三角：本仓 chevron 画的是「>」，靠 rotate 90° 才朝下（同一手法在 deepwrite 的 config-chevron）。
     expect(ruleBlock(styleSource("interaction.css"), ".composer-chip-caret")).toContain(

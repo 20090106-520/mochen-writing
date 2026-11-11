@@ -141,7 +141,7 @@
 .conversation-history-title-row strong {
   overflow: hidden;
   color: var(--text-primary, #2a2d31);
-  font-size: 0.821429rem;
+  font-size: 0.857143rem;
   font-weight: 590;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -175,7 +175,7 @@
 .conversation-history-empty strong {
   margin-top: 4px;
   color: var(--text-secondary, #666a70);
-  font-size: 0.821429rem;
+  font-size: 0.857143rem;
   font-weight: 590;
 }
 

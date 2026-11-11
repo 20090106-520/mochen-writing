@@ -17,10 +17,10 @@
   gap: 7px;
   padding: 6px 11px;
   border: 1px solid var(--line-soft);
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--surface-raised);
   color: var(--text-secondary);
-  font-size: 0.8125rem;
+  font-size: 0.785714rem;
   cursor: pointer;
 }
 
@@ -65,7 +65,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--text-faint);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   cursor: pointer;
 }
 
@@ -98,11 +98,11 @@
   width: 100%;
   padding: 7px 9px;
   border: 1px solid var(--line-soft);
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--surface-raised);
   color: var(--text-primary);
   font-family: var(--ui-font);
-  font-size: 0.8125rem;
+  font-size: 0.785714rem;
   resize: vertical;
 }
 
@@ -114,7 +114,7 @@
 .redeem-textarea.is-code {
   min-height: 62px;
   font-family: monospace;
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   word-break: break-all;
 }
 
@@ -122,9 +122,9 @@
   margin: 0;
   padding: 7px 9px;
   border: 1px solid var(--line-soft);
-  border-radius: 9px;
+  border-radius: 10px;
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   line-height: 1.5;
 }
 
@@ -143,10 +143,10 @@
 .redeem-button {
   padding: 6px 11px;
   border: 1px solid var(--line-soft);
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--surface-raised);
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   cursor: pointer;
 }
 
@@ -166,7 +166,7 @@
 .redeem-notice {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   line-height: 1.5;
 }
 
@@ -186,11 +186,11 @@
   min-height: 60px;
   padding: 7px 9px;
   border: 1px solid var(--line-soft);
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--surface-raised);
   color: var(--text-primary);
   font-family: monospace;
-  font-size: 0.6875rem;
+  font-size: 0.714286rem;
   word-break: break-all;
   resize: vertical;
 }

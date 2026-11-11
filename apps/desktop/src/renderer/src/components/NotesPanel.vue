@@ -475,7 +475,7 @@ function jumpToDoc(note: Note): void {
   padding: 4px 6px;
   background: transparent;
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: 5px;
+  border-radius: 6px;
   outline: none;
   color: var(--text-primary, #e8e8e8);
   font-size: 0.857143rem;
@@ -657,7 +657,7 @@ function jumpToDoc(note: Note): void {
 .note-doc-ref:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 .note-time {

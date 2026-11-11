@@ -71,20 +71,20 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
 .draft-candidates-title {
   margin-bottom: 6px;
   color: var(--text-soft);
-  font-size: 0.8125rem;
+  font-size: 0.785714rem;
 }
 
 .draft-candidates-vitality-note {
   margin-bottom: 6px;
   color: var(--text-faint);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   line-height: 1.5;
 }
 
 .draft-candidates-degeneration-note {
   margin-bottom: 6px;
   color: var(--text-faint);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   line-height: 1.5;
 }
 
@@ -113,7 +113,7 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
 
 .draft-candidate-ordinal {
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: 0.785714rem;
   font-weight: 600;
 }
 
@@ -124,32 +124,32 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
      直接读 --accent 会让这枚徽标在换肤后停在默认蓝上，跟整块界面脱节。 */
   background: color-mix(in srgb, var(--focus) 14%, transparent);
   color: var(--focus);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
 }
 
 .draft-candidate-text {
   margin-bottom: 6px;
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: 0.857143rem;
   line-height: 1.55;
 }
 
 .draft-candidate-reading {
   margin-bottom: 6px;
   color: var(--text-faint);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
 }
 
 .draft-candidate-vitality {
   margin-bottom: 6px;
   color: var(--text-faint);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
 }
 
 .draft-candidate-degeneration {
   margin-bottom: 6px;
   color: var(--text-faint);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
 }
 
 .draft-candidate-pick,
@@ -157,10 +157,10 @@ const emit = defineEmits<{ pick: [index: number]; discard: [] }>();
   align-self: flex-start;
   padding: 4px 10px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   cursor: pointer;
-  font-size: 0.8125rem;
+  font-size: 0.785714rem;
 }
 
 .draft-candidates-foot {

@@ -2,21 +2,29 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { IconName } from "../types/icons";
+import { snapIconSize } from "../utils/icon-size";
 
 const props = withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 18 });
+
+/**
+ * 尺寸吸附（2026-11-11）：调用点写 13 / 15 / 17 的，统一落到 12/14/16/18… 那八档上。
+ * 真身与判据在 utils/icon-size.ts；这里只接线，调用点一个都不用改。
+ */
+const box = computed(() => snapIconSize(props.size));
 
 /**
  * 描边补偿（2026-10-05 质感统一）：字形按 24 viewBox 画，浏览器会把描边跟着缩放——
  * 14px 的图标 1.8 描边只剩约 1px，在 1.5 倍屏上跌破一个设备像素，看起来发虚。
  * 小于 16px 时提到 2（换算后与 1.8@16 相当），16px 及以上维持 1.8 不变。
+ * 读的是吸附后的尺寸：15 被吸到 16 时，描边也该按 16 算，否则「尺寸到了、线还细」。
  */
-const strokeWidth = computed(() => (props.size >= 16 ? 1.8 : 2));
+const strokeWidth = computed(() => (box.value >= 16 ? 1.8 : 2));
 </script>
 
 <template>
   <svg
-    :width="size"
-    :height="size"
+    :width="box"
+    :height="box"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"

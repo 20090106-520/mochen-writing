@@ -164,7 +164,7 @@ function startNewBook(): void {
   max-width: 90vw;
   background: var(--dropdown-bg, #1e1e2a);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 24px;
   box-shadow: var(--shadow-lg);
 }
@@ -176,7 +176,7 @@ function startNewBook(): void {
   right: 0;
   height: 3px;
   background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
-  border-radius: 14px 14px 0 0;
+  border-radius: 16px 16px 0 0;
   overflow: hidden;
 }
 
@@ -200,7 +200,7 @@ function startNewBook(): void {
   justify-content: center;
   width: 56px;
   height: 56px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: rgba(108, 158, 255, 0.1);
   color: var(--accent, #6c9eff);
   margin-bottom: 16px;
@@ -265,7 +265,7 @@ function startNewBook(): void {
 .ob-dot {
   width: 6px;
   height: 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 15%, transparent);
   transition: all 0.2s;
 }

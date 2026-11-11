@@ -78,7 +78,7 @@
   flex-direction: column;
   gap: 3px;
   padding: 7px 8px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface-dim, #f6f7f9);
 }
 
@@ -113,7 +113,7 @@
 .review-score-bar {
   position: relative;
   height: 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--line, #dedfdf);
   overflow: hidden;
 }
@@ -121,7 +121,7 @@
 .review-score-fill {
   display: block;
   height: 100%;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--accent, #339cff);
 }
 
@@ -150,7 +150,7 @@
 .review-score-missing {
   padding: 7px 8px;
   border: 1px dashed var(--line-strong, #c9ccd2);
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 .review-score-missing-title {
@@ -175,7 +175,7 @@
   margin-top: 2px;
   padding: 7px 10px;
   border: 1px solid var(--accent, #339cff);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface, #fff);
   color: var(--accent, #339cff);
   font: inherit;

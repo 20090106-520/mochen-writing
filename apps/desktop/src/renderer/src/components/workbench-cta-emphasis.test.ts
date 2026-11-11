@@ -5,7 +5,7 @@
  * 末段与 `tmp/mochen-workbench-opt.html`），判真之后落进 `styles/conversation-pane.css`。
  * 两条各自钉一段，理由都在 CSS 注释里，这里只钉「别再腐回去」：
  * ① 主 CTA 只换面色字重不够——`conversation-pane.css:285` 那段自陈的欠账是「权重反而更低」，
- *    优化稿补的是**尺寸**一档（36px 高 / 16px 内距 / 0.875rem 字），且刻意只提主 CTA。
+ *    优化稿补的是**尺寸**一档（36px 高 / 16px 内距 / 0.857143rem 字），且刻意只提主 CTA。
  *    两枚一起放大等于没放大。
  * ② 恒五张能力卡（真身 `utils/workbench-state.ts`）的收口两条：auto-fit 的列宽下限
  *    148 → 200px（中栏约 520px 内容宽下原排 3 列、每张 167px，提示断成末行只剩「批。」的
@@ -21,10 +21,10 @@ describe("无书空态：主 CTA 提一档尺寸，次要那枚保持原样", ()
   const primary = ruleBlock(PANE, ".workbench-open-book.is-primary");
   const base = ruleBlock(PANE, ".workbench-open-book");
 
-  it("主 CTA 拿到 36px 高 / 16px 内距 / 0.875rem 字（优化稿那一档，一条不许少）", () => {
+  it("主 CTA 拿到 36px 高 / 16px 内距 / 0.857143rem 字（优化稿那一档，一条不许少）", () => {
     expect(primary).toContain("min-height: 36px");
     expect(primary).toContain("padding: 0 16px");
-    expect(primary).toContain("font-size: 0.875rem");
+    expect(primary).toContain("font-size: 0.857143rem");
   });
 
   it("基线那枚仍是 31px / 12px —— 层级差来自主 CTA 单独提档，不是一起放大", () => {
@@ -33,7 +33,7 @@ describe("无书空态：主 CTA 提一档尺寸，次要那枚保持原样", ()
   });
 
   it("字号写 rem 不写 px：px 的话用户调「界面字号」这一档不动（ui-font-scale-guard 同一条纪律）", () => {
-    expect(primary).toMatch(/font-size:\s*0\.875rem/);
+    expect(primary).toMatch(/font-size:\s*0\.857143rem/);
     expect(primary).not.toMatch(/font-size:\s*\d+px/);
   });
 });

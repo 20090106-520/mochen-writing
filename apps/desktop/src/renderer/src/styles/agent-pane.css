@@ -92,7 +92,7 @@ html[data-platform="darwin"] .conversation-pane {
   overflow: hidden;
   background: var(--neutral-solid);
   color: var(--neutral-solid-contrast);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   line-height: 1;
   /* 米色底 + 深发插画，边缘是硬切的。借调色板里最淡那条线当描边（不用 border：
      border 会占掉 1px 让图缩一圈）。
@@ -179,7 +179,7 @@ html[data-platform="darwin"] .conversation-pane {
 .thinking-card {
   padding: 0;
   color: var(--text-faint);
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
 }
 
 .thinking-card[open] {
@@ -269,7 +269,7 @@ html[data-platform="darwin"] .conversation-pane {
   padding: 7px 12px;
   border-bottom: 1px solid var(--line-soft);
   color: var(--text-soft);
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
 }
 
 .card-head em {
@@ -847,7 +847,7 @@ html[data-platform="darwin"] .conversation-pane {
   border-radius: 6px;
   background: none;
   color: var(--text-faint);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   line-height: 1.4;
   cursor: pointer;
   /* 悬停底也要有过渡：这一条只在指针掠过时出现，硬切会像闪一下。 */
@@ -1284,7 +1284,7 @@ html[data-platform="darwin"] .conversation-pane {
   color: var(--text);
   /* 2026-11-08 UI 走查：输入区是作者盯得最久的一行，字号抬到 15px（与编辑器默认同一档），
      行高 1.6 保持。写长句时不至于挤成一片。 */
-  font-size: 1.07143rem;
+  font-size: 1.071429rem;
   line-height: 1.6;
   field-sizing: content;
 }
@@ -1568,7 +1568,7 @@ html[data-platform="darwin"] .conversation-pane {
   place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--selected);
   color: var(--text-on-state);
 }
@@ -1644,7 +1644,7 @@ html[data-platform="darwin"] .conversation-pane {
   place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: 10px;
   background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--text-soft);
 }
@@ -1694,7 +1694,7 @@ html[data-platform="darwin"] .conversation-pane {
 .composer-sheet-empty {
   padding: 18px 10px;
   color: var(--text-faint);
-  font-size: 0.8rem;
+  font-size: 0.785714rem;
   text-align: center;
 }
 
@@ -2154,7 +2154,7 @@ html[data-platform="darwin"] .conversation-pane {
   place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--selected);
   color: var(--text-on-state);
 }
@@ -2226,7 +2226,7 @@ html[data-platform="darwin"] .conversation-pane {
   min-height: 96px;
   padding: 20px;
   color: var(--text-faint);
-  font-size: 0.821429rem;
+  font-size: 0.857143rem;
   text-align: center;
 }
 
@@ -2256,7 +2256,7 @@ html[data-platform="darwin"] .conversation-pane {
   min-height: 58px;
   margin: 0 14px -15px;
   padding: 5px 10px 20px;
-  border-radius: 21px;
+  border-radius: 20px;
 }
 
 .composer-context-item {
@@ -2270,7 +2270,7 @@ html[data-platform="darwin"] .conversation-pane {
   min-height: 34px;
   padding: 6px 8px;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 10px;
   /* 装到地板 34px 时，里面的图标 + 尾巴仍可能比胶囊宽（真机 1024 量到 +10 / +19px）。
      不写 overflow 时尾巴画到胶囊外——那是 5-㉓ 这一格最初那副叠印相机的近亲。 */
   overflow: hidden;
@@ -2409,7 +2409,7 @@ html[data-platform="darwin"] .conversation-pane {
   gap: 8px;
   padding: 5px 12px;
   border-top: 1px solid var(--line);
-  border-radius: 0 0 15px 15px;
+  border-radius: 0 0 16px 16px;
   /* 【2026-11-10】撤掉原先那层 `--text` 4% 的沉底：卡面从 68% 抬到约 88% 之后，
      4% 的灰底在同色卡面上变成一道看得见的分色带，整卡读作「两块面拼起来」。
      现在底栏与卡面同色，只用那条发丝线划界——一条 45px 高的底栏不该自带第二种底色。 */
@@ -2510,7 +2510,7 @@ html[data-platform="darwin"] .conversation-pane {
   overflow: hidden;
   padding: 9px;
   border: 1px solid var(--theme-line);
-  border-radius: 18px;
+  border-radius: 20px;
   /* 2026-11-09：毛玻璃收归 liquid-glass.css 总闸，基态不透明。 */
   background: var(--surface-raised);
   box-shadow:

@@ -330,14 +330,14 @@ function enableGoal(): void {
 .wc-goal-bar {
   height: 6px;
   background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
-  border-radius: 3px;
+  border-radius: 4px;
   overflow: hidden;
 }
 
 .wc-goal-fill {
   height: 100%;
   background: var(--accent, #6c9eff);
-  border-radius: 3px;
+  border-radius: 4px;
   transition: width 0.3s ease;
 }
 
@@ -414,14 +414,14 @@ function enableGoal(): void {
   flex: 1;
   height: 14px;
   background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 4%, transparent);
-  border-radius: 3px;
+  border-radius: 4px;
   overflow: hidden;
 }
 
 .wc-bar-fill {
   height: 100%;
   background: var(--accent, #6c9eff);
-  border-radius: 3px;
+  border-radius: 4px;
   opacity: 0.7;
   transition: width 0.3s ease;
 }

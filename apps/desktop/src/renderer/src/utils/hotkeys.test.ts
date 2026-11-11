@@ -131,6 +131,27 @@ describe("resolveHotkey · 全局 Ctrl 族", () => {
       "prev-tab"
     );
   });
+  it("Ctrl+= / Ctrl+- / Ctrl+0 是界面缩放，三个键面都要认（+ 与 _ 是 Shift 位的同一枚）", () => {
+    expect(resolveHotkey(focus(), "=", mods({ ctrl: true })).action).toBe("zoom-in");
+    // US 布局上放大是 Ctrl+Shift+=，event.key 已经是 "+" 且 shiftKey 为真：
+    // 不许落进面板族被判成 none（那正是「按了没反应」）。
+    expect(resolveHotkey(focus(), "+", mods({ ctrl: true, shift: true })).action).toBe("zoom-in");
+    expect(resolveHotkey(focus(), "-", mods({ ctrl: true })).action).toBe("zoom-out");
+    expect(resolveHotkey(focus(), "_", mods({ ctrl: true, shift: true })).action).toBe("zoom-out");
+    expect(resolveHotkey(focus(), "0", mods({ ctrl: true })).action).toBe("zoom-reset");
+    // 缩放是全局的：焦点在文稿编辑器里也该放行（与 Ctrl+B 同一款，不属于护栏 2 的编辑键）。
+    expect(
+      resolveHotkey(focus({ textInputIsFocused: true }), "=", mods({ ctrl: true })).action
+    ).toBe("zoom-in");
+    // 无修饰的 = - 0 是打字，什么都不是。
+    expect(resolveHotkey(focus(), "=", mods({})).action).toBe("none");
+    expect(resolveHotkey(focus(), "0", mods({})).action).toBe("none");
+    // 合成期间一律不截键（护栏 1 仍然最高）。
+    expect(resolveHotkey(focus({ isComposing: true }), "=", mods({ ctrl: true })).action).toBe(
+      "none"
+    );
+  });
+
   it("Ctrl+O ⇒ open-book（书架空态钮与输入卡书格同走这条通路，键必须真的能用）", () => {
     // 没开书时更要能按——这正是「打开作品目录」唯一有用的场合。
     expect(resolveHotkey(focus({ hasBook: false }), "o", mods({ ctrl: true })).action).toBe(
@@ -163,9 +184,11 @@ describe("resolveHotkey · 全局 Ctrl 族", () => {
     expect(
       resolveHotkey(focus({ hasBook: false, tabCount: 3 }), "1", mods({ ctrl: true })).action
     ).toBe("none");
+    // Ctrl+0 不再落进「越界数字」那一支：它是界面缩放的复位档（2026-11-11），
+    // 而跳页只有 1..9 ——两族在判定层就分开，别让 0 变成「无动作」再被当成越界。
     expect(
       resolveHotkey(focus({ hasBook: true, tabCount: 3 }), "0", mods({ ctrl: true })).action
-    ).toBe("none");
+    ).toBe("zoom-reset");
   });
 });
 

@@ -36,7 +36,7 @@
 
 .skin-gallery-title {
   margin: 0;
-  font-size: 1.0625rem;
+  font-size: 1.071429rem;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
@@ -298,7 +298,7 @@
 
 .skin-card-bar {
   height: 7px;
-  border-radius: 3px;
+  border-radius: 4px;
   min-width: 0;
 }
 
@@ -330,7 +330,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
 }
 
 .skin-card-desc {
@@ -344,7 +344,7 @@
    用户要知道自己抄自哪个仓库、按什么许可发布。 */
 .skin-card-origin {
   color: var(--text-tertiary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -371,7 +371,7 @@
   border-radius: 999px;
   background: var(--surface-main);
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   white-space: nowrap;
 }
 
@@ -517,7 +517,7 @@
 
 .skin-compare-tag {
   color: var(--text-tertiary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
 }
 
 /* 一整扇窗的模型：三栏 + 五层，比例按真实 shell 的观感摆（侧栏 22%、右栏 26%）。
@@ -624,12 +624,12 @@
 
 .skin-window-bar {
   height: 8px;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 .skin-window-line {
   height: 5px;
-  border-radius: 3px;
+  border-radius: 4px;
   background: color-mix(in srgb, var(--window-ink, currentColor) 28%, transparent);
 }
 

@@ -77,7 +77,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
 .brand-name {
   overflow: hidden;
   color: var(--text-primary);
-  font-size: 1.07143rem;
+  font-size: 1.071429rem;
   font-weight: 650;
   letter-spacing: -0.01em;
   text-overflow: ellipsis;
@@ -213,7 +213,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.875rem;
+  font-size: 0.857143rem;
   text-align: left;
   cursor: pointer;
 }
@@ -460,7 +460,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.875rem;
+  font-size: 0.857143rem;
   text-align: left;
   cursor: pointer;
 }
@@ -656,7 +656,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   right: 0;
   height: 2px;
   background: var(--accent, #4f8cff);
-  border-radius: 1px;
+  border-radius: 2px;
   box-shadow: 0 0 4px var(--accent, #4f8cff);
   content: "";
   pointer-events: none;
@@ -761,7 +761,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   border-radius: 6px;
   background: var(--surface-raised);
   color: var(--text-primary);
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
 }
 
 .tree-add-input:focus {
@@ -795,6 +795,6 @@ html[data-platform="darwin"] .sidebar-brand-row {
   margin: 2px 0 0;
   padding-left: 3px;
   color: var(--danger);
-  font-size: 0.8125rem;
+  font-size: 0.785714rem;
   line-height: 1.35;
 }

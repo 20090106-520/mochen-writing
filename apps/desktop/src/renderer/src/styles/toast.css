@@ -115,7 +115,7 @@
   height: 22px;
   background: transparent;
   border: none;
-  border-radius: 3px;
+  border-radius: 4px;
   color: var(--text-muted, #777);
   cursor: pointer;
   flex-shrink: 0;

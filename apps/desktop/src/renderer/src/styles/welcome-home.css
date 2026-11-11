@@ -95,7 +95,7 @@
   }
 
   .welcome-hero-title {
-    font-size: 1.28rem;
+    font-size: 1.285714rem;
   }
 
   .welcome-shortcuts {
@@ -113,7 +113,7 @@
 
 .welcome-hero-title {
   color: var(--text-primary);
-  font-size: 1.5rem;
+  font-size: 1.428571rem;
   font-weight: 640;
   letter-spacing: -0.025em;
   line-height: 1.35;
@@ -138,7 +138,7 @@
   background: var(--surface-raised);
   color: var(--text-secondary);
   font-family: var(--ui-font);
-  font-size: 0.8rem;
+  font-size: 0.785714rem;
   cursor: pointer;
   transition:
     background 120ms ease,

@@ -26,7 +26,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--text-faint);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   cursor: pointer;
 }
 
@@ -65,7 +65,7 @@
 }
 
 .skill-entry {
-  border-radius: 9px;
+  border-radius: 10px;
 }
 
 .skill-entry-head {
@@ -73,7 +73,7 @@
   align-items: center;
   gap: 6px;
   padding: 3px 4px;
-  border-radius: 9px;
+  border-radius: 10px;
 }
 
 .skill-entry-head:hover {
@@ -94,7 +94,7 @@
   background: transparent;
   color: var(--text-primary);
   font-family: var(--ui-font);
-  font-size: 0.8125rem;
+  font-size: 0.785714rem;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -116,7 +116,7 @@
   border: 1px solid var(--line-soft);
   border-radius: 999px;
   color: var(--text-faint);
-  font-size: 0.6875rem;
+  font-size: 0.714286rem;
   white-space: nowrap;
 }
 
@@ -137,7 +137,7 @@
 .skill-entry-desc {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   line-height: 1.55;
 }
 
@@ -153,11 +153,11 @@
   margin: 0;
   padding: 7px 9px;
   border: 1px solid var(--line-soft);
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--surface-raised);
   color: var(--text-secondary);
   font-family: monospace;
-  font-size: 0.6875rem;
+  font-size: 0.714286rem;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
@@ -182,7 +182,7 @@
   gap: 6px;
   align-items: center;
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   cursor: pointer;
 }
 
@@ -222,7 +222,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--text-primary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -233,7 +233,7 @@
   overflow: hidden;
   color: var(--text-faint);
   font-family: monospace;
-  font-size: 0.6875rem;
+  font-size: 0.714286rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -74,7 +74,7 @@
   flex: 1;
   padding: 5px 8px;
   border: 1px solid var(--line, #dedfdf);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface-dim, #f6f7f9);
 }
 
@@ -103,10 +103,10 @@
 .foreshadow-broken {
   margin: 8px 0 0;
   padding: 7px 9px;
-  border-radius: 7px;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--warning, #c98a1b) 34%, transparent);
   background: color-mix(in srgb, var(--warning, #c98a1b) 9%, transparent);
-  font-size: 0.74rem;
+  font-size: 0.714286rem;
   line-height: 1.6;
   color: var(--text-secondary);
 }
@@ -117,7 +117,7 @@
 }
 
 .foreshadow-dangle code {
-  font-size: 0.72rem;
+  font-size: 0.714286rem;
   opacity: 0.85;
 }
 
@@ -138,7 +138,7 @@
   padding: 7px 8px;
   border: 1px solid transparent;
   border-left: 3px solid var(--line, #dedfdf);
-  border-radius: 0 7px 7px 0;
+  border-radius: 0 8px 8px 0;
   background: none;
   color: inherit;
   font: inherit;

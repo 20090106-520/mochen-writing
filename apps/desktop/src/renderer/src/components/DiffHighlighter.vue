@@ -124,7 +124,7 @@ const lines = computed(() => parseDiffLines(props.diff));
 /* 逐字片段（2026-10-22）：整行底色仍标「这一行变了」，这一层只把真正动过的那几个字拎出来。
    色值沿用上面增删语义色，只提高不透明度——两套颜色会让同一处改动看起来是两回事。 */
 .diff-frag {
-  border-radius: 3px;
+  border-radius: 4px;
   background: rgba(80, 200, 120, 0.28);
 }
 

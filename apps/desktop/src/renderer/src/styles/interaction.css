@@ -187,12 +187,12 @@
   height: 29px;
   padding: 0 7px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-soft);
   /* 2026-11-08 UI 走查：0.75rem 在 14px 根字号下只有 10.5px，输入区一排小字
      读起来像脚注。抬到 0.875rem（约 12.25px）——参照图里工具行的字号也是这个量级。 */
-  font-size: 0.875rem;
+  font-size: 0.857143rem;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -256,7 +256,7 @@
   flex: 1 1 100%;
   margin: 2px 0 0;
   color: var(--text-faint);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
 }
 
 /* 输入区 chip 行的按下态（#101）：aria-pressed 由 composerChips 的 active 决定，

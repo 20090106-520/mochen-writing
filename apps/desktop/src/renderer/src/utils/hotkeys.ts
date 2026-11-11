@@ -51,6 +51,9 @@ export type HotkeyAction =
   | "open-help"
   | "open-book"
   | "open-palette"
+  | "zoom-in"
+  | "zoom-out"
+  | "zoom-reset"
   | "reference-insert"
   | "reference-move-up"
   | "reference-move-down";
@@ -114,6 +117,16 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
 
   // 全局 Ctrl 族（先于编辑态判断：即便在文本框里也应放行）
   if (mods.ctrl && !mods.alt && !mods.meta) {
+    /**
+     * 界面缩放（Ctrl + = / - / 0）：Windows / macOS 桌面应用的通行键位（Chrome、VS Code、
+     * Slack 都在这三个键上），用户在文本框里按也期待整屏变大，所以排在编辑态判断之前。
+     * 认三组键面：`=` 与 `+` 都是放大（US 布局上 `+` 是 Shift+=，此时 shift 为真），
+     * `-` 与 `_` 都是缩小，`0` 复位。必须写在 `if (mods.shift)` 面板族之前——
+     * `Ctrl+Shift+=` 会落进面板那一支然后被判成 none，放大键就永远按不出来。
+     */
+    if (k === "=" || k === "+") return { action: "zoom-in" };
+    if (k === "-" || k === "_") return { action: "zoom-out" };
+    if (k === "0") return { action: "zoom-reset" };
     if (mods.shift) {
       const panel = PANEL_KEYS[k];
       if (panel) return { action: "panel-shortcut", panel };

@@ -59,7 +59,7 @@
 .workspace-dialog h2 {
   margin-top: 3px;
   color: var(--text-primary);
-  font-size: 1.42857rem;
+  font-size: 1.428571rem;
   font-weight: 620;
   letter-spacing: -0.02em;
   /* 两行标题（「导入 TXT」「保存冲突」一类）逐行平衡，不出现孤字行。 */
@@ -74,7 +74,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--text-tertiary);
-  font-size: 1.57143rem;
+  font-size: 1.571429rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -168,7 +168,7 @@
   min-height: 32px;
   padding: 0 12px;
   border-radius: 8px;
-  font-size: 0.8125rem;
+  font-size: 0.785714rem;
   cursor: pointer;
 }
 
@@ -234,7 +234,7 @@
   border-radius: 8px;
   background: var(--surface-raised);
   color: var(--text-secondary);
-  font-size: 0.821429rem;
+  font-size: 0.857143rem;
   cursor: pointer;
 }
 
@@ -262,7 +262,7 @@
 
 .appearance-error {
   color: var(--danger);
-  font-size: 0.821429rem;
+  font-size: 0.857143rem;
 }
 
 /* —— 外观页：双列字号行与半透明开关 —— */
@@ -412,7 +412,7 @@
 
 .about-term {
   color: var(--text-tertiary);
-  font-size: 0.821429rem;
+  font-size: 0.857143rem;
   font-weight: 650;
 }
 
@@ -439,7 +439,7 @@
   border-radius: 8px;
   background: var(--surface-raised);
   color: var(--text-secondary);
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
 }
 
 .new-book-dir-input:focus {

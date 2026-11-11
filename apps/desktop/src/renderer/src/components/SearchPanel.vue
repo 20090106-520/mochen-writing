@@ -556,7 +556,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   gap: 8px;
   padding: 5px 16px;
   cursor: pointer;
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
   line-height: 1.4;
 }
 

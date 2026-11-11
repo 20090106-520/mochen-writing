@@ -45,6 +45,18 @@ export const HOTKEY_GUIDE: readonly HotkeyGuideGroup[] = [
         label: "跳到第 N 枚页签",
         when: "已打开一本书",
         needle: "/^[1-9]$/.test(k)"
+      },
+      {
+        keys: "Ctrl = / Ctrl -",
+        label: "放大 / 缩小界面字号",
+        when: "随时（文本框里也生效）",
+        needle: 'if (k === "=" || k === "+") return { action: "zoom-in" };'
+      },
+      {
+        keys: "Ctrl 0",
+        label: "界面字号回到默认档",
+        when: "随时",
+        needle: 'if (k === "0") return { action: "zoom-reset" };'
       }
     ]
   },

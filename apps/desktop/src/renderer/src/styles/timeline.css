@@ -63,7 +63,7 @@
 .timeline-check-error {
   margin: 0;
   padding: 6px 8px;
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--danger-soft, rgb(214 69 69 / 12%));
   color: var(--danger, #d64545);
   font-size: 0.857143rem;
@@ -104,7 +104,7 @@
   gap: 2px;
   padding: 6px 8px;
   border-left: 2px solid var(--warn, #d9a441);
-  border-radius: 0 7px 7px 0;
+  border-radius: 0 8px 8px 0;
   background: var(--surface-dim, #f6f7f9);
 }
 
@@ -148,7 +148,7 @@
   gap: 1px 8px;
   padding: 5px 8px;
   border-left: 2px solid transparent;
-  border-radius: 0 7px 7px 0;
+  border-radius: 0 8px 8px 0;
   background: var(--surface-dim, #f6f7f9);
 }
 
@@ -208,7 +208,7 @@
   flex: none;
   padding: 7px 8px;
   border: 1px dashed var(--line-strong, #c9ccd2);
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 .timeline-blind-title {

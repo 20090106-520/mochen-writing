@@ -27,7 +27,7 @@
 .work-items-head strong {
   flex: 1;
   min-width: 0;
-  font-size: 0.892857rem;
+  font-size: 0.928571rem;
   font-weight: 600;
 }
 
@@ -57,7 +57,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.821429rem;
+  font-size: 0.857143rem;
   text-align: left;
   cursor: pointer;
 }
@@ -166,13 +166,13 @@
 
 .work-items-detail {
   color: var(--text-tertiary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
 }
 
 .work-items-meta {
   flex: 0 0 auto;
   color: var(--text-tertiary);
-  font-size: 0.75rem;
+  font-size: 0.785714rem;
   white-space: nowrap;
 }
 
