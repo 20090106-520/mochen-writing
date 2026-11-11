@@ -331,11 +331,11 @@ describe("液态玻璃 · 指针高光（2026-11-10）", () => {
     expect(block).toContain("pointer-events: none");
   });
 
-  it("光斑压在文字之下（z-index: -1），且不吃点击", () => {
+  it("光斑压在文字之下（层级表 --z-under），且不吃点击", () => {
     // 光扫过正文时把字洗淡是「质感」类改动最容易付的代价；`pointer-events: none`
     // 少一条，整张输入卡就点不进 textarea。
     const block = blockOf(".composer-input-surface::after");
-    expect(block).toMatch(/z-index:\s*-1/);
+    expect(block).toMatch(/z-index:\s*var\(--z-under\)/);
     expect(block).toContain("pointer-events: none");
   });
 

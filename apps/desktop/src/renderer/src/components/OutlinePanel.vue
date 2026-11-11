@@ -349,7 +349,7 @@ onBeforeUnmount(() => panelScrollbar.dispose());
 .outline-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1500;
+  z-index: var(--z-drawer);
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(2px);
 }

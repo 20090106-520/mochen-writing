@@ -4,7 +4,7 @@
 
 .dialog-backdrop {
   position: fixed;
-  z-index: 100;
+  z-index: var(--z-dialog);
   inset: 0;
   display: grid;
   place-items: center;

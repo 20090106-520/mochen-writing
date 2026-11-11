@@ -125,7 +125,7 @@ html[data-liquid-glass="on"] .composer-input-surface::after {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: var(--z-under);
   border-radius: inherit;
   pointer-events: none;
   /* 圆心与半径写在这里，不写进 token：`--lg-pointer` 落在 `:root` 上，

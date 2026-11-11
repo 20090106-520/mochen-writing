@@ -146,7 +146,7 @@ describe("toast 挪到左上，不再压浮层标题", () => {
   });
 
   it("z-index 仍然是全应用最高：提示要压得住任何浮层", () => {
-    expect(ruleBlock(toastCss, ".toast-stack")).toContain("z-index: 9999");
+    expect(ruleBlock(toastCss, ".toast-stack")).toContain("z-index: var(--z-toast)");
   });
 
   it("入场方向跟着锚点改：从右滑入改成从左滑入", () => {

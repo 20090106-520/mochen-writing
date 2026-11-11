@@ -164,6 +164,40 @@
   --shadow-sm: 0 1px 2px var(--shadow-color);
   --shadow-md: 0 3px 12px -2px var(--shadow-color), 0 1px 2px var(--shadow-color);
   --shadow-lg: 0 16px 40px -10px var(--shadow-color), 0 3px 10px var(--shadow-color);
+  /* 面板外框（panel-kit.css 统一那一族的圆角与投影）。原先十几份 CSS 各写一个数字，
+     改一个皮肤要改十几处；收成两枚后，换质感只动这里，判据见 components/z-ladder.test.ts。 */
+  --radius-panel: 16px;
+  --shadow-panel: 0 18px 48px var(--shadow-color);
+  /* 【层级表 2026-11-11】全站 z-index 只此一处有数字。数值**照抄历史、一个没改**——
+     抽成 token 解决的是「44 处魔数散在 CSS / Vue scoped / 守卫断言里，谁压谁没有单一真相」，
+     不解决层级设计本身，所以这一轮不改任何层叠行为。判据见 components/z-ladder.test.ts。
+     前七档是容器内相对层叠（只在自己的 stacking context 里比大小，别拿去跨栏比）；
+     inline-* 是栏内浮起；popover → dialog → menu → drawer → toast 是跨栏生效的全局档。
+     ⚠ 已知三档不齐：整屏面板历史上写了 1500（六个 + 设定集）/ 1600（导出）/ 2000（搜索），
+     谁该压谁没有裁定过。别顺手调平——那会改变真机上「两个面板叠着时谁在前」，要单独量过再定。 */
+  --z-under: -1;
+  --z-flat: 0;
+  --z-raise-1: 1;
+  --z-raise-2: 2;
+  --z-raise-3: 3;
+  --z-raise-5: 5;
+  --z-raise-6: 6;
+  --z-inline-floor: 10;
+  --z-inline-low: 20;
+  --z-inline-low-2: 21;
+  --z-inline-mid: 30;
+  --z-inline-high: 40;
+  --z-inline-top: 50;
+  --z-popover: 60;
+  --z-popover-2: 61;
+  --z-popover-3: 62;
+  --z-guide: 90;
+  --z-dialog: 100;
+  --z-menu: 1000;
+  --z-drawer: 1500;
+  --z-drawer-export: 1600;
+  --z-drawer-search: 2000;
+  --z-toast: 9999;
   --surface-card: color-mix(
     in srgb,
     var(--theme-foreground, #1a1c1f) 2.8%,
@@ -380,7 +414,7 @@ html[data-platform="darwin"] .desktop-shell {
    误触成拖拽；6px 仍够指针落上去，hover 那根发丝线照旧提示「这儿能拖」。 */
 .pane-resizer {
   position: absolute;
-  z-index: 20;
+  z-index: var(--z-inline-low);
   top: 0;
   bottom: 0;
   width: 6px;
@@ -434,7 +468,7 @@ html[data-platform="darwin"] .desktop-shell {
    判据 `extensions-page-wiring.test.ts` 会当场红。 */
 .pane-edge-toggle {
   position: absolute;
-  z-index: 21;
+  z-index: var(--z-inline-low-2);
   top: 50%;
   left: 0;
   transform: translateY(-50%);

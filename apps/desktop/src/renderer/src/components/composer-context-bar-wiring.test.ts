@@ -290,7 +290,7 @@ describe("样式硬门禁 · 对齐他的原值，色值一律走 token", () => 
   it("弹层样式整段搬进卡片分段，深色覆写用 html[data-theme=dark] 而不是 :global（非 scoped 表里 :global 会被丢掉）", () => {
     const pane = cardSection("agent-pane.css");
     const menu = ruleBlock(pane, ".composer-context-menu");
-    expect(menu).toContain("z-index: 1000");
+    expect(menu).toContain("z-index: var(--z-menu)");
     expect(menu).toContain("border-radius: 18px");
     // 2026-11-09：毛玻璃收归 liquid-glass.css 总闸，基态只留不透明底（否则「关」关不干净）。
     expect(menu).toContain("background: var(--surface-raised)");

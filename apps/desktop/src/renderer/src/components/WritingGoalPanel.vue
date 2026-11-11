@@ -256,7 +256,7 @@ const heatDays = computed(() => recentProgress.value);
   background: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: flex-end;
-  z-index: 1500;
+  z-index: var(--z-drawer);
 }
 
 .goal-panel {
@@ -378,7 +378,7 @@ const heatDays = computed(() => recentProgress.value);
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  z-index: 1;
+  z-index: var(--z-raise-1);
 }
 
 .goal-ring-words {

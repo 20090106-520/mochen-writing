@@ -7,7 +7,7 @@
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   justify-content: flex-end;
-  z-index: 1500;
+  z-index: var(--z-drawer);
 }
 
 .bible-panel {
@@ -19,7 +19,9 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.35);
+  /* 抽屉原本往左投影；整屏面板外框归 panel-kit 统一后这行同特异性被裁决掉，
+     留着一条永远不生效的方向阴影只会误导下一个人，直接读同一枚 token。 */
+  box-shadow: var(--shadow-panel);
 }
 
 /* Header */

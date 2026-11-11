@@ -5,7 +5,7 @@
 
 .volume-outline {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-popover);
   /* 宽度由 useComposerContextPopover 的 widthPx 给出（480），样式表不再写死 width。 */
   max-height: min(620px, 80vh);
   display: flex;

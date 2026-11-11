@@ -9,7 +9,7 @@
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 30;
+  z-index: var(--z-inline-mid);
   min-width: 200px;
   padding: 6px;
   border: 1px solid var(--line-soft);
@@ -36,7 +36,7 @@
    这里只给面、边、阴影与焦点圈。选项行直接复用 `.permission-option`：同一族菜单的形状只有一份。 */
 .review-menu {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-popover);
   padding: 6px;
   border: 1px solid var(--line-soft);
   border-radius: 12px;
@@ -300,7 +300,7 @@
 .tool-roster-mask {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: var(--z-inline-high);
   display: flex;
   justify-content: center;
   padding-top: 12vh;
@@ -315,11 +315,11 @@
   align-self: flex-start;
   padding: 16px 18px 16px;
   border: 1px solid var(--line-soft);
-  border-radius: 16px;
+  border-radius: var(--radius-panel);
   /* 2026-11-09：半透明底与模糊收归 liquid-glass.css 总闸——这里留不透明底，
      玻璃开关关掉时这张清单是真的不透明，而不是剩一层关不掉的毛玻璃。 */
   background: var(--surface-raised);
-  box-shadow: 0 14px 42px var(--shadow-color);
+  box-shadow: var(--shadow-panel);
 }
 
 .tool-roster:focus-visible {
@@ -485,7 +485,7 @@
    少了它列表会把面板撑高、滚动条跑到整个面板上（这段的滚动就又回到老样子）。 */
 .model-select {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-popover);
   display: flex;
   flex-direction: column;
   overflow: hidden;

@@ -307,7 +307,7 @@ html[data-platform="darwin"] .editor-header {
 
 .editor-toolbar {
   position: relative;
-  z-index: 2;
+  z-index: var(--z-raise-2);
   display: flex;
   align-items: center;
   gap: 3px;
@@ -593,7 +593,7 @@ html[data-theme="dark"] .document-editor:focus-visible {
   overflow-wrap: break-word;
   pointer-events: none;
   user-select: none;
-  z-index: 0;
+  z-index: var(--z-flat);
 }
 
 /* 占位留着（那是上面 8px 的由来），但别画出来：mirror 不接受指针，也不该有第二条滚动条。 */
@@ -603,7 +603,7 @@ html[data-theme="dark"] .document-editor:focus-visible {
 
 .editor-textarea-wrap .document-editor {
   position: relative;
-  z-index: 1;
+  z-index: var(--z-raise-1);
   background-color: transparent;
 }
 
@@ -1106,7 +1106,7 @@ html[data-theme="dark"] .document-editor:focus-visible {
   position: absolute;
   top: 8px;
   inset-inline-end: 12px;
-  z-index: 6;
+  z-index: var(--z-raise-6);
   display: flex;
   align-items: center;
   gap: 6px;

@@ -334,7 +334,7 @@ function globalHitIndex(groupIdx: number, hitIdx: number): number {
   align-items: flex-start;
   justify-content: center;
   padding-top: 12vh;
-  z-index: 2000;
+  z-index: var(--z-drawer-search);
 }
 
 .search-panel {

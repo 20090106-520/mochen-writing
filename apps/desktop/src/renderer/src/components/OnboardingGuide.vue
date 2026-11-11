@@ -155,7 +155,7 @@ function startNewBook(): void {
   justify-content: center;
   /* 90：低于 .dialog-backdrop 的 100（新建作品等对话框要能盖在引导上），高于常规浮层 60。
      原来 3000 会把引导里「下一步」打开的 NewBookDialog 整个压住且拦截点击——用户点不动、也退不出。 */
-  z-index: 90;
+  z-index: var(--z-guide);
 }
 
 .ob-dialog {

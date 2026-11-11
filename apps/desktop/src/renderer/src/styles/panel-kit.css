@@ -23,8 +23,8 @@
   .material-panel
 ) {
   border: 1px solid var(--line-soft);
-  border-radius: 16px;
-  box-shadow: 0 18px 48px var(--shadow-color);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
 }
 
 /* 头部：标题一律 600、副标题一律淡一档。只改字重与颜色，不改栅格和按钮位置。 */

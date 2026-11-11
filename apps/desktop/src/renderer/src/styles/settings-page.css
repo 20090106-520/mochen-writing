@@ -488,7 +488,7 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   position: absolute;
   top: calc(100% - 8px);
   right: 14px;
-  z-index: 30;
+  z-index: var(--z-inline-mid);
   display: grid;
   min-width: 150px;
   padding: 6px;

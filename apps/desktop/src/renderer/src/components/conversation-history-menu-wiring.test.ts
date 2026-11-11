@@ -230,7 +230,7 @@ describe("样式硬门禁 · 对齐他的原值，色值一律走 token", () => 
   it("面板几何一字不改：宽高上限、圆角、层级、挂载偏移", () => {
     const panel = cssRule(".conversation-history-panel");
     for (const value of [
-      "z-index: 61",
+      "z-index: var(--z-popover-2)",
       "top: calc(100% + 8px)",
       "width: min(370px, calc(100vw - 28px))",
       "max-height: min(560px, calc(100vh - 72px))",
@@ -240,10 +240,10 @@ describe("样式硬门禁 · 对齐他的原值，色值一律走 token", () => 
       expect(panel, `.conversation-history-panel 缺 ${value}`).toContain(value);
     }
     expect(cssRule(".conversation-history-dismiss")).toContain("position: fixed");
-    expect(cssRule(".conversation-history-dismiss")).toContain("z-index: 60");
+    expect(cssRule(".conversation-history-dismiss")).toContain("z-index: var(--z-popover)");
     expect(cssRule(".conversation-history-dismiss")).toContain("inset: 0");
     const control = cssRule(".conversation-history-control");
-    expect(control).toContain("z-index: 62");
+    expect(control).toContain("z-index: var(--z-popover-3)");
     expect(control).toContain("-webkit-app-region: no-drag");
   });
 

@@ -476,7 +476,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
 
 .tree-node-action-area {
   position: absolute;
-  z-index: 20;
+  z-index: var(--z-inline-low);
   top: 1px;
   right: 3px;
 }
@@ -510,7 +510,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
 
 .tree-node-action-menu {
   position: absolute;
-  z-index: 50;
+  z-index: var(--z-inline-top);
   top: calc(100% + 3px);
   right: 0;
   width: max-content;
@@ -650,7 +650,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
 
 .tree-row.is-drag-over::before {
   position: absolute;
-  z-index: 10;
+  z-index: var(--z-inline-floor);
   top: -1px;
   left: 0;
   right: 0;

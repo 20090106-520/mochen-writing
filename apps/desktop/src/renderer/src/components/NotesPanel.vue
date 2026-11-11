@@ -348,7 +348,7 @@ function jumpToDoc(note: Note): void {
   background: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: flex-end;
-  z-index: 1500;
+  z-index: var(--z-drawer);
 }
 
 .notes-panel {

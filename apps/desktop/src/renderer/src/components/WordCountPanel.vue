@@ -219,7 +219,7 @@ function enableGoal(): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1500;
+  z-index: var(--z-drawer);
 }
 
 .wc-panel {

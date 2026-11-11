@@ -1179,7 +1179,7 @@ html[data-platform="darwin"] .conversation-pane {
    两条公式逐档恒等。 */
 .composer-wrap {
   position: relative;
-  z-index: 2;
+  z-index: var(--z-raise-2);
   container: composer / inline-size;
   /* 右侧那 12px 是给正文列的滚动条让位（`--scrollbar-gutter`，一个数两处读）：
      滚动条在**布局内**，正文列因此窄一截；输入卡不在那个滚动容器里，它拿的是整条宽度。
@@ -1213,7 +1213,7 @@ html[data-platform="darwin"] .conversation-pane {
 
 .composer-input-surface {
   position: relative;
-  z-index: 1;
+  z-index: var(--z-raise-1);
   display: flex;
   flex-direction: column;
   overflow: visible;
@@ -1429,7 +1429,7 @@ html[data-platform="darwin"] .conversation-pane {
      (y=430) 上方 14px，也在 textarea (y=465) 之外；普通布局触发钮更靠下，同样够放。
      原来只给二级卡片抬 84px、首层仍是 10px，首层底边 490 会压住输入框与提示行。 */
   bottom: calc(100% + 84px);
-  z-index: 30;
+  z-index: var(--z-inline-mid);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2103,7 +2103,7 @@ html[data-platform="darwin"] .conversation-pane {
 
 .composer-reference-menu {
   position: absolute;
-  z-index: 40;
+  z-index: var(--z-inline-high);
   right: 0;
   bottom: calc(100% + 8px);
   left: 0;
@@ -2248,7 +2248,7 @@ html[data-platform="darwin"] .conversation-pane {
 
 .composer-context-bar {
   position: relative;
-  z-index: 0;
+  z-index: var(--z-flat);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2504,7 +2504,7 @@ html[data-platform="darwin"] .conversation-pane {
 /* ---- 阶段弹层：composer-context-menu.css 全文照搬（Teleport 到 body，fixed 定位由 composable 给） ---- */
 
 .composer-context-menu {
-  z-index: 1000;
+  z-index: var(--z-menu);
   display: flex;
   flex-direction: column;
   overflow: hidden;

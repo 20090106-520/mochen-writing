@@ -39,7 +39,7 @@
 
 .redeem-sheet {
   position: absolute;
-  z-index: 30;
+  z-index: var(--z-inline-mid);
   top: calc(100% - 4px);
   left: 0;
   width: min(430px, 100%);

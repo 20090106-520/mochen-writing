@@ -4,7 +4,7 @@
 
 .submission-check {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-popover);
   max-height: min(620px, 80vh);
   display: flex;
   flex-direction: column;
