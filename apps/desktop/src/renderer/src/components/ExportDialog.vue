@@ -452,7 +452,7 @@ const formatOptions: { id: ExportFormat; label: string; desc: string }[] = [
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: var(--z-drawer-export);
+  z-index: var(--z-drawer);
 }
 
 .export-dialog {

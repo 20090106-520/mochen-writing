@@ -2,7 +2,7 @@
 /**
  * 层级表与面板外框的「单一真相」契约（2026-11-11）。
  *
- * 病灶：z-index 的 23 档数值散在 styles/*.css、七个 Vue 组件的 <style> 块里，
+ * 病灶：z-index 的 23 档数值（整屏面板归一后 21 档）散在 styles/*.css、Vue 组件的 <style> 块里，
  * 另有六份守卫把数字直接写进断言。谁压谁全靠读代码脑子里拼；任何一处改数字，
  * 别的守卫只会因为字符串对不上而红，不会告诉你该改成几。
  * 这一轮把**数值原样**收进 styles.css 的一张 --z-* 表（层叠行为一个没改），
@@ -12,9 +12,11 @@
  * 都写着字面量圆角/投影（16px / 10px / 14px42px / 方向阴影），
  * 靠 @import 先后裁决。收成 --radius-panel / --shadow-panel 两枚 token。
  *
- * 【刻意没做】整屏面板历史上是 1500（六个 + 设定集）/ 1600（导出）/ 2000（搜索）
- * 三档，谁该压谁没裁定过。本守卫把三档**照原值钉死**，防止有人顺手调平——
- * 调平会改变真机上「两个面板叠着时谁在前」，要单独量过再定。
+ * 【顺带修掉的真实 bug】整屏面板原是 1500 / 1600 / 2000 三档，九枚开关互不关照，
+ * 于是先开的搜索(2000) 永远压住后开的笔记(1500)，焦点栈却以后开者为栈顶——
+ * 焦点落进看不见的层。现在九枚归一到 --z-drawer，由 App.vue 的互斥装配保证
+ * 同时只开一枚（纯函数 utils/fullscreen-panel-exclusivity.ts）。本守卫钉死
+ * 「不许再给某一枚单独抬层」，防止这个 bug 长回来。
  * 数字字面量不从生产代码 import（与 skill-catalog.test.ts 的出处前缀同一条规矩）。
  */
 import { readFileSync, readdirSync } from "node:fs";
@@ -102,7 +104,7 @@ const PANEL_CLASSES = [
   "material-panel"
 ];
 
-describe("层级表：23 档数值照抄历史，一个没改", () => {
+describe("层级表：21 档数值照抄历史（整屏面板归一后少两档）", () => {
   it("表逐字钉住（任何一档被悄悄改动立刻红）", () => {
     expect(zTable()).toEqual({
       "--z-under": -1,
@@ -125,8 +127,6 @@ describe("层级表：23 档数值照抄历史，一个没改", () => {
       "--z-dialog": 100,
       "--z-menu": 1000,
       "--z-drawer": 1500,
-      "--z-drawer-export": 1600,
-      "--z-drawer-search": 2000,
       "--z-toast": 9999
     });
   });
@@ -184,6 +184,29 @@ describe("消费点：CSS 与 Vue scoped 一律读 token，不许再写魔数", 
       const block = ruleBlock(sheet, selector);
       expect(block, `${sheet} 里找不到 ${selector}`).not.toBe("");
       expect(block, `${sheet} 的 ${selector} 层级不对`).toContain(needle);
+    }
+  });
+
+  it("九枚整屏面板归一到同一档，不许再给某一枚单独抬层", () => {
+    const expected = [
+      "ChapterInventoryPanel.vue",
+      "ExportDialog.vue",
+      "NotesPanel.vue",
+      "OutlinePanel.vue",
+      "PromptTemplatePanel.vue",
+      "SearchPanel.vue",
+      "WordCountPanel.vue",
+      "WritingGoalPanel.vue",
+      "story-bible-panel.css"
+    ].sort();
+    const consumers = zDeclarations()
+      .filter((decl) => decl.value === "var(--z-drawer)")
+      .map((decl) => (decl.sheet.split("#")[0] ?? "").split("/").at(-1) ?? "");
+    expect(consumers.sort()).toEqual(expected);
+    for (const sheet of ALL_SHEETS) {
+      expect(sheet.css, `${sheet.name} 又引入了整屏面板专属档`).not.toMatch(
+        /--z-drawer-(export|search)/
+      );
     }
   });
 });

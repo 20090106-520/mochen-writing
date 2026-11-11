@@ -34,6 +34,11 @@ import {
   shouldAutoCollapseRightPaneWithoutDoc
 } from "./stores/layoutStore";
 import { runViewTransition } from "./utils/view-transition";
+import {
+  panelsToDismiss,
+  type FullscreenFlags,
+  type FullscreenPanelKey
+} from "./utils/fullscreen-panel-exclusivity";
 import SearchPanel from "./components/SearchPanel.vue";
 import NotesPanel from "./components/NotesPanel.vue";
 import WordCountPanel from "./components/WordCountPanel.vue";
@@ -194,6 +199,65 @@ const outlineOpen = ref(false);
 // 目标面板本体与这一个开关都留着——**它仍有真写者**：`panelShortcut("goals")`（Ctrl+Shift+G）。
 // 记这一笔是因为「面板只能从那枚环点开」的假设一旦留在注释里，下一个人会顺手把这个 ref 也删掉。
 const goalPanelOpen = ref(false);
+
+/**
+ * 整屏面板互斥（2026-11-11）。判定真身在 utils/fullscreen-panel-exclusivity.ts，
+ * 这里只把「该收掉哪几枚」应用到各枚状态上——九枚的持有者分两处（本文件六枚 ref、
+ * layoutStore 三格），唯一同时看得见全部的就是这个装配层。
+ * 刻意不改各入口的写法（快捷键 toggle、右栏按钮、slash 指令都照旧），
+ * 免得「开一枚前先收掉别的」这句话散到十几个入口去，改一处忘一处。
+ */
+const fullscreenFlags = computed<FullscreenFlags>(() => ({
+  search: searchOpen.value,
+  notes: notesOpen.value,
+  templates: tplPanelOpen.value,
+  bible: bibleOpen.value,
+  outline: outlineOpen.value,
+  goals: goalPanelOpen.value,
+  wordCount: layout.panelVisibility.wordCount,
+  chapterStatus: layout.panelVisibility.chapterStatus,
+  export: layout.panelVisibility.export
+}));
+
+function closeFullscreenPanel(key: FullscreenPanelKey): void {
+  switch (key) {
+    case "search":
+      searchOpen.value = false;
+      return;
+    case "notes":
+      notesOpen.value = false;
+      return;
+    case "templates":
+      tplPanelOpen.value = false;
+      return;
+    case "bible":
+      bibleOpen.value = false;
+      return;
+    case "outline":
+      outlineOpen.value = false;
+      return;
+    case "goals":
+      goalPanelOpen.value = false;
+      return;
+    case "wordCount":
+      layout.closePanel("wordCount");
+      return;
+    case "chapterStatus":
+      layout.closePanel("chapterStatus");
+      return;
+    case "export":
+      layout.closePanel("export");
+      return;
+    default: {
+      const unhandled: never = key;
+      return unhandled;
+    }
+  }
+}
+
+watch(fullscreenFlags, (next, prev) => {
+  for (const key of panelsToDismiss(prev, next)) closeFullscreenPanel(key);
+});
 
 // 导出与字数面板**不在这儿再持一份**（铁律 6）：layoutStore 里早有
 // `panelVisibility.export` / `panelVisibility.wordCount` 与 `openExport()` / `openWordCount()`，

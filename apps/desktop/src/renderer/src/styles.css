@@ -173,8 +173,9 @@
      不解决层级设计本身，所以这一轮不改任何层叠行为。判据见 components/z-ladder.test.ts。
      前七档是容器内相对层叠（只在自己的 stacking context 里比大小，别拿去跨栏比）；
      inline-* 是栏内浮起；popover → dialog → menu → drawer → toast 是跨栏生效的全局档。
-     ⚠ 已知三档不齐：整屏面板历史上写了 1500（六个 + 设定集）/ 1600（导出）/ 2000（搜索），
-     谁该压谁没有裁定过。别顺手调平——那会改变真机上「两个面板叠着时谁在前」，要单独量过再定。 */
+     ⚠ 整屏面板九枚**归一到 --z-drawer 一档**（原 1500 / 1600 / 2000 三档）：
+     它们由 App.vue 的互斥装配保证同时只开一枚（判据 fullscreen-panel-exclusivity.ts），
+     不需要靠数值排座次。别再给某一枚单独抬层——那会让「先开的压住后开的」重新出现。 */
   --z-under: -1;
   --z-flat: 0;
   --z-raise-1: 1;
@@ -195,8 +196,6 @@
   --z-dialog: 100;
   --z-menu: 1000;
   --z-drawer: 1500;
-  --z-drawer-export: 1600;
-  --z-drawer-search: 2000;
   --z-toast: 9999;
   --surface-card: color-mix(
     in srgb,
