@@ -1,19 +1,20 @@
+import { readdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { MARKET_CATEGORIES, marketSkillSchema, type MarketSkill } from "@mochen/contracts";
 import { parseFrontmatter } from "@mochen/fs-store";
 import { SKILL_CATALOG } from "./skill-catalog.js";
-import { IDEA_SKILLS } from "./skill-catalog-idea.js";
-import { STRUCTURE_SKILLS } from "./skill-catalog-structure.js";
-import { STYLE_SKILLS } from "./skill-catalog-style.js";
-import { PROOF_SKILLS } from "./skill-catalog-proof.js";
-import { RESEARCH_SKILLS } from "./skill-catalog-research.js";
+import { CATALOG_ENTRIES } from "./skill-catalog-manifest.js";
 
 /**
- * 清单本身的守卫（2026-10-07 写；5-㊱ 清单从 5 条扩到 20 条后重写了出处那两条）。
+ * 清单本身的守卫（2026-10-07 写；2026-11-11 数据化后改判数据布局）。
  *
- * 清单是**代码里的常量**，所以它不会被类型系统保护到「写得对」这一层：
- * 一条 origin 写空、目录名重名、正文不是 SKILL.md 的形状，全都能编译通过，
- * 装出去之后才在用户磁盘上炸。这一层把它们提前挡在代码里。
+ * 清单的正文来自磁盘上的 md 数据文件、元数据来自 `skill-catalog-manifest.ts`，
+ * 类型系统管不到「文件放没放、清单写没写、两处对不对得上」这一层。
+ * 装配时 `skill-catalog.ts` 会对每条过 `marketSkillSchema`（缺文件/形状坏当场抛错），
+ * 这里钉的是**结构层面**的可失败事：重名、正文形状、frontmatter 一致、
+ * 出处句式、许可、以及「数据文件与清单一一对应」。
  *
  * 【为什么用 `parseFrontmatter` 而不是测试里再写一个 frontmatter 解析】
  * fs-store 那份是全仓唯一的实现（铁律 6）。这里自己切一遍 `---`，就会多出第二份
@@ -176,37 +177,46 @@ describe("SKILL_CATALOG", () => {
 });
 
 /**
- * 拆文件的规矩：一份文件只放一个分类。
+ * 数据布局的守卫（2026-11-11 数据化后接替原「五个分类文件」那组守卫）。
  *
- * 为什么值得钉：清单一多，「这一条该放哪」就会变成一个每次都要重想一遍的问题，
- * 而想错的人只会把它放进「读着最顺的那个文件」——于是筛选条上的分类与文件对不上号，
- * 改分类时找不到那条技能。**分类是筛选用的标签，文件是按同一套标签切的，两边必须一致。**
+ * 正文在 `skill-catalog-data/bodies/<分类>/<dirName>.md`，元数据在清单里。
+ * 「这条技能的 md 放哪个目录」必须**没有得选**：目录按分类命名、文件用 dirName 命名，
+ * 谁也不用每次加技能时重新想一遍「放哪、叫什么」。
+ * 「数据文件与清单一一对应」也要钉：清单里写了、文件没放，装配器会抛错，
+ * 但**文件放了、清单忘了写**不会抛任何错——那条技能只是安静地消失，
+ * 这组守卫里第二条就是为这种事准备的。
  */
-describe("五个分类文件各自只放自己那一类", () => {
-  const pairs = [
-    { name: "skill-catalog-idea", list: IDEA_SKILLS, category: "构思" },
-    { name: "skill-catalog-structure", list: STRUCTURE_SKILLS, category: "结构" },
-    { name: "skill-catalog-style", list: STYLE_SKILLS, category: "文风" },
-    { name: "skill-catalog-proof", list: PROOF_SKILLS, category: "校对" },
-    { name: "skill-catalog-research", list: RESEARCH_SKILLS, category: "资料" }
-  ] as const;
+describe("数据布局：bodies/ 下的 md 与清单一一对应", () => {
+  const HERE = path.dirname(fileURLToPath(import.meta.url));
+  const BODIES_DIR = path.join(HERE, "skill-catalog-data", "bodies");
 
-  it("每一份里的每一条，category 都与文件名对得上", () => {
-    for (const pair of pairs) {
-      expect(pair.list.length, `${pair.name} 这一份是空的`).toBeGreaterThan(0);
-      for (const skill of pair.list) {
-        expect(skill.category, `${skill.dirName} 在 ${pair.name} 里却标着别的分类`).toBe(
-          pair.category
-        );
-      }
+  it("条目数钉住：加/删技能是有意为之的事，改这个数字之前先过一遍守卫", () => {
+    expect(SKILL_CATALOG.length).toBe(24);
+  });
+
+  it("每条的正文路径都是「<分类>/<dirName>.md」：md 落哪个目录没有得选", () => {
+    for (const entry of CATALOG_ENTRIES) {
+      expect(entry.body, `${entry.dirName} 的正文路径`).toBe(
+        `${entry.category}/${entry.dirName}.md`
+      );
     }
   });
 
-  it("五个分类恰好覆盖 MARKET_CATEGORIES：少一个分类就没有文件承接它", () => {
-    expect(pairs.map((p) => p.category)).toEqual([...MARKET_CATEGORIES]);
+  it("bodies/ 下的 md 与清单双向对齐：孤儿文件（写了没登记）与幽灵条目（登记了没写）都红", () => {
+    const onDisk = readdirSync(BODIES_DIR, { recursive: true, encoding: "utf8" })
+      .map((rel) => rel.split(path.sep).join("/"))
+      .filter((rel) => rel.endsWith(".md"))
+      .sort();
+    const listed = CATALOG_ENTRIES.map((e) => e.body).sort();
+    expect(onDisk, "磁盘上有 md 不在清单里（写了没登记）").toEqual(listed);
+    expect(listed, "清单里有条目没有 md（登记了没写）").toEqual(onDisk);
   });
 
-  it("聚合出来的那份与五份拼起来的一样：接错顺序或漏接一份，这里会红", () => {
-    expect(SKILL_CATALOG).toEqual(pairs.flatMap((pair) => pair.list as MarketSkill[]));
+  it("每个分类恰好有一个数据目录：分类目录与 MARKET_CATEGORIES 一一对应", () => {
+    const dirs = readdirSync(BODIES_DIR, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name)
+      .sort();
+    expect(dirs).toEqual([...MARKET_CATEGORIES].sort());
   });
 });

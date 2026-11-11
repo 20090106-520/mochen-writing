@@ -406,7 +406,7 @@ export function dialogueBalanceSentence(assembled: AssembledContext): string {
 
 /**
  * 本书腔调摘要（2026-10-19 六段 · P0-③）：把技能库《给这本书立一本文风手册》
- * （`skill-catalog-style.ts` / `style-handbook`）的六维拆法里**量得出来的四维**
+ * （`skill-catalog-data/bodies/文风/style-handbook.md`）的六维拆法里**量得出来的四维**
  * ——句子长度、标点脾气、对白与叙述比例、每段的收法——从已完稿正文现量出来喂给这一轮。
  *
  * 为什么值得下沉：技能原文治的是长篇最常见的退化——「每一章都在写好，于是每一章都不像前面那些章」。

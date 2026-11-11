@@ -1,53 +1,48 @@
-import type { MarketSkill } from "@mochen/contracts";
-import { IDEA_SKILLS } from "./skill-catalog-idea.js";
-import { STRUCTURE_SKILLS } from "./skill-catalog-structure.js";
-import { STYLE_SKILLS } from "./skill-catalog-style.js";
-import { PROOF_SKILLS } from "./skill-catalog-proof.js";
-import { RESEARCH_SKILLS } from "./skill-catalog-research.js";
+import { marketSkillSchema, type MarketSkill } from "@mochen/contracts";
+import { CATALOG_ENTRIES } from "./skill-catalog-manifest.js";
 
 /**
- * 技能市场的内置清单（2026-10-07 批次 5-㊱，从 5 条扩到 20 条，并按分类拆到五个文件；
- * 2026-10-11 批次二轮又从 oh-story 的四个未搬 skill 里补了四条：短篇、扫榜、旧书接手、结构级去味）。
+ * 技能市场的内置清单装配器（2026-11-11 数据化后本文件只做拼装）。
  *
- * 【为什么按分类拆文件】
- * 清单是**代码里的常量**，每条正文都是一段几十行的说明书。二十条写在一个文件里，
- * 单文件会顶破本仓 800 行的行数预算，而预算破了之后最容易被绕过的是「拆到别处」——
- * 拆成别处就会有人开始想「这几条是不是可以合并」。按 `MARKET_CATEGORIES` 的声明序
- * 拆成五份，分类与文件一一对应，加一条新技能时落哪个文件没有得选。
- * **排序不在这里做**：`catalogView` 按分类序排，本文件只负责把五份接起来。
+ * 【数据在哪儿】
+ * 元数据在 `skill-catalog-manifest.ts`（类型化清单，出处句式走 `skill-catalog-origins.ts`），
+ * 正文是 24 份真 md 文件：`skill-catalog-data/bodies/<分类>/<dirName>.md`。
+ * 加一条新技能 = 往对应分类目录放一份 md + 在清单里加一条——两处缺一，
+ * 下面的装配会当场抛错（缺正文）或守卫会红（正文没人引用），不会静默少一条。
  *
- * 【这一批的来路：用户裁定「去网上找所有开源的仓库，把合适的都加进来」】
- * 动手前先把能收的与不能收的分开，理由逐条写在这里（它们同时也是守卫的判据）：
+ * 【为什么用 `import.meta.glob` 而不是逐份 import】
+ * 逐份 import 要在装配处写 24 行 `import ... from "...?raw"`——加技能的第三个改动点，
+ * 正是「清单加了、import 忘了」这种事的发生地。glob 按目录形状收集，
+ * 文件放对位置就必然被读到，缺文件的那条由 `bodyOf` 抛错兜住。
  *
- * - **收得进来的前提是许可明确。** `skill-catalog-origins.ts` 的 `UPSTREAM` 只放
- *   已经核实过 LICENSE 的仓库。网上中文写作 skill 包不少，其中相当一部分没写许可，
- *   那种收不进来——不是不想收，是「照抄上游许可」这条要求在它们身上没法满足。
- * - **收到的是方法，不是原文。** 每一份只搬那几步追问、那几条检查项、那张表格的列，
- *   不搬上游的句子、不搬它的命令与工具名。墨宸没有那些运行通路，
- *   整段抄过来只会得到一份「照着做」却什么都做不了的说明书。
- * - **不收带运行时的。** 5-㊰ 收过一批带 Python 引擎的（gongwen-skill / ppt-studio），
- *   几万行脚本在本仓没有执行路径，与那一批是同一个理由。
- * - **上游的 hooks / agents / Dashboard 一律不收。** oh-story 那套靠 shell hook 与
- *   多 agent 协作守流程，本仓的流程在软件里，不在命令行上；收进来只会让技能文本
- *   描述一套这个软件里不存在的机制。
- *
- * 【分类只管筛选，不管内容边界】
- * 「构思」是动笔前要想清楚的事，「结构」是这本书由什么撑起来，
- * 「文风」是句子本身，「校对」是对不上的地方，「资料」是动笔前要弄准的真东西。
- * 一条技能放哪一类，按它治的是哪个问题来定，不按它抄自哪个仓库。
- *
- * 【改写规矩】抄来的只搬方法，出处写进 frontmatter 之外的正文第一句，
- * 用户在技能库里读到的是「谁写的」，不是一段认不出来源的文字。
+ * 【为什么装配时就过 `marketSkillSchema`】
+ * 清单现在是「数据 + 拼装」，`skillMd` 来自磁盘文件而非字面量，类型系统管不到文件内容。
+ * 与其等装出去之后在用户磁盘上炸，不如在进程启动装配时就验一遍形状——
+ * 数据坏了宁可起不来，也不给用户一个少几条的市场。
  */
 
+const BODIES = import.meta.glob("./skill-catalog-data/bodies/**/*.md", {
+  query: "?raw",
+  import: "default",
+  eager: true
+}) as Record<string, string>;
+
+/** 按清单条目里的相对路径取正文。取不到 = 清单写了、文件没放，抛错不放行。 */
+function bodyOf(relPath: string): string {
+  const md = BODIES[`./skill-catalog-data/bodies/${relPath}`];
+  if (md === undefined) throw new Error(`技能市场正文数据缺这一份：${relPath}`);
+  return md;
+}
+
 /**
- * 全部内置技能。**顺序无所谓**（`catalogView` 会按分类序重排），
- * 但五份的拼接顺序与 `MARKET_CATEGORIES` 保持一致，方便读代码的人对上号。
+ * 全部内置技能。**顺序无所谓**（`catalogView` 会按分类序重排）。
+ * 形状不过守卫（目录名/分类/出处/许可）或正文不是 SKILL.md 的形状，都当场抛错。
  */
-export const SKILL_CATALOG: MarketSkill[] = [
-  ...IDEA_SKILLS,
-  ...STRUCTURE_SKILLS,
-  ...STYLE_SKILLS,
-  ...PROOF_SKILLS,
-  ...RESEARCH_SKILLS
-];
+export const SKILL_CATALOG: MarketSkill[] = CATALOG_ENTRIES.map((entry) => {
+  const { body, ...meta } = entry;
+  const parsed = marketSkillSchema.safeParse({ ...meta, skillMd: bodyOf(body) });
+  if (!parsed.success) {
+    throw new Error(`技能市场数据过不了形状守卫：${entry.dirName}（${parsed.error.message}）`);
+  }
+  return parsed.data;
+});
