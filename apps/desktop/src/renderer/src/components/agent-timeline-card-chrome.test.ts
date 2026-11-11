@@ -14,6 +14,7 @@
  *
  * 读法走 vue-source-reader（剥注释），否则「这里没有 X」这句话本身写着 X。
  */
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ruleBlock, styleSource, templateSource } from "../utils/vue-source-reader";
 
@@ -170,5 +171,22 @@ describe("失败条：必须标出发生时间", () => {
     const at = ruleBlock(CARD, ".error-at");
     expect(at).toContain("font-variant-numeric: tabular-nums");
     expect(at).not.toContain("opacity");
+  });
+});
+
+describe("对话流一条行宽：气泡 / 工具卡 / 提案卡同读 --transcript-measure", () => {
+  it("一个数在三个块上落地（写死 72ch 的只剩 token 定义那一处）", () => {
+    // 卡框是 `.plan-card, .tool-card, .proposal-card` 那组合并规则，宽度不在里面，
+    // 所以按出现次数数：气泡一处 + 工具卡一处 + 提案卡一处。
+    const hits = CARD.match(/max-width: min\(100%, var\(--transcript-measure\)\)/g) ?? [];
+    expect(hits.length, "三块里有的没读 --transcript-measure").toBeGreaterThanOrEqual(3);
+    // 反向：任何人再写死 72ch 就绕开了 token（真机两处宽度 636 / 1076 的成因）。
+    expect(CARD).not.toContain("max-width: min(100%, 72ch)");
+  });
+
+  it("token 住在 styles.css 的 :root 里（不是某个块的局部变量）", () => {
+    // styles.css 是主样式表本身、不在 styles/ 目录下，而 styleSource 只读后者。
+    const root = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+    expect(root).toMatch(/--transcript-measure:\s*72ch;/);
   });
 });

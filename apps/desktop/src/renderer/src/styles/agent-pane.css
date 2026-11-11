@@ -162,11 +162,15 @@ html[data-platform="darwin"] .conversation-pane {
    判据是「这张卡现在要你做什么」：不要你回应的就不该跟要你回应的同重量。 */
 .plan-card,
 .tool-card {
+  /* 与消息气泡同一条行宽（`--transcript-measure`）：此前它没有上限，真机量到 1076，
+     而同列的气泡封顶 636 —— 一条流里两种宽度，工具卡像横跨了半屏。 */
+  max-width: min(100%, var(--transcript-measure));
   background: color-mix(in srgb, var(--sidebar) 42%, transparent);
   box-shadow: 0 4px 14px -12px var(--shadow-color);
 }
 
 .proposal-card {
+  max-width: min(100%, var(--transcript-measure));
   background: color-mix(in srgb, var(--sidebar) 60%, transparent);
   box-shadow: 0 9px 24px -18px var(--shadow-color);
 }
@@ -638,9 +642,12 @@ html[data-platform="darwin"] .conversation-pane {
   width: auto;
   /* 【2026-11-08 可读行宽】此前是 100%：长回答从头像一路铺到列尾，一行七十多个汉字，
      眼要从左扫到右再折回，读三段就找不到行首（参考图里的回答明显留了右侧气口）。
-     `min(100%, 72ch)` = 列窄时照列宽走、列宽时封顶在约 36 个汉字（72ch），
-     上限之外留白而不是把字铺满。padding 12/16 是给这段行宽一点内呼吸。 */
-  max-width: min(100%, 72ch);
+     `min(100%, var(--transcript-measure))` = 列窄时照列宽走、列宽时封顶在约 36 个汉字，
+     上限之外留白而不是把字铺满。padding 12/16 是给这段行宽一点内呼吸。
+     【2026-11-11 收成 token】原先这里写死 72ch，而工具卡与提案卡**一条宽度上限都没有**
+     （真机量到 1076 vs 气泡 636）：同一条流里三种宽度，看着像三套排版。
+     行宽现在是 `--transcript-measure` 一个数，消息气泡 / 工具卡 / 提案卡同读它。 */
+  max-width: min(100%, var(--transcript-measure));
   padding: 12px 16px;
   border: 1px solid var(--line-soft);
   border-radius: 6px 16px 16px 16px;
