@@ -278,6 +278,25 @@
   gap: 12px;
 }
 
+/* 双列那两格此前**一条样式都没有**：`<span>标签</span><select>` 直接按行内流排，
+   于是下拉框紧跟在标签文字后面、宽度随内容走 —— 真机上「界面字号 14px」那枚落在
+   x=730，「代码字号（对话流）13px」那枚落在 x=1234，两列控件差出半个屏幕，
+   看着像没对齐（右侧那列只是因为标签更长才被推远）。
+   参照 macOS 系统设置 / VS Code 设置项的做法：标签贴左、控件贴这一格的右缘，
+   两格的控件因此落成两条对齐的竖线。 */
+.appearance-twin-row > .appearance-select-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* 控件给个下限，别让「13px」这种短值把下拉框压成一个火柴盒。 */
+.appearance-twin-row .appearance-select {
+  min-width: 96px;
+}
+
 .appearance-toggle-row {
   flex-direction: row;
   align-items: center;

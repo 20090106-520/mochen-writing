@@ -298,3 +298,20 @@ describe("实心键面 token · solid 与 contrast 必须一起翻", () => {
     expect(darkBlock).not.toMatch(/--neutral-solid-contrast:\s*#fff/i);
   });
 });
+
+describe("双列字号行：标签贴左、控件贴格右缘（2026-11-11 真机走查）", () => {
+  const css = styleSource("dialog.css");
+
+  it("那两格此前一条样式都没有，控件宽度随内容走 ⇒ 两列控件差出半个屏幕", () => {
+    // 判据是「这一格是 flex 且两端顶开」，不是「有个类名」。
+    const row = ruleBlock(css, ".appearance-twin-row > .appearance-select-row");
+    expect(row).toContain("display: flex");
+    expect(row).toContain("justify-content: space-between");
+    expect(row).toContain("align-items: center");
+  });
+
+  it("控件有下限，短值不许把下拉框压成火柴盒", () => {
+    const select = ruleBlock(css, ".appearance-twin-row .appearance-select");
+    expect(select).toContain("min-width: 96px");
+  });
+});

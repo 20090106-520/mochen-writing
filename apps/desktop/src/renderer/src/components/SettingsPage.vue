@@ -18,6 +18,7 @@ import WritingGoalSettingsPanel from "./WritingGoalSettingsPanel.vue";
 import ProjectSettingsPanel from "./ProjectSettingsPanel.vue";
 import { useLayoutStore, type SettingsTab } from "../stores/layoutStore";
 import type { IconName } from "../types/icons";
+import { showsSectionLabel } from "../utils/settings-nav";
 import WebdavPanel from "./WebdavPanel.vue";
 
 const layout = useLayoutStore();
@@ -138,7 +139,11 @@ function selectCategory(id: SettingsTab): void {
 
       <nav class="settings-nav" aria-label="设置分类">
         <div v-for="section in visibleSections" :key="section.id" class="settings-section">
-          <strong class="settings-section-label">{{ section.label }}</strong>
+          <!-- 「关于」分组里只有一项、且也叫「关于」：再画一行同名标题，侧栏就读成了两层。
+               判据在 utils/settings-nav.ts（纯函数，守卫可钉），这里只接线。 -->
+          <strong v-if="showsSectionLabel(section)" class="settings-section-label">{{
+            section.label
+          }}</strong>
           <button
             v-for="category in section.categories"
             :key="category.id"
