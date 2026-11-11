@@ -227,7 +227,7 @@ html[data-platform="darwin"] .conversation-header {
   font-size: 0.785714rem;
   line-height: 1.4;
   cursor: pointer;
-  animation: mochen-pop-in var(--dur-pop, 170ms) var(--ease-out-soft, ease-out);
+  animation: mochen-pop-in var(--dur-pop) var(--ease-out-soft);
   transition:
     color var(--dur-fast) var(--ease-out-soft),
     border-color var(--dur-fast) var(--ease-out-soft);

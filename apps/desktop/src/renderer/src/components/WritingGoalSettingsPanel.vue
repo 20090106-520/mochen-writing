@@ -169,7 +169,6 @@ function onCustomWordTarget(event: Event): void {
   background: var(--surface-muted);
   color: var(--text-primary);
   font-size: 0.928571rem;
-  outline: none;
   transition: border-color 0.15s ease;
 }
 

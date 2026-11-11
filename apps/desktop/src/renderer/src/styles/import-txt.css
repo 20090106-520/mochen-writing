@@ -1,0 +1,113 @@
+/**
+ * 导入 TXT 对话框的样式（2026-11-11 从 ImportTxtDialog.vue 的 <style scoped> 收编）。
+ *
+ * 【为什么搬出来】五个 MODAL_DIALOGS 里只有它把样式写在组件里：
+ * 于是宽度（64px vs 基类 48px）、圆角（10px vs 对话框族 8px）、描边色
+ * （--border vs 对话框族的 --theme-line）各有一份口径，改一处忘另一处。
+ * 本仓样式都住 styles/ 下（overlay-chrome.test.ts 对 toast 钉过同一条规矩），
+ * 对话框族也该如此。类名都是 import- 前缀，唯一，scoped 不需要。
+ *
+ * 注意：`--border` 不是孤儿变量（appearanceThemeRuntime.ts 里是 --theme-line 的别名），
+ * 这里改读 --theme-line 只为**与同族对话框一致**，不是修看不见的边框。
+ */
+.import-target {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+}
+
+.import-target legend {
+  padding: 0 4px;
+  font-size: 0.82rem;
+  color: var(--text-tertiary);
+}
+
+.import-target-option {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.import-target-option em {
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  font-style: normal;
+}
+
+.import-pick-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.import-chapter-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  max-height: 42vh;
+  overflow-y: auto;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  /* 与 .dialog-content 同一套细滚动条：章节多时这条列表自己滚，玻璃底上淡 thumb 看不清。 */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-tertiary) 55%, transparent) transparent;
+}
+
+.import-chapter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--theme-line);
+}
+
+.import-chapter-row:last-child {
+  border-bottom: none;
+}
+
+.import-chapter-include {
+  display: flex;
+  align-items: center;
+}
+
+.import-chapter-title {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 3px 6px;
+}
+
+/* 原先 `:focus { outline: none }` 把全局键盘焦点环盖掉了（特异性比全局那条高）。
+   现在鼠标 hover 只换底色/描边，键盘聚焦走下一条实色环——与 dialog.css 整族同口径。 */
+.import-chapter-title:hover {
+  border-color: var(--theme-line);
+  background: var(--surface-main, #ffffff);
+}
+
+.import-chapter-title:focus-visible {
+  border-color: var(--theme-line);
+  background: var(--surface-main, #ffffff);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.import-chapter-chars {
+  flex: none;
+  font-size: 0.8rem;
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
+.import-done-line {
+  color: var(--accent, #4a7dff);
+}

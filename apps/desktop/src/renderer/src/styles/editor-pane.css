@@ -1116,7 +1116,7 @@ html[data-theme="dark"] .document-editor:focus-visible {
   border-radius: 8px;
   box-shadow: var(--shadow-sm);
   font-size: 0.8rem;
-  animation: mochen-pop-in var(--dur-pop, 140ms) var(--ease-out-soft, ease-out);
+  animation: mochen-pop-in var(--dur-pop) var(--ease-out-soft);
 }
 
 .editor-textarea-wrap .selection-rewrite-count {
