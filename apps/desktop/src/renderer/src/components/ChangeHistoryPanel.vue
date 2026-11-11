@@ -121,7 +121,7 @@ onMounted(() => {
       aria-label="改稿历史"
       @keydown="keydown"
     >
-      <header class="change-history-head">
+      <header class="change-history-head titlebar-drag titlebar-inset-right">
         <strong>改稿历史</strong>
         <span class="change-history-count">{{ changeCountLabel(total) }}</span>
         <button class="context-picker-close" type="button" aria-label="关闭改稿历史" @click="close">

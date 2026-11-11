@@ -115,7 +115,7 @@ onMounted(() => {
 
 <template>
   <section class="extensions-page" :aria-label="title">
-    <header class="extensions-head">
+    <header class="extensions-head titlebar-drag titlebar-inset-right">
       <h2 class="extensions-title">{{ title }}</h2>
       <button
         class="icon-button extensions-close"

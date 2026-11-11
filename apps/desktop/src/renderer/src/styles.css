@@ -73,6 +73,9 @@
 /* 系统高对比度 / 增强对比度（2026-11-11）：只覆盖焦点环、选区、按钮描边与 Tooltip 反色；
    「玻璃退回实底」那一族在 liquid-glass.css，不在这里重复。同样排在 density 之前。 */
 @import "./styles/system-appearance.css";
+/* 无边框窗口的两条公用件（2026-11-11）：整页头的可拖区与「让出系统窗口按钮」。
+   挂在风格上属通用件，排在任何具体页之前、density 之后不参与同特异性裁决。 */
+@import "./styles/window-chrome.css";
 /* 行高阶梯（2026-11-11）：body 此前没有任何默认行高，四十来处文字吃 `normal`。
    放在 density 之前 —— 它与紧凑档只改内边距/高度，不抢同一条声明。 */
 @import "./styles/type-scale.css";

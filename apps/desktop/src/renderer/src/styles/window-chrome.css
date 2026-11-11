@@ -1,0 +1,37 @@
+/* 无边框窗口的两条公用件（2026-11-11）。
+ *
+ * 【病灶】`titleBarStyle: "hidden"` + `titleBarOverlay` 意味着系统把「— □ ×」画在
+ * 右上角那一条里（真机 `navigator.windowControlsOverlay` 量到：可见，宽度 137px，
+ * 即 `window.innerWidth - env(titlebar-area-width)`）。于是：
+ *  - 整页（技能库 / 皮肤广场 / 改稿历史）的关闭钮按内容区右缘摆放，
+ *    真机量到它落在 x=1655..1687 —— **正好在窗口按钮那一条下面**。
+ *    用户看到的是一枚被压住的 X，点下去命中的是系统的关闭键（应用直接退出）。
+ *  - 整页头上没有 drag 区：在这几页里根本拖不动窗口（对话栏、编辑栏头早就有）。
+ *
+ * 【裁定】两条公用件，谁在窗口最上层谁挂：
+ *  - `.titlebar-drag`：把这一条变成可拖区，并把里面的控件逐个豁免（按钮、链接、输入）。
+ *    整条 drag 而控件不豁免的话，按钮按不动——这是无边框窗口最经典的一个坑。
+ *  - `.titlebar-inset-right`：右侧让出窗口按钮那一条。
+ *    相消式 fallback：不支持 `titlebar-area-*` 时 100vw − 0px − 100vw = 0，
+ *    padding 原样退回，不会把内容莫名推走。
+ *
+ * 不改成「所有页头一律加」：对话栏、编辑栏头、右栏各面板早已各自写好了让位公式
+ * （它们各有各的基础 padding），再叠一层会让那一侧的留白莫名变宽。
+ * 这里只服务「新建的、还没写过让位」的那几页。
+ */
+
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-drag button,
+.titlebar-drag input,
+.titlebar-drag select,
+.titlebar-drag textarea,
+.titlebar-drag [role="button"] {
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-inset-right {
+  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+}

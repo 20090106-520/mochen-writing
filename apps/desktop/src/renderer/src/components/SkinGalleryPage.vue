@@ -149,7 +149,7 @@ function backToChat(): void {
 
 <template>
   <section class="skin-gallery" aria-label="皮肤广场">
-    <header class="skin-gallery-head">
+    <header class="skin-gallery-head titlebar-drag titlebar-inset-right">
       <h2 class="skin-gallery-title">皮肤广场</h2>
       <button
         class="icon-button skin-gallery-close"
