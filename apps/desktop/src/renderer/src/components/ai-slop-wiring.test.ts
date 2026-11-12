@@ -306,7 +306,11 @@ describe("本章清单收齐五套检查", () => {
     expect(panelScript).toContain("close();");
   });
 
-  it("顶部说明写清清单收的是五套结论、按章留在书里", () => {
-    expect(panelTpl).toContain("收齐审稿五套检查的结论");
+  it("顶部说明如实说「只收能归属到本章的」：时间线 / 人物卡的全书级结论不在这一栏", () => {
+    expect(panelTpl).toContain("能归属到这一章");
+    expect(panelTpl).toContain("全书级问题不挂某一章");
+    // 原先写「收齐审稿五套检查的结论」，实测打脸：那两套的大头条目按设计不进按章清单。
+    expect(panelTpl).not.toContain("收齐审稿五套检查的结论");
+    expect(panelScript).not.toContain("本章五套检查的结论已记下");
   });
 });

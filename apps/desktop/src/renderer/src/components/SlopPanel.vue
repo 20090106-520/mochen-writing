@@ -145,8 +145,10 @@ async function jumpToDoc(item: ReviewIssue): Promise<void> {
 }
 
 /**
- * 收齐本章五套检查并记一次。只在用户点按钮时并一次：跟着输入实时跑会把清单抖成
+ * 收齐本章能归属的检查结论并记一次。只在用户点按钮时并一次：跟着输入实时跑会把清单抖成
  * 「已修 / 待修」来回翻。判据与异步汇总都在 store 那头，这里只管按钮态和一句失败说明。
+ * 时间线、人物卡的大头结论是全书级（不挂某一章），按章清单收不到它们——文案别把「五套」
+ * 说成「五套结论全在这」，体检面板页脚的 timelineNoteText / castNoteText 早就是同一口径。
  */
 async function recordCheck(): Promise<void> {
   const rel = book.activeDocTab;
@@ -157,7 +159,7 @@ async function recordCheck(): Promise<void> {
     await issues.collect(rel, book.draft);
     notify.notify({
       title: "交稿问题",
-      message: "本章五套检查的结论已记下，改完再点一次复检。",
+      message: "这一章能归属的检查结论已记下，改完再点一次复检。",
       level: "info"
     });
   } catch (err) {
@@ -241,7 +243,8 @@ function keydown(event: KeyboardEvent): void {
 
       <p class="ai-slop-note">
         纯本地查表，不联网、不花 token。查的是套话与万能句式，<b>报出来是提醒，不是判你写错了</b>。
-        下面「本章清单」收齐审稿五套检查的结论，按章留在书里。
+        下面「本章清单」收的是审稿五套检查里<b>能归属到这一章</b>的结论，按章留在书里；
+        时间线核对、人物卡的全书级问题不挂某一章，仍去各自面板看。
       </p>
 
       <!-- 本章清单（W-04 第一刀）：上面这句是「这一秒的扫描」，这一栏是「上次体检留下的结论」。
