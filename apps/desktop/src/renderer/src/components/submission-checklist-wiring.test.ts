@@ -158,3 +158,35 @@ describe("空态", () => {
     expect(template).toContain("CLEAN_TEXT");
   });
 });
+
+/**
+ * 落盘清单的身份锚（2026-11-12 第二轮普查）。
+ *
+ * 交稿体检的条目 id 现在同时是 `review-issues.json` 里的主键：id 一变，复检合并就把
+ * 同一条问题判成「旧的已修 + 新的待修」。词表条目先踩过（带行号）并已修掉，
+ * 这轮又翻出人物核对带行号、审稿打分带分数。纯函数用例钉住行为，这条钉住**写法**：
+ * 以后有人往 id 里顺手加一个读数，这里当场拦下，不必等真机看见清单炸开。
+ */
+describe("条目 id 不许夹带易变读数", () => {
+  const assembly = typeScriptSource(ASSEMBLY);
+
+  it("五套来源的 id 模板都在这一份汇总层里（守卫不许空转）", () => {
+    const idLines = assembly.split("\n").filter((line) => line.includes("id: `"));
+    expect(idLines.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("id 里不出现 .line / .score：行号与打分是随每次编辑都变的量", () => {
+    for (const line of assembly.split("\n").filter((row) => row.includes("id: `"))) {
+      expect(line).not.toContain(".line");
+      expect(line).not.toContain(".score");
+    }
+  });
+
+  it("行号、分数仍然留在显示字段里（身份稳 ≠ 不刷新读数）", () => {
+    expect(assembly).toContain("line: hit.line");
+    // 篇级读数没有行号，仍老实存 0，不为了填 id 伪造一个第 1 行。
+    expect(assembly).toContain("line: 0");
+    // 分数写在标题里，由复检的 `{ ...fresh }` 刷新；身份稳不等于读数不更新。
+    expect(assembly).toContain("${score.label}读数 ${score.score}");
+  });
+});

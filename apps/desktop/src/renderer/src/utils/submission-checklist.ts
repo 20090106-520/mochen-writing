@@ -120,13 +120,21 @@ export function slopItems(draft: string, relPath: string): ChecklistItem[] {
   });
 }
 
-/** 审稿打分：篇级读数，有结论但没有行号——只收「明显偏出」那几维。 */
+/**
+ * 审稿打分：篇级读数，有结论但没有行号——只收「明显偏出」那几维。
+ *
+ * 【指纹为什么不含 score】（2026-11-12）原先是 `review|维度|分数`。分数是**从正文数出来的
+ * 连续量**：多写一句、删半段，读数就从 31 变 34，于是「这一章句长偏出」这条问题换了个 id，
+ * 落盘清单判它「旧的已修、又冒一条新的待修」——作者标过的「忽略」也接不住。比行号漂移更勤，
+ * 因为行号只在插段时动，分数几乎每次编辑都动。一个维度一章至多一条（scores 按维度汇总），
+ * 用维度名当身份就够；分数仍写在标题与说明里，每次复检由 merge 刷新。
+ */
 export function reviewItems(draft: string, relPath: string): ChecklistItem[] {
   if (relPath === "" || draft.trim() === "") return [];
   return reviewReport(draft)
     .scores.filter((score) => scoreBandOf(score.score) === "low")
     .map((score) => ({
-      id: `review|${score.metric}|${score.score}`,
+      id: `review|${score.metric}`,
       source: "review",
       tone: "suspect",
       title: `${score.label}读数 ${score.score}（明显偏出）`,
@@ -145,13 +153,28 @@ export function castItems(
   draft: string
 ): ChecklistItem[] {
   if (chapterRelPath === "") return [];
+  const seen = new Map<string, number>();
   return findings
     .filter((finding) => finding.chapter === chapterRelPath)
     .map((finding) => {
       const line = finding.line > 0 ? draftLineOfBodyLine(draft, finding.line) : 0;
       const locatable = line > 0;
+      // 【指纹为什么不含行号】与 slopItems 同一病因：前面插一段，finding.line 整体漂移，
+      // 落盘清单会把整批人物问题判成「旧的已修 + 新的待修」。改用「哪张卡的哪个问题 +
+      // 命中的原文片段」当身份，行号只管显示与跳转。同一章多处同类问题靠 ordinal 分开，
+      // 与词表条目一致；finding.line 仍经 draftLineOfBodyLine 换算成编辑框行号。
+      const fingerprint = [
+        finding.code,
+        finding.cardPath,
+        finding.chapter,
+        finding.level,
+        finding.message,
+        finding.quote
+      ].join("\u0000");
+      const ordinal = seen.get(fingerprint) ?? 0;
+      seen.set(fingerprint, ordinal + 1);
       return {
-        id: `cast|${finding.code}|${finding.cardPath}|${finding.chapter}|${finding.line}|${finding.level}|${finding.message}`,
+        id: `cast|${fingerprint}|${ordinal}`,
         source: "cast" as const,
         tone: finding.level === "defect" ? ("strong" as const) : ("suspect" as const),
         title: finding.message,

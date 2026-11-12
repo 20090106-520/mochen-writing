@@ -268,3 +268,74 @@ describe("去 AI 味条目的身份", () => {
     expect(slopItems("人物卡缺字段。\n", A)[0]).toBeUndefined();
   });
 });
+
+/**
+ * 落盘清单要「跟踪到修完」，条目身份就不能跟着正文动（2026-11-12 第二轮普查）。
+ *
+ * 第一轮只修了词表条目（id 含行号）。剩下五套没逐一查，结果又翻出两处：
+ * 人物核对的 id 带 `finding.line`，审稿打分的 id 带 `score.score`。后者更勤——
+ * 行号只在插段时动，分数几乎每次编辑都动；一篇稿子改三遍，清单里同一条问题就成了
+ * 「两条已修 + 一条待修」，作者标过的「忽略」当场失效。
+ *
+ * 身份锚一律取「哪一处、什么问题」，易变的**读数**（行号、分数）只留在显示字段里；
+ * 复检时 `mergeChapterIssues` 用 `{ ...fresh }` 刷新它们，不需要靠换 id 来体现。
+ */
+describe("交稿条目身份 · 不随正文漂", () => {
+  it("人物核对：换一个行号，id 不变、跳原文的行号照旧刷新", () => {
+    const draft = "---\ntitle: 开局\n---\n\n他走了。\n她没回头。\n";
+    const atOne = castItems([castFinding({ line: 1, quote: "她没回头。" })], A, draft);
+    const atTwo = castItems([castFinding({ line: 2, quote: "她没回头。" })], A, draft);
+    expect(atOne[0]?.id).toBe(atTwo[0]?.id);
+    expect(atOne[0]?.line).toBe(4);
+    expect(atTwo[0]?.line).toBe(5);
+  });
+
+  it("人物核对：同章多处同类问题分得开（原文片段不同 / 片段相同）", () => {
+    const draft = "---\ntitle: 开局\n---\n\n甲。\n乙。\n甲。\n";
+    const items = castItems(
+      [
+        castFinding({ line: 1, quote: "甲" }),
+        castFinding({ line: 2, quote: "乙" }),
+        castFinding({ line: 3, quote: "甲" })
+      ],
+      A,
+      draft
+    );
+    expect(new Set(items.map((item) => item.id)).size).toBe(3);
+  });
+
+  it("审稿打分：读数从 58 变 53，仍是同一条问题", () => {
+    const longer = "他走了，风很大，天也黑了。\n";
+    const shorter = "他走了。\n";
+    const s1 = reviewReport(longer).scores.find((score) => score.metric === "sentence");
+    const s2 = reviewReport(shorter).scores.find((score) => score.metric === "sentence");
+    expect(s1?.score).not.toBe(s2?.score);
+    expect(scoreBandOf(s1?.score ?? 100)).toBe("low");
+    expect(scoreBandOf(s2?.score ?? 100)).toBe("low");
+    const one = reviewItems(longer, A).find((item) => item.id.startsWith("review|sentence"));
+    const two = reviewItems(shorter, A).find((item) => item.id.startsWith("review|sentence"));
+    expect(one?.id).toBe("review|sentence");
+    expect(two?.id).toBe(one?.id);
+    // 分数仍在标题里、每次复检刷新——身份稳不等于读数不更新。
+    expect(one?.title).not.toBe(two?.title);
+  });
+
+  it("一个维度一章至多一条：id 就是维度名，不带任何数字", () => {
+    const items = reviewItems("他走了，风很大，天也黑了。\n", A);
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) expect(item.id).toMatch(/^review\|[a-z]+$/);
+    expect(new Set(items.map((item) => item.id)).size).toBe(items.length);
+  });
+
+  it("词表 / 伏笔 / 时间线三套本就不含易变读数，别让它们漂回去", () => {
+    const slop = slopItems("值得注意的是，他走了。\n", A);
+    const shifted = slopItems("新加一段。\n值得注意的是，他走了。\n", A);
+    expect(slop[0]?.id).toBe(shifted[0]?.id);
+    expect(
+      timelineItems(
+        [{ kind: "unreadable", text: "日期写坏了", reading: "原始读数 12", relPaths: [A] }],
+        A
+      )[0]?.id
+    ).not.toContain("12");
+  });
+});
