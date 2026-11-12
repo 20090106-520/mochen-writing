@@ -480,6 +480,9 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
     approxTokens: estimateTokens(items.map((i) => i.text).join("\n")),
     openings,
     characterNotes: notes,
+    // 书稿规模不放这儿：AssembledContext 描述的是「这一轮装进上下文的东西」，
+    // 而「整本书有多少文稿」是书的元信息，且装配层收的 docs 是精简形状（没有 chars）。
+    // 那一格由 prompt-assembly.bookCountsOf 从 scanBook 的完整 DocRef 上算。
     // exactOptionalPropertyTypes 下不能显式写 undefined：没省略项就干脆不出这格
     ...(bibleOmitted > 0 ? { bibleOmitted } : {})
   };

@@ -51,6 +51,14 @@ export {
  * 分开后两边都能各自长大。approval-read.ts、plugin-host.ts 是为同一道预算拆出去的。
  */
 
+/** 这本书现在的规模：文稿总篇数、其中正文的章数、正文合计字数。 */
+export interface BookCounts {
+  docs: number;
+  chapters: number;
+  /** 剥掉 frontmatter 后的非空白码点合计（与 DocRef.chars 同源）。 */
+  proseChars: number;
+}
+
 /** 装配一段系统提示词需要的全部现场——少任何一项都会拼出一段说错话的提示词。 */
 export interface PromptContext {
   title: string;
@@ -70,6 +78,57 @@ export interface PromptContext {
    * 再教模型「联网搜索用 web_search」就是让它去调一枚不存在的工具，换来一句「没有这个工具」。
    */
   webSearchEnabled: boolean;
+  /**
+   * 这本书现在的规模（2026-11-12）：文稿总篇数与其中正文的章数。
+   *
+   * 【为什么要进提示词】真机会话里翻到的：一本完全空的书上，模型连着调了
+   * `book_outline` / `book_cast` / `list_docs` 三枚工具，三个都回「这本书还没有文稿」，
+   * 它才开口——回复的第一段是「这本书目前是空的。没有大纲、没有人物、没有世界观」。
+   * 那一段本质是**在向用户汇报自己刚做了什么检查**，而那正是对话里最重的那层 AI 腔；
+   * 三枚工具的往返也是白烧的：这件事系统提示一句话就能说清。
+   *
+   * 可选：老夹具不给我这一格，就当「不知道规模」——宁可少一句，也不要凭空报一个 0。
+   */
+  bookCounts?: BookCounts;
+}
+
+/**
+ * 从 scanBook 的完整 DocRef 上数书稿规模（2026-11-12）。
+ *
+ * 【为什么不放在装配层】`assembleContext` 收的 docs 是精简形状（relPath/kind/title/opening），
+ * 压根没有 `chars`；而「空不空」要按正文字数判，只有 `DocRef.chars`（剥 frontmatter 后的
+ * 非空白码点）是准的。装配结果描述的是「这一轮装进上下文的东西」，也不该夹带整本书的元信息。
+ * 放在这儿，agent-service 只多一行调用，不必为 800 行预算把同一段 reduce 抄两份。
+ */
+export function bookCountsOf(docs: readonly Pick<DocRef, "kind" | "chars">[]): BookCounts {
+  return {
+    docs: docs.length,
+    chapters: docs.filter((doc) => doc.kind === "chapter").length,
+    // chars 缺省一律当 0：老书 / scan 读不到的文稿，宁可判「没内容」，不可凭空报一个字数。
+    proseChars: docs.reduce((sum, doc) => sum + (doc.chars ?? 0), 0)
+  };
+}
+
+/**
+ * 书稿规模那一句（2026-11-12）。
+ *
+ * 空书刻意写成一句**指令**而不是一句陈述：只说「这本书现在是空的」，模型照样会去确认一遍
+ * （它不信任提示词里的现状描述）；点明「别再调工具确认」并给出下一步该问什么，它才会直接开口。
+ * 有文稿时只报数——那时 `list_docs` 是它真要看清单，不该拦。
+ *
+ * 【「空」按字数判，不按篇数】用户点两下「新建章节」文件夹里就有文件了，内容仍是零字——
+ * 按篇数判会说「有 3 篇文稿」，模型于是 read_doc 一篇篇读回来，读到的全是空白。
+ */
+export function bookScaleSentence(counts: BookCounts | undefined): string {
+  if (counts === undefined) return "";
+  if (counts.proseChars === 0) {
+    return counts.docs === 0
+      ? "这本书现在一篇文稿都没有（空书）。别再调工具去确认有没有文稿——" +
+          "直接问用户想从哪儿开始：先定方向、先搭卷纲与人物，还是直接写第一章。"
+      : `这本书现在有 ${counts.docs} 篇文稿，但都还没有内容（合计 0 字）。` +
+          "别再挨篇读一遍确认——直接问用户想从哪儿开始。";
+  }
+  return `这本书现在有 ${counts.docs} 篇文稿，其中正文 ${counts.chapters} 章。`;
 }
 
 /**
@@ -530,12 +589,16 @@ export function defaultPromptFor(context: PromptContext): string {
   const senseChannels = senseChannelSentence(context.context);
   // 角色约束（2026-10-22）：人物卡 frontmatter 里的专属说法与退场章，剥围栏后模型看不见，这里原样念。
   const castHint = castConstraintSentence(context.context);
+  // 书稿规模（2026-11-12）：空书时说清「别再调工具确认」。没有这一格（老夹具）就整句不加。
+  const bookScale = bookScaleSentence(context.bookCounts);
   return [
     "你是墨宸 AI 的写作智能体，在用户本地的一本书上工作，能直接操控这本书的资料库。",
     // 档案先说：人设与写入范围上限都出自它（spec §5.1）。
     context.profile.prompt,
     `当前作品：《${context.title}》；创作阶段：${context.stageName}；` +
       `当前文稿：${context.chapter?.relPath ?? "（用户还没打开文稿）"}。`,
+    // 规模紧跟在「当前作品」之后：模型的第一个疑问往往是「这本书写到哪了」。
+    ...(bookScale === "" ? [] : [bookScale]),
     `权限档：${context.permissionLabel}。提案只有在用户批准后才写入磁盘。`,
     // 工作模式：只在「先计划」时多这一段。动手模式不摆它——摆一句「你可以直接写」
     // 反而像在鼓励它动手，而那本来就是默认行为，不需要叮嘱。

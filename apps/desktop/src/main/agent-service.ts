@@ -67,7 +67,7 @@ import { webRead } from "./web-read.js";
 import { abortableFetch } from "./provider-fetch.js";
 import { withPlugins, type PluginTools } from "./plugin-host.js";
 // 提示词装配（含「档案写入范围」那句人话）住在 prompt-assembly.ts：那里只把「一轮的现场」排成一段话，不共享状态。
-import { writeScopeSentence, type PromptContext } from "./prompt-assembly.js";
+import { bookCountsOf, writeScopeSentence, type PromptContext } from "./prompt-assembly.js";
 import { buildContextPack, SKILL_HINT } from "./system-pack.js";
 
 // UNBOUND 取自 contracts（与渲染层 utils/agent-thread.ts 那份同值只是巧合）——这里不再另立一份。
@@ -629,7 +629,8 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
           workModeLabel: WORK_MODE_LABELS[workMode],
           profile,
           context: assembled,
-          webSearchEnabled: input.webSearchEnabled
+          webSearchEnabled: input.webSearchEnabled,
+          bookCounts: bookCountsOf(current.docs) // 判据与理由见 bookCountsOf / PromptContext
         };
         // 档案的写入范围写进提示词：它是上限不是授权，模型自己先知道能碰哪些目录。
         const prompt = `${deps.promptFor(context)}\n${writeScopeSentence(profile)}`;
