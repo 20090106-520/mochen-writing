@@ -227,3 +227,76 @@ describe("出厂技能的 stage 与新建书同口径", () => {
     }
   });
 });
+
+/**
+ * 公共前言（2026-11-12 压缩，161 字 → 82 字）。
+ *
+ * 四条审校技能每条都以同一段话开头。原版 161 字里有两句半是系统提示的复制品
+ * （`read_doc` 口径、`propose_patch` 口径各有一份在 `prompt-assembly` 里），
+ * 四条各带一份 ⇒ 一场会话里这段话能出现八遍；开头还写着「对**当前打开的章节**执行本项检查」，
+ * 而技能可以挂到人物卡、大纲、世界观上——那时模型会去审一个不存在的「章节」。
+ *
+ * 这里钉四件事：前言够短、不抄系统提示、不假定文稿类型、四条结构统一。外加一条
+ * 「各技能自己的话两两不重合」——防的是「前言压短了，各技能又各自把流程抄一遍」。
+ */
+const PREAMBLE_MAX_CHARS = 100;
+const SHARED_RUN_MAX = 16;
+
+/** SKILL.md 的正文部分：去掉 frontmatter 与「# 名称」标题行。 */
+function bodyOf(skill: BuiltinSkill): string {
+  const afterFrontmatter = skill.skillMd.split("---\n")[2] ?? "";
+  return afterFrontmatter
+    .split("\n")
+    .filter((line) => !line.startsWith("# "))
+    .join("\n")
+    .trim();
+}
+
+/** 正文的第一段就是公共前言（`skillDoc` 用空行把它和「本次只看……那一句」隔开）。 */
+function preambleOf(body: string): string {
+  return body.split("\n\n")[0] ?? "";
+}
+
+/** 两段文字里第一段长度 ≥ n 且第二段也含有的片段；没有则空串。 */
+function sharedRunOf(left: string, right: string, n: number): string {
+  for (let i = 0; i + n <= left.length; i += 1) {
+    const run = left.slice(i, i + n);
+    if (right.includes(run)) return run;
+  }
+  return "";
+}
+
+describe("四条审校技能的公共前言", () => {
+  const bodies = BUILTIN_SKILLS.map(bodyOf);
+  const preamble = preambleOf(bodies[0] ?? "");
+
+  it("前言不该超过 90 字：它是一句工作方式，不是说明书", () => {
+    expect([...preamble].length).toBeGreaterThan(0);
+    expect([...preamble].length).toBeLessThanOrEqual(PREAMBLE_MAX_CHARS);
+  });
+
+  it("不抄系统提示：写入口径与读稿口径各只有一处出处", () => {
+    // 「改动已有文稿用 propose_patch」「整篇新建或重写用 write_doc」在系统提示里；
+    // 技能再抄一遍，改工具口径时就有两处要改，而且模型会读到两遍。
+    for (const name of ["propose_patch", "write_doc"]) expect(preamble).not.toContain(name);
+  });
+
+  it("不假定文稿类型：技能也能挂到人物卡、大纲与世界观上", () => {
+    expect(preamble).not.toContain("章节");
+    expect(preamble).toContain("当前这份");
+  });
+
+  it("四条都以同一段前言开头（结构统一才谈得上「读一次就认识」）", () => {
+    for (const body of bodies) expect(preambleOf(body)).toBe(preamble);
+    expect(new Set(bodies.map(preambleOf)).size).toBe(1);
+  });
+
+  it("去掉前言后，各技能自己说的话两两不重合（不许换个地方再抄一遍流程）", () => {
+    const tails = bodies.map((body) => body.slice(preamble.length));
+    for (let i = 0; i < tails.length; i += 1) {
+      for (let j = i + 1; j < tails.length; j += 1) {
+        expect(sharedRunOf(tails[i] ?? "", tails[j] ?? "", SHARED_RUN_MAX)).toBe("");
+      }
+    }
+  });
+});
