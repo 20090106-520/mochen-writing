@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findAiSlop, slopChecklistPrompt, slopVerdict, STRONG_TERMS } from "./ai-slop";
+import { aiFlavorGate } from "@mochen/contracts";
+import { findAiSlop, slopChecklistPrompt, slopGateOf, slopVerdict, STRONG_TERMS } from "./ai-slop";
 
 /**
  * 去 AI 味检查器的判定层（2026-10-05）。
@@ -121,5 +122,102 @@ describe("slopChecklistPrompt · 交给 AI 的改写指令", () => {
     const prompt = slopChecklistPrompt(findAiSlop(text), "开局");
     expect(prompt).toContain("疑似 AI 腔");
     expect(prompt).toMatch(/保留|别改|不要改/);
+  });
+});
+
+/**
+ * 退稿闸预演（2026-11-12）。
+ *
+ * 这一格的判据**不在本仓渲染层**：它是 `aiFlavorGate` 的结论翻成人话。
+ * 所以这里的用例分两种：① 翻得对不对（病根说清了没有）；② 有没有偷偷另判一遍
+ * （同一段文本，`slopGateOf` 的 pass 必须与闸逐字一致）。
+ */
+const PAD = [
+  "雾从海面上来，船灯在里面晃，对岸一点影都没有。",
+  "他搓了搓手。",
+  "潮水退了半里，石头上留下一道弯弯的白痕。",
+  "灶间飘出油烟。",
+  "风掀开棚布一角，绳子绷紧又松开，打在木杆上。",
+  "铁皮响了一声。",
+  "浪打上来，把脚印抹平，又退回去。",
+  "他没说话。",
+  "远处有人在收网，绳结一颗一颗地过手。",
+  "灯芯短了。",
+  "石阶上积着水，脚踩上去打滑，得扶着墙走。",
+  "天快亮了。",
+  "船老大蹲在船头抽烟，烟锅一明一暗，照着他半张脸。",
+  "潮声低了下去。",
+  "缆绳在桩子上磨出毛边，手摸上去扎人。",
+  "该走了。"
+].join("\n");
+
+describe("slopGateOf · 退稿闸预演", () => {
+  it("正文不到闸的起判字数时只说「不判」，不编一个合格证", () => {
+    const readout = slopGateOf("他把灯吹了。");
+    expect(readout.pass).toBe(true);
+    expect(readout.headline).toContain("不判");
+    expect(readout.reasons).toEqual([]);
+  });
+
+  it("干净的长正文：能过，且只给一行话", () => {
+    const readout = slopGateOf(PAD);
+    expect(readout.pass).toBe(true);
+    expect(readout.headline).toContain("能过");
+    expect(readout.reasons).toEqual([]);
+  });
+
+  it("套话超标时把条数与闸线都写出来（用户才知道差多少）", () => {
+    const text = `${PAD}\n值得注意的是，他嘴角勾起。眼底闪过一线光，心中一凛，五味杂陈，总而言之。`;
+    const readout = slopGateOf(text);
+    expect(readout.pass).toBe(false);
+    expect(readout.headline).toBe("");
+    expect(readout.reasons.some((reason) => reason.includes("套话"))).toBe(true);
+    expect(readout.reasons.some((reason) => reason.includes("闸线"))).toBe(true);
+  });
+
+  it("句式超限报的是「哪一条 + 上限几处」，数字与 contracts 那张表同源", () => {
+    const text = `${PAD}\n水面仿佛凝住了。\n灯光仿佛远了。\n他的背影仿佛一堵墙。\n脚步声仿佛从水底传来。`;
+    const readout = slopGateOf(text);
+    expect(readout.pass).toBe(false);
+    const line = readout.reasons.find((reason) => reason.includes("句式超限"));
+    expect(line).toBeDefined();
+    expect(line).toContain("明喻");
+    expect(line).toContain("上限 3 处");
+  });
+
+  it("复读句整句重复时点名原句，不是只说「有重复」", () => {
+    const repeated = "他把缆绳绕上桩子搓了搓手心的绳子。";
+    const text = `${PAD}\n${repeated}\n${repeated}\n${repeated}`;
+    const readout = slopGateOf(text);
+    const line = readout.reasons.find((reason) => reason.includes("复读句"));
+    expect(line).toBeDefined();
+    expect(line).toContain(repeated);
+    expect(line).toContain("3 次");
+  });
+
+  it("pass 与闸逐字一致——渲染层不许另判一遍", () => {
+    const samples = [
+      PAD,
+      `${PAD}\n值得注意的是，他嘴角勾起。眼底闪过一线光，心中一凛，五味杂陈，总而言之。`,
+      `${PAD}\n水面仿佛凝住了。\n灯光仿佛远了。\n他的背影仿佛一堵墙。\n脚步声仿佛从水底传来。`,
+      "短句。"
+    ];
+    for (const sample of samples) {
+      expect(slopGateOf(sample).pass).toBe(aiFlavorGate(sample).pass);
+    }
+  });
+});
+
+describe("slopChecklistPrompt · 闸的理由并进清单", () => {
+  it("闸判退时，那几条整篇的问题一起交给 AI（否则改完词还会被拦一轮）", () => {
+    const text = `${PAD}\n水面仿佛凝住了。\n灯光仿佛远了。\n他的背影仿佛一堵墙。\n脚步声仿佛从水底传来。`;
+    const prompt = slopChecklistPrompt(findAiSlop(text), "开局", slopGateOf(text));
+    expect(prompt).toContain("退稿闸");
+    expect(prompt).toContain("明喻");
+  });
+
+  it("闸能过时不加这一段（少一句废话）", () => {
+    const prompt = slopChecklistPrompt(findAiSlop(PAD), "开局", slopGateOf(PAD));
+    expect(prompt).not.toContain("退稿闸");
   });
 });

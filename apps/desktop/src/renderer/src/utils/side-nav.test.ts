@@ -153,4 +153,25 @@ describe("styleCheckPrompt · 文风检查的动态预填（2026-10-10 去AI味�
     expect(styleCheckPrompt(null)).toBe(AI_CHECK_PROMPTS.style);
     expect(styleCheckPrompt({ ...report, entries: [] })).toBe(AI_CHECK_PROMPTS.style);
   });
+
+  // 2026-11-12：旧口径只列六个例子，改完词照样被闸退一轮；现在按三层说，数字与产出端同源。
+  it("静态口径分三层（用词 / 句式 / 节奏），句式上限从 contracts 现取", () => {
+    for (const layer of ["用词", "句式", "节奏"]) {
+      expect(AI_CHECK_PROMPTS.style).toContain(layer);
+    }
+    expect(AI_CHECK_PROMPTS.style).toContain("一章最多 1 处");
+    expect(AI_CHECK_PROMPTS.style).toContain("最多 3 处");
+  });
+
+  it("句长过匀时念一句节奏读数（闸也是拿这个数判的）", () => {
+    const flat = styleCheckPrompt({ ...report, sentenceSpread: 0.12, meanSentenceLength: 18.4 });
+    expect(flat).toContain("句长波动只有 0.12");
+    expect(flat).toContain("均长 18.4 字");
+    expect(flat).toContain("只换词不改节奏等于没改");
+  });
+
+  it("句长正常或没有读数时不加这一句（没毛病就别塞叮嘱）", () => {
+    expect(styleCheckPrompt(report)).not.toContain("句长波动只有");
+    expect(styleCheckPrompt({ ...report, sentenceSpread: null })).not.toContain("句长波动只有");
+  });
 });

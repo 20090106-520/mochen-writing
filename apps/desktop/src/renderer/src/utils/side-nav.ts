@@ -1,4 +1,13 @@
-import { AI_FLAVOR_CATEGORY_LABELS, type AiFlavorReport, type BookKind } from "@mochen/contracts";
+import {
+  AI_FLAVOR_ANTITHESIS_LABEL,
+  AI_FLAVOR_CATEGORY_LABELS,
+  AI_FLAVOR_DIALOGUE_TAG_LABEL,
+  AI_FLAVOR_GATE,
+  AI_FLAVOR_SIMILE_LABEL,
+  AI_FLAVOR_STRUCTURE_MIN_COUNT,
+  type AiFlavorReport,
+  type BookKind
+} from "@mochen/contracts";
 import type { IconName } from "../types/icons";
 import { BOOK_KIND_LABELS } from "./book-kinds";
 
@@ -104,14 +113,31 @@ export const SKINS_HINT = "浏览整套皮肤：配色三色 + 纹理、圆角�
  * 检查口径文案（2026-10-23 起只剩 `style` 一个消费者：书稿体检的「一键改写」那一支）。
  * 左栏「审核检查」四项已改为内置技能（`apps/desktop/src/main/builtin-skills.ts`）——
  * 它们在对话框里由模型经 `use_skill` 工具自选载入，不再走这里的预填。其余三段保留作口径参考。
+ *
+ * 【style 为什么在 2026-11-12 重写】旧口径把「去 AI 味」写成六个例子（嘴角勾起、眼底闪过……），
+ * 而体检的词库有近百条、退稿闸还会看句式与节奏——照着这条预填改出来的稿子，改完照样被闸退一轮。
+ * 现在按三层说（用词 / 句式 / 节奏），句式上限的数字从 `AI_FLAVOR_STRUCTURE_MIN_COUNT` 现取，
+ * 与内置 `check-style` 技能、系统提示同一份判据。
  */
+function capOf(label: string): number {
+  return (AI_FLAVOR_STRUCTURE_MIN_COUNT[label] ?? 1) - 1;
+}
+
 export const AI_CHECK_PROMPTS = {
   consistency:
     "请对当前章节做一致性检查：对照已有的人物、设定与剧情，指出与它们矛盾或前后不一致的地方；没有就明确说没有。",
   plot: "请对当前章节做剧情审核：评估情节推进是否合理、节奏与冲突是否成立、伏笔与回收是否妥当，并给出具体修改建议。",
   logic: "请对当前章节做逻辑检查：找出因果链断裂、动机不足、时间线对不上的地方；没有就明确说没有。",
   style:
-    "请对当前章节做文风检查（去 AI 味）：找出 AI 腔的套话与句式——如「嘴角勾起」「眼底闪过」「勾起一抹」「深吸一口气」「空气仿佛凝固」「他知道，……」式开头、连续长短雷同的句子、「缓缓/微微/不禁」堆叠——逐处指出原文并给出更像人写的改法；全文没有就明确说没有。"
+    "请对当前章节做文风检查（去 AI 味），按三层逐处指出并给出改法：" +
+    "① 用词——描写套话与议论腔（「嘴角勾起」这类神态模板、「总而言之」这类报告腔），" +
+    "以及「缓缓/轻轻/微微/不禁」这类副词堆叠；" +
+    `② 句式——「不是A，是B」式升华对偶（一章最多 ${capOf(AI_FLAVOR_ANTITHESIS_LABEL)} 处）、` +
+    `贴着引号的「××说／说道」（最多 ${capOf(AI_FLAVOR_DIALOGUE_TAG_LABEL)} 处）、` +
+    `明喻（像／仿佛／好像／宛如，最多 ${capOf(AI_FLAVOR_SIMILE_LABEL)} 处），` +
+    "另有认知转述（「他知道，……」）、情绪直陈（「感到一阵愤怒」）、章末总结体；" +
+    "③ 节奏——句首复读（同一字开头占六成以上）、句长过匀、整句复读。" +
+    "每处写清第几行、原文、改成什么、为什么；全文没有就明确说没有。"
 } as const;
 
 /**
@@ -120,10 +146,18 @@ export const AI_CHECK_PROMPTS = {
  * 词表与书稿体检同源（contracts 的 analyzeAiFlavor）；命中的每一处都要求直接给
  * propose_patch 替换提案，批准才落盘——「指出」不算数，「改掉」才算。
  * 没扫到（null 或空清单）就回落静态口径，不编清单。
+ *
+ * 2026-11-12 补一句节奏读数：词命中的清单管得住「用了哪个词」，管不住「句句等长」——
+ * 后者是体检报告里已经算好的数（`sentenceSpread`），闸也是拿它判的，这里只是把它念出来。
  */
 export function styleCheckPrompt(report: AiFlavorReport | null): string {
   const hits = report?.entries ?? [];
-  if (hits.length === 0) return AI_CHECK_PROMPTS.style;
+  const spread = report?.sentenceSpread ?? null;
+  const rhythm =
+    spread !== null && spread < AI_FLAVOR_GATE.maxSpread
+      ? `\n\n另外这一章句长波动只有 ${spread}（低于 ${AI_FLAVOR_GATE.maxSpread} 算句句等长，均长 ${report?.meanSentenceLength ?? "?"} 字）：改的时候顺手把长短拉开，只换词不改节奏等于没改。`
+      : "";
+  if (hits.length === 0) return AI_CHECK_PROMPTS.style + rhythm;
   return (
     AI_CHECK_PROMPTS.style +
     "\n\n本章扫到的 AI 味命中（词库与书稿体检同源）：\n" +
@@ -133,6 +167,7 @@ export function styleCheckPrompt(report: AiFlavorReport | null): string {
           `- ${term}（${AI_FLAVOR_CATEGORY_LABELS[category]}）× ${count} 次`
       )
       .join("\n") +
+    rhythm +
     "\n请先用 read_doc 读本章拿上下文，再对每一处给出替换写法，并直接用 propose_patch " +
     "提交替换提案（我批准后才落盘）；确要保留的写法在提案 why 里说明理由，不要擅自整段重写。"
   );

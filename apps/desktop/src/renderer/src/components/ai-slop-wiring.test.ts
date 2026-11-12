@@ -71,7 +71,7 @@ describe("交清单给 AI", () => {
   it("走 prefillComposer（与左栏 AI 检查同一条通路），不自己发请求", () => {
     expect(panelScript).toContain("agent.prefillComposer(");
     expect(panelScript).toContain("threadKeyFor(book.activeDocTab)");
-    expect(panelScript).toContain("slopChecklistPrompt(hits.value, docTitle.value)");
+    expect(panelScript).toContain("slopChecklistPrompt(hits.value, docTitle.value, gate.value)");
     expect(panelScript).not.toContain("agent.send(");
   });
 
@@ -94,6 +94,35 @@ describe("提醒不许说成判决", () => {
   it("零命中给的是肯定的话，不是空白面板", () => {
     expect(panelTpl).toContain("没扫出 AI 腔");
     expect(panelTpl).toContain("这一篇还没有正文");
+  });
+});
+
+describe("退稿闸预演（2026-11-12）", () => {
+  it("读数走 slopGateOf（闸自己的判决），不在这边重写一遍判据", () => {
+    expect(panelScript).toContain("const gate = computed(() => slopGateOf(book.draft));");
+    expect(panelScript).toContain("slopGateOf");
+    // 不许在组件里自己数阈值：那等于把闸的判据抄成第二份。
+    expect(panelScript).not.toContain("AI_FLAVOR_GATE");
+  });
+
+  it("零命中时这一格照样在——节奏与结构的问题本来就不挂在某一行套话上", () => {
+    // 旧结构是 `v-else-if="hits.length === 0"` 整段吃掉面板，闸预演会跟着消失。
+    expect(panelTpl).not.toContain('v-else-if="hits.length === 0"');
+    expect(panelTpl).toContain('class="ai-slop-gate"');
+    expect(panelTpl).toContain("gate.headline");
+    expect(panelTpl).toContain("gate.reasons");
+  });
+
+  it("闸判退时那几条一起交给 AI（否则改完词还是会被拦一轮）", () => {
+    expect(panelScript).toContain("slopChecklistPrompt(hits.value, docTitle.value, gate.value)");
+  });
+
+  it("样式：闸这一格的规则不是空壳，且没新画状态底色", () => {
+    expect(ruleBlock(css, ".ai-slop-gate")).toContain("border-left");
+    expect(ruleBlock(css, ".ai-slop-gate.is-blocked")).toContain("border-left-color");
+    expect(ruleBlock(css, ".ai-slop-gate-list")).toContain("color");
+    // 新画一档状态底色就得进对比度普查表；这一格刻意不画。
+    expect(ruleBlock(css, ".ai-slop-gate")).not.toContain("background");
   });
 });
 

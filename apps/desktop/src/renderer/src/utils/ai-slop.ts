@@ -12,6 +12,12 @@
  *   报出来是提醒不是判决——UI 与交给 AI 的指令里都不许说成"错误"。
  */
 
+import {
+  AI_FLAVOR_GATE,
+  AI_FLAVOR_STRUCTURE_MIN_COUNT,
+  SENTENCE_START_REPEAT,
+  aiFlavorGate
+} from "@mochen/contracts";
 import { bodyCharCount } from "./char-count";
 
 /** 命中强度：strong = 几乎必是 AI 腔；suspect = 提醒作者自己判断。 */
@@ -182,14 +188,90 @@ export function slopVerdict(hits: SlopHit[], content: string): SlopVerdict {
   };
 }
 
+/* ────────────────────────── 退稿闸预演（2026-11-12） ────────────────────────── */
+
+/**
+ * 写完一章就交出去，撞没撞闸要到提案那一刻才知道——那时模型已经跑完，改是下一轮的事。
+ * 这一格的读数是**闸自己的判决**（`aiFlavorGate` 现算，不在这边重写一遍判据）：
+ * 面板只把它的结论翻成人话，所以「这里说能过、闸却拦了」这种自相矛盾在结构上不可能出现。
+ */
+export interface SlopGateReadout {
+  /** 闸自己的结论。 */
+  pass: boolean;
+  /** 这一栏的第一句：太短 / 能过 / 空串（空串=被拦，下面逐条列病根）。 */
+  headline: string;
+  /** 逐条病根，顺序与闸里判据的先后一致；能过时为空。 */
+  reasons: string[];
+}
+
+/** 结构上限 = 起报线 − 1（起报线就是「上限＋1」，见 contracts 那张表的注释），不在这边另抄数字。 */
+function capOf(label: string): number {
+  return (AI_FLAVOR_STRUCTURE_MIN_COUNT[label] ?? 1) - 1;
+}
+
+export function slopGateOf(content: string): SlopGateReadout {
+  const gate = aiFlavorGate(content);
+  if (gate.charCount < AI_FLAVOR_GATE.minChars) {
+    return {
+      pass: true,
+      headline: `正文不到 ${AI_FLAVOR_GATE.minChars} 字，闸不判。`,
+      reasons: []
+    };
+  }
+  const reasons: string[] = [];
+  // 词：闸是「条数与密度双双超标」才拦（单看条数，长篇永远超标；单看密度，半屏套话的短章能混过去）。
+  if (gate.hits >= AI_FLAVOR_GATE.minHits && gate.perThousand >= AI_FLAVOR_GATE.perThousand) {
+    reasons.push(
+      `套话 ${gate.hits} 处、每千字 ${gate.perThousand} 处（闸线 ${AI_FLAVOR_GATE.minHits} 处且 ${AI_FLAVOR_GATE.perThousand} 处/千字）`
+    );
+  }
+  const start = gate.startRepeat;
+  if (start !== null) {
+    reasons.push(
+      `句首复读：「${start.char}」开头 ${start.count} / ${start.total} 句（${start.ratio}，闸线 ${SENTENCE_START_REPEAT.minRatio}）`
+    );
+  }
+  const flat = gate.flatRhythm;
+  if (flat !== null) {
+    reasons.push(
+      `句长过匀：均长 ${flat.mean} 字、波动 ${flat.spread}（低于 ${AI_FLAVOR_GATE.maxSpread} 算等长）`
+    );
+  }
+  if (gate.structureOver.length > 0) {
+    const parts = gate.structureOver.map((label) => `${label}——上限 ${capOf(label)} 处`);
+    reasons.push(`句式超限：${parts.join("；")}`);
+  }
+  for (const row of gate.repeatOver) {
+    reasons.push(`复读句：「${row.sentence}」原样出现 ${row.count} 次`);
+  }
+  return {
+    pass: gate.pass,
+    headline: gate.pass ? "按这一篇现在的样子，退稿闸能过。" : "",
+    reasons
+  };
+}
+
 /**
  * 把本地结果翻成一句**可执行**的改写指令，预填给 AI（用户保留最后一道发送权）。
  * 零命中也给得出一句可用的话：那时可以让 AI 通读润色，而不是返回空串让面板哑掉。
+ *
+ * `gate` 可选：传进来就把「退稿闸会拦的那几条」并进同一份清单。闸判的是**整篇**的节奏与结构，
+ * 与逐行词表互补——只交词表的话，模型改完词照样会在节奏上被拦一次。
  */
-export function slopChecklistPrompt(hits: SlopHit[], docTitle: string): string {
+export function slopChecklistPrompt(
+  hits: SlopHit[],
+  docTitle: string,
+  gate?: SlopGateReadout
+): string {
   const head = `请改「${docTitle}」这一篇里扫出的 AI 腔。逐条处理下面清单，只改这些地方，别的句子原样保留。`;
+  const gateTail =
+    gate !== undefined && !gate.pass && gate.reasons.length > 0
+      ? `\n\n另外，这一篇按退稿闸还会因为下面几条被退回（都是整篇的，不是某一行）：\n${gate.reasons
+          .map((reason) => `- ${reason}`)
+          .join("\n")}\n这几条改的是节奏与句式，别靠删字凑数——换句式、换起手、把长句拆开或并起来。`
+      : "";
   if (hits.length === 0) {
-    return `${head}\n本地没有扫出明确的套话，请你通读一遍：把翻译腔、空泛的情绪词和万能句式换成具体的动作与细节，没有要改的就说没有。`;
+    return `${head}\n本地没有扫出明确的套话，请你通读一遍：把翻译腔、空泛的情绪词和万能句式换成具体的动作与细节，没有要改的就说没有。${gateTail}`;
   }
   const strong = hits.filter((h) => h.strength === "strong");
   const suspect = hits.filter((h) => h.strength === "suspect");
@@ -197,5 +279,5 @@ export function slopChecklistPrompt(hits: SlopHit[], docTitle: string): string {
     suspect.length > 0
       ? `\n\n上面标为「疑似 AI 腔」的是常见句式，作者可能是有意这么写的，**先保留**，只有确实读着别扭才改。`
       : "";
-  return `${head}\n\n疑似 AI 腔（优先改）：\n${strong.map((h) => `- 第 ${h.line} 行：「${h.matched}」——${h.why}`).join("\n") || "（无）"}\n\n只提醒不判决（先看再说）：\n${suspect.map((h) => `- 第 ${h.line} 行：「${h.matched}」`).join("\n") || "（无）"}${tail}\n\n改完逐条告诉我你把哪一句换成了什么。`;
+  return `${head}\n\n疑似 AI 腔（优先改）：\n${strong.map((h) => `- 第 ${h.line} 行：「${h.matched}」——${h.why}`).join("\n") || "（无）"}\n\n只提醒不判决（先看再说）：\n${suspect.map((h) => `- 第 ${h.line} 行：「${h.matched}」`).join("\n") || "（无）"}${tail}${gateTail}\n\n改完逐条告诉我你把哪一句换成了什么。`;
 }

@@ -9,7 +9,7 @@ import { computed, ref } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
 import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
-import { findAiSlop, slopChecklistPrompt, slopVerdict } from "../utils/ai-slop";
+import { findAiSlop, slopChecklistPrompt, slopGateOf, slopVerdict } from "../utils/ai-slop";
 import { threadKeyFor, useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
 import { useNotificationStore } from "../stores/useNotificationStore";
@@ -32,6 +32,11 @@ const { style, close, tab } = useComposerContextPopover(
 /** 扫的是**活动文稿的当前草稿**（含还没落盘的手改），不是盘上那份——否则扫出来的东西用户没写过。 */
 const hits = computed(() => findAiSlop(book.draft));
 const verdict = computed(() => slopVerdict(hits.value, book.draft));
+/**
+ * 退稿闸预演：闸自己的判决，不在这边重判一遍。
+ * 写完一章交出去之前先看这一格——闸拦的稿模型得重写一轮，那一轮的时间本来能用来写下一章。
+ */
+const gate = computed(() => slopGateOf(book.draft));
 const strongHits = computed(() => hits.value.filter((h) => h.strength === "strong"));
 const suspectHits = computed(() => hits.value.filter((h) => h.strength === "suspect"));
 const docTitle = computed(
@@ -46,7 +51,7 @@ function handToAi(): void {
   if (book.activeDocTab === null) return;
   agent.prefillComposer(
     threadKeyFor(book.activeDocTab),
-    slopChecklistPrompt(hits.value, docTitle.value)
+    slopChecklistPrompt(hits.value, docTitle.value, gate.value)
   );
   notify.notify({
     title: "去 AI 味",
@@ -104,11 +109,11 @@ function keydown(event: KeyboardEvent): void {
 
       <p v-if="book.draft.trim() === ''" class="ai-slop-empty">这一篇还没有正文。</p>
 
-      <template v-else-if="hits.length === 0">
-        <p class="ai-slop-empty">这一篇没扫出 AI 腔——按这个手感继续写就行。</p>
-      </template>
-
       <template v-else>
+        <p v-if="hits.length === 0" class="ai-slop-empty">
+          这一篇没扫出 AI 腔——按这个手感继续写就行。
+        </p>
+
         <section v-if="strongHits.length > 0" class="ai-slop-section">
           <h4 class="ai-slop-section-title">套话 · 建议改（{{ strongHits.length }}）</h4>
           <ul class="ai-slop-list">
@@ -139,6 +144,16 @@ function keydown(event: KeyboardEvent): void {
               <span class="ai-slop-word">{{ hit.matched }}</span>
               <span class="ai-slop-excerpt">{{ hit.excerpt }}</span>
             </li>
+          </ul>
+        </section>
+
+        <!-- 退稿闸预演：词表查的是「哪一行有套话」，这一格查的是「整篇交上去会不会被退回」。
+             两者判据不同（前者逐行、后者看节奏与结构），所以并排放，互相替不了。 -->
+        <section class="ai-slop-gate" :class="{ 'is-blocked': !gate.pass }">
+          <h4 class="ai-slop-section-title">退稿闸预演</h4>
+          <p v-if="gate.headline !== ''" class="ai-slop-gate-line">{{ gate.headline }}</p>
+          <ul v-else class="ai-slop-gate-list">
+            <li v-for="(reason, index) in gate.reasons" :key="`g${index}`">{{ reason }}</li>
           </ul>
         </section>
 
