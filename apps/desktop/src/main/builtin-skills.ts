@@ -29,17 +29,22 @@ import {
  * 【升级（2026-11-12）】原先只写「文件不存在」的那一份——于是**出厂技能一旦落盘就永久冻结**：
  * 改正文等于只对全新安装生效，老用户手上永远是第一版。现在每个技能带一个版本号，
  * 同目录写一枚 `.mochen-builtin.json` 记「这一份是谁写的、写完时正文的 sha」：
- * - 元数据对得上、版本更旧 ⇒ 升级（用户没动过它，改的是我们自己的字）；
- * - 元数据对得上、版本相同 ⇒ 不动；
- * - 正文 sha 与记录的**不一样** ⇒ 用户改过 ⇒ 一律不动（这是他的技能，不是我们的）；
+ * - 盘上正文 === 当前出厂正文 ⇒ 不动（已经是最新，不必重写）；
+ * - 盘上正文 === 元数据里的 sha（说明是某次出厂写的、用户没动过）⇒ 覆盖成最新；
+ * - 盘上正文与元数据里的 sha **不一样** ⇒ 用户改过 ⇒ 一律不动（这是他的技能，不是我们的）；
  * - 没有元数据 ⇒ 只认 v0 出厂正文的 sha（见 `LEGACY_SKILL_SHA`），认不出就当用户自己写的。
+ * 版本号**不参与判定**——它原先参与过，等于把「改正文记得 bump version」变成人肉约定，
+ * 忘一次就静默冻结（与旧实现同一类病，只换了触点）。
  * 用户在技能库里改过、删过的那几份都不会被「好心」改回去。
  */
 
 export interface BuiltinSkill {
   /** 目录名，与用户技能同形（单层目录 + SKILL.md）。 */
   dirName: string;
-  /** 出厂版本号。**改正文就把这一格加一**，否则老用户拿不到新版。 */
+  /**
+   * 出厂版本号。**不参与升级判定**（判据是正文 sha，见 `builtinActionOf`），
+   * 只在元数据里留一个人看得懂的「这是第几版」，并挡住「回退安装时把盘上更新的正文盖掉」。
+   */
   version: number;
   /** SKILL.md 全文（frontmatter + 正文）。 */
   skillMd: string;
@@ -221,7 +226,18 @@ export interface BuiltinState {
 /**
  * 这一次该对这个技能做什么（纯判定，IO 在 `seedBuiltinSkills` 里）。
  *
- * 判定顺序就是头注释里那四条，一条不多：写得越聪明，越容易把用户的手改冲掉。
+ * 判定顺序就是头注释里那几条，一条不多：写得越聪明，越容易把用户的手改冲掉。
+ *
+ * 【为什么升级不再看版本号（2026-11-12）】原先是「meta.version < skill.version 才升级」——
+ * 那就把「改正文时记得把 version 加一」变成一条**人肉约定**：忘一次，老用户手上的技能就
+ * 永远停在旧版，而且没有任何征兆（作者改的是对的，用户看到的是旧的）。这跟上一版
+ * 「只在文件不存在时写一次」是同一类病，只是把触点从「文件在不在」换成「数字加没加」。
+ * 现在判据回到正文本身：盘上那份**是不是出厂的原文**（与当前出厂正文比 sha），
+ * 是且不是最新 ⇒ 用户没动过、直接覆盖成最新；不是 ⇒ 用户改过、一个字不动。
+ * version 只留在元数据里做人看，不参与判定。
+ *
+ * 唯一保留版本号的地方是「盘上比当前还新」这一格：装了新版又回退到旧版安装包时，
+ * 不该把用户的技能倒退回旧正文。
  */
 export function builtinActionOf(
   skill: BuiltinSkill,
@@ -231,9 +247,13 @@ export function builtinActionOf(
   if (state === null) return "write";
   const sha = bodyShaOf(state.content);
   if (state.meta !== null) {
-    // 用户改过：正文与出厂时记下的指纹对不上——不动。
+    // 已经是这一版出厂的正文：没有要做的。
+    if (sha === bodyShaOf(skill.skillMd)) return "keep";
+    // 盘上与「出厂写它时的指纹」不同 ⇒ 用户改过 ⇒ 一个字不动。
     if (sha !== state.meta.sha) return "keep";
-    return state.meta.version < skill.version ? "upgrade" : "keep";
+    // 盘上是更晚的一版（装了新版又回退旧安装包）：不倒退。
+    if (state.meta.version > skill.version) return "keep";
+    return "upgrade";
   }
   // 没有元数据：只可能是 v0 出厂（当年没写元数据）或用户自己写的同名技能。
   const known = legacy[skill.dirName] ?? [];

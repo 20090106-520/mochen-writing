@@ -51,6 +51,31 @@ describe("builtinActionOf · 该写、该升、还是别动", () => {
     expect(builtinActionOf(now, state)).toBe("keep");
   });
 
+  /**
+   * 这一条钉的是「改了正文忘了把 version 加一」（2026-11-12）。
+   *
+   * 旧判据是 `meta.version < skill.version`——版本号没加，正文改了也升级不了，
+   * 老用户手上的技能静默停在旧版。这跟「只在文件不存在时写一次」是同一类病：
+   * 把「该升级」寄托在一条人肉约定上。现在判据只看正文是不是出厂原文。
+   */
+  it("版本号没加、正文改了 ⇒ 照样升级（不再依赖「记得 bump version」）", () => {
+    const old = fakeSkill(2, "旧正文");
+    const state = {
+      content: old.skillMd,
+      meta: { dirName: "check-style", version: 2, sha: bodyShaOf(old.skillMd) }
+    };
+    expect(builtinActionOf(fakeSkill(2, "新正文"), state)).toBe("upgrade");
+  });
+
+  it("盘上比当前版本还新 ⇒ 不倒退（装了新版又回退旧安装包）", () => {
+    const future = fakeSkill(5, "更晚的一版正文");
+    const state = {
+      content: future.skillMd,
+      meta: { dirName: "check-style", version: 5, sha: bodyShaOf(future.skillMd) }
+    };
+    expect(builtinActionOf(fakeSkill(2), state)).toBe("keep");
+  });
+
   it("正文与记录的指纹对不上 ⇒ 不动——那是用户改过的技能，不是我们的", () => {
     const now = fakeSkill(2);
     const state = {
