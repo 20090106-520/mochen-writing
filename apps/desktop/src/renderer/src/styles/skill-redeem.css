@@ -5,6 +5,21 @@
    底色一律用 --surface-* 实底，不进玻璃族、不画深档底：卡片下方就是技能列表，
    半透明会把列表文字糊进来。 ---- */
 
+/* 两条添加通路并排一行（2026-11-12）。
+   它们是**平级的两个入口**（找现成的 / 兑一段码），不是先后两步；
+   竖着摞时各占 39px、合计 78px，读起来还像「先做这个再做那个」。
+   并排之后这一行高 39px，技能卡网格从 y=266 回到 227。
+
+   行容器只做一件事：把两块摆成一条基线。两块各自的 `position: relative` 没动，
+   浮层照旧锚在自己的触发钮下方——左边那张 520、右边那张 430，并排后都还在页宽之内。 */
+.skill-entry-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .redeem-block {
   position: relative;
   flex: 0 0 auto;
@@ -30,11 +45,15 @@
 }
 
 .redeem-trigger-caret {
-  transition: transform 0.16s ease;
+  transition: transform var(--dur-fast) var(--ease-out-soft, ease);
 }
 
+/* 展开时箭头从 ▸ 变 ▾（顺时针 90°）。
+   原先写的是 180°——180° 的收尾是「◂」，一个朝左的箭头读起来像「返回上一页」，
+   而这一枚钮明明是往下摊开一张卡。左栏目录树、页面说明条、皮肤筛选折条都是 90°，
+   本条是最后一条没跟上的。 */
 .redeem-trigger.is-open .redeem-trigger-caret {
-  transform: rotate(180deg);
+  transform: rotate(90deg);
 }
 
 .redeem-sheet {
@@ -42,7 +61,13 @@
   z-index: var(--z-inline-mid);
   top: calc(100% - 4px);
   left: 0;
-  width: min(430px, 100%);
+  /* 定宽，不用百分比（2026-11-12 改）。原先写 `min(430px, 100%)`，那时两块竖着摞、
+     在**列**向 flex 里各自被拉伸到页宽，`100%` 恰好够大。并排之后行容器是**行**向 flex，
+     交叉轴变成纵向，两块收缩到触发钮那么宽（真机量到 139px）——百分比跟着缩，
+     整张卡被压成 139px。`.is-wide` 那份注释里早写过同一个坑，这条是最后一处没跟上的。
+     定宽 + 视口封顶：贴窄窗口时不会伸到屏幕外，也不再看父盒脸色。 */
+  width: 430px;
+  max-width: min(430px, calc(100vw - 48px));
   max-height: min(560px, calc(100vh - 200px));
   background: var(--surface-main);
   border: 1px solid var(--line-soft);

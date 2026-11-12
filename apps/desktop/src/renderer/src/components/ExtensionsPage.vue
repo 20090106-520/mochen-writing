@@ -170,192 +170,202 @@ onMounted(() => {
       <p v-if="market.notice" class="extensions-notice" role="status">{{ market.notice }}</p>
     </div>
 
-    <!-- 添加技能的两条真通路（2026-11-10）：从网上装 / 自己写。
-         摆在「兑换」上面：找技能是常态，兑一段码是偶发。
-         与下面那张卡共用同一套骨架类，同族浮层只有一份圆角与标题行。 -->
-    <SkillWorkshop v-if="isSkills" />
+    <!-- 添加技能的两条真通路并排一行（2026-11-12）：
+         从网上装 / 自己写、兑换 / 自制技能。
+         先前是两块各占 39px 竖着摞（合计 78px），可它们是**平级的两个入口**，
+         不是先后两步——竖排读起来像「先做这个再做那个」，还白占 39px 首屏。
+         并成一行之后两块共用一条基线，卡片网格从 y=266 回到 227。
 
-    <!-- 兑换 / 自制技能（2026-11-09）。与输入卡「更多 → / 命令」同一张二级卡片骨架：
-         同一条标题行、同一套圆角与实底、同一种页脚键位提示。
-         两档各有真通路：兑换走 skills:redeem 真落盘；生成走 contracts 的编码器，
-         兑换码自带技能全文，不发网、不需要账号。 -->
-    <div v-if="isSkills" class="redeem-block">
-      <button
-        class="redeem-trigger"
-        :class="{ 'is-open': redeem.open }"
-        type="button"
-        :aria-expanded="redeem.open"
-        aria-controls="redeem-sheet"
-        @click="redeem.toggle()"
-      >
-        <AppIcon class="redeem-trigger-icon" name="sparkles" :size="14" />
-        兑换 / 自制技能
-        <AppIcon class="redeem-trigger-caret" name="chevron" :size="11" />
-      </button>
+         两块的浮层各自锚在自己的触发钮下方（`.redeem-block` 仍是 `position: relative`），
+         所以并排不动开合：左边那张 520px、右边那张 430px，都还在页宽之内。 -->
+    <div v-if="isSkills" class="skill-entry-row">
+      <!-- 从网上装 / 自己写（2026-11-10）。摆在左边：找技能是常态，兑一段码是偶发。
+           与右边那张卡共用同一套骨架类，同族浮层只有一份圆角与标题行。 -->
+      <SkillWorkshop />
 
-      <div
-        v-if="redeem.open"
-        id="redeem-sheet"
-        class="redeem-sheet composer-sheet"
-        tabindex="-1"
-        @keydown.esc.stop="redeem.toggle()"
-      >
-        <div class="composer-sheet-heading">
-          <button
-            class="composer-sheet-back"
-            type="button"
-            aria-label="收起"
-            @click="redeem.toggle()"
-          >
-            <AppIcon name="close" :size="14" />
-          </button>
-          <span class="composer-sheet-icon"><AppIcon name="sparkles" :size="17" /></span>
-          <div class="composer-sheet-heading-copy">
-            <strong>{{
-              redeem.mode === "redeem" ? "兑换技能" : "把 SKILL.md 打包成兑换码"
-            }}</strong>
-            <span>{{
+      <!-- 兑换 / 自制技能（2026-11-09）。与输入卡「更多 → / 命令」同一张二级卡片骨架：
+           同一条标题行、同一套圆角与实底、同一种页脚键位提示。
+           两档各有真通路：兑换走 skills:redeem 真落盘；生成走 contracts 的编码器，
+           兑换码自带技能全文，不发网、不需要账号。 -->
+      <div class="redeem-block">
+        <button
+          class="redeem-trigger"
+          :class="{ 'is-open': redeem.open }"
+          type="button"
+          :aria-expanded="redeem.open"
+          aria-controls="redeem-sheet"
+          @click="redeem.toggle()"
+        >
+          <AppIcon class="redeem-trigger-icon" name="sparkles" :size="14" />
+          兑换 / 自制技能
+          <AppIcon class="redeem-trigger-caret" name="chevron" :size="11" />
+        </button>
+
+        <div
+          v-if="redeem.open"
+          id="redeem-sheet"
+          class="redeem-sheet composer-sheet"
+          tabindex="-1"
+          @keydown.esc.stop="redeem.toggle()"
+        >
+          <div class="composer-sheet-heading">
+            <button
+              class="composer-sheet-back"
+              type="button"
+              aria-label="收起"
+              @click="redeem.toggle()"
+            >
+              <AppIcon name="close" :size="14" />
+            </button>
+            <span class="composer-sheet-icon"><AppIcon name="sparkles" :size="17" /></span>
+            <div class="composer-sheet-heading-copy">
+              <strong>{{
+                redeem.mode === "redeem" ? "兑换技能" : "把 SKILL.md 打包成兑换码"
+              }}</strong>
+              <span>{{
+                redeem.mode === "redeem"
+                  ? "粘一段兑换码，技能就装进全局技能库"
+                  : "自己写的技能也能编成码，发给别人兑"
+              }}</span>
+            </div>
+            <kbd>Esc</kbd>
+          </div>
+
+          <div class="redeem-tabs" role="group" aria-label="兑换方式">
+            <button
+              class="redeem-tab"
+              :class="{ 'is-active': redeem.mode === 'redeem' }"
+              type="button"
+              :aria-pressed="redeem.mode === 'redeem'"
+              @click="redeem.setMode('redeem')"
+            >
+              兑换
+            </button>
+            <button
+              class="redeem-tab"
+              :class="{ 'is-active': redeem.mode === 'create' }"
+              type="button"
+              :aria-pressed="redeem.mode === 'create'"
+              @click="redeem.setMode('create')"
+            >
+              生成兑换码
+            </button>
+          </div>
+
+          <div class="redeem-body">
+            <template v-if="redeem.mode === 'redeem'">
+              <div class="redeem-field">
+                <label class="redeem-label" for="redeem-code">兑换码</label>
+                <textarea
+                  id="redeem-code"
+                  v-model="redeem.code"
+                  class="redeem-textarea is-code"
+                  placeholder="粘贴 MOCHEN-SKILL- 开头的兑换码"
+                  spellcheck="false"
+                ></textarea>
+              </div>
+              <p v-if="redeemPreview" class="redeem-preview">
+                将添加：<span class="redeem-preview-name">《{{ redeemPreview.displayName }}》</span>
+                ·
+                {{ redeemPreview.description }}
+              </p>
+              <div class="redeem-actions">
+                <button class="redeem-button" type="button" @click="redeem.fillExample()">
+                  填入示例码
+                </button>
+                <button
+                  class="redeem-button is-primary"
+                  type="button"
+                  :disabled="!redeem.code.trim() || redeem.busy"
+                  @click="void redeem.redeem()"
+                >
+                  {{ redeem.busy ? "兑换中…" : "兑换并添加" }}
+                </button>
+              </div>
+              <p class="redeem-hint">
+                兑换码自带技能全文，离线可用；已装过的同名技能不会被覆盖。装好后在这张卡上点「挂入」才进本轮上下文。
+              </p>
+            </template>
+
+            <template v-else>
+              <div class="redeem-field">
+                <label class="redeem-label" for="redeem-name">技能名</label>
+                <input
+                  id="redeem-name"
+                  v-model="redeem.draft.displayName"
+                  class="redeem-input"
+                  placeholder="例：对话节奏把关"
+                />
+              </div>
+              <div class="redeem-field">
+                <label class="redeem-label" for="redeem-dir">目录名（选填，英文字母数字）</label>
+                <input
+                  id="redeem-dir"
+                  v-model="redeem.draft.dirName"
+                  class="redeem-input"
+                  placeholder="留空会自动生成"
+                />
+              </div>
+              <div class="redeem-field">
+                <label class="redeem-label" for="redeem-desc">一句话说明（选填）</label>
+                <input
+                  id="redeem-desc"
+                  v-model="redeem.draft.description"
+                  class="redeem-input"
+                  placeholder="它会在什么时候派上用场"
+                />
+              </div>
+              <div class="redeem-field">
+                <label class="redeem-label" for="redeem-md">SKILL.md 全文</label>
+                <textarea
+                  id="redeem-md"
+                  v-model="redeem.draft.skillMd"
+                  class="redeem-textarea"
+                  placeholder="粘贴带 frontmatter 的 SKILL.md"
+                ></textarea>
+              </div>
+              <div class="redeem-actions">
+                <button class="redeem-button is-primary" type="button" @click="redeem.generate()">
+                  生成兑换码
+                </button>
+                <button
+                  v-if="redeem.generated"
+                  class="redeem-button"
+                  type="button"
+                  @click="void redeem.copyGenerated()"
+                >
+                  {{ redeem.copied ? "已复制" : "复制兑换码" }}
+                </button>
+              </div>
+              <textarea
+                v-if="redeem.generated"
+                class="redeem-code-out"
+                readonly
+                :value="redeem.generated"
+                aria-label="生成的兑换码"
+              ></textarea>
+              <p class="redeem-hint">
+                码里含技能全文，别贴到公开场合。生成后切回「兑换」可以自己先试一遍。
+              </p>
+            </template>
+
+            <p
+              v-if="redeem.notice"
+              class="redeem-notice"
+              :class="{ 'is-ok': redeem.ok }"
+              role="status"
+            >
+              {{ redeem.notice }}
+            </p>
+          </div>
+
+          <div class="composer-sheet-footer list-keys">
+            <span class="composer-sheet-footnote">{{
               redeem.mode === "redeem"
-                ? "粘一段兑换码，技能就装进全局技能库"
-                : "自己写的技能也能编成码，发给别人兑"
+                ? "装好 ≠ 这一轮生效，记得点「挂入」"
+                : "兑换码离线自包含，不需要账号或联网"
             }}</span>
           </div>
-          <kbd>Esc</kbd>
-        </div>
-
-        <div class="redeem-tabs" role="group" aria-label="兑换方式">
-          <button
-            class="redeem-tab"
-            :class="{ 'is-active': redeem.mode === 'redeem' }"
-            type="button"
-            :aria-pressed="redeem.mode === 'redeem'"
-            @click="redeem.setMode('redeem')"
-          >
-            兑换
-          </button>
-          <button
-            class="redeem-tab"
-            :class="{ 'is-active': redeem.mode === 'create' }"
-            type="button"
-            :aria-pressed="redeem.mode === 'create'"
-            @click="redeem.setMode('create')"
-          >
-            生成兑换码
-          </button>
-        </div>
-
-        <div class="redeem-body">
-          <template v-if="redeem.mode === 'redeem'">
-            <div class="redeem-field">
-              <label class="redeem-label" for="redeem-code">兑换码</label>
-              <textarea
-                id="redeem-code"
-                v-model="redeem.code"
-                class="redeem-textarea is-code"
-                placeholder="粘贴 MOCHEN-SKILL- 开头的兑换码"
-                spellcheck="false"
-              ></textarea>
-            </div>
-            <p v-if="redeemPreview" class="redeem-preview">
-              将添加：<span class="redeem-preview-name">《{{ redeemPreview.displayName }}》</span> ·
-              {{ redeemPreview.description }}
-            </p>
-            <div class="redeem-actions">
-              <button class="redeem-button" type="button" @click="redeem.fillExample()">
-                填入示例码
-              </button>
-              <button
-                class="redeem-button is-primary"
-                type="button"
-                :disabled="!redeem.code.trim() || redeem.busy"
-                @click="void redeem.redeem()"
-              >
-                {{ redeem.busy ? "兑换中…" : "兑换并添加" }}
-              </button>
-            </div>
-            <p class="redeem-hint">
-              兑换码自带技能全文，离线可用；已装过的同名技能不会被覆盖。装好后在这张卡上点「挂入」才进本轮上下文。
-            </p>
-          </template>
-
-          <template v-else>
-            <div class="redeem-field">
-              <label class="redeem-label" for="redeem-name">技能名</label>
-              <input
-                id="redeem-name"
-                v-model="redeem.draft.displayName"
-                class="redeem-input"
-                placeholder="例：对话节奏把关"
-              />
-            </div>
-            <div class="redeem-field">
-              <label class="redeem-label" for="redeem-dir">目录名（选填，英文字母数字）</label>
-              <input
-                id="redeem-dir"
-                v-model="redeem.draft.dirName"
-                class="redeem-input"
-                placeholder="留空会自动生成"
-              />
-            </div>
-            <div class="redeem-field">
-              <label class="redeem-label" for="redeem-desc">一句话说明（选填）</label>
-              <input
-                id="redeem-desc"
-                v-model="redeem.draft.description"
-                class="redeem-input"
-                placeholder="它会在什么时候派上用场"
-              />
-            </div>
-            <div class="redeem-field">
-              <label class="redeem-label" for="redeem-md">SKILL.md 全文</label>
-              <textarea
-                id="redeem-md"
-                v-model="redeem.draft.skillMd"
-                class="redeem-textarea"
-                placeholder="粘贴带 frontmatter 的 SKILL.md"
-              ></textarea>
-            </div>
-            <div class="redeem-actions">
-              <button class="redeem-button is-primary" type="button" @click="redeem.generate()">
-                生成兑换码
-              </button>
-              <button
-                v-if="redeem.generated"
-                class="redeem-button"
-                type="button"
-                @click="void redeem.copyGenerated()"
-              >
-                {{ redeem.copied ? "已复制" : "复制兑换码" }}
-              </button>
-            </div>
-            <textarea
-              v-if="redeem.generated"
-              class="redeem-code-out"
-              readonly
-              :value="redeem.generated"
-              aria-label="生成的兑换码"
-            ></textarea>
-            <p class="redeem-hint">
-              码里含技能全文，别贴到公开场合。生成后切回「兑换」可以自己先试一遍。
-            </p>
-          </template>
-
-          <p
-            v-if="redeem.notice"
-            class="redeem-notice"
-            :class="{ 'is-ok': redeem.ok }"
-            role="status"
-          >
-            {{ redeem.notice }}
-          </p>
-        </div>
-
-        <div class="composer-sheet-footer list-keys">
-          <span class="composer-sheet-footnote">{{
-            redeem.mode === "redeem"
-              ? "装好 ≠ 这一轮生效，记得点「挂入」"
-              : "兑换码离线自包含，不需要账号或联网"
-          }}</span>
         </div>
       </div>
     </div>
