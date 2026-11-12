@@ -63,6 +63,7 @@ import {
   type ChangePreview
 } from "./book-change-history";
 import { bookDataFlushNotice, withBookDataFlush } from "../composables/bookDataRegistry";
+import { openBookInto, pickAndOpenInto } from "../composables/book-open";
 
 /**
  * 右栏同一格的三态（铁律 6：这条联合只有一份实现）。
@@ -161,12 +162,7 @@ export const useBookStore = defineStore("book", {
   actions: {
     /** 用户取消时必须什么都不做——已打开的作品、草稿、标签一律保持原样。 */
     async pickAndOpen() {
-      const picked = await window.mochen.pickBookDirectory();
-      if (!picked) {
-        this.notice = "未选择作品目录";
-        return;
-      }
-      await this.openBook(picked);
+      await pickAndOpenInto(this);
     },
 
     /**
@@ -198,11 +194,9 @@ export const useBookStore = defineStore("book", {
       }
     },
 
+    /** 打开一本作品；成功与失败两条路都在 `openBookInto` 里（失败时只说一句人话）。 */
     async openBook(rootPath: string) {
-      // 换书前先把上一本未落盘的设定交回**上一本**：主进程的当前书在这次 IPC 落地那一刻就换了。
-      const opened = await withBookDataFlush(() => window.mochen.openBook(rootPath));
-      this.applyOpened(opened);
-      this.notice = bookDataFlushNotice(`已打开《${opened.meta.title}》`);
+      await openBookInto(this, rootPath);
     },
 
     /**
