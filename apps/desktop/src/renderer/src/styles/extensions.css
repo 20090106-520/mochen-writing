@@ -243,9 +243,10 @@
 
 .extension-card-head {
   display: flex;
-  /* align-items 用 flex-start 而不是 center：出处那行可能有三行（真机量到
-     「改编自 linhut/dsh-skills 的 brainstorming（源自 obra/superpowers, MIT）· MIT」四行），
-     居中会把徽标压到第二三行上——徽标盖住出处，正是这一批刚修掉的那个毛病换个姿势复发。 */
+  /* 徽标与标题同一行、贴着行顶：align-items 用 flex-start 而不是 center——
+     标题是单行截断，但徽标有两枚的时候（「已安装」+「本会话临时改过」）会折到第二行，
+     居中会让它俩在垂直方向上互相推。出处那三行原先也住在这里，2026-11-12 挪去了卡片末尾
+     （见 `.extension-card-origin` 那一段），这个 flex-start 仍然服务徽标。 */
   align-items: flex-start;
   gap: 8px;
   min-width: 0;
@@ -282,10 +283,16 @@
    用户既不知道抄自哪个仓库、也不知道按什么许可发布（contracts 的 MarketSkill 注释也是这么写的）。
    旧浮层那条守卫（「出处被截一半等于没写」）原话照搬到这里继续守着。
 
+   位置（2026-11-12）：从标题下面挪到**卡片最后**（说明 → 操作 → 出处 → 原文）。
+   它在标题下时是三行小灰字，把「这枚技能干什么」挤到第四行之后；那段最长的不可断词
+   还顺带把标题挤窄。现在它跟在操作之后收尾，读作这张卡的注脚。
+
    【为什么不给它底色】先给过一块 `color-mix(... 5%, transparent)` 的浅底，
    真机截图看下来它比标题还重——一块三行的灰底把卡片压住了，
    而「附属信息」该靠**字号与颜色**退后，不该靠一块底。 */
 .extension-card-origin {
+  margin: 0;
+  min-width: 0;
   color: var(--text-tertiary);
   font-size: 0.785714rem;
   line-height: 1.45;
@@ -374,6 +381,15 @@
 .extension-btn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* 「挂入」是四枚里唯一带状态的（模板给了 aria-pressed）：未按下与其余三枚同形，
+   按下时着 accent —— accent 在本仓是「当前生效」的语义，与徽标「本轮已挂入」说的是同一件事。
+   先前它按没按下去长得一模一样，用户只能靠读「挂入 / 取下」这两个字反推当前在不在上下文里。 */
+.extension-btn[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line-soft));
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
 }
 
 .extension-card-source {

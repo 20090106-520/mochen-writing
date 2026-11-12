@@ -23,6 +23,7 @@ import { useSkillMarketStore } from "../stores/useSkillMarketStore";
 import { useAgentStore, threadKeyFor } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
 import { activeStageOf } from "../utils/composer-context";
+import { skillCategoryIcon } from "../utils/skill-category-icon";
 import { decodeSkillRedeemCode, skillPolicyOf } from "@mochen/contracts";
 import {
   INSTALLED_FILTER,
@@ -384,14 +385,13 @@ onMounted(() => {
         <ul v-else class="extensions-grid">
           <li v-for="one in pluginRows" :key="one.dirName" class="extension-card">
             <div class="extension-card-head">
+              <!-- 插件那一枚不是加号：加号读作「添加」，而这一页列的全是**已经装上**的。
+                   bot 说的是「给模型加能力」，正是插件干的活。 -->
               <span class="extension-icon" aria-hidden="true">
-                <AppIcon name="plus" :size="16" />
+                <AppIcon name="bot" :size="16" />
               </span>
               <div class="extension-card-title">
                 <strong :title="one.dirName">{{ one.title }}</strong>
-                <span class="extension-card-origin">{{
-                  one.builtin ? "内置随带" : "你自己装的"
-                }}</span>
               </div>
               <span v-if="one.disabled" class="extension-badge is-stopped">已停用</span>
               <span v-else-if="!one.ok" class="extension-badge is-broken">装不上</span>
@@ -434,6 +434,9 @@ onMounted(() => {
                 </button>
               </span>
             </div>
+            <!-- 插件卡不另写出处：底部那枚标签已经写着「内置 · 第 2 版」/「本地目录」，
+                 再补一行「内置随带」是同一件事说两遍（2026-11-12 真机：那行孤零零挂在卡底，
+                 读起来像没写完的一句）。技能卡那边不能省——它的出处是「改编自某个仓库 + 许可」。 -->
             <pre v-if="plugins.sources[one.dirName]" class="extension-card-source">{{
               plugins.sources[one.dirName]
             }}</pre>
@@ -514,12 +517,14 @@ onMounted(() => {
         <ul v-else class="extensions-grid">
           <li v-for="row in skillRows" :key="row.key" class="extension-card">
             <div class="extension-card-head">
+              <!-- 分类图标（2026-11-12）：先前 31 张卡左上都是同一枚书册，重复了 31 次零信息。
+                   现在按 `categoryLabel` 取六枚之一（见 utils/skill-category-icon.ts），
+                   扫一眼卡片左缘就知道哪几枚是「校对」、哪几枚是「结构」。 -->
               <span class="extension-icon" aria-hidden="true">
-                <AppIcon name="library" :size="16" />
+                <AppIcon :name="skillCategoryIcon(row.categoryLabel)" :size="16" />
               </span>
               <div class="extension-card-title">
                 <strong :title="row.displayName">{{ row.displayName }}</strong>
-                <span class="extension-card-origin">{{ row.sourceLabel }}</span>
               </div>
               <!-- 状态标记 + 来源标记。状态四枚**穷尽**：停用 / 本轮已挂入 / 已安装 / 可以装。
                    来源那一枚（书级默认 / 本会话临时改过）回答的是另一件事：这一轮的挂入是谁定的。
@@ -602,6 +607,13 @@ onMounted(() => {
                 </button>
               </span>
             </div>
+            <!-- 出处与许可落在**卡片最后**（2026-11-12）。
+                 先前它跟在标题下面：「改编自 … 的 …（…） · MIT」在真机上是三行小灰字，
+                 于是「这枚技能是干什么的」被推到第四行之后，一卡七行灰字分不清哪句是描述、
+                 哪句是版权；它那段最长的不可断词（`zenstory-ai/oh-story-claudecode`）还把标题挤窄了。
+                 现在：说明 → 操作 → 出处 → 原文。出处是这张卡的注脚，不是它的开场白；
+                 顺序与「应用说明 / 许可信息」在应用商店里的位置一致。出处仍**一字不截**。 -->
+            <p class="extension-card-origin">{{ row.sourceLabel }}</p>
             <!-- 正文预览。用原生 details/summary 而不是 ref 手动开关：开合与无障碍语义是浏览器给的，
                  少一份状态就少一份「关不掉」。摆的是**逐字原文**（含 frontmatter），
                  不另做一遍 markdown 解析——装上去的就是这一份，用户看什么他装到什么。 -->
