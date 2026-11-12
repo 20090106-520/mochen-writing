@@ -65,7 +65,11 @@ export function bodyShaOf(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex").slice(0, 12);
 }
 
-/** frontmatter 只用 skill.ts 认得的四个键：name / description / stage / appliesTo。 */
+/**
+ * frontmatter 只用 skill.ts 认得的四个键：name / description / stage / appliesTo。
+ * `stage` 填的是**阶段名**（与 `DEFAULT_STAGE_NAME`、市场技能、技能工坊的 placeholder 同口径），
+ * 不是阶段 id——`skillPickOf` 拿 `scene.stageName` 做精确比对，填 id 一律不命中。
+ */
 function skillDoc(input: {
   name: string;
   description: string;
