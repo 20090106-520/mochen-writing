@@ -53,6 +53,9 @@ function host() {
     listSkills: async () => skillRefs,
     readSkill: async (id) => {
       skillReads.push(id);
+      // 库里没有的 id 是**抛错**（真身是 fs 读不到 SKILL.md），不是返回 null——
+      // 调用方靠 `.catch(() => null)` 收成「读不到」。「id 写错」那条路要靠它才有得测。
+      if (!skillRefs.some((ref) => ref.id === id)) throw new Error(`ENOENT: ${id}/SKILL.md`);
       return { title: id, text: `技能正文：${id}` };
     },
     skillDisabled: (id) => skillDisabledIds.includes(id)
@@ -107,5 +110,46 @@ describe("use_skill 无参清单与系统提示同形", () => {
     const out = await host().call("use_skill", {});
     expect(out.text).toContain("…");
     expect(out.text.length).toBeLessThan(200);
+  });
+});
+
+/**
+ * id 写错时点名要哪一份（2026-11-12）。
+ *
+ * 清单里同一份技能摆着三个字面量（显示名 / 目录名 / 完整 id），模型照着前两个调是常态。
+ * 原先的失败回执只有一句「没有这个 id，先不带参调一次」——一次手误换一轮往返，
+ * 而模型对工具报错的反应往往是回头解释一遍，那正是对话里最重的那层 AI 腔。
+ */
+describe("use_skill 的 id 写错时点名要哪一份", () => {
+  it("只给目录名：直接给出完整 id", async () => {
+    skillRefs = [{ ...ref("global:check-style"), displayName: "文风检查" }];
+    const out = await host().call("use_skill", { skill: "check-style" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain('use_skill("global:check-style")');
+    expect(out.text).toContain("文风检查");
+  });
+
+  it("给显示名：同上", async () => {
+    skillRefs = [{ ...ref("global:check-style"), displayName: "文风检查" }];
+    const out = await host().call("use_skill", { skill: "文风检查" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain('use_skill("global:check-style")');
+  });
+
+  it("认不出就说没有，不编一个近似", async () => {
+    skillRefs = [{ ...ref("global:check-style"), displayName: "文风检查" }];
+    const out = await host().call("use_skill", { skill: "文风" });
+    expect(out.ok).toBe(false);
+    expect(out.text).not.toContain("你要的是");
+    expect(out.text).toContain("先不带参数调一次 use_skill");
+  });
+
+  it("认出的那份已停用：走停用那句话，不借「你是指它吧」把它递出去", async () => {
+    skillRefs = [ref("book:foreshadow")];
+    skillDisabledIds = ["book:foreshadow"];
+    const out = await host().call("use_skill", { skill: "foreshadow" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("已停用");
+    expect(out.text).not.toContain("你要的是");
   });
 });

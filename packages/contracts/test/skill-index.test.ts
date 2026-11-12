@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { SKILL_INDEX_MAX_ITEMS, skillIndexBlock, type SkillRef } from "../src/skill.js";
+import {
+  SKILL_INDEX_MAX_ITEMS,
+  matchSkillRef,
+  skillIndexBlock,
+  type SkillRef
+} from "../src/skill.js";
 
 function refOf(id: string, description = "治什么", name = ""): SkillRef {
   const dirName = id.slice(id.indexOf(":") + 1);
@@ -84,5 +89,46 @@ describe("技能库索引（skillIndexBlock）", () => {
     const out = skillIndexBlock([refOf("global:a"), refOf("global:b")], []);
     expect(out.text).toContain('use_skill("<id>")');
     expect(out.text).toContain("不要凭名字猜");
+  });
+});
+
+/**
+ * 技能 id 写错时的认人（2026-11-12）。
+ *
+ * `use_skill` 只认完整 id，而清单里同一份技能并排摆着三个字面量：显示名、目录名、完整 id。
+ * 模型照着前两个调一次是常态，而每一次手误都是一轮工具往返 + 一句「抱歉，我先列出技能」。
+ * 这里钉住「认得出」与「认不准就不猜」两侧——猜错比不猜更费一轮。
+ */
+describe("matchSkillRef · 模型写错 id 时认得出哪一份", () => {
+  const refs = [
+    refOf("global:check-style", "按用词、句式、节奏三层找 AI 腔", "文风检查"),
+    refOf("book:foreshadow", "埋线收线", "伏笔"),
+    refOf("global:check-plot", "剧情审核", "剧情检查")
+  ];
+
+  it("完整 id 原样命中，大小写不敏感", () => {
+    expect(matchSkillRef("GLOBAL:Check-Style", refs)?.id).toBe("global:check-style");
+  });
+
+  it("只给目录名也认", () => {
+    expect(matchSkillRef("check-style", refs)?.id).toBe("global:check-style");
+  });
+
+  it("给显示名也认，中间的空格不影响", () => {
+    expect(matchSkillRef(" 文风 检查 ", refs)?.id).toBe("global:check-style");
+  });
+
+  it("不做前缀或包含匹配：认不准就不猜", () => {
+    expect(matchSkillRef("文风", refs)).toBeNull();
+    expect(matchSkillRef("check", refs)).toBeNull();
+  });
+
+  it("同档多个候选时认不出：两份同名技能里选谁都是随机", () => {
+    expect(matchSkillRef("rhythm", [refOf("global:rhythm"), refOf("book:rhythm")])).toBeNull();
+  });
+
+  it("空库与空白串回 null", () => {
+    expect(matchSkillRef("x", [])).toBeNull();
+    expect(matchSkillRef("   ", refs)).toBeNull();
   });
 });

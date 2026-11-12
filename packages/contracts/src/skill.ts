@@ -106,6 +106,40 @@ export function skillBriefLine(ref: SkillRef): string {
 }
 
 /**
+ * 模型把技能 id 写错时，认出「它指的是哪一份」（2026-11-12）。
+ *
+ * 【为什么值得一个函数】`use_skill` 只认完整 id（`global:check-style`），而清单里同一份技能
+ * 同时摆着三个字面量：显示名（文风检查）、目录名（check-style）、完整 id。模型照着前两个
+ * 调一次是常态——历史里这种手误一次就白烧一轮工具往返，而模型对工具报错的反应往往是
+ * 回头解释一遍（「抱歉，我需要先列出技能」，正是对话里最重的那层 AI 腔）。
+ *
+ * 匹配只认三条、且每条都要求**整段相等**：完整 id（不分大小写）→ 目录名 → 显示名
+ * （抹掉空白后）。不做前缀或包含匹配：「文风」能同时对上「文风检查」「文风分析」，
+ * 猜错比不猜更费一轮，而调用方拿不到「这是猜的」这个信号。同一档里有多个候选就当
+ * 认不出（返回 null）——两份同名技能时，选哪一份都是随机的。
+ *
+ * 它不读盘、也不判断停用：停用是纪律（P0-4），由调用方拿到候选后自己把闸，
+ * 否则「你是指它吧」会把一份停用技能的存在感递出去。
+ */
+export function matchSkillRef(wanted: string, refs: readonly SkillRef[]): SkillRef | null {
+  const key = wanted.trim();
+  if (key === "" || refs.length === 0) return null;
+  const lower = key.toLowerCase();
+  const flat = (text: string): string => text.replace(/\s+/g, "");
+  const flatKey = flat(key);
+  /** 只有唯一候选才算认出：同档多个 = 认不出（选谁都是随机）。 */
+  const only = (list: SkillRef[]): SkillRef | null => {
+    const hit = list[0];
+    return list.length === 1 && hit !== undefined ? hit : null;
+  };
+  return (
+    only(refs.filter((ref) => ref.id.toLowerCase() === lower)) ??
+    only(refs.filter((ref) => ref.dirName.toLowerCase() === lower)) ??
+    only(refs.filter((ref) => flat(ref.displayName) === flatKey))
+  );
+}
+
+/**
  * 技能库索引的额度（2026-11-10）。
  *
  * 【它解决的是哪件事】挂入机制只能把**用户或自动识别挑中的**那几枚摆到模型眼前。

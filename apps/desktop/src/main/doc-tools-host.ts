@@ -21,11 +21,13 @@ import {
   aiFlavorGate,
   AI_FLAVOR_STRUCTURE_MIN_COUNT,
   skillBriefLine,
+  matchSkillRef,
   styleProfileOf,
   styleDriftOf,
   textSimilarity,
   type StyleProfile
 } from "@mochen/contracts";
+import { disabledSkillText, skillReadMissText } from "./skill-receipt.js";
 import {
   applyPatch,
   checkWritePermission,
@@ -520,15 +522,19 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
           };
         }
         if (deps.readSkill === undefined) return deny("技能库这一轮没接上，读不到技能正文。");
-        if (deps.skillDisabled?.(wanted) === true)
-          return deny(
-            `技能「${wanted}」在这本书里已停用，正文不读、也不带进这一轮上下文。要恢复就到技能库把它启用。`
-          );
+        if (deps.skillDisabled?.(wanted) === true) return deny(disabledSkillText(wanted));
         const one = await deps.readSkill(wanted).catch(() => null);
-        if (one === null)
+        if (one === null) {
+          // 读不到时先认一认「它写的是哪一份」（2026-11-12）：模型常只给目录名或显示名，
+          // 认得出就点名要它，省一轮「列出全部技能」。口径与措辞在 skill-receipt.ts。
+          const hit =
+            deps.listSkills === undefined
+              ? null
+              : matchSkillRef(wanted, await deps.listSkills().catch(() => []));
           return deny(
-            `技能库里没有 id 为「${wanted}」的技能。先不带参数调一次 use_skill 看看有哪些。`
+            skillReadMissText(wanted, hit, hit !== null && deps.skillDisabled?.(hit.id) === true)
           );
+        }
         // 回执里点明「正文已载入」：模型读到一份方法后，下一轮常会忘了它已经在手上又去读一遍
         // （历史被切片后尤其如此），白烧一整轮工具往返。这句把它按在「已经读到了」。
         return {
