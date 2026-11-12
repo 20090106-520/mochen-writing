@@ -207,11 +207,12 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   /* 卡片从"一块描边的色块"变成"浮在底板上的东西"：sm 档高程 + 一道 1px 的高光边，
      深色下那道边替代阴影把卡片从底色里托出来。 */
   box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--dur-fast) var(--ease-out-soft);
-}
-
-.settings-card:hover {
-  box-shadow: var(--shadow-md);
+  /* 这一族卡片**没有点击**（关于页的事实表、智能体设置、WebDAV 字段、快捷键表），
+     所以也没有悬停态（2026-11-12 撤掉 `:hover { box-shadow: var(--shadow-md) }`
+     与配套的 transition）。原先鼠标划过整张卡会「浮起来」——那是**假的可点暗示**，
+     与下面 `.settings-item` 那条「不给 cursor:pointer，因为这一族全是纯展示行」
+     是同一条规矩；同一个盒子上光标不变、阴影却变，比两样都变更像漏了点击。
+     真正可点的卡片（皮肤卡、技能卡）各有自己的 hover 面，不靠这条通用规则。 */
 }
 
 .settings-item {
@@ -248,12 +249,11 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   line-height: 1.45;
 }
 
-.settings-item-value {
-  color: var(--text-soft);
-  font-size: 0.928571rem;
-  text-align: right;
-  overflow-wrap: anywhere;
-}
+/* `.settings-item-value`（值靠右）2026-11-12 删掉：关于页那四行是最后一处用它，
+   而那四处用的其实是「标签 + 一句话说明」，不是「标签 …… 值」。
+   值右对齐在短值上好看，一旦说明长成一段话，左边就是参差的缺口——
+   真机量到最长那行的标签被挤成 0 宽、两个字竖着摞。整条规则随最后一位消费者一起删，
+   不留「预备样式」（死 CSS 守卫也不允许留）。 */
 
 /*
  * 设置卡右端那种「执行一次动作」的小按钮（2026-10-06 批次 5-⑧ 改稿历史的「立即清理」）。
@@ -935,6 +935,12 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
 
 .webdav-field {
   flex-direction: column;
+  /* 竖排之后 `align-items` 从「竖直居中」变成「横向居中」——不重写这一条，
+     `.settings-item` 的 `align-items: center` 就会把每个子项在卡里**居中对齐**：
+     真机量到「地址 / 用户名 / 密码」这三个标签各自缩在卡片正中（离左边 330px），
+     而下面的输入框是满宽左对齐——一行标签浮在一只框的上方正中，读起来像错版。
+     竖排容器这里要的是撑满：标签贴左，输入框按 `width: 100%` 走。 */
+  align-items: stretch;
   gap: 5px;
 }
 

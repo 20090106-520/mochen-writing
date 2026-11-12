@@ -52,18 +52,27 @@ onMounted(() => {
   <div class="project-settings">
     <section class="settings-group">
       <h2 class="settings-group-title">当前作品</h2>
-      <p class="settings-static-text">{{ currentBookTitle ?? "尚未打开" }}</p>
+      <!-- 前两组也套卡片（2026-11-12）：下面「最近作品」那张清单本来就是一张卡
+           （`.project-list` 自己带描边、圆角、surface-card 与 shadow-sm），
+           于是这一页原先读起来像「两段裸字 + 一张卡」——同一栏目录里
+           模型配置 / 智能体 / 快捷键 / 关于 / 远程备份全是卡。
+           这里补的是外壳，不是新控件：文字与按钮一个没动。 -->
+      <div class="settings-card">
+        <p class="settings-static-text project-current">{{ currentBookTitle ?? "尚未打开" }}</p>
+      </div>
     </section>
 
     <section class="settings-group">
       <h2 class="settings-group-title">操作</h2>
-      <div class="project-actions">
-        <button class="settings-btn" type="button" @click="openProjectDir">
-          <AppIcon name="folder" :size="14" /> 打开作品目录
-        </button>
-        <button class="settings-btn" type="button" @click="createBook">
-          <AppIcon name="plus" :size="14" /> 创建新书
-        </button>
+      <div class="settings-card">
+        <div class="project-actions">
+          <button class="settings-btn" type="button" @click="openProjectDir">
+            <AppIcon name="folder" :size="14" /> 打开作品目录
+          </button>
+          <button class="settings-btn" type="button" @click="createBook">
+            <AppIcon name="plus" :size="14" /> 创建新书
+          </button>
+        </div>
       </div>
     </section>
 
@@ -108,10 +117,16 @@ onMounted(() => {
   line-height: 1.5;
 }
 
+/* 卡片自己只有 6px 0：行的那 18px 由里面这一行给（与 `.settings-item` 同一族口径）。 */
+.project-current {
+  padding: 14px 18px;
+}
+
 .project-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  padding: 14px 18px;
 }
 
 .settings-btn {
@@ -156,7 +171,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 1px 4px;
+  /* 10px + 行内 8px = 18px：与 `.settings-item` 那族同一条竖线。
+     原先 4px 起算，清单里的书名离卡片左边只有 12px，比同屏其它列表都紧一档。 */
+  padding: 1px 10px;
   transition: background var(--dur-fast) var(--ease-out-soft);
 }
 

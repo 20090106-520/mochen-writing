@@ -46,11 +46,11 @@ async function checkNow(): Promise<void> {
 <template>
   <section class="settings-group">
     <dl class="about-facts settings-card">
-      <div v-for="fact in FACTS" :key="fact.term" class="about-fact settings-item">
-        <dt class="about-term settings-item-text">
+      <div v-for="fact in FACTS" :key="fact.term" class="about-fact">
+        <dt class="about-term">
           <strong>{{ fact.term }}</strong>
         </dt>
-        <dd class="about-detail settings-item-value">{{ fact.detail }}</dd>
+        <dd class="about-detail">{{ fact.detail }}</dd>
       </div>
     </dl>
     <div class="settings-card about-update">

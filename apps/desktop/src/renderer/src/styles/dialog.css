@@ -357,11 +357,20 @@
   outline-offset: 2px;
 }
 
+/* 组标题 = 这张卡的标题（不是「一行小灰字」）。
+   真机量到的两件事（2026-11-12）：
+   ① 它距卡片左边框只有 **1px**——`.settings-card` 的 padding 是 `6px 0`（那是给
+      `.settings-item` 那族留的，那些行自己带 `14px 18px`），而这一页是「标题 + 表格」
+      直接进来的，谁也没带那 18px。同一族的关于页（dt 距边框 18.7px）一直是对的，
+      只有这里字贴着框。18px 与 `.settings-item` 的左内边距同一条竖线。
+   ② 11px 的灰字比它下面的 12px 正文还弱，六个分组在屏上收成「六块没有名字的卡」。
+      升到 13px / 正文档：卡片标题该比表里的行话更重，不是更轻。 */
 .hotkeys-group-title {
   margin-bottom: 6px;
-  color: var(--text-tertiary);
-  font-size: 0.785714rem;
-  font-weight: 650;
+  padding: 0 18px;
+  color: var(--text);
+  font-size: 0.928571rem;
+  font-weight: 640;
   letter-spacing: 0.04em;
 }
 
@@ -376,6 +385,16 @@
   border-bottom: 1px solid var(--line-soft);
   text-align: left;
   vertical-align: top;
+}
+
+/* 首列与末列补到与组标题同一条 18px 竖线；中间列不动——
+   中间列的 0 左内边距是列与列之间的沟，补上就会把整张表推宽。 */
+.hotkeys-table th:first-child {
+  padding-left: 18px;
+}
+
+.hotkeys-table td:last-child {
+  padding-right: 18px;
 }
 
 .hotkeys-table tr:last-child th,
@@ -415,31 +434,52 @@
   line-height: 1.6;
 }
 
-/* —— 设置浮层：关于页 —— */
+/* —— 设置浮层：关于页 ——
+   这一页的四行是**「标签 + 一句话说明」**，不是「标签 …… 值」。
+   原先它们同时挂着 `.about-fact`（`grid: 76px 1fr`）与 `.settings-item`
+   （`display: flex` + 值右对齐），后者后写入、特异性也更高，于是 grid 从来没生效过：
+   真机量到「版本」的 dt 占到 414px、值缩在右缘，而说明最长的那行「配置」
+   dt 被挤成 **0 宽**（"配""置"竖着摞两行）、值吃下 643px 并右对齐——
+   一段话右对齐，左边全是参差的缺口。
+   现在这四行只保留 `.about-fact` 的网格：标签固定 76px、说明左对齐、
+   行高与分隔线由行自己给（14px 18px 与 `.settings-item` 同一条竖线）。 */
 .about-facts {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   margin: 0;
 }
 
 .about-fact {
   display: grid;
   grid-template-columns: 76px 1fr;
+  align-items: start;
   gap: 10px;
+  padding: 14px 18px;
 }
 
+.about-fact:not(:last-child) {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+/* 标签与右侧那张「更新」卡里的 `<strong>` 同一档（1rem / 590 / 正文档）。
+   先前这里是 12px 三级灰：同一页上下两处「行标题」两个字号、两个颜色，
+   摘掉 `.settings-item` 之后一眼就看出来了（版本/文稿/配置/密钥 比 更新 小一圈）。
+   `<strong>` 自带 UA 的 bolder，会盖掉 590，所以下面把它按继承处理。 */
 .about-term {
-  color: var(--text-tertiary);
-  font-size: 0.857143rem;
-  font-weight: 650;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 590;
+}
+
+.about-term strong {
+  font-weight: inherit;
 }
 
 .about-detail {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 0.857143rem;
-  line-height: 1.65;
+  font-size: 0.928571rem;
+  line-height: 1.6;
 }
 
 /* —— 新建作品对话框：目录选择行 —— */
