@@ -529,13 +529,41 @@ export function selectBudgetDocPaths(input: SelectBudgetInput): readonly string[
 /**
  * 把装配结果拼成给模型看的提示词块。
  * 没有条目时返回空串——调用方据此判断「不要注入一段空标题」。
+ *
+ * 【技能条目合并成一段清单（2026-11-12）】原先每条技能都占一个 `【技能·名】` 块，挂几条就是
+ * 几个同形块，块里还缀着同一句「正文未载入……」——十几行读下来是一个样子的东西重复十几遍，
+ * 这正是模型最容易照抄的形状（也是它写正文时冒模板腔的来源之一）。技能的正文本来就不在这里
+ * （`use_skill` 现读），它和「一章正文」并列本来就不该同形：合并成一段清单，
+ * 标签仍走 `contextKindLabel("skill")` 一处，与占用条那格口径不变。
+ * 读法说明只说一次，由上下文包末尾的 `skillHint` 承担（`agent-service.ts`）。
  */
 export function renderContextBlock(assembled: AssembledContext): string {
   if (assembled.items.length === 0) return "";
   const lines: string[] = [];
+  // 连着的技能条目合成一段。技能在 pinned 里总排在书内挂入物之后（见 turn-context 的
+  // `[...pinned, ...skills]`），所以这里几乎总是「整段连续」；万一夹了别的条目，就断成两段清单。
+  let skillRun: ContextItem[] = [];
+  const flushSkills = (): void => {
+    if (skillRun.length === 0) return;
+    lines.push(`【${contextKindLabel("skill", false)}·挂入 ${skillRun.length} 份】`);
+    for (const item of skillRun) {
+      // 清单行自己就带名称（`skillBriefLine`）；外部直接塞 text 的场合（测试夹具、旧数据）
+      // 补上 title，否则一行里只剩用途、看不出这是哪一份技能。
+      lines.push(
+        `- ${item.text.startsWith(item.title) ? item.text : `${item.title}：${item.text}`}`
+      );
+    }
+    skillRun = [];
+  };
   for (const item of assembled.items) {
+    if (item.kind === "skill") {
+      skillRun.push(item);
+      continue;
+    }
+    flushSkills();
     lines.push(`【${contextKindLabel(item.kind, item.active)}·${item.title}】`, item.text);
   }
+  flushSkills();
   // 设定没带全时明说（W-01）：模型不会因为少了几条设定就停下，反而会顺手把缺的地方编圆。
   // 这句话是给模型看的提示，不是给用户看的——用户侧由占用条显示"设定"这一族占了多少。
   if ((assembled.bibleOmitted ?? 0) > 0) {

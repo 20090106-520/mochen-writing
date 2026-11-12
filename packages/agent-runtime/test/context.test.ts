@@ -259,8 +259,19 @@ describe("assembleContext · 装什么由 profile.context 决定", () => {
       const block = renderContextBlock(
         assemble("world", { pinned: ["book:伏笔"], pinnedExtra: SKILLS })
       );
-      expect(block).toContain("【技能·伏笔】");
+      expect(block).toContain("【技能·挂入 1 份】");
       expect(block).toContain("先埋线，三百字后收。");
+    });
+
+    it("挂多份技能时合成一段清单，不是 N 个同形块头（2026-11-12）", () => {
+      const block = renderContextBlock(
+        assemble("world", { pinned: ["book:伏笔", "global:节奏"], pinnedExtra: SKILLS })
+      );
+      expect(block).toContain("【技能·挂入 2 份】");
+      // 块头只出现一次：十几条技能各占一个块头，读起来就是同一句话重复十几遍。
+      expect(block.split("【技能").length - 1).toBe(1);
+      expect(block).toContain("- 伏笔：先埋线，三百字后收。");
+      expect(block).toContain("- 节奏：一章一节拍。");
     });
   });
 

@@ -68,7 +68,7 @@ import { abortableFetch } from "./provider-fetch.js";
 import { withPlugins, type PluginTools } from "./plugin-host.js";
 // 提示词装配（含「档案写入范围」那句人话）住在 prompt-assembly.ts：那里只把「一轮的现场」排成一段话，不共享状态。
 import { writeScopeSentence, type PromptContext } from "./prompt-assembly.js";
-import { buildContextPack } from "./system-pack.js";
+import { buildContextPack, SKILL_HINT } from "./system-pack.js";
 
 // UNBOUND 取自 contracts（与渲染层 utils/agent-thread.ts 那份同值只是巧合）——这里不再另立一份。
 const MAX_TOOL_ROUNDS = 4;
@@ -634,10 +634,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         // 档案的写入范围写进提示词：它是上限不是授权，模型自己先知道能碰哪些目录。
         const prompt = `${deps.promptFor(context)}\n${writeScopeSentence(profile)}`;
         const contextBlock = renderContextBlock(assembled);
-        // P0-2：技能只进清单。必须补一句「正文未载入」，否则模型看见名字会以为方法已读过、照印象动笔。
-        const skillHint = assembled.items.some((item) => item.kind === "skill")
-          ? "上面标注「技能」的条目只是清单（名称与用途），正文没有载入；要按其中一份方法动笔，先用 use_skill 读出全文。"
-          : "";
+        // P0-2：技能只进清单，必须补一句「正文未载入」——否则模型看见名字会以为方法已读过、照印象动笔。
+        // 句子只在这里说一次（`SKILL_HINT`），清单行不再逐行复读它。
+        const skillHint = assembled.items.some((item) => item.kind === "skill") ? SKILL_HINT : "";
         // P0-3：上下文包单独成串算 token，系统提示只算 prompt 那一截——
         // 三路预算要按比例分，就得各自可量。拼法住在 system-pack.ts 一处。
         const contextPackText = buildContextPack({ contextBlock, skillHint, skillIndex });

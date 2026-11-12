@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildContextPack } from "./system-pack.js";
+import { buildContextPack, SKILL_HINT } from "./system-pack.js";
 
 const noIndex = { text: "", total: 0, shown: 0 };
 
@@ -44,5 +44,32 @@ describe("系统提示里的上下文包", () => {
       skillIndex: { text: "- a（global:a）：x", total: 1, shown: 1 }
     });
     expect(out).toBe("\n\n【已装配的上下文】\n第一章\n\n【技能库】\n- a（global:a）：x");
+  });
+});
+
+/**
+ * 「技能只是清单」这句提醒（2026-11-12）。
+ *
+ * 它原先不在这个文件里，而是每行清单行尾各缀一遍；挂 12 条就是 12 遍同一句话。
+ * 现在只有这一处说，所以这句话本身要经得起单独出现：说清「读哪个、怎么读、别猜」。
+ */
+describe("SKILL_HINT · 技能读法只说一次", () => {
+  it("给出可照抄的调用形状：带引号的 <id> 占位，不是一句「用 use_skill」", () => {
+    expect(SKILL_HINT).toContain('use_skill("<id>")');
+  });
+
+  it("堵住「凭名字猜做法」这条退化路", () => {
+    expect(SKILL_HINT).toContain("没有载入");
+    expect(SKILL_HINT).toContain("别凭名字猜");
+  });
+
+  it("整段提示里这句只出现一次（技能条目再多也不复读）", () => {
+    const block = ["【技能·挂入 3 份】", "- a（global:a）：x", "- b（global:b）：y"].join("\n");
+    const out = buildContextPack({
+      contextBlock: block,
+      skillHint: SKILL_HINT,
+      skillIndex: noIndex
+    });
+    expect(out.split(SKILL_HINT).length - 1).toBe(1);
   });
 });

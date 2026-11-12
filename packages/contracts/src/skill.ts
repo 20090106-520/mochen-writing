@@ -68,15 +68,41 @@ export function skillIdOf(source: SkillSource, dirName: string): string {
 }
 
 /**
- * 技能清单里的一行（P0-2）：只给名称、用途、适用面与载入方式，**不给正文**。
+ * 清单行里 description 的截断长度（挂入行与技能库索引行共用一把尺）：
+ * 够认出「它是干什么的」，不够塞进一份说明书。
+ */
+const SKILL_INDEX_DESC_CHARS = 48;
+
+/** 压成一行并截断：清单里每条只占一行，description 里换行会把清单拆成两段。 */
+function briefDesc(description: string): string {
+  const flat = description.replace(/\s+/g, " ").trim();
+  if (flat === "") return "（无说明）";
+  const chars = [...flat];
+  return chars.length <= SKILL_INDEX_DESC_CHARS
+    ? flat
+    : `${chars.slice(0, SKILL_INDEX_DESC_CHARS).join("")}…`;
+}
+
+/**
+ * 技能清单里的一行（P0-2）：只给名称、id、用途与适用面，**不给正文**。
  * 正文由 `use_skill` 按 id 按需读取——清单进系统提示，方法留在盘上，挂多少技能都不吃预算。
+ *
+ * 【为什么行尾不再带「正文未载入，需要时用 use_skill 读取」】那句话原先是每行一份，
+ * 挂满 12 条就是同一句制式话在提示词里出现 12 遍；而上下文包末尾的 `skillHint`
+ * 已经整段说过一次（`agent-service.ts`），技能库索引的段头也说一次。三处说同一件事，
+ * 模型读到的是一段复读机——正是它最擅长模仿的形状。这里只留**这一条是什么**，
+ * 「怎么读」交给说一次的那两处。
+ *
+ * 【为什么 description 也截断】索引行截到 48 字（`briefDesc`），挂入行原先一个字不截。
+ * 用户写三千字说明的场合下，这行会撑满 `PINNED_SKILL_CHARS` 的上限并被 clip 从中间切断——
+ * 「清单短句永远碰不到上限」这个前提当场失效，而且被切掉的正是行尾。两处用同一把尺。
  */
 export function skillBriefLine(ref: SkillRef): string {
   const hints: string[] = [];
   if (ref.stages.length > 0) hints.push(`阶段：${ref.stages.join("、")}`);
   if (ref.appliesTo.length > 0) hints.push(`文稿：${ref.appliesTo.join("、")}`);
   const tail = hints.length > 0 ? `（${hints.join("；")}）` : "";
-  return `${ref.displayName || ref.dirName}：${ref.description}${tail}；正文未载入，需要时用 use_skill("${ref.id}") 读取。`;
+  return `${ref.displayName || ref.dirName}（${ref.id}）：${briefDesc(ref.description)}${tail}`;
 }
 
 /**
@@ -94,9 +120,6 @@ export function skillBriefLine(ref: SkillRef): string {
 export const SKILL_INDEX_MAX_ITEMS = 24;
 export const SKILL_INDEX_MAX_CHARS = 1800;
 
-/** 索引里单条 description 的截断长度：够认出「它是干什么的」，不够塞进一份说明书。 */
-const SKILL_INDEX_DESC_CHARS = 48;
-
 export interface SkillIndexOptions {
   maxItems?: number;
   maxChars?: number;
@@ -111,16 +134,7 @@ export interface SkillIndexResult {
   shown: number;
 }
 
-/** 压成一行并截断：索引里每条只占一行，description 里换行会把清单拆成两段。 */
-function briefDesc(description: string): string {
-  const flat = description.replace(/\s+/g, " ").trim();
-  if (flat === "") return "（无说明）";
-  const chars = [...flat];
-  return chars.length <= SKILL_INDEX_DESC_CHARS
-    ? flat
-    : `${chars.slice(0, SKILL_INDEX_DESC_CHARS).join("")}…`;
-}
-
+/** 压成一行并截断：清单里每条只占一行，description 里换行会把清单拆成两段。 */
 /**
  * 拼「技能库索引」这一段：库里**没挂入**的技能，一行一条（名称 · id · 一句说明）。
  *

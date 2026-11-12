@@ -513,7 +513,10 @@ describe("挂入技能（spec §11 / P0-2 渐进披露）", () => {
     const system = sent.messages[0]?.content ?? "";
     expect(system).toContain("伏笔");
     expect(system).toContain("埋线收线的方法");
-    expect(system).toContain('use_skill("book:伏笔")');
+    // 清单行带 id、提示里给可照抄的调用形状——两半合起来才够模型调对参数
+    // （2026-11-12 前是每行行尾各缀一句 `use_skill("book:伏笔")`，挂 12 条就复读 12 遍）。
+    expect(system).toContain("book:伏笔");
+    expect(system).toContain('use_skill("<id>")');
     // 必须说清「正文没载入」，否则模型看见名字会以为方法已经读过。
     expect(system).toContain("正文没有载入");
     // 模型没打算用这份方法时，整份正文不再跟着系统提示一起发出去。

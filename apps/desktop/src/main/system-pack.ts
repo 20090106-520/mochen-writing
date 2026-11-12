@@ -14,10 +14,25 @@
  */
 import type { SkillIndexResult } from "@mochen/contracts";
 
+/**
+ * 「标注技能的那些其实只是清单」这句提醒（2026-11-12 从 agent-service 搬来）。
+ *
+ * 【为什么只在这里说一次】技能的读法原先是**每行清单行尾各缀一遍**（「正文未载入，需要时用
+ * use_skill 读取」）——挂 12 条就是同一句制式话在提示词里出现 12 遍。模型读到的是一段复读机，
+ * 正是它最擅长模仿的形状；而写小说时的模板腔，有一半是从提示词自己的复读里学去的。
+ * 现在清单行只说「这一条是什么」（`skillBriefLine`），读法由这一句统一交代。
+ *
+ * 【为什么强调 id】清单行带 id（`名称（id）：说明`），照抄它调 `use_skill` 就行；
+ * 只说「用 use_skill」不给形状，模型会自己编一个参数名。
+ */
+export const SKILL_HINT =
+  "上面标注「技能」的那些条目只是清单（名称、id、用途与适用面），正文没有载入；" +
+  '要按其中一份方法动笔，先用 use_skill("<id>") 读出全文，别凭名字猜它的做法。';
+
 export interface ContextPackInput {
   /** `renderContextBlock` 的产物；空串＝这一轮没有可装的条目。 */
   contextBlock: string;
-  /** 「标注技能的那些只是清单，正文没载入」那句提醒；没有技能条目时是空串。 */
+  /** 「标注技能的那些只是清单，正文没载入」那句提醒；没有技能条目时是空串（见 `SKILL_HINT`）。 */
   skillHint: string;
   /** 技能库里没挂入的那些（`skillIndexBlock` 的结果）。 */
   skillIndex: SkillIndexResult;
