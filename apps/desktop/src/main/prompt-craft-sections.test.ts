@@ -97,6 +97,58 @@ describe("写正文七段 · 段间不许逐字复述", () => {
   });
 });
 
+/**
+ * 同一件事说过三四遍，模型就学成模板（2026-11-12）。
+ *
+ * 前一轮清的是**逐字**重复（上面那一组）。这一组守的是**换个说法说同一件事**——
+ * 逐字比对抓不到，但它们对模型的效果一样：同一件事读四遍，写出来就是照着那个句式填。
+ * 三处都是真数出来的：
+ * ①「句子长短」原来在文风硬约束（「要有长有短」）与人性化创作第 4 条（「紧张处短、舒缓处长」）各一份，
+ *    泛的那份删了，具体的留一处；
+ * ②「该慢的多写两拍」原在人性化创作第 3 条与用笔处置第 1 条的「展」各一份——删前者的后半句，
+ *    改成交叉引用（详略三测本来就归用笔处置管）；
+ * ③ 结构级去味原 ⑧「引号加戏」与 ⑨「反差模板」分两条，其实都是「替读者划重点」，并成一条。
+ *
+ * 腾出来的位置补了叙事手法第 6 条「视角」——翻遍整份提示词，「视角」原本一次都没出现过。
+ */
+describe("写正文七段 · 同一件事只说一处", () => {
+  it("句子长短只在一处说（跟着情绪那条）", () => {
+    expect(AI_FLAVOR_INSTRUCTION).not.toContain("句长要有长有短");
+    expect(HUMAN_CRAFT_INSTRUCTION).toContain("紧张处用短句");
+    // 叙事手法第 5 条管的是**篇幅**（哪里放慢、哪里收紧），不许再管句式长短。
+    expect(NARRATIVE_CRAFT_INSTRUCTION).not.toContain("用短句");
+  });
+
+  it("详略的「展」只归用笔处置，人性化创作只留一句交叉引用", () => {
+    expect(HUMAN_CRAFT_INSTRUCTION).not.toContain("多写两拍");
+    expect(HUMAN_CRAFT_INSTRUCTION).toContain("「用笔处置」第 1 条");
+    expect(DETAIL_AND_BEAT_INSTRUCTION).toContain("多写两拍");
+  });
+
+  it("结构级去味的条数从十条落到九条（⑧⑨ 并条）", () => {
+    // 九条编号一个不多一个不少：并条时最容易漏改的是末条编号（⑩ 留在原地，前面却只剩 ⑧）。
+    const marks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"];
+    const used = marks.filter((m) => DE_AI_FLAVOR_STRUCTURE_INSTRUCTION.includes(m));
+    expect(used).toEqual(marks.slice(0, 9));
+    expect(DE_AI_FLAVOR_STRUCTURE_INSTRUCTION).not.toContain("⑩");
+  });
+
+  it("「视角」只在叙事手法一段里说，且落在第 6 条", () => {
+    // 同段里「视角」出现三次是对的（视角不越界 / 一个视角人物 / 全知视角），
+    // 要守的是**别的段不许再开一份口径**：两处讲同一件事，模型就只记得住措辞最短那份。
+    const sectionsWithPov = Object.entries(SECTIONS)
+      .filter(([, text]) => text.includes("视角"))
+      .map(([name]) => name);
+    expect(sectionsWithPov).toEqual(["叙事手法要求"]);
+    expect(NARRATIVE_CRAFT_INSTRUCTION).toContain("6. 视角不越界");
+    // 三个判据缺一不可：能写谁的（别人的心理不写）、叙述者不许越权（不替他把话挑明）、
+    // 信息按人物此刻该知道的给（他还不知道的事只写看不见的那一面）。
+    expect(NARRATIVE_CRAFT_INSTRUCTION).toContain("别人的心理一概不写");
+    expect(NARRATIVE_CRAFT_INSTRUCTION).toContain("也不替他把话挑明");
+    expect(NARRATIVE_CRAFT_INSTRUCTION).toContain("只写他看不见的那一面");
+  });
+});
+
 describe("写正文七段 · 作用域只说一次", () => {
   it("段头不再各带一个「（写小说正文时遵守）」", () => {
     for (const [name, text] of Object.entries(SECTIONS)) {
@@ -139,7 +191,9 @@ describe("写正文七段 · 字数预算", () => {
     }
   });
 
-  it("七段合计不超过 3800 字（2026-11-12 实测 3774）", () => {
+  it("七段合计不超过 3800 字（2026-11-12 实测 3786）", () => {
+    // 3774 → 3786 是「并三条泛话、补一条视角」之后的净账：加进来的第 6 条「视角」163 字，
+    // 靠删重复腾出 151 字。以后再加规矩，仍得先删旧的——这条预算就是那根尺。
     const total = Object.values(SECTIONS).reduce((sum, text) => sum + [...text].length, 0);
     expect(total).toBeLessThanOrEqual(BUDGET_TOTAL);
   });

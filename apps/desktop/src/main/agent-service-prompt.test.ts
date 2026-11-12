@@ -83,9 +83,11 @@ describe("defaultPromptFor · 拼装", () => {
     expect(text).toContain("嘴角勾起");
     expect(text).toContain("众所周知");
     expect(text).toContain("他知道，……");
-    // 副词与句长是另口叮嘱的两条（词表不点名它们，提示词里得有）。
+    // 副词是这一段另口叮嘱的（词表不点名它）。句长那条 2026-11-12 挪进「人性化创作」第 4 条
+    // 说具体做法（紧张处短、舒缓处长）——这一段不再泛泛地提「要有长有短」，同一件事只说一处。
     expect(text).toContain("副词能删就删");
-    expect(text).toContain("别让连续几句一样长");
+    expect(text).toContain("紧张处用短句");
+    expect(text).not.toContain("别让连续几句一样长");
   });
 
   it("结构级去味常驻（2026-10-16 融合技能库三条去味技能）", () => {
