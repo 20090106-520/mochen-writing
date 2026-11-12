@@ -10,6 +10,7 @@ import {
   eventsToMessages,
   findLatestSession,
   findSessionById,
+  isLegacyThinkingMessage,
   listSessions,
   readSession,
   sessionRelPath
@@ -228,6 +229,77 @@ function proposalFixture() {
     createdAt: "2026-10-01T08:00:00.000Z"
   };
 }
+
+/**
+ * 老会话里「整条思考被写进正文」的那一类消息（2026-11-12）。
+ *
+ * 夹具照真机 rollout 抄：2026-11-10 那轮里有两条 message 整条都是「（思考摘要）…」，
+ * 一条中文一条英文，都躺在用户书里的会话文件里。2026-11-10 改的只是回放格式，
+ * 已经落盘的字洗不掉，下一轮照样被 eventsToMessages 当 assistant 正文读回来。
+ */
+describe("isLegacyThinkingMessage · 擦掉旧会话里的思考正文", () => {
+  const CN_LEGACY =
+    "（思考摘要）用户问我觉得自己还有什么地方可以优化。这个问题有点开放，" +
+    "但结合我作为写作智能体的定位，我应该坦诚地聊聊我实际可能存在的短板。";
+  const EN_LEGACY =
+    "（思考摘要）The user is asking what I think could be improved. " +
+    "I should be honest and direct. Keep it casual, no report-style.";
+
+  it("真机那两条（中文 / 英文）都不进模型历史，后面的真回复照常回喂", () => {
+    const events: AgentEvent[] = [
+      { ...turn, type: "user-message", text: "你好，你觉得你还有什么地方可以优化" },
+      { ...turn, id: "e2", type: "message", text: CN_LEGACY, interrupted: false },
+      { ...turn, id: "e3", type: "message", text: EN_LEGACY, interrupted: false },
+      {
+        ...turn,
+        id: "e4",
+        type: "message",
+        text: "说句实话：现在问「哪里还能优化」，我没抓手。",
+        interrupted: false
+      }
+    ];
+    expect(eventsToMessages(events).map((m) => m.content)).toEqual([
+      "你好，你觉得你还有什么地方可以优化",
+      "说句实话：现在问「哪里还能优化」，我没抓手。"
+    ]);
+  });
+
+  it("丢掉整条思考不许弄断工具调用的往返顺序", () => {
+    const events: AgentEvent[] = [
+      { ...turn, type: "message", text: CN_LEGACY, interrupted: false },
+      {
+        ...turn,
+        id: "e2",
+        type: "tool-call",
+        callId: "c1",
+        tool: "list_docs",
+        args: "{}",
+        ok: true,
+        resultText: "（没有符合条件的文稿）"
+      },
+      { ...turn, id: "e3", type: "message", text: "这本书是空的。", interrupted: false }
+    ];
+    const messages = eventsToMessages(events);
+    expect(messages.map((m) => m.role)).toEqual(["assistant", "tool", "assistant"]);
+    expect(messages[0]?.toolCalls.map((c) => c.name)).toEqual(["list_docs"]);
+    expect(messages[1]?.content).toBe("（没有符合条件的文稿）");
+    expect(messages[2]?.content).toBe("这本书是空的。");
+  });
+
+  it("只认最开头的自家旧格式：前导空白算，中间提到不算", () => {
+    expect(isLegacyThinkingMessage(CN_LEGACY)).toBe(true);
+    expect(isLegacyThinkingMessage(`  \n${CN_LEGACY}`)).toBe(true);
+    expect(isLegacyThinkingMessage("我上一条开头写了（思考摘要），这次不这么写了")).toBe(false);
+    expect(isLegacyThinkingMessage("说句实话：")).toBe(false);
+    expect(isLegacyThinkingMessage("")).toBe(false);
+  });
+
+  it("「（分析）」「（内心）」不是旧回放生成的形状，不在这儿误伤", () => {
+    // 这两个是模型自由发挥的变体，没有稳定格式，交给对话口径第 ⑦ 条管。
+    expect(isLegacyThinkingMessage("（分析）先看看有没有文稿")).toBe(false);
+    expect(isLegacyThinkingMessage("（内心）他其实早知道了")).toBe(false);
+  });
+});
 
 /** #113e 历史对话面板的数据源：一本书里的全部会话，从新到旧。 */
 describe("listSessions", () => {

@@ -291,6 +291,22 @@ export async function findSessionById(
 }
 
 /**
+ * 旧回放格式留下的「整条思考被写进正文」消息（2026-11-12）。
+ *
+ * 2026-11-10 之前，reasoning 会以 `assistant:（思考摘要）…` 回喂；那几条事件**已经落进用户书里的
+ * 会话文件**，改回放格式洗不掉它们。真机那份 rollout 里有两条 message 整条都是思考摘要
+ * （一条中文、一条英文），下一轮 `eventsToMessages` 照样把它们当 assistant 正文读回来。
+ * 提示词里再钉一句「别写这个前缀」压不住：模型刚看过什么就模仿什么，眼前摆着一整段示范，
+ * 比一句禁令强得多。旧代码一条事件就是一整段思考、不与正文混写，所以整条丢不会吃掉回复。
+ *
+ * 只认自家旧格式那个确切前缀，且必须在最开头（只许前导空白）：不认「（分析）」「（内心）」
+ * 那些模型自由发挥的变体（形状不稳，交给对话口径管），中间提到这个词的正常回复也不许误伤。
+ */
+export function isLegacyThinkingMessage(text: string): boolean {
+  return /^\s*（思考摘要）/.test(text);
+}
+
+/**
  * 事件序列 → 下一轮请求的 messages。设计决定 3：审批结果与带说明的拒绝都以 user 角色回喂，
  * plan / error / interrupted 只供 UI，不进模型历史（它们不是对话内容）。
  */
@@ -316,7 +332,11 @@ export function eventsToMessages(events: AgentEvent[]): ChatMessage[] {
       case "reasoning":
         break;
       case "message":
-        if (event.text.trim() !== "") out.push(chatMessage("assistant", event.text));
+        // 老会话里旧回放格式留下的整条思考不能回喂（见 isLegacyThinkingMessage）：
+        // 那等于每轮给模型示范一遍「把思考写进正文」。新会话不会再产生这种事件，
+        // 这一句只擦历史，不改动 UI——事件还在会话文件里，思考卡片照常显示。
+        if (event.text.trim() !== "" && !isLegacyThinkingMessage(event.text))
+          out.push(chatMessage("assistant", event.text));
         break;
       case "tool-call":
         out.push(
