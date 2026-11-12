@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import {
+  DEFAULT_BOOK_STAGES,
   DEFAULT_PERMISSION_MODE,
   IPC_CHANNELS,
   parseBookMeta,
@@ -244,12 +245,14 @@ export function createBookService(deps: BookServiceDeps): BookService {
       // 权限档取 contracts 的 DEFAULT_PERMISSION_MODE，不在主进程捏一个档位名——用户裁定是「新书默认全开」，
       // 而主进程其它地方（agent-service 的 context、渲染层的 PermissionMenu）兜的都是这一个常量；
       // 这里曾写死 "read-only"，于是同一本书「刚建出来是只读、没开书时兜底却是全开」，两处自相矛盾。
+      // 默认阶段取 contracts 的 DEFAULT_BOOK_STAGES（2026-11-12 收上来）：出厂技能的 frontmatter
+      // `stage` 也读这同一份的第一枚 name——技能推荐比的是阶段名，两处各写一份就会永不命中。
       const meta = parseBookMeta({
         id: randomUUID(),
         title,
         schemaVersion: 1,
-        stages: [{ id: "draft", name: "正文" }],
-        activeStage: "draft",
+        stages: DEFAULT_BOOK_STAGES.map((stage) => ({ ...stage })),
+        activeStage: DEFAULT_BOOK_STAGES[0]!.id,
         permissionMode: DEFAULT_PERMISSION_MODE,
         chapterOrder: []
       });

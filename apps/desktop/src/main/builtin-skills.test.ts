@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { DEFAULT_STAGE_NAME } from "@mochen/contracts";
 import {
   BUILTIN_SKILLS,
   LEGACY_SKILL_SHA,
@@ -207,5 +208,22 @@ describe("文风检查的正文（2026-11-12 重写）", () => {
     expect(STYLE.skillMd).toContain("系统提示里那份禁用词表");
     expect(STYLE.skillMd).not.toContain("「眼底闪过」");
     expect(STYLE.skillMd).not.toContain("深吸一口气");
+  });
+});
+
+/**
+ * 出厂技能的 `stage` 必须与新建书的默认阶段同名（2026-11-12）。
+ *
+ * 技能推荐比的是**阶段名**不是 id（`skillPickOf` 的 `stages.includes(scene.stageName)`）。
+ * 出厂四条原先写 `stage: review`——英文 id，而新建书的阶段叫「正文」，于是这一路 40 分
+ * 在任何一本新书里都永不命中：四条只剩「适用文稿」的 30 分，同分按 id 字典序取前三条，
+ * `check-style`（最该自动挂上的那条）永远排第四。市场技能写的是 `- 正文`，与这里同口径。
+ */
+describe("出厂技能的 stage 与新建书同口径", () => {
+  it("每一条都写默认阶段名，不是英文 id", () => {
+    for (const skill of BUILTIN_SKILLS) {
+      expect(skill.skillMd).toContain(`stage: ${DEFAULT_STAGE_NAME}`);
+      expect(skill.skillMd).not.toContain("stage: review");
+    }
   });
 });

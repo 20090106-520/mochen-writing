@@ -28,6 +28,21 @@ export interface BookStage {
   profile?: string | undefined;
 }
 
+/**
+ * 新建作品的默认阶段（2026-11-12 从 book-service 收上来）。
+ *
+ * 【为什么必须只有一份】技能推荐比的是**阶段名**不是 id（`skillPickOf` 的
+ * `candidate.stages.includes(scene.stageName)`），而技能的 frontmatter `stage` 写的也是名字。
+ * 出厂四条技能原先写的是 `stage: review`（英文 id），市场技能写的是 `- 正文`（中文名）——
+ * 于是出厂那四条在任何一本书里都**永不命中**阶段这一路 40 分，只剩「适用文稿」那 30 分，
+ * 而同分的四条又按 id 字典序取前三条，`check-style`（最该自动挂上的那条）永远排第四。
+ * 收成一处常量之后，新建书的阶段名与出厂技能的 `stage` 再没有走岔的余地。
+ */
+export const DEFAULT_BOOK_STAGES: readonly BookStage[] = [{ id: "draft", name: "正文" }];
+
+/** 默认阶段名（`DEFAULT_BOOK_STAGES` 的第一枚）：出厂技能与新建书共用这一个字符串。 */
+export const DEFAULT_STAGE_NAME = DEFAULT_BOOK_STAGES[0]!.name;
+
 export interface BookMeta {
   id: string;
   title: string;

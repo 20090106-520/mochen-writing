@@ -7,6 +7,7 @@ import {
   AI_FLAVOR_GATE,
   AI_FLAVOR_SIMILE_LABEL,
   AI_FLAVOR_STRUCTURE_MIN_COUNT,
+  DEFAULT_STAGE_NAME,
   SENTENCE_START_REPEAT,
   SKILL_FILE_NAME
 } from "@mochen/contracts";
@@ -151,7 +152,7 @@ export const BUILTIN_SKILLS: BuiltinSkill[] = [
     skillMd: skillDoc({
       name: "一致性检查",
       description: "对照人物、设定与剧情，指出当前章前后矛盾或与设定不符之处；没有就明说没有。",
-      stage: "review",
+      stage: DEFAULT_STAGE_NAME,
       body:
         PREAMBLE +
         "\n\n本次只看**一致性**：找出与已有的人物卡、世界观、时间线、伏笔相矛盾或前后不一致的地方。" +
@@ -164,7 +165,7 @@ export const BUILTIN_SKILLS: BuiltinSkill[] = [
     skillMd: skillDoc({
       name: "剧情审核",
       description: "评估当前章情节推进是否合理、节奏与冲突是否成立、伏笔与回收是否妥当。",
-      stage: "review",
+      stage: DEFAULT_STAGE_NAME,
       body:
         PREAMBLE +
         "\n\n本次只看**剧情**：评估情节推进是否合理、节奏与冲突是否成立、伏笔埋设与回收是否妥帖，" +
@@ -177,7 +178,7 @@ export const BUILTIN_SKILLS: BuiltinSkill[] = [
     skillMd: skillDoc({
       name: "逻辑检查",
       description: "找出当前章因果链断裂、动机不足、时间线对不上的地方；没有就明说没有。",
-      stage: "review",
+      stage: DEFAULT_STAGE_NAME,
       body:
         PREAMBLE +
         "\n\n本次只看**逻辑**：找出因果链断裂、人物动机不足、时间线对不上的地方。" +
@@ -190,7 +191,7 @@ export const BUILTIN_SKILLS: BuiltinSkill[] = [
     skillMd: skillDoc({
       name: "文风检查",
       description: "按用词、句式、节奏三层找当前章的 AI 腔与套话句式，逐处给出更像人写的改法。",
-      stage: "review",
+      stage: DEFAULT_STAGE_NAME,
       body: styleBody()
     })
   }
