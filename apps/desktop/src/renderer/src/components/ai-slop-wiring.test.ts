@@ -149,3 +149,47 @@ describe("样式", () => {
     expect(css).toContain(".ai-slop");
   });
 });
+
+/**
+ * 本章问题清单（W-04 第一刀，2026-11-12）。
+ *
+ * 面板里最容易退化的一点：把「这一秒扫出的命中」和「上次体检留下的结论」混成一份 ref，
+ * 于是作者改一个字，清单就跟着抖。这里钉的是两者分开、状态只在 store 里、操作逐条可达。
+ */
+describe("本章问题清单", () => {
+  it("结论走 store 的按章通路，组件里不许另持一份状态", () => {
+    expect(panelScript).toContain("useReviewIssuesStore()");
+    expect(panelScript).toContain("issues.check(rel, hits.value)");
+    expect(panelScript).toContain("issues.setStatus(rel, id, status)");
+    expect(panelScript).toContain("const savedIssues = computed(");
+    expect(panelScript).not.toMatch(/const savedIssues\s*=\s*ref\(/);
+  });
+
+  it("没打开文稿时记不进去（不许把这一轮命中挂到别的章上）", () => {
+    expect(panelScript).toContain("if (rel === null) return;");
+    expect(panelTpl).toContain(':disabled="book.activeDocTab === null"');
+  });
+
+  it("状态与逐条「忽略 / 恢复」都在模板里", () => {
+    expect(panelTpl).toContain("本章清单");
+    expect(panelTpl).toContain("statusLabel(item.status)");
+    expect(panelTpl).toContain("setIssueStatus(item.id");
+    expect(panelTpl).toContain('item.status === "ignored" ? "恢复" : "忽略"');
+  });
+
+  it("存不下要说话：saveError 接着面板", () => {
+    expect(panelTpl).toContain("issues.saveError");
+  });
+
+  it("新样式不是空壳，清单有高度上限（不许把吸底的主操作推走）", () => {
+    for (const selector of [
+      ".ai-slop-issue-bar",
+      ".ai-slop-issue-record",
+      ".ai-slop-saved-item",
+      ".ai-slop-saved-action"
+    ]) {
+      expect(ruleBlock(css, selector), `${selector} 不许是空壳`).not.toBe("");
+    }
+    expect(ruleBlock(css, ".ai-slop-saved-list")).toContain("max-height");
+  });
+});

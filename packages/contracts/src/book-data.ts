@@ -11,8 +11,13 @@
  * 让渲染层传路径，等于让浏览器决定主进程读写哪，路径穿越与盖掉 book.json 都随之开门。
  */
 
-/** 白名单：书里到底有哪几份设定数据。加第四份先改这里，再改 store。 */
-export const BOOK_DATA_KEYS = ["notes", "story-bible", "writing-goal"] as const;
+/**
+ * 白名单：书里到底有哪几份随书保存的数据。加一份先改这里，再改 fs-store 的文件名表与 store。
+ *
+ * 前三份是作者写的设定；`review-issues`（2026-11-12，W-04）是审稿结论，不是设定——
+ * 但它同样必须「按书隔离 + 换书先落盘 + 读不懂不许盖」，所以复用这条通路而不是另造一份。
+ */
+export const BOOK_DATA_KEYS = ["notes", "story-bible", "writing-goal", "review-issues"] as const;
 
 export type BookDataKey = (typeof BOOK_DATA_KEYS)[number];
 
@@ -24,7 +29,8 @@ export type BookDataKey = (typeof BOOK_DATA_KEYS)[number];
 export const BOOK_DATA_LABELS: Record<BookDataKey, string> = {
   notes: "笔记",
   "story-bible": "故事圣经",
-  "writing-goal": "写作目标"
+  "writing-goal": "写作目标",
+  "review-issues": "审稿问题"
 };
 
 /**

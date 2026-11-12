@@ -179,3 +179,95 @@
   font-size: 0.857143rem;
   overflow-wrap: anywhere;
 }
+
+/* 本章问题清单（W-04 第一刀）：只留状态与操作，刻意不新画状态底色——
+   新档底色要进对比度普查表，这里靠字色与字重分「待修 / 已处理」。 */
+.ai-slop-issue-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.ai-slop-issue-summary {
+  flex: 1;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.857143rem;
+  overflow-wrap: anywhere;
+}
+
+.ai-slop-issue-record {
+  flex: none;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong, #c9ccd2);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--accent, #339cff);
+  font: inherit;
+  font-size: 0.857143rem;
+  cursor: pointer;
+}
+
+.ai-slop-issue-record:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-slop-saved {
+  margin-bottom: 10px;
+}
+
+.ai-slop-saved-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.ai-slop-saved-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--line, #e3e5e9);
+  border-radius: 6px;
+  font-size: 0.785714rem;
+}
+
+.ai-slop-saved-state {
+  flex: none;
+  color: var(--text-dim, #6b6f76);
+}
+
+.ai-slop-saved-state.is-open {
+  color: var(--danger, #d64545);
+  font-weight: 600;
+}
+
+.ai-slop-saved-word {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text, #222);
+}
+
+.ai-slop-saved-line {
+  flex: none;
+  color: var(--text-dim, #6b6f76);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ai-slop-saved-action {
+  flex: none;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--accent, #339cff);
+  font: inherit;
+  cursor: pointer;
+}

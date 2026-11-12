@@ -21,8 +21,12 @@ import { registerBookDataFlusher } from "./bookDataRegistry";
 export interface BookFileDataOptions<T> {
   /** 白名单里的键：路径由主进程按这张表拼，渲染层拿不到路径。 */
   readonly key: BookDataKey;
-  /** 迁移来源：旧的全局 localStorage 键名（不带书标识那一份）。 */
-  readonly legacyStorageKey: string;
+  /**
+   * 迁移来源：旧的全局 localStorage 键名（不带书标识那一份）。
+   * 不传＝这份数据从来没有过全局版本（如 2026-11-12 新增的审稿问题清单），
+   * 通路连 localStorage 都不去碰，而不是拿一个空串键去查一次。
+   */
+  readonly legacyStorageKey?: string;
   /** 内容住在调用方那个 ref 里：store 的视图与 computed 继续读它，通路只负责搬。 */
   readonly data: Ref<T>;
   /** 盘上没有、旧键也没有时的起点。 */
@@ -103,8 +107,10 @@ export function useBookFileData<T>(options: BookFileDataOptions<T>): BookFileDat
   }
 
   function readLegacy(): LegacyRead<T> {
+    const key = options.legacyStorageKey;
+    if (key === undefined) return { state: "none" };
     if (typeof localStorage === "undefined") return { state: "none" };
-    const raw = localStorage.getItem(options.legacyStorageKey);
+    const raw = localStorage.getItem(key);
     if (raw === null || raw === "") return { state: "none" };
     try {
       const normalized = options.normalize(JSON.parse(raw));
@@ -115,8 +121,10 @@ export function useBookFileData<T>(options: BookFileDataOptions<T>): BookFileDat
   }
 
   function clearLegacy(): void {
+    const key = options.legacyStorageKey;
+    if (key === undefined) return;
     if (typeof localStorage === "undefined") return;
-    localStorage.removeItem(options.legacyStorageKey);
+    localStorage.removeItem(key);
   }
 
   async function writeNow(mode: "save" | "migrate"): Promise<boolean> {

@@ -13,6 +13,8 @@ import { findAiSlop, slopChecklistPrompt, slopGateOf, slopVerdict } from "../uti
 import { threadKeyFor, useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
 import { useNotificationStore } from "../stores/useNotificationStore";
+import { useReviewIssuesStore } from "../stores/useReviewIssuesStore";
+import type { IssueStatus } from "../utils/review-issues";
 
 const props = defineProps<{ anchor: HTMLElement }>();
 const emit = defineEmits<{ close: [] }>();
@@ -20,6 +22,7 @@ const emit = defineEmits<{ close: [] }>();
 const book = useBookStore();
 const agent = useAgentStore();
 const notify = useNotificationStore();
+const issues = useReviewIssuesStore();
 const panel = ref<HTMLElement>();
 
 const { style, close, tab } = useComposerContextPopover(
@@ -42,6 +45,46 @@ const suspectHits = computed(() => hits.value.filter((h) => h.strength === "susp
 const docTitle = computed(
   () => book.docs.find((d) => d.relPath === book.activeDocTab)?.title ?? "这一篇"
 );
+
+/* ───── 本章问题清单（W-04 第一刀）：留存的是「上次体检的结论」，不是这一秒的扫描 ───── */
+
+/** 命中列表是实时的 computed，清单是按章留存的——两者分开摆，别让作者以为改一个字就改了结论。 */
+const savedIssues = computed(() =>
+  book.activeDocTab === null ? [] : issues.issuesFor(book.activeDocTab)
+);
+const openIssues = computed(
+  () => savedIssues.value.filter((item) => item.status === "open").length
+);
+const issueSummary = computed(() => {
+  if (book.activeDocTab === null) return "打开一章后才能留存问题。";
+  if (savedIssues.value.length === 0) return "本章还没有留存的问题。";
+  return openIssues.value > 0 ? `本章还有 ${openIssues.value} 条待修。` : "本章清单都处理完了。";
+});
+const issueButtonLabel = computed(() =>
+  savedIssues.value.length > 0 ? "复检这一章" : "记进本章清单"
+);
+
+/** 只在用户点按钮时并一次：跟着输入实时跑会把清单抖成「已修 / 待修」来回翻。 */
+function recordCheck(): void {
+  const rel = book.activeDocTab;
+  if (rel === null) return;
+  issues.check(rel, hits.value);
+  notify.notify({
+    title: "交稿问题",
+    message: "这一章的结论已记下，改完再点一次复检。",
+    level: "info"
+  });
+}
+
+function setIssueStatus(id: string, status: IssueStatus): void {
+  const rel = book.activeDocTab;
+  if (rel === null) return;
+  issues.setStatus(rel, id, status);
+}
+
+function statusLabel(status: IssueStatus): string {
+  return status === "open" ? "待修" : status === "fixed" ? "已修" : "已忽略";
+}
 
 /**
  * 把本地清单交给 AI 改。
@@ -106,6 +149,41 @@ function keydown(event: KeyboardEvent): void {
       <p class="ai-slop-note">
         纯本地查表，不联网、不花 token。查的是套话与万能句式，<b>报出来是提醒，不是判你写错了</b>。
       </p>
+
+      <!-- 本章清单（W-04 第一刀）：上面这句是「这一秒的扫描」，这一栏是「上次体检留下的结论」。
+           两者分开摆，免得作者以为改一个字就等于改了结论。只在点按钮时并一次。 -->
+      <div class="ai-slop-issue-bar">
+        <span class="ai-slop-issue-summary">{{ issueSummary }}</span>
+        <button
+          class="ai-slop-issue-record"
+          type="button"
+          :disabled="book.activeDocTab === null"
+          @click="recordCheck"
+        >
+          {{ issueButtonLabel }}
+        </button>
+      </div>
+      <p v-if="issues.saveError !== ''" class="ai-slop-note">{{ issues.saveError }}</p>
+
+      <section v-if="savedIssues.length > 0" class="ai-slop-saved">
+        <h4 class="ai-slop-section-title">本章清单（{{ openIssues }} 条待修）</h4>
+        <ul class="ai-slop-saved-list">
+          <li v-for="item in savedIssues" :key="item.id" class="ai-slop-saved-item">
+            <span class="ai-slop-saved-state" :class="{ 'is-open': item.status === 'open' }">{{
+              statusLabel(item.status)
+            }}</span>
+            <span class="ai-slop-saved-word">{{ item.matched }}</span>
+            <span class="ai-slop-saved-line">第 {{ item.line }} 行</span>
+            <button
+              class="ai-slop-saved-action"
+              type="button"
+              @click="setIssueStatus(item.id, item.status === 'ignored' ? 'open' : 'ignored')"
+            >
+              {{ item.status === "ignored" ? "恢复" : "忽略" }}
+            </button>
+          </li>
+        </ul>
+      </section>
 
       <p v-if="book.draft.trim() === ''" class="ai-slop-empty">这一篇还没有正文。</p>
 

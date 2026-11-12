@@ -35,15 +35,16 @@ async function namesIn(dir: string): Promise<string[]> {
 }
 
 describe("book-data：键白名单", () => {
-  it("三枚键各自登记在 .mochen/data/ 下，文件名固定", () => {
-    // 这枚表是「书里到底有哪几份设定数据」的唯一事实源：加第四枚必须在这里加，
+  it("四枚键各自登记在 .mochen/data/ 下，文件名固定", () => {
+    // 这枚表是「书里到底有哪几份随书保存的数据」的唯一事实源：加一枚必须在这里加，
     // 而不是在某个 store 里顺手拼一个路径。
     expect(Object.keys(BOOK_DATA_FILENAMES).sort()).toEqual(
-      ["notes", "story-bible", "writing-goal"].sort()
+      ["notes", "story-bible", "writing-goal", "review-issues"].sort()
     );
     expect(BOOK_DATA_FILENAMES.notes).toBe("notes.json");
     expect(BOOK_DATA_FILENAMES["story-bible"]).toBe("story-bible.json");
     expect(BOOK_DATA_FILENAMES["writing-goal"]).toBe("writing-goal.json");
+    expect(BOOK_DATA_FILENAMES["review-issues"]).toBe("review-issues.json");
   });
 
   it("拼出来的路径全在 .mochen/data/ 里，且 .mochen 不会被书目扫描认成正文", () => {

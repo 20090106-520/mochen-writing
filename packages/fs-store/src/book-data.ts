@@ -20,11 +20,12 @@ import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "./atomic-w
  *    失败时旧内容原样留在盘上，临时文件清掉。这里不另抄一份写盘逻辑（铁律 6）。
  */
 
-/** 键 → 文件名。这份表就是「书里有哪几份设定数据」的唯一事实源。 */
+/** 键 → 文件名。这份表就是「书里有哪几份随书保存的数据」的唯一事实源。 */
 export const BOOK_DATA_FILENAMES: Record<BookDataKey, string> = {
   notes: "notes.json",
   "story-bible": "story-bible.json",
-  "writing-goal": "writing-goal.json"
+  "writing-goal": "writing-goal.json",
+  "review-issues": "review-issues.json"
 };
 
 /** 设定数据全部收在 `.mochen/data/` 这一棵子树里，与 `.mochen/changes/` 那棵备份树分开。 */

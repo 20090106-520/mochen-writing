@@ -2,16 +2,16 @@ import { describe, expect, it } from "vitest";
 import { BOOK_DATA_KEYS, BOOK_DATA_LABELS, type BookDataKey } from "../src/index.js";
 
 /**
- * 设定数据白名单（2026-10-09 扫描总单 P0-7）。
+ * 书内数据白名单（2026-10-09 扫描总单 P0-7）。
  *
  * 这两张表是全链路唯一的真身：fs-store 拿它拼路径、主进程拿它当闸、渲染层拿它显示人话。
- * 用例钉的是「两张表必须一模一样宽」——加第四份设定时只改 keys 忘了 labels，
+ * 用例钉的是「两张表必须一模一样宽」——加一份数据时只改 keys 忘了 labels，
  * 换书提示就会说出 undefined。
  */
 
 describe("BOOK_DATA_KEYS / BOOK_DATA_LABELS", () => {
-  it("白名单里就那三份设定，顺序固定（新增先改这里再改 store）", () => {
-    expect(BOOK_DATA_KEYS).toEqual(["notes", "story-bible", "writing-goal"]);
+  it("白名单里就这四份，顺序固定（新增先改这里再改 store）", () => {
+    expect(BOOK_DATA_KEYS).toEqual(["notes", "story-bible", "writing-goal", "review-issues"]);
   });
 
   it("每一枚键都有对应的中文显示名，一枚不多一枚不少", () => {
