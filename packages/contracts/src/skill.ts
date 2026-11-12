@@ -266,6 +266,39 @@ export function isSkillDisabled(policy: BookSkillPolicy, id: string): boolean {
 }
 
 /**
+ * 剥掉技能正文末尾的「## 出处」段（2026-11-12）。
+ *
+ * 【为什么读给模型之前要剥，UI 却不剥】24 份市场技能的出处原在第二段（「改编自 …（MIT）。
+ * 只搬方法，不搬原文。」），一轮里打开技能详情看到的第一段就是这句——上一轮按本仓
+ * 「同一句制式话不重复」的规矩把它统一搬到了文末 `## 出处`。搬完它才有一个稳定位置，
+ * 可以被一条规则摘掉，而不是每份各写一遍正则。
+ *
+ * 摘掉的是两层浪费：
+ * ① 字数——每份 40–60 字，挂三份就吃掉一条技能的额度；
+ * ② 更像问题的是**形状**：模型读一份方法，末尾写着「改编自 xx/yy（MIT）」，
+ *    它会把这半句当正文的一部分来学。一份讲「怎么改文风」的技能后面跟着一段版权声明，
+ *    模板味的来源之一就是这种「文档附带物」混在方法里。
+ *
+ * 署名义务不受影响：出处仍留在 SKILL.md、技能详情页照常显示（渲染层走
+ * `window.mochen.readSkill`，与这里无关），随分发保留。不递给模型的只是那一遍复述。
+ *
+ * 只认**文末最后一个小节**是「## 出处」才摘：自定义技能万一在中间写了个叫「出处」的
+ * 二级标题、后面还有正文，摘到文末就是吃内容。判据很朴素——最后一个 `## ` 标题是不是它。
+ */
+export function stripSkillOrigin(body: string): string {
+  const lines = body.split("\n");
+  let lastHeading = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^##\s/.test(lines[i] ?? "")) lastHeading = i;
+  }
+  if (lastHeading < 0) return body;
+  if (!/^##\s*出处\s*$/.test((lines[lastHeading] ?? "").trim())) return body;
+  const kept = lines.slice(0, lastHeading).join("\n").trimEnd();
+  // 整份正文只有一节出处（坏技能）：宁可原样递出去让模型看见病在哪，也不递一段空白。
+  return kept === "" ? body : kept;
+}
+
+/**
  * 这一条会话实际生效的技能 id：**线程覆盖优先**（没有覆盖就继承书级默认），
  * 停用的一律剔除。顺序保持，便于 UI 与上下文装配读同一份。
  */

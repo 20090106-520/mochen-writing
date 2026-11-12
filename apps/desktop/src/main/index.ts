@@ -25,7 +25,7 @@ console.error = ((...args: unknown[]) => {
     if ((err as NodeJS.ErrnoException)?.code !== "EPIPE") throw err;
   }
 }) as typeof _rawError;
-import { IPC_CHANNELS, skillPolicyOf, splitSkillId } from "@mochen/contracts";
+import { IPC_CHANNELS, skillPolicyOf, splitSkillId, stripSkillOrigin } from "@mochen/contracts";
 import type { BookMeta, ExportableDoc, ExportOptions, FlushQuitReply } from "@mochen/contracts";
 import { buildExportContent } from "@mochen/fs-store/export-service";
 import { parseFrontmatter } from "@mochen/fs-store";
@@ -334,7 +334,10 @@ app.whenReady().then(async () => {
     // stage / appliesTo 只用于推荐打分。
     // 这不是「装配层该做的事」漏到这里：title 那一行已经解析过 frontmatter，
     // 取 `.body` 只是同一次解析的另一个字段，零成本。
-    const body = front.body.trim();
+    // 【2026-11-12 再剥一层出处】市场技能正文末尾统一有一节 `## 出处`（「改编自 …（MIT）」）。
+    // 那是给人和许可证看的，不是方法：读到方法的末尾跟着一段版权声明，模型会把它当正文的一部分学。
+    // 技能详情页照常显示（那条走渲染层的 readSkill，与本函数无关），这里只少递那一遍。
+    const body = stripSkillOrigin(front.body.trim());
     return {
       title: named === "" ? parsed.dirName : named,
       // 只剩 frontmatter、没有正文的技能是坏技能：把原文递出去，让模型看见病在哪，

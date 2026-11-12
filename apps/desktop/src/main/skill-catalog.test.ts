@@ -2,7 +2,12 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { MARKET_CATEGORIES, marketSkillSchema, type MarketSkill } from "@mochen/contracts";
+import {
+  MARKET_CATEGORIES,
+  marketSkillSchema,
+  stripSkillOrigin,
+  type MarketSkill
+} from "@mochen/contracts";
 import { parseFrontmatter } from "@mochen/fs-store";
 import { SKILL_CATALOG } from "./skill-catalog.js";
 import { CATALOG_ENTRIES } from "./skill-catalog-manifest.js";
@@ -171,6 +176,25 @@ describe("SKILL_CATALOG", () => {
     for (const skill of SKILL_CATALOG) {
       const { body } = parseFrontmatter(skill.skillMd);
       expect(body, `${skill.dirName} 的正文里又出现了那句模板`).not.toContain("只搬方法，不搬原文");
+    }
+  });
+
+  /**
+   * 出处搬到最后，是为了让它在**读给模型**的那一路能被一处规则摘掉（2026-11-12）。
+   *
+   * `stripSkillOrigin` 只认「文末最后一个小节是 ## 出处」，所以这一条守的是那个前提：
+   * 24 份里只要有一份把出处写回了中间（或在后面又加了一节），剥的时候就摘不下来——
+   * 而摘不下来不会报错，只会让模型继续读到一段版权声明。守卫必须钉在语料上，
+   * 因为将来新增技能时人是照着旧文件抄结构的。
+   */
+  it("每一份都能被 stripSkillOrigin 摘干净：出处不许跑回中间", () => {
+    for (const skill of SKILL_CATALOG) {
+      const { body } = parseFrontmatter(skill.skillMd);
+      const kept = stripSkillOrigin(body.trim());
+      expect(kept, `${skill.dirName} 的出处没被摘掉`).not.toContain("## 出处");
+      // 摘掉的必须**只是**出处那一节：方法正文不许跟着少。
+      expect(kept.length, `${skill.dirName} 剥出处时吃掉了正文`).toBeGreaterThan(body.length * 0.6);
+      expect(kept, `${skill.dirName} 剥完仍旧带着出处句`).not.toContain(skill.origin.slice(0, 8));
     }
   });
 
