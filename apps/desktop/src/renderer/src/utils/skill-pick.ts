@@ -156,10 +156,23 @@ export function skillPickOf(candidate: SkillCandidate, scene: SkillPickScene): S
  * 排序 + 取前 N。**这是本模块唯一的分派入口**：界面拿到的就是排好序、去好重、截好数的清单，
  * 不许自己再 filter / sort 一次（重算就是第二份判据）。
  *
- * 三条判定：
+ * 四条判定：
  * 1. **排除已挂入**：已经在这一轮上下文里的技能不再推荐——推荐一枚用户刚挂上的技能是废话。
  * 2. **只留正分**：0 分一个都不给。空场上榜等于把整个技能库倒给用户，那不是「推荐」。
  * 3. **同分按 id 升序**：同输入必须同输出（可测），也不能让列表顺序随对象身份抖。
+ * 4. **同分不切档**（`keepTies`，2026-11-12，只给自动挂入用）：截到第 limit 条时，
+ *    如果下一条与它**得分相同**，一并收下，直到遇到底一档的分数为止；硬上限是
+ *    `SKILL_PATHS_MAX`。
+ *
+ * 【第 4 条为什么存在、又为什么要开关】原先一律 `slice(0, limit)`，而自动挂入的 limit 是 3、
+ * 出厂四条审校技能（一致性 / 剧情 / 逻辑 / 文风）在同一本新书里得分完全相同——于是
+ * 「取前 3」实际是按**id 字典序**淘汰第四条：`check-style` 排第四，去 AI 味那条技能
+ * **从来没被自动挂上过**，而且没有任何征兆。同分时谁该出局，这个问题没有答案；
+ * 没有答案就不该假装有答案去砍一条。
+ *
+ * 但这条规则不能无条件生效：`skillRecommendations({ limit: 3 })` 是**调用方显式**要三条，
+ * 把它撑成十二条就是不听人话。所以做成开关——自动挂入打开（那里 limit 是产品默认值，
+ * 不是谁的明确要求），其余场景关着，`slice` 的老语义一字不改。
  *
  * N 默认取技能挂入上限（`SKILL_PATHS_MAX` = 12）：推荐再多也超不过一轮能挂的数。
  * N ≤ 0 时返回空表——**不是**「给全部」（`Array.slice` 的负数语义是「从末尾切」，不能照抄）。
@@ -168,7 +181,8 @@ export function rankSkills(
   candidates: readonly SkillCandidate[],
   scene: SkillPickScene,
   limit: number = SKILL_PATHS_MAX,
-  pinned: readonly string[] = scene.pinned ?? []
+  pinned: readonly string[] = scene.pinned ?? [],
+  keepTies = false
 ): SkillPick[] {
   if (limit <= 0) return [];
   const pinnedSet = new Set(pinned);
@@ -177,5 +191,16 @@ export function rankSkills(
     .map((candidate) => skillPickOf(candidate, scene))
     .filter((pick) => pick.score > 0)
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id, "en"));
-  return ranked.slice(0, limit);
+  if (!keepTies) return ranked.slice(0, limit);
+
+  const out: SkillPick[] = [];
+  for (const pick of ranked) {
+    if (out.length >= SKILL_PATHS_MAX) break;
+    // 已经够 N 条，而这一条分数更低 ⇒ 换档了，到此为止。
+    // 同分则继续收：同分档里没有「谁更该进」的依据，砍掉哪一条都是随机淘汰。
+    const last = out[out.length - 1];
+    if (out.length >= limit && last !== undefined && pick.score < last.score) break;
+    out.push(pick);
+  }
+  return out;
 }

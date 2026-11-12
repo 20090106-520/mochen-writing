@@ -84,9 +84,33 @@ describe("autoSkillPlanOf · 只增删自己加的", () => {
     expect(plan.desired).toEqual(["b"]);
   });
 
-  it("上限生效；limit=0 等于全撤，不把负 slice 语义带进来", () => {
+  it("上限生效：换档就停，不多收一条", () => {
+    // 分三档：70 / 70 / 40 / 8。limit=3 时第四条已经换档，到此为止。
+    const many = [
+      skill("a", { stages: ["正文"], appliesTo: ["chapter"] }),
+      skill("b", { stages: ["正文"], appliesTo: ["chapter"] }),
+      skill("c", { stages: ["正文"] }),
+      skill("d", { description: "伏笔" })
+    ];
+    const plan = autoSkillPlanOf(args({ candidates: many }));
+    expect(plan.picks.map((pick) => pick.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("同分不切档：四条出厂审校技能都该进（否则 check-style 永远排第四）", () => {
+    // 真实场景：同一本新书里四条审校技能的 stage 都是「正文」、appliesTo 都是 chapter，
+    // 得分完全相同。旧实现按 id 字典序 slice(0, 3) —— `check-style` 恰好排第四，
+    // 也就是**去 AI 味那条技能从来没被自动挂上过**，且没有任何征兆。
+    const builtin = ["check-consistency", "check-logic", "check-plot", "check-style"].map((id) =>
+      skill(`global:${id}`, { stages: ["正文"], appliesTo: ["chapter"] })
+    );
+    const plan = autoSkillPlanOf(args({ candidates: builtin }));
+    expect(plan.picks).toHaveLength(4);
+    expect(plan.picks.length).toBeGreaterThan(AUTO_SKILL_LIMIT);
+    expect(plan.picks.map((pick) => pick.id)).toContain("global:check-style");
+  });
+
+  it("limit=0 等于全撤，不把负 slice 语义带进来", () => {
     const many = ["a", "b", "c", "d"].map((id) => skill(id, { stages: ["正文"] }));
-    expect(autoSkillPlanOf(args({ candidates: many })).picks).toHaveLength(AUTO_SKILL_LIMIT);
     const zero = autoSkillPlanOf(
       args({ candidates: many, pinned: ["a", "b"], autoPinned: ["a", "b"], limit: 0 })
     );

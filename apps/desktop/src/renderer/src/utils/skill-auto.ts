@@ -19,7 +19,14 @@ import { rankSkills, type SkillCandidate, type SkillPick, type SkillPickScene } 
  * 现在用户明确要自动运用，所以判据复用、装配动作放在 store 里，这里仍是纯函数、可单测。
  */
 
-/** 一轮最多自动挂几枚。挂太多会把上下文额度吃光，也让人看不清到底用了什么。 */
+/**
+ * 一轮最多自动挂几枚。挂太多会把上下文额度吃光，也让人看不清到底用了什么。
+ *
+ * 【它是「至少收几条」而不是「最多收几条」】2026-11-12：`rankSkills` 改成同分不切档之后，
+ * 这个数字只约束**不同分档**的条目数——截到第 3 条时如果第 4 条与它同分，会一并收下
+ * （硬上限仍是 `SKILL_PATHS_MAX`）。原先一律切 3，而四条出厂审校技能得分完全相同，
+ * 于是永远按 id 字典序砍掉 `check-style`：去 AI 味那条技能从来没被自动挂上过。
+ */
 export const AUTO_SKILL_LIMIT = 3;
 
 export interface AutoSkillPlanArgs {
@@ -68,7 +75,10 @@ export function autoSkillPlanOf(args: AutoSkillPlanArgs): AutoSkillPlan {
   const available = args.candidates.filter(
     (candidate) => !blocked.has(candidate.id) && !disabled.has(candidate.id)
   );
-  const picks = rankSkills(available, { ...args.scene, pinned: manual }, limit, manual);
+  // keepTies：这里的 limit 是产品默认值（「别一次挂太多」），不是谁的明确要求。
+  // 同分时按 id 截断会静默淘汰一条——出厂四条审校技能得分完全相同，
+  // 被淘汰的正好是 `check-style`（去 AI 味）。所以让 `rankSkills` 同分不切档。
+  const picks = rankSkills(available, { ...args.scene, pinned: manual }, limit, manual, true);
   const topIds = picks.map((pick) => pick.id);
   const topSet = new Set(topIds);
   const pinnedSet = new Set(args.pinned);

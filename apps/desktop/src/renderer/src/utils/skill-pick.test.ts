@@ -157,6 +157,28 @@ describe("排序与取前 N", () => {
     expect(ranked.map((one) => one.id)).toEqual(["global:a", "global:b"]);
   });
 
+  it("同分不切档（keepTies）：截断位上同分就一并收下", () => {
+    const same = ["a", "b", "c", "d"].map((id) => skill({ id: `global:${id}`, stages: ["正文"] }));
+    // limit=3、四条同分 ⇒ 四条全进。旧实现按 id 字典序砍掉 `global:d`——
+    // 出厂四条审校技能里，那条正好是 `check-style`。
+    expect(rankSkills(same, scene({ docKind: null }), 3, [], true)).toHaveLength(4);
+  });
+
+  it("同分扩容不突破硬上限：全库同分也只挂 12 条", () => {
+    const many = Array.from({ length: 20 }, (_, i) =>
+      skill({ id: `global:s${String(i).padStart(2, "0")}`, stages: ["正文"] })
+    );
+    expect(rankSkills(many, scene({ docKind: null }), 3, [], true)).toHaveLength(12);
+  });
+
+  it("不开 keepTies 时 limit 一律照切：调用方明说只要三条，就只给三条", () => {
+    // 技能库页的「推荐」榜走的是这条：limit 是调用方的明确要求，不是产品默认值。
+    const same = Array.from({ length: 8 }, (_, i) =>
+      skill({ id: `global:s${i}`, stages: ["正文"] })
+    );
+    expect(rankSkills(same, scene({ docKind: null }), 3)).toHaveLength(3);
+  });
+
   it("默认按技能挂入上限取前 N（12）", () => {
     const list = Array.from({ length: 15 }, (_, i) =>
       skill({ id: `global:s${String(i).padStart(2, "0")}`, stages: ["正文"] })
