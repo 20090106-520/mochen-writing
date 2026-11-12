@@ -20,6 +20,7 @@ import {
   fuzzyFindInLine,
   aiFlavorGate,
   AI_FLAVOR_STRUCTURE_MIN_COUNT,
+  skillBriefLine,
   styleProfileOf,
   styleDriftOf,
   textSimilarity,
@@ -509,11 +510,12 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
             (ref) => deps.skillDisabled?.(ref.id) !== true
           );
           if (refs.length === 0) return { ok: true, text: "（技能库里还没有技能）", proposals: [] };
+          // 行形与系统提示里的清单同源（`skillBriefLine`）：模型在两条通路上看到的是同一种格式，
+          // 不必为「索引里长这样、工具回执里长那样」再学一遍；description 也过同一把 48 字的尺，
+          // 一份写了几千字说明的技能不会把整条回执撑满。
           return {
             ok: true,
-            text: refs
-              .map((ref) => `- ${ref.id} · ${ref.displayName}：${ref.description || "（无说明）"}`)
-              .join("\n"),
+            text: refs.map((ref) => `- ${skillBriefLine(ref)}`).join("\n"),
             proposals: []
           };
         }

@@ -86,3 +86,26 @@ describe("技能停用是一道硬闸（P0-4）", () => {
     expect(skillReads).toEqual(["global:rhythm"]);
   });
 });
+
+/**
+ * 无参清单的行形（2026-11-12）。
+ *
+ * 这一份清单原先写成 `- id · 名称：说明`，而系统提示里的技能清单是 `- 名称（id）：说明`——
+ * 同一个东西两种形状，模型得学两遍。现在两处都走 `skillBriefLine`，格式只有一种，
+ * description 也共用同一把 48 字的尺（几千字说明撑不满一条回执）。
+ */
+describe("use_skill 无参清单与系统提示同形", () => {
+  it("行形是「名称（id）：说明」，不是「id · 名称：说明」", async () => {
+    skillRefs = [{ ...ref("global:rhythm"), displayName: "节奏", description: "一章一节拍。" }];
+    const out = await host().call("use_skill", {});
+    expect(out.text).toContain("- 节奏（global:rhythm）：一章一节拍。");
+    expect(out.text).not.toContain("·");
+  });
+
+  it("description 与索引同尺：超长也截到一个能读的长度", async () => {
+    skillRefs = [{ ...ref("global:long"), description: "说明".repeat(500) }];
+    const out = await host().call("use_skill", {});
+    expect(out.text).toContain("…");
+    expect(out.text.length).toBeLessThan(200);
+  });
+});
