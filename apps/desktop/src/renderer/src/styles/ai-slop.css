@@ -290,3 +290,12 @@
   color: var(--accent, #339cff);
   text-decoration: underline;
 }
+
+/* 五套来源共用一张清单，靠来源标签区分。沿用现成字色、不画底色
+   （新档底色要进对比度普查表）；状态那一格用 danger 加粗，两者不会看混。 */
+.ai-slop-saved-source {
+  flex: none;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.714286rem;
+  white-space: nowrap;
+}

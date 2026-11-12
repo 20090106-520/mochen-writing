@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
+import { SOURCE_LABELS, type ChecklistItem } from "./submission-checklist.js";
 import {
+  ISSUE_SOURCE_LABELS,
   chapterIssuesOf,
   emptyReviewIssueBook,
   issueIdOf,
+  issuesFromChecklist,
   issuesFromSlop,
   markIssue,
   mergeChapterIssues,
   normalizeReviewIssueBook,
   openCount,
   openSlopHitsOf,
+  slopOpenCount,
   withChapterIssues,
   type ReviewIssue,
   type SlopLike
@@ -134,10 +138,45 @@ describe("交稿问题清单 · 盘上那份读不读得懂", () => {
       }
     ],
     [
-      "行号不是正整数",
+      "行号是负数",
       {
         version: 1,
-        chapters: { [REL]: issuesFromSlop([hit()]).map((item) => ({ ...item, line: 0 })) }
+        chapters: { [REL]: issuesFromSlop([hit()]).map((item) => ({ ...item, line: -1 })) }
+      }
+    ],
+    [
+      "行号是小数",
+      {
+        version: 1,
+        chapters: { [REL]: issuesFromSlop([hit()]).map((item) => ({ ...item, line: 1.5 })) }
+      }
+    ],
+    [
+      "来源不在五套里",
+      {
+        version: 1,
+        chapters: { [REL]: issuesFromSlop([hit()]).map((item) => ({ ...item, source: "unknown" })) }
+      }
+    ],
+    [
+      "可选 title 形状不对",
+      {
+        version: 1,
+        chapters: { [REL]: issuesFromSlop([hit()]).map((item) => ({ ...item, title: 42 })) }
+      }
+    ],
+    [
+      "可选 locate 不是三档之一",
+      {
+        version: 1,
+        chapters: { [REL]: issuesFromSlop([hit()]).map((item) => ({ ...item, locate: "page" })) }
+      }
+    ],
+    [
+      "可选 relPath 不是字符串",
+      {
+        version: 1,
+        chapters: { [REL]: issuesFromSlop([hit()]).map((item) => ({ ...item, relPath: 7 })) }
       }
     ],
     [
@@ -195,5 +234,122 @@ describe("交稿问题清单 · 交给 AI 改的那几条", () => {
     expect(openSlopHitsOf([])).toEqual([]);
     const done = issuesFromSlop([hit()]).map((item) => ({ ...item, status: "ignored" as const }));
     expect(openSlopHitsOf(done)).toEqual([]);
+  });
+});
+
+/**
+ * 五套来源接进落盘清单（W-04 第二刀）。
+ *
+ * 要钉的不是「又写了一套判据」——恰恰相反，这里一条判据都不该有：所有条目都是
+ * `buildSubmissionChecklist` 的现成结论搬过来的。要钉的是搬运时最容易丢的两样：
+ * ① 有些判据**给不出行号**（篇级读数 / 只能跳到文稿），不许为了存得下伪造一个第 1 行；
+ * ② 「交给 AI 改」只管去 AI 味，别把人物卡、伏笔当成套话递给模型。
+ */
+function checklistItem(over: Partial<ChecklistItem> = {}): ChecklistItem {
+  return {
+    id: "cast|缺字段|人物卡/甲.md|chapters/03-雨夜.md|0|defect|人物卡缺字段",
+    source: "cast",
+    tone: "strong",
+    title: "人物卡缺字段",
+    detail: "人物卡：甲（缺字段） · 原文：他没回头",
+    locate: "doc",
+    relPath: REL,
+    line: 0,
+    locateLabel: "只能跳到这一章，定位不到行",
+    ...over
+  };
+}
+
+describe("交稿问题清单 · 五套来源", () => {
+  it("五种来源都映射得上，来源是唯一事实：标签从体检层取，不另抄一份", () => {
+    expect(ISSUE_SOURCE_LABELS["ai-slop"]).toBe(SOURCE_LABELS.slop);
+    expect(ISSUE_SOURCE_LABELS.review).toBe(SOURCE_LABELS.review);
+    expect(ISSUE_SOURCE_LABELS.cast).toBe(SOURCE_LABELS.cast);
+    expect(ISSUE_SOURCE_LABELS.foreshadow).toBe(SOURCE_LABELS.foreshadow);
+    expect(ISSUE_SOURCE_LABELS.timeline).toBe(SOURCE_LABELS.timeline);
+    expect(Object.keys(ISSUE_SOURCE_LABELS)).toHaveLength(5);
+  });
+
+  it("搬运不新造结论：id / 标题 / 定位形状 / 目标文稿原样带来", () => {
+    const [item] = issuesFromChecklist([checklistItem()]);
+    expect(item?.id).toBe(checklistItem().id);
+    expect(item?.source).toBe("cast");
+    expect(item?.title).toBe("人物卡缺字段");
+    expect(item?.locate).toBe("doc");
+    expect(item?.relPath).toBe(REL);
+    expect(item?.status).toBe("open");
+  });
+
+  it("给不出行号就老实存 0，不伪造第 1 行；能跳行的照样存行号", () => {
+    const items = issuesFromChecklist([
+      checklistItem({ line: 0, locate: "doc" }),
+      checklistItem({ id: "slop|x|0", source: "slop", line: 12, locate: "line" })
+    ]);
+    expect(items.map((item) => item.line)).toEqual([0, 12]);
+    const parsed = normalizeReviewIssueBook({
+      version: 1,
+      chapters: { [REL]: items }
+    });
+    expect(parsed).not.toBeNull();
+    expect(chapterIssuesOf(parsed!, REL)[0]?.line).toBe(0);
+  });
+
+  it("去 AI 味的 matched 是原始命中词，不是「套话「X」」那种屏显标题", () => {
+    const [item] = issuesFromChecklist([
+      checklistItem({
+        id: "slop|值得注意的是|0",
+        source: "slop",
+        matched: "值得注意的是",
+        title: "套话「值得注意的是」",
+        line: 7,
+        locate: "line"
+      })
+    ]);
+    expect(item?.source).toBe("ai-slop");
+    expect(item?.matched).toBe("值得注意的是");
+  });
+
+  it("v1 档（没有那三格可选字段）照样读得回来，旧书清单不丢", () => {
+    const legacy: ReviewIssue[] = issuesFromSlop([hit()]);
+    const parsed = normalizeReviewIssueBook({
+      version: 1,
+      chapters: { [REL]: JSON.parse(JSON.stringify(legacy)) }
+    });
+    expect(parsed).not.toBeNull();
+    expect(chapterIssuesOf(parsed!, REL)[0]?.title).toBeUndefined();
+  });
+
+  it("五套档能整份往返（含定位形状与目标文稿）", () => {
+    const items = issuesFromChecklist([checklistItem()]);
+    const book = withChapterIssues(emptyReviewIssueBook(), REL, items);
+    expect(normalizeReviewIssueBook(JSON.parse(JSON.stringify(book)))).toEqual(book);
+  });
+
+  it("openSlopHitsOf 只交去 AI 味：人物卡 / 伏笔不许当套话递给模型", () => {
+    const items: ReviewIssue[] = [
+      ...issuesFromSlop([hit()]),
+      ...issuesFromChecklist([checklistItem()]),
+      ...issuesFromChecklist([
+        checklistItem({ id: "foreshadow|row|x", source: "foreshadow", title: "「铜镜」待回收" })
+      ])
+    ];
+    expect(items).toHaveLength(3);
+    expect(openSlopHitsOf(items).map((h) => h.matched)).toEqual(["值得注意的是"]);
+  });
+
+  it("slopOpenCount 只数「去 AI 味 · 待修 · 有行号」，忽略与篇级读数都不算", () => {
+    const items: ReviewIssue[] = [
+      ...issuesFromSlop([hit()]),
+      { ...issuesFromSlop([hit()])[0]!, id: "ignored", status: "ignored" },
+      ...issuesFromChecklist([checklistItem()])
+    ];
+    expect(slopOpenCount(items)).toBe(1);
+    expect(openCount(items)).toBe(2);
+  });
+
+  it("词表条目但 line 0（不该出现）也不进改写指令，免得让 AI 改第 0 行", () => {
+    const item = { ...issuesFromSlop([hit()])[0]!, line: 0 };
+    expect(openSlopHitsOf([item])).toEqual([]);
+    expect(slopOpenCount([item])).toBe(0);
   });
 });

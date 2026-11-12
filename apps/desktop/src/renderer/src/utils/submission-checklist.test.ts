@@ -252,3 +252,19 @@ describe("空态与说明文案", () => {
     expect(STATUS_HINT_TEXT).toContain("book.json");
   });
 });
+
+/** 落盘清单要接住状态，指纹就不能跟着行号漂（2026-11-12）。 */
+describe("去 AI 味条目的身份", () => {
+  it("前面插一段，id 不变、行号跟着刷新", () => {
+    const before = slopItems("值得注意的是，他走了。\n", A);
+    const after = slopItems("新加的一段。\n值得注意的是，他走了。\n", A);
+    expect(before[0]?.id).toBe(after[0]?.id);
+    expect(before[0]?.line).toBe(1);
+    expect(after[0]?.line).toBe(2);
+  });
+
+  it("带上原始命中词：落盘清单交给 AI 改时不用从屏显标题里抠字", () => {
+    expect(slopItems("值得注意的是，他走了。\n", A)[0]?.matched).toBe("值得注意的是");
+    expect(slopItems("人物卡缺字段。\n", A)[0]).toBeUndefined();
+  });
+});

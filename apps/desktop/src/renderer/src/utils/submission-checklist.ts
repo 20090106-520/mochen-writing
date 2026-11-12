@@ -37,6 +37,12 @@ export interface ChecklistItem {
   line: number;
   /** 屏显位置说明（「第 12 行」/「只能跳到这一章」/「有结果但无法定位」）。 */
   locateLabel: string;
+  /**
+   * 原始命中词，只有 `source === "slop"` 时才有。
+   * 落盘清单把标题交给 AI 改时要还原成「第 N 行：「词」——理由」；从
+   * `套话「词」` 这种屏显标题里正则抠字太脆，所以这里留一份结构化值。
+   */
+  matched?: string;
 }
 
 export type ChecklistStatus = "todo" | "fixed" | "ignored";
@@ -84,12 +90,19 @@ function lineLabel(line: number): string {
   return `第 ${line} 行`;
 }
 
-/** 去 AI 味：每条命中自带 1 起行号，能选到整行。 */
+/**
+ * 去 AI 味：每条命中自带 1 起行号，能选到整行。
+ *
+ * 【指纹为什么不含行号】（2026-11-12）原先是 `行号|词|强度`：前面插一段，整批行号漂移，
+ * 落盘清单的「待修/已修/忽略」就全接不住，一次普通编辑会炸成「旧的 N 条已修 + 新的 N 条待修」。
+ * 改成「词 + 该处上下文」，行号只作显示与跳原文用——与 W-04 第一刀的身份口径对齐。
+ * 同一行里两处相同的词仍靠 ordinal 分开（体检面板要逐条标状态）。
+ */
 export function slopItems(draft: string, relPath: string): ChecklistItem[] {
   if (relPath === "" || draft.trim() === "") return [];
   const seen = new Map<string, number>();
   return findAiSlop(draft).map((hit) => {
-    const fingerprint = `${hit.line}\u0000${hit.matched}\u0000${hit.strength}`;
+    const fingerprint = `${hit.matched}\u0000${hit.excerpt}`;
     const ordinal = seen.get(fingerprint) ?? 0;
     seen.set(fingerprint, ordinal + 1);
     return {
@@ -101,7 +114,8 @@ export function slopItems(draft: string, relPath: string): ChecklistItem[] {
       locate: "line",
       relPath,
       line: hit.line,
-      locateLabel: lineLabel(hit.line)
+      locateLabel: lineLabel(hit.line),
+      matched: hit.matched
     };
   });
 }

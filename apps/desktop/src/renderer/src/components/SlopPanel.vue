@@ -3,7 +3,8 @@
      这一项是**纯本地查表**——零成本、零延迟、离线可用，所以它敢常驻在右栏随手点。
 
      判定与文案在 utils/ai-slop.ts，样式在 styles/ai-slop.css。
-     面板只做三件事：把命中逐条摆出来、说清强信号与弱信号的区别、把清单交给 AI 去改。 -->
+     面板做四件事：把命中逐条摆出来、说清强信号与弱信号的区别、把清单交给 AI 去改，
+     以及按章留存「本章清单」——那一栏收的是审稿五套检查的结论，不只这一项词表命中。 -->
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
 import AppIcon from "./AppIcon.vue";
@@ -21,7 +22,14 @@ import { threadKeyFor, useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
 import { useNotificationStore } from "../stores/useNotificationStore";
 import { useReviewIssuesStore } from "../stores/useReviewIssuesStore";
-import { openSlopHitsOf, type IssueStatus } from "../utils/review-issues";
+import {
+  ISSUE_SOURCE_LABELS,
+  openSlopHitsOf,
+  slopOpenCount,
+  type IssueSource,
+  type IssueStatus,
+  type ReviewIssue
+} from "../utils/review-issues";
 
 const props = defineProps<{ anchor: HTMLElement }>();
 const emit = defineEmits<{ close: [] }>();
@@ -33,6 +41,9 @@ const issues = useReviewIssuesStore();
 const panel = ref<HTMLElement>();
 /** 跳原文没定位到时如实说一句：清单里的行号是上次体检的快照，正文可能已经改过。 */
 const jumpNotice = ref("");
+/** 收齐五套检查是异步读盘，得给一个「正在收」和一句失败说明。 */
+const collecting = ref(false);
+const collectError = ref("");
 
 const { style, close, tab } = useComposerContextPopover(
   () => props.anchor,
@@ -70,24 +81,23 @@ const issueSummary = computed(() => {
   return openIssues.value > 0 ? `本章还有 ${openIssues.value} 条待修。` : "本章清单都处理完了。";
 });
 const issueButtonLabel = computed(() =>
-  savedIssues.value.length > 0 ? "复检这一章" : "记进本章清单"
+  savedIssues.value.length > 0 ? "复检这一章" : "收齐本章检查"
 );
 
 /**
- * 交给 AI 改的那份清单：**有留存结论时只交待修的**，别让作者标过的忽略、
- * 上轮留下的待修被这一秒的扫描顶掉。两种情形回退到实时命中：
- * ① 还没体检过——不强迫先点一次「记进本章清单」才能用主操作；
- * ② 清单全处理完——退稿闸是整篇判据、根本不在清单里，仍要能交出去让它改节奏。
+ * 交给 AI 改的那份清单：**有留存结论时只交待修的「去 AI 味」条目**。
+ * 清单现在装着五套来源，而这颗按钮的指令是「逐条改掉这些套话」；把人物卡缺字段、
+ * 伏笔待回收当成套话递给模型，它只会照着编一段不存在的文字。所以按 `slopOpenCount`
+ * 单独数，两种情形回退实时命中：
+ * ① 还没体检过——不强迫先点一次「收齐本章检查」才能用主操作；
+ * ② 词表条目全处理完——退稿闸是整篇判据、根本不在清单里，仍要能交出去让它改节奏。
  */
+const slopOpen = computed(() => slopOpenCount(savedIssues.value));
 const pendingHits = computed<SlopHit[]>(() =>
-  savedIssues.value.length > 0 && openIssues.value > 0
-    ? openSlopHitsOf(savedIssues.value)
-    : hits.value
+  slopOpen.value > 0 ? openSlopHitsOf(savedIssues.value) : hits.value
 );
 const handLabel = computed(() =>
-  savedIssues.value.length > 0 && openIssues.value > 0
-    ? `把本章待修的 ${openIssues.value} 条交给 AI 改`
-    : "把这份清单交给 AI 改"
+  slopOpen.value > 0 ? `把本章待修的 ${slopOpen.value} 条交给 AI 改` : "把这份清单交给 AI 改"
 );
 
 /**
@@ -110,16 +120,51 @@ async function jumpToLine(line: number): Promise<void> {
   }
 }
 
-/** 只在用户点按钮时并一次：跟着输入实时跑会把清单抖成「已修 / 待修」来回翻。 */
-function recordCheck(): void {
+/** v1 档没存 locate：那时只有词表条目，有行号就是能跳行。 */
+function locateOf(item: ReviewIssue): "line" | "doc" | "none" {
+  return item.locate ?? (item.line > 0 ? "line" : "none");
+}
+
+function sourceLabel(source: IssueSource): string {
+  return ISSUE_SOURCE_LABELS[source];
+}
+
+/**
+ * 文稿级条目：跳到那篇文稿，与 SearchPanel.jumpToHit 同一条路（章节进标签、其余浏览）。
+ * 不给行号就不调 revealEditorLine，浮层不会因 focusin 自动收起，所以这里手动 close。
+ * 篇级读数（审稿打分那类）连文稿都归不上，UI 干脆不给按钮，不伪造一个落点。
+ */
+async function jumpToDoc(item: ReviewIssue): Promise<void> {
+  const rel = item.relPath ?? book.activeDocTab;
+  if (rel === null || rel === "") return;
+  const ref = book.refOf(rel);
+  if (!ref) return;
+  if (ref.kind === "chapter") await book.openDocTab(rel);
+  else book.browse(ref);
+  close();
+}
+
+/**
+ * 收齐本章五套检查并记一次。只在用户点按钮时并一次：跟着输入实时跑会把清单抖成
+ * 「已修 / 待修」来回翻。判据与异步汇总都在 store 那头，这里只管按钮态和一句失败说明。
+ */
+async function recordCheck(): Promise<void> {
   const rel = book.activeDocTab;
-  if (rel === null) return;
-  issues.check(rel, hits.value);
-  notify.notify({
-    title: "交稿问题",
-    message: "这一章的结论已记下，改完再点一次复检。",
-    level: "info"
-  });
+  if (rel === null || collecting.value) return;
+  collecting.value = true;
+  collectError.value = "";
+  try {
+    await issues.collect(rel, book.draft);
+    notify.notify({
+      title: "交稿问题",
+      message: "本章五套检查的结论已记下，改完再点一次复检。",
+      level: "info"
+    });
+  } catch (err) {
+    collectError.value = `没能收齐本章检查：${err instanceof Error ? err.message : String(err)}`;
+  } finally {
+    collecting.value = false;
+  }
 }
 
 function setIssueStatus(id: string, status: IssueStatus): void {
@@ -196,6 +241,7 @@ function keydown(event: KeyboardEvent): void {
 
       <p class="ai-slop-note">
         纯本地查表，不联网、不花 token。查的是套话与万能句式，<b>报出来是提醒，不是判你写错了</b>。
+        下面「本章清单」收齐审稿五套检查的结论，按章留在书里。
       </p>
 
       <!-- 本章清单（W-04 第一刀）：上面这句是「这一秒的扫描」，这一栏是「上次体检留下的结论」。
@@ -205,13 +251,14 @@ function keydown(event: KeyboardEvent): void {
         <button
           class="ai-slop-issue-record"
           type="button"
-          :disabled="book.activeDocTab === null"
+          :disabled="book.activeDocTab === null || collecting"
           @click="recordCheck"
         >
-          {{ issueButtonLabel }}
+          {{ collecting ? "正在收齐…" : issueButtonLabel }}
         </button>
       </div>
       <p v-if="issues.saveError !== ''" class="ai-slop-note">{{ issues.saveError }}</p>
+      <p v-if="collectError !== ''" class="ai-slop-note">{{ collectError }}</p>
       <p v-if="jumpNotice !== ''" class="ai-slop-note">{{ jumpNotice }}</p>
 
       <section v-if="savedIssues.length > 0" class="ai-slop-saved">
@@ -221,8 +268,10 @@ function keydown(event: KeyboardEvent): void {
             <span class="ai-slop-saved-state" :class="{ 'is-open': item.status === 'open' }">{{
               statusLabel(item.status)
             }}</span>
-            <span class="ai-slop-saved-word">{{ item.matched }}</span>
+            <span class="ai-slop-saved-source">{{ sourceLabel(item.source) }}</span>
+            <span class="ai-slop-saved-word">{{ item.title ?? item.matched }}</span>
             <button
+              v-if="locateOf(item) === 'line'"
               class="ai-slop-saved-line ai-slop-jump"
               type="button"
               :aria-label="`跳到第 ${item.line} 行`"
@@ -230,6 +279,16 @@ function keydown(event: KeyboardEvent): void {
             >
               第 {{ item.line }} 行
             </button>
+            <button
+              v-else-if="locateOf(item) === 'doc'"
+              class="ai-slop-saved-line ai-slop-jump"
+              type="button"
+              aria-label="打开这一条指向的文稿"
+              @click="jumpToDoc(item)"
+            >
+              打开文稿
+            </button>
+            <span v-else class="ai-slop-saved-line">篇级</span>
             <button
               class="ai-slop-saved-action"
               type="button"

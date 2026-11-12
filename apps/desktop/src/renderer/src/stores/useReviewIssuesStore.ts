@@ -7,16 +7,20 @@
  *
  * 这份数据没有旧版全局 localStorage 版本，所以不传 `legacyStorageKey`：通路连查都不查。
  * 状态模型与复检合并的真身在 `utils/review-issues.ts`，这里只做「哪一章、什么时候记一次」。
+ * 五套判据的结论都落在这里，判据本身一行都不在这一层（`collect` 复用交稿体检的汇总通道）。
  *
  * 【为什么体检是显式动作】若跟着输入实时跑，作者打到一半，清单会随每个字反复把条目
- * 标成已修又标回待修——那不是跟踪，是抖动。只在用户点「记进本章清单」时并一次。
+ * 标成已修又标回待修——那不是跟踪，是抖动。只在用户点「收齐本章检查」时并一次。
  */
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useBookFileData } from "../composables/useBookFileData";
+import { useBookStore } from "./useBookStore";
+import { useSubmissionChecklistStore } from "./useSubmissionChecklistStore";
 import {
   chapterIssuesOf,
   emptyReviewIssueBook,
+  issuesFromChecklist,
   issuesFromSlop,
   markIssue,
   mergeChapterIssues,
@@ -54,10 +58,33 @@ export const useReviewIssuesStore = defineStore("reviewIssues", () => {
     data.value = withChapterIssues(data.value, relPath, merged);
   }
 
+  /**
+   * 收齐本章**五套**检查的结论（W-04 第二刀）。
+   *
+   * 【不复制汇总流程】`useSubmissionChecklistStore.load` 已经把「拉三套台账 → 挡迟到回包 →
+   * `buildSubmissionChecklist`」走了一遍；这里直接复用它的 `items`，不另写一份 load，
+   * 也不另造任何判据。代价是它顺手刷新了体检 store 的即时清单——同一章、同一份数据，
+   * 体检面板下次打开仍会自己重算，没有副作用。
+   *
+   * 【为什么要验归属】load 是异步的，期间可能换章 / 换书（体检面板自己也监听换章）。
+   * 迟到回包若照写，就会把新章的条目记到旧章名下。ownerKey 是体检 store 现成的
+   * 「书 + 章」标识，拿它比对即可，不必再引入第二枚令牌。
+   */
+  async function collect(relPath: string, draft: string): Promise<void> {
+    if (relPath === "") return;
+    const book = useBookStore();
+    const checklist = useSubmissionChecklistStore();
+    const owner = `${book.meta?.id ?? ""}\u0000${relPath}`;
+    await checklist.load(relPath, draft);
+    if (checklist.ownerKey !== owner) return;
+    const merged = mergeChapterIssues(issuesFor(relPath), issuesFromChecklist(checklist.items));
+    data.value = withChapterIssues(data.value, relPath, merged);
+  }
+
   function setStatus(relPath: string, id: string, status: IssueStatus): void {
     if (relPath === "") return;
     data.value = withChapterIssues(data.value, relPath, markIssue(issuesFor(relPath), id, status));
   }
 
-  return { data, saveError, issuesFor, openCountFor, check, setStatus };
+  return { data, saveError, issuesFor, openCountFor, check, collect, setStatus };
 });

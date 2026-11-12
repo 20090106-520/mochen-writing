@@ -163,7 +163,7 @@ describe("样式", () => {
 describe("本章问题清单", () => {
   it("结论走 store 的按章通路，组件里不许另持一份状态", () => {
     expect(panelScript).toContain("useReviewIssuesStore()");
-    expect(panelScript).toContain("issues.check(rel, hits.value)");
+    expect(panelScript).toContain("issues.collect(rel, book.draft)");
     expect(panelScript).toContain("issues.setStatus(rel, id, status)");
     expect(panelScript).toContain("const savedIssues = computed(");
     expect(panelScript).not.toMatch(/const savedIssues\s*=\s*ref\(/);
@@ -171,7 +171,7 @@ describe("本章问题清单", () => {
 
   it("没打开文稿时记不进去（不许把这一轮命中挂到别的章上）", () => {
     expect(panelScript).toContain("if (rel === null) return;");
-    expect(panelTpl).toContain(':disabled="book.activeDocTab === null"');
+    expect(panelTpl).toContain(':disabled="book.activeDocTab === null || collecting"');
   });
 
   it("状态与逐条「忽略 / 恢复」都在模板里", () => {
@@ -249,13 +249,64 @@ describe("主操作交的是留存清单的待修", () => {
     expect(panelScript).not.toContain("slopChecklistPrompt(savedIssues.value");
   });
 
-  it("没体检过 / 清单全处理完时回退实时命中（否则退稿闸的整篇问题交不出去）", () => {
-    expect(panelScript).toContain("savedIssues.value.length > 0 && openIssues.value > 0");
+  it("没体检过 / 词表条目全处理完时回退实时命中（否则退稿闸的整篇问题交不出去）", () => {
+    expect(panelScript).toContain("slopOpenCount(savedIssues.value)");
+    expect(panelScript).toContain("slopOpen.value > 0 ? openSlopHitsOf(savedIssues.value)");
     expect(panelScript).toContain(": hits.value");
   });
 
   it("按钮文案跟着清单走：有待修时报条数", () => {
     expect(panelTpl).toContain("{{ handLabel }}");
     expect(panelScript).toContain("把本章待修的");
+  });
+});
+
+/**
+ * 五套来源收进同一张落盘清单（W-04 第二刀 · 全部）。
+ *
+ * 纪律还是那条：判据在体检层，面板只做搬运与呈现。这里钉的是最容易走样的三处——
+ * ① 不许在面板里再汇总一次（那会造出第二套结论、两套 id）；
+ * ② 篇级读数不许伪造落点，能跳行 / 只能跳文稿 / 无法定位要分三路；
+ * ③ 五套混在一张表里得标来源，否则作者分不清这条是套话还是人物卡缺字段。
+ */
+describe("本章清单收齐五套检查", () => {
+  it("记录走 store 的 collect，复用交稿体检的汇总通道，不留第二个写入口", () => {
+    expect(panelScript).toContain("await issues.collect(rel, book.draft)");
+    expect(panelScript).not.toContain("issues.check(rel, hits.value)");
+    expect(panelScript).not.toContain("buildSubmissionChecklist");
+    expect(panelScript).toContain('"收齐本章检查"');
+  });
+
+  it("异步汇总有按钮态与失败说明，不是点完没反应", () => {
+    expect(panelTpl).toContain(':disabled="book.activeDocTab === null || collecting"');
+    expect(panelTpl).toContain("正在收齐…");
+    expect(panelTpl).toContain("collectError !== ''");
+    expect(panelScript).toContain("collectError.value = `没能收齐本章检查");
+  });
+
+  it("每条标来源、显示判据给的标题（不是词表命中词）", () => {
+    expect(panelTpl).toContain("sourceLabel(item.source)");
+    expect(panelTpl).toContain("item.title ?? item.matched");
+    expect(panelScript).toContain("ISSUE_SOURCE_LABELS[source]");
+    expect(ruleBlock(css, ".ai-slop-saved-source")).toContain("color");
+  });
+
+  it("定位分三路：能跳行 / 只能跳文稿 / 篇级不给按钮", () => {
+    expect(panelScript).toContain('item.locate ?? (item.line > 0 ? "line" : "none")');
+    expect(panelTpl).toContain("locateOf(item) === 'line'");
+    expect(panelTpl).toContain("locateOf(item) === 'doc'");
+    expect(panelTpl).toContain('@click="jumpToDoc(item)"');
+    expect(panelTpl).toContain("篇级");
+  });
+
+  it("文稿级跳原文与搜索面板同一条路，且手动收起浮层", () => {
+    expect(panelScript).toContain("book.refOf(rel)");
+    expect(panelScript).toContain("book.openDocTab(rel)");
+    expect(panelScript).toContain("book.browse(ref)");
+    expect(panelScript).toContain("close();");
+  });
+
+  it("顶部说明写清清单收的是五套结论、按章留在书里", () => {
+    expect(panelTpl).toContain("收齐审稿五套检查的结论");
   });
 });
