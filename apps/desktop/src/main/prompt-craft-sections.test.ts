@@ -181,6 +181,41 @@ describe("写正文七段 · 作用域只说一次", () => {
   });
 });
 
+/**
+ * 段与段之间互相点名（「见『对话写法要求』第 1 条」），这是**对的**——同一件事只说一处，
+ * 另一处该指过去而不是再写一遍。代价是引用会漂：今天就把「人性化创作」的尾句改成
+ * 「按『用笔处置』第 1 条过一遍」，把结构级去味的末条从 ⑩ 改成 ⑨。
+ * 引用写错（指向不存在的段、或那个段根本没有第 N 条）在屏上完全看不出来——
+ * 模型读到的是「见某处第 3 条」，回头找不到，只好自己编一套。
+ */
+describe("写正文七段 · 交叉引用都指得到", () => {
+  const REF = /「([^」]+)」第 (\d+) 条/g;
+  const refs = [...Object.values(SECTIONS).join("\n").matchAll(REF)].map((one) => ({
+    name: one[1]!,
+    n: Number(one[2]!)
+  }));
+
+  it("守卫自己不许空转：七段里确实有几处编号引用", () => {
+    expect(refs.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("每一处引用的段名都真的是一段", () => {
+    const known = new Set(Object.keys(SECTIONS));
+    for (const ref of refs) {
+      expect(known.has(ref.name), `引用了不存在的段「${ref.name}」`).toBe(true);
+    }
+  });
+
+  it("每一处引用的条号，在目标段里真有那一条", () => {
+    for (const ref of refs) {
+      const target = SECTIONS[ref.name] ?? "";
+      // 条目在段里写成「3. …」（行首编号 + 点 + 空格），与正文里的读法一致。
+      const has = new RegExp(`^${ref.n}\\. `, "m").test(target);
+      expect(has, `「${ref.name}」里没有第 ${ref.n} 条`).toBe(true);
+    }
+  });
+});
+
 describe("写正文七段 · 字数预算", () => {
   const BUDGET_PER_SECTION = 760;
   const BUDGET_TOTAL = 3800;
