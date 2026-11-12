@@ -6,7 +6,12 @@ import { resetBookDataFlushers } from "../composables/bookDataRegistry";
 import { useBookStore } from "./useBookStore";
 import { useReviewIssuesStore } from "./useReviewIssuesStore";
 import { useSubmissionChecklistStore } from "./useSubmissionChecklistStore";
-import { normalizeReviewIssueBook, type ReviewIssueBook } from "../utils/review-issues";
+import {
+  ISSUE_TO_CHECKLIST,
+  normalizeReviewIssueBook,
+  openSlopHitsOf,
+  type ReviewIssueBook
+} from "../utils/review-issues";
 
 /**
  * 「收齐本章检查」的真链路（2026-11-12）。
@@ -152,5 +157,31 @@ describe("收齐本章检查 · 不 mock 的三套台账", () => {
     expect(after?.status).toBe("ignored");
     expect(after?.line).toBe(6);
     expect(store.issuesFor(A).filter((item) => item.source === "ai-slop")).toHaveLength(1);
+  });
+
+  /**
+   * 两套状态并存的旧毛病在这里真跑一遍：以前体检页标了「忽略」只改内存，
+   * 「交给 AI 改」仍把那个词喂回模型。现在标一次，两条通路都得认。
+   */
+  it("体检页标「忽略」→ 交给 AI 改的词表不再含它，体检页也读回同一状态", async () => {
+    await fx.switchBook("/book-a");
+    const store = useReviewIssuesStore();
+    await store.collect(A, DRAFT);
+    const checklist = useSubmissionChecklistStore();
+    const slopItem = checklist.items.find((item) => item.source === "slop");
+    expect(slopItem).toBeDefined();
+    expect(openSlopHitsOf(store.issuesFor(A)).some((h) => h.matched === "值得注意的是")).toBe(true);
+
+    store.setStatusOfItem(A, slopItem!, "ignored");
+
+    const saved = store.issuesFor(A).find((item) => item.id === slopItem!.id);
+    expect(saved).toBeDefined();
+    expect(ISSUE_TO_CHECKLIST[saved!.status]).toBe("ignored");
+    expect(openSlopHitsOf(store.issuesFor(A)).some((h) => h.matched === "值得注意的是")).toBe(
+      false
+    );
+    // 再收齐一次也不该把作者拍过的板弹回待修。
+    await store.collect(A, DRAFT);
+    expect(store.issuesFor(A).find((item) => item.id === slopItem!.id)?.status).toBe("ignored");
   });
 });

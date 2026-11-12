@@ -70,23 +70,57 @@ describe("数据来源：只走既有检查通道", () => {
   });
 });
 
-describe("状态只活在本会话", () => {
-  it("状态是 store 里的内存表，不写盘、不进 book.json、不用 localStorage", () => {
+/**
+ * 状态只有一份（W-04 收尾，2026-11-12）。
+ *
+ * 原先体检 store 自己存一张内存状态表，落盘清单另存一份：同一条目在体检页标了「忽略」，
+ * 去 AI 味页仍是待修，还会被「交给 AI 改」原样喂回模型。现在体检页读写的是
+ * useReviewIssuesStore 那份 review-issues.json。这几条钉住「不许再长出第二份」：
+ * 体检 store 不留状态表、面板不自己算状态、写盘只经清单 store。
+ */
+describe("状态只有一份：与落盘清单同源", () => {
+  it("体检 store 不再自建状态表，状态不留在内存里", () => {
     const store = typeScriptSource(STORE);
-    expect(store).toContain("statuses: {} as Record<string, ChecklistStatus>");
-    expect(store).toContain("statusKeyOf(");
-    for (const source of [store, typeScriptSource(CHECKLIST), typeScriptSource(ASSEMBLY)]) {
+    expect(store).not.toContain("statusKeyOf(");
+    expect(store).not.toContain("statuses:");
+    expect(store).not.toContain("setStatus(");
+    expect(store).not.toContain("ChecklistStatus");
+    for (const source of [store, scriptSource(CHECKLIST)]) {
       expect(source).not.toContain("localStorage");
       expect(source).not.toContain("writeDoc");
       expect(source).not.toContain("saveDoc");
       expect(source).not.toContain("window.mochen");
     }
-    expect(store).not.toContain("book.json");
   });
 
-  it("面板里写明跨章/跨次行为", () => {
+  it("面板从同一个清单 store 读状态、把点击交给它落盘", () => {
+    const script = scriptSource(CHECKLIST);
+    expect(script).toContain("useReviewIssuesStore(");
+    expect(script).toContain("ISSUE_TO_CHECKLIST[");
+    expect(script).toContain("setStatusOfItem(");
+    expect(script).toContain(".issuesFor(props.chapterRelPath)");
+    const template = templateSource(CHECKLIST);
+    expect(template).toContain("statusOf(item.id) === status");
+    expect(template).toContain("mark(item, status)");
+    expect(template).not.toContain("checklist.setStatus");
+    expect(template).toContain("counts.todo");
+  });
+
+  it("体检页也会写盘：存不下时读同一枚 saveError 上屏", () => {
+    const tpl = templateSource(CHECKLIST);
+    expect(tpl).toContain('v-if="reviewIssues.saveError"');
+    expect(tpl).toContain("{{ reviewIssues.saveError }}");
+    expect(tpl).toContain('role="status"');
+    expect(tpl).toContain('aria-live="polite"');
+  });
+
+  it("文案如实说重开还在，不许再写回「关掉软件就清空」", () => {
+    const hint = typeScriptSource(ASSEMBLY);
     expect(templateSource(CHECKLIST)).toContain("STATUS_HINT_TEXT");
-    expect(typeScriptSource(ASSEMBLY)).toContain("换章再回来还在，关掉软件就清空");
+    expect(hint).toContain("关掉软件重开都还在");
+    expect(hint).toContain("review-issues.json");
+    expect(hint).not.toContain("关掉软件就清空");
+    expect(hint).not.toContain("没有落任何文件");
   });
 });
 

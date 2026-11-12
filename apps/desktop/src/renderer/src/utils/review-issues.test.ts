@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { SOURCE_LABELS, type ChecklistItem } from "./submission-checklist.js";
 import {
+  CHECKLIST_TO_ISSUE,
   ISSUE_SOURCE_LABELS,
+  ISSUE_TO_CHECKLIST,
   chapterIssuesOf,
   emptyReviewIssueBook,
   issueIdOf,
@@ -351,5 +353,28 @@ describe("交稿问题清单 · 五套来源", () => {
     const item = { ...issuesFromSlop([hit()])[0]!, line: 0 };
     expect(openSlopHitsOf([item])).toEqual([]);
     expect(slopOpenCount([item])).toBe(0);
+  });
+});
+
+/**
+ * 两套状态名的翻译（W-04 收尾）。
+ *
+ * 交稿体检的「待修」和落盘清单的 open 是同一件事，只差一个字面量。以前两个面板各存各的，
+ * 于是体检页标了忽略、去 AI 味页仍把那个词交给 AI 改。这里钉住翻译不丢格、不翻错向。
+ */
+describe("交稿问题清单 · 状态与交稿体检共用一份", () => {
+  it("三格状态双向对得上：todo ↔ open，其余两格同名", () => {
+    expect(CHECKLIST_TO_ISSUE).toEqual({ todo: "open", fixed: "fixed", ignored: "ignored" });
+    expect(Object.keys(ISSUE_TO_CHECKLIST)).toHaveLength(3);
+    for (const status of ["todo", "fixed", "ignored"] as const) {
+      expect(ISSUE_TO_CHECKLIST[CHECKLIST_TO_ISSUE[status]]).toBe(status);
+    }
+  });
+
+  it("体检里标过忽略的词表条目，交给 AI 改时不再被喂回去", () => {
+    const item = issuesFromSlop([hit()])[0]!;
+    const saved = markIssue([item], item.id, CHECKLIST_TO_ISSUE.ignored);
+    expect(ISSUE_TO_CHECKLIST[saved[0]!.status]).toBe("ignored");
+    expect(openSlopHitsOf(saved)).toEqual([]);
   });
 });

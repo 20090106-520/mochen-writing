@@ -212,17 +212,17 @@ function fiveSources(): ChecklistItem[] {
   ];
 }
 
-describe("③ 收齐五套检查", () => {
-  function stubLoad(items: ChecklistItem[], ownerKey?: string): void {
-    const checklist = useSubmissionChecklistStore();
-    const book = useBookStore();
-    const owner = ownerKey ?? `${book.meta?.id ?? ""}\u0000${REL}`;
-    vi.spyOn(checklist, "load").mockImplementation(async () => {
-      checklist.items = items;
-      checklist.ownerKey = owner;
-    });
-  }
+function stubLoad(items: ChecklistItem[], ownerKey?: string): void {
+  const checklist = useSubmissionChecklistStore();
+  const book = useBookStore();
+  const owner = ownerKey ?? `${book.meta?.id ?? ""}\u0000${REL}`;
+  vi.spyOn(checklist, "load").mockImplementation(async () => {
+    checklist.items = items;
+    checklist.ownerKey = owner;
+  });
+}
 
+describe("③ 收齐五套检查", () => {
   it("五套条目都按章落盘，来源各归各、篇级读数不伪造行号", async () => {
     await fx.switchBook("/book-a");
     stubLoad(fiveSources());
@@ -263,5 +263,86 @@ describe("③ 收齐五套检查", () => {
     const store = useReviewIssuesStore();
     await store.collect(REL, "稿子");
     expect(store.issuesFor(REL)).toEqual([]);
+  });
+});
+
+/**
+ * 交稿体检里直接标状态（W-04 收尾）。
+ *
+ * 体检面板打开时清单可能还是空的（作者没点过「收齐本章检查」）。这一组钉住：
+ * ① 空清单点「忽略」也要在盘上留一条，不能点了等于没点；
+ * ② 只标一条，不顺手把其余待修判成已修（那是 collect 的合并语义，别混进来）；
+ * ③ 已收过的条目再标不追加第二条。
+ */
+describe("④ 交稿体检直接标状态", () => {
+  it("清单还没收过：补一条并落定状态，换书再回来还是忽略", async () => {
+    const store = useReviewIssuesStore();
+    await fx.switchBook("/book-a");
+    // 开书的读盘是异步的；等 canWrite 那道闸开了再改，否则 watcher 会跳过这次改动。
+    await fx.settle();
+    const item = fiveSources()[0]!;
+    expect(store.issuesFor(REL)).toEqual([]);
+    store.setStatusOfItem(REL, item, "ignored");
+
+    const saved = store.issuesFor(REL);
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.id).toBe(item.id);
+    expect(saved[0]?.source).toBe("ai-slop");
+    expect(saved[0]?.status).toBe("ignored");
+    await vi.advanceTimersByTimeAsync(1_000);
+    await fx.settle();
+    expect(fx.writes.map((w) => `${w.root}:${w.key}`)).toEqual(["/book-a:review-issues"]);
+    expect((JSON.parse(fx.writes[0]!.json) as ReviewIssueBook).chapters[REL]?.[0]?.status).toBe(
+      "ignored"
+    );
+
+    // 切到另一本书再切回来＝重开一次软件，状态由盘上读回，不该弹成待修。
+    await fx.switchBook("/book-b");
+    await fx.switchBook("/book-a");
+    expect(store.issuesFor(REL)[0]?.status).toBe("ignored");
+  });
+
+  it("清单里已有别的待修：只改这一条，不替作者把其余判成已修", async () => {
+    await fx.switchBook("/book-a");
+    stubLoad(fiveSources());
+    const store = useReviewIssuesStore();
+    await store.collect(REL, "稿子");
+    const before = store.openCountFor(REL);
+    const item = fiveSources()[2]!;
+    store.setStatusOfItem(REL, item, "fixed");
+    expect(store.issuesFor(REL)).toHaveLength(5);
+    expect(store.issuesFor(REL).find((entry) => entry.id === item.id)?.status).toBe("fixed");
+    expect(store.openCountFor(REL)).toBe(before - 1);
+  });
+
+  it("已收过的条目再标：只改状态，不重复追加一条", async () => {
+    await fx.switchBook("/book-a");
+    stubLoad(fiveSources());
+    const store = useReviewIssuesStore();
+    await store.collect(REL, "稿子");
+    const item = fiveSources()[0]!;
+    store.setStatusOfItem(REL, item, "ignored");
+    expect(store.issuesFor(REL)).toHaveLength(5);
+    expect(store.issuesFor(REL).filter((entry) => entry.id === item.id)).toHaveLength(1);
+    expect(store.issuesFor(REL)[0]?.status).toBe("ignored");
+  });
+
+  it("清单里那条带着旧行号：标状态时按当前结论刷新，别处一条不动", async () => {
+    await fx.switchBook("/book-a");
+    stubLoad(fiveSources());
+    const store = useReviewIssuesStore();
+    await store.collect(REL, "稿子");
+    const shifted = {
+      ...fiveSources()[0]!,
+      line: 19,
+      title: "套话「值得注意的是」（第 19 行）"
+    };
+    store.setStatusOfItem(REL, shifted, "fixed");
+    const saved = store.issuesFor(REL)[0]!;
+    expect(saved.line).toBe(19);
+    expect(saved.title).toBe(shifted.title);
+    expect(saved.status).toBe("fixed");
+    expect(store.issuesFor(REL)).toHaveLength(5);
+    expect(store.openCountFor(REL)).toBe(4);
   });
 });

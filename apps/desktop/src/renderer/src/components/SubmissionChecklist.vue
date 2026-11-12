@@ -4,6 +4,7 @@ import AppIcon from "./AppIcon.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
 import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
 import { useBookStore } from "../stores/useBookStore";
+import { useReviewIssuesStore } from "../stores/useReviewIssuesStore";
 import { useSubmissionChecklistStore } from "../stores/useSubmissionChecklistStore";
 import {
   CHECKLIST_STATUSES,
@@ -17,18 +18,20 @@ import {
   foreshadowNoteText,
   groupChecklist,
   timelineNoteText,
-  type ChecklistItem
+  type ChecklistItem,
+  type ChecklistStatus
 } from "../utils/submission-checklist";
+import { ISSUE_TO_CHECKLIST } from "../utils/review-issues";
 import { revealEditorLine } from "../utils/editor-reveal";
 
 /**
- * 交稿体检浮层（2026-11-09 W-04）。
+ * 交稿体检浮层（2026-11-09 W-04；2026-11-12 状态改读落盘清单）。
  *
  * 挂载在 W-03「本章参考」标题行的「体检」按钮上，Teleport 到 body：
  * 参考栏本身仍只占原来那一行，清单浮层不新增网格行，也不挤正文区。
- * 只读汇总，不写盘、不调模型；「待修/已修/忽略」只写进本会话的 store。
+ * 只读汇总、不调模型；「待修 / 已修 / 忽略」读写的是 useReviewIssuesStore 那份
+ * `review-issues.json`，与「去 AI 味」面板的留存清单是同一份，标一次两边都认。
  */
-
 const props = defineProps<{
   anchor: HTMLElement;
   chapterRelPath: string;
@@ -39,6 +42,7 @@ const emit = defineEmits<{ close: [] }>();
 
 const book = useBookStore();
 const checklist = useSubmissionChecklistStore();
+const reviewIssues = useReviewIssuesStore();
 const panel = ref<HTMLElement>();
 const jumpNotice = ref("");
 
@@ -50,6 +54,23 @@ const { style, close, tab } = useComposerContextPopover(
 );
 
 const groups = computed(() => groupChecklist(checklist.items));
+
+/** 状态唯一真源是落盘清单；清单里没有这一条＝这次刚查出来、还没处理过。 */
+function statusOf(itemId: string): ChecklistStatus {
+  const saved = reviewIssues.issuesFor(props.chapterRelPath).find((issue) => issue.id === itemId);
+  return saved === undefined ? "todo" : ISSUE_TO_CHECKLIST[saved.status];
+}
+
+/** 点状态就落盘：清单还没收过这一条时，由 store 按当前结论补一条再标。 */
+function mark(item: ChecklistItem, status: ChecklistStatus): void {
+  reviewIssues.setStatusOfItem(props.chapterRelPath, item, status);
+}
+
+const counts = computed(() => {
+  const tally: Record<ChecklistStatus, number> = { todo: 0, fixed: 0, ignored: 0 };
+  for (const item of checklist.items) tally[statusOf(item.id)] += 1;
+  return tally;
+});
 
 /** 换章/换书：先清空旧清单；等新正文真的载进来了（`docLoading` 落回 false）再重算。 */
 watch(
@@ -119,8 +140,7 @@ async function refresh(): Promise<void> {
         <strong>交稿体检</strong>
         <span v-if="chapterTitle !== ''" class="submission-check-who">《{{ chapterTitle }}》</span>
         <span class="submission-check-count">
-          {{ checklist.todoCount }} 待修 · {{ checklist.fixedCount }} 已修 ·
-          {{ checklist.ignoredCount }} 忽略
+          {{ counts.todo }} 待修 · {{ counts.fixed }} 已修 · {{ counts.ignored }} 忽略
         </span>
         <button
           class="submission-check-refresh"
@@ -184,11 +204,11 @@ async function refresh(): Promise<void> {
                     'is-todo': status === 'todo',
                     'is-fixed': status === 'fixed',
                     'is-ignored': status === 'ignored',
-                    'is-active': checklist.statusOf(item.id) === status
+                    'is-active': statusOf(item.id) === status
                   }"
                   type="button"
-                  :aria-pressed="checklist.statusOf(item.id) === status"
-                  @click="checklist.setStatus(item.id, status)"
+                  :aria-pressed="statusOf(item.id) === status"
+                  @click="mark(item, status)"
                 >
                   {{ STATUS_LABELS[status] }}
                 </button>
@@ -207,6 +227,16 @@ async function refresh(): Promise<void> {
           {{ foreshadowNoteText(checklist.foreshadowTotal) }}
         </p>
       </template>
+
+      <!-- 标状态现在也会写盘：存不下要当场说，别让屏上看着像标好了。 -->
+      <p
+        v-if="reviewIssues.saveError"
+        class="submission-check-error"
+        role="status"
+        aria-live="polite"
+      >
+        {{ reviewIssues.saveError }}
+      </p>
 
       <p class="submission-check-hint">{{ STATUS_HINT_TEXT }}</p>
     </section>

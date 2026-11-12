@@ -41,7 +41,7 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("清单归属与状态", () => {
+describe("清单归属与结论", () => {
   it("load 后归属到「书 + 章」，条目来自既有检查", async () => {
     const checklist = useSubmissionChecklistStore();
     await checklist.load(A, DRAFT_A);
@@ -51,17 +51,15 @@ describe("清单归属与状态", () => {
     expect(checklist.loading).toBe(false);
   });
 
-  it("待修/已修/忽略按章分开：换章回来才接得上，换章后同名条目回默认", async () => {
+  it("load 只重算结论、不自带状态：同一章两次汇总得到同一组身份", async () => {
     const checklist = useSubmissionChecklistStore();
     await checklist.load(A, DRAFT_A);
-    const first = checklist.items[0];
-    expect(first).toBeDefined();
-    checklist.setStatus(first!.id, "fixed");
-    expect(checklist.statusOf(first!.id)).toBe("fixed");
+    const ids = checklist.items.map((item) => item.id);
+    expect(ids.length).toBeGreaterThan(0);
     await checklist.load(A, DRAFT_A);
-    expect(checklist.statusOf(first!.id)).toBe("fixed");
+    expect(checklist.items.map((item) => item.id)).toEqual(ids);
     await checklist.load(B, DRAFT_B);
-    expect(checklist.statusOf(first!.id)).toBe("todo");
+    expect(checklist.items.every((item) => item.relPath === "" || item.relPath === B)).toBe(true);
   });
 
   it("换章先清空：clearFor 立刻把旧清单拿掉", async () => {

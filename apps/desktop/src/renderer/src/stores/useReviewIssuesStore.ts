@@ -11,13 +11,19 @@
  *
  * 【为什么体检是显式动作】若跟着输入实时跑，作者打到一半，清单会随每个字反复把条目
  * 标成已修又标回待修——那不是跟踪，是抖动。只在用户点「收齐本章检查」时并一次。
+ *
+ * 【状态只有一份】交稿体检里点「已修 / 忽略」也走这里的 `setStatusOfItem`：它原先只记在
+ * 内存里，于是同一条目在体检页显示「已忽略」、在去 AI 味页仍是待修，还会被「交给 AI 改」
+ * 原样喂回模型。现在读写都是这一份，标一次两边都认。
  */
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useBookFileData } from "../composables/useBookFileData";
 import { useBookStore } from "./useBookStore";
 import { useSubmissionChecklistStore } from "./useSubmissionChecklistStore";
+import type { ChecklistItem, ChecklistStatus } from "../utils/submission-checklist";
 import {
+  CHECKLIST_TO_ISSUE,
   chapterIssuesOf,
   emptyReviewIssueBook,
   issuesFromChecklist,
@@ -86,5 +92,32 @@ export const useReviewIssuesStore = defineStore("reviewIssues", () => {
     data.value = withChapterIssues(data.value, relPath, markIssue(issuesFor(relPath), id, status));
   }
 
-  return { data, saveError, issuesFor, openCountFor, check, collect, setStatus };
+  /**
+   * 交稿体检里直接标状态（W-04 收尾）。
+   *
+   * 【为什么不是 setStatus 就够】体检面板打开时清单可能还是空的（作者没点过
+   * 「收齐本章检查」）。这时点「忽略」若只改一个找不到的 id，盘上什么都没留下，
+   * 下次打开又回待修。所以缺条目时按当前这条结论补一条，再落状态。
+   *
+   * 【为什么不走 mergeChapterIssues】那一条会把「这次没扫到」的待修全判成已修——
+   * 作者只标了一条，不该顺手替他把别的都算修完。这里只补当前这一条。
+   */
+  function setStatusOfItem(relPath: string, item: ChecklistItem, status: ChecklistStatus): void {
+    if (relPath === "") return;
+    // 一条 item 必定搬出一条 issue；不另写一份字段搬运，免得两边形状漂移。
+    const fresh = issuesFromChecklist([item])[0]!;
+    const current = issuesFor(relPath);
+    // 已有这一条时按当前结论刷新显示字段（行号、标题可能早变了），但只碰它自己：
+    // 别的条目留在原处，不替作者判「修完了」。状态随后由 markIssue 覆盖成刚点的那一格。
+    const base = current.some((entry) => entry.id === fresh.id)
+      ? current.map((entry) => (entry.id === fresh.id ? fresh : entry))
+      : [...current, fresh];
+    data.value = withChapterIssues(
+      data.value,
+      relPath,
+      markIssue(base, fresh.id, CHECKLIST_TO_ISSUE[status])
+    );
+  }
+
+  return { data, saveError, issuesFor, openCountFor, check, collect, setStatus, setStatusOfItem };
 });

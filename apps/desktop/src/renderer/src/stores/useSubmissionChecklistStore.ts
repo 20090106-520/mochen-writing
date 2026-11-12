@@ -1,27 +1,24 @@
 import { defineStore } from "pinia";
 import { keywordMisses } from "../utils/foreshadow";
-import {
-  buildSubmissionChecklist,
-  statusKeyOf,
-  type ChecklistItem,
-  type ChecklistStatus
-} from "../utils/submission-checklist";
+import { buildSubmissionChecklist, type ChecklistItem } from "../utils/submission-checklist";
 import { useBookStore } from "./useBookStore";
 import { useCastCheckStore } from "./useCastCheckStore";
 import { useTimelineStore } from "./useTimelineStore";
 
 /**
- * 「交稿体检」清单的会话态（2026-11-09 W-04）。
+ * 「交稿体检」的即时结论（2026-11-09 W-04；2026-11-12 收尾后只管结论）。
  *
- * 为什么**不写盘**：`待修 / 已修 / 忽略` 是作者这次交稿前的自检标记，不是书的数据；
- * 写进 `book.json` 会污染作品结构，写进 `.mochen/` 又要在换书/重开后解释同步问题。
- * 所以状态只活在内存里，按「书 id + 章路径 + 条目指纹」分开记：
- * - 换章：清单本身立刻清空并重算，旧章回包被 `loadToken` 挡掉；
- * - 换书：键里带书 id，旧书的标记不会串到新书；
- * - 重开软件：内存清空，全部回到「待修」。
+ * 这一枚只回答「这一章这一秒查到了什么」：把五套既有检查汇成一张清单，**不记状态**。
+ * 待修 / 已修 / 忽略是作者要跨章、跨次留着的决定，真源是 `useReviewIssuesStore` 落盘的
+ * `review-issues.json`。原先这里也存一份内存状态表，于是同一条目在体检页显示「已忽略」、
+ * 在去 AI 味页仍是待修，还会被「交给 AI 改」原样喂回模型。两套合成一套后，
+ * 这里连 `statuses` 都不留——没有第二份可读，就不会有第二份不同步。
  *
- * 清单内容本身不缓存，每次打开/换章都重新走既有检查通道：
+ * 清单内容本身不缓存，每次打开 / 换章都重新走既有检查通道：
  * 去 AI 味与审稿打分读当前 `draft`，人物核对与时间线读各自 store，伏笔读既有台账。
+ * - 换章：清单立刻清空重算，旧章回包被 `loadToken` 挡掉；
+ * - 换书：`ownerKey` 带书 id，`collect` 拿它验归属，旧书结论不会串到新书；
+ * - 重开软件：结论重算，状态由落盘清单读回，这里不需要缓存任何东西。
  */
 export const useSubmissionChecklistStore = defineStore("submissionChecklist", {
   state: () => ({
@@ -29,8 +26,6 @@ export const useSubmissionChecklistStore = defineStore("submissionChecklist", {
     /** 当前清单归属（`书 id` + `章相对路径`），换章时用它判断要不要清空。 */
     ownerKey: "",
     items: [] as ChecklistItem[],
-    /** 键 = `statusKeyOf(ownerKey, item.id)`；只在内存里。 */
-    statuses: {} as Record<string, ChecklistStatus>,
     loading: false,
     notice: "",
     /** 未归属到本章、但本次确实查到的全书级读数，页脚据此说明去哪看。 */
@@ -41,20 +36,6 @@ export const useSubmissionChecklistStore = defineStore("submissionChecklist", {
     /** 竞态闸门：只有最后一次发起的 `load` 能把结果落地。 */
     loadToken: 0
   }),
-
-  getters: {
-    todoCount: (state) =>
-      state.items.filter(
-        (item) => (state.statuses[statusKeyOf(state.ownerKey, item.id)] ?? "todo") === "todo"
-      ).length,
-    fixedCount: (state) =>
-      state.items.filter((item) => state.statuses[statusKeyOf(state.ownerKey, item.id)] === "fixed")
-        .length,
-    ignoredCount: (state) =>
-      state.items.filter(
-        (item) => state.statuses[statusKeyOf(state.ownerKey, item.id)] === "ignored"
-      ).length
-  },
 
   actions: {
     toggle(): void {
@@ -81,14 +62,6 @@ export const useSubmissionChecklistStore = defineStore("submissionChecklist", {
       this.castGap = 0;
       this.cardCount = 0;
       this.foreshadowTotal = 0;
-    },
-
-    statusOf(itemId: string): ChecklistStatus {
-      return this.statuses[statusKeyOf(this.ownerKey, itemId)] ?? "todo";
-    },
-
-    setStatus(itemId: string, status: ChecklistStatus): void {
-      this.statuses[statusKeyOf(this.ownerKey, itemId)] = status;
     },
 
     /**

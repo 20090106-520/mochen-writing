@@ -72,11 +72,6 @@ export const SOURCE_ORDER: readonly ChecklistSource[] = [
   "review"
 ];
 
-/** 状态按「书 + 章 + 条目指纹」分开记；换章回来还在，重开软件就清空。 */
-export function statusKeyOf(ownerKey: string, itemId: string): string {
-  return `${ownerKey}\u0000${itemId}`;
-}
-
 export interface ChecklistSources {
   chapterRelPath: string;
   draft: string;
@@ -296,7 +291,7 @@ export const COVERAGE_TEXT =
   "条目全部来自右栏既有的五套检查（去 AI 味 / 审稿打分 / 时间线核对 / 人物设定核对 / 伏笔台账），只收能归属到本章的条目，没有新造规则。";
 
 export const STATUS_HINT_TEXT =
-  "标记只活在这次打开软件期间：按「书 + 章 + 条目」分开记，换章再回来还在，关掉软件就清空。没有写进 book.json，也没有落任何文件。";
+  "标记按「书 + 章 + 条目」存进这本书的审稿问题清单（.mochen/data/review-issues.json）：换章再回来、关掉软件重开都还在；和「去 AI 味」面板那份是同一份，标一次两边都认。没有写进 book.json。";
 
 export function timelineNoteText(otherCount: number): string {
   if (otherCount <= 0) {

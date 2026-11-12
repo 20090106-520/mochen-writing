@@ -14,7 +14,6 @@ import {
   slopItems,
   SOURCE_LABELS,
   SOURCE_ORDER,
-  statusKeyOf,
   STATUS_HINT_TEXT,
   timelineItems,
   foreshadowItems
@@ -235,12 +234,6 @@ describe("整张清单", () => {
       expectedSources.map((source) => SOURCE_LABELS[source])
     );
   });
-
-  it("状态键把书/章/条目分开，不同章的同名条目互不串", () => {
-    const one = statusKeyOf("b1\u0000" + A, "slop|1|值得注意的是|strong|0");
-    const two = statusKeyOf("b1\u0000" + B, "slop|1|值得注意的是|strong|0");
-    expect(one).not.toBe(two);
-  });
 });
 
 describe("空态与说明文案", () => {
@@ -248,8 +241,10 @@ describe("空态与说明文案", () => {
     expect(NO_CHAPTER_TEXT).toContain("只对章节生效");
     expect(LOADING_TEXT).toContain("正在汇总");
     expect(CLEAN_TEXT).toContain("没有待收拾");
-    expect(STATUS_HINT_TEXT).toContain("关掉软件就清空");
+    expect(STATUS_HINT_TEXT).toContain("关掉软件重开都还在");
+    expect(STATUS_HINT_TEXT).toContain("review-issues.json");
     expect(STATUS_HINT_TEXT).toContain("book.json");
+    expect(STATUS_HINT_TEXT).not.toContain("没有落任何文件");
   });
 });
 

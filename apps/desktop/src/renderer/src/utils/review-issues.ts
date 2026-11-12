@@ -21,7 +21,12 @@
  * 读出来语义一点没变——按「去 AI 味 · 能跳行 · 当前章」解释即可。不需要迁移，更不该把旧书
  * 的清单判成坏档。真要改字段含义或删字段才升 version 走显式迁移。
  */
-import { SOURCE_LABELS, type ChecklistItem, type ChecklistSource } from "./submission-checklist";
+import {
+  SOURCE_LABELS,
+  type ChecklistItem,
+  type ChecklistSource,
+  type ChecklistStatus
+} from "./submission-checklist";
 
 export type IssueStatus = "open" | "fixed" | "ignored";
 
@@ -30,6 +35,23 @@ export type IssueStatus = "open" | "fixed" | "ignored";
  * 被判「读不懂」；体检层管它叫 `slop`，适配时映射过来。
  */
 export type IssueSource = "ai-slop" | "review" | "cast" | "foreshadow" | "timeline";
+
+/**
+ * 两套状态只差一格字面量（体检叫 todo，落盘叫 open）。翻译只在这一处做：
+ * 组件里各写一个三元表达式，迟早有一边把 ignored 翻错，让作者拍过的板弹回待修。
+ * W-04 收尾后交稿体检不再自己记状态，读写的都是同一份 `review-issues.json`。
+ */
+export const CHECKLIST_TO_ISSUE: Record<ChecklistStatus, IssueStatus> = {
+  todo: "open",
+  fixed: "fixed",
+  ignored: "ignored"
+};
+
+export const ISSUE_TO_CHECKLIST: Record<IssueStatus, ChecklistStatus> = {
+  open: "todo",
+  fixed: "fixed",
+  ignored: "ignored"
+};
 
 const SOURCES: readonly IssueSource[] = ["ai-slop", "review", "cast", "foreshadow", "timeline"];
 
