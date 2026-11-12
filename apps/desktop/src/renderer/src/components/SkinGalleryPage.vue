@@ -11,6 +11,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import AppIcon from "./AppIcon.vue";
+import PageNote from "./PageNote.vue";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useAppearanceStore } from "../stores/useAppearanceStore";
 import { useSkinBrowseStore } from "../stores/useSkinBrowse";
@@ -235,24 +236,31 @@ function backToChat(): void {
            外观」这种半角空格，还把「设置 · 外观」这个书名号词拦腰截断。
            切成短句之后每段都在一行以内，页面看到的与源码写的就是同一句；
            `appearance-skin-plaza-wiring.test.ts` 里那三条逐句断言也才钉得住
-           （它原先读的是整段原文，折点一挪就红，而红的原因是排版不是文案）。 -->
-      <p class="skin-gallery-note">
-        广场只收带整窗画面的皮肤：一套 = 配色三色 + 视觉四层 + 一层画面 + 一枚挂件。
-      </p>
-      <p class="skin-gallery-note">视觉四层是背景 / 玻璃 / 表面 / 图案，浅色与深色一并应用。</p>
-      <p class="skin-gallery-note">
-        画面是盖满整窗的那张画，挂件是窗角那一枚小件——两样不是一回事，每套各有一份。
-      </p>
-      <p class="skin-gallery-note">十六套的四层与挂件两两不同，不只换画。</p>
-      <p class="skin-gallery-note">上一批那五条改编自上游的开源换装插件（MIT），搬的都是参数。</p>
-      <p class="skin-gallery-note">换上去读起来仍然只是「换了个色调」。</p>
-      <p class="skin-gallery-note">
-        那五条与原先十套<strong>没有画面的出厂配色，已经整套删除</strong>。
-      </p>
-      <p class="skin-gallery-note">
-        盘上存着它们的，打开会自动回到这里的『{{ defaultAppearanceSkin.label }}』。
-      </p>
-      <p class="skin-gallery-note">「设置 · 外观」那一页会说明是哪一套被换掉了。</p>
+           （它原先读的是整段原文，折点一挪就红，而红的原因是排版不是文案）。
+
+           【2026-11-12：整段收进 `<PageNote>` 折叠条】
+           真机量过：这九段合计 246.6px，902px 高的窗口里卡片网格要等到 y=670 才开始，
+           首屏只看得到一排卡。说明本身没错，错在它**一直摊开展厅门口**。
+           现在收起后只占一行，展开态与原来逐字一致（正文段落一个都没动，类名也没改，
+           上面那几条守卫读源码照样读得到）。
+           第一句「一套 = 配色三色 + 视觉四层 + 一层画面 + 一枚挂件」搬去当了折叠条的标题——
+           它是这一页最该被看见的一句，收起时也该在屏幕上，而不是要用户先点一下才看得到。 -->
+      <PageNote summary="一套皮肤 = 配色三色 + 视觉四层 + 一层画面 + 一枚挂件">
+        <p class="skin-gallery-note">视觉四层是背景 / 玻璃 / 表面 / 图案，浅色与深色一并应用。</p>
+        <p class="skin-gallery-note">
+          画面是盖满整窗的那张画，挂件是窗角那一枚小件——两样不是一回事，每套各有一份。
+        </p>
+        <p class="skin-gallery-note">十六套的四层与挂件两两不同，不只换画。</p>
+        <p class="skin-gallery-note">上一批那五条改编自上游的开源换装插件（MIT），搬的都是参数。</p>
+        <p class="skin-gallery-note">换上去读起来仍然只是「换了个色调」。</p>
+        <p class="skin-gallery-note">
+          那五条与原先十套<strong>没有画面的出厂配色，已经整套删除</strong>。
+        </p>
+        <p class="skin-gallery-note">
+          盘上存着它们的，打开会自动回到这里的『{{ defaultAppearanceSkin.label }}』。
+        </p>
+        <p class="skin-gallery-note">「设置 · 外观」那一页会说明是哪一套被换掉了。</p>
+      </PageNote>
 
       <!-- 并排对比：勾满两套才出现。每一块都是**一整扇窗**的模型（三栏 + 五层），
            不是把卡片放大——要对比的正是「整窗换上之后各是什么样子」。

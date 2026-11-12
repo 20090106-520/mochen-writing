@@ -1,4 +1,4 @@
-// 源自 deepwrite，同源实现；唯一的例外是 `heading` 一枚（本仓自造，见 docs/ATTRIBUTION.md）。
+// 源自 deepwrite，同源实现；例外是本仓自造的 `heading` 与 `info` 两枚（见 docs/ATTRIBUTION.md）。
 export type IconName =
   | "archive"
   | "arrow-left"
@@ -25,6 +25,7 @@ export type IconName =
   | "history"
   | "house"
   | "image"
+  | "info"
   | "italic"
   | "keyboard"
   | "ledger"

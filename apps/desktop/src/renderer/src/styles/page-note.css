@@ -1,0 +1,92 @@
+/* 页面说明折叠条（2026-11-12）。装配见 components/PageNote.vue。
+
+   这一条只做三件事：收起时占一行、展开时正文与卡片之间有一道竖线分隔、焦点环与全站一致。
+   它**不改正文本身的样式** —— 里面那些 `.skin-gallery-note` / `.extensions-note` 段落
+   各自还有自己的规则（段间距、字色），搬进这一件之后照旧生效。 */
+
+.page-note {
+  display: block;
+  margin: 0 0 10px;
+  min-width: 0;
+}
+
+/* 收起的这一行就是「展厅门口那块牌子」：字比正文小一档、色比正文浅一档，
+   不抢卡片的注意力，但点得着。
+   宽度只包内容（inline-flex + 自带 padding），不占满一整行 —— 行尾那段空白在
+   说明本来就很短的两页上会变成一条莫名其妙的横杠。 */
+.page-note-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 8px 3px 6px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  line-height: 1.5;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+/* 收起三角：Chromium / WebKit 都给一个实心小三角，与全站描边图标不是一套。 */
+.page-note-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* hover 这一档只换底、标题会落到深一档的状态底上，所以**必须自己写明字色**：
+   `.page-note-summary` 的基规则用的是 `--text-secondary`（三级灰压在页底上才达标），
+   压到 hover 档就不够了。这是 `appearance-surface-ladder.test.ts` 那条结构普查的要求
+   （画了状态档底就得自己写明字色），与 `.settings-category:hover` / `.change-history-toggle`
+   同一形：`color` 写在规则里，而不是指望继承。 */
+.page-note-summary:hover {
+  background: var(--hover, rgb(0 0 0 / 4%));
+  color: var(--text);
+}
+
+/* 焦点环与全站那一条同形（styles.css 的 button:focus-visible）。
+   为什么不在那条选择器里加 `summary`：那一条是主样式表根部的全局规则，
+   加进去会连带改掉输入卡里那几枚 `<details>` 芯片的焦点外观——那是另一件事，
+   要改也该单独一轮真机量过再改。这里只管这一件。 */
+.page-note-summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--focus) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.page-note-icon {
+  flex: none;
+  /* 说明图标与文字同一档灰：它是指路的，不是强调的。 */
+  color: var(--text-tertiary);
+}
+
+.page-note-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 收起时箭头指向右（▸），展开时转成向下（▾）。
+   `chevron` 字形本身是「往右」，与左栏目录树同一枚：那边也是 `[open] → rotate(90deg)`。
+   不用「收起朝下、展开朝上」那一套（Material 的 expand_more）：它要转 180°，
+   转到一半时箭头是横的，看上去像卡住；90° 这一档从 ▸ 到 ▾ 是一次干脆的四分之一圈。
+   为什么不用 180：真机截图里 180° 收尾是「◂」，一个左箭头在标题末尾读起来像「返回」。 */
+.page-note-caret {
+  flex: none;
+  color: var(--text-tertiary);
+  transition: transform var(--dur-fast) var(--ease-out-soft, ease);
+}
+
+.page-note[open] .page-note-caret {
+  transform: rotate(90deg);
+}
+
+/* 展开后的正文：左侧一道细线把它框成「附注」，而不是又一段正文。
+   竖线落在距页边 13px 处（margin 11 + border 2），正好在说明图标的左缘外侧一档——
+   读起来是「从这一行里长出来的」，而不是又一块与标题平级的段落。 */
+.page-note-body {
+  margin: 6px 0 2px 11px;
+  padding: 2px 0 2px 13px;
+  border-left: 2px solid var(--line-soft, var(--line));
+  /* 正文左右各留 0：卡片网格的左边线与它对齐，不产生第二套缩进。 */
+  min-width: 0;
+}

@@ -282,6 +282,13 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
     ]
   },
   {
+    /* 页面说明折叠条的标题行（2026-11-12）。基规则用的是 `--text-secondary`（三级灰压页底才达标），
+       压到 hover 这一档就不够了，所以 hover 块里自己写明 `color: var(--text)` ⇒ primary。
+       它是一条**可点的标题**而不是行内小字：不需要 shadow 升档，直接吃正文级字色。 */
+    file: "styles/page-note.css",
+    sites: [{ needle: ".page-note-summary:hover", primary: true }]
+  },
+  {
     file: "styles/interaction.css",
     sites: [
       { needle: ".permission-option:hover", inheritFrom: ".permission-option" },

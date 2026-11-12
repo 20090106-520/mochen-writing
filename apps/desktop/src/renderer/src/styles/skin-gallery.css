@@ -349,21 +349,38 @@
   overflow-wrap: anywhere;
 }
 
+/* 卡片脚部：质感词 + 三枚操作（2026-11-12 修）。
+   【原来的病灶】`justify-content: space-between` 让质感词与三枚钮抢同一行，
+   而质感词是 `min-width: 0` 且不长得（flex 默认 0 1 auto），于是被压到 78px ——
+   比它自己最长的一枚词（「胶囊圆角」56px + 12px 内边距）还窄一点点，
+   六到九枚词**一枚一行**地竖着摞下来：真机量到质感区 116px、整张卡 400px，
+   卡片右半边是白花花一片，读起来像一张崩了的表格。
+   【改法】允许折行，质感词整行独占（100%），三枚钮被挤到第二行并靠右。
+   一行装不下的东西分两行摆，是卡片里唯一不会随词数变化的排法 ——
+   词从 4 枚变 9 枚时，卡片只长一行，不会变成九行。 */
 .skin-card-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px 8px;
   margin-top: auto;
   min-width: 0;
 }
 
-/* 质感四档的词。字小一点、退后一点——它们是说明，不是这一张卡的主角。 */
+/* 质感四档的词。字小一点、退后一点——它们是说明，不是这一张卡的主角。
+   `flex: 1 1 100%` 是上面那条的前提：整行独占，词才会横着排、按 248px 折两行。 */
 .skin-card-feel {
   display: flex;
+  flex: 1 1 100%;
   flex-wrap: wrap;
   gap: 4px;
   min-width: 0;
+}
+
+/* 三枚操作靠右。不写 `justify-content: flex-end`（那会把独占一行的质感词也推到右边），
+   只把第一枚钮的左边距吃掉 —— 折行后它一定在第二行的行首，`auto` 把它连同后两枚一起顶到右缘。 */
+.skin-card-feel + .skin-btn {
+  margin-left: auto;
 }
 
 .skin-card-feel span {

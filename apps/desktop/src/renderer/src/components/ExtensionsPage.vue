@@ -16,6 +16,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
 import AppIcon from "./AppIcon.vue";
+import PageNote from "./PageNote.vue";
 import { useLayoutStore } from "../stores/layoutStore";
 import { usePluginStore } from "../stores/usePluginStore";
 import { useSkillMarketStore } from "../stores/useSkillMarketStore";
@@ -361,10 +362,12 @@ onMounted(() => {
     <div class="extensions-body">
       <!-- 插件那一处 -->
       <template v-if="!isSkills">
-        <p class="extensions-note">
-          插件给对话加能力：它注册的工具会并进模型看得见的工具表。停用之后模型就调不到了，
-          文件还在，随时可以再启用；卸载是删掉它——内置插件删掉后下次启动会自动装回来。
-        </p>
+        <PageNote summary="停用、卸载、内置插件各自是什么意思">
+          <p class="extensions-note">
+            插件给对话加能力：它注册的工具会并进模型看得见的工具表。停用之后模型就调不到了，
+            文件还在，随时可以再启用；卸载是删掉它——内置插件删掉后下次启动会自动装回来。
+          </p>
+        </PageNote>
         <p v-if="plugins.listed === null" class="extensions-empty">正在列插件…</p>
         <p v-else-if="plugins.listed === false" class="extensions-empty">
           插件清单没有列出来，原因在上面那句。插件目录在应用的全局数据里，你可以关掉它再试。
@@ -444,12 +447,17 @@ onMounted(() => {
            「挂入/取下」只对当前这条会话生效；「设为默认」写 book.json 的书级默认清单；
            「停用/启用」写 book.json 的停用清单（停用的不进推荐、use_skill 也读不到）。 -->
       <template v-else>
-        <p class="extensions-note">
-          技能是一段提示词。装上就落在全局技能目录里、所有作品都能用；挂入只对当前这条会话生效，
-          新会话继承这本书的「默认挂入」，在本会话改过之后会标「本会话临时改过」（不写回书）。
-          「设为默认」与「停用」会写进这本书的 book.json。开着自动技能时，它会按输入里的字、
-          当前阶段与文稿，自己把该用的那几枚挂上；你亲手取下的，它不会再自作主张加回来。
-        </p>
+        <!-- 2026-11-12：这段四行说明收进 `<PageNote>` 折叠条。
+             它与下面那条「本会话临时改过」不是一类东西——那条是**当下状态**（说了就得看见），
+             这条是**规矩**（看一次就够）。收起来之后搜索结果与卡片网格才落在首屏。 -->
+        <PageNote summary="挂入、设为默认、停用各管什么">
+          <p class="extensions-note">
+            技能是一段提示词。装上就落在全局技能目录里、所有作品都能用；挂入只对当前这条会话生效，
+            新会话继承这本书的「默认挂入」，在本会话改过之后会标「本会话临时改过」（不写回书）。
+            「设为默认」与「停用」会写进这本书的 book.json。开着自动技能时，它会按输入里的字、
+            当前阶段与文稿，自己把该用的那几枚挂上；你亲手取下的，它不会再自作主张加回来。
+          </p>
+        </PageNote>
         <!-- 本会话覆盖的还原入口：覆盖键在就说明「这一条会话不再跟着书级默认」，
              这里给一颗明确的「恢复书级默认」，而不是让用户自己一次次点回原样。 -->
         <p v-if="skillOverridden" class="extensions-note">

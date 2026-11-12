@@ -76,6 +76,11 @@
 /* 无边框窗口的两条公用件（2026-11-11）：整页头的可拖区与「让出系统窗口按钮」。
    挂在风格上属通用件，排在任何具体页之前、density 之后不参与同特异性裁决。 */
 @import "./styles/window-chrome.css";
+/* 页面说明折叠条（2026-11-12）：技能库与皮肤广场那两段入场说明收进 `<details>`。
+   正文段落各自的规则仍在 extensions.css / skin-gallery.css 里，这一条只管外壳。
+   排在这里是因为它会被上面那两个具体页的规则命中（`.page-note-body` 里的段落），
+   放在它们之后，同特异性时后者才赢得对。 */
+@import "./styles/page-note.css";
 /* 行高阶梯（2026-11-11）：body 此前没有任何默认行高，四十来处文字吃 `normal`。
    放在 density 之前 —— 它与紧凑档只改内边距/高度，不抢同一条声明。 */
 @import "./styles/type-scale.css";
