@@ -8,6 +8,7 @@ import {
   mergeChapterIssues,
   normalizeReviewIssueBook,
   openCount,
+  openSlopHitsOf,
   withChapterIssues,
   type ReviewIssue,
   type SlopLike
@@ -147,5 +148,52 @@ describe("交稿问题清单 · 盘上那份读不读得懂", () => {
     ["null", null]
   ])("%s ⇒ 判读不懂，绝不将错就错当空库", (_name, value) => {
     expect(normalizeReviewIssueBook(value)).toBeNull();
+  });
+});
+
+/**
+ * 交给 AI 改的那份清单（W-04 第二刀）。
+ *
+ * 预填原先喂「这一秒的扫描」，作者标过的忽略、上轮留下的待修全被绕过去；
+ * 现在有留存清单时只交待修。这一层要钉住的是**别把内部字段递出去**：
+ * id 里带 \u001f 分隔符，status 是本地状态，模型读到只会把它们当正文的一部分学。
+ */
+describe("交稿问题清单 · 交给 AI 改的那几条", () => {
+  it("只留待修：已修与已忽略都不进", () => {
+    const items: ReviewIssue[] = [
+      { ...issuesFromSlop([hit()])[0]!, status: "open" },
+      { ...issuesFromSlop([hit({ matched: "总而言之" })])[0]!, status: "fixed" },
+      { ...issuesFromSlop([hit({ matched: "值得一提的是" })])[0]!, status: "ignored" }
+    ];
+    const out = openSlopHitsOf(items);
+    expect(out).toHaveLength(1);
+    expect(out[0]?.matched).toBe("值得注意的是");
+  });
+
+  it("投影成命中形状：字段一个不多，一个不少", () => {
+    const out = openSlopHitsOf(issuesFromSlop([hit()]));
+    expect(out).toEqual([
+      {
+        line: 7,
+        matched: "值得注意的是",
+        strength: "strong",
+        why: "总结式开场",
+        excerpt: "…值得注意的是，他没回头…"
+      }
+    ]);
+    // 内部指纹与本地状态不许出现在递给模型的文本里。
+    expect(JSON.stringify(out)).not.toContain("id");
+    expect(JSON.stringify(out)).not.toContain("status");
+  });
+
+  it("顺序照清单原来的来（复检追加的新条目排在后面）", () => {
+    const items = issuesFromSlop([hit({ matched: "甲" }), hit({ matched: "乙" })]);
+    expect(openSlopHitsOf(items).map((h) => h.matched)).toEqual(["甲", "乙"]);
+  });
+
+  it("空清单 / 全处理完都回空数组，由面板决定回退到实时命中", () => {
+    expect(openSlopHitsOf([])).toEqual([]);
+    const done = issuesFromSlop([hit()]).map((item) => ({ ...item, status: "ignored" as const }));
+    expect(openSlopHitsOf(done)).toEqual([]);
   });
 });

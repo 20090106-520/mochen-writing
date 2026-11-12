@@ -5,16 +5,23 @@
      判定与文案在 utils/ai-slop.ts，样式在 styles/ai-slop.css。
      面板只做三件事：把命中逐条摆出来、说清强信号与弱信号的区别、把清单交给 AI 去改。 -->
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
 import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
-import { findAiSlop, slopChecklistPrompt, slopGateOf, slopVerdict } from "../utils/ai-slop";
+import {
+  findAiSlop,
+  slopChecklistPrompt,
+  slopGateOf,
+  slopVerdict,
+  type SlopHit
+} from "../utils/ai-slop";
+import { revealEditorLine } from "../utils/editor-reveal";
 import { threadKeyFor, useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
 import { useNotificationStore } from "../stores/useNotificationStore";
 import { useReviewIssuesStore } from "../stores/useReviewIssuesStore";
-import type { IssueStatus } from "../utils/review-issues";
+import { openSlopHitsOf, type IssueStatus } from "../utils/review-issues";
 
 const props = defineProps<{ anchor: HTMLElement }>();
 const emit = defineEmits<{ close: [] }>();
@@ -24,6 +31,8 @@ const agent = useAgentStore();
 const notify = useNotificationStore();
 const issues = useReviewIssuesStore();
 const panel = ref<HTMLElement>();
+/** 跳原文没定位到时如实说一句：清单里的行号是上次体检的快照，正文可能已经改过。 */
+const jumpNotice = ref("");
 
 const { style, close, tab } = useComposerContextPopover(
   () => props.anchor,
@@ -64,6 +73,43 @@ const issueButtonLabel = computed(() =>
   savedIssues.value.length > 0 ? "复检这一章" : "记进本章清单"
 );
 
+/**
+ * 交给 AI 改的那份清单：**有留存结论时只交待修的**，别让作者标过的忽略、
+ * 上轮留下的待修被这一秒的扫描顶掉。两种情形回退到实时命中：
+ * ① 还没体检过——不强迫先点一次「记进本章清单」才能用主操作；
+ * ② 清单全处理完——退稿闸是整篇判据、根本不在清单里，仍要能交出去让它改节奏。
+ */
+const pendingHits = computed<SlopHit[]>(() =>
+  savedIssues.value.length > 0 && openIssues.value > 0
+    ? openSlopHitsOf(savedIssues.value)
+    : hits.value
+);
+const handLabel = computed(() =>
+  savedIssues.value.length > 0 && openIssues.value > 0
+    ? `把本章待修的 ${openIssues.value} 条交给 AI 改`
+    : "把这份清单交给 AI 改"
+);
+
+/**
+ * 点行号跳原文（W-04 第二刀）。
+ *
+ * 【行号口径】`findAiSlop` 是按 `book.draft` 原始草稿逐行数的（含 frontmatter），
+ * 与编辑框里的行号一模一样，所以直接 `revealEditorLine`；`draftLineOfBodyLine` 那道换算
+ * 只给「按剥掉 frontmatter 之后的正文数行」的判据用（交稿体检的人物核对），这里用了反倒偏几行。
+ *
+ * 预览态没有 textarea，先切回 edit，等一帧再找编辑框。定位成功时 `revealEditorLine`
+ * 会 `el.focus()`，浮层通路的 focusin 监听顺手把面板收掉（「别挡着看正文」是现成口径，
+ * 这里不必手动 close）；失败时面板留着，正好显示 jumpNotice。
+ */
+async function jumpToLine(line: number): Promise<void> {
+  jumpNotice.value = "";
+  if (book.editorViewMode === "preview") book.editorViewMode = "edit";
+  await nextTick();
+  if (!revealEditorLine(line)) {
+    jumpNotice.value = `没能定位到第 ${line} 行（正文可能已经改过，先点一次「复检这一章」）。`;
+  }
+}
+
 /** 只在用户点按钮时并一次：跟着输入实时跑会把清单抖成「已修 / 待修」来回翻。 */
 function recordCheck(): void {
   const rel = book.activeDocTab;
@@ -87,14 +133,16 @@ function statusLabel(status: IssueStatus): string {
 }
 
 /**
- * 把本地清单交给 AI 改。
+ * 把清单交给 AI 改。
  * 与左栏 AI 检查同一条口径：**只预填不自动发送**——用户保留最后一道编辑权。
+ * 喂的是 `pendingHits`（留存清单的待修 / 实时命中），不是这一秒的 `hits`：
+ * 否则 W-04 跟踪了半天的结论在最后一步被绕过去。
  */
 function handToAi(): void {
   if (book.activeDocTab === null) return;
   agent.prefillComposer(
     threadKeyFor(book.activeDocTab),
-    slopChecklistPrompt(hits.value, docTitle.value, gate.value)
+    slopChecklistPrompt(pendingHits.value, docTitle.value, gate.value)
   );
   notify.notify({
     title: "去 AI 味",
@@ -164,6 +212,7 @@ function keydown(event: KeyboardEvent): void {
         </button>
       </div>
       <p v-if="issues.saveError !== ''" class="ai-slop-note">{{ issues.saveError }}</p>
+      <p v-if="jumpNotice !== ''" class="ai-slop-note">{{ jumpNotice }}</p>
 
       <section v-if="savedIssues.length > 0" class="ai-slop-saved">
         <h4 class="ai-slop-section-title">本章清单（{{ openIssues }} 条待修）</h4>
@@ -173,7 +222,14 @@ function keydown(event: KeyboardEvent): void {
               statusLabel(item.status)
             }}</span>
             <span class="ai-slop-saved-word">{{ item.matched }}</span>
-            <span class="ai-slop-saved-line">第 {{ item.line }} 行</span>
+            <button
+              class="ai-slop-saved-line ai-slop-jump"
+              type="button"
+              :aria-label="`跳到第 ${item.line} 行`"
+              @click="jumpToLine(item.line)"
+            >
+              第 {{ item.line }} 行
+            </button>
             <button
               class="ai-slop-saved-action"
               type="button"
@@ -200,7 +256,14 @@ function keydown(event: KeyboardEvent): void {
               :key="`s${hit.line}-${index}`"
               class="ai-slop-item"
             >
-              <span class="ai-slop-line">第 {{ hit.line }} 行</span>
+              <button
+                class="ai-slop-line ai-slop-jump"
+                type="button"
+                :aria-label="`跳到第 ${hit.line} 行`"
+                @click="jumpToLine(hit.line)"
+              >
+                第 {{ hit.line }} 行
+              </button>
               <span class="ai-slop-word">{{ hit.matched }}</span>
               <span class="ai-slop-why">{{ hit.why }}</span>
               <span class="ai-slop-excerpt">{{ hit.excerpt }}</span>
@@ -218,7 +281,14 @@ function keydown(event: KeyboardEvent): void {
               :key="`m${hit.line}-${index}`"
               class="ai-slop-item is-mild"
             >
-              <span class="ai-slop-line">第 {{ hit.line }} 行</span>
+              <button
+                class="ai-slop-line ai-slop-jump"
+                type="button"
+                :aria-label="`跳到第 ${hit.line} 行`"
+                @click="jumpToLine(hit.line)"
+              >
+                第 {{ hit.line }} 行
+              </button>
               <span class="ai-slop-word">{{ hit.matched }}</span>
               <span class="ai-slop-excerpt">{{ hit.excerpt }}</span>
             </li>
@@ -239,7 +309,7 @@ function keydown(event: KeyboardEvent): void {
           共 {{ verdict.hits }} 处，每千字 {{ verdict.perThousand }} 处。改完这一篇再点一次复查。
         </p>
 
-        <button class="ai-slop-hand" type="button" @click="handToAi">把这份清单交给 AI 改</button>
+        <button class="ai-slop-hand" type="button" @click="handToAi">{{ handLabel }}</button>
       </template>
     </section>
   </Teleport>

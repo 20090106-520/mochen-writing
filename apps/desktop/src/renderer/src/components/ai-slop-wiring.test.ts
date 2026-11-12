@@ -71,7 +71,9 @@ describe("交清单给 AI", () => {
   it("走 prefillComposer（与左栏 AI 检查同一条通路），不自己发请求", () => {
     expect(panelScript).toContain("agent.prefillComposer(");
     expect(panelScript).toContain("threadKeyFor(book.activeDocTab)");
-    expect(panelScript).toContain("slopChecklistPrompt(hits.value, docTitle.value, gate.value)");
+    expect(panelScript).toContain(
+      "slopChecklistPrompt(pendingHits.value, docTitle.value, gate.value)"
+    );
     expect(panelScript).not.toContain("agent.send(");
   });
 
@@ -114,7 +116,9 @@ describe("退稿闸预演（2026-11-12）", () => {
   });
 
   it("闸判退时那几条一起交给 AI（否则改完词还是会被拦一轮）", () => {
-    expect(panelScript).toContain("slopChecklistPrompt(hits.value, docTitle.value, gate.value)");
+    expect(panelScript).toContain(
+      "slopChecklistPrompt(pendingHits.value, docTitle.value, gate.value)"
+    );
   });
 
   it("样式：闸这一格的规则不是空壳，且没新画状态底色", () => {
@@ -191,5 +195,67 @@ describe("本章问题清单", () => {
       expect(ruleBlock(css, selector), `${selector} 不许是空壳`).not.toBe("");
     }
     expect(ruleBlock(css, ".ai-slop-saved-list")).toContain("max-height");
+  });
+});
+
+/**
+ * W-04 第二刀：清单要能「点回去」和「交出去」。
+ *
+ * 第一刀只把结论存下来了，作者却还得自己数着行号回编辑器找，且主操作喂的仍是这一秒的
+ * 扫描结果——跟踪了半天的结论在最后一步被绕过去。这两处都复用现成通路（editor-reveal /
+ * prefillComposer），所以守卫只钉「接没接上、有没有抄第二份判据」。
+ */
+describe("行号点得动（跳原文）", () => {
+  it("走 revealEditorLine 真身，不在面板里另写一份 DOM 定位", () => {
+    expect(panelScript).toContain('from "../utils/editor-reveal"');
+    expect(panelScript).toContain("revealEditorLine(line)");
+    expect(panelScript).not.toContain("document.querySelector");
+  });
+
+  it("预览态先切回 edit，等一帧再找 textarea", () => {
+    expect(panelScript).toContain('book.editorViewMode === "preview"');
+    expect(panelScript).toContain('book.editorViewMode = "edit"');
+    expect(panelScript).toContain("await nextTick()");
+  });
+
+  it("行号口径：findAiSlop 按原始草稿数，不许套正文行号换算（会偏几行）", () => {
+    expect(panelScript).not.toContain("draftLineOfBodyLine");
+  });
+
+  it("定位不到要如实说话，不是静默失败", () => {
+    expect(panelScript).toContain("jumpNotice.value = `没能定位到第");
+    expect(panelTpl).toContain("jumpNotice !== ''");
+  });
+
+  it("清单条目与实时命中的行号都是真按钮，且键盘读得出用途", () => {
+    expect(panelTpl).toContain('@click="jumpToLine(item.line)"');
+    expect(panelTpl).toContain('@click="jumpToLine(hit.line)"');
+    expect(panelTpl).toContain('class="ai-slop-saved-line ai-slop-jump"');
+    expect(panelTpl).toContain('class="ai-slop-line ai-slop-jump"');
+    expect(panelTpl).toContain(":aria-label=");
+  });
+
+  it("行号按钮的样式不是空壳，且没新画状态底色", () => {
+    const rule = ruleBlock(css, ".ai-slop-jump");
+    expect(rule).toContain("cursor: pointer");
+    expect(rule).toContain("background: none");
+    expect(rule).not.toContain("background: var");
+  });
+});
+
+describe("主操作交的是留存清单的待修", () => {
+  it("用 openSlopHitsOf 投影，不把带 id/status 的整份清单塞进提示词", () => {
+    expect(panelScript).toContain("openSlopHitsOf(savedIssues.value)");
+    expect(panelScript).not.toContain("slopChecklistPrompt(savedIssues.value");
+  });
+
+  it("没体检过 / 清单全处理完时回退实时命中（否则退稿闸的整篇问题交不出去）", () => {
+    expect(panelScript).toContain("savedIssues.value.length > 0 && openIssues.value > 0");
+    expect(panelScript).toContain(": hits.value");
+  });
+
+  it("按钮文案跟着清单走：有待修时报条数", () => {
+    expect(panelTpl).toContain("{{ handLabel }}");
+    expect(panelScript).toContain("把本章待修的");
   });
 });

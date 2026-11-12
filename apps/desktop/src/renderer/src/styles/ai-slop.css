@@ -271,3 +271,22 @@
   font: inherit;
   cursor: pointer;
 }
+
+/* 行号是可点的：清单条目与实时命中都跳原文（W-04 第二刀）。
+   这里只重置按钮外观；字号、字色、等宽数字仍由 .ai-slop-line / .ai-slop-saved-line 各自管，
+   免得同一处行号在两栏里长得不一样。刻意不画底色——新档底色要进对比度普查表。 */
+.ai-slop-jump {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ai-slop-jump:hover {
+  color: var(--accent, #339cff);
+  text-decoration: underline;
+}

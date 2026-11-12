@@ -146,6 +146,30 @@ export function openCount(items: readonly ReviewIssue[]): number {
   return items.filter((item) => item.status === "open").length;
 }
 
+/**
+ * 本章待修条目 → 交给 AI 改的那份命中清单（W-04 第二刀）。
+ *
+ * 【为什么预填要改用留存清单】「把这份清单交给 AI 改」原先喂的是**这一秒**的扫描结果，
+ * 于是作者标过「忽略」的、上次体检留下的待修又全回到预填里——跟踪了半天的结论等于没用。
+ * W-04 要的就是「按留下的结论继续干」，所以有清单时只交待修的那几条。
+ *
+ * 【为什么只投影这五个字段】id 是内部指纹（带 \u001f 分隔符）、status 是本地状态，
+ * 塞进提示词只会让模型读一段它用不上的机器标记。回到 `SlopLike` 这个最小形状，
+ * 就能直接喂给现成的 `slopChecklistPrompt`，不必在面板里另写一份文案。
+ * 已修与已忽略都不进：前者不用再改，后者是作者拍过板的。
+ */
+export function openSlopHitsOf(items: readonly ReviewIssue[]): SlopLike[] {
+  return items
+    .filter((item) => item.status === "open")
+    .map(({ line, matched, strength, why, excerpt }) => ({
+      line,
+      matched,
+      strength,
+      why,
+      excerpt
+    }));
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
