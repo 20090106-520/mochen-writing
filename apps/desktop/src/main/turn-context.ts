@@ -28,8 +28,9 @@ import { readStoryBibleEntries } from "./story-bible-read.js";
 
 /**
  * 挂入的技能在装配层的形状。`relPath` 是 `${source}:${dirName}`（与 SkillRef.id 同形），
- * `text` 是**清单行**（名称 + 一句话用途 + 何时用，见 `skillBriefLine`），不是技能正文。
+ * `text` 是**清单行**（名称（id）+ 一句话用途 + 阶段/文稿，见 `skillBriefLine`），不是技能正文。
  * 正文由 `use_skill` 按 id 按需读取（P0-2）：挂多少技能都不占系统提示的正文额度。
+ * 行内**不再**缀「需要时用 use_skill 读取」——那句话由上下文包末尾的 `SKILL_HINT` 说一次。
  */
 export interface PinnedSkill {
   relPath: string;
@@ -189,8 +190,9 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
    * 把渲染层传来的 `skillPaths` 解析成**清单行**（P0-2）。
    *
    * 只列清单、不读正文：技能正文由 `use_skill` 按 id 按需读取，系统提示里只留
-   * 名称 / 一句话用途 / 何时用。这样「挂 12 条技能」也不再把整份 SKILL.md 塞进提示词；
+   * 名称（id）/ 一句话用途 / 阶段与文稿。这样「挂 12 条技能」也不再把整份 SKILL.md 塞进提示词；
    * 而 `use_skill` 读到的仍是原来那份全文（读取通路 `readSkill` 一字未改）。
+   * 清单行不写读法（同一句挂几条就复读几遍）：读法由 `SKILL_HINT` 在上下文包末尾说一次。
    *
    * 读不到的**不静默**：回一句「有 N 个挂入技能读不到，已跳过」，调用方把它发成 error 事件。
    * 一条都读不到时返回空数组，让调用方发那句中文而不是一条空数组。

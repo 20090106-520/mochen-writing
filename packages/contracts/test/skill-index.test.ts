@@ -73,4 +73,16 @@ describe("技能库索引（skillIndexBlock）", () => {
     const all = skillIndexBlock([refOf("global:a")], ["global:a"]);
     expect(all).toEqual({ text: "", total: 0, shown: 0 });
   });
+
+  it("已经挂了技能时说简版：读法刚在上面的清单里说过，不再整段复读（2026-11-12）", () => {
+    const out = skillIndexBlock([refOf("global:a"), refOf("global:b")], ["global:a"]);
+    expect(out.text).toContain("读法同上");
+    expect(out.text).not.toContain("不要凭名字猜它的做法**（名字只说明");
+  });
+
+  it("一条都没挂时仍给完整读法：这时这一段是模型唯一的入口", () => {
+    const out = skillIndexBlock([refOf("global:a"), refOf("global:b")], []);
+    expect(out.text).toContain('use_skill("<id>")');
+    expect(out.text).toContain("不要凭名字猜");
+  });
 });
