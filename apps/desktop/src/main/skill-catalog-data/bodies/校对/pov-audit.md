@@ -9,8 +9,6 @@ appliesTo:
 
 # 视角守得住吗
 
-改编自 zenstory-ai/oh-story-claudecode 的 story-long-write（对话技法与反转工具箱，MIT）。只搬方法，不搬原文。
-
 ## 视角守不住的三种漏
 
 1. **人物知道了自己不该知道的事**——他在第 12 章说出了第 40 章的真相。
@@ -59,3 +57,7 @@ appliesTo:
 - 不要在审视角时顺手改句子。**只标出位置**，改句子是下一遍的活。
 - 不要审完就说「没问题了」。视角只是三类错里的一类，
   前后对不对另有一份技能在管。
+
+## 出处
+
+改编自 zenstory-ai/oh-story-claudecode 的 story-long-write（对话技法与反转工具箱，MIT）。

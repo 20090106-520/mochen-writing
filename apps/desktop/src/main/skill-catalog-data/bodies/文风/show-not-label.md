@@ -9,8 +9,6 @@ appliesTo:
 
 # 别替读者下结论
 
-改编自 PenglongHuang/chinese-novelist-skill 的核心法则「展示而非讲述」（MIT）。只搬方法，不搬原文。
-
 ## 结论是读者自己的活
 
 叙述者一写「他很愤怒」「气氛压抑下来」「她的心里五味杂陈」，
@@ -61,3 +59,7 @@ appliesTo:
   前面那个门已经把话说完了。
 - 不要把这条当成禁令。**叙述者有权直接说**，
   只是要知道自己正在替读者做决定，且这个决定值得做。
+
+## 出处
+
+改编自 PenglongHuang/chinese-novelist-skill 的核心法则「展示而非讲述」（MIT）。

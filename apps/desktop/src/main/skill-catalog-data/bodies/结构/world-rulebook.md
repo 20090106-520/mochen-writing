@@ -10,8 +10,6 @@ appliesTo:
 
 # 把设定写成能照做的规则
 
-改编自 linhut/dsh-skills 的 `writing-skills`（源自 obra/superpowers，MIT）。只搬方法，不搬原文。
-
 ## 设定不是介绍，是规则
 
 「这个世界的魔法基于血脉」——这是**介绍**，读者知道了，然后呢？
@@ -54,3 +52,7 @@ appliesTo:
 写好的规则放进这本书的「素材」类文稿里，标题写「世界规则」。
 之后任何一轮讨论剧情，都可以把它挂进上下文当约束用——
 它是**可执行的说明书**，不是背景介绍。
+
+## 出处
+
+改编自 linhut/dsh-skills 的 `writing-skills`（源自 obra/superpowers，MIT）。

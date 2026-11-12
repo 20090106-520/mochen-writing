@@ -139,6 +139,41 @@ describe("SKILL_CATALOG", () => {
     }
   });
 
+  /**
+   * 出处的位置（2026-11-12）。
+   *
+   * 原先 24 份正文的第二段全是同一句模板：「改编自 <仓库> 的 <那一条>（<说明>，MIT）。
+   * 只搬方法，不搬原文。」——句式一模一样，21 份连结尾那半句都逐字相同。模型 use_skill
+   * 读一份技能，**第一段读到的不是方法，是版权**；读三份，就把同一句制式话读三遍。
+   *
+   * 现在出处搬到了文末的「## 出处」，开场第一段就是方法。落盘后的 SKILL.md 是用户盘上的
+   * 独立文件（manifest 不跟着走），所以出处必须留在正文里——只是不该占开场。
+   */
+  it("出处写在文末，不在开场：第一段该是方法", () => {
+    for (const skill of SKILL_CATALOG) {
+      const { body } = parseFrontmatter(skill.skillMd);
+      const lines = body.split("\n");
+      // 跳过标题与空行，落在第一段正文上。
+      let i = 0;
+      let first = lines[i];
+      while (first !== undefined && (first.trim() === "" || first.startsWith("#"))) {
+        i += 1;
+        first = lines[i];
+      }
+      expect(first ?? "", `${skill.dirName} 又把出处当开场白了`).not.toMatch(/^(改编自|本仓原创)/);
+      // 文末必须有这一节：装出去之后它是这份技能唯一的出处记录。
+      const tail = body.trimEnd().split("\n").slice(-6).join("\n");
+      expect(tail, `${skill.dirName} 的文末没有「## 出处」`).toContain("## 出处");
+    }
+  });
+
+  it("不再重复那句「只搬方法，不搬原文」：它原先 21 份各一份", () => {
+    for (const skill of SKILL_CATALOG) {
+      const { body } = parseFrontmatter(skill.skillMd);
+      expect(body, `${skill.dirName} 的正文里又出现了那句模板`).not.toContain("只搬方法，不搬原文");
+    }
+  });
+
   it("正文里不许出现上游的命令名：墨宸没有那些通路，写进去等于教模型去调不存在的东西", () => {
     for (const skill of SKILL_CATALOG) {
       const { body } = parseFrontmatter(skill.skillMd);

@@ -11,8 +11,6 @@ appliesTo:
 
 # 给每个人物钉一条动机链
 
-改编自 zenstory-ai/oh-story-claudecode 的 story-long-write（人物设计，MIT）。只搬方法，不搬原文。
-
 ## 人物塌房的三种样子
 
 - 所有人在用同一个腔调说话（这一条另有技能管，见「让人物说话不像一个人」）。
@@ -70,3 +68,7 @@ appliesTo:
   拿它去对照一场戏，得不出任何结论。
 - 不要用这条链去解释他所有的选择。链是用来**排除**的：照链排除掉不成立的动作，
   剩下的才需要理由。
+
+## 出处
+
+改编自 zenstory-ai/oh-story-claudecode 的 story-long-write（人物设计，MIT）。

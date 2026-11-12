@@ -9,8 +9,6 @@ appliesTo:
 
 # 把 AI 腔一条条挑掉
 
-改编自 zenstory-ai/oh-story-claudecode 的 story-deslop（本地检查的命中项，MIT）。只搬方法，不搬原文。
-
 ## 目标是把读感改回来，不是去骗检测器
 
 这份技能不为通过任何 AI 味检测服务。
@@ -71,3 +69,7 @@ appliesTo:
 - 不要一次性把整章重写。逐条改，改完对比，才知道哪一条真的有用。
 - 不要把这份清单当成唯一标准。清单只负责**提醒你去看那个位置**，
   去不去看、要不要改，仍然是读感说了算。
+
+## 出处
+
+改编自 zenstory-ai/oh-story-claudecode 的 story-deslop（本地检查的命中项，MIT）。

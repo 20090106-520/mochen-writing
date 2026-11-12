@@ -10,8 +10,6 @@ appliesTo:
 
 # 落笔前先问清楚
 
-改编自 linhut/dsh-skills 的 `brainstorming`（源自 obra/superpowers，MIT）。只搬方法，不搬原文。
-
 写小说最容易出的岔子不是文笔，是**写着写着不知道自己在写什么**：
 人物做了件事，说不清为什么；一个转折出现了，回头看毫无铺垫。
 这一份技能是动笔前的三问，问完再写。
@@ -63,3 +61,7 @@ appliesTo:
 - 不要在这一步改文笔、不要重排前面的章节。
 - 不要一次想一整卷。三问管的是一章。
 - 不要接受「写出来会很有意思」这种回答——要具体到能写出来的样子。
+
+## 出处
+
+改编自 linhut/dsh-skills 的 `brainstorming`（源自 obra/superpowers，MIT）。

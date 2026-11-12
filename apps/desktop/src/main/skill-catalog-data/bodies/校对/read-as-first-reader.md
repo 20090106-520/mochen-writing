@@ -10,8 +10,6 @@ appliesTo:
 
 # 第一次读的人会卡在哪
 
-改编自 zenstory-ai/oh-story-claudecode 的 story-review（MIT）。只搬方法，不搬原文。
-
 ## 换个身份读
 
 作者读自己的稿子会**自动补全**：知道这个人物是谁、知道三天前发生过什么、
@@ -60,3 +58,7 @@ appliesTo:
 - 不要因为「我知道这些」而替读者开脱。**读者不知道，就是不知道。**
 - 不要把「我看不懂」直接等同于「要改」。有些不懂是刻意的。
   判据是：这一处不懂，读者会不会因此**不想往下看**。
+
+## 出处
+
+改编自 zenstory-ai/oh-story-claudecode 的 story-review（MIT）。

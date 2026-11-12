@@ -11,8 +11,6 @@ appliesTo:
 
 # 从对标作品里抽技法，不抄句子
 
-改编自 zenstory-ai/oh-story-claudecode 的 story-long-analyze（拆文方法，MIT）。只搬方法，不搬原文。
-
 ## 拆文要拆出「手法」，不是「剧情」
 
 最容易走偏的一种拆法，是把人家的剧情复述一遍，写完发现自己什么也没学到。
@@ -70,3 +68,7 @@ appliesTo:
   需要时回去翻原书，比抄一份安全得多，也清楚得多。
 - 不要拆自己正在写的书。自己写的东西不是「对标」。
 - 不要拆完不评估。抽一百条手法不评估，等于抽了一百条别人的东西。
+
+## 出处
+
+改编自 zenstory-ai/oh-story-claudecode 的 story-long-analyze（拆文方法，MIT）。

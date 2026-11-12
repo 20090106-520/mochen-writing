@@ -9,8 +9,6 @@ appliesTo:
 
 # 扫榜看模式，别只看排名
 
-改编自 zenstory-ai/oh-story-claudecode 的 story-long-scan（扫榜方法，MIT）。只搬方法，不搬原文。
-
 查资料走本仓已有的**联网搜索**工具。这一条管的是动笔之前的另一门功课：
 市场里现在什么活、什么熟、什么已经写烂了。
 
@@ -51,3 +49,7 @@ appliesTo:
 - 不要因为一个题材火就写。火的东西竞争也最多，
   「火且你写得出来」两个条件都要满足。
 - 不要把扫榜结果当剧本。市场告诉你读者在哪，故事还得是你自己的。
+
+## 出处
+
+改编自 zenstory-ai/oh-story-claudecode 的 story-long-scan（扫榜方法，MIT）。

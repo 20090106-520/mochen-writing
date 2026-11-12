@@ -9,8 +9,6 @@ appliesTo:
 
 # 先认结构，再填内容
 
-改编自 PenglongHuang/chinese-novelist-skill 的 plot-structures.md 与大纲模板（MIT）。只搬方法，不搬原文。
-
 ## 结构的用处是排查，不是套模板
 
 套模板会得到一部「结构完整」但没有一本书的书。
@@ -58,3 +56,7 @@ appliesTo:
 - 不要因为「结构完整」就以为这一段写好了。结构完整和好看是两件事。
 - 不要在同一段里套两个结构再对不上号。那不是复杂，是没想清楚。
 - 不要在动笔前把对照表写完就不再看。它是**写完之后**才用来量东西的。
+
+## 出处
+
+改编自 PenglongHuang/chinese-novelist-skill 的 plot-structures.md 与大纲模板（MIT）。

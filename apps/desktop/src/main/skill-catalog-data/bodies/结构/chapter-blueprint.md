@@ -11,8 +11,6 @@ appliesTo:
 
 # 一章的细纲只写一件事：变了什么
 
-改编自 zenstory-ai/oh-story-claudecode 的 story-long-write（章纲，MIT）。只搬方法，不搬原文。
-
 ## 门禁：没有细纲就不要写正文
 
 这一条是硬规矩，不是建议。
@@ -61,3 +59,7 @@ appliesTo:
 - 不要把细纲写成正文的一句摘要。它是规格，不是预告。
 - 不要一章一份超过五行。四行还看得住，八行就没人会真的对。
 - 不要在写完正文之后再补细纲来「对上」——那不是门禁，是事后凑数。
+
+## 出处
+
+改编自 zenstory-ai/oh-story-claudecode 的 story-long-write（章纲，MIT）。

@@ -11,8 +11,6 @@ appliesTo:
 
 # 章首章尾各留一个钩子
 
-改编自 zenstory-ai/oh-story-claudecode 的 story-long-write（钩子技法，MIT）。只搬方法，不搬原文。
-
 ## 钩子不是悬念，是一笔没结的账
 
 把「悬念」当成一个气氛词去营造，写出来的东西读者记不住。
@@ -58,3 +56,7 @@ appliesTo:
 - 不要每章都用同一种钩子。连着五章都用「门外来人」，读者会开始预判。
 - 不要在章尾把话说满。「他决定去复仇」把话说尽了，接下来只能更狠；
   「他决定去复仇，但没告诉任何人」才有下一章。
+
+## 出处
+
+改编自 zenstory-ai/oh-story-claudecode 的 story-long-write（钩子技法，MIT）。
