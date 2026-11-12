@@ -361,7 +361,12 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
   {
     /* `.skin-filter-label` 是**兄弟**不是后代（它是筛选行左边那枚标签），所以 is-active 只需管自己。 */
     file: "styles/skin-gallery.css",
-    sites: [{ needle: ".skin-filter.is-active", primary: true }]
+    sites: [
+      { needle: ".skin-filter.is-active", primary: true },
+      /* 2026-11-12：五层筛选收进折条之后，条件生效时那枚胶囊自己也画 selected 档底
+         （不打开折条也能看出「现在不是全量」）。它与档同形，同样自带字色。 */
+      { needle: ".skin-filter-fold-summary.is-active", primary: true }
+    ]
   },
   {
     file: "styles/theme-runtime.css",

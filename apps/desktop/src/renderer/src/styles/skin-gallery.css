@@ -85,6 +85,81 @@
   cursor: pointer;
 }
 
+/* 筛选折条（2026-11-12）。五行档摊在页首时，工具区量到 291px、卡片网格要等到 y=383——
+   902px 的窗口里首屏只剩三排卡，而这一页是给人「看画」的。
+   折起来之后工具区只剩一个搜索框 + 这一枚胶囊（25px）。
+   胶囊与旁边的档同形（同一边框、同圆角、同字号），因为它本来就是那组档的把手，
+   不是一个另立门户的按钮。条件在生效时它自己变成选中态，并写出「已选 N 项」。 */
+.skin-filter-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.skin-filter-fold {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.skin-filter-fold-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  cursor: pointer;
+  /* 收掉原生那个三角：它贴着行首、与标签的左边距对不齐，而且与折条里的雪佛龙重复。 */
+  list-style: none;
+}
+
+.skin-filter-fold-summary::-webkit-details-marker {
+  display: none;
+}
+
+.skin-filter-fold-summary:hover {
+  border-color: var(--theme-line);
+}
+
+.skin-filter-fold-summary.is-active {
+  border-color: var(--theme-line);
+  background: var(--selected);
+  color: var(--text-primary);
+}
+
+/* 收起时箭头朝右（▸），展开时朝下（▾）：与左栏目录树、页面说明条同一档转法。
+   不用 Material 的 180°——180° 收尾是「◂」，一个左箭头读起来像返回。 */
+.skin-filter-caret {
+  flex: none;
+  transition: transform var(--dur-fast) var(--ease-out-soft);
+}
+
+.skin-filter-fold[open] .skin-filter-caret {
+  transform: rotate(90deg);
+}
+
+.skin-filter-count {
+  font-size: 0.785714rem;
+}
+
+/* 焦点环与全站那一条同形（styles.css 的 button:focus-visible），与 `.page-note-summary`
+   同一处理：`<summary>` 不在那条全局选择器里，而它是键盘能停的一站，必须看得见。 */
+.skin-filter-fold-summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--focus) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.skin-filter-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 /* 四行筛选（纹理 / 圆角 / 描边 / 光晕）。每一行是一枚组标签 + 那几枚档。
    组标签占固定宽度，让四行的档横向对齐——否则四行长度不同，读起来像四组不同的东西。 */
 .skin-filter-row {

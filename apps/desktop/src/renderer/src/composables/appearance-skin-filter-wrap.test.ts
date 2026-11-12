@@ -14,7 +14,7 @@
  * 同一个成因族见 §一百四十七（右栏页签折成竖排）。
  */
 import { describe, expect, it } from "vitest";
-import { ruleBlock, styleSource, templateSource } from "../utils/vue-source-reader";
+import { ruleBlock, scriptSource, styleSource, templateSource } from "../utils/vue-source-reader";
 
 describe("皮肤广场 · 筛选档放不下时折行", () => {
   const PAGE = "components/SkinGalleryPage.vue";
@@ -35,6 +35,62 @@ describe("皮肤广场 · 筛选档放不下时折行", () => {
     // 与标签起始位对齐着掉下来，四行的档就不再横向对齐（那正是定宽 52px 想保住的东西）。
     expect(templateSource(PAGE)).toMatch(
       /class="skin-filter-values"[\s\S]*?v-for="value in row\.values"/
+    );
+  });
+});
+
+/**
+ * 筛选折条（2026-11-12）。
+ *
+ * 真机量到：搜索 38 + 五行档 182 + 行距 ⇒ 工具区 291px，卡片网格等到 y=383 才开始；
+ * 902px 的窗口里首屏只剩三排卡，而这一页是给人「看画」的——十六套，扫一遍比筛一遍快。
+ * 折起来之后工具区只剩搜索框 + 一枚 25px 的胶囊，网格回到 y≈187。
+ *
+ * 折的是**档**，不是能力：五行、每一枚档、点已选收回这一层，全都原样留在 DOM 里。
+ */
+describe("皮肤广场 · 筛选收进一条折条", () => {
+  const markup = templateSource("components/SkinGalleryPage.vue");
+
+  it("用原生 details 折起来——展开态、键盘、屏读器状态都由浏览器给，不新增按键监听", () => {
+    expect(markup).toContain('<details class="skin-filter-fold">');
+    expect(markup).toContain('<summary class="skin-filter-fold-summary"');
+    // 默认收起：模板里不许写死 `open`（那会让每一页进来都摊着五行档）。
+    expect(markup).not.toMatch(/<details class="skin-filter-fold"[^>]*\bopen\b/);
+  });
+
+  it("五行档一枚不少地留在折条里", () => {
+    const fold = /<div class="skin-filter-rows">([\s\S]*?)<\/details>/.exec(markup)?.[1] ?? "";
+    expect(fold, "折条里没有档组").toContain('v-for="row in rows"');
+    expect(fold).toContain('class="skin-filter-row"');
+    expect(fold).toContain('v-for="value in row.values"');
+  });
+
+  it("收起时胶囊报告「已选 N 项」，条件生效时自己变选中态", () => {
+    expect(markup).toContain("已选 {{ activeCount }} 项");
+    expect(markup).toContain("'is-active': activeCount > 0");
+    // 数的是五行里不是「全部」的那几行：拿搜索词凑数会让「已选 1 项」指向一个不存在的档。
+    const script = scriptSource("components/SkinGalleryPage.vue");
+    expect(script).toContain("row.current !== ALL_SKIN_FILTER");
+  });
+
+  it("清空条件留在折条外面：条件在生效时不该先去点开折条", () => {
+    const clearAt = markup.indexOf("skin-gallery-clear");
+    const foldEnd = markup.indexOf("</details>");
+    expect(clearAt).toBeGreaterThan(-1);
+    expect(foldEnd).toBeGreaterThan(-1);
+    expect(clearAt, "清空条件又被塞回折条里了").toBeGreaterThan(foldEnd);
+  });
+
+  it("收起态的胶囊与档同形，箭头展开时转 90°（▸→▾）", () => {
+    const css = styleSource("skin-gallery.css");
+    const summary = ruleBlock(css, ".skin-filter-fold-summary");
+    expect(summary).toContain("border-radius: 999px");
+    expect(summary).toContain("list-style: none");
+    expect(ruleBlock(css, ".skin-filter-fold-summary::-webkit-details-marker")).toContain(
+      "display: none"
+    );
+    expect(ruleBlock(css, ".skin-filter-fold[open] .skin-filter-caret")).toContain(
+      "transform: rotate(90deg)"
     );
   });
 });

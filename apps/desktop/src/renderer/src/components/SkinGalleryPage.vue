@@ -14,7 +14,7 @@ import AppIcon from "./AppIcon.vue";
 import PageNote from "./PageNote.vue";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useAppearanceStore } from "../stores/useAppearanceStore";
-import { useSkinBrowseStore } from "../stores/useSkinBrowse";
+import { ALL_SKIN_FILTER, useSkinBrowseStore } from "../stores/useSkinBrowse";
 import {
   APPEARANCE_ART_LABELS,
   APPEARANCE_BACKDROP_LABELS,
@@ -35,6 +35,11 @@ const browse = useSkinBrowseStore();
 
 const conditions = computed(() => browse.conditions);
 const rows = computed(() => browse.filterRows);
+/** 收起时那枚胶囊要报告的「已选几项」：五行里当前值不是「全部」的有几行。
+ *  不算搜索词——搜索框就在上面，它有没有字自己看得见。 */
+const activeCount = computed(
+  () => rows.value.filter((row) => row.current !== ALL_SKIN_FILTER).length
+);
 const skins = computed(() => browse.visibleSkins(appearanceSkins));
 
 /** 显示模式：卡片预览要按「用户现在实际看到的那一版」来画，不是永远浅色。
@@ -176,30 +181,46 @@ function backToChat(): void {
         <button class="skin-gallery-search-go" type="submit">搜索</button>
       </form>
 
-      <!-- 四层筛选。每行一组，组标签占固定宽度让四行的档横向对齐。
-           点已选中的那枚 = 收回这一层（判定在 store 的 setFilter 里）。 -->
-      <div v-for="row in rows" :key="row.key" class="skin-filter-row">
-        <span class="skin-filter-label">{{ row.label }}</span>
-        <!-- 档整组单独一层：折行要发生在「标签右侧那一组」里。让折行落在 `.skin-filter-row`
-             本身上，第二行的档会回到组标签左边、跟标签起始位对齐着掉下来；
-             包成这一层之后，续行从第一枚档的 x 起排，四行的档仍横向对齐。 -->
-        <span class="skin-filter-values">
-          <button
-            v-for="value in row.values"
-            :key="value"
-            class="skin-filter"
-            :class="{ 'is-active': row.current === value }"
-            :aria-pressed="row.current === value"
-            type="button"
-            @click="browse.setFilter(row.key, value)"
-          >
-            {{ row.labels[value] }}
-          </button>
-        </span>
-      </div>
-
-      <div v-if="browse.hasConditions" class="skin-filter-row">
+      <!-- 五层筛选收进一条折起来的条（2026-11-12）。
+           真机量到：搜索 38 + 五行档 182 + 行距，整个工具区 291px，卡片网格要等到 y=383
+           才开始——902px 的窗口里首屏只剩三排卡（十六套要看）。而这一页的主角是卡片：
+           十六套皮肤，扫一遍比筛一遍快，筛选是偶尔才用一次的窄路。
+           ⇒ 档收进原生 `<details>`（展开态、键盘、屏读器状态都由浏览器给，不新增 keydown）。
+              收起时 summary 替它报告「已选 N 项」，条件生效时那枚胶囊自己变选中态——
+              一眼看得出「现在不是全量」，不必点开才知道。
+           清空条件留在折条**外面**：条件在生效、想一键收回时，不该先去点开折条。
+           组标签占固定宽度，让五行的档横向对齐；点已选中的那枚 = 收回这一层（判定在 store）。 -->
+      <div class="skin-filter-bar">
+        <details class="skin-filter-fold">
+          <summary class="skin-filter-fold-summary" :class="{ 'is-active': activeCount > 0 }">
+            <AppIcon name="chevron" :size="12" class="skin-filter-caret" />
+            <span>筛选</span>
+            <span v-if="activeCount > 0" class="skin-filter-count">已选 {{ activeCount }} 项</span>
+          </summary>
+          <div class="skin-filter-rows">
+            <div v-for="row in rows" :key="row.key" class="skin-filter-row">
+              <span class="skin-filter-label">{{ row.label }}</span>
+              <!-- 档整组单独一层：折行要发生在「标签右侧那一组」里。让折行落在 `.skin-filter-row`
+                   本身上，第二行的档会回到组标签左边、跟标签起始位对齐着掉下来；
+                   包成这一层之后，续行从第一枚档的 x 起排，四行的档仍横向对齐。 -->
+              <span class="skin-filter-values">
+                <button
+                  v-for="value in row.values"
+                  :key="value"
+                  class="skin-filter"
+                  :class="{ 'is-active': row.current === value }"
+                  :aria-pressed="row.current === value"
+                  type="button"
+                  @click="browse.setFilter(row.key, value)"
+                >
+                  {{ row.labels[value] }}
+                </button>
+              </span>
+            </div>
+          </div>
+        </details>
         <button
+          v-if="browse.hasConditions"
           class="skin-filter skin-gallery-clear"
           type="button"
           @click="browse.clearConditions()"
