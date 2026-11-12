@@ -324,9 +324,23 @@ app.whenReady().then(async () => {
     // frontmatter 里没写 name 时才退回目录名：宁可显示机器名，也不要空着。
     // 只认字符串：frontmatter 的值类型是 `string | string[]`，写成列表的 name
     // 流进标题会变成「a,b」这种怪东西——宁可当它没写。
-    const raw = parseFrontmatter(content.content).data.name;
+    const front = parseFrontmatter(content.content);
+    const raw = front.data.name;
     const named = typeof raw === "string" ? raw.trim() : "";
-    return { title: named === "" ? parsed.dirName : named, text: content.content };
+    // 【只递正文，不递 frontmatter】2026-11-12：原先递的是**整份文件**，于是模型
+    // use_skill 读到的第一眼是 `---\nname: 文风检查\ndescription: …\nstage: 正文\n---`——
+    // 五行业务元数据摆在一份方法的开头，读起来像配置不像技能。而这三条信息模型都不需要：
+    // name 就在回执标题里（【技能：文风检查…】），description 在技能清单里，
+    // stage / appliesTo 只用于推荐打分。
+    // 这不是「装配层该做的事」漏到这里：title 那一行已经解析过 frontmatter，
+    // 取 `.body` 只是同一次解析的另一个字段，零成本。
+    const body = front.body.trim();
+    return {
+      title: named === "" ? parsed.dirName : named,
+      // 只剩 frontmatter、没有正文的技能是坏技能：把原文递出去，让模型看见病在哪，
+      // 别回一段空白让它以为「这技能本来就没内容」。
+      text: body === "" ? content.content : body
+    };
   };
   // 插件运行时（2026-10-07 批次 5-㉘）：扫 `<appData>/plugins/`，把按 DeepSeek Harness
   // 官方文档写的插件挂进来，它们注册的工具**叠加**到智能体工具表后面。

@@ -299,14 +299,17 @@ describe("装配处", () => {
     );
     const block = /const readSkillForTurn = async[\s\S]*?\n {2}\};/u.exec(SRC)?.[0] ?? "";
     expect(block, "没找到 readSkillForTurn").not.toBe("");
-    expect(block).toContain("parseFrontmatter(content.content).data.name");
+    expect(block).toContain("const front = parseFrontmatter(content.content);");
+    expect(block).toContain("const raw = front.data.name;");
     // 兜底仍要是目录名：frontmatter 没写 name 时，宁可显示机器名也不要空着。
     expect(block).toContain('named === "" ? parsed.dirName : named');
     // 只认字符串：frontmatter 的值类型是 string | string[]，
     // 写成列表的 name 不该流进标题变成「a,b」。
     expect(block).toContain('typeof raw === "string" ? raw.trim() : ""');
-    // 递出去的正文仍是整份文件（剥 frontmatter 是装配层的事，不在这里做第二遍）。
-    expect(block).toContain("text: content.content");
+    // 递出去的只有正文：frontmatter 是给 scanSkills 读的元数据，模型不需要。
+    // 原先递整份文件，模型读技能第一眼是 `---\nname: …`——像在读配置，不像在读方法。
+    expect(block).toContain("parseFrontmatter(content.content)");
+    expect(block).toContain('text: body === "" ? content.content : body');
   });
 });
 
