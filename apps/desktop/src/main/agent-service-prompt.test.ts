@@ -190,7 +190,9 @@ describe("defaultPromptFor · 拼装", () => {
     // ④ 段落长度打散、不许每段都收在台词上
     expect(text).toContain("不许每段都收在台词上");
     // 落点在人性化创作那段之后：排在它后面，不抢已有五段的次序。
-    expect(text.indexOf("对话写法要求")).toBeGreaterThan(text.indexOf("人性化创作"));
+    expect(text.indexOf("对话写法要求（正文里的对话）")).toBeGreaterThan(
+      text.indexOf("人性化创作：")
+    );
   });
 
   it("用笔处置常驻（2026-10-20）：报告称「技能库已有对应文本、接常驻即可」，实测前提不成立，本段是新写两条成法", () => {
@@ -215,7 +217,9 @@ describe("defaultPromptFor · 拼装", () => {
     expect(text).toContain("不在章尾开新线");
     expect(text).toContain("让处境、关系或读者的悬念动一下");
     // 落点在对话写法那段之后：排在它后面，不抢已有六段的次序。
-    expect(text.indexOf("用笔处置")).toBeGreaterThan(text.indexOf("对话写法要求"));
+    expect(text.indexOf("用笔处置：动笔时")).toBeGreaterThan(
+      text.indexOf("对话写法要求（正文里的对话）")
+    );
   });
 });
 
@@ -543,7 +547,9 @@ describe("本书腔调摘要（2026-10-19 六段 · P0-③ 作者风格档案下
 
   it("落在对话写法那段之后（同样是「本书现场」类动态段，与另三段并列）", () => {
     const text = build({ items: [chapter(TALK.repeat(24))], chars: 672, approxTokens: 672 });
-    expect(text.indexOf("本书腔调摘要")).toBeGreaterThan(text.indexOf("对话写法要求"));
+    expect(text.indexOf("本书腔调摘要")).toBeGreaterThan(
+      text.indexOf("对话写法要求（正文里的对话）")
+    );
   });
 
   it("样本不足 ⇒ 不注入（开书之前没有样本可拆）；只有非 chapter 条目 ⇒ 也不注入", () => {
@@ -671,7 +677,7 @@ describe("本书原句样本（2026-10-20 七段／八段：把通用范例句�
     expect(text).toContain("只是示意");
     expect(text).toContain("硬约束优先");
     // 落点在最后一段静态（用笔处置）之后。
-    expect(text.indexOf("本书语感样本")).toBeGreaterThan(text.indexOf("用笔处置"));
+    expect(text.indexOf("本书语感样本")).toBeGreaterThan(text.indexOf("用笔处置：动笔时"));
   });
 
   it("当前章是半截草稿 ⇒ 不进样本；非 chapter 条目与空上下文同样不注入", () => {
