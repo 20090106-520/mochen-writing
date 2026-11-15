@@ -4,11 +4,13 @@ import {
   WEB_READ_TOOL_NAME,
   WORK_MODE_LABELS,
   analyzeAiFlavor,
+  bookProjectBrief,
   dialogueBalance,
   dialogueVerdict,
   sentencesOf,
   styleProfileOf,
   type AgentProfile,
+  type BookProject,
   type DocRef
 } from "@mochen/contracts";
 import type { AssembledContext } from "@mochen/agent-runtime";
@@ -90,6 +92,13 @@ export interface PromptContext {
    * 可选：老夹具不给我这一格，就当「不知道规模」——宁可少一句，也不要凭空报一个 0。
    */
   bookCounts?: BookCounts;
+  /**
+   * 开书立项（W-07）：新建作品时填的六项约定（题材/平台/篇幅/节奏/雷点/卖点）。
+   *
+   * 可选：老书没有这一格、跳过立项的新书也不传——那种情况下摘要为空串、整句不加，
+   * 提示词与升级前逐字一致。文案由 contracts 的 `bookProjectBrief` 一处生成。
+   */
+  project?: BookProject | undefined;
 }
 
 /**
@@ -591,6 +600,8 @@ export function defaultPromptFor(context: PromptContext): string {
   const castHint = castConstraintSentence(context.context);
   // 书稿规模（2026-11-12）：空书时说清「别再调工具确认」。没有这一格（老夹具）就整句不加。
   const bookScale = bookScaleSentence(context.bookCounts);
+  // 开书立项（W-07）：把「写给谁、发在哪、什么不能写」摆在最前面，替代开书后一轮轮口头交代。
+  const projectBrief = bookProjectBrief(context.project);
   return [
     "你是墨宸 AI 的写作智能体，在用户本地的一本书上工作，能直接操控这本书的资料库。",
     // 档案先说：人设与写入范围上限都出自它（spec §5.1）。
@@ -599,6 +610,8 @@ export function defaultPromptFor(context: PromptContext): string {
       `当前文稿：${context.chapter?.relPath ?? "（用户还没打开文稿）"}。`,
     // 规模紧跟在「当前作品」之后：模型的第一个疑问往往是「这本书写到哪了」。
     ...(bookScale === "" ? [] : [bookScale]),
+    // 立项紧跟规模：先知道这本书写到哪，再知道它写给谁、什么不能写。
+    ...(projectBrief === "" ? [] : [projectBrief]),
     `权限档：${context.permissionLabel}。提案只有在用户批准后才写入磁盘。`,
     // 工作模式：只在「先计划」时多这一段。动手模式不摆它——摆一句「你可以直接写」
     // 反而像在鼓励它动手，而那本来就是默认行为，不需要叮嘱。

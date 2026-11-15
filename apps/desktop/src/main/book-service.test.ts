@@ -229,6 +229,47 @@ describe("bookService", () => {
     await rm(empty, { recursive: true, force: true });
   });
 
+  it("createBook 把立项写进 book.json，并生成「创作约定」初稿", async () => {
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    const empty = await mkdtemp(path.join(tmpdir(), "mochen-project-"));
+    const result = await service.createBook({
+      directory: empty,
+      title: "立项书",
+      // 跨进程来的形状不可信：首尾空白由主进程的 normalizeBookProject 收掉，空串不落盘。
+      project: { genre: " 都市异能 ", taboos: "", pitch: "小人物掀翻旧秩序" }
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("不该走到这里");
+    expect(result.book.meta.project).toEqual({ genre: "都市异能", pitch: "小人物掀翻旧秩序" });
+    // 返回值与盘上必须是同一份，重启后立项不许跳。
+    const onDisk = JSON.parse(await readFile(path.join(empty, "book.json"), "utf8")) as {
+      project?: Record<string, string>;
+    };
+    expect(onDisk.project).toEqual({ genre: "都市异能", pitch: "小人物掀翻旧秩序" });
+    // 「创作约定」真的建出来了，而且建完即扫到文稿树里。
+    const convention = await readFile(path.join(empty, "outline/创作约定.md"), "utf8");
+    expect(convention).toContain("**题材 / 频道**：都市异能");
+    expect(result.book.docs.some((doc) => doc.relPath === "outline/创作约定.md")).toBe(true);
+    await service.close();
+    await rm(empty, { recursive: true, force: true });
+  });
+
+  it("createBook 不传立项时不写这一格、不生成创作约定（旧调用方逐字不变）", async () => {
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    const empty = await mkdtemp(path.join(tmpdir(), "mochen-no-project-"));
+    const result = await service.createBook({ directory: empty, title: "不立项" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("不该走到这里");
+    expect(result.book.meta.project).toBeUndefined();
+    const onDisk = JSON.parse(await readFile(path.join(empty, "book.json"), "utf8")) as {
+      project?: unknown;
+    };
+    expect(onDisk.project).toBeUndefined();
+    await expect(readdir(path.join(empty, "outline"))).resolves.toEqual([]);
+    await service.close();
+    await rm(empty, { recursive: true, force: true });
+  });
+
   it("createBook 拒绝非空目录与空书名", async () => {
     const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
     const occupied = await service.createBook({ directory: root, title: "想盖到别人头上" });

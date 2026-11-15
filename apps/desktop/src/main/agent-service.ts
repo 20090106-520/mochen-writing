@@ -590,7 +590,6 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
           });
           return { turnId };
         }
-
         const current = snapshot();
         const rel = await threadFor(input, threadKey, config.model);
         // 坏线程如实失败：把「读不回历史」当成「没有历史」会让模型失忆而用户毫不知情。
@@ -630,7 +629,8 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
           profile,
           context: assembled,
           webSearchEnabled: input.webSearchEnabled,
-          bookCounts: bookCountsOf(current.docs) // 判据与理由见 bookCountsOf / PromptContext
+          bookCounts: bookCountsOf(current.docs), // 判据与理由见 bookCountsOf / PromptContext
+          project: current.meta.project // W-07：提示词文案由 prompt-assembly 一处生成
         };
         // 档案的写入范围写进提示词：它是上限不是授权，模型自己先知道能碰哪些目录。
         const prompt = `${deps.promptFor(context)}\n${writeScopeSentence(profile)}`;

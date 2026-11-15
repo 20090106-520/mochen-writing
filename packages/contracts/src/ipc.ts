@@ -1,4 +1,5 @@
 import type { BookMeta, DocRef } from "./book.js";
+import type { BookProject } from "./book-project.js";
 import type {
   AgentOutbound,
   DecideInput,
@@ -245,6 +246,8 @@ export type DocRefreshResult =
 export interface BookCreateInput {
   directory: string;
   title: string;
+  /** 开书立项（W-07）：可选六格；跳过立项时不传，建书流程与原流程逐字一致。 */
+  project?: BookProject;
 }
 
 /** book:create 的返回：成功侧直接复用 openBook 的标准结果，渲染层一套填充逻辑两用。 */

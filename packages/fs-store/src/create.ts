@@ -1,7 +1,7 @@
 import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { BookMeta, DocCreateResult } from "@mochen/contracts";
-import { parseBookMeta } from "@mochen/contracts";
+import { bookConventionBody, parseBookMeta } from "@mochen/contracts";
 import { makeFingerprint } from "./fingerprint.js";
 import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "./atomic-write.js";
 import { writeBookMetaFile } from "./book-meta.js";
@@ -99,5 +99,15 @@ export async function createBookSkeleton(
   await mkdir(path.join(directory, "materials"), { recursive: true });
   // 形状与写法都在 `book-meta` 那一处：建书与改设置必须写出逐字相同的 book.json。
   await writeBookMetaFile(directory, meta, fs);
+  // W-07：填过立项才生成「创作约定」初稿——跳过立项的书不多出任何一个文件，原流程不变。
+  // 文档正文由 contracts 的 `bookConventionBody` 一处生成（与提示词里的立项摘要同源）。
+  const convention = bookConventionBody(meta.project);
+  if (convention !== "") {
+    await writeFileAtomic(
+      path.join(directory, DOC_DIRS.outline, "创作约定.md"),
+      `${docTemplate("创作约定")}${convention}\n`,
+      fs
+    );
+  }
   return { ok: true };
 }

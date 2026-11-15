@@ -8,6 +8,7 @@ export * from "./skill-source.js";
 export * from "./plugin.js";
 export * from "./permission.js";
 export * from "./book.js";
+export * from "./book-project.js";
 export * from "./book-data.js";
 export * from "./recent-books.js";
 export * from "./agent-profile.js";

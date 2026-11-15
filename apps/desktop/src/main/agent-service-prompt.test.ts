@@ -773,3 +773,27 @@ describe("defaultPromptFor · 对话回复口径（用户原话：输出的东�
     expect(build()).toContain("这几条是口径本身");
   });
 });
+
+describe("defaultPromptFor · 开书立项（W-07）", () => {
+  const base = {
+    title: "深渊之下",
+    stageName: "正文",
+    chapter: CHAPTER,
+    permissionLabel: "全开",
+    workModeLabel: "直接动手",
+    profile: defaultProfile(),
+    context: NO_CONTEXT,
+    webSearchEnabled: false
+  };
+
+  it("填过立项 ⇒ 一句摘要进提示；没填 ⇒ 一个字不加", () => {
+    const filled = defaultPromptFor({
+      ...base,
+      project: { genre: "都市异能", taboos: "不写虐杀" }
+    });
+    expect(filled).toContain("本书立项：题材 / 频道：都市异能；雷点 / 禁忌：不写虐杀。");
+    expect(filled).not.toContain("**题材"); // 背景不是待办清单
+    expect(defaultPromptFor(base)).not.toContain("本书立项");
+    expect(defaultPromptFor({ ...base, project: {} })).not.toContain("本书立项");
+  });
+});

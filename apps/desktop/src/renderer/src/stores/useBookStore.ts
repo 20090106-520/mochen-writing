@@ -6,6 +6,7 @@ import {
   type BookKind,
   type BookMeta,
   type BookOpenResult,
+  type BookProject,
   type ChangeEntry,
   type DocRef,
   type DocWriteResult,
@@ -235,9 +236,13 @@ export const useBookStore = defineStore("book", {
     /**
      * 新建一本书：主进程建骨架（book.json + 五个目录），成功后按 openBook 同款落点填充。
      * 目录选择（book:pick）由对话框先走完，这里只管建与开。
+     *
+     * `project` 是开书立项（W-07）的可选六格：省略时请求体里不出现这一项，
+     * 旧调用方的行为与建书结果逐字不变。
      */
-    async createBook(directory: string, title: string): Promise<boolean> {
-      const result = await withBookDataFlush(() => window.mochen.createBook({ directory, title }));
+    async createBook(directory: string, title: string, project?: BookProject): Promise<boolean> {
+      const input = { directory, title, ...(project === undefined ? {} : { project }) };
+      const result = await withBookDataFlush(() => window.mochen.createBook(input));
       if (!result.ok) {
         this.notice = bookDataFlushNotice(result.message);
         return false;

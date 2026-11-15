@@ -5,6 +5,7 @@ import {
   DEFAULT_BOOK_STAGES,
   DEFAULT_PERMISSION_MODE,
   IPC_CHANNELS,
+  normalizeBookProject,
   parseBookMeta,
   sanitizeDocFileName,
   windowsReservedNameProblem,
@@ -247,6 +248,9 @@ export function createBookService(deps: BookServiceDeps): BookService {
       // 这里曾写死 "read-only"，于是同一本书「刚建出来是只读、没开书时兜底却是全开」，两处自相矛盾。
       // 默认阶段取 contracts 的 DEFAULT_BOOK_STAGES（2026-11-12 收上来）：出厂技能的 frontmatter
       // `stage` 也读这同一份的第一枚 name——技能推荐比的是阶段名，两处各写一份就会永不命中。
+      // 立项六格（W-07）：主进程再做一次归一化，不信任跨进程来的形状；
+      // 六格全空或没传 ⇒ 不写这一格，建书结果与旧流程逐字一致。
+      const project = normalizeBookProject(input?.project);
       const meta = parseBookMeta({
         id: randomUUID(),
         title,
@@ -254,7 +258,8 @@ export function createBookService(deps: BookServiceDeps): BookService {
         stages: DEFAULT_BOOK_STAGES.map((stage) => ({ ...stage })),
         activeStage: DEFAULT_BOOK_STAGES[0]!.id,
         permissionMode: DEFAULT_PERMISSION_MODE,
-        chapterOrder: []
+        chapterOrder: [],
+        ...(project === undefined ? {} : { project })
       });
       const skeleton = await createBookSkeleton(directory, meta, deps.fs);
       if (!skeleton.ok) return { ok: false, message: skeleton.message };

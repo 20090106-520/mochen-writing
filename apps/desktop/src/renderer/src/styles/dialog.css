@@ -504,3 +504,64 @@
 .new-book-dir-input:focus {
   border-color: var(--focus);
 }
+
+/* —— 新建作品对话框：立项速记（W-07） —— */
+.new-book-project {
+  margin: 2px 0 14px;
+  padding: 0 12px;
+  border: 1px solid var(--theme-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-raised) 55%, transparent);
+}
+
+.new-book-project > summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 0;
+  color: var(--text-primary);
+  font-size: 0.928571rem;
+  font-weight: 590;
+  cursor: pointer;
+  list-style: none;
+}
+
+.new-book-project > summary::-webkit-details-marker {
+  display: none;
+}
+
+.new-book-project > summary::before {
+  content: "＋";
+  margin-right: 6px;
+  color: var(--text-faint);
+}
+
+.new-book-project[open] > summary::before {
+  content: "－";
+}
+
+.new-book-project-hint {
+  padding-left: 20px;
+  color: var(--text-faint);
+  font-size: 0.785714rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.new-book-project-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.new-book-project .provider-field {
+  margin-bottom: 10px;
+}
+
+.new-book-project textarea {
+  min-height: 58px;
+  padding: 8px 10px;
+  background: var(--editor);
+  font-family: inherit;
+  font-size: 0.857143rem;
+}

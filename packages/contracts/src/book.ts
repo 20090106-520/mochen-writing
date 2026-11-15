@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BOOK_PROJECT_MAX_CHARS, type BookProject } from "./book-project.js";
 import { PERMISSION_MODES, WORK_MODES, type PermissionMode, type WorkMode } from "./permission.js";
 
 export const BOOK_KINDS = [
@@ -71,6 +72,13 @@ export interface BookMeta {
    * 缺省值的**唯一**归一化入口是 `skillPolicyOf`（铁律 6），调用方不许各兜一份。
    */
   skillPolicy?: BookSkillPolicy | undefined;
+  /**
+   * 开书立项（W-07）：新建作品时可选填的六项创作约定（题材/平台/篇幅/节奏/雷点/卖点）。
+   *
+   * 老书没有这一格，解析必须照样过得去；跳过立项的新书也不写它。
+   * 键名、标签与归一化只住在 `book-project.ts`（铁律 6）。
+   */
+  project?: BookProject | undefined;
 }
 
 /**
@@ -154,6 +162,18 @@ export const bookMetaSchema = z
       .object({
         enabled: z.array(z.string().min(1)).default([]),
         disabled: z.array(z.string().min(1)).default([])
+      })
+      .optional(),
+    // 立项六格的键名与 `book-project.ts` 的 BOOK_PROJECT_FIELDS 同步；
+    // 上限也取那一处的常量，不在 schema 里另写一个数字。
+    project: z
+      .object({
+        genre: z.string().max(BOOK_PROJECT_MAX_CHARS).optional(),
+        platform: z.string().max(BOOK_PROJECT_MAX_CHARS).optional(),
+        length: z.string().max(BOOK_PROJECT_MAX_CHARS).optional(),
+        cadence: z.string().max(BOOK_PROJECT_MAX_CHARS).optional(),
+        taboos: z.string().max(BOOK_PROJECT_MAX_CHARS).optional(),
+        pitch: z.string().max(BOOK_PROJECT_MAX_CHARS).optional()
       })
       .optional()
   })

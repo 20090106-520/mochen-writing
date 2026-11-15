@@ -2,7 +2,12 @@
      目录走 book:pick（系统选目录对话框，允许「新建文件夹」），盘上落地由主进程 createBook 兜底校验：
      目录必须为空——绝不往别人家的目录里盖文件。 -->
 <script setup lang="ts">
-import { ref } from "vue";
+import { reactive, ref } from "vue";
+import {
+  BOOK_PROJECT_LABELS,
+  normalizeBookProject,
+  type BookProjectField
+} from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import { useBookStore } from "../stores/useBookStore";
 import { useModalFocus } from "../composables/useModalFocus";
@@ -28,6 +33,33 @@ const title = ref("");
 const directory = ref("");
 const creating = ref(false);
 /**
+ * 开书立项（W-07）：六格全部可选，默认折叠。跳过时不传 `project`，
+ * 建书请求体与旧版本逐字一致（主进程也不会写这一格、不会生成「创作约定」）。
+ */
+const projectDraft = reactive<Record<BookProjectField, string>>({
+  genre: "",
+  platform: "",
+  length: "",
+  cadence: "",
+  taboos: "",
+  pitch: ""
+});
+/** 两列排的前四格；雷点与卖点各占一行（可能是两句以上）。 */
+const PROJECT_QUICK_FIELDS: readonly BookProjectField[] = [
+  "genre",
+  "platform",
+  "length",
+  "cadence"
+];
+const PROJECT_PLACEHOLDERS: Record<BookProjectField, string> = {
+  genre: "例：都市异能 · 男频",
+  platform: "例：起点 / 番茄",
+  length: "例：80–120 万字",
+  cadence: "例：日更 2 章",
+  taboos: "例：不写虐杀、不写未成年恋爱；主角不圣母",
+  pitch: "一句话说清这本书最吸引人的地方"
+};
+/**
  * 这一次创建失败的理由（本地持有，2026-10-10 巡检）。
  *
  * 为什么不直接读 `book.notice`：那是**全局**一格——新建文档、改名、外部改动同步都会写它。
@@ -52,7 +84,11 @@ async function pick(): Promise<void> {
 async function create(): Promise<void> {
   creating.value = true;
   createError.value = "";
-  const ok = await book.createBook(directory.value, title.value.trim());
+  const ok = await book.createBook(
+    directory.value,
+    title.value.trim(),
+    normalizeBookProject(projectDraft)
+  );
   creating.value = false;
   if (ok) {
     emit("close");
@@ -109,6 +145,41 @@ async function create(): Promise<void> {
               </button>
             </div>
           </div>
+          <!-- 开书立项（W-07）：默认折叠，六格全部可选。填过才生成「创作约定」，跳过与原流程一致。 -->
+          <details class="new-book-project">
+            <summary>
+              <span>立项速记（可跳过）</span>
+              <span class="new-book-project-hint">
+                填了会写进 book.json，并生成一份「大纲/创作约定.md」；以后每轮对话都会带上
+              </span>
+            </summary>
+            <div class="new-book-project-grid">
+              <label v-for="field in PROJECT_QUICK_FIELDS" :key="field" class="provider-field">
+                <span>{{ BOOK_PROJECT_LABELS[field] }}</span>
+                <input
+                  v-model="projectDraft[field]"
+                  type="text"
+                  :placeholder="PROJECT_PLACEHOLDERS[field]"
+                />
+              </label>
+            </div>
+            <label class="provider-field">
+              <span>{{ BOOK_PROJECT_LABELS.taboos }}</span>
+              <textarea
+                v-model="projectDraft.taboos"
+                rows="2"
+                :placeholder="PROJECT_PLACEHOLDERS.taboos"
+              ></textarea>
+            </label>
+            <label class="provider-field">
+              <span>{{ BOOK_PROJECT_LABELS.pitch }}</span>
+              <textarea
+                v-model="projectDraft.pitch"
+                rows="2"
+                :placeholder="PROJECT_PLACEHOLDERS.pitch"
+              ></textarea>
+            </label>
+          </details>
           <p class="dialog-description">
             会在所选目录里建出 book.json 和 章节 / 大纲 / 人物 / 剧情 / 素材库 五个文件夹；
             目录不是空的会被拒绝，不会盖掉任何已有内容。

@@ -98,6 +98,29 @@ describe("createBookSkeleton", () => {
     expect(result.message).toContain("不是空的");
   });
 
+  it("填过立项 ⇒ 多出一份「大纲/创作约定.md」，内容与立项一致", async () => {
+    const dir = path.join(root, "project-book");
+    const result = await createBookSkeleton(dir, {
+      ...meta,
+      id: "b-3",
+      project: { genre: "都市异能", taboos: "不写虐杀" }
+    });
+    expect(result.ok).toBe(true);
+    expect(await readdir(dir)).toContain("outline");
+    const convention = await readFile(path.join(dir, "outline/创作约定.md"), "utf8");
+    expect(convention).toContain("title: 创作约定");
+    expect(convention).toContain("**题材 / 频道**：都市异能");
+    expect(convention).toContain("**雷点 / 禁忌**：不写虐杀");
+    // 跳过立项的书不会多出这份文稿——下面那条用例钉住。
+  });
+
+  it("没填立项 ⇒ 不多出任何文档（原流程逐字不变）", async () => {
+    const dir = path.join(root, "no-project-book");
+    const result = await createBookSkeleton(dir, { ...meta, id: "b-4" });
+    expect(result.ok).toBe(true);
+    expect(await readdir(path.join(dir, "outline"))).toEqual([]);
+  });
+
   it("目录里哪怕只有别的一个文件也拒绝：绝不往用户没点头的目录里盖东西", async () => {
     const dir = path.join(root, "not-empty");
     await stat(dir).catch(async () => {
