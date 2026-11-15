@@ -3,6 +3,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
+  BOOK_DATA_LABELS,
   PROPOSAL_STATUS_LABELS,
   presentableFailureMessage,
   workModeOf,
@@ -31,6 +32,7 @@ import {
   type WorkbenchSuggestion
 } from "../utils/workbench-state";
 import { useBookStore } from "../stores/useBookStore";
+import { bookDataFlushFailedKeys, retryFailedBookData } from "../composables/bookDataRegistry";
 import { useWritingGoalStore } from "../stores/useWritingGoalStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useProviderStore } from "../stores/useProviderStore";
@@ -71,6 +73,26 @@ const goal = useWritingGoalStore();
 const layout = useLayoutStore();
 const provider = useProviderStore();
 const notif = useNotificationStore();
+/**
+ * 换书时没落进上一本目录的设定（2026-11-15）：状态栏给「查看 / 重试保存」两枚按钮。
+ * 清单本身只由 bookDataRegistry 写；这里只负责展示与重试的瞬时态。
+ */
+const flushRetrying = ref(false);
+const flushFailedNames = computed(() =>
+  bookDataFlushFailedKeys.value.map((key) => BOOK_DATA_LABELS[key]).join("、")
+);
+function revealFlushFailures(): void {
+  book.notice = `没存进目录的设定：${flushFailedNames.value}。可点「重试保存」，或到对应面板重新保存一次。`;
+}
+async function retryFlush(): Promise<void> {
+  if (flushRetrying.value) return;
+  flushRetrying.value = true;
+  try {
+    book.notice = await retryFailedBookData();
+  } finally {
+    flushRetrying.value = false;
+  }
+}
 /** #106 裁定 D1：`/` 的真身只剩行内引用菜单一处，唤起态也跟着它住进 store（键位层要能派下来）。 */
 const referenceMenu = useReferenceMenuStore();
 /** 工具 ▾ 的浮层是瞬时 UI 态，不进 store（计划决定 6），关掉不带走任何状态。 */
@@ -643,6 +665,14 @@ onBeforeUnmount(() => {
       <span class="status-line">{{ statusLine }}</span>
       <span v-if="book.notice" class="status-note">{{ book.notice }}</span>
       <span v-if="agent.notice" class="status-note status-note-agent">{{ agent.notice }}</span>
+      <!-- 落盘失败不能只报不救：查看是哪几份、再存一次，都在这条状态栏上。 -->
+      <span v-if="flushFailedNames" class="status-flush">
+        <span class="status-note">设定未存好</span>
+        <button type="button" class="status-action" @click="revealFlushFailures">查看</button>
+        <button type="button" class="status-action" :disabled="flushRetrying" @click="retryFlush">
+          {{ flushRetrying ? "正在重试…" : "重试保存" }}
+        </button>
+      </span>
     </div>
 
     <ComposerBox

@@ -1,3 +1,4 @@
+import { shallowRef } from "vue";
 import { BOOK_DATA_LABELS, type BookDataKey } from "@mochen/contracts";
 
 /**
@@ -19,8 +20,11 @@ type BookDataFlusher = () => Promise<boolean>;
 
 const flushers = new Map<BookDataKey, BookDataFlusher>();
 
-/** 上一次闸门里没落成的那几枚键；`bookDataFlushNotice` 据此点名。 */
-let lastFailedKeys: BookDataKey[] = [];
+/**
+ * 上一次闸门里没落成的那几枚键；`bookDataFlushNotice` 据此点名。
+ * 用 shallowRef：状态栏要能随着「重试成功」立刻收起按钮，而失败清单只由本模块写。
+ */
+export const bookDataFlushFailedKeys = shallowRef<BookDataKey[]>([]);
 
 /** 通路实例按自己的键登记；同一枚键后登记的覆盖先登记的（热重载不留双份）。返回注销函数。 */
 export function registerBookDataFlusher(key: BookDataKey, flush: BookDataFlusher): () => void {
@@ -47,7 +51,7 @@ export async function flushAllBookData(): Promise<boolean> {
       failed.push(key);
     }
   }
-  lastFailedKeys = failed;
+  bookDataFlushFailedKeys.value = failed;
   return failed.length === 0;
 }
 
@@ -65,9 +69,22 @@ export async function withBookDataFlush<T>(call: () => Promise<T>): Promise<T> {
 
 /** 基础提示（`已打开《X》`）后面补上「哪几份没落进上一本」；没有失败记录就一字不改。 */
 export function bookDataFlushNotice(base: string): string {
-  if (lastFailedKeys.length === 0) return base;
-  const names = lastFailedKeys.map((key) => BOOK_DATA_LABELS[key]).join("、");
+  if (bookDataFlushFailedKeys.value.length === 0) return base;
+  const names = bookDataFlushFailedKeys.value.map((key) => BOOK_DATA_LABELS[key]).join("、");
   return `${base}（上一本的${names}没能全部存进它的目录）`;
+}
+
+/**
+ * 状态栏「重试保存」的唯一实现：再跑一遍闸门，回一句给人看的话。
+ *
+ * 成功就报「已补存」，并把失败清单清空（按钮随之收起）；
+ * 仍失败就点名还差哪几份，按钮留着让用户检查权限后再试。
+ */
+export async function retryFailedBookData(): Promise<string> {
+  const ok = await flushAllBookData();
+  if (ok) return "已补存上一本没写进目录的设定。";
+  const names = bookDataFlushFailedKeys.value.map((key) => BOOK_DATA_LABELS[key]).join("、");
+  return `仍有${names}没能存进目录，请检查磁盘权限后再试。`;
 }
 
 /** 有几枚通路登记着：接线用例用它证明「三本 store 都真的接上了」，而不是只接了一本。 */
@@ -78,5 +95,5 @@ export function bookDataFlusherCount(): number {
 /** 用例与热重载用的清空：产品代码不调它。 */
 export function resetBookDataFlushers(): void {
   flushers.clear();
-  lastFailedKeys = [];
+  bookDataFlushFailedKeys.value = [];
 }

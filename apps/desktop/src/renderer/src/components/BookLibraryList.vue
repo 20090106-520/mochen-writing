@@ -6,13 +6,19 @@
   清单真身在主进程（book:recent），这里是只读镜像；store 里的 recentBooks 由 useBookStore 统一维护。
 -->
 <script setup lang="ts">
+import { computed } from "vue";
 import AppIcon from "./AppIcon.vue";
 import { useBookStore } from "../stores/useBookStore";
-import { bookDisplayTitle, shortenRootPath } from "../utils/book-path";
+import { bookDisplayTitle, uniqueRootPathLabels } from "../utils/book-path";
 
 withDefaults(defineProps<{ variant?: "list" | "cards" }>(), { variant: "list" });
 
 const book = useBookStore();
+
+/** 同名目录（两个「新建文件夹」）只给撞车的那几行多留一段路径，其余行不改口径。 */
+const pathLabels = computed(() =>
+  uniqueRootPathLabels(book.recentBooks.map((entry) => entry.rootPath))
+);
 
 /** 已经是当前这本就不再发一次 IPC；点当前行等于「我就在这本里」。 */
 function openBook(rootPath: string): void {
@@ -33,7 +39,7 @@ function forget(event: MouseEvent, rootPath: string): void {
     </p>
     <ul v-else class="book-library-list" aria-label="作品库">
       <li
-        v-for="entry in book.recentBooks"
+        v-for="(entry, index) in book.recentBooks"
         :key="entry.rootPath"
         class="book-library-row"
         :class="{ 'is-current': entry.rootPath === book.rootPath }"
@@ -50,7 +56,7 @@ function forget(event: MouseEvent, rootPath: string): void {
             <span class="book-library-title">
               {{ bookDisplayTitle(entry.title, entry.rootPath) }}
             </span>
-            <span class="book-library-path">{{ shortenRootPath(entry.rootPath) }}</span>
+            <span class="book-library-path" :title="entry.rootPath">{{ pathLabels[index] }}</span>
           </span>
           <span v-if="entry.rootPath === book.rootPath" class="book-library-state">正在写</span>
         </button>

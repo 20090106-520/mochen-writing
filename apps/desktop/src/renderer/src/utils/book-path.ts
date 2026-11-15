@@ -16,6 +16,35 @@ export function shortenRootPath(path: string, keep = 2): string {
   return `…${sep}${parts.slice(-keep).join(sep)}`;
 }
 
+/**
+ * 作品库同名目录的辨识口径（2026-11-15）。
+ *
+ * 真机撞到的：两台机器（或两个父目录）下各有一个「新建文件夹」，作品库两行
+ * 标题与路径都一模一样，点哪行全靠猜。`shortenRootPath` 只留两段是好看的默认值，
+ * 但**不能保证唯一**——这里只给撞车的那几行逐级多留一段，直到彼此不同；
+ * 其余行仍走原口径，不因为一处重名把整列路径都拉长。
+ *
+ * 最坏退到完整路径；连完整路径都相同（同一条目录被登记两次）时补行号，绝不给出两行同字。
+ */
+export function uniqueRootPathLabels(rootPaths: readonly string[], keep = 2): string[] {
+  const segmentsOf = (path: string) =>
+    path
+      .replace(/[\\/]+$/, "")
+      .split(/[\\/]+/)
+      .filter(Boolean).length;
+  const maxDepth = Math.max(keep, ...rootPaths.map(segmentsOf));
+  return rootPaths.map((rootPath, index) => {
+    for (let depth = keep; depth <= maxDepth; depth += 1) {
+      const label = shortenRootPath(rootPath, depth);
+      const collides = rootPaths.some(
+        (other, otherIndex) => otherIndex !== index && shortenRootPath(other, depth) === label
+      );
+      if (!collides) return label;
+    }
+    return `${shortenRootPath(rootPath, maxDepth)}（${index + 1}）`;
+  });
+}
+
 /** 路径末段（盘上那一级目录名）。收尾分隔符先去掉，`C:\书稿\` 与 `C:\书稿` 同解。 */
 export function basenameOf(path: string): string {
   const trimmed = path.replace(/[\\/]+$/, "");

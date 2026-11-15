@@ -108,7 +108,7 @@ const autoHintVisible = computed(() => autoSkill.enabled && autoPinned.value.len
 const placeholder = computed(() => {
   if (props.welcome) return "输入 @ 引用素材、文稿和设定，或者直接说想写什么";
   return props.ready
-    ? "随心输入，输入 / 唤出命令，输入 @ 引用素材……"
+    ? "输入正文，/ 唤出命令，@ 引用素材……"
     : "先在左栏打开作品；模型在左下角齿轮（设置）里配。";
 });
 const welcomeShortcuts = [

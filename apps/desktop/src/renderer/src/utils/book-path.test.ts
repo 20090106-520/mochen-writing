@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { basenameOf, bookDisplayTitle, looksLikePath, shortenRootPath } from "./book-path";
+import {
+  basenameOf,
+  bookDisplayTitle,
+  looksLikePath,
+  shortenRootPath,
+  uniqueRootPathLabels
+} from "./book-path";
 
 /**
  * 作品库路径的显示口径（2026-10-22）：只留尾部。
@@ -48,6 +54,54 @@ describe("basenameOf", () => {
   });
 });
 
+/**
+ * 同名目录辨识（2026-11-15）。
+ * 真机撞到的：两个父目录下各有一个「新建文件夹」，两行标题与两段路径完全一样。
+ * 口径是「只给撞车的那几行逐级多留一段」，不是把整列路径都拉长。
+ */
+describe("uniqueRootPathLabels", () => {
+  it("没有撞车时逐字沿用 shortenRootPath(2)", () => {
+    const paths = ["C:\\Users\\x\\Desktop\\海雾", "D:\\书稿\\归港"];
+    expect(uniqueRootPathLabels(paths)).toEqual(paths.map((path) => shortenRootPath(path)));
+  });
+
+  it("两个「新建文件夹」撞车 ⇒ 各自多留一段父目录，直到不同", () => {
+    const labels = uniqueRootPathLabels([
+      "C:\\Users\\x\\Desktop\\新建文件夹",
+      "C:\\Users\\x\\Desktop\\新建文件夹2\\新建文件夹"
+    ]);
+    // 第二条的末两段是「新建文件夹2\\新建文件夹」，第一条的末两段是「Desktop\\新建文件夹」——
+    // 本来就不撞；真正撞的是下面那条同末两段的用例。
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("末两段完全相同时，只把撞车的行加长到能区分", () => {
+    const labels = uniqueRootPathLabels([
+      "C:\\甲\\Desktop\\新建文件夹",
+      "C:\\乙\\Desktop\\新建文件夹",
+      "C:\\Users\\x\\Desktop\\海雾"
+    ]);
+    expect(labels[0]).toBe("…\\甲\\Desktop\\新建文件夹");
+    expect(labels[1]).toBe("…\\乙\\Desktop\\新建文件夹");
+    // 没撞的那行一个字符都不加长。
+    expect(labels[2]).toBe("…\\Desktop\\海雾");
+  });
+
+  it("POSIX 路径同样逐段加长，分隔符不改写", () => {
+    const labels = uniqueRootPathLabels(["/Users/a/Desktop/书稿", "/Users/b/Desktop/书稿"]);
+    expect(labels).toEqual(["…/a/Desktop/书稿", "…/b/Desktop/书稿"]);
+  });
+
+  it("同一条目录被登记两次（理论上不该有）⇒ 补行号，绝不给出两行同字", () => {
+    const labels = uniqueRootPathLabels(["C:\\书稿\\归港", "C:\\书稿\\归港"]);
+    expect(new Set(labels).size).toBe(2);
+  });
+
+  it("空清单与单行照旧走两段口径", () => {
+    expect(uniqueRootPathLabels([])).toEqual([]);
+    expect(uniqueRootPathLabels(["C:\\书稿\\归港"])).toEqual(["…\\书稿\\归港"]);
+  });
+});
 /**
  * 书名兜底（2026-11-10）。
  * 真机撞到的那一格：左栏作品库两行字一模一样，因为 `book.json` 里的 title

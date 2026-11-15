@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  bookDataFlushFailedKeys,
   bookDataFlushNotice,
   registerBookDataFlusher,
   resetBookDataFlushers,
+  retryFailedBookData,
   withBookDataFlush
 } from "./bookDataRegistry";
 
@@ -81,5 +83,40 @@ describe("bookDataFlushNotice", () => {
     });
     await withBookDataFlush(async () => "opened");
     expect(bookDataFlushNotice("已打开")).toContain("写作目标");
+  });
+});
+
+/**
+ * 状态栏「查看 / 重试保存」（2026-11-15）。
+ * 原先这里只报「没能全部存进它的目录」，用户既看不到是哪几份，也无从补救——
+ * 提示变成墙上的一句话。失败清单改成响应式 ref 之后，重试成功要能把按钮一起收掉。
+ */
+describe("bookDataFlushFailedKeys 与 retryFailedBookData", () => {
+  it("闸门跑完后，没落成的键以响应式清单给出", async () => {
+    registerBookDataFlusher("notes", async () => false);
+    registerBookDataFlusher("story-bible", async () => true);
+    await withBookDataFlush(async () => "opened");
+    expect(bookDataFlushFailedKeys.value).toEqual(["notes"]);
+  });
+
+  it("重试成功 ⇒ 回一句已补存，并清空失败清单（按钮随之收起）", async () => {
+    let healthy = false;
+    registerBookDataFlusher("notes", async () => healthy);
+    await withBookDataFlush(async () => "opened");
+    expect(bookDataFlushFailedKeys.value).toEqual(["notes"]);
+    healthy = true;
+    expect(await retryFailedBookData()).toContain("已补存");
+    expect(bookDataFlushFailedKeys.value).toEqual([]);
+  });
+
+  it("重试仍失败 ⇒ 点名还差哪几份，清单保留让用户再试", async () => {
+    registerBookDataFlusher("notes", async () => false);
+    registerBookDataFlusher("writing-goal", async () => false);
+    await withBookDataFlush(async () => "opened");
+    const message = await retryFailedBookData();
+    expect(message).toContain("笔记");
+    expect(message).toContain("写作目标");
+    expect(message).toContain("检查磁盘权限");
+    expect(bookDataFlushFailedKeys.value).toHaveLength(2);
   });
 });
