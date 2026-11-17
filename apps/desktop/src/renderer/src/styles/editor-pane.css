@@ -758,6 +758,27 @@ html[data-theme="dark"] .document-editor:focus-visible {
   color: var(--warning);
 }
 
+/* 本章腔调读数（2026-11-16）：页脚最后一格；空间紧时先截断自己，不挤保存状态。
+   文案与数字住 utils/style-readout，这里只管排版。 */
+.editor-footer .style-chips {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 8px;
+  overflow: hidden;
+  color: var(--text-faint);
+}
+
+.style-chip {
+  white-space: nowrap;
+}
+
+.style-chip-label {
+  margin-right: 3px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
 /* 逐章目标（2026-10-22）：页脚一行读完「目标 / 已写 / 差多少」。
    flex 容器里的纯空白文本节点不参与排版，「目标 ＿ 字」三个字与输入框靠 gap 对齐，不会忽宽忽窄。 */
 .editor-footer .chapter-quota {

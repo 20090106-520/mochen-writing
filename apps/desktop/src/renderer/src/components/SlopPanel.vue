@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
 import AppIcon from "./AppIcon.vue";
+import StyleReadoutChips from "./StyleReadoutChips.vue";
 import { useComposerContextPopover } from "../composables/useComposerContextPopover";
 import { imeOwnsKey, popoverOwnsKey } from "../utils/slash-commands";
 import {
@@ -18,6 +19,7 @@ import {
   type SlopHit
 } from "../utils/ai-slop";
 import { revealEditorLine } from "../utils/editor-reveal";
+import { bookStyleReadoutOf, chapterChipsOf } from "../utils/style-readout";
 import { threadKeyFor, useAgentStore } from "../stores/useAgentStore";
 import { useBookStore } from "../stores/useBookStore";
 import { useNotificationStore } from "../stores/useNotificationStore";
@@ -62,6 +64,9 @@ const verdict = computed(() => slopVerdict(hits.value, book.draft));
 const gate = computed(() => slopGateOf(book.draft));
 const strongHits = computed(() => hits.value.filter((h) => h.strength === "strong"));
 const suspectHits = computed(() => hits.value.filter((h) => h.strength === "suspect"));
+/** 本章腔调读数（2026-11-16）：与页脚同一份胶囊；复读台词只取前三条。 */
+const chips = computed(() => chapterChipsOf(book.draft));
+const repeatLines = computed(() => bookStyleReadoutOf([book.draft]).repeats.slice(0, 3));
 const docTitle = computed(
   () => book.docs.find((d) => d.relPath === book.activeDocTab)?.title ?? "这一篇"
 );
@@ -246,6 +251,15 @@ function keydown(event: KeyboardEvent): void {
         下面「本章清单」收的是审稿五套检查里<b>能归属到这一章</b>的结论，按章留在书里；
         时间线核对、人物卡的全书级问题不挂某一章，仍去各自面板看。
       </p>
+
+      <!-- 本章读数（2026-11-16）：只摆这本书自己的数，不设阈值、不判定；
+           数字真身全在 contracts，文案在 utils/style-readout。 -->
+      <div class="ai-slop-readout" aria-label="本章腔调读数">
+        <StyleReadoutChips :chips="chips" />
+        <span v-if="repeatLines.length > 0" class="ai-slop-readout-repeat">
+          复读台词：{{ repeatLines.map((r) => `「${r.line}」×${r.count}`).join(" · ") }}
+        </span>
+      </div>
 
       <!-- 本章清单（W-04 第一刀）：上面这句是「这一秒的扫描」，这一栏是「上次体检留下的结论」。
            两者分开摆，免得作者以为改一个字就等于改了结论。只在点按钮时并一次。 -->

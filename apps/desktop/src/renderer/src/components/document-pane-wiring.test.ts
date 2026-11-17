@@ -23,6 +23,10 @@ const toolbar = "components/SnippetToolbar.vue";
 const dossier = "components/BookDossier.vue";
 const paneScript = scriptSource(pane);
 const paneTemplate = templateSource(pane);
+// 2026-11-16：页脚那半格搬去 EditorFooterMeta.vue（DocumentPane 已贴 800 行上限），
+// 模板断言跟着搬到新文件；脚本与口径断言仍读 DocumentPane。
+const footer = "components/EditorFooterMeta.vue";
+const footerTemplate = templateSource(footer);
 
 describe("DocumentPane · 片段工具栏的接线形状（F-F）", () => {
   it("工具栏只有一处挂载点，且喂进去的是 snippetToolbarState 的产物，不在模板里判可见性", () => {
@@ -156,16 +160,17 @@ describe("DocumentPane · 三枚页签共用一个入口（Ruling T10-4）", () 
 
 describe("DocumentPane · 页脚两格只对文稿态成立（Ruling T10-5）", () => {
   it("「N 字」与「约 M 分钟阅读」同在 mode === 'manuscript' 闸门内，只读态只剩保存状态", () => {
+    expect(paneTemplate.match(/<EditorFooterMeta\b/g)?.length).toBe(1);
     const gated = /<template v-if="mode === 'manuscript'">([\s\S]*?)<\/template>/.exec(
-      paneTemplate
+      footerTemplate
     )?.[1];
     expect(gated).toBeDefined();
     expect(gated).toContain("字");
     expect(gated).toContain('class="reading-time"');
     expect(gated?.includes("editor-save-status")).toBe(false);
     // 时长文案是拼好的字符串，模板里不再做三元与算术。
-    expect(paneTemplate).toContain("{{ readingTimeLabel }}");
-    expect(paneTemplate).not.toContain("分钟阅读");
+    expect(footerTemplate).toContain("{{ readingTimeLabel }}");
+    expect(footerTemplate).not.toContain("分钟阅读");
   });
 });
 
@@ -178,7 +183,7 @@ describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F
     expect(paneScript).not.toContain("分钟阅读");
     expect(paneScript).not.toContain("— 分钟");
     expect(paneScript).toContain("formatReadingTime");
-    expect(paneTemplate).toContain("{{ readingTimeLabel }}");
+    expect(footerTemplate).toContain("{{ readingTimeLabel }}");
   });
 
   // #103a：字数与时长都只算「剥掉 frontmatter 之后的正文」。钉三件事：围栏切分只有一份真身
@@ -191,7 +196,7 @@ describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F
     expect(paneScript).toContain("proseCharCount(prose.value)");
     expect(paneScript).toContain("formatReadingTime(prose.value)");
     // textarea 里围栏行仍然看得见，计数却不含它 ⇒ 标签必须写明「正文」，否则名实不符。
-    expect(paneTemplate).toContain('正文 {{ characterCount.toLocaleString("zh-CN") }} 字');
+    expect(footerTemplate).toContain('正文 {{ characterCount.toLocaleString("zh-CN") }} 字');
   });
 
   it("两张 mode 文案表搬进 utils/right-pane-labels：.vue 里不再抄第二份中文", () => {
@@ -235,6 +240,7 @@ describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F
     ]) {
       expect(paneScript).not.toContain(sentence);
       expect(paneTemplate).not.toContain(sentence);
+      expect(footerTemplate).not.toContain(sentence);
     }
     expect(paneScript).toContain('from "../utils/save-state"');
     expect(paneScript).toContain("saveStateLabel({");
@@ -257,13 +263,16 @@ describe("DocumentPane · 文案与计数口径都下沉 utils/（修复轮 F1/F
     // 5-⑳ 之前这里还有一条 `toContain("{{ saveStateText }}")`，它是被**栏头**那份满足的。
     // 栏头那份去掉后唯一一处是 `{{ book.notice || saveStateText }}`——下面这条断言把它盖住了，
     // 而且盖得更严（连 notice 优先一并钉住），所以不是把保证改小，是把同一份保证换个更强的写法。
-    expect(paneTemplate).toContain("book.notice || saveStateText");
+    expect(footerTemplate).toContain("book.notice || stateText");
     // 5-⑳：只剩底栏那一处。多一处就把栏头那 79px 吃回去，按钮重新压到窗控上。
+    // 2026-11-16：页脚搬进 EditorFooterMeta 后，父侧只剩把 saveStateText 当 prop 传一次。
     expect(paneTemplate.match(/saveStateText/g)?.length).toBe(1);
+    expect(footerTemplate.match(/stateText/g)?.length).toBe(1);
     // 栏头不许再有第二份保存状态（`.save-state` 这条链已随它一起删干净）。
     expect(paneTemplate).not.toContain('class="save-state"');
+    expect(footerTemplate).not.toContain('class="save-state"');
     // 副本去掉时，告警色必须跟着搬走——否则「有未保存修改」只剩字面变化、丢掉颜色信号。
-    const saveStatus = paneTemplate.match(/<span class="editor-save-status"[^>]*>/);
+    const saveStatus = footerTemplate.match(/<span class="editor-save-status"[^>]*>/);
     expect(saveStatus, "底栏那一处必须还在").not.toBeNull();
     expect(saveStatus![0]).toContain("is-dirty");
   });

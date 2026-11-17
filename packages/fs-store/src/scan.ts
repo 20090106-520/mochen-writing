@@ -81,7 +81,8 @@ async function docRefOf(full: string, rel: string, kind: BookKind): Promise<DocR
     title: meta.title,
     excerpt: meta.excerpt,
     chars: meta.chars,
-    opening: meta.opening
+    opening: meta.opening,
+    closing: meta.closing
   };
 }
 
@@ -121,7 +122,13 @@ const EXCERPT_MAX = 80;
 async function docMetaOf(
   full: string,
   rel: string
-): Promise<{ title: string; excerpt: string; chars: number; opening: string }> {
+): Promise<{
+  title: string;
+  excerpt: string;
+  chars: number;
+  opening: string;
+  closing: string;
+}> {
   const base = path.basename(rel, ".md");
   const fallback = (base.match(/^\d*[-_]?(.*)$/)?.[1] ?? "").trim() || rel;
   try {
@@ -138,10 +145,11 @@ async function docMetaOf(
       title,
       excerpt: excerptOf(body),
       chars: proseCharCount(body),
-      opening: openingLineOf(body)
+      opening: openingLineOf(body),
+      closing: closingLineOf(body)
     };
   } catch {
-    return { title: fallback, excerpt: "", chars: 0, opening: "" };
+    return { title: fallback, excerpt: "", chars: 0, opening: "", closing: "" };
   }
 }
 
@@ -160,6 +168,18 @@ function openingLineOf(body: string): string {
       .find((line) => line.trim() !== "")
       ?.trim() ?? ""
   );
+}
+
+/**
+ * 各章结尾句的原料（2026-11-15）：正文**最后一个** `trim` 非空行原文（不截断、不剥 markdown）。
+ *
+ * 与 `openingLineOf` 完全对称：同一次 readFile、同一条「扫描顺路」纪律、`?? ""` 的消费语义。
+ * 截到 `CHAPTER_OPENING_CHARS` 仍由装配层做——scan 不知道那个常量（包边界：fs-store 不 import agent-runtime）。
+ * 空白正文（或只有 frontmatter）⇒ 空串，绝不拿标题行冒充章尾。
+ */
+function closingLineOf(body: string): string {
+  const lines = body.split("\n").filter((line) => line.trim() !== "");
+  return lines[lines.length - 1]?.trim() ?? "";
 }
 
 /** 取正文里第一段非空的纯文本，按码点截断；整篇空（或只有 frontmatter）⇒ 空串。 */

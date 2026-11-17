@@ -55,6 +55,12 @@ import {
   type VoiceDriftSuspect
 } from "../utils/doc-checkup";
 import { styleCheckPrompt } from "../utils/side-nav";
+import {
+  bookStyleReadoutOf,
+  readoutNoteOf,
+  readoutRowsOf,
+  type ReadoutRow
+} from "../utils/style-readout";
 import type { BookDoc } from "../types/book-doc";
 
 /**
@@ -88,6 +94,10 @@ const chapterReadouts = ref<ChapterReadoutRow[]>([]);
 const styleRows = ref<ChapterStyleRow[]>([]);
 /** 本书常态那一句话（样本不足时是「立不起基线」的实话）。 */
 const styleHead = ref("");
+/** 本书腔调档案（2026-11-16）：九行只摆数不判定，样本门槛与体检同一份。 */
+const styleReadoutRows = ref<ReadoutRow[]>([]);
+const styleReadoutNote = ref("");
+const styleReadoutChars = ref(0);
 /** 有问题的篇（标点/重复句按 docIndex 报），映射回篇名给表格用。 */
 const checkupDocs = ref<BookDoc[]>([]);
 
@@ -107,6 +117,9 @@ watch(
     chapterReadouts.value = [];
     styleRows.value = [];
     styleHead.value = "";
+    styleReadoutRows.value = [];
+    styleReadoutNote.value = "";
+    styleReadoutChars.value = 0;
     checkupDocs.value = [];
     if (book.docs.length === 0) return;
     termsScanning.value = true;
@@ -131,6 +144,10 @@ watch(
         chapterReadouts.value = chapterReadoutRows(chapterEntries);
         styleRows.value = chapterStyleRows(contents, chapterEntries);
         styleHead.value = bookStyleSentence(contents);
+        const readout = bookStyleReadoutOf(contents);
+        styleReadoutRows.value = readoutRowsOf(readout);
+        styleReadoutNote.value = readoutNoteOf(readout);
+        styleReadoutChars.value = readout.profile?.charCount ?? 0;
         const characterNames = book.docs
           .filter((doc) => doc.kind === "character")
           .map((doc) => doc.title);
@@ -248,6 +265,22 @@ function openCharacterCard(name: string): void {
   <div class="stats-table-wrap">
     <p v-if="termsScanning" class="dialog-description">正在逐篇扫描全书……</p>
     <template v-else>
+      <template v-if="styleReadoutRows.length > 0">
+        <p class="stats-section-head">本书腔调档案（样本 {{ styleReadoutChars }} 字）</p>
+        <div class="stats-readout">
+          <p
+            v-for="row in styleReadoutRows"
+            :key="row.label"
+            class="stats-readout-row"
+            :title="row.hint"
+          >
+            <span class="stats-readout-label">{{ row.label }}</span>
+            <span class="stats-readout-value">{{ row.value }}</span>
+          </p>
+        </div>
+        <p class="stats-note">{{ styleReadoutNote }}</p>
+      </template>
+
       <p class="stats-section-head">术语疑似（{{ termSuspects.length }}）</p>
       <table v-if="termSuspects.length > 0" class="stats-table">
         <thead>

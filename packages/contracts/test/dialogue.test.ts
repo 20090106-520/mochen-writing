@@ -3,7 +3,8 @@ import {
   DIALOGUE_BALANCE,
   dialogueBalance,
   dialogueVerdict,
-  endsInsideQuote
+  endsInsideQuote,
+  narrationOf
 } from "../src/dialogue.js";
 
 /**
@@ -75,5 +76,30 @@ describe("endsInsideQuote · 段末收法的一枚判据（2026-10-19）", () =>
 
   it("整段没有引号 ⇒ false（不是「收在台词上」）", () => {
     expect(endsInsideQuote("他把杯子推过去。")).toBe(false);
+  });
+});
+
+/**
+ * `narrationOf`（2026-11-15）：只留引号外的叙述，行界保留。
+ * 用途是叙述人称统计——人物说的话里的「我」不能算进叙述。
+ */
+describe("narrationOf · 剥掉对话、留下叙述（2026-11-15）", () => {
+  it("全角引号内的话被剔除，引号外的叙述原样留下", () => {
+    expect(narrationOf("「喝吧。」他把杯子推过去。")).toBe("他把杯子推过去。");
+  });
+
+  it("弯引号与半角直引号同样剔除（配对只走 scanQuotes 一处）", () => {
+    expect(narrationOf("“喝吧。”他把杯子推过去。")).toBe("他把杯子推过去。");
+    expect(narrationOf('"喝吧。"他把杯子推过去。')).toBe("他把杯子推过去。");
+  });
+
+  it("行界保留：三行正文剥完仍是三行（三个换行里留下两个行间换行）", () => {
+    const narration = narrationOf("他说：「走。」\n她没动。\n风停了。");
+    expect(narration).toBe("他说：\n她没动。\n风停了。");
+    expect(narration.split("\n")).toHaveLength(3);
+  });
+
+  it("行末回落的半角引号不吞下一行（与占比同一份配对规则）", () => {
+    expect(narrationOf('"他没说话\n他把杯子推过去。')).toBe("\n他把杯子推过去。");
   });
 });

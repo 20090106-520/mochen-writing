@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultProfile, type DocRef } from "@mochen/contracts";
-import { defaultPromptFor, SENSE_CHANNEL_TERMS, senseChannelSentence } from "./prompt-assembly.js";
+import { defaultPromptFor } from "./prompt-assembly.js";
+import { SENSE_CHANNEL_TERMS, senseChannelSentence } from "./prompt-sense-channels.js";
 
 /**
  * 感官通道读数（2026-10-21，十段）：只注入生成端、不进任何闸。
@@ -78,7 +79,7 @@ describe("感官通道读数（2026-10-21 十段：五通道每千字密度，�
 
   it("空正文 ⇒ 不注入空段", () => {
     expect(build(withItems(finished("")))).not.toContain("本书感官通道读数");
-    expect(senseChannelSentence(withItems())).toBe("");
+    expect(senseChannelSentence("")).toBe("");
   });
 
   it("当前章（半截草稿）与非 chapter 条目都不进分母、不计数", () => {

@@ -117,6 +117,16 @@ export interface DocRef {
    * 跨 IPC 消费处一律 `?? ""`，与 `excerpt` 同一档可选语义。
    */
   opening?: string;
+  /**
+   * 各章结尾句的原料（2026-11-15）：剥掉 frontmatter 后正文的**最后一个非空行**原文，
+   * 与 `opening` 同一次 scan、同一次 readFile，零额外 IO。
+   *
+   * 动机与 `opening` 对称：`assembleContext` 的 `closings`（「别每章同一个收法」的提示词原料）
+   * 若从 `contents` 取全文再取末行，`assembleFor` 就得为「其余章的末行」重新读盘；
+   * 顺路存在 DocRef 上之后，仍然只读会被装进上下文的那几章。口径与 `closingLineOf` 逐字一致。
+   * 跨 IPC 消费处一律 `?? ""`，与 `opening` 同一档可选语义。
+   */
+  closing?: string;
 }
 
 /**
@@ -135,7 +145,8 @@ export const docRefSchema = z.object({
   title: z.string(),
   excerpt: z.string().optional(),
   chars: z.number().int().min(0).optional(),
-  opening: z.string().optional()
+  opening: z.string().optional(),
+  closing: z.string().optional()
 });
 
 const stageSchema = z.object({

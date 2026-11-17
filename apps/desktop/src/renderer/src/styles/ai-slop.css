@@ -52,6 +52,27 @@
   font-size: 0.857143rem;
 }
 
+/* 本章读数（2026-11-16）：一行胶囊 + 复读台词；只摆数，不着告警色。 */
+.ai-slop-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 0 0 8px;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.857143rem;
+}
+
+.ai-slop-readout .style-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ai-slop-readout-repeat {
+  color: var(--text-dim, #6b6f76);
+}
+
 .ai-slop-section {
   display: flex;
   flex-direction: column;

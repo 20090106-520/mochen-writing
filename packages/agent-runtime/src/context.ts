@@ -34,11 +34,17 @@ export interface AssembleContextInput {
   profile: AgentProfile;
   activeDocRelPath: string | null;
   /**
-   * scanBook 的结果，装配只读它的 relPath / kind / title / opening。
-   * `opening`（2026-10-15）是 scan 顺路带出的首行非空行原文，给 `openings` 用——
-   * 装配层不再为「其余章的首行」从 `contents` 读全文。
+   * scanBook 的结果，装配只读它的 relPath / kind / title / opening / closing。
+   * `opening`（2026-10-15）与 `closing`（2026-11-15）都是 scan 顺路带出的首/末行原文，
+   * 分别给 `openings` 与 `closings` 用——装配层不再为「其余章的首末行」从 `contents` 读全文。
    */
-  docs: readonly { relPath: string; kind: string; title: string; opening?: string }[];
+  docs: readonly {
+    relPath: string;
+    kind: string;
+    title: string;
+    opening?: string;
+    closing?: string;
+  }[];
   /** relPath → 正文全文。由主进程读好传进来，装配层不碰盘。 */
   contents: Readonly<Record<string, string>>;
   /** 用户显式挂入的 relPath（@ 引用 / 「加入当前上下文」/ 技能）。 */
@@ -79,6 +85,12 @@ export interface AssembledContext {
    */
   openings?: string[];
   /**
+   * 各章结尾句（最后一个非空行，取**尾部** 24 字）——按 docs 的章节顺序（2026-11-15）。
+   * 与 `openings` 完全对称：提示词装配用它点名「别每章同一套收法」。
+   * 可选字段：老的装配结果（测试夹具）没有它，装配层按空清单处理。
+   */
+  closings?: string[];
+  /**
    * 已装进上下文的角色卡上声明过的约束（2026-10-22）。人物卡正文剥掉了 frontmatter，
    * 提示词装配再把这几格念给模型听时读不到原字段，所以在装配时就带上。
    * 只含 voice / exit 有一项非空的卡；可选字段，老夹具不给就是空清单。
@@ -103,7 +115,7 @@ export interface CharacterNote {
 /** 前情提要每章取多少字（spec §5：默认前 2 章的尾部摘要，各约 400 字）。 */
 export const PRIOR_CHAPTER_TAIL_CHARS = 400;
 
-/** 各章开头句进「起手式」清单时截多少字——一句 enough，多了就成正文倾倒。 */
+/** 各章开头/结尾句进清单时截多少字（同一枚展示额度）——一句 enough，多了就成正文倾倒。 */
 export const CHAPTER_OPENING_CHARS = 24;
 
 /**
@@ -158,6 +170,29 @@ export const PINNED_SKILL_CHARS = 4000;
 function clip(text: string, max: number): string {
   const trimmed = text.trim();
   return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}…`;
+}
+
+/**
+ * 取**尾部**（2026-11-16）：章尾样本必须留的是「这一章怎么收的」，长段落的前 24 字与收法无关。
+ * 与 `clip` 相对：章首取头、章尾取尾。前置省略号表示前面还有字，语义与 `clip` 一致。
+ */
+function clipTail(text: string, max: number): string {
+  const chars = Array.from(text.trim());
+  return chars.length <= max ? chars.join("") : `…${chars.slice(-max).join("")}`;
+}
+
+/**
+ * 章节首/末行清单的公共取法（2026-11-16）：只收 chapter、空串不占位。
+ * openings 与 closings 共用这一份，避免以后只改一边（两条清单口径必须同长同序）。
+ */
+function chapterLines(
+  docs: AssembleContextInput["docs"],
+  pick: (doc: AssembleContextInput["docs"][number]) => string | undefined
+): string[] {
+  return docs
+    .filter((doc) => doc.kind === "chapter")
+    .map((doc) => pick(doc) ?? "")
+    .filter((line) => line !== "");
 }
 
 /**
@@ -465,20 +500,22 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
 
   const chars = items.reduce((sum, item) => sum + item.chars, 0);
   // 各章开头句（2026-10-10 四段 / 2026-10-15 改源）：从 DocRef.opening 取——scan 顺路提取的
-  // 首个非空行原文，口径与旧实现逐字同源（同一个 body、同一句 split-首行非空），只是提取时机
-  // 从「装配时读全文」挪到「扫描时顺路」。这让 assembleFor 不必再为「其余章的首行」单独跑
-  // readDocFile——1000 章的书上 readDocFile 次数从 1004 降到个位数。截到 CHAPTER_OPENING_CHARS
-  // 仍在这一步做（scan 存原文不截，包边界不许 fs-store import 这儿的常量）。
-  const openings = docs
-    .filter((doc) => doc.kind === "chapter")
-    .map((doc) => doc.opening ?? "")
-    .filter((line) => line !== "")
-    .map((line) => clip(line, CHAPTER_OPENING_CHARS));
+  // 首个非空行原文，口径与旧实现逐字同源。这让 assembleFor 不必再为「其余章的首行」单独跑
+  // readDocFile（1000 章上从 1004 次降到个位数）。截断仍在这一步做（scan 存原文不截）。
+  const openings = chapterLines(docs, (doc) => doc.opening).map((line) =>
+    clip(line, CHAPTER_OPENING_CHARS)
+  );
+  // 各章结尾句（2026-11-15）：与 openings 同构——同一个 DocRef.closing 顺路字段、同一枚展示额度。
+  // 但截法相反（2026-11-16）：章尾要的是「最后怎么收的」，取尾部；取头部摆出来的是段首，不是收法。
+  const closings = chapterLines(docs, (doc) => doc.closing).map((line) =>
+    clipTail(line, CHAPTER_OPENING_CHARS)
+  );
   return {
     items,
     chars,
     approxTokens: estimateTokens(items.map((i) => i.text).join("\n")),
     openings,
+    closings,
     characterNotes: notes,
     // 书稿规模不放这儿：AssembledContext 描述的是「这一轮装进上下文的东西」，
     // 而「整本书有多少文稿」是书的元信息，且装配层收的 docs 是精简形状（没有 chars）。

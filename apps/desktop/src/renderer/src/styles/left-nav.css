@@ -293,6 +293,37 @@ html[data-platform="darwin"] .sidebar-brand-row {
   margin-top: 0;
 }
 
+/* 本书腔调档案（2026-11-16）：九行只摆数不判定的读数，与下方的疑似清单分开摆。 */
+.stats-readout {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--surface-muted);
+}
+
+.stats-readout-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px;
+  margin: 0;
+  padding: 4px 0;
+  font-size: 0.857143rem;
+}
+
+.stats-readout-row + .stats-readout-row {
+  border-top: 1px dashed var(--line-soft);
+}
+
+.stats-readout-label {
+  color: var(--text-tertiary);
+}
+
+.stats-readout-value {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
 /* 体检条目可点直达原文（2026-10-10）：hover 给一点反馈，别让「能点」靠猜。 */
 .stats-table tr.is-openable {
   cursor: pointer;
@@ -677,6 +708,23 @@ html[data-platform="darwin"] .sidebar-brand-row {
   flex: 0 1 auto;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 章节腔调偏离标（2026-11-16）：文字恒为「偏」，档位只改颜色；说明全在 title 上。 */
+.tree-drift {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  color: var(--text-faint, #888);
+  font-size: 0.714286rem;
+  line-height: 1.4;
+}
+
+.tree-drift.is-off {
+  border-color: currentColor;
+  color: var(--warning);
 }
 
 .sidebar-footer {

@@ -110,3 +110,76 @@ describe("styleProfileOf · ⑤每段的收法（段末是否仍在引号内）"
     expect(styleProfileOf([text])?.endsOnQuote).toEqual({ count: 20, total: 60 });
   });
 });
+
+/**
+ * 段落节奏（2026-11-15）：平均段长与段长波动。
+ * 用例钉的是**口径**：按非空行的 `line.length` 算、波动是变异系数、不足 10 段不报。
+ */
+describe("styleProfileOf · ⑥段落节奏（段长均值与波动）", () => {
+  /** 6 字的短段。 */
+  const SHORT = "他把碗放下。";
+  /** 20 字的长段（与上面 ACTION 同一句）。 */
+  const LONG = ACTION;
+
+  it("段长全一样 ⇒ 波动 0（句句 20 字的 26 段）", () => {
+    const text = Array.from({ length: 26 }, () => LONG).join("\n");
+    expect(styleProfileOf([text])?.paragraph).toEqual({ mean: 20, spread: 0 });
+  });
+
+  it("长短参差 ⇒ 均值 13、波动 0.54（手算：25×6 ＋ 25×20，sd 7 ÷ mean 13）", () => {
+    const text = [
+      ...Array.from({ length: 25 }, () => SHORT),
+      ...Array.from({ length: 25 }, () => LONG)
+    ].join("\n");
+    const paragraph = styleProfileOf([text])?.paragraph;
+    expect(paragraph?.mean).toBe(13);
+    expect(paragraph?.spread).toBe(0.54);
+  });
+
+  it("段落不足 10 段 ⇒ 不报（样本门槛，不是报 0）", () => {
+    // 9 段 × 60 字 = 540 字：总字数够立手册，段数不够 —— 这一维如实不报。
+    const nine = Array.from({ length: 9 }, () => LONG.repeat(3)).join("\n");
+    expect(styleProfileOf([nine])?.paragraph).toBeNull();
+    // 第 10 段一到线就报。
+    const ten = Array.from({ length: 10 }, () => LONG.repeat(3)).join("\n");
+    expect(styleProfileOf([ten])?.paragraph).not.toBeNull();
+  });
+});
+
+/**
+ * 段末标点分布（2026-11-16）：每段按最后一个句末标点归一类，只报占比、不判好坏。
+ */
+describe("styleProfileOf · ⑦段末标点分布", () => {
+  it("四类各占多少：50 句号 / 25 问号 / 20 感叹号 / 5 省略号 ⇒ 0.5 / 0.25 / 0.2 / 0.05", () => {
+    const period = ACTION; // 20 字，收在句号
+    const question = `${ACTION.slice(0, -1)}？`;
+    const exclamation = `${ACTION.slice(0, -1)}！`;
+    const ellipsis = `${ACTION.slice(0, -1)}……`;
+    const text = [
+      ...Array.from({ length: 50 }, () => period),
+      ...Array.from({ length: 25 }, () => question),
+      ...Array.from({ length: 20 }, () => exclamation),
+      ...Array.from({ length: 5 }, () => ellipsis)
+    ].join("\n");
+    expect(styleProfileOf([text])?.endMarkShare).toEqual({
+      period: 0.5,
+      question: 0.25,
+      exclamation: 0.2,
+      ellipsis: 0.05,
+      other: 0
+    });
+  });
+
+  it("收引号不把台词段算进 other：`。」` 归句号、`？」` 归问号", () => {
+    const quotedPeriod = `「${ACTION}」`; // 22 字，段末是 。」
+    const quotedQuestion = `「${ACTION.slice(0, -1)}？」`;
+    const text = [
+      ...Array.from({ length: 20 }, () => quotedPeriod),
+      ...Array.from({ length: 10 }, () => quotedQuestion)
+    ].join("\n");
+    const share = styleProfileOf([text])?.endMarkShare;
+    expect(share?.period).toBe(0.667);
+    expect(share?.question).toBe(0.333);
+    expect(share?.other).toBe(0);
+  });
+});

@@ -554,3 +554,43 @@ describe("各章开头句 openings（2026-10-10 四段 / 2026-10-15 改源：从
     expect(pruned.openings).toContain("第四章正文。");
   });
 });
+
+describe("各章结尾句 closings（2026-11-16：取尾部，不取头部）", () => {
+  const LONG = "这一行前面都是铺垫，不必摆给模型，真正要留的是最后这十四个字。";
+  const docsWithClosing = [
+    ...DOCS.map((doc) =>
+      doc.kind === "character" ? { ...doc, closing: "人物卡不参与章尾清单。" } : doc
+    ),
+    {
+      relPath: "chapters/05-夜潮.md",
+      kind: "chapter" as const,
+      title: "夜潮",
+      opening: LONG,
+      closing: LONG
+    }
+  ];
+
+  it("章尾截**尾**（前置省略号），章首仍截头；非 chapter 不进清单", () => {
+    const result = assemble("lead-writer", {
+      docs: docsWithClosing,
+      chapterOrder: [
+        ...DOCS.filter((doc) => doc.kind === "chapter").map((doc) => doc.relPath),
+        "chapters/05-夜潮.md"
+      ]
+    });
+    expect(result.closings).toEqual(["…铺垫，不必摆给模型，真正要留的是最后这十四个字。"]);
+    expect(result.openings?.at(-1)).toBe("这一行前面都是铺垫，不必摆给模型，真正要留的是最…");
+  });
+
+  it("closing 为空串的章不进清单（不拿空行占位）", () => {
+    const result = assemble("lead-writer", {
+      docs: DOCS.map((doc) =>
+        doc.kind === "chapter"
+          ? { ...doc, closing: doc.relPath === "chapters/04-回声.md" ? "" : `${doc.title}结尾。` }
+          : doc
+      )
+    });
+    expect(result.closings).toHaveLength(3);
+    expect(result.closings).not.toContain("");
+  });
+});

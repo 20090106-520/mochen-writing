@@ -49,7 +49,9 @@ export interface DialogueBalance {
  */
 function scanQuotes(text: string, visit: (char: string, inside: boolean) => void): void {
   let depth = 0;
-  for (const line of text.split("\n")) {
+  const lines = text.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]!;
     let straightOpen = false;
     for (const char of line) {
       if (char === "「" || char === "『") {
@@ -74,19 +76,68 @@ function scanQuotes(text: string, visit: (char: string, inside: boolean) => void
     }
     // 行末回落：半角引号开闭同形，一行里不成对的那个当行内孤立，不带进下一行。
     if (straightOpen) depth -= 1;
+    // 行界本身也交给回调（2026-11-15）：`narrationOf` 要保住段落边界，而引号内外只有这里知道。
+    // 对既有两个消费者中性：dialogueBalance 遇到 `\s` 直接 return；endsInsideQuote 收的是单行，
+    // 根本不产生行间回调。最后一行之后不补，避免正文末尾多出一个换行。
+    if (index < lines.length - 1) visit("\n", false);
   }
 }
 
-/** 引号内计数：走 scanQuotes 的同一份配对；空白不进分母，引号字符本身也不进。 */
-export function dialogueBalance(text: string): DialogueBalance {
+/** 一次扫描的两份产物（2026-11-16 合并全书扫描）：对白占比 ＋ 引号外叙述原文。 */
+export interface QuotedScan {
+  balance: DialogueBalance;
+  /** 引号外的叙述原文，行界保留（供人称统计）。 */
+  narration: string;
+  /** 引号内的台词原文（不含引号，2026-11-16）：供对白复读读数用。 */
+  quotedText: string;
+}
+
+/**
+ * 一次 `scanQuotes` 同时算出占比、叙述与台词原文：生成端每轮要对同一份正文量对白、量人称，
+ * 分成两趟就是把同一段字逐字符扫两遍。口径与 `dialogueBalance` / `narrationOf` / `quotedOf`
+ * 逐字一致——这三个函数现在只是本函数的薄包装，引号配对仍只有 `scanQuotes` 一处实现。
+ */
+export function scanQuoted(text: string): QuotedScan {
   let quoted = 0;
   let total = 0;
+  let narration = "";
+  let quotedText = "";
   scanQuotes(text, (char, inside) => {
+    if (inside) quotedText += char;
+    else narration += char;
     if (/\s/.test(char)) return;
     total += 1;
     if (inside) quoted += 1;
   });
-  return { quoted, total, ratio: total === 0 ? 0 : quoted / total };
+  return {
+    balance: { quoted, total, ratio: total === 0 ? 0 : quoted / total },
+    narration,
+    quotedText
+  };
+}
+
+/** 引号内计数：走 scanQuotes 的同一份配对；空白不进分母，引号字符本身也不进。 */
+export function dialogueBalance(text: string): DialogueBalance {
+  return scanQuoted(text).balance;
+}
+
+/**
+ * 只留**引号外**的叙述（2026-11-15）：逐段剔除对话，行界保留。
+ *
+ * 用途只有一个：叙述人称统计（`narration-person.ts`）。人物说的话里「我」「他」满篇都是，
+ * 混进来会把「这一章叙述用什么人称」读成噪音。引号配对仍只走 `scanQuotes` 一处，
+ * 不另立一套规则——半角 `"` 的行内奇偶、行末回落也照旧生效。
+ */
+export function narrationOf(text: string): string {
+  return scanQuoted(text).narration;
+}
+
+/**
+ * 只留**引号内**的台词原文（2026-11-16）：对白复读读数用——量的是人物说过的话，
+ * 不能被叙述里的相同短句（「他走了。」）混进来。引号配对同样只走 `scanQuotes` 一处。
+ */
+export function quotedOf(text: string): string {
+  return scanQuoted(text).quotedText;
 }
 
 export type DialogueVerdict = "thin-sample" | "dense" | "silent" | "normal";

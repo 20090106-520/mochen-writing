@@ -40,6 +40,10 @@ beforeAll(async () => {
     path.join(root, "chapters", "字数.md"),
     "---\ntitle: 不算字的字\n---\n一二三 四五六\n"
   );
+  await writeFile(
+    path.join(root, "chapters", "多段.md"),
+    "第一段在这里。\n\n第二段在这里。\n\n最后一段在这里。\n"
+  );
 });
 
 afterAll(async () => {
@@ -81,8 +85,8 @@ describe("scanBook · excerpt 顺路带出第一段", () => {
   it("不加盘 IO：readFile 次数恰等于扫出的文稿数（titleOf→docMetaOf 一次读取）", async () => {
     readFileMock.mockClear();
     const docs = await scanBook(root);
-    expect(docs.length).toBe(6);
-    expect(readFileMock.mock.calls.length).toBe(docs.length); // 若多读一次会变成 12 ⇒ 红
+    expect(docs.length).toBe(7);
+    expect(readFileMock.mock.calls.length).toBe(docs.length); // 若多读一次会变成 14 ⇒ 红
   });
 });
 
@@ -108,6 +112,33 @@ describe("scanBook · opening 顺路带出首个非空行原文", () => {
   it("只有 frontmatter、正文为空 ⇒ opening 是空串（与 excerpt 同档缺省语义）", async () => {
     const docs = await scanBook(root);
     expect(find(docs, "chapters/仅元数据.md").opening).toBe("");
+  });
+});
+
+/**
+ * `closing` = 剥掉 frontmatter 后正文的**最后一个**非空行原文（2026-11-15）。
+ * 与 `opening` 对称：同一次 readFile、同一条「扫描顺路」纪律、`?? ""` 的消费语义。
+ */
+describe("scanBook · closing 顺路带出最后一个非空行原文", () => {
+  it("单行正文 ⇒ closing 与 opening 碰巧一致", async () => {
+    const docs = await scanBook(root);
+    expect(find(docs, "chapters/正常.md").closing).toBe("夜色沉下去，海雾从崖底涌上来。");
+  });
+
+  it("多段正文 ⇒ 取最后一段原文（不是首段、不是全文）", async () => {
+    const docs = await scanBook(root);
+    expect(find(docs, "chapters/多段.md").closing).toBe("最后一段在这里。");
+    expect(find(docs, "chapters/多段.md").opening).toBe("第一段在这里。");
+  });
+
+  it("带 markdown 记号的章 ⇒ closing 存原文末行（与 opening 同一档口径）", async () => {
+    const docs = await scanBook(root);
+    expect(find(docs, "chapters/带记号.md").closing).toBe("海是**深蓝**的，雾*很*浓。");
+  });
+
+  it("只有 frontmatter、正文为空 ⇒ closing 是空串（不拿标题行冒充章尾）", async () => {
+    const docs = await scanBook(root);
+    expect(find(docs, "chapters/仅元数据.md").closing).toBe("");
   });
 });
 

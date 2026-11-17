@@ -7,6 +7,7 @@ import type { BookKind, DocRef } from "@mochen/contracts";
 import { Ellipsis, X } from "lucide";
 import { MorphIcon } from "morphicons/vue";
 import AppIcon from "./AppIcon.vue";
+import ChapterDriftBadge from "./ChapterDriftBadge.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
 import { loadReducedMotion, motionPreferenceStorage } from "../utils/motion-preference";
@@ -603,6 +604,7 @@ function onChapterDragEnd(): void {
                       >
                       <AppIcon :name="section.icon" :size="15" />
                       <span class="tree-label">{{ node.title }}</span>
+                      <ChapterDriftBadge v-if="section.id === 'chapter'" :rel-path="node.relPath" />
                     </button>
                     <!-- 行尾「…」：菜单与显形规则都是 deepwrite 原版那份（.tree-node-action-area）。 -->
                     <div class="tree-node-action-area">

@@ -611,7 +611,9 @@ export function chapterReadoutRows(
  * 批量读取文档全文（真身从 SearchPanel 迁来，2026-10-10：书稿体检与搜索吃同一条通路，
  * 不许各抄一份 Promise.allSettled）。个别篇读不到就跳过——体检是尽力而为，不是全有全无。
  */
-export async function loadAllDocContents(docs: BookDoc[]): Promise<BookDoc[]> {
+export async function loadAllDocContents(
+  docs: readonly Pick<BookDoc, "relPath" | "kind" | "title">[]
+): Promise<BookDoc[]> {
   const results = await Promise.allSettled(
     docs.map(async (doc) => {
       const loaded = await window.mochen.readDoc(doc.relPath);

@@ -29,7 +29,7 @@ import { useTimelineStore } from "../stores/useTimelineStore";
 import { useCastCheckStore } from "../stores/useCastCheckStore";
 import type { ReviewToolId } from "../utils/review-tools";
 import type { HotkeyMods } from "../utils/hotkeys";
-import ChapterQuota from "./ChapterQuota.vue";
+import EditorFooterMeta from "./EditorFooterMeta.vue";
 import { useLayoutStore } from "../stores/layoutStore";
 import { isStructuredKind, useVolumeOutlineStore } from "../stores/useVolumeOutlineStore";
 import { dossierSummary, groupDocsForDossier } from "../utils/book-dossier";
@@ -769,22 +769,13 @@ function switchMode(next: RightPaneMode): void {
     </div>
 
     <footer class="editor-footer">
-      <div class="editor-footer-meta">
-        <template v-if="mode === 'manuscript'">
-          <span>正文 {{ characterCount.toLocaleString("zh-CN") }} 字</span>
-          <span class="reading-time">{{ readingTimeLabel }}</span>
-          <ChapterQuota
-            v-if="activeDoc?.kind === 'chapter'"
-            :chars="characterCount"
-            :rel-path="activeDoc?.relPath ?? ''"
-          />
-        </template>
-        <!-- 批次 5-⑳：保存状态全栏只此一处（栏头那份已去掉，见上）。`is-dirty` 是从那边搬过来的：
-             原来只有栏头那份会变色，去掉副本若不补上，「有未保存修改」就只剩字面变化、丢了告警色。 -->
-        <span class="editor-save-status" :class="{ 'is-dirty': book.dirty }">
-          {{ book.notice || saveStateText }}
-        </span>
-      </div>
+      <EditorFooterMeta
+        :mode="mode"
+        :character-count="characterCount"
+        :reading-time="readingTimeLabel"
+        :active-doc="activeDoc"
+        :state-text="saveStateText"
+      />
       <button
         class="save-button"
         type="button"

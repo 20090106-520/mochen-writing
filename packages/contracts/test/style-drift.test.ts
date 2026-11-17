@@ -18,7 +18,11 @@ const PROFILE: StyleProfile = {
   rhythm: { mean: 14, spread: 0.4 },
   punctuation: { dash: 1.2, semicolon: 0.2, ellipsis: 0.6 },
   dialogueRatio: 0.3,
-  endsOnQuote: { count: 5, total: 20 }
+  endsOnQuote: { count: 5, total: 20 },
+  // 腔调偏离只比句长与标点（见 style-drift.ts），段长读数不参与——给 null 即可。
+  paragraph: null,
+  // 段末标点分布同样不参与式样偏离的比较，但形状要全。
+  endMarkShare: { period: 1, question: 0, exclamation: 0, ellipsis: 0, other: 0 }
 };
 
 /** 30 字一句、连 10 句：均值恰好 30、波动 0、无对白、无破折号。共 300 字（刚好过样本线）。 */

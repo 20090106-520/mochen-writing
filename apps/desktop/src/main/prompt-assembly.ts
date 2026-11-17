@@ -7,10 +7,15 @@ import {
   bookProjectBrief,
   dialogueBalance,
   dialogueVerdict,
+  narrationPersonOf,
+  narrationPersonOfText,
+  scanQuoted,
+  sentenceOpeningsOf,
   sentencesOf,
   styleProfileOf,
   type AgentProfile,
   type BookProject,
+  type DialogueBalance,
   type DocRef
 } from "@mochen/contracts";
 import type { AssembledContext } from "@mochen/agent-runtime";
@@ -31,6 +36,12 @@ import {
   QUALITY_INSTRUCTION,
   WRITING_CRAFT_LEAD
 } from "./prompt-craft.js";
+// 感官通道读数（2026-11-16 拆到 prompt-sense-channels.ts，理由见那边的文件头）。
+import { senseChannelSentence } from "./prompt-sense-channels.js";
+// 对白段落形态（2026-11-16 拆到 prompt-dialogue-paragraph.ts，理由见那边）。
+import { dialogueParagraphSentence } from "./prompt-dialogue-paragraph.js";
+// 对白复读（2026-11-16 拆到 prompt-dialogue-repeat.ts，理由见那边）。
+import { dialogueRepeatSentence } from "./prompt-dialogue-repeat.js";
 
 export {
   AI_FLAVOR_INSTRUCTION,
@@ -246,6 +257,35 @@ export function openingsSentence(openings: readonly string[]): string {
 }
 
 /**
+ * 「一条可展示的样本句」的定义：**至少含一个非标点非符号的字符**（不是阈值）。
+ * 竖排对白会切出只由 `」` 组成的碎片；拿它当样本摆出来，是一条没有字的引号。
+ * 章尾过滤与样句过滤共用这一条。
+ */
+const SAMPLE_ONLY_MARKS = /^[\p{P}\p{S}]+$/u;
+
+/**
+ * 各章结尾防套路回流（2026-11-15）：与 `openingsSentence` 对称，管「怎么出去」。
+ *
+ * AI 连写多章常把每章都收在总结或感叹上；把这本书自己的结句摆出来，它才看得见重复。
+ * 少于 2 章不注入（一章谈不上「套路」）；纯标点/符号的分隔行（`***`）不算章尾样本。
+ */
+export function closingsSentence(closings: readonly string[]): string {
+  const usable = closings.filter(
+    (line) => line.trim() !== "" && !SAMPLE_ONLY_MARKS.test(line.trim())
+  );
+  if (usable.length < 2) return "";
+  const shown = usable
+    .slice(-5)
+    .map((line) => `「${line}」`)
+    .join("、");
+  return (
+    `前面各章的结尾分别是：${shown}。写新内容时**换一种收法**——` +
+    "有的收在动作、有的收在一句没说完的话、有的收在一件没接完的物件上；" +
+    "别每章都用同一种收尾（尤其别每章都收在总结或感叹上）。"
+  );
+}
+
+/**
  * 对话占比反馈（2026-10-10 五段）：正文过话痨或过闷都给一句提醒。
  *
  * 为什么值得喂给模型：全是对话的章没有呼吸（动作、环境、内心全缺席），
@@ -256,12 +296,19 @@ export function openingsSentence(openings: readonly string[]): string {
  * 2026-10-11 起：占比的量与判线真身下沉 contracts/dialogue（dialogueBalance + dialogueVerdict），
  * 与体检第六类「对话占比」同一份口径——这里只负责把判读说成人话。
  */
-export function dialogueBalanceSentence(assembled: AssembledContext): string {
-  const text = assembled.items
+/** 这次上下文里所有章节正文（含当前章）：对白占比与腔调摘要共用这一份样本（2026-11-16）。 */
+function chaptersText(assembled: AssembledContext): string {
+  return assembled.items
     .filter((item) => item.kind === "chapter")
     .map((item) => item.text)
     .join("\n");
-  const balance = dialogueBalance(text);
+}
+
+export function dialogueBalanceSentence(
+  assembled: AssembledContext,
+  precomputed?: DialogueBalance
+): string {
+  const balance = precomputed ?? dialogueBalance(chaptersText(assembled));
   if (dialogueVerdict(balance) !== "dense" && dialogueVerdict(balance) !== "silent") return "";
   const percent = Math.round(balance.ratio * 100);
   if (balance.ratio > DIALOGUE_BALANCE.denseRatio)
@@ -293,10 +340,12 @@ export function dialogueBalanceSentence(assembled: AssembledContext): string {
  * 量不出来的两维（叙述距离、冲突戏写情绪还是动作）如实说「本段不报」，不硬凑一个数（§一百零五 取舍）。
  * 样本不足（非空白不足 500 字）返回空串：开书之前没有样本可拆，不注入空段。
  */
-export function styleProfileSentence(assembled: AssembledContext): string {
-  const profile = styleProfileOf(
-    assembled.items.filter((item) => item.kind === "chapter").map((item) => item.text)
-  );
+export function styleProfileSentence(
+  assembled: AssembledContext,
+  precomputed?: { text: string; balance: DialogueBalance }
+): string {
+  const text = precomputed?.text ?? chaptersText(assembled);
+  const profile = styleProfileOf([text], precomputed?.balance);
   if (profile === null) return "";
   const parts: string[] = [];
   if (profile.rhythm !== null)
@@ -304,11 +353,23 @@ export function styleProfileSentence(assembled: AssembledContext): string {
       `句子平均 ${profile.rhythm.mean} 字、句长波动 ${profile.rhythm.spread}` +
         "（0.9 上下算有起伏，0.3 以下偏匀）"
     );
+  // 段长（2026-11-15）：段不够 10 段时 paragraph 为 null，不报（样本门槛，不是质量线）。
+  if (profile.paragraph !== null)
+    parts.push(
+      `段落平均 ${profile.paragraph.mean} 字、段长波动 ${profile.paragraph.spread}` +
+        "（越大越参差；段落全一样长是机器味）"
+    );
   parts.push(
     `标点脾气：每千字约 ${profile.punctuation.dash} 处破折号、` +
       `${profile.punctuation.semicolon} 处分号、${profile.punctuation.ellipsis} 处省略号`
   );
   parts.push(`对白约占 ${Math.round(profile.dialogueRatio * 100)}%（引号内字数占正文）`);
+  if (profile.endsOnQuote.total > 0)
+    parts.push(
+      `段末标点：问号 ${Math.round(profile.endMarkShare.question * 100)}%、` +
+        `感叹号 ${Math.round(profile.endMarkShare.exclamation * 100)}%、` +
+        `省略号 ${Math.round(profile.endMarkShare.ellipsis * 100)}%（其余句号或其他）`
+    );
   if (profile.endsOnQuote.total > 0) {
     const { count, total } = profile.endsOnQuote;
     parts.push(`收在台词上的段落 ${count}/${total} 段（约 ${Math.round((count / total) * 100)}%）`);
@@ -336,36 +397,13 @@ export const BOOK_SAMPLE_CHARS = 40;
 /** 摆得出「首／中／尾」三枚位置的**结构性下限**：不足三句就是没有样本可摆，不硬凑（不是质量线）。 */
 export const BOOK_SAMPLE_MIN_SENTENCES = 3;
 
-/**
- * 「句首」的**定义**：剥掉前置标点／引号后的前 2 个实字（2026-10-21 句首趋同自查）。
- * 2 字是因为中文句首两字已能看出主语／副词起头（「他没」「她站」「忽然」）；换刻度读数会变，
- * 所以刻度写死在这里、不许下游各抄一份——它不是判据。
- */
-export const SENTENCE_OPENING_CHARS = 2;
-
-/** 「用滥」的**结构性定义**：出现 ≥2 次才叫重复（同 `openingsSentence`「两章起」、体检术语「≥2 次才报」）。 */
-export const SENTENCE_OPENING_MIN_COUNT = 2;
-
-/** 展示额度（与 `bookFlavorSentence` 的 top 5 同数，只为不刷屏；不是判据）。 */
-export const SENTENCE_OPENING_TOP = 5;
-
-/**
- * 感官五通道的单字清单（2026-10-21 感官通道读数）。
- *
- * 【为什么是单字、为什么五通道互不重叠】单字计数是**代理读数**（同 text-vitality 的代理口径）：
- * 不切词、不引依赖；一旦两条通道共用同一个字（如「颤」「抖」），同一处细节会被各算一次，读数就偏了。
- * 清单写死在这里是**定义**，不是判据——换一批字读数就变，不许下游各抄一份。
- *
- * 【已知偏差，不掩盖】「色」也会命中「脸色」「神色」（其实仍偏视觉）、「干」会命中「干活」；
- * 这是代理指标的固有粗糙，不为此加词性判断（那要分词，本仓零依赖）。
- */
-export const SENSE_CHANNEL_TERMS: readonly { channel: string; chars: readonly string[] }[] = [
-  { channel: "视觉", chars: [..."看望见盯瞥瞧亮暗光影色"] },
-  { channel: "听觉", chars: [..."听响声静喊叫吼嗓嚷嗡"] },
-  { channel: "触觉", chars: [..."冷热烫凉湿干硬软滑痛疼痒麻"] },
-  { channel: "嗅觉", chars: [..."香臭腥霉馊烟"] },
-  { channel: "体内感", chars: [..."喘汗抖晕饿渴累乏颤"] }
-];
+// 句首的刻度与「用滥」定义已下沉到 contracts（2026-11-17）：界面「本书腔调档案」要读同一份数，
+// 而渲染进程不能 import main。这里原样转出去，既有从 prompt-assembly 引这三枚常量的地方不必改。
+export {
+  SENTENCE_OPENING_CHARS,
+  SENTENCE_OPENING_MIN_COUNT,
+  SENTENCE_OPENING_TOP
+} from "@mochen/contracts";
 
 /**
  * 本书原句样本（七段／八段，2026-10-20）。
@@ -391,14 +429,6 @@ export const SENSE_CHANNEL_TERMS: readonly { channel: string; chars: readonly st
  * - 三枚是**数据算出来的位置**：按句长排序取首／中／尾——**没有一个自定阈值**（§一百三十四：不编数）。
  * - 单一消费者是提示词装配，所以两段产出的都是**给人读的一段话**，不做判定、不进任何闸。
  */
-
-/**
- * 「一条可展示的样本句」的定义：**至少含一个非标点非符号的字符**。
- * 「」式对白在 `sentencesOf` 的口径里（句末标点留在句尾）会把收尾的 `」` 甩成后一句——
- * 竖着写的书里于是会切出只由一个 `」` 组成的碎片（长度 1）。拿它当「最短的一句」摆给模型，
- * 摆出来的是一条没有字的引号，不是语感样本。这里是**定义**（什么算一句话），不是阈值。
- */
-const SAMPLE_ONLY_MARKS = /^[\p{P}\p{S}]+$/u;
 
 function isSampleSentence(sentence: string): boolean {
   return !SAMPLE_ONLY_MARKS.test(sentence);
@@ -433,8 +463,8 @@ function sampleLine(rank: string, sentence: string): string {
  * 两段的正面样本不该重叠（拿一句对白当「叙述语感」摆出来，指挥棒就指错了方向）。
  * 不足三句（含开书第一轮：还没有已完稿正文）返回空串——没样本不注入空段。
  */
-export function voiceSampleSentence(assembled: AssembledContext): string {
-  const sentences = sentencesOf(finishedChaptersText(assembled)).filter(
+export function voiceSampleSentence(assembled: AssembledContext, precomputedText?: string): string {
+  const sentences = sentencesOf(precomputedText ?? finishedChaptersText(assembled)).filter(
     (sentence) => dialogueBalance(sentence).quoted === 0
   );
   const picked = pickByLength(sentences);
@@ -457,8 +487,11 @@ export function voiceSampleSentence(assembled: AssembledContext): string {
  * 「是不是对白句」走 `dialogueBalance(sentence).quoted > 0`——引号配对只住 `dialogue.ts` 的 scanQuotes 一处，
  * 这里不另写一套引号规则；没有对白句（或不足三句）返回空串。
  */
-export function dialogueSampleSentence(assembled: AssembledContext): string {
-  const sentences = sentencesOf(finishedChaptersText(assembled)).filter(
+export function dialogueSampleSentence(
+  assembled: AssembledContext,
+  precomputedText?: string
+): string {
+  const sentences = sentencesOf(precomputedText ?? finishedChaptersText(assembled)).filter(
     (sentence) => dialogueBalance(sentence).quoted > 0
   );
   const picked = pickByLength(sentences);
@@ -484,77 +517,89 @@ export function dialogueSampleSentence(assembled: AssembledContext): string {
  * 却是中文 AI 文最显眼、读者最先感觉到的机器味（连着三句「他没…」「她站…」，读到第三句就出戏）。
  *
  * 【口径】只取**已完稿**正文（`finishedChaptersText`，当前章半截草稿不算——同 §一百四十一）；
- * 切句走 `sentencesOf`（不另切一遍）；句首＝**剥掉前置标点／引号后的前 `SENTENCE_OPENING_CHARS` 个实字**
- * （`sentencesOf` 把「」留在句子里，不剥就会数出「「你」这类带引号的串）；≥`SENTENCE_OPENING_MIN_COUNT`
- * 次才算「用滥」（结构性定义，不是质量阈值），按次数降序、同数按字符序，最多 `SENTENCE_OPENING_TOP` 条。
+ * 量法住 contracts 的 `sentenceOpeningsOf`（切句、句首刻度、≥2 次的定义都在那边一处），
+ * 这里只把结果说成人话。
  *
  * 【只摆不判】不进任何闸、不进体检、不新增扫描判据——没有「重复率多少算病」的判据（那要语料分位）。
  */
-function openingOf(sentence: string): string {
-  const content = sentence.replace(/^[\p{P}\p{S}\s]+/u, "");
-  return [...content].slice(0, SENTENCE_OPENING_CHARS).join("");
-}
-
-export function sentenceOpeningSentence(assembled: AssembledContext): string {
-  const counts = new Map<string, number>();
-  for (const sentence of sentencesOf(finishedChaptersText(assembled))) {
-    const opening = openingOf(sentence);
-    if (opening === "") continue;
-    counts.set(opening, (counts.get(opening) ?? 0) + 1);
-  }
-  const top = [...counts.entries()]
-    .filter(([, count]) => count >= SENTENCE_OPENING_MIN_COUNT)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh"))
-    .slice(0, SENTENCE_OPENING_TOP);
+export function sentenceOpeningSentence(
+  assembled: AssembledContext,
+  precomputedText?: string
+): string {
+  const top = sentenceOpeningsOf([precomputedText ?? finishedChaptersText(assembled)]);
   if (top.length === 0) return "";
   return (
     "本书句首提醒（扫描自这本书已完稿的正文，括号内是出现次数）：下面这几个句子开头在书里已经用多了——" +
-    top.map(([opening, count]) => `「${opening}」（${count} 次）`).join("、") +
+    top.map(({ opening, count }) => `「${opening}」（${count} 次）`).join("、") +
     "。新写的句子换个起法：从动作起、从一件具体物件起、从声音起、从别人的话起，" +
     "别总拿同一个主语或同一个副词开路；连着几句同一个起头，读者读到第三句就出戏了。"
   );
 }
 
 /**
- * 感官通道读数（2026-10-21）：这本书的五种感觉各写了多少——「细腻」最具体的一层。
+ * 叙述人称读数（2026-11-15）：把这本书**叙述部分**（引号外）的第一／第三人称代词数报出来。
  *
- * 【为什么值得报】AI 写场景几乎只有画面（看见／光亮／脸色），人写场景会闻到、摸到、疼到。
- * 既有动态段没有一处管感官（词表、章首、对白比、腔调四维、原句、句首都不是这一层）。
+ * 为什么值得一段：`styleProfileSentence` 量句长、标点、段长、对白比，都不管人称。而 AI 连写多章
+ * 最容易犯的一种断裂，是第三人称的书里忽然整段用「我」讲——读者当场以为换了个叙述者。
+ * 代词统计是代理读数（人名会替代第三人称，`third` 是下界），所以文案只报数、宣布动作，
+ * 不写「本书是第一人称小说」这种判决（那要读完整章的叙述距离，见 §一百零五 取舍）。
  *
- * 【口径】只取**已完稿**正文（同 §一百四十一／一百四十二）；分母是同一份正文的字数（含标点），
- * 逐通道用 `SENSE_CHANNEL_TERMS` 数单字命中，÷字数×1000（1 位小数）——密度是尺度无关量，
- * 章有长短也能横着读。**五枚恒定全列**（零命中也写 0.0），不排序、不捏总分（那要先编权重）。
- *
- * 【只摆不判】没有「嗅觉密度低于多少算病」的判据（要真人语料分位），所以不进体检、不进闸。
- * 叮嘱也刻意留分寸：「一处就够」——本仓要的是该闻到的那一拍闻到，不是每段都撒调料。
+ * 口径：只取已完稿正文（当前章半截草稿不算，同 §一百四十一）；剥引号走 contracts 的
+ * `narrationPersonOf`（内部复用 `narrationOf`）。样本不足或无代词返回空串。
  */
-function channelPerThousand(text: string, chars: readonly string[]): number {
-  let hits = 0;
-  for (const char of chars) {
-    let from = 0;
-    for (;;) {
-      const at = text.indexOf(char, from);
-      if (at === -1) break;
-      hits += 1;
-      from = at + char.length;
-    }
-  }
-  return Math.round((hits / text.length) * 1000 * 10) / 10;
-}
-
-export function senseChannelSentence(assembled: AssembledContext): string {
-  const text = finishedChaptersText(assembled);
-  if (text.length === 0) return "";
-  const readings = SENSE_CHANNEL_TERMS.map(
-    ({ channel, chars }) => `${channel} ${channelPerThousand(text, chars).toFixed(1)}`
-  );
-  return (
-    "本书感官通道读数（扫描自这本书已完稿的正文，每千字命中次数）：" +
-    readings.join("、") +
-    "。这本书平时偏哪一路，就在哪一路保持它自己的密度（别忽然大段铺感觉）；" +
-    "「感官落点」那条照旧执行（每场戏至少两种非视觉感官），" +
-    "但也别为了凑数把每段都撒上调料——只在真正该让读者闻到、摸到、疼到的那一拍写。"
-  );
+export function narrationPersonSentence(
+  assembled: AssembledContext,
+  precomputed?: { narration: string }
+): string {
+  const person = precomputed
+    ? narrationPersonOfText(precomputed.narration)
+    : narrationPersonOf(
+        assembled.items
+          .filter((item) => item.kind === "chapter" && !item.active)
+          .map((item) => item.text)
+      );
+  if (person === null || person.dominant === "none") return "";
+  const { first, third } = person;
+  let base: string;
+  if (first === 0)
+    base =
+      `本书叙述人称：已完稿正文的叙述里一个「我」都没有（第三人称代词 ${third} 处）。` +
+      "这是第三人称视角——新内容别忽然改成「我」来讲（人物说的话里的「我」不算，" +
+      "这里数的是引号外的叙述）；写内心也走「他/她想」这一路。";
+  else if (person.dominant === "tie")
+    base =
+      `本书叙述人称：已完稿正文的叙述里第一人称 ${first} 处、第三人称 ${third} 处，两路都在用。` +
+      "新内容沿用前面章节的用法，别在同一章里来回换人称。";
+  else if (third === 0)
+    base =
+      `本书叙述人称：已完稿正文的叙述里只有第一人称（「我」${first} 处），没有第三人称代词。` +
+      "新内容保持这个视角，别忽然滑成「他/她」在讲。";
+  else if (person.dominant === "first")
+    base =
+      `本书叙述人称：已完稿正文的叙述里第一人称 ${first} 处、第三人称 ${third} 处，以第一人称为主。` +
+      "新内容沿用这个视角，别在同一章里不知不觉滑成「他/她」讲。";
+  else
+    base =
+      `本书叙述人称：已完稿正文的叙述里第一人称 ${first} 处、第三人称 ${third} 处，以第三人称为主。` +
+      "新内容跟着这个视角走，别让叙述忽然用「我」开口（人物说的话里的「我」不算）。" +
+      "人名承担了多数第三人称指代，这个数只是下界。";
+  // 本章漂移（2026-11-16）：只比「这一章已写的部分」与全书主视角。半截草稿同样过 500 字门槛，
+  // 不够就不说——开写头几行就断言换了人称，只会变成噪音。
+  const draft = assembled.items.find((item) => item.kind === "chapter" && item.active);
+  const inChapter = draft ? narrationPersonOf([draft.text]) : null;
+  if (inChapter === null || inChapter.dominant === "none") return base;
+  if (first === 0 && inChapter.first > 0)
+    return (
+      `${base}另外，这一章已写的部分里「我」出现了 ${inChapter.first} 次，前面各章的叙述里却一个` +
+      "「我」都没有——不是人物在引号里说话，就是叙述换了人称：改回「他/她」，" +
+      "或把心里的话写成「他想」。"
+    );
+  if (person.dominant === "first" && inChapter.first === 0 && inChapter.third > 0)
+    return (
+      `${base}另外，这一章已写的部分里一个「我」都没有，前面各章却是第一人称——` +
+      "别把叙述滑成「他/她」讲。"
+    );
+  return base;
 }
 
 /**
@@ -584,18 +629,38 @@ export function defaultPromptFor(context: PromptContext): string {
   // 本书套话回流与开头防套路先各算一次（判定与取值同源，不跑两遍）。
   const bookFlavor = bookFlavorSentence(context.context);
   const openingHint = openingsSentence(context.context.openings ?? []);
-  const dialogueHint = dialogueBalanceSentence(context.context);
+  // 各章结尾防套路（2026-11-15）：与开头那段对称，管「怎么出去」——少于两章不加。
+  const closingHint = closingsSentence(context.context.closings ?? []);
+  // 对白占比与腔调摘要共用一次拼串、一次引号扫描（2026-11-16）。
+  const allText = chaptersText(context.context);
+  const allScan = scanQuoted(allText);
+  const dialogueHint = dialogueBalanceSentence(context.context, allScan.balance);
   // 本书腔调摘要（六段 · P0-③）：把《文风手册》六维里量得出来的四维报给模型，防「写着写着不像自己」。
-  const styleProfile = styleProfileSentence(context.context);
+  const styleProfile = styleProfileSentence(context.context, {
+    text: allText,
+    balance: allScan.balance
+  });
+  // 「已完稿正文」是叙述人称与三段原句样本的共同样本（当前章半截草稿不算）：
+  // 拼一次、扫一次，引号外的叙述直接喂给人称段（2026-11-16）。
+  const finishedText = finishedChaptersText(context.context);
+  const finishedScan = scanQuoted(finishedText);
+  // 叙述人称（2026-11-15）：报这本书引号外的第一/第三人称代词数，防一章里悄悄换人称。无样本不加。
+  const narrationPerson = narrationPersonSentence(context.context, {
+    narration: finishedScan.narration
+  });
   // 本书原句样本（七段／八段，2026-10-20）：把「通用范例句」换成本书自己的句子——语感（句长三枚）与
   // 对白（三枚）各一段，取自已完稿正文（不含当前章）。没样本（不足三句 / 开书第一轮）不加。
-  const voiceSample = voiceSampleSentence(context.context);
-  const dialogueSample = dialogueSampleSentence(context.context);
+  const voiceSample = voiceSampleSentence(context.context, finishedText);
+  const dialogueSample = dialogueSampleSentence(context.context, finishedText);
+  // 对白段落形态（2026-11-16）：台词单独成段还是带动作节拍——照这本书自己的排法写。
+  const dialogueParagraph = dialogueParagraphSentence(finishedText);
+  // 对白复读（2026-11-16）：同一句台词被反复当反应——点出来，有意的保持间隔、无意的换一句。
+  const dialogueRepeat = dialogueRepeatSentence(finishedText);
   // 句首趋同自查（九段，2026-10-21）：这本书句子开头用滥了哪几个——补 openingsSentence 只数章首、
   // bookFlavorSentence 只数词的那一层（节律层）。没有重复项就不加。
-  const openingRepeat = sentenceOpeningSentence(context.context);
+  const openingRepeat = sentenceOpeningSentence(context.context, finishedText);
   // 感官通道读数（十段，2026-10-21）：这本书偏「看」还是也写闻到／摸到／疼到——细腻层的读数。
-  const senseChannels = senseChannelSentence(context.context);
+  const senseChannels = senseChannelSentence(finishedText);
   // 角色约束（2026-10-22）：人物卡 frontmatter 里的专属说法与退场章，剥围栏后模型看不见，这里原样念。
   const castHint = castConstraintSentence(context.context);
   // 书稿规模（2026-11-12）：空书时说清「别再调工具确认」。没有这一格（老夹具）就整句不加。
@@ -648,15 +713,23 @@ export function defaultPromptFor(context: PromptContext): string {
     ...(bookFlavor === "" ? [] : [bookFlavor]),
     // 各章开头防套路（四段）：已有起手式点名摆出，新内容换进法。少于两章不加。
     ...(openingHint === "" ? [] : [openingHint]),
+    // 各章结尾防套路（2026-11-15）：把前几章的结句摆出来，叮嘱换收法。少于两章不加。
+    ...(closingHint === "" ? [] : [closingHint]),
     // 对话占比反馈（五段）：过话痨或过闷都点一句，让模型自己找补节拍。常态不加。
     ...(dialogueHint === "" ? [] : [dialogueHint]),
     // 本书腔调摘要（六段 · P0-③）：这本书自己的常态读数（句长/标点/对白/段末收法），
     // 叮嘱保持同一腔调。样本不足不加——与三段「本书现场」动态段并列。
     ...(styleProfile === "" ? [] : [styleProfile]),
+    // 叙述人称（2026-11-15）：这本书引号外用的是第几人称，新内容别悄悄换。样本不足不加。
+    ...(narrationPerson === "" ? [] : [narrationPerson]),
     // 本书原句样本（七段／八段，2026-10-20）：原样摘抄本书已完稿正文里的句子（句长三枚 / 对白三枚），
     // 让「正面样本」出自这本书自己，而不是本仓自造的通用例句。没样本就不加这段。
     ...(voiceSample === "" ? [] : [voiceSample]),
     ...(dialogueSample === "" ? [] : [dialogueSample]),
+    // 对白段落形态（2026-11-16）：台词与动作怎么排、纯对白段占多少——照这本书自己的骨架。
+    ...(dialogueParagraph === "" ? [] : [dialogueParagraph]),
+    // 对白复读（2026-11-16）：把书里已经反复出现的台词原话摆出来——别再当万能反应。
+    ...(dialogueRepeat === "" ? [] : [dialogueRepeat]),
     // 句首趋同自查（九段，2026-10-21）：点这本书用滥的句子开头，叮嘱换起法。没有重复项不加。
     ...(openingRepeat === "" ? [] : [openingRepeat]),
     // 感官通道读数（十段，2026-10-21）：五枚密度全列，叮嘱「别只给画面、一处就够」。空正文不加。
