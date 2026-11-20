@@ -44,6 +44,8 @@ import { installQuitFlush } from "./quit-flush.js";
 import { installRendererTrust, resolveRendererLoad, trustedHandler } from "./ipc-guard.js";
 // 窗口侧两道闸（第九十四节为行数预算从 ipc-guard.ts 拆出）：判据仍是 ipc-guard 那一份，这里只负责装上。
 import { installWindowGuards } from "./window-guards.js";
+// 窗口自愈（审计 R-3）：渲染进程崩溃与页面加载失败的判据、限次与文案都住这里，装配层只接线。
+import { installWindowRecovery, loadFailureText } from "./window-recovery.js";
 // 通道级授权装配点（2026-10-15，台账第六十九节）：判据真身在 channel-trust.ts。
 import { installChannelTrustDeps } from "./channel-trust.js";
 import { createCredentialStore } from "./credential-store.js";
@@ -277,6 +279,19 @@ app.whenReady().then(async () => {
       if (Notification.isSupported()) {
         new Notification({ title: "墨宸 AI · 拦下一次窗口跳转", body: text }).show();
       }
+    }
+  });
+
+  // 【审计 R-3：界面进程崩了要有人接】产品只有这一扇窗，渲染进程退出后界面里没有任何可点的
+  // 东西——用户唯一能做的就是强杀。首次自动重载一次（限一次，避免崩溃循环），第二次起只报不救；
+  // 判据与文案住在 window-recovery.ts，这里只接线。
+  installWindowRecovery({
+    onRenderProcessGone: (handler) =>
+      win.webContents.on("render-process-gone", (_event, details) => handler(details)),
+    reload: () => win.reload(),
+    log: appendCrashLine,
+    notify: (title, detail) => {
+      void dialog.showMessageBox({ type: "error", title, message: title, detail });
     }
   });
 
@@ -686,8 +701,22 @@ app.whenReady().then(async () => {
 
   // 【P1-8】加载的目标由上面 `resolveRendererLoad` 那一次算完：打包态永远落在本地 index.html 上，
   // env 只在开发态生效；判据与 trust 用的是同一份，所以「加载的是哪」与「谁算自己人」不会对不上。
-  if (rendererLoad.kind === "url") void win.loadURL(rendererLoad.target);
-  else void win.loadFile(rendererLoad.target);
+  // 【审计 R-3】加载失败原先只落进 crash-guard 的通用崩溃弹窗，用户读不出是「界面没加载出来」；
+  // 这里补一条说清的提示并留痕，否则打包后路径错一次就只剩白屏。
+  const loading =
+    rendererLoad.kind === "url"
+      ? win.loadURL(rendererLoad.target)
+      : win.loadFile(rendererLoad.target);
+  void loading.catch((error: unknown) => {
+    const text = loadFailureText(rendererLoad.target, error);
+    appendCrashLine(`[窗口] ${text}`);
+    void dialog.showMessageBox({
+      type: "error",
+      title: "墨宸 AI · 界面没能加载",
+      message: "界面没能加载出来",
+      detail: text
+    });
+  });
 
   // 启动自动检查（2026-10-10）：配了更新源才查；查到新版本弹系统通知，其余只落日志。
   // 放在窗口加载之后：检查失败不该让首屏多等一毫秒。

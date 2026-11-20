@@ -21,7 +21,7 @@ type BookDataFlusher = () => Promise<boolean>;
 const flushers = new Map<BookDataKey, BookDataFlusher>();
 
 /**
- * 上一次闸门里没落成的那几枚键；`bookDataFlushNotice` 据此点名。
+ * 上一次闸门里没落成的那几枚键。状态栏那一条「设定未存好」据此点名，也据此决定按钮在不在。
  * 用 shallowRef：状态栏要能随着「重试成功」立刻收起按钮，而失败清单只由本模块写。
  */
 export const bookDataFlushFailedKeys = shallowRef<BookDataKey[]>([]);
@@ -59,19 +59,13 @@ export async function flushAllBookData(): Promise<boolean> {
  * 换书那一次 IPC 的唯一正确包法：先交回上一本的设定，再执行 `call`。
  *
  * 闸门**不拦换书**——上一本没存好不是把用户锁在应用里的理由，那只会让他以为
- * 「软件卡死了」；该做的是让他知道哪几份没落成（`bookDataFlushNotice`）。
+ * 「软件卡死了」；该做的是让他知道哪几份没落成——这句话只由状态栏说一次
+ * （2026-11-20：换书提示的括号里不再重复念一遍）。
  * `call` 自己抛错时原样往外传：这里吞掉，换书失败就成了静默失败。
  */
 export async function withBookDataFlush<T>(call: () => Promise<T>): Promise<T> {
   await flushAllBookData();
   return await call();
-}
-
-/** 基础提示（`已打开《X》`）后面补上「哪几份没落进上一本」；没有失败记录就一字不改。 */
-export function bookDataFlushNotice(base: string): string {
-  if (bookDataFlushFailedKeys.value.length === 0) return base;
-  const names = bookDataFlushFailedKeys.value.map((key) => BOOK_DATA_LABELS[key]).join("、");
-  return `${base}（上一本的${names}没能全部存进它的目录）`;
 }
 
 /**

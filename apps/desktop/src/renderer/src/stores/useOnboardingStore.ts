@@ -40,11 +40,21 @@ function load(): OnboardingState {
     if (!raw) {
       return { completed: false, currentStep: "welcome", showGuide: true };
     }
-    const parsed = JSON.parse(raw) as OnboardingState;
-    if (parsed.completed) {
-      return { ...parsed, showGuide: false };
-    }
-    return parsed;
+    const parsed = JSON.parse(raw) as Partial<OnboardingState>;
+    // 盘上那一份只当线索，逐格验回合法形状（2026-11-20 审计 R-5）：
+    // `try` 只包得住 parse，包不住之后 `STEP_ORDER.indexOf` / 进度计算用坏值，
+    // 存成 `{}` 这类合法 JSON 时整块引导会被带崩。
+    const currentStep: OnboardingStep =
+      typeof parsed.currentStep === "string" &&
+      STEP_ORDER.includes(parsed.currentStep as OnboardingStep)
+        ? (parsed.currentStep as OnboardingStep)
+        : "welcome";
+    const completed = parsed.completed === true;
+    return {
+      completed,
+      currentStep,
+      showGuide: completed ? false : parsed.showGuide !== false
+    };
   } catch {
     return { completed: false, currentStep: "welcome", showGuide: true };
   }

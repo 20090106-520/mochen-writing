@@ -1,5 +1,5 @@
 import type { BookOpenResult } from "@mochen/contracts";
-import { bookDataFlushNotice, withBookDataFlush } from "./bookDataRegistry";
+import { withBookDataFlush } from "./bookDataRegistry";
 import { openFailureText } from "../utils/book-open-failure";
 
 /**
@@ -33,7 +33,9 @@ export async function openBookInto(target: BookOpenTarget, rootPath: string): Pr
     // 换书前先把上一本未落盘的设定交回**上一本**：主进程的当前书在这次 IPC 落地那一刻就换了。
     const opened = await withBookDataFlush(() => window.mochen.openBook(rootPath));
     target.applyOpened(opened);
-    target.notice = bookDataFlushNotice(`已打开《${opened.meta.title}》`);
+    // 失败清单只由状态栏那一处说（2026-11-20：原先这里还会在括号里再念一遍，
+    // 屏上同一件事出现两次；「查看 / 重试保存」才是那条清单的出口）。
+    target.notice = `已打开《${opened.meta.title}》`;
   } catch (error) {
     target.notice = openFailureText(error);
   }

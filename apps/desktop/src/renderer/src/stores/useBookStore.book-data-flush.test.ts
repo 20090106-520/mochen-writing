@@ -7,7 +7,11 @@ import {
   stubBookWindow,
   type BookApiFixture
 } from "./book-draft-fixture";
-import { resetBookDataFlushers, registerBookDataFlusher } from "../composables/bookDataRegistry";
+import {
+  bookDataFlushFailedKeys,
+  resetBookDataFlushers,
+  registerBookDataFlusher
+} from "../composables/bookDataRegistry";
 import { useBookStore } from "./useBookStore";
 
 /**
@@ -55,17 +59,19 @@ describe("换书前的设定闸门", () => {
     expect(store.meta?.title).toBe("深渊之下");
   });
 
-  it("openBook：没落成时提示点名是哪份设定，落成了就一句正常话", async () => {
+  it("openBook：没落成时清单交给状态栏点名，提示本身不重复念（2026-11-20 去重）", async () => {
     failingFlusher("flush");
     const store = useBookStore();
     await store.openBook("/book");
-    expect(store.notice).toContain("深渊之下");
-    expect(store.notice).toContain("笔记");
+    expect(store.notice).toBe("已打开《深渊之下》");
+    // 哪几份没落成只由状态栏那一处说：换书提示不再在括号里再念一遍。
+    expect(bookDataFlushFailedKeys.value).toEqual(["notes"]);
 
     resetBookDataFlushers();
     registerBookDataFlusher("notes", async () => true);
     await store.openBook("/book");
     expect(store.notice).toBe("已打开《深渊之下》");
+    expect(bookDataFlushFailedKeys.value).toEqual([]);
   });
 
   it("createBook：新书落地前同样先 flush 上一本", async () => {
@@ -78,7 +84,8 @@ describe("换书前的设定闸门", () => {
     const store = useBookStore();
     expect(await store.createBook("/dir", "新书")).toBe(true);
     expect(order).toEqual(["flush", "create"]);
-    expect(store.notice).toContain("笔记");
+    expect(store.notice).toBe("新书《深渊之下》已建好，开始写吧。");
+    expect(bookDataFlushFailedKeys.value).toEqual(["notes"]);
   });
 
   it("退出兜底也把设定跑一遍（正文落了盘而笔记还挂着，等于白兜）", async () => {

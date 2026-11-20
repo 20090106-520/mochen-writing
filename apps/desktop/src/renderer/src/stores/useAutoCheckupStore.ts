@@ -70,6 +70,9 @@ export const useAutoCheckupStore = defineStore("autoCheckup", {
         this.findingsByThread[threadKey] = [...merged.values()].sort(
           (a, b) => b.total - a.total || a.docRelPath.localeCompare(b.docRelPath)
         );
+      } catch {
+        // 体检是回执之后的旁路：这一轮算不出结论就安静跳过，与文件头「读不到就跳过」同一条口径。
+        // 这里必须自己兜住，唯一的调用点是火忘型 `void run(...)`，否则会变成渲染层无人接的 rejection。
       } finally {
         this.runningByThread[threadKey] = false;
         const pending = this.pendingByThread[threadKey];

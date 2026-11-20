@@ -63,7 +63,7 @@ import {
   undoChange,
   type ChangePreview
 } from "./book-change-history";
-import { bookDataFlushNotice, withBookDataFlush } from "../composables/bookDataRegistry";
+import { withBookDataFlush } from "../composables/bookDataRegistry";
 import { openBookInto, pickAndOpenInto } from "../composables/book-open";
 
 /**
@@ -244,11 +244,12 @@ export const useBookStore = defineStore("book", {
       const input = { directory, title, ...(project === undefined ? {} : { project }) };
       const result = await withBookDataFlush(() => window.mochen.createBook(input));
       if (!result.ok) {
-        this.notice = bookDataFlushNotice(result.message);
+        this.notice = result.message;
         return false;
       }
       this.applyOpened(result.book);
-      this.notice = bookDataFlushNotice(`新书《${result.book.meta.title}》已建好，开始写吧。`);
+      // 失败清单只在状态栏那一处说（2026-11-20 去重）：这里只报「建好了」这件事本身。
+      this.notice = `新书《${result.book.meta.title}》已建好，开始写吧。`;
       return true;
     },
 

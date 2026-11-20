@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   bookDataFlushFailedKeys,
-  bookDataFlushNotice,
   registerBookDataFlusher,
   resetBookDataFlushers,
   retryFailedBookData,
@@ -13,7 +12,8 @@ import {
  *
  * `useBookStore.openBook()` / `createBook()` 这两条路都必须「先把设定交回**上一本**，再执行那次
  * 会换书的 IPC」——顺序反了，未落盘那一笔就顺着新书的根落进新书的文件里（还是串台）。
- * `withBookDataFlush` 把这个顺序收成一处的真身；`bookDataFlushNotice` 负责"没存好"那句话：
+ * `withBookDataFlush` 把这个顺序收成一处的真身；「哪几份没存好」只由状态栏那一处说
+ * （2026-11-20：换书提示不再在括号里重复念一遍，同一件事屏上只出现一次）。
  * 闸门不许拦住换书（用户不能被上一本卡死在应用里），但必须点名是哪几份没落成。
  */
 
@@ -53,28 +53,24 @@ describe("withBookDataFlush", () => {
   });
 });
 
-describe("bookDataFlushNotice", () => {
-  it("没有失败记录时基础提示一字不改", () => {
-    expect(bookDataFlushNotice("新书已建好")).toBe("新书已建好");
-  });
-
-  it("有失败记录时点名是哪几份设定，而不是笼统一句「有问题」", async () => {
+describe("失败清单只由状态栏说一次", () => {
+  it("没落成的那几份以键的形式交给状态栏点名", async () => {
     registerBookDataFlusher("story-bible", async () => false);
     await withBookDataFlush(async () => "opened");
-    const notice = bookDataFlushNotice("已打开《海雾手记》");
-    expect(notice).toContain("已打开《海雾手记》");
-    expect(notice).toContain("故事圣经");
-    expect(notice).not.toContain("笔记");
+
+    expect(bookDataFlushFailedKeys.value).toEqual(["story-bible"]);
   });
 
-  it("下一次全落成就把上一次的失败记录清掉（旧话不许挂在屏上不走）", async () => {
+  it("下一次全落成就把上一次的失败清单清掉（旧话不许挂在屏上不走）", async () => {
     registerBookDataFlusher("notes", async () => false);
     await withBookDataFlush(async () => "opened");
-    expect(bookDataFlushNotice("已打开")).not.toBe("已打开");
+    expect(bookDataFlushFailedKeys.value).toEqual(["notes"]);
+
     resetBookDataFlushers();
     registerBookDataFlusher("notes", async () => true);
     await withBookDataFlush(async () => "opened");
-    expect(bookDataFlushNotice("已打开")).toBe("已打开");
+
+    expect(bookDataFlushFailedKeys.value).toEqual([]);
   });
 
   it("通路抛错等同于没落成：也要点名", async () => {
@@ -82,7 +78,8 @@ describe("bookDataFlushNotice", () => {
       throw new Error("炸了");
     });
     await withBookDataFlush(async () => "opened");
-    expect(bookDataFlushNotice("已打开")).toContain("写作目标");
+
+    expect(bookDataFlushFailedKeys.value).toContain("writing-goal");
   });
 });
 

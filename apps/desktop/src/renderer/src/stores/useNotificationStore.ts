@@ -24,13 +24,34 @@ export interface AppNotification {
 
 const STORAGE_KEY = "mochen.notifications.v1";
 const HISTORY_LIMIT = 50;
+const LEVELS: readonly NotificationLevel[] = ["info", "success", "warning", "error"];
+
+/**
+ * 盘上那一份是不是一条通知（2026-11-20 审计 R-5）。
+ * `try` 只能包住 `JSON.parse`，包不住之后在 computed 里 `.filter(...)`——
+ * 一旦存成 `{}` 这类合法 JSON，坏形状会一路带到渲染，把通知铃铛整块带崩。宁可否掉也不能信。
+ */
+function isNotification(raw: unknown): raw is AppNotification {
+  if (typeof raw !== "object" || raw === null) return false;
+  const one = raw as Record<string, unknown>;
+  return (
+    typeof one.id === "string" &&
+    typeof one.title === "string" &&
+    typeof one.message === "string" &&
+    typeof one.timestamp === "number" &&
+    typeof one.read === "boolean" &&
+    typeof one.level === "string" &&
+    LEVELS.includes(one.level as NotificationLevel)
+  );
+}
 
 function load(): AppNotification[] {
   if (typeof localStorage === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as AppNotification[];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter(isNotification) : [];
   } catch {
     return [];
   }
@@ -123,7 +144,8 @@ export const useNotificationStore = defineStore("notification", () => {
 
   /** 发送系统通知 */
   async function sendSystemNotification(n: AppNotification): Promise<void> {
-    // Electron preload 注入的接口
+    // Electron preload 注入的接口（`notify` 契约上是 void：preload 内部已 `void invoke(...)` 接住拒绝，
+    // 这里不另加一层 catch——多写一层只会让人以为它会 reject）。
     if (window.mochen?.notify) {
       window.mochen.notify(n.title, n.message);
     } else if ("Notification" in window) {

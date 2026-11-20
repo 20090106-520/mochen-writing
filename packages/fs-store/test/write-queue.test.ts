@@ -101,6 +101,27 @@ describe("runWriteExclusive（按 key 串行队列）", () => {
     expect(done).toEqual(["ran"]);
   });
 
+  it("前单永不回时后单到点放行，不许把这条路径永久堵死（审计 R-7）", async () => {
+    const order: string[] = [];
+    // 前单永远不 resolve：模拟 fsync/rename 卡死（网络盘、休眠唤醒）。
+    const stuck = () => new Promise<void>(() => undefined);
+    const p1 = runWriteExclusive("k", stuck);
+    const p2 = runWriteExclusive(
+      "k",
+      async () => {
+        order.push("ran");
+        return "ok";
+      },
+      20
+    );
+
+    const winner = await Promise.race([p2, sleep(500).then(() => "timeout" as const)]);
+    expect(winner).toBe("ok");
+    expect(order).toEqual(["ran"]);
+    // 前单仍然挂着：这正说明放行是「超时」而不是「前单跑完了」。
+    void p1;
+  });
+
   it("normalizeWriteKey 把同一目标的不同写法折成同一个 key", async () => {
     const dir = await scratchRoot();
     const target = path.join(dir, "chapters", "01.md");
