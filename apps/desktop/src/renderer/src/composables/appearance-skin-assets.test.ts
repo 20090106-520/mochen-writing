@@ -25,6 +25,8 @@ import {
 import {
   APPEARANCE_ART_LABELS,
   APPEARANCE_ORNAMENT_LABELS,
+  SKIN_ART_FILTERS,
+  SKIN_ORNAMENT_FILTERS,
   appearanceSkins
 } from "./appearanceSkins";
 import { skinStyleVariables } from "./appearanceSkinVisual";
@@ -230,12 +232,19 @@ describe("素材 · 每个画面档都得在盘上", () => {
     }
   });
 
-  it("每张画都有中文档名，且没有一张画是没被任何皮肤用的死档", () => {
+  it("每张画都有中文档名；筛选条上的每一档都真有皮肤在用（没有死档按钮）", () => {
     for (const art of artsWithFiles) {
       expect(APPEARANCE_ART_LABELS[art], `${art} 没有中文档名`).toBeTruthy();
+    }
+    /* 【2026-11-20 澄光刀：死档判据从「枚举全集」重指到「筛选条」】
+       原生澄光两套退役了它们那对画（abyss-hall-night / shallow-hall-day）。
+       那两张留在枚举里是因为**老 JSON 可能还存着这个 id**（删了枚举，老文件整份退默认），
+       留在盘上是留给原生皮日后的选配——它们不在筛选条上（筛选条从皮肤表派生），
+       所以不是「多出一枚死档按钮」。这条断言真正要钉的本来就是筛选条，现在钉到它身上。 */
+    for (const art of SKIN_ART_FILTERS) {
       expect(
         appearanceSkins.some((skin) => skin.art === art),
-        `${art} 在枚举与盘上都齐了，却没有一条皮肤在用 —— 广场筛选条会多出一枚死档按钮`
+        `${art} 在筛选条上，却没有一条皮肤在用 —— 这是一枚死档按钮`
       ).toBe(true);
     }
   });
@@ -259,6 +268,9 @@ describe("素材 · 每个画面档都得在盘上", () => {
         ? skin.id.replace(/-day$/, "-night")
         : skin.id.replace(/-night$/, "-day");
       expect(ids, `皮肤表里找不到 ${skin.id} 的另一版（${siblingId}）`).toContain(siblingId);
+      /* 原生澄光两套 `art: "none"`（2026-11-20 裁定）：没有画就没有「昼夜串图」可言，
+         但上面那条「昼夜必须成对」对它们**照跑**——xi-day / xi-night 一样要成对。 */
+      if (skin.art === "none") continue;
       expect(
         skin.art.endsWith(isDay ? "-day" : "-night"),
         `${skin.id} 用的是另一版的画（${skin.art}）—— 白天挂了夜里的图，等于昼夜串了`
@@ -364,25 +376,29 @@ describe("素材 · 挂件层：每个挂件档都得在盘上", () => {
     }
   });
 
-  it("每个挂件档都有中文档名，且没有一枚是没被任何皮肤用的死档", () => {
+  it("每个挂件档都有中文档名；筛选条上的每一档都真有皮肤在挂（没有死档按钮）", () => {
     for (const ornament of ornamentsWithFiles) {
       expect(APPEARANCE_ORNAMENT_LABELS[ornament], `${ornament} 没有中文档名`).toBeTruthy();
+    }
+    // 与画面那条同一次重指（2026-11-20 澄光刀）：原生两套退役的挂件留档备选配，
+    // 死档按钮的判据落在筛选条上，不落在枚举全集上。
+    for (const ornament of SKIN_ORNAMENT_FILTERS) {
       expect(
         appearanceSkins.some((skin) => skin.ornament === ornament),
-        `${ornament} 在枚举与盘上都齐了，却没有一条皮肤在挂 —— 广场筛选条会多出一枚死档按钮`
+        `${ornament} 在筛选条上，却没有一条皮肤在挂 —— 这是一枚死档按钮`
       ).toBe(true);
     }
   });
 
-  it("十六条的挂件两两不同（两套挂同一枚，卡脚那两行字又是一样的）", () => {
-    const ornaments = appearanceSkins.map((skin) => skin.ornament);
-    expect(new Set(ornaments).size, `十六条里有重复的挂件：${ornaments.join(" / ")}`).toBe(
-      appearanceSkins.length
+  it("带画皮肤的挂件两两不同；原生澄光两套不挂（「不挂」不是「挂同一枚」）", () => {
+    /* 2026-11-20 澄光刀：原判据「十六条两两不同」把原生两套的 `none` 算成重复——
+       但「不挂挂件」与「两套挂同一枚」是两件事。两两不同的判据只约束**挂了挂件**的那些；
+       「带画皮肤必须挂、原生两套必须空」由 appearance-skins.test.ts 那条入场条件钉。 */
+    const hung = appearanceSkins.filter((skin) => skin.ornament !== "none");
+    const ornaments = hung.map((skin) => skin.ornament);
+    expect(new Set(ornaments).size, `挂了挂件的那些里有重复：${ornaments.join(" / ")}`).toBe(
+      hung.length
     );
-    for (const skin of appearanceSkins) {
-      expect(skin.ornament, `${skin.id} 没挂挂件 —— 广场的「有挂件」是这一层的入场条件`).not.toBe(
-        "none"
-      );
-    }
+    expect(hung.length, "带画的十四套每套都得有挂件（原生两套不参与）").toBe(14);
   });
 });

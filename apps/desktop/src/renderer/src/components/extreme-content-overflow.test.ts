@@ -31,6 +31,8 @@ const EDITOR = styleSource("editor-pane.css");
 const CONVERSATION = styleSource("conversation-pane.css");
 const HISTORY = styleSource("conversation-history.css");
 const CARD = styleSource("agent-pane.css");
+// 2026-11-20：占用读数那一枚搬去了状态栏，它的规则跟着搬进 context-meter.css。
+const METER = styleSource("context-meter.css");
 
 const CENTER = templateSource("components/CenterColumn.vue");
 const HISTORY_MENU = templateSource("components/ConversationHistoryMenu.vue");
@@ -194,11 +196,13 @@ describe("5-㉓ ② 会话栏头：控件不缩，文字缩", () => {
 
 describe("5-㉓ ③ 上下文条：副文缩，不许溢出画到下一枚身上", () => {
   it("两段副文都可缩并带省略号——一个是钉死不缩，一个原先根本没有规则", () => {
-    for (const sel of [
-      ".composer-doc-context .doc-context-kind",
-      ".context-meter .context-meter-text"
-    ]) {
-      const rule = ruleBlock(CARD, sel);
+    for (const [css, sel] of [
+      [CARD, ".composer-doc-context .doc-context-kind"],
+      // 2026-11-20：计量读数搬去状态栏之后，它的可缩规则也跟着搬进 context-meter.css
+      //（选择器跟着改成 `.context-meter--compact`——那一枚不再挂在绑定条的胶囊上）。
+      [METER, ".context-meter--compact .context-meter-text"]
+    ] as Array<[string, string]>) {
+      const rule = ruleBlock(css, sel);
       expect(rule, `${sel} 没读到规则块`).toContain("flex: 0 1 auto");
       expect(rule).toContain("min-width: 0");
       expect(rule).toContain("overflow: hidden");
@@ -222,7 +226,10 @@ describe("5-㉓ ③ 上下文条：副文缩，不许溢出画到下一枚身上
     const fixed = standaloneRule(CARD, ".composer-profile-context, .composer-stage-context");
     expect(fixed).toContain("flex: 0 0 auto");
     expect(fixed).toContain("max-width: 12em");
-    expect(ruleBlock(CARD, ".context-meter")).toContain("flex: 0 0 auto");
+    // 2026-11-20：计量那一枚搬去了状态栏，它的「不缩」在 context-meter.css 的
+    // `.context-meter--compact` 上（max-width 12em 同值，档位没变）。
+    expect(ruleBlock(METER, ".context-meter--compact")).toContain("flex: 0 0 auto");
+    expect(ruleBlock(METER, ".context-meter--compact")).toContain("max-width: 12em");
     expect(ruleBlock(CARD, ".composer-book-context")).toContain("flex: 0 1 auto");
   });
 
@@ -242,9 +249,10 @@ describe("5-㉓ ③ 上下文条：副文缩，不许溢出画到下一枚身上
     // display: block 之后整块照样含 display:none、断言照样绿——**漏网一条**。
     // 「红得对」不等于「验到了那一块」：块级断言会把同块的另一条当成自己的。
     // 2026-10-23：副文那一级的阈值从 460 提前到 800（中等宽度就该退场，实测见样式表注释）。
+    // 2026-11-20：计量读数那一级撤掉了——占用读数搬去了状态栏，输入卡里已经没有它，
+    // 那一档藏的是一个不存在的元素（留着就是一条死规则）。阶梯变成两级：副文 → 主标题。
     const steps: Array<[string, string]> = [
       ["@container composer (max-width: 800px)", ".composer-doc-context .doc-context-kind"],
-      ["@container composer (max-width: 380px)", ".context-meter .context-meter-text"],
       ["@container composer (max-width: 300px)", ".composer-context-item > strong"]
     ];
     for (const [at, sel] of steps) {
@@ -273,7 +281,9 @@ describe("5-㉓ ③ 上下文条：副文缩，不许溢出画到下一枚身上
   it("每一档都还把间隙与内边距往回收——否则全藏光也装不下（固定开销 289 > 真机 284）", () => {
     for (const [at, sel] of [
       ["@container composer (max-width: 460px)", ".composer-context-bar"],
-      ["@container composer (max-width: 380px)", ".context-meter .context-meter-text"],
+      // 2026-11-20：380 那一档原先挂在计量读数上，读数搬走之后它挂回绑定条本身
+      //（那一档本来也收间隙与内边距，只是当时锚点选的是计量那一段）。
+      ["@container composer (max-width: 380px)", ".composer-context-bar"],
       ["@container composer (max-width: 300px)", ".composer-context-item > strong"]
     ] as Array<[string, string]>) {
       const step = containerStep(CARD, at, sel);

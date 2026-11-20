@@ -23,6 +23,18 @@ const fullDocs: DocRef[] = [
   { relPath: "materials/海洋.md", kind: "material", title: "海洋" },
   { relPath: "outline/第一幕.md", kind: "outline", title: "第一幕" }
 ];
+/**
+ * 带字数与更多章节的一份（2026-11-20 对话区智能刀）：
+ * 建议 pill 现在**按实况挑**，所以需要能分别造出「第一章 / 不是第一章 / 字数太少」三种情形。
+ */
+const richDocs: DocRef[] = [
+  { relPath: "chapters/01-开局.md", kind: "chapter", title: "开局", chars: 3200 },
+  { relPath: "chapters/02-推进.md", kind: "chapter", title: "推进", chars: 2800 },
+  { relPath: "chapters/03-短章.md", kind: "chapter", title: "短章", chars: 120 },
+  { relPath: "characters/林晚.md", kind: "character", title: "林晚" },
+  { relPath: "materials/海洋.md", kind: "material", title: "海洋" },
+  { relPath: "outline/第一幕.md", kind: "outline", title: "第一幕" }
+];
 
 describe("workbench-state · 无书不显示死卡（F-A）", () => {
   it("无书 ⇒ workbenchCards 一张卡都不出（W7 变异目标：不看 hasBook 就红）", () => {
@@ -151,10 +163,12 @@ describe("workbench-state · 五张能力卡是真动作（示意稿 A）", () =
 });
 
 describe("workbench-state · 建议 pill 与能力清单（示意稿 A）", () => {
-  it("有章节 ⇒ 恰好五枚，前四枚填字、最后一枚开 / 面板", () => {
+  it("有章节 ⇒ 建议 pill 前四枚填字、最后一枚开 / 面板", () => {
+    // 2026-11-20：出场条件从「固定五枚」改成**按实况挑**。
+    // 这一条跑的是「第一章 + 字数够」那一档，五枚齐。
     const list = workbenchSuggestions({
       hasBook: true,
-      docs: fullDocs,
+      docs: richDocs,
       activeChapter: "chapters/01-开局.md"
     });
     expect(list).toHaveLength(5);
@@ -171,6 +185,35 @@ describe("workbench-state · 建议 pill 与能力清单（示意稿 A）", () =
       if (item.kind === "prefill")
         expect(item.prefill.length).toBeLessThanOrEqual(USER_TEXT_MAX_LEN);
     }
+  });
+
+  it("目标不是第一章 ⇒ 不再推「三个开头」（那是开局才做的事）", () => {
+    const list = workbenchSuggestions({
+      hasBook: true,
+      docs: richDocs,
+      activeChapter: "chapters/02-推进.md"
+    });
+    expect(list.map((item) => item.id)).not.toContain("openings");
+    expect(list.map((item) => item.id)).toContain("thicken");
+  });
+
+  it("目标章字数太少 ⇒ 不推「扩写最薄的一段」（薄到挑不出段落，判不准）", () => {
+    const list = workbenchSuggestions({
+      hasBook: true,
+      docs: richDocs,
+      activeChapter: "chapters/03-短章.md"
+    });
+    expect(list.map((item) => item.id)).not.toContain("thicken");
+  });
+
+  it("没有字数数据时不假装知道：这一格不出场，「扩写最薄的一段」也不出场", () => {
+    const list = workbenchSuggestions({
+      hasBook: true,
+      docs: fullDocs,
+      activeChapter: "chapters/01-开局.md"
+    });
+    expect(list.map((item) => item.id)).not.toContain("thicken");
+    expect(list.length).toBeGreaterThan(0);
   });
 
   it("有书但一本书都还没有 ⇒ 建议 pill 为空（没有线程可填字，就不摆填字的按钮）", () => {

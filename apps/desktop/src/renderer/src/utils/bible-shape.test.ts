@@ -83,6 +83,16 @@ describe("normalizeBibleEntries", () => {
     expect(normalizeBibleEntries([{ ...BASE, archived: "yes" }])?.[0]?.archived).toBe(false);
   });
 
+  it("嗓音三格（W-09）照原样收下；不是字符串就判读不懂，不悄悄吞掉", () => {
+    // 「原样」= 不裁空白：与 role / parentLocation 同一约定，面板存盘时自己 trim。
+    const [entry] =
+      normalizeBibleEntries([{ ...BASE, voice: " 寡言 ", taboo: "求人", arc: "学会托付" }]) ?? [];
+    expect(entry).toMatchObject({ voice: " 寡言 ", taboo: "求人", arc: "学会托付" });
+    expect(normalizeBibleEntries([{ ...BASE, voice: 7 }])).toBeNull();
+    // 老存档没有这三格：照常放行，也不补空串。
+    expect(normalizeBibleEntries([BASE])?.[0]).not.toHaveProperty("voice");
+  });
+
   it("时间戳不是有限数字就当 0，而不是判读不懂", () => {
     const [entry] = normalizeBibleEntries([{ ...BASE, createdAt: "x", updatedAt: Infinity }]) ?? [];
     expect(entry).toMatchObject({ createdAt: 0, updatedAt: 0 });

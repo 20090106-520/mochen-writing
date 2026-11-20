@@ -481,7 +481,7 @@ export type AppearanceOrnament = z.infer<typeof AppearanceOrnamentSchema>;
  *   与 `DEFAULT_APPEARANCE_BACKDROP` 等四条同源（都取 `appearanceSkins[0]` 的五个值，
  *   对照由 `appearance-skins.test.ts` 的「出厂默认」那一组钉——**值在两处写，守卫做逐字段对照**）。
  */
-export const DEFAULT_APPEARANCE_ART: AppearanceArt = "shallow-hall-day";
+export const DEFAULT_APPEARANCE_ART: AppearanceArt = "none";
 
 /**
  * 视觉四层的出厂取值。
@@ -499,7 +499,7 @@ export const DEFAULT_APPEARANCE_GRID: AppearanceGrid = "none";
 /* 挂件层的出厂值（2026-10-17 第六刀）。与上面这五条同源：取广场第一套皮肤的那一枚挂件。
    老 JSON 缺这个字段时补出来的就是这一枚——用户 2026-10-08 那条裁定
    「没有图片的不保留」之后，出厂位不可能再是 `none`。 */
-export const DEFAULT_APPEARANCE_ORNAMENT: AppearanceOrnament = "whale";
+export const DEFAULT_APPEARANCE_ORNAMENT: AppearanceOrnament = "none";
 
 /**
  * 出厂那套皮肤的 id。**与渲染层 `appearanceSkins[0].id` 必须一字不差**。
@@ -515,8 +515,8 @@ export const DEFAULT_APPEARANCE_SKIN_ID = "xi-day";
 
 /** 出厂三色的两版取值，同样必须与 `appearanceSkins[0]` 的 light / dark 逐字相同。 */
 export const DEFAULT_APPEARANCE_TONES = {
-  light: { accent: "#2A7699", background: "#E8F6FA", foreground: "#123243" },
-  dark: { accent: "#57B7D6", background: "#0E2430", foreground: "#DCF1F8" }
+  light: { accent: "#2A6F97", background: "#F2F5F7", foreground: "#1D2B36" },
+  dark: { accent: "#76BDD9", background: "#101922", foreground: "#DCE8EF" }
 } as const;
 
 export const AppearanceThemeConfigSchema = z.object({

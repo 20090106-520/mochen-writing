@@ -29,6 +29,24 @@ export const SKILL_HINT =
   "上面标注「技能」的那些条目只是清单（名称、id、用途与适用面），正文没有载入；" +
   '要按其中一份方法动笔，先用 use_skill("<id>") 读出全文，别凭名字猜它的做法。';
 
+/**
+ * 有自动预读时的那一句（2026-11-17）。
+ *
+ * 【为什么不复用上面那句】预读段已经把榜首的正文整份递过去了，再说「正文没有载入」
+ * 就会和下一段自相矛盾——模型读到「没载入」会去 use_skill 再读一遍，白烧一轮。
+ * 两句话住同一处（本文件），改口径时不会只改一半。
+ */
+export const SKILL_HINT_WITH_PRELOAD =
+  "上面标注「技能」的条目里，除下面【本轮自动预读】那一份外都只是清单（名称、id、用途与适用面）；" +
+  '要按其余某一份方法动笔，先用 use_skill("<id>") 读出全文，别凭名字猜它的做法。';
+
+/** 自动预读回来的正文（与 turn-context 的 `PreloadedSkill` 同形，避免 main 内多一份拷贝）。 */
+export interface PreloadedSkillBlock {
+  title: string;
+  text: string;
+  clipped: boolean;
+}
+
 export interface ContextPackInput {
   /** `renderContextBlock` 的产物；空串＝这一轮没有可装的条目。 */
   contextBlock: string;
@@ -36,6 +54,11 @@ export interface ContextPackInput {
   skillHint: string;
   /** 技能库里没挂入的那些（`skillIndexBlock` 的结果）。 */
   skillIndex: SkillIndexResult;
+  /**
+   * 自动预读的唯一榜首正文（2026-11-17）。null / 缺省 = 这一轮没预读，
+   * 整段不出现——不是写一个空标题。
+   */
+  preload?: PreloadedSkillBlock | null;
 }
 
 export function buildContextPack(input: ContextPackInput): string {
@@ -43,6 +66,15 @@ export function buildContextPack(input: ContextPackInput): string {
   if (input.contextBlock !== "") {
     parts.push(`【已装配的上下文】\n${input.contextBlock}`);
     if (input.skillHint !== "") parts.push(input.skillHint);
+  }
+  // 预读段紧跟技能清单：模型刚看到「这一轮该用哪一份」，下一眼就是它的方法全文。
+  // 截断必须如实说：读到半份方法却以为读全了，比没读更危险。
+  const preload = input.preload ?? null;
+  if (preload !== null) {
+    const body = preload.clipped
+      ? `${preload.text}\n（正文过长，已截断；需要全文用 use_skill 重新读。）`
+      : preload.text;
+    parts.push(`【本轮自动预读的技能：${preload.title}】\n${body}`);
   }
   // 技能库索引**不挂在**上下文那一段下面：它不是「这一轮装进来的东西」，
   // 而是「库里还有什么」。空串时不写标题——留一个空标题比不写更让人以为漏了内容。

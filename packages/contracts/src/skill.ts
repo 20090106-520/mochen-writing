@@ -26,6 +26,15 @@ export const SKILL_PATHS_MAX = 12;
 /** 单个技能正文的读上限（64 KB）。超出截断并如实标 truncated，绝不静默少给。 */
 export const SKILL_CONTENT_MAX_BYTES = 64 * 1024;
 
+/**
+ * 自动预读正文的字数上限（2026-11-17）。
+ *
+ * 自动识别挑中「唯一榜首」时，把它的正文直接注入这一轮系统提示，省掉一轮 `use_skill` 往返。
+ * 上限取 4000：够覆盖一份方法的主体（出厂技能多在 1–3k 字），又不至于让「自动」退化成
+ * 「把技能库整份灌进提示词」——预读是给榜首一格的额度，不是给技能库开的后门。
+ */
+export const SKILL_PRELOAD_MAX_CHARS = 4000;
+
 export const skillRefSchema = z.object({
   /** `${source}:${dirName}`，合并去重与「已挂入」比对都用它。 */
   id: z.string().min(1),

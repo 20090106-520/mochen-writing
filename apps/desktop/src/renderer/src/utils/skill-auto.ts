@@ -102,3 +102,23 @@ export function sameSkillIds(left: readonly string[], right: readonly string[]):
   const set = new Set(left);
   return right.every((id) => set.has(id));
 }
+
+/**
+ * 这一轮要不要把榜首的**正文**也递过去（2026-11-17）。
+ *
+ * 自动挂入只摆清单行，模型仍要花一轮 `use_skill` 才读得到方法。既然自动识别已经挑出了
+ * 「这一轮就该用它」，那一轮往返是白烧的。但只有**唯一榜首**才值得预读：
+ * 并列第一意味着两条同样该用，挑谁都是替模型掷骰子；空榜则根本没有可预读的对象。
+ * 只剩一条时它就是唯一榜首，照预读——不在这里另编一个「至少要多少分」的门槛，
+ * 谁该上榜已经由 `rankSkills` 的「只留正分」说过一次。
+ *
+ * 判据是确定性的、不新编分数阈值：`rankSkills` 已按 score 降序排好，这里只看前两名是否同分。
+ * 返回空串 = 不预读（与「没传字段」同义）。
+ */
+export function preloadSkillIdOf(picks: readonly SkillPick[]): string {
+  const first = picks[0];
+  if (first === undefined) return "";
+  const second = picks[1];
+  if (second !== undefined && second.score === first.score) return "";
+  return first.id;
+}

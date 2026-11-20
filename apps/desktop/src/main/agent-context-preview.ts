@@ -57,7 +57,8 @@ export function createContextPreview(
       query.docRelPath,
       profile,
       [],
-      skills
+      skills,
+      query.excludedBible ?? []
     );
     // P1-3：占用条必须把历史这一格算进去——不报历史，剩余预算就是假的（面板上的「还能塞」骗人）。
     // 数字只有 `historyStatFor` 那一份判据：这里再手搓一遍字段映射，就是第二套口径（铁律 6）。

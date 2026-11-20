@@ -26,6 +26,8 @@ import {
   type ParsedChapter
 } from "@mochen/contracts";
 import { useVolumeOutlineStore } from "../stores/useVolumeOutlineStore";
+import { useStoryBibleStore } from "../stores/useStoryBibleStore";
+import { voiceBriefs, type VoiceBrief } from "../utils/voice-brief";
 import { useBookStore } from "../stores/useBookStore";
 import { useAgentStore } from "../stores/useAgentStore";
 import { threadKeyFor } from "../utils/agent-thread";
@@ -41,6 +43,7 @@ const props = defineProps<{ anchor: HTMLElement }>();
 const emit = defineEmits<{ close: [] }>();
 
 const book = useBookStore();
+const bible = useStoryBibleStore();
 const outline = useVolumeOutlineStore();
 const agent = useAgentStore();
 const panel = ref<HTMLElement>();
@@ -79,6 +82,16 @@ function editKey(chapter: ParsedChapter, field: ChapterOutlineField): string {
 
 function fieldValue(chapter: ParsedChapter, field: ChapterOutlineField): string {
   return edits.value[editKey(chapter, field)] ?? chapter.fields[field];
+}
+
+/**
+ * 本章人物嗓音（2026-11 W-09）：只认章纲六项字段里点到的名字，设定里没写嗓音的人物不占行。
+ * 读的是编辑中的值而不是盘上的值——「按纲起草」用的就是眼前这一格，两处必须同源。
+ */
+function chapterVoices(chapter: ParsedChapter): VoiceBrief[] {
+  if (bible.activeEntries.length === 0) return [];
+  const text = CHAPTER_OUTLINE_FIELDS.map((field) => fieldValue(chapter, field)).join("\n");
+  return voiceBriefs(bible.activeEntries, text, 2);
 }
 
 function onFieldInput(chapter: ParsedChapter, field: ChapterOutlineField, event: Event): void {
@@ -338,6 +351,18 @@ function keydown(event: KeyboardEvent): void {
                   </dd>
                 </div>
               </dl>
+
+              <p v-if="chapterVoices(chapter).length > 0" class="outline-voices">
+                <span
+                  v-for="one in chapterVoices(chapter)"
+                  :key="one.name"
+                  class="outline-voice"
+                  :title="`${one.name}：${one.line}`"
+                >
+                  <span class="outline-voice-name">{{ one.name }}</span
+                  >{{ one.line }}
+                </span>
+              </p>
 
               <p class="outline-chapter-foot">
                 <span class="outline-missing">还缺：{{ missingLabels(chapter) }}</span>

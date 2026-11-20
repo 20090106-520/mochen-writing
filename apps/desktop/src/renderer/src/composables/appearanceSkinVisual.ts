@@ -139,17 +139,27 @@ const UPSTREAM_BACKDROPS: Record<AppearanceBackdrop, { dark: string; light: stri
       base: "#0F151A 0%, #0C1212 55%, #0E1518 100%",
       baseAngle: "165deg"
     }),
+    /* 【2026-11-20 澄光刀：浅色版整组重调，深色版一字未动】
+       浅色版原先那两团光（青绿 #2DD4BF 16% + 天蓝 #38BDF8 10%）压在浅纸底上，
+       真机读作「一团脏色」——用户原话「把屎背景去掉」。
+       ⇒ 改成**同色系、极淡**的冷光：色相收进澄光那套的青蓝族（#7FA8C9 / #9AB8D0），
+         alpha 收到 0.10 / 0.06，底色换成中性冷灰三段。
+       它存在的唯一理由是给液态玻璃一点**可折射的光**——backdrop-filter 背后
+       若是纯平涂，blur 只是把纯色搅匀，玻璃读不出来；有这一层几乎不可见的微光，
+       玻璃边缘才活。背景本体仍是干净纸面，不是「换了一团光」。
+       （aurora 的其余消费者全是带画皮肤，画是不透明整幅、盖住这一层，所以这次
+        重调的可见面只有 xi-day 一套；深色版由 appearance-skin-visual.test.ts 逐字钉着。） */
     light: upstreamGlow({
-      keyColor: "#2DD4BF",
-      keyAlpha: 0.16,
+      keyColor: "#7FA8C9",
+      keyAlpha: 0.1,
       keySize: "1100px 620px",
       keyAt: "84% -8%",
-      fillColor: "#38BDF8",
-      fillAlpha: 0.1,
+      fillColor: "#9AB8D0",
+      fillAlpha: 0.06,
       fillSize: "780px 500px",
       fillAt: "10% 110%",
       veil: "rgb(255 255 255 / 0.9)",
-      base: "#F7FBFA 0%, #F1F7F6 55%, #F4F9F8 100%",
+      base: "#F8FAFC 0%, #F2F5F8 55%, #F5F8FA 100%",
       baseAngle: "165deg"
     })
   },
@@ -340,18 +350,32 @@ const UPSTREAM_GLASS: Record<AppearanceGlass, GlassSpec> = {
  * （那是劫持，不是换皮肤），所以走 token：圆角全部归零到 `--skin-radius-*`，
  * 而「该圆的仍然是圆的」由各组件自己的选择器决定——本仓本来就区分状态点与卡片。
  *
+ * 【四档各对应工作区的一层（2026-11-20 · 批次②）】
+ *   control（8px）→ 控件层：按钮 / 输入框 / 下拉；
+ *   sm（6px）     → 容器层：窗体外壳；
+ *   md（10px）    → 卡片层：提案卡 / 设置卡 / 扩展卡；
+ *   lg（16px）    → 面板层：对话框与那九个浮层面板。
+ * 早先只有 sm/md/lg 三档，而 lg 在工作区**一个消费者都没有**（面板与对话框写死 16px），
+ * 于是「直角皮肤」只改了皮肤广场的预览、没改工作区——换皮肤只变一半，比不变更糟。
+ * 补上 control 那一档是为了让控件层也能跟皮肤走，同时**默认皮肤的像素一字不变**
+ * （control 的 plain 值就是工作区今天的 8px）。
+ *
  * `dialogue` 抄的是 gal-view `.dsh-plugin/client/styles.mjs:54` 那句
  * `linear-gradient(180deg, rgba(20,24,44,.7), rgba(14,17,34,.35))`
  * 以及 416 行的 `inset 0 -4px 0 rgba(79,140,255,.55)`（底部 4px 实心压边）。
  * 形状与 alpha 照抄，色相取该套皮肤自己的前景/强调色。
  */
-const SURFACE_RADIUS: Record<AppearanceSurface, { sm: string; md: string; lg: string }> = {
-  plain: { sm: "6px", md: "10px", lg: "16px" },
-  square: { sm: "0px", md: "0px", lg: "0px" },
-  /* 公海皮 shared/styles.css:77/96 的 26px / 20px：外壳 26、内芯 20，胶囊感。 */
-  "round-none": { sm: "12px", md: "20px", lg: "26px" },
+const SURFACE_RADIUS: Record<
+  AppearanceSurface,
+  { control: string; sm: string; md: string; lg: string }
+> = {
+  plain: { control: "8px", sm: "6px", md: "10px", lg: "16px" },
+  square: { control: "0px", sm: "0px", md: "0px", lg: "0px" },
+  /* 公海皮 shared/styles.css:77/96 的 26px / 20px：外壳 26、内芯 20，胶囊感。
+     控件档取 12px：按钮与输入框比容器小一号，但仍是圆的。 */
+  "round-none": { control: "12px", sm: "12px", md: "20px", lg: "26px" },
   /* gal-view 对话框：styles.mjs 里 `border-radius: 3px`（按钮）与 `4px`（选项）。 */
-  dialogue: { sm: "3px", md: "4px", lg: "4px" }
+  dialogue: { control: "3px", sm: "3px", md: "4px", lg: "4px" }
 };
 
 /** 对话框底：上半压深、下半透出来。形状逐字抄 gal-view，色相换成本套皮肤自己的。 */
@@ -644,6 +668,7 @@ export function skinStyleVariables(input: {
     "--skin-glass-card-fill": glassOn
       ? mixRgba(input.paper, input.ink, isDark ? 0.075 : 0.028, Number(glass.alpha))
       : mixRgba(input.paper, input.ink, isDark ? 0.075 : 0.028, 1),
+    "--skin-radius-control": radius.control,
     "--skin-radius-sm": radius.sm,
     "--skin-radius-md": radius.md,
     "--skin-radius-lg": radius.lg,

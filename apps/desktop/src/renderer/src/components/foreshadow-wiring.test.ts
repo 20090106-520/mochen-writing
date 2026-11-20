@@ -63,7 +63,11 @@ describe("文稿体系认了这一类", () => {
     // 这里钉的是「伏笔这一行存在」与「另一处（OutlinePanel 自持的那份）也没丢」。
     expect(typeScriptSource("utils/kind-icons.ts")).toContain("foreshadow:");
     expect(scriptSource("components/OutlinePanel.vue")).toContain("foreshadow:");
-    expect(scriptSource("components/LeftSidebar.vue")).toContain('from "../utils/kind-icons"');
+    // 【2026-11-20 · 批次①】树的分组判定搬进了 utils/manuscript-sections（章节组常驻那条），
+    // 于是「谁在读那张图标表」从 LeftSidebar 变成了那个 util——单一真身这件事没变，
+    // 变的只是读它的人。左栏自己不许再养一份。
+    expect(typeScriptSource("utils/manuscript-sections.ts")).toContain('from "./kind-icons"');
+    expect(scriptSource("components/LeftSidebar.vue")).not.toContain('from "../utils/kind-icons"');
   });
 });
 

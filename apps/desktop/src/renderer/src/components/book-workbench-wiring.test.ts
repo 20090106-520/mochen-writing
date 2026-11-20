@@ -231,3 +231,46 @@ describe("窄档孤字：那段提示用 balance 均分，末行不再只剩一�
     expect(rule).not.toContain("pretty");
   });
 });
+
+/**
+ * 作品现状条（2026-11-20 对话区智能刀）。
+ *
+ * 这一格原先没有：中栏摆的是一份**静态产品说明书**（五张能力卡 + 六条「我可以帮你做这些」），
+ * 每一句都成立，但没有一句在说自己那本书的进度。
+ *
+ * ⇒ 现在摆一条：章 / 字 / 人物三格 + 一句「接下来干什么」。
+ * 判定不在 `.vue` 里（`.vue` 不过 tsc），真身在 `utils/conversation-brief.ts`；
+ * 这一份只钉「组件确实接上了它」。
+ */
+describe("BookWorkbench · 作品现状条（2026-11-20）", () => {
+  it("现状从 utils/conversation-brief.ts 现算，不在组件里另写一份判定", () => {
+    expect(script).toContain('import { conversationBrief } from "../utils/conversation-brief"');
+    expect(script).toContain("conversationBrief({");
+    expect(script).toContain("book.docs");
+    expect(script).toContain("book.activeDocTab");
+  });
+
+  it("模板摆出三格与那一句「接下来干什么」", () => {
+    expect(template).toContain("workbench-brief");
+    expect(template).toContain("workbench-stats");
+    expect(template).toContain("workbench-next");
+    expect(template).toContain("brief.stats");
+    expect(template).toContain("brief.nextStep");
+  });
+
+  it("只有开着作品才摆这一格（无书时那句另有出处）", () => {
+    expect(template).toMatch(/v-if="hasBook"[^>]*class="workbench-brief"/u);
+  });
+
+  it("空书那一档不摆三格零（全是 0 等于没信息），改说「这本书还空着」", () => {
+    expect(template).toContain("brief.stage === 'empty-book'");
+    expect(template).toContain("brief.headline");
+  });
+
+  it("CSS 里三格与那一句都有落点", () => {
+    expect(css).toContain(".workbench-brief {");
+    expect(css).toContain(".workbench-stats {");
+    expect(css).toContain(".workbench-stat {");
+    expect(css).toContain(".workbench-next {");
+  });
+});

@@ -8,7 +8,8 @@ import {
   PROPOSAL_STATUSES,
   PROPOSAL_STATUS_LABELS,
   bookMetaSchema,
-  parseBookMeta
+  parseBookMeta,
+  recapOf
 } from "../src/index.js";
 
 const valid = {
@@ -58,6 +59,22 @@ describe("bookMetaSchema", () => {
     expect(DEFAULT_PERMISSION_MODE).toBe("full-access");
     expect(PERMISSION_MODES[0]).toBe("read-only");
     expect(bookMetaSchema.safeParse({ ...valid, permissionMode: "read-only" }).success).toBe(true);
+  });
+
+  it("recaps 是可选的：老书没有这一格照样过，有则逐字保留", () => {
+    expect(parseBookMeta(valid)).not.toHaveProperty("recaps");
+    const recaps = { "chapters/01-开局.md": "林夜拿到船票。" };
+    expect(parseBookMeta({ ...valid, recaps }).recaps).toEqual(recaps);
+  });
+});
+
+describe("recapOf：章末摘要的唯一判据", () => {
+  it("有摘要回原文；缺失、空串、纯空白一律回 null（调用方退回尾部截取）", () => {
+    const recaps = { "a.md": "  事实摘要。  ", "b.md": "   " };
+    expect(recapOf(recaps, "a.md")).toBe("事实摘要。");
+    expect(recapOf(recaps, "b.md")).toBeNull();
+    expect(recapOf(recaps, "c.md")).toBeNull();
+    expect(recapOf(undefined, "a.md")).toBeNull();
   });
 });
 

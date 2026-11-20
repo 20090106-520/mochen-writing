@@ -4,6 +4,12 @@
  * 键位判定的唯一真身在 utils/hotkeys.ts 的 resolveHotkey + utils/escape-policy.ts——
  * 本表只是给屏幕读的摘要，与判定层的一致性由 hotkey-guide.test.ts 钉死：
  * 每一行的 needle 必须能在 hotkeys.ts（或 escape-policy.ts）源码里找到，抄错键名测试即红。
+ *
+ * 【不许出现的键族】判定层只认三族：裸键 / Ctrl / Ctrl+Shift——**没有 Ctrl+Alt**
+ * （Ctrl+Alt 一律落到 none）。所以速查表里带 Ctrl+Alt 的行都是死行：
+ * 2026-11-20 删掉的那行「Ctrl Alt F → 专注模式」就是（专注模式 2026-10-05 整条下线），
+ * 而它当时写的 needle `k === "f"` 命中的其实是 **Ctrl+F** 那一行——
+ * 于是 needle 契约「看着是绿的」，屏上却教着一枚按不出来的键。
  */
 export interface HotkeyGuideRow {
   /** 屏显键名（kbd 文案）。 */
@@ -33,6 +39,12 @@ export const HOTKEY_GUIDE: readonly HotkeyGuideGroup[] = [
         needle: 'k === "?"'
       },
       { keys: "Ctrl O", label: "打开作品目录", when: "随时", needle: 'k === "o"' },
+      {
+        keys: "Ctrl F",
+        label: "文内查找 / 替换",
+        when: "右栏停在正文视图时",
+        needle: 'if (k === "f") return { action: "open-find-replace" };'
+      },
       { keys: "Ctrl B", label: "收起 / 展开左栏", when: "随时", needle: 'k === "b"' },
       {
         keys: "Ctrl PageDown / Ctrl PageUp",
@@ -153,12 +165,6 @@ export const HOTKEY_GUIDE: readonly HotkeyGuideGroup[] = [
         label: "循环编辑视图（编辑 / 分栏 / 预览）",
         when: "随时",
         needle: 'p: "editor-view"'
-      },
-      {
-        keys: "Ctrl Alt F",
-        label: "专注模式（开时同时起番茄钟）",
-        when: "随时",
-        needle: 'k === "f"'
       }
     ]
   },

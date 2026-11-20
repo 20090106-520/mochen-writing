@@ -28,10 +28,12 @@ import {
 import { appendHistoryRow, historyNoticeText } from "../utils/history-window";
 import { activeProfileOf } from "../utils/profile-options";
 import { threadKeyFor, useAgentStore } from "../stores/useAgentStore";
+import { useBibleExclusionStore } from "../stores/useBibleExclusionStore";
 import { useBookStore } from "../stores/useBookStore";
 
 const book = useBookStore();
 const agent = useAgentStore();
+const exclusion = useBibleExclusionStore();
 
 const open = shallowRef(false);
 const anchor = shallowRef<HTMLElement>();
@@ -48,7 +50,10 @@ const source = computed(() => ({
   // 原先这里写死 `[]`，于是占用条上那句「这一轮真会发出去的那些」在挂了技能时是**假的**：
   // 真发出去的那一轮带着技能，占用条一个字都不提。键里含 `...source.pinned`，
   // 所以挂入/取下都会自动重问，不必另盯一个字段。
-  pinned: agent.skillPathsOf(threadKeyFor(book.activeDocTab))
+  pinned: agent.skillPathsOf(threadKeyFor(book.activeDocTab)),
+  // 本轮「不带」的设定（2026-11-20）：占用条必须按移除后的样子报，否则数字不是真会发出去的那份。
+  // 键里含 `...source.excludedBible`，点掉/恢复一条就会自动重问，不必另盯一个字段。
+  excludedBible: book.meta === null ? [] : exclusion.keysOf(book.meta.id)
 }));
 const key = computed(() => contextMeterQueryKey(source.value));
 const summary = computed(() => contextMeterSummary(agent.contextPreview));
@@ -94,7 +99,7 @@ function toggle(event: MouseEvent): void {
   <button
     v-if="summary.visible"
     ref="anchor"
-    class="composer-context-item context-meter"
+    class="context-meter context-meter--compact"
     type="button"
     :title="summary.title"
     :aria-label="summary.title"

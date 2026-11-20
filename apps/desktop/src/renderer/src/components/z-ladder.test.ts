@@ -213,7 +213,10 @@ describe("消费点：CSS 与 Vue scoped 一律读 token，不许再写魔数", 
 
 describe("面板外框：九张面板只读两枚 token", () => {
   it("token 有定义，panel-kit 自己也在读", () => {
-    expect(rootCss).toContain("--radius-panel: 16px");
+    // 【2026-11-20 · 批次②】--radius-panel 的源头从写死 16px 改成皮肤的 lg 那一档
+    // （`var(--skin-radius-lg, 16px)`）——面板族与对话框写死圆角的话，换「直角」皮肤时
+    // 工作区不动，只改了皮肤广场的预览。兜底值逐字不变，默认皮肤下界面一字不变。
+    expect(rootCss).toContain("--radius-panel: var(--skin-radius-lg, 16px)");
     expect(rootCss).toContain("--shadow-panel: 0 18px 48px var(--shadow-color)");
     expect(panelKit).toContain("border-radius: var(--radius-panel)");
     expect(panelKit).toContain("box-shadow: var(--shadow-panel)");

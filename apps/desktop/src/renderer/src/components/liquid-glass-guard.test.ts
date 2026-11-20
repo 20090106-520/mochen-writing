@@ -92,7 +92,12 @@ describe("液态玻璃 · 只给浮在内容之上的表面", () => {
       // 2026-11-10 铺开面：素材库浮层、「回到最新」胶囊、技能工坊弹层（向下开，不压 hero）。
       ".material-panel",
       ".scroll-to-bottom",
-      ".redeem-sheet"
+      ".redeem-sheet",
+      // 2026-11-20 材质刀：状态栏原先自带一份写死的 blur(8px)（不归总闸管），
+      // 左栏走的是皮肤那层玻璃（当前皮肤是素面档 ⇒ 一块不透明的纸色）。
+      // 两处收进总闸之后，一栏之内才只有一种材质。
+      ".agent-statusbar",
+      ".left-sidebar"
     ]) {
       expect(all, `缺了 ${target}`).toContain(target);
     }
@@ -110,7 +115,10 @@ describe("液态玻璃 · 只给浮在内容之上的表面", () => {
       // 铺开面进玻璃族后，基态同样不许自带毛玻璃（「关」要关得干净）。
       ["material-panel.css", ".material-panel"],
       ["conversation-pane.css", ".scroll-to-bottom"],
-      ["skill-redeem.css", ".redeem-sheet"]
+      ["skill-redeem.css", ".redeem-sheet"],
+      // 2026-11-20 材质刀：状态栏原先自己写了一份 `backdrop-filter: blur(8px)`，
+      // 不归总闸管 ⇒ 液态玻璃关掉它照样糊着，而且是第三套模糊数值。
+      ["agent-pane.css", ".agent-statusbar"]
     ];
     for (const [file, selector] of menus) {
       const source = readFileSync(path.join(SRC, "styles", file), "utf8").replace(

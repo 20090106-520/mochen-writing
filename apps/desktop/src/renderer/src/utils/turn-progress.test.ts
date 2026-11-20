@@ -119,9 +119,23 @@ describe("composeStatusLine：不递进度时旧四态逐字不变", () => {
     expect(composeStatusLine(undefined, 0, 0, 0)).toBe("就绪");
     const cut = { ...idle, endedAs: "interrupted" as const };
     expect(composeStatusLine(cut, 0, 2, 0)).toBe("已打断 · 2 条待审");
-    expect(composeStatusLine(cut, 0, 0, 0)).toBe("已打断 · 可点「继续」");
+    // 2026-11-20：状态行不再写「可点「继续」」——那句话所在的位置是纯文本，点不动。
+    // 「继续」现在是一枚真按钮（挂点判定在 utils/turn-resume.ts，渲染在中栏状态栏）。
+    expect(composeStatusLine(cut, 0, 0, 0)).toBe("已打断");
     const failed = { ...idle, endedAs: "failed" as const, lastError: "上游繁忙" };
-    expect(composeStatusLine(failed, 0, 0, 0)).toBe("上游繁忙 · 可点「继续」");
+    expect(composeStatusLine(failed, 0, 0, 0)).toBe("上游繁忙");
+  });
+
+  it("状态行不许出现点不动的承诺（2026-11-20）：「可点」三个字不许再上屏", () => {
+    const cut = { ...idle, endedAs: "interrupted" as const };
+    const failed = { ...idle, endedAs: "failed" as const, lastError: "上游繁忙" };
+    for (const line of [
+      composeStatusLine(cut, 0, 0, 0),
+      composeStatusLine(cut, 0, 2, 0),
+      composeStatusLine(failed, 0, 0, 0)
+    ]) {
+      expect(line).not.toContain("可点");
+    }
   });
 
   it("递了零进度也不能改文案（读数为零时不摆空话）", () => {
@@ -167,8 +181,6 @@ describe("composeStatusLine：递了进度才插读数，单位是人读的", ()
       "已打断 · 2 条待审"
     );
     const failed = { ...view(), endedAs: "failed" as const, lastError: "上游 503" };
-    expect(composeStatusLine(failed, 0, 0, 0, extra({ chars: 900 }))).toBe(
-      "上游 503 · 可点「继续」"
-    );
+    expect(composeStatusLine(failed, 0, 0, 0, extra({ chars: 900 }))).toBe("上游 503");
   });
 });

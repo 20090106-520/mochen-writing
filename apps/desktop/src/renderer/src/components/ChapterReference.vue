@@ -3,7 +3,9 @@ import { computed, ref, watch } from "vue";
 import AppIcon from "./AppIcon.vue";
 import SubmissionChecklist from "./SubmissionChecklist.vue";
 import { useBookStore } from "../stores/useBookStore";
+import { useStoryBibleStore } from "../stores/useStoryBibleStore";
 import { useSubmissionChecklistStore } from "../stores/useSubmissionChecklistStore";
+import { voiceBriefs } from "../utils/voice-brief";
 import {
   ambiguousOutlineText,
   briefFields,
@@ -35,6 +37,7 @@ import {
  */
 
 const book = useBookStore();
+const bible = useStoryBibleStore();
 const checklist = useSubmissionChecklistStore();
 const checkAnchor = ref<HTMLElement>();
 const collapsed = ref(false);
@@ -76,6 +79,13 @@ const namedCharacters = computed(() => {
   const value = lookup.value;
   if (value.kind !== "ok") return [];
   return mentionedCharacters(characterCards.value, outlineText(value.match.chapter));
+});
+
+/** 人物嗓音（W-09）：只摘本章提到、又在设定里写了嗓音三格的人物；空数组就不占版面。 */
+const voices = computed(() => {
+  const value = lookup.value;
+  if (value.kind !== "ok") return [];
+  return voiceBriefs(bible.activeEntries, outlineText(value.match.chapter));
 });
 
 const foreshadow = computed(() => briefForeshadows(book.foreshadowRows, activeRelPath.value));
@@ -201,6 +211,16 @@ const sourceLabel = computed(() => {
           <ul v-else class="chapter-brief-people">
             <li v-for="name in namedCharacters" :key="name" class="chapter-brief-person">
               {{ name }}
+            </li>
+          </ul>
+        </div>
+
+        <div v-if="voices.length > 0" class="chapter-brief-block">
+          <p class="chapter-brief-label">人物嗓音</p>
+          <ul class="chapter-brief-voices">
+            <li v-for="one in voices" :key="one.name" class="chapter-brief-voice-row">
+              <span class="chapter-brief-voice-name">{{ one.name }}</span>
+              <span class="chapter-brief-voice">{{ one.line }}</span>
             </li>
           </ul>
         </div>

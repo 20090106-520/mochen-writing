@@ -50,6 +50,9 @@ const editTags = ref("");
 const editColor = ref<string | undefined>(undefined);
 const editAliases = ref("");
 const editRole = ref("");
+const editVoice = ref("");
+const editTaboo = ref("");
+const editArc = ref("");
 const editParentLocation = ref("");
 const editEventDate = ref("");
 const editImportance = ref<"high" | "medium" | "low">("medium");
@@ -107,6 +110,9 @@ function startEdit(entry: BibleEntry): void {
   if (entry.type === "character") {
     editAliases.value = (entry.aliases ?? []).join(", ");
     editRole.value = entry.role ?? "";
+    editVoice.value = entry.voice ?? "";
+    editTaboo.value = entry.taboo ?? "";
+    editArc.value = entry.arc ?? "";
   }
   if (entry.type === "location") {
     editParentLocation.value = entry.parentLocation ?? "";
@@ -135,6 +141,10 @@ function saveEdit(): void {
   if (entry.type === "character") {
     partial.aliases = parseTags(editAliases.value);
     partial.role = editRole.value.trim() || undefined;
+    // W-09 三格：留空就删掉（undefined），不做「空字符串也算设定」的半吊子状态。
+    partial.voice = editVoice.value.trim() || undefined;
+    partial.taboo = editTaboo.value.trim() || undefined;
+    partial.arc = editArc.value.trim() || undefined;
   }
   if (entry.type === "location") {
     partial.parentLocation = editParentLocation.value.trim() || undefined;
@@ -373,6 +383,34 @@ const importanceLabel: Record<string, string> = {
                     placeholder="主角 / 反派 / 配角"
                   />
                 </div>
+                <!-- W-09 嗓音三格：写下来就会带进这一章的上下文，不写不影响老存档 -->
+                <div class="bible-edit-field">
+                  <label>说话风格</label>
+                  <input
+                    v-model="editVoice"
+                    type="text"
+                    class="bible-input"
+                    placeholder="寡言、短句、从不说「请」"
+                  />
+                </div>
+                <div class="bible-edit-field">
+                  <label>绝不会做</label>
+                  <input
+                    v-model="editTaboo"
+                    type="text"
+                    class="bible-input"
+                    placeholder="不哭、不求人、不解释自己"
+                  />
+                </div>
+                <div class="bible-edit-field">
+                  <label>本卷变化</label>
+                  <input
+                    v-model="editArc"
+                    type="text"
+                    class="bible-input"
+                    placeholder="从独行到肯把后背交给别人"
+                  />
+                </div>
               </template>
 
               <!-- 地点专属字段 -->
@@ -519,6 +557,18 @@ const importanceLabel: Record<string, string> = {
                 <div v-if="selectedEntry.role" class="bible-meta-item">
                   <span class="bible-meta-label">身份</span>
                   <span class="bible-meta-value">{{ selectedEntry.role }}</span>
+                </div>
+                <div v-if="selectedEntry.voice" class="bible-meta-item">
+                  <span class="bible-meta-label">说话</span>
+                  <span class="bible-meta-value">{{ selectedEntry.voice }}</span>
+                </div>
+                <div v-if="selectedEntry.taboo" class="bible-meta-item">
+                  <span class="bible-meta-label">绝不做</span>
+                  <span class="bible-meta-value">{{ selectedEntry.taboo }}</span>
+                </div>
+                <div v-if="selectedEntry.arc" class="bible-meta-item">
+                  <span class="bible-meta-label">本卷变化</span>
+                  <span class="bible-meta-value">{{ selectedEntry.arc }}</span>
                 </div>
               </div>
 

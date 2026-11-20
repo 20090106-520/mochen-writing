@@ -96,9 +96,21 @@ export function reconcileStoredSkin(settings: AppearanceSettings): {
   const unknown = [settings.light.skin, settings.dark.skin].find(
     (id) => findAppearanceSkin(id) === undefined
   );
-  if (unknown === undefined) return { settings, replacedSkinId: null };
-  return {
-    settings: patchSettingsWithSkin(settings, defaultAppearanceSkin),
-    replacedSkinId: unknown
+  if (unknown !== undefined) {
+    return {
+      settings: patchSettingsWithSkin(settings, defaultAppearanceSkin),
+      replacedSkinId: unknown
+    };
+  }
+  const reconcileVisual = (theme: AppearanceSettings["light"]): AppearanceSettings["light"] => {
+    const skin = findAppearanceSkin(theme.skin);
+    if (!skin || (theme.art === skin.art && theme.ornament === skin.ornament)) return theme;
+    return { ...theme, art: skin.art, ornament: skin.ornament };
   };
+  const light = reconcileVisual(settings.light);
+  const dark = reconcileVisual(settings.dark);
+  if (light === settings.light && dark === settings.dark) {
+    return { settings, replacedSkinId: null };
+  }
+  return { settings: { ...settings, light, dark }, replacedSkinId: null };
 }

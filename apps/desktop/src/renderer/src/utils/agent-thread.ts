@@ -272,7 +272,11 @@ export function composeStatusLine(
           ? "上一轮失败"
           : thread.lastError
         : "已打断";
-    return `${head} · ${pending > 0 ? `${pending} 条待审` : "可点「继续」"}`;
+    // 这里**不再**写「可点「继续」」（2026-11-20 · 主线第一刀）：那一句话所在的位置是
+    // 状态栏里的纯文本 `<span>`，全仓没有一枚「继续」按钮——用户点的是一句空话。
+    // 现在「继续」是一枚真按钮：挂点判定在 utils/turn-resume.ts，渲染在中栏状态栏。
+    // 状态行只负责说清「上一轮怎么了」，出口由按钮自己说。
+    return pending > 0 ? `${head} · ${pending} 条待审` : head;
   }
   if (pending > 0) return `${pending} 条待审`;
   return "就绪";

@@ -52,6 +52,10 @@ const base = {
   // 故事圣经（W-01）同理：类型先声明，哪怕默认值就是空表。
   bible: [] as BibleEntry[],
   bibleCorpus: "",
+  // 章末摘要（阶段 C）：类型先声明，默认空表 = 老书行为。
+  recaps: {} as Record<string, string>,
+  // 「本轮不带」（W-01 补完）：默认空表 = 全带，与从前逐字一致。
+  excludedBible: [] as string[],
   chapterOrder: [
     "chapters/01-开篇.md",
     "chapters/02-暗流.md",
@@ -138,6 +142,27 @@ describe("assembleContext · 装什么由 profile.context 决定", () => {
     });
     const prior = result.items.find((i) => i.relPath === "chapters/02-暗流.md")!;
     expect(prior.chars).toBeLessThanOrEqual(PRIOR_CHAPTER_TAIL_CHARS + 1);
+  });
+
+  it("有章末摘要的前情用【摘要】，不再截尾部原文", () => {
+    const result = assemble("lead-writer", {
+      contents: { ...CONTENTS, "chapters/02-暗流.md": "前".repeat(1000) },
+      recaps: { "chapters/02-暗流.md": "林夜夜探港城，拿到半张旧船票。" }
+    });
+    const prior = result.items.find((i) => i.relPath === "chapters/02-暗流.md")!;
+    expect(prior.text).toBe("【摘要】林夜夜探港城，拿到半张旧船票。");
+  });
+
+  it("摘要缺失或空串时退回尾部截取：老书行为逐字不变", () => {
+    const long = "前".repeat(1000);
+    for (const recaps of [{}, { "chapters/02-暗流.md": "   " }]) {
+      const result = assemble("lead-writer", {
+        contents: { ...CONTENTS, "chapters/02-暗流.md": long },
+        recaps
+      });
+      const prior = result.items.find((i) => i.relPath === "chapters/02-暗流.md")!;
+      expect(prior.text).toBe(long.slice(-PRIOR_CHAPTER_TAIL_CHARS));
+    }
   });
 
   it("第一章没有前情可取：只装当前章，后面的章一律不进", () => {
@@ -335,6 +360,22 @@ describe("故事圣经进入上下文（2026-11-08 W-01）", () => {
     expect(item?.text).toContain("别名：夜哥");
     expect(item?.text).toContain("设定：码头守夜人，左手有旧伤。");
     // 一条就装下了，不该报「未完整」
+    expect(result.bibleOmitted).toBeUndefined();
+  });
+
+  it("临时移除（W-01 补完）：点名的条目不进上下文，也不算「额度不够没装下」", () => {
+    const 林夜 = makeEntry({ id: "c1", type: "character", title: "林夜", content: "码头守夜人。" });
+    const 苏晚 = makeEntry({ id: "c2", type: "character", title: "苏晚", content: "账房掌柜。" });
+    const result = assemble("lead-writer", {
+      bible: [林夜, 苏晚],
+      bibleCorpus: "林夜与苏晚在码头说话。",
+      excludedBible: ["bible:character:c1"]
+    });
+    const biblePaths = paths(result.items).filter((p) => p.startsWith("bible:"));
+    expect(biblePaths).not.toContain("bible:character:c1");
+    // 只剔点名的这条：另一条照常装上，说明移除不是把整段设定关掉。
+    expect(biblePaths).toContain("bible:character:c2");
+    // 用户主动说不要，不是「额度不够」——不许补一句「信息没带全」。
     expect(result.bibleOmitted).toBeUndefined();
   });
 

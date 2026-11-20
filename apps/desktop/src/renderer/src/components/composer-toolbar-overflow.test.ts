@@ -238,12 +238,14 @@ describe("chip 行 · 首行常驻 + 更多弹层（2026-11-08 裁定，替换 2
     const TEXT_ONLY = new Set([
       "composer-chip-label", // 5-⑱ 阶梯：工具 / 调色 / 联网 / 思考四枚的标签
       "doc-context-kind", // 5-㉓ 阶梯第一级：文档胶囊的「章节 · N 字」
-      "context-meter-text", // 5-㉓ 阶梯第二级：计量读数「≈M tokens」
       // 5-㉓ 末一档：胶囊的尾巴（✕ / ›）。**它不是控件，是控件里的字形**——
       // 解除绑定靠整枚胶囊的 @click、展开靠 aria-haspopup，藏掉字形不拿走任何功能，
       // title 上那句「点击解除绑定」也还在。真正的控件（.composer-context-item 本体）
       // 仍然不在白名单里，藏一枚整枚照样红。
       "context-chevron"
+      // 2026-11-20：「context-meter-text」从白名单里撤下——占用读数那一枚搬去了状态栏，
+      // 输入卡里已经没有它，窄栏阶梯里也就没有要藏的那段字了。
+      // 留着一条「白名单里没人用的豁免」就是过期的通行证：它会让将来的某条真规则悄悄免检。
     ]);
     const hiddenClasses = (blockText: string): string[] =>
       [...blockText.matchAll(/([^{}]+)\{([^{}]*display:\s*none[^{}]*)\}/g)].flatMap((m) =>
@@ -272,9 +274,8 @@ describe("chip 行 · 首行常驻 + 更多弹层（2026-11-08 裁定，替换 2
       /\.composer-context-item \{[^}]*display:\s*none/.test(b)
     );
     expect(wholeContextItem).toEqual([]);
-    // 白名单本身不许腐化：三段都必须真的被某一档用上，否则阶梯是死规则。
+    // 白名单本身不许腐化：两段都必须真的被某一档用上，否则阶梯是死规则。
     expect(hidden.filter((c) => c === "doc-context-kind").length).toBeGreaterThan(0);
-    expect(hidden.filter((c) => c === "context-meter-text").length).toBeGreaterThan(0);
     const tpl = templateSource(COMPOSER);
     // 2026-11-08：三个区各一条循环（左端常驻 / 右端常驻 / 更多弹层），功能一枚不少。
     expect(countNeedle('v-for="chip in chips', tpl)).toBe(3);

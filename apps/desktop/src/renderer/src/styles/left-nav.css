@@ -246,6 +246,12 @@ html[data-platform="darwin"] .sidebar-brand-row {
   width: min(420px, calc(100vw - 48px));
 }
 
+/* 书稿体检是一张十一节的长报告：420px 的窄档会把读数行和表格挤成两行。
+   报告型单独放宽到与主对话框同档，窄屏仍让位；其余通知型不动。 */
+.side-nav-notice-dialog.is-report {
+  width: min(760px, calc(100vw - 48px));
+}
+
 /* 数据统计表：真实数字（篇数 / 字数来自扫描元数据），右列等宽对齐。 */
 .stats-table {
   width: 100%;
@@ -281,9 +287,17 @@ html[data-platform="darwin"] .sidebar-brand-row {
   font-size: 0.857143rem;
 }
 
-/* 书稿体检的四段小节头（2026-10-10）：术语疑似 / 标点硬伤 / 重复句 / 角色出场。 */
+/* 书稿体检每节的小节头（2026-11-17 改为吸顶）：报告有十一节，滚到中段时
+   必须一眼知道自己在看哪一节。这行字不可点，它盖住的那条表格也看不见；
+   别给它 `pointer-events: none`——那会让点击穿透到被遮住的行上（dialog.css 记过 sticky 的坑）。 */
 .stats-section-head {
-  margin: 14px 0 6px;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-inline-floor);
+  margin: 8px 0 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface-main, #ffffff);
   color: var(--text-secondary);
   font-size: 0.857143rem;
   font-weight: 600;
@@ -293,7 +307,7 @@ html[data-platform="darwin"] .sidebar-brand-row {
   margin-top: 0;
 }
 
-/* 本书腔调档案（2026-11-16）：九行只摆数不判定的读数，与下方的疑似清单分开摆。 */
+/* 本书腔调档案（2026-11-16）：十行只摆数不判定的读数，与下方的疑似清单分开摆。 */
 .stats-readout {
   margin: 0;
   padding: 6px 10px;
@@ -322,6 +336,8 @@ html[data-platform="darwin"] .sidebar-brand-row {
 .stats-readout-value {
   color: var(--text-secondary);
   overflow-wrap: anywhere;
+  /* 数字逐行进位时不左右抖：读数里全是「×20」「100%」这类会变的数。 */
+  font-variant-numeric: tabular-nums;
 }
 
 /* 体检条目可点直达原文（2026-10-10）：hover 给一点反馈，别让「能点」靠猜。 */
@@ -737,7 +753,9 @@ html[data-platform="darwin"] .sidebar-brand-row {
 
 .account-controls {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
+  /* 三列：齿轮（左端，用户裁定）+ 引导「?」+ 品牌标语（右端）。2026-11-20 加第二列时
+     一起从两列改成三列——只留两列的话，标语会掉进 1fr 那列的左边，离右边缘差出一格。 */
+  grid-template-columns: 32px 32px minmax(0, 1fr);
   align-items: center;
   gap: 4px;
   width: 100%;
@@ -753,7 +771,17 @@ html[data-platform="darwin"] .sidebar-brand-row {
   grid-column: 1;
 }
 
+/* 首次引导的入口（组件：components/SidebarHelpButton.vue）。字形是字面的「?」，
+   所以引导末步说的「左栏的「?」按钮」与屏上的东西对得上。 */
+.account-help-button {
+  grid-column: 2;
+  font-size: 0.857143rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
 .footer-tagline {
+  grid-column: 3;
   overflow: hidden;
   justify-self: end;
   color: var(--text-tertiary);

@@ -30,6 +30,7 @@ import type { BookMeta, ExportableDoc, ExportOptions, FlushQuitReply } from "@mo
 import { buildExportContent } from "@mochen/fs-store/export-service";
 import { parseFrontmatter } from "@mochen/fs-store";
 import { createAgentService } from "./agent-service.js";
+import { createChapterRecap, createRecapQueue } from "./chapter-recap.js";
 import { defaultPromptFor } from "./prompt-assembly.js";
 import { registerAgentIpc, registerProviderIpc } from "./agent-ipc.js";
 import { createAppearanceStore, registerAppearanceIpc } from "./appearance-store.js";
@@ -188,7 +189,11 @@ app.whenReady().then(async () => {
   const recentBooks = createRecentBooksStore({ dir: activeDir });
 
   registerBookIpc(ipcMain, service, {
-    onOpened: (book) => recentBooks.touch(book.rootPath, book.meta.title)
+    onOpened: (book) => {
+      const chapterCount = book.docs.filter((doc) => doc.kind === "chapter").length;
+      const totalChars = book.docs.reduce((sum, doc) => sum + (doc.chars ?? 0), 0);
+      return recentBooks.touch(book.rootPath, book.meta.title, { chapterCount, totalChars });
+    }
   });
   registerRecentBooksIpc((channel, fn) => ipcMain.handle(channel, fn), recentBooks);
   // dialog 的重载签名不好直接对接可测试的窄接口，这里做一层薄适配。
@@ -374,17 +379,33 @@ app.whenReady().then(async () => {
     }
   });
   registerPluginIpc((channel, fn) => ipcMain.handle(channel, fn), plugins);
-  const agent = createAgentService({
+  // 同一个出网实现供两处用：对话轮与章末摘要是同一条上游、同一套头形态。
+  const providerFetch = toProviderFetch((input) =>
+    fetch(input.url, {
+      method: "POST",
+      headers: input.headers,
+      body: input.body,
+      signal: input.signal
+    })
+  );
+  // 章末摘要（阶段 C3）：写盘成功后排队，纯旁路。包装层只加这一件事，BookService 其余原样透传；
+  // 挂在这里而不是 agent-service 里，是因为「写盘成功」这件事的真身就是 book.writeDoc 的返回。
+  const recapQueue = createRecapQueue({
     book: service,
+    recap: createChapterRecap({ settings, fetchImpl: providerFetch })
+  });
+  const bookWithRecap: typeof service = {
+    ...service,
+    async writeDoc(relPath, content, expectedFingerprint) {
+      const result = await service.writeDoc(relPath, content, expectedFingerprint);
+      if (result.ok) recapQueue.queue([relPath]);
+      return result;
+    }
+  };
+  const agent = createAgentService({
+    book: bookWithRecap,
     settings,
-    fetchImpl: toProviderFetch((input) =>
-      fetch(input.url, {
-        method: "POST",
-        headers: input.headers,
-        body: input.body,
-        signal: input.signal
-      })
-    ),
+    fetchImpl: providerFetch,
     emit: (payload) => win.webContents.send(IPC_CHANNELS.agentEvent, payload),
     newId: () => randomUUID(),
     isoNow: () => new Date().toISOString(),

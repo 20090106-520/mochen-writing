@@ -17,6 +17,11 @@ export interface ContextMeterSource {
   docRelPath: string | null;
   profileId: string | null;
   pinned: readonly string[];
+  /**
+   * 本轮「不带」的设定（2026-11-20 W-01 补完）：`bible:<类型>:<id>`。
+   * 可选——老调用方不传就是全带，与从前逐字一致。
+   */
+  excludedBible?: readonly string[];
 }
 
 /**
@@ -25,14 +30,22 @@ export interface ContextMeterSource {
  * 组件拿它当 watch 的源，比 watch 三个字段更省事也更好测。
  */
 export function contextMeterQueryKey(source: ContextMeterSource): string {
-  return [source.docRelPath ?? "", source.profileId ?? "", ...source.pinned].join("\u0000");
+  return [
+    source.docRelPath ?? "",
+    source.profileId ?? "",
+    ...source.pinned,
+    "\u0001",
+    ...(source.excludedBible ?? [])
+  ].join("\u0000");
 }
 
 export function contextMeterQuery(source: ContextMeterSource): ContextPreviewQuery {
   return {
     docRelPath: source.docRelPath,
     profileId: source.profileId,
-    pinned: [...source.pinned]
+    pinned: [...source.pinned],
+    // 只有真点了「不带」才带这一格：空表也照样传，主进程按「没排除」处理，数字不变。
+    ...(source.excludedBible === undefined ? {} : { excludedBible: [...source.excludedBible] })
   };
 }
 

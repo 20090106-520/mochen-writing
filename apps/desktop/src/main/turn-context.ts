@@ -7,7 +7,10 @@
  * 与 `agent:context-preview` 的占用条使用——两处必须走同一条装配路径，否则占用条就是骗人的装饰。
  *
  * P0-2 起，挂入技能只在这里取**清单行**（名称 / 用途 / 何时用），技能正文由 `use_skill` 按需读，
- * 装配层不读全文。
+ * 装配层不读全文。**唯一例外**是 2026-11-17 的自动预读：自动识别挑出「唯一榜首」时，
+ * 渲染层显式递一个 `preloadSkillId`，这里才按 id 读那一份正文（有字数上限）。
+ * 预读只是给已挂入的某一枚多递一份正文，不是第二条挂入通路——用户手挂、并列第一、
+ * 没命中都仍走原路（清单 + use_skill）。
  */
 import {
   assembleContext,
@@ -18,6 +21,7 @@ import {
   resolveProfile,
   skillBriefLine,
   skillIndexBlock,
+  SKILL_PRELOAD_MAX_CHARS,
   type AgentProfile,
   type SkillIndexResult,
   type SkillRef
@@ -44,10 +48,28 @@ export interface TurnContextDeps {
    * 技能清单（P0-2）：系统提示只放名称 / 用途 / 何时用，正文留给 `use_skill` 按需读。
    * 不给 ⇒ 挂入的技能一律算读不到，不悄悄当成「没挂技能」。
    *
-   * 装配层**不读技能正文**，所以这里没有 `readSkill`：正文那一路由工具宿主按 id 现读，
-   * 读到的仍是原来那份全文（`readSkill` 一字未改，见 doc-tools-host / index.ts）。
+   * 装配层**只为自动预读读正文**（`readPreloadSkill`），所以这里的 `readSkill` 只被那一条路用。
+   * 它复用 `index.ts` 的 `readSkillForTurn`：已剥 frontmatter 与「## 出处」、已挡书级停用——
+   * 预读不是绕开停用的后门。
    */
   listSkills?: (() => Promise<readonly SkillRef[]> | readonly SkillRef[]) | undefined;
+  /** 自动预读用的正文读取（2026-11-17）。不给 ⇒ 预读一律读不到（调用方发可见中文）。 */
+  readSkill?: ((id: string) => Promise<{ title: string; text: string }>) | undefined;
+}
+
+/** 自动预读回来的那一份正文。`clipped` 必须透传：读到的不是全部，就不装作是全部。 */
+export interface PreloadedSkill {
+  title: string;
+  text: string;
+  clipped: boolean;
+}
+
+/** 一轮技能段的四件东西：清单行、读不到的条数、库索引、预读正文。 */
+export interface SkillPack {
+  skills: PinnedSkill[];
+  missing: number;
+  skillIndex: SkillIndexResult;
+  preload: PreloadedSkill | null;
 }
 
 export interface TurnContext {
@@ -56,13 +78,18 @@ export interface TurnContext {
     docRelPath: string | null,
     profile: AgentProfile,
     pinned: readonly string[],
-    skills?: readonly PinnedSkill[]
+    skills?: readonly PinnedSkill[],
+    excludedBible?: readonly string[]
   ): Promise<AssembledContext>;
   readPinnedSkills(
     skillPaths: readonly string[]
   ): Promise<{ skills: PinnedSkill[]; missing: number }>;
   /** 「库里还有哪些技能没挂入」那一段（2026-11-10）。读不到清单时回空结果—— */
   readSkillIndex(skillPaths: readonly string[]): Promise<SkillIndexResult>;
+  /** 自动预读：读出唯一榜首那一份正文（2026-11-17）。读不到回 null，由调用方发可见中文。 */
+  readPreloadSkill(id: string): Promise<PreloadedSkill | null>;
+  /** 一轮要用的技能段一次取齐（清单 / 索引 / 预读），并行读、判据仍各在各的住处。 */
+  readSkillPack(skillPaths: readonly string[], preloadId?: string): Promise<SkillPack>;
   profileOf(book: BookSnapshot, stageId: string): AgentProfile;
 }
 
@@ -79,7 +106,8 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     docRelPath: string | null,
     profile: AgentProfile,
     pinned: readonly string[],
-    skills: readonly PinnedSkill[] = []
+    skills: readonly PinnedSkill[] = [],
+    excludedBible: readonly string[] = []
   ): Promise<AssembledContext> {
     const budget = selectBudgetDocPaths({
       scope: profile.context,
@@ -122,16 +150,24 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
       })),
       chapterOrder: book.meta.chapterOrder,
       bible,
-      bibleCorpus
+      bibleCorpus,
+      // W-01 补完：本轮被作者点名「不带」的条目在装配层剔除（不算额度不够）。
+      excludedBible,
+      // 阶段 C：有摘要的章用摘要进前情提要（缺失时装配层自动退回尾部截取）。
+      recaps: book.meta.recaps
     });
   }
 
   /**
-   * 收集用来判断「这条设定和本章有没有关系」的语料：当前章正文 + 所有章纲/大纲。
+   * 收集用来判断「这条设定和本章有没有关系」的语料：当前章正文 + 所有章纲/大纲 + 已读入上下文的章节正文（含前情）。
    *
    * 已经读过正文的篇直接从 `contents` 拿；不在预算里的只为匹配名字补读——只用于
    * `includes` 判名，不会成为上下文条目，所以不吃上下文额度。读不到就跳过，
    * 退化成「没有语料」，此时装配层按 importance 降级选取，而不是整轮失败。
+   *
+   * 2026-11-20：语料范围从「当前章 + 大纲」扩展到「当前章 + 大纲 + 已读入上下文的章节正文」。
+   * 此前如果某角色只在前情（上一章尾部）里出现而当前章正文里没有，他的设定就不会被判定为
+   * 「本章相关」——但前情正是这一轮模型看得见的文字，模型需要这份设定才能保持连贯。
    */
   async function collectBibleCorpus(
     book: BookSnapshot,
@@ -156,6 +192,11 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
         }
       })
     );
+    for (const [relPath, text] of Object.entries(contents)) {
+      if (text === "") continue;
+      const doc = book.docs.find((d) => d.relPath === relPath);
+      if (doc?.kind === "chapter" && relPath !== docRelPath) parts.push(text);
+    }
     return parts.join("\n");
   }
 
@@ -186,12 +227,26 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     return skillIndexBlock(refs, skillPaths);
   }
 
+  /** 三路并行取齐；主进程只解构，不重算任何一路的判据。 */
+  async function readSkillPack(
+    skillPaths: readonly string[],
+    preloadId?: string
+  ): Promise<SkillPack> {
+    const [{ skills, missing }, skillIndex, preload] = await Promise.all([
+      readPinnedSkills(skillPaths),
+      readSkillIndex(skillPaths),
+      preloadId === undefined ? Promise.resolve(null) : readPreloadSkill(preloadId)
+    ]);
+    return { skills, missing, skillIndex, preload };
+  }
+
   /**
    * 把渲染层传来的 `skillPaths` 解析成**清单行**（P0-2）。
    *
    * 只列清单、不读正文：技能正文由 `use_skill` 按 id 按需读取，系统提示里只留
    * 名称（id）/ 一句话用途 / 阶段与文稿。这样「挂 12 条技能」也不再把整份 SKILL.md 塞进提示词；
    * 而 `use_skill` 读到的仍是原来那份全文（读取通路 `readSkill` 一字未改）。
+   * （自动预读是唯一例外，走 `readPreloadSkill`，不经过这里。）
    * 清单行不写读法（同一句挂几条就复读几遍）：读法由 `SKILL_HINT` 在上下文包末尾说一次。
    *
    * 读不到的**不静默**：回一句「有 N 个挂入技能读不到，已跳过」，调用方把它发成 error 事件。
@@ -234,5 +289,44 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     });
   }
 
-  return { assembleFor, readPinnedSkills, readSkillIndex, profileOf };
+  /**
+   * 自动预读：把「唯一榜首」那一份技能的正文读出来（2026-11-17）。
+   *
+   * 【为什么这里破例读正文】P0-2 的边界是「清单进提示、正文按需读」，为的是挂 12 条也不吃额度。
+   * 而自动识别挑出唯一榜首时，「按需」已经确定发生——模型下一步必然要读它。先读一步省掉一轮往返，
+   * 代价被 `SKILL_PRELOAD_MAX_CHARS` 封住（一份方法的主体，不是整座技能库）。
+   *
+   * 【读不到为什么不抛】预读是锦上添花：读失败不该让整轮起不来。回 null，调用方发一句可见中文，
+   * 这一轮退回原路（清单 + use_skill）照常跑。
+   */
+  async function readPreloadSkill(id: string): Promise<PreloadedSkill | null> {
+    if (deps.readSkill === undefined) return null;
+    let one: { title: string; text: string };
+    try {
+      one = await deps.readSkill(id);
+    } catch {
+      return null;
+    }
+    const text = one.text.trim();
+    // 只剩 frontmatter / 空文件的坏技能：宁可不预读，也不递一段空白让模型以为「方法就是没有」。
+    if (text === "") return null;
+    const chars = [...text];
+    if (chars.length <= SKILL_PRELOAD_MAX_CHARS) {
+      return { title: one.title, text, clipped: false };
+    }
+    return {
+      title: one.title,
+      text: chars.slice(0, SKILL_PRELOAD_MAX_CHARS).join(""),
+      clipped: true
+    };
+  }
+
+  return {
+    assembleFor,
+    readPinnedSkills,
+    readSkillIndex,
+    readPreloadSkill,
+    readSkillPack,
+    profileOf
+  };
 }

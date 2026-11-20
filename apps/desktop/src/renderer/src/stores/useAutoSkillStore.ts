@@ -4,7 +4,7 @@ import { useAgentStore, threadKeyFor } from "./useAgentStore";
 import { useBookStore } from "./useBookStore";
 import { activeStageOf } from "../utils/composer-context";
 import { candidateOf, type SkillPick } from "../utils/skill-pick";
-import { autoSkillPlanOf, sameSkillIds } from "../utils/skill-auto";
+import { autoSkillPlanOf, preloadSkillIdOf, sameSkillIds } from "../utils/skill-auto";
 
 /**
  * 自动识别 / 自动挂入技能（2026-11-09 用户裁定）。
@@ -62,6 +62,13 @@ export const useAutoSkillStore = defineStore("autoSkill", {
     },
     picksOf(state) {
       return (threadKey: string): SkillPick[] => state.picksByThread[threadKey] ?? [];
+    },
+    /**
+     * 这一轮该预读哪一份正文（2026-11-17）：判据在 utils/skill-auto.ts 的
+     * `preloadSkillIdOf`，这里只把线程的榜单递过去。空串 = 不预读。
+     */
+    preloadIdOf(state) {
+      return (threadKey: string): string => preloadSkillIdOf(state.picksByThread[threadKey] ?? []);
     }
   },
   actions: {

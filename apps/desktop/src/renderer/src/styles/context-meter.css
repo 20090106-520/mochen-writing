@@ -6,6 +6,49 @@
   font-variant-numeric: tabular-nums;
 }
 
+/**
+ * 状态栏那一枚（2026-11-20 · 主线第一刀）：占用读数从绑定条搬到了**状态栏**。
+ *
+ * 【为什么搬】绑定条只在「空线程」时显形（`showContextBar = hasBook && threadEmpty`），
+ * 于是写稿真正需要这个读数的那段时间——对话已经开始、正文越写越长——它恰好不在。
+ * 状态栏是常驻的那一行（「就绪 / 上一轮已完成 · 本轮 1,840 字 · 3 条待审」），
+ * 作者每轮结束都会扫它一眼，读数落在那里才对。
+ *
+ * 【形态】状态栏是细条，所以这一枚是**读数**不是胶囊：不常驻边框，悬停/展开才给底色。
+ * 宽度上限留着（12em），免得一句长读数把状态栏撑开、把左边的状态行挤走。
+ */
+.context-meter--compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  max-width: 12em;
+  margin-left: auto;
+  padding: 1px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.785714rem;
+}
+
+.context-meter--compact:hover,
+.context-meter--compact[aria-expanded="true"] {
+  border-color: var(--theme-line);
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/* 读数本身可缩 + 省略号：装不下时截字，不许把字画到图标上（5-㉓ 那一处的老教训）。 */
+.context-meter--compact .context-meter-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .context-meter-panel {
   z-index: var(--z-menu);
   display: flex;

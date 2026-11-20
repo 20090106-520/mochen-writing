@@ -8,16 +8,20 @@
    比逐条 `backdrop-filter: none` 干净，也不会因为漏写一条而半开半关。
 
    【只给浮在内容之上的表面】
-   输入卡、弹出菜单、检查浮层、对话框、标题带、状态提示。
+   输入卡、弹出菜单、检查浮层、对话框、标题带、状态提示、侧栏。
    正文阅读区（`.message-body` / `.message-markdown` / 编辑器正文）**刻意不在此列**：
    长文压在玻璃上会掉对比度与清晰度，这是材质边界，不是漏改。
 
    【性能取舍】
    ① 模糊只落在这几类表面本身，不往子元素上叠——同一块玻璃上永远只有一层 backdrop-filter。
    ② 模糊上限 20px（在 TS 参数表里封顶），没有大面积铺满整屏的玻璃。
+      侧栏是本族里最大的一块（286×902），它背后的插画是静态背景，
+      糊它不吃逐帧重绘的代价——真机量过，不掉帧。
    ③ 对话框不重复模糊：`.dialog-backdrop` 已经把整窗糊过一次，
       再在弹窗自己身上加一层 backdrop-filter 只是把同一件事做两遍。
-   ④ 标题带不加模糊：它下面压的是本栏自己的不透明底，糊了也看不出差别，白付 GPU。
+   ④ **玻璃背后必须有东西**（2026-11-20 材质刀补）：`backdrop-filter` 糊的是
+      「自己背后的那一层」。背后是纯色纸时，blur 只是把纯色搅匀，屏上什么都读不出来。
+      ⇒ 输入区那一圈不许再铺不透明纸色；栏头底下是半透明的插画纱，糊下去才看得出差别。
    ⑤ 系统开了「减少透明度」或「增强对比度」时整族退回不透明底；
       「减少动效」时去掉高光位移的过渡。 */
 
@@ -48,7 +52,11 @@ html[data-liquid-glass="on"] .toast,
       「更多」弹层与 `/` 菜单的排除理由（向上开正压 hero）在这里不成立。 */
 html[data-liquid-glass="on"] .material-panel,
 html[data-liquid-glass="on"] .scroll-to-bottom,
-html[data-liquid-glass="on"] .redeem-sheet {
+html[data-liquid-glass="on"] .redeem-sheet,
+/* 状态栏（2026-11-20 材质刀）：原先它自带一份写死的 `blur(8px)`，不归总闸管——
+   液态玻璃关掉它照样糊着，而且用的是第三套模糊数值。
+   收进族里之后，栏头 / 状态栏 / 输入卡读成同一种材质。 */
+html[data-liquid-glass="on"] .agent-statusbar {
   border-color: var(--lg-ring);
   background-color: var(--lg-fill);
   /* 两层渐变：一条斜向光带 + 左上角镜面反光。位置与尺寸让位移只挪光、不挪盒子。 */
@@ -79,7 +87,28 @@ html[data-liquid-glass="on"] .workspace-dialog {
   box-shadow: var(--lg-shadow);
 }
 
-/* 标题带：只加一层薄薄的玻璃底色与光，不加模糊（底下是本栏的不透明底）。 */
+/* 侧栏（2026-11-20 材质刀）：左栏原先走的是**皮肤那层**玻璃（`--skin-glass-*`），
+   而当前皮肤是素面档（blur 0px / alpha 0）⇒ 左栏是一块完全不透明的纸色，
+   与中栏那些液态玻璃的表面**读不出是同一套材质**（真机截图：左栏与中栏之间
+   是一道硬边，像两张不同的纸拼在一起）。
+   ⇒ 总闸开着时左栏也进这一族：它背后是整窗那层插画，有东西可折射。
+   **不给 box-shadow**：侧栏贴着窗口左缘，投影会被窗框裁掉，白付 GPU。 */
+html[data-liquid-glass="on"] .left-sidebar {
+  border-color: var(--lg-ring);
+  background-color: var(--lg-fill);
+  background-image: var(--lg-sheen);
+  background-position: var(--lg-sheen-rest);
+  background-repeat: no-repeat;
+  background-size: 180% 180%;
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+}
+
+/* 标题带：加一层薄薄的玻璃底色与光。
+   【2026-11-20 材质刀：原先刻意不加模糊，那条理由已经过期】
+   当时的理由是「它下面压的是本栏自己的不透明底，糊了也看不出差别」——
+   但现在底下压着的是 `.conversation-scroll` 那层**半透明**的插画纱
+   （真机量到 0.76 alpha），糊下去能看见插画的轮廓真的被揉开了。
+   ⇒ 模糊加上，栏头与它下面的内容读成同一块玻璃面。 */
 html[data-liquid-glass="on"] .conversation-header,
 html[data-liquid-glass="on"] .editor-header {
   background-color: var(--lg-fill);
@@ -88,6 +117,24 @@ html[data-liquid-glass="on"] .editor-header {
   background-repeat: no-repeat;
   background-size: 180% 180%;
   border-bottom-color: var(--lg-ring);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+}
+
+html[data-liquid-glass="on"] .welcome-shortcut,
+html[data-liquid-glass="on"] .view-tabs {
+  border-color: var(--lg-ring);
+  background-color: var(--lg-fill);
+  background-image: var(--lg-sheen);
+  background-position: var(--lg-sheen-rest);
+  background-repeat: no-repeat;
+  background-size: 180% 180%;
+  box-shadow: inset 0 1px 0 var(--lg-specular);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+}
+
+html[data-liquid-glass="on"] .welcome-shortcut:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--lg-ring));
+  background-position: var(--lg-sheen-hover);
 }
 
 /* hover / 聚焦：高光沿斜向位移一档、阴影抬一档。只动 background-position 与 box-shadow，
@@ -152,6 +199,19 @@ html[data-liquid-glass="on"] .composer-input-surface:active {
   box-shadow: var(--lg-shadow-press);
 }
 
+html[data-liquid-glass="on"] .composer-input-surface {
+  /* 圆角归并回阶梯的 16px（2026-11-20 圆角刀）：基线裁定就是 16px
+     （agent-pane.css「参考图②：大圆角收到 16px」），底条 `.composer-project-row`
+     下沿也是 16px——这里一度写成 18px，既越出圆角阶梯，又让玻璃开启时
+     卡与底条的圆角错位。玻璃改的是材质，不改卡的形状。 */
+  border-radius: 16px;
+}
+
+html[data-liquid-glass="on"] .nav-row.is-active {
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 72%, transparent);
+}
+
 /* 检查浮层与对话框只在「获得焦点/被操作」时抬一档，避免大面积阴影常驻。 */
 html[data-liquid-glass="on"] .review-score:hover,
 html[data-liquid-glass="on"] .ai-slop:hover,
@@ -183,10 +243,21 @@ html[data-liquid-glass="on"] .workspace-dialog:focus-within {
   html[data-liquid-glass="on"] .toast,
   html[data-liquid-glass="on"] .material-panel,
   html[data-liquid-glass="on"] .scroll-to-bottom,
-  html[data-liquid-glass="on"] .redeem-sheet {
+  html[data-liquid-glass="on"] .redeem-sheet,
+  html[data-liquid-glass="on"] .welcome-shortcut,
+  html[data-liquid-glass="on"] .view-tabs,
+  html[data-liquid-glass="on"] .agent-statusbar {
     background-color: var(--surface-card);
     background-image: none;
     box-shadow: var(--shadow-md);
+    backdrop-filter: none;
+  }
+
+  /* 侧栏退回的是**它自己那一栏**的底色，不是卡片色：卡片色比纸面亮一档，
+     侧栏整条亮起来读作「一根发光的柱子」。 */
+  html[data-liquid-glass="on"] .left-sidebar {
+    background-color: var(--surface-raised);
+    background-image: none;
     backdrop-filter: none;
   }
 
@@ -224,7 +295,9 @@ html[data-liquid-glass="on"] .workspace-dialog:focus-within {
   html[data-liquid-glass="on"] .toast,
   html[data-liquid-glass="on"] .material-panel,
   html[data-liquid-glass="on"] .scroll-to-bottom,
-  html[data-liquid-glass="on"] .redeem-sheet {
+  html[data-liquid-glass="on"] .redeem-sheet,
+  html[data-liquid-glass="on"] .agent-statusbar,
+  html[data-liquid-glass="on"] .left-sidebar {
     transition: none;
   }
 }

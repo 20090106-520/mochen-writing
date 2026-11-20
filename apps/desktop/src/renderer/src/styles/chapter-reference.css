@@ -164,6 +164,35 @@
   line-height: 1.5;
 }
 
+/* W-09 人物嗓音：一条一行，名字在上、摘要在下，窄栏也不挤成一团。 */
+.chapter-brief-voices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.chapter-brief-voice-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.chapter-brief-voice-name {
+  color: var(--text-primary, #23262b);
+  font-size: 0.785714rem;
+  line-height: 1.5;
+}
+
+.chapter-brief-voice {
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  line-height: 1.5;
+}
+
 .chapter-brief-foreshadows {
   margin: 0;
   padding: 0;

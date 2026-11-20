@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ESCAPE_POLICY_SUMMARY, HOTKEY_GUIDE } from "./hotkey-guide";
+import { resolveHotkey, type HotkeyFocus } from "./hotkeys";
 
 const UTILS_DIR = fileURLToPath(new URL("./", import.meta.url));
 const hotkeysSource = readFileSync(join(UTILS_DIR, "hotkeys.ts"), "utf8");
@@ -64,5 +65,54 @@ describe("hotkey-guide 每一行都能在判定层源码里找到锚点", () => 
         expect(row.keys).not.toContain("Ctrl+");
       }
     }
+  });
+
+  /**
+   * 2026-11-20（批次①）：速查表最后一行原是「Ctrl Alt F → 专注模式」。
+   * 那是个**死行**——专注模式 2026-10-05 整条下线（hotkeys.test.ts 已钉住 Ctrl+Alt+F 解析为 none），
+   * 而判定层根本没有 Ctrl+Alt 这一族分支（Ctrl+Alt 一律落到 none）。
+   * 更阴的是它的 needle 写的是 `k === "f"`，那串字命中的是 **Ctrl+F**（文内查找）那一行——
+   * 于是 needle 契约「看着是绿的」，屏上却教着一枚按不出来的键。
+   *
+   * 这条禁令按**族**钉，而不是按这一行钉：判定层支持的只有裸键 / Ctrl / Ctrl+Shift，
+   * 所以速查表里任何一行带 Ctrl+Alt 都是死行。
+   */
+  it("速查表里不许出现 Ctrl+Alt 组合：判定层没有这一族分支（Ctrl+Alt 落到 none）", () => {
+    for (const group of HOTKEY_GUIDE) {
+      for (const row of group.rows) {
+        expect(
+          row.keys,
+          `「${group.title} · ${row.keys}」是死行：判定层没有 Ctrl+Alt 这一族，按下去什么都不会发生`
+        ).not.toMatch(/Ctrl\s*Alt/i);
+      }
+    }
+  });
+
+  it("已下线的功能不许留在速查表里（专注模式 2026-10-05 整条下线）", () => {
+    const labels = HOTKEY_GUIDE.flatMap((group) => group.rows.map((row) => row.label));
+    expect(labels.some((label) => label.includes("专注模式"))).toBe(false);
+  });
+
+  it("文内查找（Ctrl F）得在表里：判定层有这一条，表漏了作者就无从知道", () => {
+    const rows = HOTKEY_GUIDE.flatMap((group) => group.rows);
+    const find = rows.find((row) => row.keys === "Ctrl F");
+    expect(find, "速查表里没有「Ctrl F」这一行").toBeDefined();
+    // 真身确实存在：Ctrl+F 解析成 open-find-replace，不是 none。
+    const focus: HotkeyFocus = {
+      composerIsFocused: false,
+      composerHasText: false,
+      textInputIsFocused: false,
+      proposalIsFocused: false,
+      proposalIsPending: false,
+      turnRunning: false,
+      isComposing: false,
+      hasBook: false,
+      tabCount: 0,
+      referenceMenuIsOpen: false,
+      submitKey: "enter"
+    };
+    expect(
+      resolveHotkey(focus, "f", { ctrl: true, shift: false, alt: false, meta: false }).action
+    ).toBe("open-find-replace");
   });
 });

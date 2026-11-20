@@ -766,11 +766,15 @@ html[data-theme="dark"] .document-editor:focus-visible {
   min-width: 0;
   gap: 8px;
   overflow: hidden;
+  /* 空间不够时硬切会把最后一枚胶囊截成半个字；右端 14px 渐隐，看起来像有意收起。 */
+  mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
   color: var(--text-faint);
 }
 
 .style-chip {
   white-space: nowrap;
+  /* 页脚读数随输入实时变：等宽数字，数字位数变化时后面的胶囊不跟着平移。 */
+  font-variant-numeric: tabular-nums;
 }
 
 .style-chip-label {

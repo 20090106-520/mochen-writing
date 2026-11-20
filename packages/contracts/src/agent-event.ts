@@ -3,7 +3,7 @@ import type { DraftReading } from "./draft-rank.js";
 import { draftSampleCountSchema } from "./draft-rank.js";
 import { editProposalSchema, PROPOSAL_DECISIONS } from "./patch.js";
 import { thinkingLevelSchema } from "./per-run.js";
-import { skillPathsSchema } from "./skill.js";
+import { SKILL_PATH_MAX_LEN, skillPathsSchema } from "./skill.js";
 
 const id = z.string().min(1);
 const ts = z.string().min(1);
@@ -246,6 +246,17 @@ export const startTurnInputSchema = z
      */
     skillPaths: skillPathsSchema,
     /**
+     * 本轮自动预读正文的那一份技能 id（2026-11-17，可选）。
+     *
+     * 自动识别只在「榜首唯一领先」时传它，主进程据此把该技能**正文**注入系统提示，
+     * 省掉「模型先 use_skill 再动笔」的一轮往返。可选：不传 ⇒ 与从前逐字一致
+     * （用户手挂、并列第一、没命中都不预读）。
+     *
+     * 它必须同时出现在 `skillPaths` 里（渲染层保证）——预读只是给已挂入的某一枚
+     * 多递一份正文，不是第二条挂入通路；主进程不为此再加一份交叉校验。
+     */
+    preloadSkillId: z.string().min(1).max(SKILL_PATH_MAX_LEN).optional(),
+    /**
      * 本轮的采样稿数（P0-②）：1 = 关（行为一字不变），2 / 3 = 一轮里静默跑几稿。
      * **必填、无默认值**：与上两枚每轮开关同一条理由——缺字段就是渲染层忘了传，
      * 在边界上炸中文，比悄悄按「关」发出去好查得多。
@@ -257,7 +268,16 @@ export const startTurnInputSchema = z
      * 用字符串而不是枚举：工具名还有插件注册进来的那一批，枚举表只在 agent-runtime 的花名册里。
      * 多余/不存在的名字由 runtime 按「不在本轮清单里」自然忽略，不必在这里逐条校验。
      */
-    disabledTools: z.array(z.string().max(80, "工具名过长（最多 80 字）")).max(64).optional()
+    disabledTools: z.array(z.string().max(80, "工具名过长（最多 80 字）")).max(64).optional(),
+    /**
+     * 本轮临时移除的设定（2026-11-20 W-01 补完，可选）：值是 `bible:<类型>:<id>`。
+     * 不传 ⇒ 与从前逐字一致（装配照常带入）。条目不存在 / 已被删掉的名字自然忽略，
+     * 由装配层按「不在清单里」处理，这里不逐条校验。
+     */
+    excludedBible: z
+      .array(z.string().max(160, "设定条目标识过长（最多 160 字）"))
+      .max(200)
+      .optional()
   })
   .superRefine((value, ctx) => {
     if (value.threadKey.trim() === "" && value.docRelPath !== null)

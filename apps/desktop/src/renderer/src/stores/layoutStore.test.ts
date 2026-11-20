@@ -5,6 +5,7 @@ import { createPinia, setActivePinia, storeToRefs } from "pinia";
 import { isReactive, nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RIGHT_PANE_PREFERENCES_STORAGE_KEY } from "../utils/rightPanePreferences";
+import { PANE_LAYOUT_PREFERENCES_STORAGE_KEY } from "../utils/pane-layout-preferences";
 import {
   NARROW_AUTO_COLLAPSE_WIDTH,
   RIGHT_PANE_MAX,
@@ -574,5 +575,115 @@ describe("layout store", () => {
     expect(runtime.animationFrames).toHaveLength(1);
     runtime.animationFrames.shift()?.(16);
     expect(store.paneTransitionSuppressed).toBe(false);
+  });
+});
+
+/**
+ * 面板开合态跨重启记忆（2026-11-20 · 主线第一刀）。
+ *
+ * 症状：用户把右栏收起来（或者展开），关掉应用再开，两栏都回到默认——
+ * 于是每天开工都要重摆一遍布局。
+ *
+ * 这一族钉的是三件事：
+ *   ① 启动时读回用户上次的样子（左栏、右栏、手动闸门）；
+ *   ② **手动优先**这条纪律没被改：没手动动过右栏的，仍由自动策略按视口宽度决定；
+ *   ③ 用户动过就落盘（自动策略收放不落盘——那不是用户的意思）。
+ */
+describe("开合态跨重启记忆", () => {
+  function storedLayout(runtime: ReturnType<typeof installRuntime>, value: unknown): void {
+    runtime.storage.setItem(PANE_LAYOUT_PREFERENCES_STORAGE_KEY, JSON.stringify(value));
+  }
+
+  it("启动时读回用户上次的样子：左栏收着、右栏收着", () => {
+    const runtime = installRuntime(1400);
+    storedLayout(runtime, {
+      version: 1,
+      leftCollapsed: true,
+      rightCollapsed: true,
+      rightPaneManuallyToggled: true
+    });
+    const store = useLayoutStore();
+
+    expect(store.leftCollapsed).toBe(true);
+    expect(store.rightCollapsed).toBe(true);
+    expect(store.rightPaneManuallyToggled).toBe(true);
+  });
+
+  it("用户手动**展开**过右栏 ⇒ 下次启动也是展开的（不只记「收起来」那一种）", () => {
+    const runtime = installRuntime(1400);
+    storedLayout(runtime, {
+      version: 1,
+      leftCollapsed: false,
+      rightCollapsed: false,
+      rightPaneManuallyToggled: true
+    });
+    const store = useLayoutStore();
+
+    expect(store.rightCollapsed).toBe(false);
+    expect(store.rightPaneManuallyToggled).toBe(true);
+  });
+
+  it("没手动动过右栏 ⇒ 仍由自动策略按视口宽度决定（手动优先这条纪律一个字没改）", () => {
+    const runtime = installRuntime(1400);
+    // 存着 rightCollapsed: true，但手动闸门是 false ⇒ 这不是用户的意思，不作数。
+    storedLayout(runtime, {
+      version: 1,
+      leftCollapsed: false,
+      rightCollapsed: true,
+      rightPaneManuallyToggled: false
+    });
+    const store = useLayoutStore();
+
+    expect(store.rightCollapsed).toBe(shouldAutoCollapseRightPane(1400));
+    expect(store.rightPaneManuallyToggled).toBe(false);
+  });
+
+  it("窄窗里没手动动过 ⇒ 自动收着（自动策略仍然是窄窗那一档）", () => {
+    installRuntime(NARROW_AUTO_COLLAPSE_WIDTH - 10);
+    const store = useLayoutStore();
+
+    expect(store.rightCollapsed).toBe(true);
+  });
+
+  it("用户手动收右栏 ⇒ 落盘（含手动闸门：不落它，下次启动会被自动策略推回去）", () => {
+    const runtime = installRuntime(1400);
+    const store = useLayoutStore();
+
+    store.setPaneCollapsed("right", true);
+
+    expect(
+      JSON.parse(runtime.storage.getItem(PANE_LAYOUT_PREFERENCES_STORAGE_KEY) ?? "{}")
+    ).toEqual({
+      version: 1,
+      leftCollapsed: false,
+      rightCollapsed: true,
+      rightPaneManuallyToggled: true
+    });
+  });
+
+  it("用户手动收左栏 ⇒ 落盘", () => {
+    const runtime = installRuntime(1400);
+    const store = useLayoutStore();
+
+    store.setPaneCollapsed("left", true);
+
+    expect(
+      JSON.parse(runtime.storage.getItem(PANE_LAYOUT_PREFERENCES_STORAGE_KEY) ?? "{}")
+    ).toEqual({
+      version: 1,
+      leftCollapsed: true,
+      rightCollapsed: false,
+      rightPaneManuallyToggled: false
+    });
+  });
+
+  it("自动策略收放右栏**不落盘**：那不是用户的意思，存下来会变成假的用户选择", () => {
+    const runtime = installRuntime(1400);
+    const store = useLayoutStore();
+
+    store.setRightCollapsedByEmptyBook(true);
+
+    expect(store.rightCollapsed).toBe(true);
+    expect(runtime.storage.getItem(PANE_LAYOUT_PREFERENCES_STORAGE_KEY)).toBeNull();
   });
 });

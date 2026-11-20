@@ -12,9 +12,11 @@ import {
 } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
 import AgentTimeline from "./AgentTimeline.vue";
+import AutoCheckupCard from "./AutoCheckupCard.vue";
 import ProposalCard from "./ProposalCard.vue";
 import ComposerBox from "./ComposerBox.vue";
 import DraftCandidates from "./DraftCandidates.vue";
+import ContextMeter from "./ContextMeter.vue";
 import ToolRoster from "./ToolRoster.vue";
 import ModelSelect from "./ModelSelect.vue";
 import BookWorkbench from "./BookWorkbench.vue";
@@ -46,6 +48,7 @@ import {
   type ThreadView
 } from "../stores/useAgentStore";
 import { assistantEmotion } from "../utils/emotion-signal";
+import { resumeAffordanceOf } from "../utils/turn-resume";
 import { isStuckToBottom, streamKey, type ScrollMetrics } from "../utils/stick-to-bottom";
 import { useNotificationStore } from "../stores/useNotificationStore";
 import { PREFILL_NOTICE } from "../utils/message-actions";
@@ -326,6 +329,20 @@ const statusLine = computed(() =>
   )
 );
 const ready = computed(() => book.hasBook);
+
+/**
+ * 「继续」这一枚钮的挂点判定（2026-11-20 · 主线第一刀）。
+ *
+ * 状态行原来写着「已打断 · 可点「继续」」，而那句话是纯文本 `<span>`——全仓没有一枚
+ * 「继续」按钮，作者被一句点不动的话晾在原地。现在这枚是真能点的：
+ * 把上一句用户指令原样再发一次（同一线程，带着上文）。
+ *
+ * 判定只有一份（utils/turn-resume.ts 的 `resumeAffordanceOf`），这里只读它、只派发。
+ */
+const resumeAffordance = computed(() => resumeAffordanceOf(thread.value));
+function resumeTurn(): void {
+  agent.resumeLastTurn();
+}
 
 // 顶栏标题报的是**当前档案的名字**（墨宸 · 主笔 / 墨宸 · 审稿…），
 // 不再是「正文智能体」那种 `${stage.name}智能体` 的功能泛称——
@@ -640,6 +657,9 @@ onBeforeUnmount(() => {
           </details>
 
           <p v-if="orphanError" class="turn-error">{{ orphanError }}</p>
+
+          <!-- 写后自动体检：只在真的写过、且查出东西时出现（store 已把「没跑过」与「跑过没毛病」分开）。 -->
+          <AutoCheckupCard :thread-key="threadKey" />
         </div>
       </div>
 
@@ -663,6 +683,18 @@ onBeforeUnmount(() => {
 
     <div class="agent-statusbar">
       <span class="status-line">{{ statusLine }}</span>
+      <!-- 「继续」这一枚（2026-11-20）：上一轮收得不好时给一条真出口。
+           它在状态栏里而不是时间线上，因为状态栏本来就是"上一轮怎么了"的那一行；
+           悬停说明写清这一下会发生什么（重发上一句），不许让它变成一句黑箱按钮。 -->
+      <button
+        v-if="resumeAffordance"
+        class="status-action status-action-resume"
+        type="button"
+        :title="resumeAffordance.title"
+        @click="resumeTurn"
+      >
+        {{ resumeAffordance.label }}
+      </button>
       <span v-if="book.notice" class="status-note">{{ book.notice }}</span>
       <span v-if="agent.notice" class="status-note status-note-agent">{{ agent.notice }}</span>
       <!-- 落盘失败不能只报不救：查看是哪几份、再存一次，都在这条状态栏上。 -->
@@ -673,6 +705,11 @@ onBeforeUnmount(() => {
           {{ flushRetrying ? "正在重试…" : "重试保存" }}
         </button>
       </span>
+      <!-- 上下文占用读数（2026-11-20 · 主线第一刀）：原先挂在输入卡上方的绑定条里，
+           而绑定条只在「这一格还没有消息」时显形——于是对话一开始，这个读数就永久消失，
+           而那恰恰是长会话最需要它的时候（这一轮还能塞下多少）。
+           状态栏是常驻的那一行：作者每轮结束都会扫它一眼，读数落在这里才对。 -->
+      <ContextMeter />
     </div>
 
     <ComposerBox

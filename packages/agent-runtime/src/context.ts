@@ -5,6 +5,7 @@ import {
   castNames,
   contextKindLabel,
   parseCharacterCard,
+  recapOf,
   splitFrontmatter
 } from "@mochen/contracts";
 
@@ -70,6 +71,23 @@ export interface AssembleContextInput {
    * importance 降级选取。语料只用于判名，不会成为上下文条目，所以不吃上下文额度。
    */
   bibleCorpus?: string;
+  /**
+   * 章末摘要（`book.json` 的 `recaps`，2026-11-17 spec 阶段 C）：relPath → 事实摘要。
+   * 有摘要的章用「【摘要】+ 摘要」，没有的仍截尾部原文——判据只在 contracts 的 `recapOf`。
+   */
+  recaps?: Readonly<Record<string, string>> | undefined;
+  /**
+   * 本轮临时移除的设定（2026-11-20 W-01 补完）：值是 `bible:<类型>:<id>`（与预览条目同形，
+   * 判据只有 `bibleKeyOf` 一处）。被点名的条目在排序**之前**就剔掉——它们不是「额度不够没装下」，
+   * 不计入 `bibleOmitted`，否则提示词会补一句「信息没带全」而其实是用户主动说不要。
+   * 只在这一次请求里有效（渲染层不落盘）；缺省 ⇒ 与从前逐字一致。
+   */
+  excludedBible?: readonly string[] | undefined;
+}
+
+/** 设定条目的上下文 relPath 形状：`bible:<类型>:<id>`。占用条与「本轮不带」共用这一份。 */
+export function bibleKeyOf(entry: BibleEntry): string {
+  return `bible:${entry.type}:${entry.id}`;
 }
 
 export interface AssembledContext {
@@ -243,8 +261,7 @@ function collapse(text: string): string {
  */
 function bibleMentioned(entry: BibleEntry, corpus: string): boolean {
   if (corpus === "") return false;
-  const names =
-    entry.type === "character" ? [entry.title, ...(entry.aliases ?? [])] : [entry.title];
+  const names = [entry.title, ...(entry.aliases ?? [])];
   for (const raw of names) {
     const name = raw.trim();
     if ([...name].length < CAST_MIN_NAME) continue;
@@ -261,6 +278,12 @@ function bibleEntryText(entry: BibleEntry): string {
   const head = `${BIBLE_TYPE_LABEL[entry.type]}：${entry.title.trim() || "未命名"}`;
   const extras: string[] = [];
   if (entry.role !== undefined) extras.push(`身份：${entry.role}`);
+  // W-09 人物嗓音三格：写在人设里，就在这一章的开头把「该怎么说话」带到模型眼前。
+  // 只对人物念，别的类型即使误填了也不占上下文。
+  if (entry.type === "character" && entry.voice !== undefined) extras.push(`说话：${entry.voice}`);
+  if (entry.type === "character" && entry.taboo !== undefined)
+    extras.push(`绝不做：${entry.taboo}`);
+  if (entry.type === "character" && entry.arc !== undefined) extras.push(`本卷变化：${entry.arc}`);
   if (entry.aliases !== undefined && entry.aliases.length > 0)
     extras.push(`别名：${entry.aliases.join("、")}`);
   if (entry.type === "location" && entry.parentLocation !== undefined)
@@ -357,6 +380,12 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
     for (const relPath of prior) {
       const doc = docByPath.get(relPath);
       if (!doc) continue;
+      // 有摘要用摘要（模型只记事实、不必再啃上一章尾巴）；没有才退回截尾部原文。
+      const recap = recapOf(input.recaps, relPath);
+      if (recap !== null) {
+        push(makeItem("chapter", doc, clip(`【摘要】${recap}`, 2000), false));
+        continue;
+      }
       const text = textOf(relPath);
       if (text === "") continue;
       push(makeItem("chapter", doc, clip(text.slice(-PRIOR_CHAPTER_TAIL_CHARS), 2000), false));
@@ -400,7 +429,8 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
   //    同档先人物、再地点、再事件。整条装不下就跳过（继续看后面更短的），
   //    不做半句截断——半个设定比没有更误导。没装进去的条数记进 `bibleOmitted`，
   //    提示词装配会补一句「信息没带全」，让模型别凭印象补设定。
-  const bible = input.bible ?? [];
+  const excluded = new Set(input.excludedBible ?? []);
+  const bible = (input.bible ?? []).filter((entry) => !excluded.has(bibleKeyOf(entry)));
   let bibleOmitted = 0;
   if (bible.length > 0) {
     const corpus = input.bibleCorpus ?? (active === null ? "" : textOf(active));
@@ -457,7 +487,7 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
         deduped += 1;
         continue;
       }
-      const relPath = `bible:${entry.type}:${entry.id}`;
+      const relPath = bibleKeyOf(entry);
       if (seen.has(relPath)) {
         deduped += 1;
         continue;

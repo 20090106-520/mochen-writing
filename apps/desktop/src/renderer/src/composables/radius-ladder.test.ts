@@ -91,8 +91,13 @@ describe("圆角阶梯：只许八档 + 胶囊 + 圆形", () => {
     expect([..."  border-radius: var(--radius-panel);\n".matchAll(RADIUS_DECL)]).toHaveLength(1);
   });
 
-  it("面板那一档仍是 16px（与 z-ladder 钉的 --radius-panel 同值）", () => {
+  it("面板那一档的兜底仍是 16px（默认皮肤下界面一字不变），源头是皮肤的 lg 那一档", () => {
     const root = readFileSync(`${SRC_ROOT}styles.css`, "utf8");
-    expect(root).toContain("--radius-panel: 16px;");
+    // 【2026-11-20 · 批次②】原先是 `--radius-panel: 16px;`（写死），于是换「直角」皮肤时
+    // 工作区里的面板与对话框不动——只改了皮肤广场的预览。改成以皮肤 token 为源之后，
+    // 兜底值必须逐字不变（plain 皮肤的 lg 就是 16px），否则默认皮肤下凭空变形。
+    expect(root).toContain("--radius-panel: var(--skin-radius-lg, 16px);");
+    expect(root).toContain("--radius-card: var(--skin-radius-md, 10px);");
+    expect(root).toContain("--radius-control: var(--skin-radius-control, 8px);");
   });
 });

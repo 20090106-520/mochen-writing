@@ -311,8 +311,10 @@ describe("LeftSidebar · 底部齿轮行（#113b：对齐 deepwrite 的 .sidebar
     expect(footer).toContain('@click="openSettingsOverlay"');
   });
 
-  it("作者那一格缺契约 ⇒ 不复用：footer 里只许一枚齿轮 + 一句标语，不许长出头像或账号菜单", () => {
+  it("作者那一格缺契约 ⇒ 不复用：footer 里只许一枚齿轮 + 引导入口 + 一句标语，不许长出头像或账号菜单", () => {
     // 反向鉴别：不先钉「footer 有且只有一枚按钮」，下面这几条 notMatch 在 footer 根本不存在时会空转通过。
+    // （2026-11-20：引导的「?」入口搬进来后，footer 里有一枚齿轮按钮 + 一枚组件化的「?」——
+    //   「?」是组件标签不是 <button>，所以下面这一条数 <button> 仍是 1。）
     expect(countNeedle("<button", footer)).toBe(1);
     expect(footer).not.toMatch(/avatar|account-profile|account-menu|account-identity|account-copy/);
     expect(footer).not.toContain("作者");
@@ -321,7 +323,14 @@ describe("LeftSidebar · 底部齿轮行（#113b：对齐 deepwrite 的 .sidebar
     expect(footer).toContain('class="footer-tagline"');
   });
 
-  it("CSS 逐条对值：footer 的 7px 内边距与上分隔线、controls 的 32px+1fr 两列（齿轮在左端）", () => {
+  it("引导入口在 footer 里：组件化的「?」钮调 onboarding.reopen()（此前 reopen 全仓零生产调用方）", () => {
+    expect(footer).toContain("<SidebarHelpButton />");
+    const help = vueSource("components/SidebarHelpButton.vue");
+    expect(help).toContain("onboarding.reopen()");
+    expect(help).toContain('aria-label="使用引导"');
+  });
+
+  it("CSS 逐条对值：footer 的 7px 内边距与上分隔线、controls 的三列（齿轮 → 引导「?」 → 标语）", () => {
     const css = styleSource("left-nav.css");
     const footerRule = ruleBlock(css, ".sidebar-footer");
     expect(footerRule).toContain("display: flex;");
@@ -330,11 +339,14 @@ describe("LeftSidebar · 底部齿轮行（#113b：对齐 deepwrite 的 .sidebar
     expect(footerRule).toContain("border-top: 1px solid var(--line-soft);");
     const controlsRule = ruleBlock(css, ".account-controls");
     expect(controlsRule).toContain("display: grid;");
-    expect(controlsRule).toContain("grid-template-columns: 32px minmax(0, 1fr);");
+    // 三列：齿轮（32px）+ 引导「?」（32px）+ 标语（1fr）。
+    expect(controlsRule).toContain("grid-template-columns: 32px 32px minmax(0, 1fr);");
     expect(controlsRule).toContain("gap: 4px;");
     expect(controlsRule).toContain("width: 100%;");
     // 齿轮钉在第一列（左端，用户裁定挪到另一边，对齐 VS Code / Obsidian 设置在左下的惯例）。
     expect(ruleBlock(css, ".account-settings-button")).toContain("grid-column: 1;");
+    expect(ruleBlock(css, ".account-help-button")).toContain("grid-column: 2;");
+    expect(ruleBlock(css, ".footer-tagline")).toContain("grid-column: 3;");
   });
 
   it("settings 字形只剩 footer 齿轮一处门面，「模型」立方图标已随「模型配置」行退役", () => {

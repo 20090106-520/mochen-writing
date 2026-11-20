@@ -1,9 +1,17 @@
 <!-- 新建作品对话框：书名 + 选目录 + 建骨架。开合真身是 layout.newBookOpen（左栏与工作台降级区共用）。
      目录走 book:pick（系统选目录对话框，允许「新建文件夹」），盘上落地由主进程 createBook 兜底校验：
-     目录必须为空——绝不往别人家的目录里盖文件。 -->
+     目录必须为空——绝不往别人家的目录里盖文件。
+
+     2026-11-20 新建作品智能刀，两处：
+     ① 「上次的设定」：立项速记里跨书不变的那几格（题材 / 平台 / 篇幅 / 节奏 / 雷点）同一个作者十本书里九本一样，
+        每本重打一遍是纯重复劳动 ⇒ 记下来，摆一行**明面上的动作**让用户点「沿用」。
+        **不默认预填**：预填会把「跳过立项 ⇒ 建书请求体与旧版本逐字一致」这条保证偷换掉。
+     ② 结构预览：把「建完会得到什么」摆到眼前（真目录名与用法由 utils/new-book-structure.ts 给出，
+        守卫对着 fs-store 逐条核，不许漂）。 -->
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { computed, reactive, ref } from "vue";
 import {
+  BOOK_PROJECT_FIELDS,
   BOOK_PROJECT_LABELS,
   normalizeBookProject,
   type BookProjectField
@@ -12,6 +20,12 @@ import AppIcon from "./AppIcon.vue";
 import { useBookStore } from "../stores/useBookStore";
 import { useModalFocus } from "../composables/useModalFocus";
 import { useDialogMotion } from "../composables/useDialogMotion";
+import { NEW_BOOK_STRUCTURE } from "../utils/new-book-structure";
+import {
+  browserRememberProject,
+  browserRememberedProject,
+  rememberedProjectSummary
+} from "../utils/new-book-memory";
 
 const emit = defineEmits<{ close: [] }>();
 const book = useBookStore();
@@ -59,6 +73,28 @@ const PROJECT_PLACEHOLDERS: Record<BookProjectField, string> = {
   taboos: "例：不写虐杀、不写未成年恋爱；主角不圣母",
   pitch: "一句话说清这本书最吸引人的地方"
 };
+
+/**
+ * 上次记下的立项（2026-11-20）。
+ *
+ * **只当建议，不当默认**：六格仍然是空的，直到用户点「沿用」。
+ * 记的是**填过的**那一本 —— 记忆只发生在「真的填了并建了书」之后，
+ * 跳过的书不留下一份空记忆。
+ */
+const remembered = browserRememberedProject();
+const rememberedSummary = rememberedProjectSummary(remembered);
+/** 「沿用」那一行只在真记过时出现。 */
+const canReuseRemembered = computed(() => rememberedSummary !== "");
+/** 立项速记那一段的展开状态：「沿用」要把它展开，否则填了看不见。 */
+const projectDetails = ref<HTMLDetailsElement>();
+
+function reuseRemembered(): void {
+  for (const field of BOOK_PROJECT_FIELDS) {
+    projectDraft[field] = remembered[field];
+  }
+  if (projectDetails.value !== undefined) projectDetails.value.open = true;
+}
+
 /**
  * 这一次创建失败的理由（本地持有，2026-10-10 巡检）。
  *
@@ -91,6 +127,8 @@ async function create(): Promise<void> {
   );
   creating.value = false;
   if (ok) {
+    // 记下这一次填过的立项，下一本可以「沿用」。全空时 util 自己不写。
+    browserRememberProject(projectDraft);
     emit("close");
     return;
   }
@@ -144,9 +182,22 @@ async function create(): Promise<void> {
                 选择…
               </button>
             </div>
+            <p class="new-book-hint">目录必须为空——不是空的会被拒绝，不会盖掉任何已有内容。</p>
           </div>
+
+          <!-- 上次的设定（2026-11-20）：明面上的动作，不偷偷预填。
+               「沿用」点下去才把六格填上并展开立项速记。 -->
+          <div v-if="canReuseRemembered" class="new-book-remembered">
+            <span class="new-book-remembered-text">
+              上次的设定：<strong>{{ rememberedSummary }}</strong>
+            </span>
+            <button class="new-book-remembered-button" type="button" @click="reuseRemembered">
+              沿用
+            </button>
+          </div>
+
           <!-- 开书立项（W-07）：默认折叠，六格全部可选。填过才生成「创作约定」，跳过与原流程一致。 -->
-          <details class="new-book-project">
+          <details ref="projectDetails" class="new-book-project">
             <summary>
               <span>立项速记（可跳过）</span>
               <span class="new-book-project-hint">
@@ -180,10 +231,26 @@ async function create(): Promise<void> {
               ></textarea>
             </label>
           </details>
-          <p class="dialog-description">
-            会在所选目录里建出 book.json 和 章节 / 大纲 / 人物 / 剧情 / 素材库 五个文件夹；
-            目录不是空的会被拒绝，不会盖掉任何已有内容。
-          </p>
+
+          <!-- 建好之后目录里长什么样（2026-11-20）：原先只有一句小灰字交代「五个文件夹」，
+               作者点完创建之后每个分组放什么、为什么会有它，屏上一个字都没有。 -->
+          <section class="new-book-structure" aria-label="建好之后目录里是这些">
+            <h3 class="new-book-structure-title">建好之后，目录里是这些</h3>
+            <ul class="new-book-structure-list">
+              <li
+                v-for="item in NEW_BOOK_STRUCTURE"
+                :key="item.path"
+                class="new-book-structure-item"
+                :class="{ 'is-conditional': item.conditional }"
+              >
+                <code class="new-book-structure-path">{{ item.path }}</code>
+                <span class="new-book-structure-label">{{ item.label }}</span>
+                <span class="new-book-structure-usage">{{ item.usage }}</span>
+                <span v-if="item.conditional" class="new-book-structure-flag">填了立项才有</span>
+              </li>
+            </ul>
+          </section>
+
           <p v-if="createError !== '' && !creating" class="provider-error">{{ createError }}</p>
         </div>
 

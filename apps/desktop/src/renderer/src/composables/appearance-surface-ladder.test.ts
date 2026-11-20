@@ -202,7 +202,12 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
   },
   {
     file: "styles/context-meter.css",
-    sites: [{ needle: ".context-meter-list li.is-active", shadow: ["--text-tertiary"] }]
+    sites: [
+      { needle: ".context-meter-list li.is-active", shadow: ["--text-tertiary"] },
+      /* 2026-11-20：占用读数搬去状态栏之后的那一枚（`.context-meter--compact`）。
+         hover/展开态换的是 hover 档底，块里自己写了正文级字色 ⇒ primary。 */
+      { needle: ".context-meter--compact:hover", primary: true }
+    ]
   },
   {
     file: "styles/conversation-history.css",
@@ -232,6 +237,9 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
     sites: [
       { needle: ".dialog-close:hover", primary: true },
       { needle: ".appearance-segment-button:hover", primary: true },
+      /* 2026-11-20 新建作品智能刀：「沿用」那枚小钮的悬停底换的是 hover 档，
+         字色同时升到正文级（primary）。 */
+      { needle: ".new-book-remembered-button:hover", primary: true },
       {
         needle: ".appearance-toggle",
         exempt: {

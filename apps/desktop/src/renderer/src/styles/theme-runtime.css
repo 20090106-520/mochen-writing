@@ -229,8 +229,17 @@ html[data-theme] .dialog-content textarea:focus {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* 输入区上方那一圈淡出（2026-11-20 材质刀：这一行原先把**不透明**的 --surface-main
+   铺在输入卡背后，真机读到的是「输入卡底下是一块死纸」——
+   于是输入卡那层液态玻璃的 backdrop 糊的是一张纯色纸，糊了也读不出任何东西，
+   屏上只剩一道突兀的白色梯形（真机 1440 截图，输入区整块比周围亮一档）。
+   玻璃要读成玻璃，身后必须有东西：所以末色留 18% 的透明，让底下的插画透上来。 */
 html[data-theme] .composer-wrap {
-  background: linear-gradient(to bottom, transparent, var(--surface-main) 20px);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--surface-main) 82%, transparent) 20px
+  );
 }
 
 /* #113c 绑定条显形了（三件套自 Task 14 起零消费者，今天接上 ComposerContextBar）。几何与透明度照 deepwrite styles.css:2497-2498 原值，只把他的 rgba(25,28,31,.04) 换成主题前景色的
@@ -407,6 +416,16 @@ html[data-skin-art]:not([data-skin-art="none"]) .settings-page {
    也不从名单里消失）。 */
 html[data-skin-art]:not([data-skin-art="none"]) .skin-gallery {
   background-color: color-mix(in srgb, var(--surface-main) 84%, transparent);
+}
+
+html[data-liquid-glass="on"][data-skin-art="none"]
+  :where(.conversation-pane, .conversation-header, .conversation-scroll) {
+  background-color: color-mix(in srgb, var(--surface-main) 68%, transparent);
+}
+
+html[data-liquid-glass="on"][data-skin-art="none"]
+  :where(.extensions-page, .settings-page, .skin-gallery) {
+  background-color: color-mix(in srgb, var(--surface-main) 82%, transparent);
 }
 
 /* 有画皮肤下，压在画上的小字提一档颜色。

@@ -113,6 +113,62 @@
   color: var(--text-faint, #888);
 }
 
+/* 「本轮不带」三枚小按钮（2026-11-20）：只影响下一轮装配，不改设定本身。
+   行尾那一枚用整段文字的弱色，恢复区的「全部恢复」同色——它们在视觉上属于同一次操作。 */
+.bible-brief-drop,
+.bible-brief-restore,
+.bible-brief-restore-all {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-tertiary, #999);
+  font: inherit;
+  font-size: 0.714286rem;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.bible-brief-drop:hover,
+.bible-brief-restore:hover,
+.bible-brief-restore-all:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.bible-brief-drop:focus-visible,
+.bible-brief-restore:focus-visible,
+.bible-brief-restore-all:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.bible-brief-excluded {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft, rgba(255, 255, 255, 0.06));
+}
+
+.bible-brief-excluded-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 4px;
+  color: var(--text-tertiary, #999);
+}
+
+/* 恢复区里的条目是「这一轮不会带」的，名字比在场那几条弱一档。 */
+.bible-brief-excluded .bible-brief-name {
+  color: var(--text-secondary, #bbb);
+}
+
+.bible-brief-empty {
+  margin: 0;
+  color: var(--text-tertiary, #999);
+}
+
 .bible-brief-note {
   margin: 10px 0 0;
   line-height: 1.6;

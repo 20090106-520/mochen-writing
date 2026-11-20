@@ -299,6 +299,30 @@
   white-space: nowrap;
 }
 
+/* W-09 人物嗓音：章提纲一行一个，写不下就省略，完整句子在 title 里。 */
+.outline-voices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 6px 0 0;
+  color: var(--text-dim, #6b6f76);
+  font-size: 0.785714rem;
+  line-height: 1.5;
+}
+
+.outline-voice {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-voice-name {
+  margin-right: 3px;
+  color: var(--text-primary, #23262b);
+}
+
 .outline-generate {
   flex: none;
   display: inline-flex;

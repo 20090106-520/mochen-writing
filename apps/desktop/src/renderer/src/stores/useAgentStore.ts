@@ -35,11 +35,13 @@ import {
   threadKeyFor
 } from "../utils/agent-thread";
 import { DRAFT_DISCARD_DONE, nextDraftSampleCount, resolveDraft } from "../utils/draft-candidates";
+import { useBibleExclusionStore } from "./useBibleExclusionStore";
 import { readRemote } from "../utils/agent-requests";
 import { replayProposalStatuses } from "../utils/timeline";
 import { type SlashCommand } from "../utils/slash-commands";
 import { prefillText } from "../utils/composer-draft";
 import { clearComposerAfterSend } from "../utils/auto-behavior-preference";
+import { resumeAffordanceOf } from "../utils/turn-resume";
 import { sessionRowAction, type SessionRowAction } from "../utils/session-row-action";
 import { useAutoSkillStore } from "./useAutoSkillStore";
 import {
@@ -55,6 +57,7 @@ import {
   thinkingPreferenceStorage
 } from "../utils/thinking-preference";
 import { dispatchSlashCommand } from "./agent-slash-dispatch";
+import { useAutoCheckupStore } from "./useAutoCheckupStore";
 import { useBookStore } from "./useBookStore";
 
 export * from "../utils/agent-thread";
@@ -251,6 +254,8 @@ export const useAgentStore = defineStore("agent", {
         this.seconds = 0;
         // 换轮即作废（P0-②）：上一轮的候选集在这一刻过期，留着它会让「挑一稿」落进新轮的地盘。
         delete this.draftSets[outbound.threadKey];
+        // 上一轮的体检结论同理作废，否则会挂在新一轮的对话流末尾。
+        useAutoCheckupStore().clear(outbound.threadKey);
         return;
       }
       // Important 2：迟到的旧轮推送一律忽略。判据是**本轮推送的 turnId 必须等于当前轮的 turnId**，
@@ -276,6 +281,12 @@ export const useAgentStore = defineStore("agent", {
       if (outbound.type === "event") {
         // 字已经落到中栏转录里（user-message 是「受理」的唯一凭据）⇒ 这一轮不再需要还字。
         if (outbound.event.type === "user-message") delete this.pendingSend[outbound.threadKey];
+        // 写后自动体检：触发点是**真写成的那一条 written 事件**，不是 turn-end——
+        // 本仓的提案往往在回合结束之后才被作者批准写盘，挂在 turn-end 上会永远等不到。
+        // 回放路径走 reduceEvent(absorbWrites:false)，不经过这里，重启不会把历史写入重跑一遍。
+        if (outbound.event.type === "written") {
+          void useAutoCheckupStore().run(outbound.threadKey, [outbound.event.docRelPath]);
+        }
         this.reduceEvent(thread, outbound.event);
         return;
       }
@@ -415,9 +426,21 @@ export const useAgentStore = defineStore("agent", {
       if (patch.message !== undefined) view.message = patch.message;
     },
 
-    /** 裁定 m1：startTurn 被边界拒绝时单句中文进 notice 与该线程 lastError，绝不静默、绝不留悬空 promise。 */
-    send(text: string): void {
+    /**
+     * 发一轮。
+     *
+     * `rememberForRestore` = 要不要把这句话记进「还字账」（见 state.pendingSend）。
+     * 不传时读「送出后清空输入框」那一枚偏好：入口清了输入框，失败时就得把字还回去。
+     * 「继续」那一枚显式传 false——它重发的是**早就发出去过**的那句，
+     * 已经在中栏转录里了，再还一次就是第二份（与 state.pendingSend 那段注释同一条口径）。
+     */
+    send(text: string, options?: { rememberForRestore?: boolean }): void {
       const book = useBookStore();
+      const threadKey = threadKeyFor(book.activeDocTab);
+      // 自动识别的唯一榜首（2026-11-17）：这一轮把它的正文一起递过去，省掉「先 use_skill 再动笔」
+      // 的一轮往返。判据（空榜 / 并列第一 / 唯一榜首）住 utils/skill-auto.ts，这里只取结果。
+      const preload = useAutoSkillStore().preloadIdOf(threadKey);
+      const excludedKeys = book.meta === null ? [] : useBibleExclusionStore().keysOf(book.meta.id);
       // userText 只放用户敲的那一句，一字不多。上下文包（当前章/大纲/人物/前情提要）
       // 由主进程按档案装配后并进**系统提示**——渲染层再拼一份前缀就成了同一份上下文的两个实现，
       // 而且那串东西会被原样写进会话 JSONL，往后每一轮回放都跟着重发一遍。
@@ -436,7 +459,11 @@ export const useAgentStore = defineStore("agent", {
         ...(this.disabledTools.length > 0 ? { disabledTools: [...this.disabledTools] } : {}),
         // 本线程显式挂入的技能（spec §11）：只传 id，正文由主进程按同一套读取守卫取。
         // 摊一份再递 —— 见 utils/agent-thread.ts 的 plainList，那段记着为什么这条路不通过一次。
-        skillPaths: plainList(this.skillPathsOf(threadKeyFor(book.activeDocTab)))
+        skillPaths: plainList(this.skillPathsOf(threadKeyFor(book.activeDocTab))),
+        // 不预读时整条字段缺席（不是空串）：请求与从前逐字一致，老路径一个字节都不变。
+        ...(preload === "" ? {} : { preloadSkillId: preload }),
+        // 本轮被点掉「不带」的设定（表在 useBibleExclusionStore，2026-11-20）：一条没点就不带这个字段。
+        ...(excludedKeys.length > 0 ? { excludedBible: excludedKeys } : {})
       };
       // startTurn 的 promise 要等整轮跑完才兑现；turnId 走 turn-start 推送，这里不等。
       // running 只由 turn-start / turn-end 拥有，被拒的这一轮从未开始，自然不会停在「工作中」。
@@ -445,19 +472,42 @@ export const useAgentStore = defineStore("agent", {
       // 「送出后清空输入框」关掉时字还在格子里，根本不需要还。不记这条账的原因不是省事——
       // 记了的话，用户手动删掉那段字之后迟到的失败回执会把它**又填回去**，
       // 变成「我没点发送，它自己又出现了」。
-      const clearedByEntry = clearComposerAfterSend();
-      if (clearedByEntry) this.pendingSend[input.threadKey] = text;
+      const remember = options?.rememberForRestore ?? clearComposerAfterSend();
+      if (remember) this.pendingSend[input.threadKey] = text;
       window.mochen.startTurn(input).catch((err: unknown) => {
         const reason = reasonOf(err);
         this.viewOf(input.threadKey).lastError = reason;
         this.notice = `这一轮没能启动：${reason}`;
-        if (!clearedByEntry) return;
+        if (!remember) return;
         // 发送被拒：把用户这一格刚被入口乐观清掉的文本原样还回去（清空是乐观的，失败才回写）。
         // 仅当该线程当前草稿仍是空——失败回执回来前用户可能又打了字，绝不覆盖新输入（本波「不吞字」承诺）。
         // 这条支路一旦还过字，事件路径那份账就地销掉，免得迟到的 turn-end 再还一次把新打的字盖掉。
         delete this.pendingSend[input.threadKey];
         if (this.draftOf(input.threadKey) === "") this.setDraft(input.threadKey, text);
       });
+    },
+
+    /**
+     * 「继续」：把上一句用户指令**原样再发一次**（同一线程，带着上文）。
+     *
+     * 【为什么是"再发一次"而不是"发一句机器话"】
+     * 早先的裁定说「不记『继续』的内置文案（那是机器的话，不该塞回用户的地盘）」——
+     * 那是"内置文案"那条路的理由。这里走另一条：**用户自己说过的那句原样重发**。
+     * 字是他的、上下文是同一线程的，模型看到自己上一轮写了一半的内容与同一句指令，
+     * 接上去继续做还是重做那一段，由它自己判断——界面不替它决定。
+     *
+     * 【判据只有一份】挂点判定在 utils/turn-resume.ts（`resumeAffordanceOf`），
+     * 这里只负责发起。拿不到可重发的内容就返回 false：一个字都不写、不发。
+     *
+     * 【为什么显式不记还字账】重发的是**早就发出去过**的那句，它已经在中栏转录里了；
+     * 失败时再还回输入框就是第二份（同 state.pendingSend 的口径）。
+     */
+    resumeLastTurn(): boolean {
+      const thread = this.viewOf(threadKeyFor(useBookStore().activeDocTab));
+      const affordance = resumeAffordanceOf(thread);
+      if (affordance === null) return false;
+      this.send(affordance.text, { rememberForRestore: false });
+      return true;
     },
 
     /** 运行中按 Tab：判定在 enqueueText（一处实现），这里只负责「被拒时写一句中文」。 */
@@ -652,7 +702,9 @@ export const useAgentStore = defineStore("agent", {
           // 而 plainList(undefined) 会抛（展开 undefined）——
           // 偏偏这个 try 是静默的，抛了就只是「数字不更新」，
           // 占用条于是悄悄留着上一次那份，看起来像「没挂任何技能」。
-          pinned: plainList(query.pinned ?? [])
+          pinned: plainList(query.pinned ?? []),
+          // 已移除的设定也要如实出网：占用条不按它扣，报的就是「全带」的假数字。
+          excludedBible: plainList(query.excludedBible ?? [])
         });
       } catch {
         // 留住上一次读到的：旧数字仍然大致对得上，比整条消失诚实。

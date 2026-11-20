@@ -43,6 +43,7 @@ import {
   APPEARANCE_GRID_LABELS,
   APPEARANCE_SURFACE_LABELS,
   ANIME_ART_ORIGIN,
+  NATIVE_SKIN_ORIGIN,
   APPEARANCE_ORNAMENT_LABELS,
   SKIN_ART_FILTERS,
   SKIN_BACKDROP_FILTERS,
@@ -102,28 +103,47 @@ describe("皮肤表 · 形状", () => {
    *
    * ⇒ 判据单独钉一遍。它一红，就是在往广场里放没画的东西。
    */
-  it("每一条都必须带整窗画面（art 不许为 none —— 这是广场的入场条件）", () => {
+  it("带画是广场的入场条件；唯一例外是原生「澄光」两套（2026-11-20 用户裁定）", () => {
+    /* 【例外的边界由这条钉死】用户裁定「把屎背景去掉、液态玻璃加上去」：
+       原生澄光（xi-day / xi-night）走干净纸面 + 液态玻璃，不压整窗插画。
+       例外**只有这两套**——第三套无画皮出现时下面这条立刻红，
+       「例外」不会悄悄扩张成新的素面族（那正是上面那段历史里用户两次否掉的东西）。 */
+    expect(
+      appearanceSkins.filter((skin) => skin.origin === NATIVE_SKIN_ORIGIN).map((skin) => skin.id),
+      "原生无画皮只能有澄光昼夜两套，多一套就是素面族复活"
+    ).toEqual(["xi-day", "xi-night"]);
     for (const skin of appearanceSkins) {
-      expect(skin.art, `${skin.id} 没有画面，不该进皮肤广场`).not.toBe("none");
+      if (skin.origin === NATIVE_SKIN_ORIGIN) {
+        expect(skin.art, `${skin.id} 是原生澄光：干净纸面，不压整窗插画`).toBe("none");
+      } else {
+        expect(skin.art, `${skin.id} 没有画面，不该进皮肤广场`).not.toBe("none");
+      }
       expect(APPEARANCE_ART_LABELS[skin.art], `${skin.id} 的画面档没有中文名`).toBeTruthy();
     }
-    // 反向：**画面层的筛选档里也不许出现 none**——它一出现就说明表里混进了没画的皮。
-    expect(SKIN_ART_FILTERS, "筛选档里出现了「无画面」").not.toContain("none");
+    /* 筛选档里的「无画面」是**真实在用的一档**（2026-11-20 澄光刀）：
+       出厂就是无画的澄光，用户要能按这一档直接筛出干净纸面的两套。
+       派生表仍由「每一维：每个档都至少有一条皮肤在用」那条钉着，none 不是死档。 */
+    expect(SKIN_ART_FILTERS, "澄光两套就是「无画面」这一档，筛选里必须找得到").toContain("none");
   });
 
   /* 挂件层（2026-10-17 第六刀）：与画面那一条同形，是同一条入场理由的第二半——
      用户说的两句「挂件太少了」与「全部不一样」，落到表上就是这两条。
      挂件层的素材尺寸/路径真伪由 appearance-skin-assets.test.ts 量，这里只钉表本身。 */
-  it("每一条都必须挂着一枚挂件（ornament 不许为 none —— 与画面同一条入场条件）", () => {
+  it("带画皮肤必须挂着一枚挂件；原生澄光两套不挂（与画面同一条例外）", () => {
     for (const skin of appearanceSkins) {
-      expect(skin.ornament, `${skin.id} 没挂挂件，不该进皮肤广场`).not.toBe("none");
+      if (skin.origin === NATIVE_SKIN_ORIGIN) {
+        // 澄光的窗角留空：干净纸面 + 液态玻璃是主角，挂件在这种皮上只是噪声。
+        expect(skin.ornament, `${skin.id} 是原生澄光：窗角留空`).toBe("none");
+      } else {
+        expect(skin.ornament, `${skin.id} 没挂挂件，不该进皮肤广场`).not.toBe("none");
+      }
       expect(
         APPEARANCE_ORNAMENT_LABELS[skin.ornament],
         `${skin.id} 的挂件档没有中文名`
       ).toBeTruthy();
     }
-    // 反向：挂件层的筛选档里也不许出现「无挂件」。
-    expect(SKIN_ORNAMENT_FILTERS, "筛选档里出现了「无挂件」").not.toContain("none");
+    // 与画面同理：「无挂件」对应澄光两套，是真实在用的一档，筛选里必须找得到。
+    expect(SKIN_ORNAMENT_FILTERS, "澄光两套就是「无挂件」这一档").toContain("none");
   });
 
   it("表里的每条出处都是同一句（画面来自外站动漫插画；上游美术按裁定不进表）", () => {
@@ -143,7 +163,15 @@ describe("皮肤表 · 形状", () => {
        ⚠️【2026-10-17 第四刀】那一句出处当天又换了一次（`Unsplash 人像` →
        `ANIME_ART_ORIGIN`＝「动漫插画（Pixiv 原作）」），这条守卫照旧只管「只有一句」。 */
     for (const skin of appearanceSkins) {
+      /* 2026-11-20 澄光刀：出处从「只有一句」改成「两族各一句」——
+         原生两套（无画、本仓自有）与带画那一族（Pixiv 插画）。
+         判据没松：每套仍只能是它那一族的那一句，第三种出处出现照样红。 */
+      if (skin.origin === NATIVE_SKIN_ORIGIN) continue;
       expect(skin.origin, `${skin.id} 的出处不是那一句画面出处`).toBe(ANIME_ART_ORIGIN);
+    }
+    // 原生那两套也必须真的标着原生出处——「continue」不是「这两套没人管」。
+    for (const skin of appearanceSkins.filter((one) => one.art === "none")) {
+      expect(skin.origin, `${skin.id} 无画却不是原生澄光`).toBe(NATIVE_SKIN_ORIGIN);
     }
   });
 
@@ -260,7 +288,13 @@ describe("素面那一族 · 已整族删除，不许复活", () => {
       "crimson"
     ];
     for (const skin of appearanceSkins) {
-      expect(skin.art, `${skin.id} 没有画面，却又回到了广场`).not.toBe("none");
+      /* 2026-11-20 澄光刀：唯一允许的无画皮是原生澄光两套（见「皮肤表 · 形状」那条
+         把例外名单钉成 xi-day / xi-night 的断言）。这里钉的是同一件事的另一半：
+         无画 ⇒ 必须是原生，别的一律不许回到广场。 */
+      expect(
+        skin.art !== "none" || skin.origin === NATIVE_SKIN_ORIGIN,
+        `${skin.id} 没有画面、又不是原生澄光，却又回到了广场`
+      ).toBe(true);
       expect(
         retired_tone_ids,
         `${skin.id} 复用了已下架的素面 id —— 老 JSON 里存着这个名字，回落通路会被它骗过去`
@@ -634,7 +668,7 @@ describe("皮肤广场的筛选档 · 只摆真的有皮肤在用的档", () => 
    唯一能把它变成一份的办法是让守卫做对照：这里逐字段比，
    任何人改了皮肤表第一套的色值而忘了改 contracts，当场红。
    （验红方式：把 contracts 的 `accent` 改回 `#339CFF`，本条立刻红且指名道姓。） */
-describe("出厂默认 · 只能是广场里那套带画的皮肤", () => {
+describe("出厂默认 · 澄光（干净纸面 + 液态玻璃，2026-11-20 裁定）", () => {
   it("出厂两套的三色、四层与画面层，逐字段等于广场第一套", () => {
     const first = appearanceSkins[0];
     expect(first, "皮肤广场空了 —— 出厂默认没有可指向的皮肤").toBeDefined();
@@ -654,10 +688,12 @@ describe("出厂默认 · 只能是广场里那套带画的皮肤", () => {
       for (const key of ["backdrop", "glass", "surface", "grid", "art", "ornament"] as const) {
         expect(theme[key], `${first.id} 的 ${key} 与皮肤表漂移了`).toBe(first[key]);
       }
-      // 出厂默认自己也得带画——它正是「没有图片的不保留」那条裁定的落点。
-      expect(theme.art, "出厂默认没有画面，等于又把素面留在了默认位上").not.toBe("none");
-      // 与画面同理：出厂默认也得挂着一枚挂件，不许是 `none`（那一档只服务老 JSON）。
-      expect(theme.ornament, "出厂默认没挂挂件，等于第六刀那一层在默认位上是空的").not.toBe("none");
+      /* 2026-11-20 澄光刀：出厂就是**无画的澄光**——用户裁定「把屎背景去掉、
+         液态玻璃加上去」，干净纸面 + 液态玻璃是主角，整窗插画与窗角挂件都不在默认位上。
+         这两条从「不许是 none」翻成「必须是 none」：钉的方向反了，钉的力道没松——
+         谁把出厂改回带画/带挂件，这里照样当场红。 */
+      expect(theme.art, "出厂默认是澄光：干净纸面，不压整窗插画").toBe("none");
+      expect(theme.ornament, "出厂默认是澄光：窗角留空，液态玻璃是主角").toBe("none");
     }
   });
 

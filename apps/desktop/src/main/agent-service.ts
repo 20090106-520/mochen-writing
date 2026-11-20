@@ -68,7 +68,7 @@ import { abortableFetch } from "./provider-fetch.js";
 import { withPlugins, type PluginTools } from "./plugin-host.js";
 // 提示词装配（含「档案写入范围」那句人话）住在 prompt-assembly.ts：那里只把「一轮的现场」排成一段话，不共享状态。
 import { bookCountsOf, writeScopeSentence, type PromptContext } from "./prompt-assembly.js";
-import { buildContextPack, SKILL_HINT } from "./system-pack.js";
+import { buildContextPack, SKILL_HINT, SKILL_HINT_WITH_PRELOAD } from "./system-pack.js";
 
 // UNBOUND 取自 contracts（与渲染层 utils/agent-thread.ts 那份同值只是巧合）——这里不再另立一份。
 const MAX_TOOL_ROUNDS = 4;
@@ -197,8 +197,9 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
   // 为 800 行预算拆出去，依赖只有 `book` 与 `listSkills` 两项，不跑 turn、不共享状态。
   const turnContext = createTurnContext({
     book: deps.book,
-    // P0-2：挂入技能只进清单（名称 / 用途 / 何时用），正文由 use_skill 按需读。
-    listSkills: deps.listSkills
+    // 技能只进清单（P0-2）；readSkill 只为自动预读读一份正文，已挡书级停用。
+    listSkills: deps.listSkills,
+    readSkill: deps.readSkill
   });
 
   /**
@@ -605,18 +606,18 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         const fullHistory: ChatMessage[] = folded.kept;
         // 档案与上下文包（spec §5 / §5.1）：换档案只换提示词与上下文构造器，不换这条线程。
         const profile = turnContext.profileOf(current, input.stageId);
-        // 挂入技能的清单行与「库里还没挂入的那些」的索引并行取：两者都走 listSkills，
-        // 技能目录只有几十个小文件，多扫一次的代价远小于串行的等待。
-        const [{ skills, missing }, skillIndex] = await Promise.all([
-          turnContext.readPinnedSkills(input.skillPaths),
-          turnContext.readSkillIndex(input.skillPaths)
-        ]);
-        if (missing > 0) {
-          // 走 emitOnly：它会落一条 type:"error" 的 AgentEvent（外层信封仍是 event）。
-          // 挂入技能读不到不是致命错误，但必须让用户看见——总 spec §9「失败可见，不只进日志」。
-          emitOnly(threadKey, turnId, `有 ${missing} 个挂入技能读不到，已跳过。`);
-        }
-        const assembled = await turnContext.assembleFor(current, docRelPath, profile, [], skills);
+        // 技能清单、库里未挂入的索引、自动预读的正文一次取齐（三者都只读技能目录）。
+        const { skills, missing, skillIndex, preload } = await turnContext.readSkillPack(
+          input.skillPaths,
+          input.preloadSkillId
+        );
+        // 读不到都只是降级、不失败整轮，但必须让用户看见（总 spec §9「失败可见，不只进日志」）。
+        if (missing > 0) emitOnly(threadKey, turnId, `有 ${missing} 个挂入技能读不到，已跳过。`);
+        if (input.preloadSkillId !== undefined && preload === null)
+          emitOnly(threadKey, turnId, "自动预读的技能没读出来，这一轮按未预读继续。");
+        // W-01 补完：书 / 章 / 档案 / 空挂入固定住，调用位只留技能与「不带」两张表。
+        const assemble = turnContext.assembleFor.bind(null, current, docRelPath, profile, []);
+        const assembled = await assemble(skills, input.excludedBible);
         // 老书没有工作模式这一格 ⇒ 直接动手。解析只走 workModeOf 一处（铁律 6）。
         const workMode = workModeOf(current.meta);
         const context: PromptContext = {
@@ -635,12 +636,11 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         // 档案的写入范围写进提示词：它是上限不是授权，模型自己先知道能碰哪些目录。
         const prompt = `${deps.promptFor(context)}\n${writeScopeSentence(profile)}`;
         const contextBlock = renderContextBlock(assembled);
-        // P0-2：技能只进清单，必须补一句「正文未载入」——否则模型看见名字会以为方法已读过、照印象动笔。
-        // 句子只在这里说一次（`SKILL_HINT`），清单行不再逐行复读它。
-        const skillHint = assembled.items.some((item) => item.kind === "skill") ? SKILL_HINT : "";
-        // P0-3：上下文包单独成串算 token，系统提示只算 prompt 那一截——
-        // 三路预算要按比例分，就得各自可量。拼法住在 system-pack.ts 一处。
-        const contextPackText = buildContextPack({ contextBlock, skillHint, skillIndex });
+        // P0-2：技能只进清单、正文没载入；有预读时换一句（两句都住 system-pack），免得自相矛盾。
+        const hasSkill = assembled.items.some((item) => item.kind === "skill");
+        const skillHint = hasSkill ? (preload === null ? SKILL_HINT : SKILL_HINT_WITH_PRELOAD) : "";
+        // P0-3：上下文包与系统提示分开算 token（三路预算要各自可量）；拼法住在 system-pack.ts。
+        const contextPackText = buildContextPack({ contextBlock, skillHint, skillIndex, preload });
         const systemPromptText = `${prompt}${contextPackText}`;
         // P1-3 历史切片 / P0-3 三路预算：窗口取自模型配置的 contextWindow（没填就回退到
         // DEFAULT_CONTEXT_WINDOW_TOKENS）。系统提示与上下文包分开报（见上），两者之和

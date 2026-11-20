@@ -177,7 +177,7 @@ describe("reconcileStoredSkin · 存着已下架的 id 时回落成广场第一�
     // 浅色取浅色版、深色取深色版，两套不许串。
     expect(settings.dark.accent).toBe(defaultAppearanceSkin.dark.accent);
     expect(settings.light.accent).toBe(defaultAppearanceSkin.light.accent);
-    expect(settings.light.art, "回落完还是没有画面，等于换了个名字继续摆素面").not.toBe("none");
+    expect(settings.light.art, "回落点就是澄光：干净纸面（2026-11-20 裁定）").toBe("none");
   });
 
   it("用户调过的偏好一项都不丢：mode、字体、字号、半透明侧栏原样保住", () => {
@@ -229,8 +229,8 @@ describe("reconcileStoredSkin · 存着已下架的 id 时回落成广场第一�
     expect(reconcileStoredSkin(fresh).replacedSkinId).toBeNull();
   });
 
-  it("回落点自己必须带画、且在表里（表空了这里先红，而不是把 undefined 带进界面）", () => {
-    expect(defaultAppearanceSkin.art).not.toBe("none");
+  it("回落点是澄光（无画是裁定）、且在表里（表空了这里先红，而不是把 undefined 带进界面）", () => {
+    expect(defaultAppearanceSkin.art, "回落点是澄光：干净纸面 + 液态玻璃").toBe("none");
     expect(findAppearanceSkin(defaultAppearanceSkin.id)).toBe(defaultAppearanceSkin);
     expect(appearanceSkins[0]).toBe(defaultAppearanceSkin);
   });

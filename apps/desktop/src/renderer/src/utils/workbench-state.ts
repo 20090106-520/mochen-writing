@@ -1,5 +1,6 @@
 import type { BookKind, DocRef } from "@mochen/contracts";
 import type { IconName } from "../types/icons";
+import { conversationBrief, type ConversationBrief } from "./conversation-brief";
 
 /**
  * 作品工作台的判定表（示意稿 A 的中栏）。
@@ -125,32 +126,64 @@ export type WorkbenchSuggestion =
   | { id: string; kind: "prefill"; text: string; prefill: string }
   | { id: string; kind: "palette"; text: string };
 
-const SUGGESTIONS: readonly WorkbenchSuggestion[] = [
+/**
+ * 一枚 pill 的出场条件读的是「这本书的实况」这一份判定
+ * （`utils/conversation-brief.ts`），不是各写各的。
+ *
+ * 【为什么不能是固定五枚】(2026-11-20 对话区智能刀)
+ * 固定五枚 = 一份产品说明书，与这本书无关。
+ * 实况挑：
+ *  - 「帮我构思三个开头」只在**目标章就是第一章**时出——书已经写到第三章
+ *    还推「三个开头」，是把开局该做的事摊到中局。
+ *  - 「扩写最薄的一段」只在目标章**有足够字数**时出：一章不到 400 字时
+ *    「最薄的一段」判不准（薄到挑不出段落），点进去只能得到一句废话。
+ *  - 其余两枚（有章就有出场人物、有稿才谈得上体检）跟着有没有章走。
+ */
+type SuggestionRule =
+  | {
+      id: string;
+      kind: "prefill";
+      text: string;
+      prefill: string;
+      when: (brief: ConversationBrief) => boolean;
+    }
+  | {
+      id: string;
+      kind: "palette";
+      text: string;
+      when: (brief: ConversationBrief) => boolean;
+    };
+
+const SUGGESTION_RULES: readonly SuggestionRule[] = [
   {
     id: "openings",
     kind: "prefill",
     text: "帮我构思三个开头",
-    prefill: "帮我构思三个不同的开头，各写一句它把读者往哪儿带。"
+    prefill: "帮我构思三个不同的开头，各写一句它把读者往哪儿带。",
+    when: (brief) => brief.targetIsFirstChapter
   },
   {
     id: "cast",
     kind: "prefill",
     text: "点出这一章的人物",
-    prefill: "列出这一章出场的人物，指出谁的目标和代价还没写清楚。"
+    prefill: "列出这一章出场的人物，指出谁的目标和代价还没写清楚。",
+    when: (brief) => brief.stage === "drafting"
   },
   {
     id: "thicken",
     kind: "prefill",
     text: "扩写最薄的一段",
-    prefill: "找出这一章最薄的一段，扩写到站得住，先给我看提案。"
+    prefill: "找出这一章最薄的一段，扩写到站得住，先给我看提案。",
+    when: (brief) => brief.targetChapterChars !== null && brief.targetChapterChars >= 400
   },
   {
     id: "checkup",
     kind: "prefill",
     text: "给这一章做体检",
-    prefill: "通读这一章，指出三处节奏或逻辑上的问题，并给出改法。"
+    prefill: "通读这一章，指出三处节奏或逻辑上的问题，并给出改法。",
+    when: (brief) => brief.stage === "drafting"
   },
-  { id: "more", kind: "palette", text: "更多功能" }
+  { id: "more", kind: "palette", text: "更多功能", when: () => true }
 ];
 
 /** pill 的 title：报得出这条出路真会发生的事，不写「敬请期待」。 */
@@ -208,6 +241,8 @@ export function workbenchCardTitle(card: WorkbenchCard): string {
 /**
  * 建议 pill 的出场条件与 chief-write 卡同源：没有可填字的章节线程，就一枚都不出。
  * （摆一枚点了填不进任何东西的 pill，就是本仓禁的那类「按了没反应的按钮」。）
+ *
+ * 2026-11-20：出场条件从「固定五枚」改成**按实况挑**（判定见 `SuggestionRule.when`）。
  */
 export function workbenchSuggestions(input: {
   hasBook: boolean;
@@ -220,5 +255,14 @@ export function workbenchSuggestions(input: {
     null
   )
     return [];
-  return [...SUGGESTIONS];
+  const brief = conversationBrief({
+    hasBook: input.hasBook,
+    docs: input.docs,
+    activeChapter: input.activeChapter
+  });
+  return SUGGESTION_RULES.flatMap((rule): WorkbenchSuggestion[] => {
+    if (!rule.when(brief)) return [];
+    if (rule.kind === "palette") return [{ id: rule.id, kind: "palette", text: rule.text }];
+    return [{ id: rule.id, kind: "prefill", text: rule.text, prefill: rule.prefill }];
+  });
 }

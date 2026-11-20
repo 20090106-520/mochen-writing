@@ -318,13 +318,15 @@ describe("useAgentStore", () => {
     // spec §6.3 第 3 条：打断后仍有未审批提案时，状态行必须还是「已打断 · N 条待审」。
     const cut = { ...idle, endedAs: "interrupted" as const };
     expect(composeStatusLine(cut, 0, 2, 0)).toBe("已打断 · 2 条待审");
-    expect(composeStatusLine(cut, 0, 0, 0)).toBe("已打断 · 可点「继续」");
+    // 2026-11-20：状态行不再写「可点「继续」」——那句话所在的位置是纯文本，点不动。
+    // 「继续」是一枚真按钮：判定在 utils/turn-resume.ts，渲染在中栏状态栏。
+    expect(composeStatusLine(cut, 0, 0, 0)).toBe("已打断");
     const failed = {
       ...idle,
       endedAs: "failed" as const,
       lastError: "模型服务端返回 503：上游繁忙"
     };
-    expect(composeStatusLine(failed, 0, 0, 0)).toBe("模型服务端返回 503：上游繁忙 · 可点「继续」");
+    expect(composeStatusLine(failed, 0, 0, 0)).toBe("模型服务端返回 503：上游繁忙");
   });
 
   it("Tab 排队：trim 后入队、满 5 条拒入队并写中文；打断不清队；turn-end 自动发队首", async () => {

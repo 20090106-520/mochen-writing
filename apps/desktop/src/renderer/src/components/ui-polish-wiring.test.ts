@@ -20,7 +20,7 @@ describe("作品库 · 同名目录辨识", () => {
   it("路径行走 uniqueRootPathLabels，不再各算各的 shortenRootPath", () => {
     const script = scriptSource("components/BookLibraryList.vue");
     expect(script).toContain(
-      "uniqueRootPathLabels(book.recentBooks.map((entry) => entry.rootPath))"
+      "uniqueRootPathLabels(filteredBooks.value.map((entry) => entry.rootPath))"
     );
     const template = templateSource("components/BookLibraryList.vue");
     expect(template).toContain("{{ pathLabels[index] }}");

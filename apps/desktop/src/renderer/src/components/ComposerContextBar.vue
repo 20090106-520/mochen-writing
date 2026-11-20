@@ -11,14 +11,14 @@
 import { computed, shallowRef } from "vue";
 import AppIcon from "./AppIcon.vue";
 import ComposerContextMenu from "./ComposerContextMenu.vue";
-import ContextMeter from "./ContextMeter.vue";
 import ProfileChip from "./ProfileChip.vue";
 import { stageContextOptions, stageLabelOf } from "../utils/composer-context";
 import { BOOK_KIND_LABELS } from "../utils/book-kinds";
 import { splitFrontmatter } from "@mochen/contracts";
 import { useBookStore } from "../stores/useBookStore";
 import { useAgentStore } from "../stores/useAgentStore";
-import { BIBLE_DIVISION_NOTE, bibleBriefOf } from "../utils/bible-brief";
+import { useBibleExclusionStore } from "../stores/useBibleExclusionStore";
+import { BIBLE_DIVISION_NOTE, bibleBriefOf, type BibleBriefRow } from "../utils/bible-brief";
 
 const props = defineProps<{ running: boolean }>();
 
@@ -33,9 +33,29 @@ const stageLabel = computed(() => stageLabelOf(book.meta));
 // 落盘在途与本轮在跑都算忙：忙时两枚都不许再点（他的 responding 门同一义）。
 const busy = computed(() => book.metaSaving || props.running);
 const options = computed(() => stageContextOptions(book.meta, busy.value));
-// W-01：只读主进程那一轮真装进来的设定条目，名字摆到输入区；没有条目就不占位。
+// W-01 补完：只读主进程那一轮真装进来的设定条目，名字摆到输入区；没有条目就不占位。
 // 用 <details> 而不是另起一套弹层状态：原生展开/收起与键盘可达都是白送的。
 const bibleBrief = computed(() => bibleBriefOf(agent.contextPreview));
+// 「本轮不带」（2026-11-20）：按书 id 存的临时排除表，不落盘、不跨重启；切书自然换一份。
+const exclusion = useBibleExclusionStore();
+const excludedBible = computed(() => (book.meta === null ? [] : exclusion.rowsOf(book.meta.id)));
+// 排除后的标题只能靠这份快照——主进程按「已移除」装配后就不再返回这一条了。
+const excludedChipText = computed(() => `已排除 ${excludedBible.value.length} 条`);
+
+function excludeBible(row: BibleBriefRow): void {
+  if (book.meta === null) return;
+  exclusion.exclude(book.meta.id, row);
+}
+
+function restoreBible(key: string): void {
+  if (book.meta === null) return;
+  exclusion.include(book.meta.id, key);
+}
+
+function restoreAllBible(): void {
+  if (book.meta === null) return;
+  exclusion.clear(book.meta.id);
+}
 
 // 文档绑定胶囊的数据源：当前活动标签对应的 DocRef 与摘要字数。
 const activeDocRef = computed(() =>
@@ -111,24 +131,59 @@ function unbindDoc(): void {
     </button>
     <!-- 智能体档案（spec §5.1）：排在阶段之后，语义上「这一档由谁来做」比「现在什么阶段」更靠后。 -->
     <ProfileChip :running="props.running" />
-    <!-- 上下文占用条（spec §5）：只读的「这一轮会带多少」读数，排在档案之后——
-         它是「已经定了」的量，不是可以再点的开关，所以排在两个选择器后面。 -->
-    <ContextMeter />
-    <!-- W-01：这一轮带入了哪几条设定，名字要看得见。只读预览，不改装配。 -->
-    <details v-if="bibleBrief.count > 0" class="bible-brief">
-      <summary class="bible-brief-chip" :title="bibleBrief.fullText">
+    <!-- W-01：这一轮带入了哪几条设定，名字要看得见；点「不带」只影响下一轮，不落盘。 -->
+    <details v-if="bibleBrief.count > 0 || excludedBible.length > 0" class="bible-brief">
+      <summary
+        class="bible-brief-chip"
+        :title="bibleBrief.count > 0 ? bibleBrief.fullText : excludedChipText"
+      >
         <AppIcon name="ledger" :size="14" />
-        <span class="bible-brief-chip-text">{{ bibleBrief.chipText }}</span>
+        <span class="bible-brief-chip-text">
+          {{ bibleBrief.count > 0 ? bibleBrief.chipText : excludedChipText }}
+        </span>
       </summary>
       <div class="bible-brief-pop" role="group" aria-label="本章带入的设定">
         <p class="bible-brief-pop-head">本轮带入 {{ bibleBrief.count }} 条设定</p>
-        <ul class="bible-brief-list">
+        <ul v-if="bibleBrief.count > 0" class="bible-brief-list">
           <li v-for="row in bibleBrief.rows" :key="row.key" class="bible-brief-row">
             <span class="bible-brief-type">{{ row.typeLabel }}</span>
             <span class="bible-brief-name">{{ row.title }}</span>
             <span class="bible-brief-chars">{{ row.chars }} 字</span>
+            <button
+              class="bible-brief-drop"
+              type="button"
+              :title="`本轮不带「${row.title}」，不影响设定本身`"
+              :aria-label="`本轮不带 ${row.title}`"
+              @click="excludeBible(row)"
+            >
+              不带
+            </button>
           </li>
         </ul>
+        <p v-else class="bible-brief-empty">这一轮没有带入任何设定。</p>
+        <div v-if="excludedBible.length > 0" class="bible-brief-excluded">
+          <p class="bible-brief-excluded-head">
+            <span>本轮不带 {{ excludedBible.length }} 条</span>
+            <button class="bible-brief-restore-all" type="button" @click="restoreAllBible">
+              全部恢复
+            </button>
+          </p>
+          <ul class="bible-brief-list">
+            <li v-for="row in excludedBible" :key="row.key" class="bible-brief-row">
+              <span class="bible-brief-type">{{ row.typeLabel }}</span>
+              <span class="bible-brief-name">{{ row.title }}</span>
+              <button
+                class="bible-brief-restore"
+                type="button"
+                :title="`把「${row.title}」带回本轮`"
+                :aria-label="`带回 ${row.title}`"
+                @click="restoreBible(row.key)"
+              >
+                带回
+              </button>
+            </li>
+          </ul>
+        </div>
         <p class="bible-brief-note">{{ BIBLE_DIVISION_NOTE }}</p>
       </div>
     </details>

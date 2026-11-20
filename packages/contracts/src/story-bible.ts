@@ -26,9 +26,17 @@ export interface BibleEntry {
   updatedAt: number;
   tags: string[];
   color?: string;
-  // 人物类型专属
+  // 人物与地点类型专属
   aliases?: string[];
+  // 人物类型专属
   role?: string;
+  /**
+   * 人物「声音」三格（2026-11 W-09）：说话风格/口头禅、绝不会做的事、本卷变化。
+   * 都是可选文本：老存档没有这三格照常读，写了才进上下文——不搞新的必填项。
+   */
+  voice?: string;
+  taboo?: string;
+  arc?: string;
   // 地点类型专属
   parentLocation?: string;
   // 时间线专属
@@ -86,9 +94,20 @@ export function normalizeBibleEntries(parsed: unknown): BibleEntry[] | null {
     if (raw.content !== undefined && typeof raw.content !== "string") return null;
     const aliases = optionalTextList(raw.aliases);
     const role = optionalText(raw.role);
+    const voice = optionalText(raw.voice);
+    const taboo = optionalText(raw.taboo);
+    const arc = optionalText(raw.arc);
     const parentLocation = optionalText(raw.parentLocation);
     const eventDate = optionalText(raw.eventDate);
-    if (aliases === null || role === null || parentLocation === null || eventDate === null) {
+    if (
+      aliases === null ||
+      role === null ||
+      voice === null ||
+      taboo === null ||
+      arc === null ||
+      parentLocation === null ||
+      eventDate === null
+    ) {
       return null;
     }
     const entry: BibleEntry = {
@@ -104,6 +123,9 @@ export function normalizeBibleEntries(parsed: unknown): BibleEntry[] | null {
     if (typeof raw.color === "string" && raw.color !== "") entry.color = raw.color;
     if (aliases !== undefined) entry.aliases = aliases;
     if (role !== undefined) entry.role = role;
+    if (voice !== undefined) entry.voice = voice;
+    if (taboo !== undefined) entry.taboo = taboo;
+    if (arc !== undefined) entry.arc = arc;
     if (parentLocation !== undefined) entry.parentLocation = parentLocation;
     if (eventDate !== undefined) entry.eventDate = eventDate;
     if (

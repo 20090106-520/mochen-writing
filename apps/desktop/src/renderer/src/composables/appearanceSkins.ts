@@ -211,6 +211,11 @@ export interface AppearanceSkin {
 export const ANIME_ART_ORIGIN = "动漫插画（Pixiv 原作）";
 export const ANIME_ART_LICENSE = "未获再分发授权";
 
+/** 原生「澄光」两套的出处与许可（2026-11-20 裁定：干净纸面 + 液态玻璃，这两套无画；
+ *  例外只许这两套——守卫把「无画皮 = 仅原生」钉死，第三套无画皮出现当场红）。 */
+export const NATIVE_SKIN_ORIGIN = "墨宸原生主题";
+export const NATIVE_SKIN_LICENSE = "本仓自有";
+
 /**
  * 皮肤广场的全表：**只有带整窗画面的皮肤才进这里**。
  *
@@ -253,41 +258,34 @@ export const appearanceSkins: AppearanceSkin[] = [
 
   {
     id: "xi-day",
-    label: "绯青 · 昼影",
-    tagline:
-      "蓝裙姑娘踩着会发光的浅滩往灯走，天边压着一线落日。日间版把海面的鳞光提亮，整幅偏青蓝。",
-    origin: ANIME_ART_ORIGIN,
-    license: ANIME_ART_LICENSE,
-    /* 浅色版 accent 取 #2A7699 而不是画里那块亮蓝（#2E7FA8）：
-       它与白字只有 4.45:1，压在按钮上差一口气不到 4.5:1，
-       而按钮上那行字的可读性是由计算说了算的（appearance-theme-readability.test.ts）。 */
-    light: { accent: "#2A7699", background: "#E8F6FA", foreground: "#123243" },
-    dark: { accent: "#57B7D6", background: "#0E2430", foreground: "#DCF1F8" },
+    label: "绯青 · 澄光",
+    tagline: "干净冷调纸面与极淡同色系微光，让导航、对话和输入卡浮在统一的液态玻璃上。",
+    origin: NATIVE_SKIN_ORIGIN,
+    license: NATIVE_SKIN_LICENSE,
+    light: { accent: "#2A6F97", background: "#F2F5F7", foreground: "#1D2B36" },
+    dark: { accent: "#76BDD9", background: "#101922", foreground: "#DCE8EF" },
     backdrop: "aurora",
     glass: "regions",
     surface: "round-none",
     grid: "none",
-    art: "shallow-hall-day",
-    ornament: "whale"
+    art: "none",
+    ornament: "none"
   },
 
   {
     id: "xi-night",
-    label: "绯青 · 夜影",
-    tagline: "同一片会发光的浅滩、同一位姑娘，夜版把天与海一并压深，只剩脚下那层蓝光。",
-    origin: ANIME_ART_ORIGIN,
-    license: ANIME_ART_LICENSE,
-    /* 「夜阁」的**浅色版底色本来就是深蓝**（那是一套画在夜里的皮肤）。
-       所以画上面那层纱不能按当前是浅色还是深色模式给，要按这条皮肤自己的底色给——
-       判据写在 `appearanceSkinVisual.ts` 的 `artVeil` 上，别再改回按 scheme 分支。 */
-    light: { accent: "#4FA8C4", background: "#0B1A26", foreground: "#DCEEF5" },
-    dark: { accent: "#5FD3EE", background: "#060F18", foreground: "#D6ECF5" },
+    label: "绯青 · 夜色",
+    tagline: "深青灰底与克制的冷色高光，保留夜间写作的安静层次，不再叠加整窗插画。",
+    origin: NATIVE_SKIN_ORIGIN,
+    license: NATIVE_SKIN_LICENSE,
+    light: { accent: "#62A8C4", background: "#121E28", foreground: "#DCE8EF" },
+    dark: { accent: "#76BDD9", background: "#0B141C", foreground: "#D6E4EC" },
     backdrop: "abyss",
     glass: "strong",
     surface: "dialogue",
-    grid: "stage",
-    art: "abyss-hall-night",
-    ornament: "lantern"
+    grid: "none",
+    art: "none",
+    ornament: "none"
   },
 
   /* ── 波2a：三系列 × 昼夜（2026-10-08，素材通路断位图之后的矢量自绘） ─────

@@ -490,7 +490,7 @@ function skillRefOf(id: string, description: string): SkillRef {
 }
 
 describe("挂入技能（spec §11 / P0-2 渐进披露）", () => {
-  const input = (skillPaths: string[]): StartTurnInput => ({
+  const input = (skillPaths: string[], preloadSkillId?: string): StartTurnInput => ({
     threadKey: CHAPTER,
     docRelPath: CHAPTER,
     stageId: "draft",
@@ -498,7 +498,9 @@ describe("挂入技能（spec §11 / P0-2 渐进披露）", () => {
     thinkingLevel: "off",
     webSearchEnabled: false,
     skillPaths,
-    sampleCount: 1
+    sampleCount: 1,
+    // 自动预读（2026-11-17）：不传 ⇒ 字段缺席，与老请求逐字一致。
+    ...(preloadSkillId === undefined ? {} : { preloadSkillId })
   });
   const BODY = "先埋线，三百字后收。";
 
@@ -521,6 +523,22 @@ describe("挂入技能（spec §11 / P0-2 渐进披露）", () => {
     expect(system).toContain("正文没有载入");
     // 模型没打算用这份方法时，整份正文不再跟着系统提示一起发出去。
     expect(system).not.toContain(BODY);
+    service.dispose();
+  });
+
+  it("自动预读：唯一榜首的正文直接进系统提示，并标明是预读（2026-11-17）", async () => {
+    const { service } = await build({
+      listSkills: async () => [skillRefOf("book:伏笔", "埋线收线的方法")],
+      readSkill: async () => ({ title: "伏笔", text: BODY })
+    });
+    await service.startTurn(input(["book:伏笔"], "book:伏笔"));
+    const sent = JSON.parse(requests[0]?.body ?? "{}") as { messages: { content: string }[] };
+    const system = sent.messages[0]?.content ?? "";
+    // 正文整份在，且有一个明确的段头说明它是自动预读的——模型据此不必再 use_skill 一遍。
+    expect(system).toContain("【本轮自动预读的技能：伏笔】");
+    expect(system).toContain(BODY);
+    // 清单提示换成兼容预读的那一句：再说「正文没有载入」会与下一段自相矛盾。
+    expect(system).not.toContain("正文没有载入");
     service.dispose();
   });
 

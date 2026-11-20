@@ -374,6 +374,63 @@ html[data-platform="darwin"] .conversation-header {
   display: none;
 }
 
+/* 作品现状（2026-11-20 对话区智能刀）：章 / 字 / 人物三格 + 一句「接下来干什么」。
+   这一格原先没有——中栏摆的是一份静态产品说明书（五张能力卡 + 六条「我可以帮你做这些」），
+   没有一句在说自己那本书的进度。作者把光标放进输入框时看到的，是手册，不是自己那本书。 */
+.workbench-brief {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.workbench-brief-head {
+  color: var(--text-secondary);
+  font-size: 0.857143rem;
+  font-weight: 590;
+}
+
+.workbench-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin: 0;
+}
+
+/* 值在前、名在后（横排读作「3 章」）：`dl` 默认是名在前，这里把两格并排读。 */
+.workbench-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.workbench-stat dt {
+  color: var(--text-tertiary);
+  font-size: 0.785714rem;
+}
+
+.workbench-stat dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.857143rem;
+  font-weight: 620;
+}
+
+/* 「接下来干什么」贴在右端：它是这一格唯一的**动作**，该被一眼扫到。 */
+.workbench-next {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 0.785714rem;
+  line-height: 1.6;
+}
+
 .workbench-quote {
   color: var(--text-faint);
   font-size: 0.785714rem;

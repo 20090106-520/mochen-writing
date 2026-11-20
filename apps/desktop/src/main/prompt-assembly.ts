@@ -42,6 +42,8 @@ import { senseChannelSentence } from "./prompt-sense-channels.js";
 import { dialogueParagraphSentence } from "./prompt-dialogue-paragraph.js";
 // 对白复读（2026-11-16 拆到 prompt-dialogue-repeat.ts，理由见那边）。
 import { dialogueRepeatSentence } from "./prompt-dialogue-repeat.js";
+// 本章腔调偏离（2026-11-17 拆到 prompt-chapter-drift.ts，理由见那边）。
+import { chapterDriftSentence } from "./prompt-chapter-drift.js";
 
 export {
   AI_FLAVOR_INSTRUCTION,
@@ -644,10 +646,16 @@ export function defaultPromptFor(context: PromptContext): string {
   // 拼一次、扫一次，引号外的叙述直接喂给人称段（2026-11-16）。
   const finishedText = finishedChaptersText(context.context);
   const finishedScan = scanQuoted(finishedText);
+  // 本章腔调偏离（2026-11-17）：拿这一章已写的部分与已完稿正文的常态比一次——
+  // 交稿回执里本来就会比，这里让模型在续写时先看见。样本不足（这章不到 300 字 /
+  // 本书不到 500 字）返回空串，不注入。
+  const activeDraftText =
+    context.context.items.find((item) => item.kind === "chapter" && item.active)?.text ?? "";
   // 叙述人称（2026-11-15）：报这本书引号外的第一/第三人称代词数，防一章里悄悄换人称。无样本不加。
   const narrationPerson = narrationPersonSentence(context.context, {
     narration: finishedScan.narration
   });
+  const chapterDrift = chapterDriftSentence(finishedText, activeDraftText);
   // 本书原句样本（七段／八段，2026-10-20）：把「通用范例句」换成本书自己的句子——语感（句长三枚）与
   // 对白（三枚）各一段，取自已完稿正文（不含当前章）。没样本（不足三句 / 开书第一轮）不加。
   const voiceSample = voiceSampleSentence(context.context, finishedText);
@@ -722,6 +730,8 @@ export function defaultPromptFor(context: PromptContext): string {
     ...(styleProfile === "" ? [] : [styleProfile]),
     // 叙述人称（2026-11-15）：这本书引号外用的是第几人称，新内容别悄悄换。样本不足不加。
     ...(narrationPerson === "" ? [] : [narrationPerson]),
+    // 本章腔调偏离（2026-11-17）：这一章写到这儿已经偏了哪几条——紧跟在本书常态之后。
+    ...(chapterDrift === "" ? [] : [chapterDrift]),
     // 本书原句样本（七段／八段，2026-10-20）：原样摘抄本书已完稿正文里的句子（句长三枚 / 对白三枚），
     // 让「正面样本」出自这本书自己，而不是本仓自造的通用例句。没样本就不加这段。
     ...(voiceSample === "" ? [] : [voiceSample]),

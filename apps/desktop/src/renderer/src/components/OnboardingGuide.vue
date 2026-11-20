@@ -22,9 +22,9 @@ interface StepContent {
 const STEPS: StepContent[] = [
   {
     step: "welcome",
-    title: "欢迎使用深渊写作",
+    title: "欢迎使用墨宸 AI",
     description:
-      "深渊写作是一款 AI 辅助创作工具。你只需说人话，AI 会自己读文档、给出逐条待审的改稿提案。你不点批准，它一个字也写不进作品目录。",
+      "墨宸 AI 是一款 AI 辅助创作工具。你只需说人话，AI 会自己读文档、给出逐条待审的改稿提案。你不点批准，它一个字也写不进作品目录。",
     icon: "sparkles",
     tip: "准备开始你的第一本书吧 →"
   },
@@ -164,7 +164,9 @@ function startNewBook(): void {
   max-width: 90vw;
   background: var(--dropdown-bg, #1e1e2a);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: 16px;
+  /* 2026-11-20 · 批次②：面板层跟皮肤走（写死 16px 的话，换「直角」皮肤时这个框不动）。
+     兜底 16px = 今天的像素，默认皮肤下一字不变。 */
+  border-radius: var(--radius-panel);
   padding: 24px;
   box-shadow: var(--shadow-lg);
 }
@@ -176,7 +178,8 @@ function startNewBook(): void {
   right: 0;
   height: 3px;
   background: color-mix(in srgb, var(--theme-foreground, #1a1c1f) 6%, transparent);
-  border-radius: 16px 16px 0 0;
+  /* 上沿两角要跟对话框外框同一档，否则直角皮肤下会露出两个小圆角。 */
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
   overflow: hidden;
 }
 
@@ -283,7 +286,8 @@ function startNewBook(): void {
   font-size: 0.928571rem;
   background: var(--accent, #6c9eff);
   border: none;
-  border-radius: 6px;
+  /* 控件层跟皮肤走（兜底 8px = 全应用按钮那一档，阶梯上的「按钮、输入框、行」）。 */
+  border-radius: var(--radius-control);
   color: #fff;
   cursor: pointer;
 }
@@ -303,7 +307,7 @@ function startNewBook(): void {
   height: 28px;
   background: transparent;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   color: var(--text-muted, #777);
   cursor: pointer;
 }

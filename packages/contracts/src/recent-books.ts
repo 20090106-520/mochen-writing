@@ -15,6 +15,10 @@ export interface RecentBookEntry {
   title: string;
   /** 最近一次打开的时间（ISO 字符串），清单按它倒序。 */
   lastOpenedAt: string;
+  /** 最近一次打开时扫描到的章节数（可选：老条目没有这一格）。 */
+  chapterCount?: number;
+  /** 最近一次打开时扫描到的正文字数（可选：老条目没有这一格）。 */
+  totalChars?: number;
 }
 
 /** 作品库的一次读回：按最近打开时间倒序，最多 20 条（上限住在主进程那份 store 里）。 */

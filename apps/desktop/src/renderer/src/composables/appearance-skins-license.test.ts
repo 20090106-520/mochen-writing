@@ -25,6 +25,10 @@ import { appearanceSkins } from "./appearanceSkins";
    这些画**没有拿到任何再分发授权**，所以如实写「未获再分发授权」而不是含糊过去。
    逐张的作品号 / 画师 / 索引号见 `docs/ATTRIBUTION.md` 的皮肤段。 */
 const ANIME_LICENSE_LITERAL = "未获再分发授权";
+/* 原生澄光那两句（2026-11-20 澄光刀）。与上面那句同一口径：**守卫里另抄一份**，
+   不从被测代码 import——它哪天把许可改成第三个值，守卫要红，而不是跟着改继续全绿。 */
+const NATIVE_ORIGIN_LITERAL = "墨宸原生主题";
+const NATIVE_LICENSE_LITERAL = "本仓自有";
 /** 改编皮出处的固定前缀。**声明在这里，不从 appearanceSkins import**——
  *  出处那句将来可能再拆（2026-10-08 已经从一种自有皮拆到两种），
  *  而守卫要的判据是**形状**（带不带这个前缀），不是某一句具体的话。
@@ -69,6 +73,13 @@ describe("皮肤表 · 出处与许可", () => {
         adaptedCount += 1;
         expect(skin.license, `${skin.id} 是改编皮（出处「${skin.origin}」），许可却不是 MIT`).toBe(
           "MIT"
+        );
+      } else if (skin.origin === NATIVE_ORIGIN_LITERAL) {
+        /* 原生澄光（2026-11-20）：本仓自有、没有整窗画，许可自然是「本仓自有」——
+           它不是 Pixiv 画面皮，不该背「未获再分发授权」那句。 */
+        ownCount += 1;
+        expect(skin.license, `${skin.id} 是原生澄光，许可必须是「本仓自有」`).toBe(
+          NATIVE_LICENSE_LITERAL
         );
       } else {
         ownCount += 1;

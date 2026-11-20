@@ -18,7 +18,11 @@ export const MAX_RECENT_BOOKS = 20;
 export interface RecentBooksStore {
   list(): Promise<RecentBooksSnapshot>;
   /** 打开/新建成功后记一笔（同一路径只留一条，时间刷新）。 */
-  touch(rootPath: string, title: string): Promise<void>;
+  touch(
+    rootPath: string,
+    title: string,
+    stats?: { chapterCount?: number; totalChars?: number }
+  ): Promise<void>;
   /** 只把一条从清单里划掉，返回划掉之后的整份清单。 */
   forget(rootPath: string): Promise<RecentBooksSnapshot>;
 }
@@ -54,7 +58,9 @@ function parseSnapshot(raw: string): RecentBooksSnapshot {
     books.push({
       rootPath: entry.rootPath,
       title: entry.title,
-      lastOpenedAt: entry.lastOpenedAt
+      lastOpenedAt: entry.lastOpenedAt,
+      ...(typeof entry.chapterCount === "number" ? { chapterCount: entry.chapterCount } : {}),
+      ...(typeof entry.totalChars === "number" ? { totalChars: entry.totalChars } : {})
     });
   }
   return { books };
@@ -107,16 +113,19 @@ export function createRecentBooksStore(deps: {
   return {
     list: read,
 
-    async touch(rootPath, title) {
+    async touch(rootPath, title, stats) {
       if (rootPath.trim() === "") return;
       const { books } = await read();
       const key = pathKey(rootPath);
+      const entry: RecentBookEntry = {
+        rootPath,
+        title: title.trim() === "" ? path.basename(rootPath) : title,
+        lastOpenedAt: new Date().toISOString()
+      };
+      if (stats?.chapterCount !== undefined) entry.chapterCount = stats.chapterCount;
+      if (stats?.totalChars !== undefined) entry.totalChars = stats.totalChars;
       const next: RecentBookEntry[] = [
-        {
-          rootPath,
-          title: title.trim() === "" ? path.basename(rootPath) : title,
-          lastOpenedAt: new Date().toISOString()
-        },
+        entry,
         ...books.filter((book) => pathKey(book.rootPath) !== key)
       ];
       await write(next);

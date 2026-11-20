@@ -11,9 +11,8 @@ import ChapterDriftBadge from "./ChapterDriftBadge.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
 import { loadReducedMotion, motionPreferenceStorage } from "../utils/motion-preference";
-import { BOOK_KIND_LABELS, BOOK_KIND_ORDER } from "../utils/book-kinds";
 import { shortenRootPath } from "../utils/book-path";
-import { KIND_ICON } from "../utils/kind-icons";
+import { manuscriptSections } from "../utils/manuscript-sections";
 import { newDocButtonTitle, newDocPlan } from "../utils/new-doc";
 import { statsRowsOf } from "../utils/stats-rows";
 import { textRowKeydown } from "../utils/text-row-keydown";
@@ -32,6 +31,7 @@ import { useTrashStore } from "../stores/useTrashStore";
 import { useBackupStore } from "../stores/useBackupStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import SideNavNoticeDialog, { type SideNavNotice } from "./SideNavNoticeDialog.vue";
+import SidebarHelpButton from "./SidebarHelpButton.vue";
 import LibraryNavRows from "./LibraryNavRows.vue";
 import ExtensionsNavRow from "./ExtensionsNavRow.vue";
 import BookLibraryList from "./BookLibraryList.vue";
@@ -64,14 +64,9 @@ onMounted(() => void book.loadRecentBooks());
 const addingKind = ref<BookKind | null>(null);
 const newDocTitle = ref("");
 
-const sections = computed(() =>
-  BOOK_KIND_ORDER.map((kind) => ({
-    id: kind,
-    label: BOOK_KIND_LABELS[kind],
-    icon: KIND_ICON[kind],
-    nodes: book.docs.filter((doc) => doc.kind === kind)
-  })).filter((section) => section.nodes.length > 0 || addingKind.value === section.id)
-);
+// 哪些分组该露出来：判定住在 utils/manuscript-sections（章节组开着书就常驻——
+// 空书时也得有一枚「+ 新建」给第一篇正文，首次引导第 3 步指的就是它）。
+const sections = computed(() => manuscriptSections(book.docs, addingKind.value, book.hasBook));
 
 const collapsedSections = ref<Record<string, boolean>>({});
 
@@ -238,6 +233,16 @@ watch(
     if (kind === null) return;
     guideToDoc(kind);
     layout.clearDocGroupRequest();
+  }
+);
+
+/** 中栏「写后体检」卡片的「查看全部」：真身仍是上面的 openLibraryDialog("terms")。 */
+watch(
+  () => layout.libraryDialogRequest,
+  (kind) => {
+    if (kind === null) return;
+    openLibraryDialog(kind);
+    layout.clearLibraryDialogRequest();
   }
 );
 
@@ -761,7 +766,9 @@ function onChapterDragEnd(): void {
     </div>
 
     <!-- 底部这一格对齐 deepwrite 的 .sidebar-footer：他左格是「作者」头像 + 账号菜单，右格才是齿轮。
-         我们没有账号体系 ⇒ 左格保留齿轮（用户裁定钉在左端），右列给品牌标语（演示图逐字）。 -->
+         我们没有账号体系 ⇒ 左格保留齿轮（用户裁定钉在左端），右列给品牌标语（演示图逐字）。
+         齿轮右边那枚「?」是首次引导的入口（组件自带，见 components/SidebarHelpButton.vue）——
+         引导末步说的「左栏的「?」按钮」得真在这儿，之前全仓没有这枚钮，reopen 是个死函数。 -->
     <footer class="sidebar-footer">
       <div class="account-controls">
         <button
@@ -773,6 +780,7 @@ function onChapterDragEnd(): void {
         >
           <AppIcon name="settings" :size="16" />
         </button>
+        <SidebarHelpButton />
         <span class="footer-tagline">{{ FOOTER_TAGLINE }}</span>
       </div>
     </footer>

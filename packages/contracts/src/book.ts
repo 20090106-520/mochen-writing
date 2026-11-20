@@ -79,6 +79,11 @@ export interface BookMeta {
    * 键名、标签与归一化只住在 `book-project.ts`（铁律 6）。
    */
   project?: BookProject | undefined;
+  /**
+   * 章末摘要（阶段 C）：relPath → 事实摘要（≤`RECAP_MAX_CHARS`）。
+   * 老书没有这一格，解析照样过，装配层退回「截上一章尾巴」的老路（判据 `recapOf`）。
+   */
+  recaps?: Record<string, string> | undefined;
 }
 
 /**
@@ -186,7 +191,15 @@ export const bookMetaSchema = z
         taboos: z.string().max(BOOK_PROJECT_MAX_CHARS).optional(),
         pitch: z.string().max(BOOK_PROJECT_MAX_CHARS).optional()
       })
-      .optional()
+      .optional(),
+    /**
+     * 章末摘要（relPath → ≤RECAP_MAX_CHARS 字）。没有这本书/这一章就是空表，
+     * 装配层退回「截上一章尾部原文」的老口径（见 agent-runtime 的 recapOf）。
+     *
+     * 为什么放 book.json：随书走、随备份走、`open` 已整份加载，不需要新 IPC 通道与第二种文件格式。
+     * 老书没有这一格 ⇒ undefined，行为与从前逐字一致。
+     */
+    recaps: z.record(z.string(), z.string()).optional()
   })
   .superRefine((value, ctx) => {
     const ids = new Set<string>();
@@ -205,6 +218,23 @@ export const bookMetaSchema = z
 
 export function parseBookMeta(raw: unknown): BookMeta {
   return structuredClone(bookMetaSchema.parse(raw));
+}
+
+/** 章末摘要的字数上限（生成端与展示端共用这一枚，不各写一个数字）。 */
+export const RECAP_MAX_CHARS = 300;
+
+/**
+ * 取某一章的前情摘要（2026-11-17 spec 阶段 C.4）。**判据只在这一处**：
+ * 装配层与调用方都经它读 recaps，空串/缺失一律当「没有摘要」，继续走尾部截取的老路。
+ */
+export function recapOf(
+  recaps: Readonly<Record<string, string>> | undefined,
+  relPath: string
+): string | null {
+  const text = recaps?.[relPath];
+  if (text === undefined) return null;
+  const trimmed = text.trim();
+  return trimmed === "" ? null : trimmed;
 }
 
 /**

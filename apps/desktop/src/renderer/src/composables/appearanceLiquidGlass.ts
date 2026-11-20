@@ -85,7 +85,7 @@ const GLASS_TIERS: Record<
   subtle: { blur: 12, saturate: 1.2, lightAlpha: 0.68, darkAlpha: 0.78 },
   standard: { blur: 16, saturate: 1.3, lightAlpha: 0.76, darkAlpha: 0.85 },
   strong: { blur: 20, saturate: 1.38, lightAlpha: 0.84, darkAlpha: 0.9 },
-  regions: { blur: 18, saturate: 1.32, lightAlpha: 0.8, darkAlpha: 0.87 }
+  regions: { blur: 20, saturate: 1.42, lightAlpha: 0.72, darkAlpha: 0.84 }
 };
 
 /** 底色里混多少强调色。4% 足够让玻璃带一点这套皮肤的色相，又不会把底色推离背景。 */

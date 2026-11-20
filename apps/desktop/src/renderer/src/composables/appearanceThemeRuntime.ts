@@ -355,6 +355,7 @@ export function applyAppearanceThemeToDocument(input: {
     "--skin-glass-sheen",
     "--skin-glass-sidebar-fill",
     "--skin-glass-card-fill",
+    "--skin-radius-control",
     "--skin-radius-sm",
     "--skin-radius-md",
     "--skin-radius-lg",

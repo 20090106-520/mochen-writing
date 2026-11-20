@@ -271,6 +271,11 @@ export interface ContextPreviewQuery {
    * 只会让同一份技能在提示词里出现两遍。记在这里。
    */
   pinned?: readonly string[];
+  /**
+   * 本轮临时移除的设定（2026-11-20）：`bible:<类型>:<id>`，与 startTurn 的 `excludedBible` 同源。
+   * 占用条必须按「已移除」后的样子报——否则它显示的就不是这一轮真会发出去的那些。
+   */
+  excludedBible?: readonly string[];
 }
 
 /** 预览里的一行：只有标签与字数，**不含正文**（渲染层不需要正文，也不该拿到）。 */

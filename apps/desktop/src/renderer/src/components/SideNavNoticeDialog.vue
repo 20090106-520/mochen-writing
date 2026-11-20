@@ -121,6 +121,7 @@ function restoreBackup(name: string): void {
       <div
         ref="dialogRoot"
         class="workspace-dialog side-nav-notice-dialog"
+        :class="{ 'is-report': notice.kind === 'terms' }"
         role="dialog"
         aria-modal="true"
         tabindex="-1"

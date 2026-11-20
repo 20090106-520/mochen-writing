@@ -14,6 +14,12 @@ import {
   saveRightPanePreferences,
   type RightPanePreferences
 } from "../utils/rightPanePreferences";
+import {
+  DEFAULT_PANE_LAYOUT_PREFERENCES,
+  loadPaneLayoutPreferences,
+  savePaneLayoutPreferences,
+  type PaneLayoutPreferences
+} from "../utils/pane-layout-preferences";
 
 /**
  * 工作区的两个**整页视图**。
@@ -161,6 +167,35 @@ function initialRightPanePreferences(): RightPanePreferences {
   }
 }
 
+/**
+ * 开合态的落盘读入口（2026-11-20 · 主线第一刀）。
+ *
+ * 读不到就当"什么都没动过"——那时右栏那一枚仍由自动策略按视口宽度决定，
+ * 左栏那一枚是默认展开。与既有纪律一致：读不出来不许假装记得。
+ */
+function initialPaneLayoutPreferences(): PaneLayoutPreferences {
+  const currentWindow = runtimeWindow();
+  if (!currentWindow) return { ...DEFAULT_PANE_LAYOUT_PREFERENCES };
+  try {
+    return loadPaneLayoutPreferences(currentWindow.localStorage);
+  } catch {
+    return { ...DEFAULT_PANE_LAYOUT_PREFERENCES };
+  }
+}
+
+/**
+ * 右栏宽度的记忆键（2026-11-20 · 主线第一刀）。
+ *
+ * 按右栏三态各记一份：文稿 / 浏览 / 作品资料。这三样东西的合适宽度本就不一样
+ * （资料是表，稿子是正文），记一份反而要来回拉。
+ *
+ * 键的作者只有这一处——落点判定归装配层（App.vue 看得见 `book.rightPaneMode` 与 layout），
+ * 与 `findReplaceHasLanding` 同一条纪律：几何策略不反向依赖书 store。
+ */
+export function rightPaneWidthKey(mode: RightPaneMode): string {
+  return `right:${mode}`;
+}
+
 export const useLayoutStore = defineStore("layout", () => {
   const viewportWidth = ref(initialViewportWidth());
   const initialRightPaneWidth = defaultRightPaneWidth(viewportWidth.value);
@@ -189,13 +224,29 @@ export const useLayoutStore = defineStore("layout", () => {
    * 左栏消费后立刻清空（不留下一个永远为真、重复触发的布尔）。
    */
   const docGroupRequest = ref<BookKind | null>(null);
-  const leftCollapsed = ref(false);
+  /**
+   * 一次性信号：中栏「写后体检」卡的「查看全部」请左栏打开既有的书稿体检对话框。
+   * 真身仍是左栏 openLibraryDialog("terms")——这里只传意图，不复制它的开合逻辑；消费后立刻清空。
+   */
+  const libraryDialogRequest = ref<"terms" | null>(null);
+  const paneLayout = initialPaneLayoutPreferences();
+  /** 左栏没有自动策略，它的收放纯粹是用户意图 ⇒ 存下来就该照办。 */
+  const leftCollapsed = ref(paneLayout.leftCollapsed);
   /**
    * 右栏初始折叠态由视口宽度决定（窄窗一进来就先把宽度让给中栏，而不是等用户发现挤）。
    * 手动意图的闸门：用户自己折叠/展开过右栏之后，自动策略就交权（见 setPaneCollapsed）。
+   *
+   * 2026-11-20（主线第一刀）：这一位现在会**记住用户上次的样子**。
+   *   - 用户自己动过右栏（`rightPaneManuallyToggled`）⇒ 照他上次留下的来；
+   *   - 没动过 ⇒ 仍由自动策略按视口宽度决定（窄窗进来先收着）。
+   * 手动优先这条纪律一个字没改，只是从"本次会话内"延长到了"跨重启"。
    */
-  const rightCollapsed = ref(shouldAutoCollapseRightPane(viewportWidth.value));
-  const rightPaneManuallyToggled = ref(false);
+  const rightCollapsed = ref(
+    paneLayout.rightPaneManuallyToggled
+      ? paneLayout.rightCollapsed
+      : shouldAutoCollapseRightPane(viewportWidth.value)
+  );
+  const rightPaneManuallyToggled = ref(paneLayout.rightPaneManuallyToggled);
   const desktopShell = shallowRef<HTMLElement | null>(null);
   const leftPaneWidth = ref(defaultLeftPaneWidth(viewportWidth.value));
   const rightPaneWidth = ref(initialRightPaneWidth);
@@ -351,6 +402,14 @@ export const useLayoutStore = defineStore("layout", () => {
     docGroupRequest.value = null;
   }
 
+  function requestLibraryDialog(kind: "terms"): void {
+    libraryDialogRequest.value = kind;
+  }
+
+  function clearLibraryDialogRequest(): void {
+    libraryDialogRequest.value = null;
+  }
+
   function setPaneCollapsed(side: PaneSide, collapsed: boolean): void {
     if (side === "left") {
       leftCollapsed.value = collapsed;
@@ -360,6 +419,27 @@ export const useLayoutStore = defineStore("layout", () => {
       rightPaneManuallyToggled.value = true;
       rightCollapsed.value = collapsed;
     }
+    // 2026-11-20：用户动过就记下来，下次启动照办（写稿的人一天要摆好几次布局）。
+    // 只有**用户动过**才落盘——自动策略收放右栏不落盘：那不是用户的意思，
+    // 存下来会让下次启动把"窄窗自动收"记成用户的选择。
+    persistPaneLayout();
+  }
+
+  /**
+   * 开合态的落盘（2026-11-20）。
+   *
+   * 写不进去（配额满 / 隐私模式）不抛也不提示：布局摆好了就行，落盘只是"下次省一步"。
+   * 但也不假装存上了——返回值如实给调用方（当前唯一调用方不关心返回值，
+   * 留着是为了将来要提示时不必改形状）。
+   */
+  function persistPaneLayout(): boolean {
+    const currentWindow = runtimeWindow();
+    if (!currentWindow) return false;
+    return savePaneLayoutPreferences(currentWindow.localStorage, {
+      leftCollapsed: leftCollapsed.value,
+      rightCollapsed: rightCollapsed.value,
+      rightPaneManuallyToggled: rightPaneManuallyToggled.value
+    });
   }
 
   function togglePane(side: PaneSide): void {
@@ -426,9 +506,12 @@ export const useLayoutStore = defineStore("layout", () => {
   }
 
   function preferredRightPaneWidth(key = activeRightPanePreferenceKey.value): number {
-    return key
-      ? (rightPanePreferences.value.widths[key] ?? initialRightPaneWidth)
-      : initialRightPaneWidth;
+    if (!key) return rightPaneWidth.value;
+    const stored = rightPanePreferences.value.widths[key];
+    // 没记过这一格 ⇒ **沿用当前宽度**，不去跳回默认（2026-11-20）。
+    // 用户第一次切到「浏览」或「作品资料」时，面板不该在他眼前突然变形；
+    // 等他在那一格里拖过之后，这一格才有了自己的宽度。
+    return stored ?? rightPaneWidth.value;
   }
 
   function restoreRightPaneWidth(key = activeRightPanePreferenceKey.value): void {
@@ -621,6 +704,7 @@ export const useLayoutStore = defineStore("layout", () => {
     importTxtOpen,
     importTxtTarget,
     docGroupRequest,
+    libraryDialogRequest,
     leftCollapsed,
     rightCollapsed,
     rightPaneManuallyToggled,
@@ -647,6 +731,8 @@ export const useLayoutStore = defineStore("layout", () => {
     closeImportTxt,
     requestDocGroup,
     clearDocGroupRequest,
+    requestLibraryDialog,
+    clearLibraryDialogRequest,
     setPaneCollapsed,
     togglePane,
     setRightCollapsedByEmptyBook,

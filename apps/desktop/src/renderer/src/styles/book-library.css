@@ -9,6 +9,62 @@
   min-width: 0;
 }
 
+.book-library-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 4px 4px;
+}
+
+.book-library-search {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--surface-card);
+  color: var(--text);
+  font-size: 0.714286rem;
+  outline: none;
+}
+
+.book-library-search:focus {
+  border-color: color-mix(in srgb, var(--focus) 50%, var(--line-soft));
+}
+
+.book-library-search::placeholder {
+  color: var(--text-faint);
+}
+
+.book-library-sort {
+  display: flex;
+  gap: 2px;
+}
+
+.book-library-sort-btn {
+  flex: 1;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 0.714286rem;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+
+.book-library-sort-btn:hover {
+  background: color-mix(in srgb, var(--focus) 6%, transparent);
+  color: var(--text);
+}
+
+.book-library-sort-btn.is-active {
+  background: color-mix(in srgb, var(--focus) 12%, transparent);
+  color: color-mix(in srgb, var(--focus) 88%, var(--text));
+  font-weight: 600;
+}
+
 /* 左栏那一格的小标题：与「工作目录」那块同层级，但先于它出现（作品库 → 当前这本）。 */
 .sidebar-library {
   display: flex;
@@ -100,11 +156,25 @@
   white-space: nowrap;
 }
 
+.book-library-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
 .book-library-path {
   overflow: hidden;
   color: var(--text-faint);
   font-size: 0.714286rem;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-library-progress {
+  flex: none;
+  color: color-mix(in srgb, var(--focus) 70%, var(--text-faint));
+  font-size: 0.714286rem;
   white-space: nowrap;
 }
 

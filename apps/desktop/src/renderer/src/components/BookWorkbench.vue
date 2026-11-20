@@ -1,7 +1,7 @@
 <!-- 作品工作台（中栏空状态，示意稿 A）：hero + 五张能力卡 + 能力清单气泡 + 建议 pill。
      判定与文案全在 utils/workbench-state.ts（`.vue` 不过 tsc，表放这里就没有关卡）。 -->
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import AppIcon from "./AppIcon.vue";
 import ParticleObject from "./canvasui/ParticleObject.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
@@ -15,6 +15,7 @@ import {
   type WorkbenchCardId,
   type WorkbenchSuggestion
 } from "../utils/workbench-state";
+import { conversationBrief } from "../utils/conversation-brief";
 import { useBookStore } from "../stores/useBookStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import BookLibraryList from "./BookLibraryList.vue";
@@ -35,6 +36,23 @@ const emit = defineEmits<{
 
 const book = useBookStore();
 const layout = useLayoutStore();
+
+/**
+ * 这本书现在到哪了（2026-11-20 对话区智能刀）。
+ *
+ * 判定全在 `utils/conversation-brief.ts`（`.vue` 不过 tsc，判定不写在模板里）。
+ * 这一格原来没有：中栏摆的是一份静态产品说明书——五张能力卡 + 六条
+ * 「我可以帮你做这些」，没有一句在说自己那本书的进度。
+ */
+const brief = computed(() =>
+  conversationBrief({
+    hasBook: book.hasBook,
+    title: book.meta?.title ?? "",
+    docs: book.docs,
+    activeChapter: book.activeDocTab
+  })
+);
+
 // 无书降级的「打开作品目录」走 book.pickAndOpen() —— 与输入卡书格、Ctrl+O 同一真身，不复制逻辑；
 // 「新建作品」开的是 layout.newBookOpen 那一个对话框（开合真身唯一）。
 async function openBook(): Promise<void> {
@@ -67,6 +85,19 @@ async function openBook(): Promise<void> {
         </p>
         <p class="workbench-quote">「{{ WORKBENCH_HERO_QUOTE }}」</p>
       </div>
+    </section>
+
+    <!-- 作品现状（2026-11-20 对话区智能刀）：章 / 字 / 人物三格 + 一句「接下来干什么」。
+         空书那一档不摆三格零（全是 0，等于没信息），改说「这本书还空着」。 -->
+    <section v-if="hasBook" class="workbench-brief" aria-label="作品现状">
+      <p v-if="brief.stage === 'empty-book'" class="workbench-brief-head">{{ brief.headline }}</p>
+      <dl v-else class="workbench-stats">
+        <div v-for="stat in brief.stats" :key="stat.label" class="workbench-stat">
+          <dt>{{ stat.label }}</dt>
+          <dd>{{ stat.value }}</dd>
+        </div>
+      </dl>
+      <p class="workbench-next">{{ brief.nextStep }}</p>
     </section>
 
     <nav v-if="cards.length" class="workbench-cards" aria-label="作品工作台">

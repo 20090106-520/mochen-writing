@@ -4,8 +4,8 @@
  * 以及绕开书级停用的硬闸。下面逐条把边界钉死。
  */
 import { describe, expect, it } from "vitest";
-import { AUTO_SKILL_LIMIT, autoSkillPlanOf, sameSkillIds } from "./skill-auto";
-import type { SkillCandidate } from "./skill-pick";
+import { AUTO_SKILL_LIMIT, autoSkillPlanOf, preloadSkillIdOf, sameSkillIds } from "./skill-auto";
+import type { SkillCandidate, SkillPick } from "./skill-pick";
 import type { AutoSkillPlanArgs } from "./skill-auto";
 
 const skill = (id: string, over: Partial<SkillCandidate> = {}): SkillCandidate => ({
@@ -132,5 +132,30 @@ describe("sameSkillIds · 顺序无关的相等", () => {
     expect(sameSkillIds(["a", "b"], ["b", "a"])).toBe(true);
     expect(sameSkillIds(["a"], ["a", "b"])).toBe(false);
     expect(sameSkillIds(["a", "b"], ["a", "c"])).toBe(false);
+  });
+});
+
+describe("preloadSkillIdOf · 只预读唯一榜首（2026-11-17）", () => {
+  const pick = (id: string, score: number): SkillPick => ({
+    id,
+    displayName: id,
+    score,
+    reasons: []
+  });
+
+  it("空榜不预读", () => {
+    expect(preloadSkillIdOf([])).toBe("");
+  });
+
+  it("榜首严格领先时预读它", () => {
+    expect(preloadSkillIdOf([pick("a", 70), pick("b", 40)])).toBe("a");
+  });
+
+  it("并列第一不预读：两条同样该用，挑谁都是掷骰子", () => {
+    expect(preloadSkillIdOf([pick("a", 70), pick("b", 70), pick("c", 40)])).toBe("");
+  });
+
+  it("只剩一条时它就是唯一榜首，照预读", () => {
+    expect(preloadSkillIdOf([pick("a", 8)])).toBe("a");
   });
 });

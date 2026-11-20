@@ -121,19 +121,26 @@ describe("展开面板", () => {
 });
 
 describe("挂载点", () => {
-  it("挂在 ComposerContextBar 上，排在 ProfileChip 之后、阶段之前", () => {
-    expect(bar).toContain('import ContextMeter from "./ContextMeter.vue"');
-    expect(barTpl).toContain("<ContextMeter />");
-    const atChip = barTpl.indexOf("<ProfileChip");
-    const atMeter = barTpl.indexOf("<ContextMeter />");
-    const atStage = barTpl.indexOf('class="composer-context-item composer-stage-context"');
-    expect(atChip).toBeGreaterThanOrEqual(0);
-    expect(atChip).toBeLessThan(atMeter);
-    expect(atMeter).toBeLessThan(atStage);
+  /**
+   * 2026-11-20（主线第一刀）：占用读数从绑定条搬到了**状态栏**。
+   *
+   * 【为什么搬】绑定条只在「空线程」时显形（`showContextBar = hasBook && threadEmpty`），
+   * 于是写稿真正需要这个读数的那段时间——对话已经开始、正文越写越长——它恰好不在。
+   * 状态栏是常驻的那一行（"就绪 / 上一轮已完成 · 本轮 1,840 字 · 3 条待审"），
+   * 读数落在那里才对：作者每轮结束都会扫它一眼。
+   */
+  it("挂在状态栏（中栏），不再是绑定条那一格", () => {
+    const centerTpl = templateSource("components/CenterColumn.vue");
+    expect(centerTpl).toContain("<ContextMeter");
+    expect(barTpl).not.toContain("<ContextMeter");
+    // 绑定条那一格腾出来的位置：它是「绑定条只挂一枚」那条断言的落点。
+    expect(bar).not.toContain('import ContextMeter from "./ContextMeter.vue"');
   });
 
-  it("绑定条只挂一枚：多挂一枚就等于把同一个读数报两遍", () => {
-    expect(countNeedle("<ContextMeter", barTpl)).toBe(1);
+  it("全仓只挂一枚：多挂一枚就等于把同一个读数报两遍", () => {
+    const centerTpl = templateSource("components/CenterColumn.vue");
+    expect(countNeedle("<ContextMeter", centerTpl)).toBe(1);
+    expect(countNeedle("<ContextMeter", barTpl)).toBe(0);
   });
 });
 

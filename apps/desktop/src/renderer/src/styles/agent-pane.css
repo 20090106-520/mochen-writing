@@ -1087,9 +1087,41 @@ html[data-platform="darwin"] .conversation-pane {
   gap: 12px;
   padding: 6px 24px;
   border-top: 1px solid var(--line-soft);
-  background: color-mix(in srgb, var(--sidebar) 70%, transparent);
-  backdrop-filter: blur(8px);
+  /* 2026-11-20 材质刀：原先是 `color-mix(in srgb, var(--sidebar) 70%, transparent)`
+     配一份**写死的** `backdrop-filter: blur(8px)`。
+     那份模糊不归液态玻璃总闸管 ⇒ 液态玻璃关掉之后它照样糊着；
+     而且它是第三套模糊数值（8px ≠ `--lg-blur` 的 12px）——
+     同一栏里栏头、状态栏、输入卡于是成了三种材质，像三块不同的东西拼起来的。
+     ⇒ 半透底与模糊一律交给总闸（styles/liquid-glass.css），
+     基态只留一块不透明底：总闸关掉时退回实底，与族里其它成员同一套纪律。 */
+  background: var(--surface-main);
   font-size: 0.857143rem;
+  /* 2026-11-20 真机撞到：状态栏是**一条一行**的横带。
+     提示一长（真机那条「这只清空本页显示；盘上的会话历史不动，重启后仍会完整回放。」），
+     flex 子项就被压扁，屏幕上「就绪」竖成两行、「重试保存」竖成三行。
+     ⇒ 这一行不许换行；长提示自己截断，两端的读数与按钮钉死。 */
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+/* 状态栏里每一格都不许被压扁：压扁的后果是中文按字断行（不是出省略号）。 */
+.agent-statusbar > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* 长提示是这一行里**唯一**可以变窄的东西：它截成一行带省略号。
+   不截的是它，它会把两端的读数与按钮挤出可视区。 */
+.agent-statusbar > .status-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 上下文占用读数钉在最右端：它是这一行里唯一「常驻且要一眼扫到」的东西。 */
+.agent-statusbar > .context-meter {
+  margin-left: auto;
 }
 
 .status-line {
@@ -1140,7 +1172,12 @@ html[data-platform="darwin"] .conversation-pane {
 .provider-field input {
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  /* 【2026-11-20 · 批次②】走控件那一档。
+     这条是 `.provider-field input`（特异性 0-1-1），比新建作品对话框里那条
+     `.new-book-dir-input`（0-1-0）**高**——于是同一个输入框的圆角由这一条说了算：
+     之前把 dialog.css 那条改成 token 时，这一条还写死 8px，真机量出来输入框仍是圆的
+     （换「直角」皮肤时它不动）。两条读同一枚 token，谁赢都一样。 */
+  border-radius: var(--radius-control);
   background: var(--editor);
 }
 
@@ -2353,10 +2390,9 @@ html[data-platform="darwin"] .conversation-pane {
   overflow: hidden;
 }
 
-.context-meter {
-  flex: 0 0 auto;
-  max-width: 12em;
-}
+/* 计量读数那一格 2026-11-20 起住在状态栏（见 styles/context-meter.css 的 .context-meter--compact），
+   本文件里原先那几条（flex/宽度上限、读数省略号、窄栏隐藏）随它一起搬走了：
+   绑定条里已经没有这一枚，留着就是三条匹配不到任何东西的规则。 */
 
 .composer-context-item:hover:not(:disabled),
 .composer-context-item[aria-expanded="true"] {
@@ -2403,16 +2439,11 @@ html[data-platform="darwin"] .conversation-pane {
   white-space: nowrap;
 }
 
-/* 5-㉓：计量读数这一段原先**根本没有规则**。没有 overflow:hidden，它的自动最小尺寸
+/* 5-㉓：计量读数那一段原先**根本没有规则**。没有 overflow:hidden，它的自动最小尺寸
    就是内容宽度（真机量到 107px），被分到 30px 的胶囊里就盖在末尾图标上（放大图里
-   「≈1.9k tokens」的 t 与图标叠印）。同一处补齐：可缩 + 省略号。 */
-.context-meter .context-meter-text {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+   「≈1.9k tokens」的 t 与图标叠印）。同一处补齐：可缩 + 省略号。
+   2026-11-20：这一格搬去状态栏了，规则跟着搬到 styles/context-meter.css 的
+   `.context-meter--compact .context-meter-text`（这里留着的会是一条匹配不到东西的规则）。 */
 .composer-doc-context:hover .doc-context-kind,
 .composer-doc-context:active .doc-context-kind {
   color: var(--text-secondary);
@@ -2510,10 +2541,6 @@ html[data-platform="darwin"] .conversation-pane {
   .composer-context-bar {
     gap: 8px;
     padding-inline: 8px;
-  }
-
-  .context-meter .context-meter-text {
-    display: none;
   }
 }
 

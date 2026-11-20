@@ -28,7 +28,7 @@ import {
   loadReducedMotion,
   motionPreferenceStorage
 } from "./utils/motion-preference";
-import { RIGHT_PANE_MIN, useLayoutStore } from "./stores/layoutStore";
+import { RIGHT_PANE_MIN, rightPaneWidthKey, useLayoutStore } from "./stores/layoutStore";
 import {
   shouldAutoCollapseRightPaneWithoutBook,
   shouldAutoCollapseRightPaneWithoutDoc
@@ -387,6 +387,23 @@ onBeforeUnmount(() => {
   unwatchHasBook?.();
   unwatchActiveDoc?.();
 });
+
+/**
+ * 右栏宽度按三态各记一份（2026-11-20 · 主线第一刀）。
+ *
+ * 【为什么这一段以前是死的】宽度记忆的存储层一直都在（`utils/rightPanePreferences.ts`），
+ * 落盘函数也写着——但它要一个"当前这一格的键"，而那个键**从来没有生产调用方**
+ * （只有测试在调），于是每次拖完右栏，落盘都在第一行早退（键是 undefined）。
+ * 症状就是"我调好的宽度，重开应用就没了"。
+ *
+ * 【为什么接线在装配层】右栏三态的真身是 `book.rightPaneMode`，而这里是唯一同时看得见
+ * 它与 layout 的地方——与 `findReplaceHasLanding` 同一条纪律：几何策略不反向依赖书 store。
+ */
+watch(
+  () => book.rightPaneMode,
+  (mode) => layout.setActiveRightPanePreferenceKey(rightPaneWidthKey(mode)),
+  { immediate: true }
+);
 
 const agent = useAgentStore();
 
