@@ -208,13 +208,20 @@ export const TOOL_SPECS: ChatToolSpec[] = [
     // 新参数全是可选的，只给 query 时回执与旧版同一形状（逐行 路径:行号: 内容）。
     name: "search_docs",
     description:
-      "全书子串检索。默认逐行返回「路径:行号: 内容」；" +
-      "kind 可把检索限定在一类文稿（chapter/character/location/worldview/foreshadow…）；" +
+      "全书检索：一次可搜正文、设定库条目与章末摘要（source 可选 docs/bible/recaps/all，默认 all）。" +
+      "默认逐行返回「路径:行号: 内容」；" +
+      "kind 只限定正文的一类文稿（chapter/character/location/worldview/foreshadow…）；" +
       'group="doc" 改为按篇聚合，只报每篇命中几处与首处位置——问「哪些章节提到漕运」时用这一档。' +
-      "精确零命中时会自动按一字之差再扫一遍，回执会写明那是容错命中，引用前必须核对原文。",
+      "精确零命中时会自动按一字之差再扫一遍（只对正文），回执会写明那是容错命中，引用前必须核对原文。" +
+      "找人物设定、前情事实时优先用它，比 read_doc 整章翻找省一轮。",
     parameters: object(
       {
         query: { type: "string", description: "要检索的字面文本" },
+        source: {
+          type: "string",
+          description:
+            "可选：docs=只搜正文，bible=只搜设定库，recaps=只搜章末摘要，all=全搜（默认）"
+        },
         kind: {
           type: "string",
           description:

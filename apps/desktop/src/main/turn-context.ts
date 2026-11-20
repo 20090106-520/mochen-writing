@@ -23,6 +23,7 @@ import {
   skillIndexBlock,
   SKILL_PRELOAD_MAX_CHARS,
   type AgentProfile,
+  type BibleEntry,
   type SkillIndexResult,
   type SkillRef
 } from "@mochen/contracts";
@@ -90,6 +91,16 @@ export interface TurnContext {
   readPreloadSkill(id: string): Promise<PreloadedSkill | null>;
   /** 一轮要用的技能段一次取齐（清单 / 索引 / 预读），并行读、判据仍各在各的住处。 */
   readSkillPack(skillPaths: readonly string[], preloadId?: string): Promise<SkillPack>;
+  /**
+   * 检索要用的另外两份事实（2026-11-20）：故事圣经与章末摘要。
+   *
+   * 两者都不在文稿树里，`search_docs` 拿不到；但装配层本来就握着这本书的快照，
+   * 由它递两个只读取值函数，工具宿主与装配层就不必各自再记一次「书在哪」。
+   */
+  searchSources(): {
+    bible: () => Promise<readonly BibleEntry[]>;
+    recaps: () => Readonly<Record<string, string>>;
+  };
   profileOf(book: BookSnapshot, stageId: string): AgentProfile;
 }
 
@@ -280,6 +291,23 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     return { skills, missing };
   }
 
+  /**
+   * 检索来源（2026-11-20）：每次调用现取当前书，换书后不会继续读旧目录。
+   * 没开书时圣经回空表、前情回空对象——与「这本书还没有这些」同一口径。
+   */
+  function searchSources(): {
+    bible: () => Promise<readonly BibleEntry[]>;
+    recaps: () => Readonly<Record<string, string>>;
+  } {
+    return {
+      bible: async () => {
+        const snapshot = deps.book.current();
+        return snapshot === null ? [] : readStoryBibleEntries(snapshot.root);
+      },
+      recaps: () => deps.book.current()?.meta.recaps ?? {}
+    };
+  }
+
   /** 这一轮用哪枚档案：书级 activeProfile 优先，其余由 contracts 的四级解析兜。 */
   function profileOf(book: BookSnapshot, stageId: string): AgentProfile {
     return resolveProfile({
@@ -327,6 +355,7 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     readSkillIndex,
     readPreloadSkill,
     readSkillPack,
+    searchSources,
     profileOf
   };
 }

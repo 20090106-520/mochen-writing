@@ -438,7 +438,12 @@ export type ProviderProfile = z.infer<typeof providerProfileSchema>;
 export const providerStoreFileSchema = z
   .object({
     connections: z.array(providerConnectionSchema),
-    profiles: z.array(providerProfileSchema)
+    profiles: z.array(providerProfileSchema),
+    /**
+     * 后台杂活用哪条档案（2026-11-20）：章末摘要、全书状态卡这类后台小调用。
+     * 缺省 / 悬空 ⇒ 跟随启用中的主档案；写作轮永远用主档案，不受这一格影响。
+     */
+    utilityProfileId: z.string().min(1).optional()
   })
   // **外键完整性**：每条档案都必须挂在一条真实存在的连接上。
   // zod 默认只查字段类型，`{connections: [], profiles: [{connectionId: "nope", …}]}` 会顺利通过——
@@ -455,6 +460,18 @@ export const providerStoreFileSchema = z
           message: `模型「${profile.model}」挂在一条不存在的连接上（${profile.connectionId}）`
         });
       }
+    }
+    // 同一道外键口径：后台杂活指向的档案必须真实存在，否则读配置时就拒，
+    // 不要等到摘要发请求才发现「这条模型已经没了」。
+    if (
+      value.utilityProfileId !== undefined &&
+      !value.profiles.some((profile) => profile.id === value.utilityProfileId)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["utilityProfileId"],
+        message: "后台杂活模型指向一条不存在的模型档案"
+      });
     }
   });
 export type ProviderStoreFile = z.infer<typeof providerStoreFileSchema>;
@@ -582,6 +599,8 @@ export interface ProviderProfileView {
 export interface ProviderView {
   connections: ProviderConnectionView[];
   profiles: ProviderProfileView[];
+  /** 后台杂活模型（2026-11-20）；缺省 = 跟随启用中的主档案。 */
+  utilityProfileId?: string;
 }
 
 /**
@@ -629,6 +648,12 @@ export const profileDraftSchema = z.object({
   connectionId: z.string().min(1)
 });
 export type ProfileDraft = z.infer<typeof profileDraftSchema>;
+
+/** 指定 / 清空「后台杂活模型」：null = 跟随主模型。 */
+export const setUtilityProfileInputSchema = z.object({
+  profileId: z.union([z.string().min(1), z.null()])
+});
+export type SetUtilityProfileInput = z.infer<typeof setUtilityProfileInputSchema>;
 
 /**
  * 连通性体检的结果（`provider:verify`）。

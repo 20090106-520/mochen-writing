@@ -283,6 +283,19 @@ export const useProviderStore = defineStore("provider", () => {
     }
   }
 
+  /**
+   * 指定后台杂活模型（章末摘要 / 全书状态卡）。`null` = 跟随主模型。
+   * 写作轮永远用启用中的主档案，这里改的只是后台那条更便宜的通路。
+   */
+  async function setUtility(profileId: string | null): Promise<void> {
+    try {
+      view.value = await window.mochen.setUtility(profileId);
+      error.value = "";
+    } catch (caught) {
+      error.value = toReason(caught);
+    }
+  }
+
   return {
     view,
     error,
@@ -306,7 +319,8 @@ export const useProviderStore = defineStore("provider", () => {
     select,
     switchModel,
     removeProfile,
-    enableProfile
+    enableProfile,
+    setUtility
   };
 });
 

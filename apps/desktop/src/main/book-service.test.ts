@@ -117,6 +117,43 @@ describe("bookService", () => {
     await service.close();
   });
 
+  it("mergeRecaps 只并这一格：用户刚存的书名不会被摘要回滚（审计 R-4）", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mochen-recap-"));
+    await mkdir(path.join(dir, "chapters"), { recursive: true });
+    await writeFile(path.join(dir, "chapters", "01-a.md"), "正文\n");
+    await writeFile(
+      path.join(dir, "book.json"),
+      JSON.stringify({
+        id: "b1",
+        title: "旧书名",
+        schemaVersion: 1,
+        stages: [{ id: "draft", name: "正文" }],
+        activeStage: "draft",
+        permissionMode: DEFAULT_PERMISSION_MODE,
+        chapterOrder: []
+      })
+    );
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    const opened = await service.open(dir);
+
+    // 顺序就是事故顺序：摘要在生成期间用户改了书名，摘要随后才落盘。
+    await service.saveMeta({ ...opened.meta, title: "用户改过的书名" });
+    await service.mergeRecaps("chapters/01-a.md", "林夜拿到船票。");
+
+    expect(service.current()?.meta.title).toBe("用户改过的书名");
+    expect(service.current()?.meta.recaps?.["chapters/01-a.md"]).toBe("林夜拿到船票。");
+    // 盘上也必须是同一份，否则重启后摘要没了、书名又被回滚。
+    const onDisk = JSON.parse(await readFile(path.join(dir, "book.json"), "utf8")) as {
+      title: string;
+      recaps?: Record<string, string>;
+    };
+    expect(onDisk.title).toBe("用户改过的书名");
+    expect(onDisk.recaps?.["chapters/01-a.md"]).toBe("林夜拿到船票。");
+
+    await service.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
   it("writeDoc 走的是装配进来的那份 fs（不传下去就等于原子写没接上）", async () => {
     const service = createBookService({
       retention: () => DEFAULT_CHANGE_RETENTION,

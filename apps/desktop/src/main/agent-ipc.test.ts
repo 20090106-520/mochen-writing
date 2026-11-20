@@ -131,6 +131,19 @@ function stubSettings(seen: unknown[]): ProviderSettings {
       seen.push("view");
       return view;
     },
+    async configFor(role: "chat" | "utility") {
+      const connection = view.connections[0];
+      if (connection === undefined) throw new Error("夹具里少了一条连接");
+      return {
+        config: {
+          baseURL: connection.baseURL,
+          model: view.profiles[0]?.model ?? "",
+          authHeader: connection.authHeader,
+          thinkingWire: "standard"
+        },
+        apiKey: `sk-${role}`
+      };
+    },
     async config() {
       const connection = view.connections[0];
       if (connection === undefined) throw new Error("夹具里少了一条连接");
@@ -173,6 +186,10 @@ function stubSettings(seen: unknown[]): ProviderSettings {
     },
     async enableProfile(id: string, enabled: boolean) {
       seen.push([id, enabled]);
+      return view;
+    },
+    async setUtilityProfile(profileId: string | null) {
+      seen.push(["utility", profileId]);
       return view;
     }
   };
@@ -259,7 +276,7 @@ describe("registerAgentIpc", () => {
 });
 
 describe("registerProviderIpc", () => {
-  it("注册九条 provider 通道并按白名单转交，返回的视图里没有密钥字段", async () => {
+  it("注册十条 provider 通道并按白名单转交，返回的视图里没有密钥字段", async () => {
     const seen: unknown[] = [];
     const reg = registry();
     registerProviderIpc(reg.handle, stubSettings(seen), stubLister(seen));
@@ -272,6 +289,7 @@ describe("registerProviderIpc", () => {
       IPC_CHANNELS.providerProfileUpsert,
       IPC_CHANNELS.providerProfileRemove,
       IPC_CHANNELS.providerProfileEnable,
+      IPC_CHANNELS.providerSetUtility,
       // 密钥页那条也在这份白名单里：它走 electron 的 shell，不是转交 settings/lister，
       // 本仓没有 electron 桩，所以这里只钉「注册了这一条、位置没变」。
       IPC_CHANNELS.appOpenExternal
@@ -303,6 +321,9 @@ describe("registerProviderIpc", () => {
     expect(await fire(reg.fns, IPC_CHANNELS.providerProfileUpsert, profileDraft)).toEqual(view);
     expect(await fire(reg.fns, IPC_CHANNELS.providerProfileRemove, "p-1")).toEqual(view);
     expect(await fire(reg.fns, IPC_CHANNELS.providerProfileEnable, "p-1", true)).toEqual(view);
+    expect(await fire(reg.fns, IPC_CHANNELS.providerSetUtility, { profileId: "p-1" })).toEqual(
+      view
+    );
     expect(Object.keys(view).sort()).toEqual(["connections", "profiles"]);
     expect(JSON.stringify(view)).not.toContain("sk-never-crosses-ipc");
     expect(seen).toEqual([
@@ -314,7 +335,8 @@ describe("registerProviderIpc", () => {
       ["list", { connectionId: CONNECTION_ID }],
       profileDraft,
       "p-1",
-      ["p-1", true]
+      ["p-1", true],
+      ["utility", "p-1"]
     ]);
   });
 

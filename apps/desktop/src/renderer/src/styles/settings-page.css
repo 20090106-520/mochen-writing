@@ -400,6 +400,38 @@ html[data-translucent-sidebar="true"] .settings-sidebar {
   font-size: 0.928571rem;
 }
 
+/* 后台杂活模型（2026-11-20）：一行选择 + 一句说明，不抢「添加模型」的层级。 */
+.provider-utility {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 12px 0 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-card);
+}
+
+.provider-utility-label {
+  color: var(--text-secondary);
+  font-size: 0.928571rem;
+}
+
+.provider-utility-select {
+  min-width: 180px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-size: 0.928571rem;
+}
+
+.provider-utility .provider-panel-note {
+  flex-basis: 100%;
+}
+
 .provider-add-button {
   display: inline-flex;
   align-items: center;

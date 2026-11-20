@@ -4,7 +4,8 @@ import path from "node:path";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { scanBook } from "@mochen/fs-store";
 import type { DocRef } from "@mochen/contracts";
-import { createDocToolHost } from "./doc-tools-host.js";
+import { normalizeBibleEntries } from "@mochen/contracts";
+import { createDocToolHost, type DocToolHostDeps } from "./doc-tools-host.js";
 
 /**
  * search_docs 的检索档位（2026-10-22 从 doc-tools-host.test.ts 拆出来）。
@@ -20,8 +21,9 @@ const CHAPTER_TEXT = "第一段\n雾从海面涌上来。\n第三段\n雾又从�
 let root = "";
 let docs: DocRef[] = [];
 
-function host() {
+function host(extra: Partial<DocToolHostDeps> = {}) {
   return createDocToolHost({
+    ...extra,
     root: () => root,
     docs: () => docs,
     context: () => ({ docRelPath: CHAPTER, permissionMode: "read-only", workMode: "act" }),
@@ -38,7 +40,26 @@ function host() {
     }),
     webRead: async () => {
       throw new Error("检索用例不该走 web_read");
-    }
+    },
+    ...extra
+  });
+}
+
+const BIBLE = normalizeBibleEntries([
+  {
+    id: "linye",
+    type: "character",
+    title: "林夜",
+    role: "守闸人",
+    aliases: ["夜哥"],
+    content: "左臂有旧伤，替漕帮押过三次船。"
+  }
+])!;
+
+function withFacts() {
+  return host({
+    bible: async () => BIBLE,
+    recaps: () => ({ [CHAPTER]: "林夜在雾港扣下了漕船，守闸人放行。" })
   });
 }
 
@@ -114,5 +135,48 @@ describe("search_docs · kind 限定与按篇聚合", () => {
     expect(grouped.text).toContain("（命中 2 处，首处第 2 行：");
     // 聚合档不再逐行倾倒
     expect(grouped.text).not.toContain("chapters/01-开局.md:2:");
+  });
+});
+
+describe("search_docs · 设定库与前情（2026-11-20）", () => {
+  it("source=bible 搜设定库：标出处，并提醒它不是文稿", async () => {
+    const out = await withFacts().call("search_docs", { query: "押过三次船", source: "bible" });
+    expect(out.ok).toBe(true);
+    expect(out.text).toContain("【设定库】");
+    expect(out.text).toContain("设定·人物·林夜（bible:character:linye）");
+    expect(out.text).toContain("不是文稿");
+    // 只搜设定库时不该把正文行也倒出来
+    expect(out.text).not.toContain("chapters/01-开局.md:1:");
+  });
+
+  it("source=recaps 搜章末摘要：路径标成「前情·」", async () => {
+    const out = await withFacts().call("search_docs", { query: "扣下了漕船", source: "recaps" });
+    expect(out.text).toContain("【前情摘要】");
+    expect(out.text).toContain(`前情·${CHAPTER}`);
+    expect(out.text).toContain("扣下了漕船");
+  });
+
+  it("缺省 source=all：三类一起搜，计数分开报", async () => {
+    const out = await withFacts().call("search_docs", { query: "守闸人" });
+    expect(out.text).toContain("【正文】");
+    expect(out.text).toContain("【设定库】");
+    expect(out.text).toContain("【前情摘要】");
+    expect(out.text).toMatch(/正文 \d+ \/ 设定库 \d+ \/ 前情 \d+/);
+  });
+
+  it("source 只搜设定库 / 前情时，kind 被忽略并在回执里说清", async () => {
+    const out = await withFacts().call("search_docs", {
+      query: "押过三次船",
+      source: "bible",
+      kind: "chapter"
+    });
+    expect(out.ok).toBe(true);
+    expect(out.text).toContain("kind 只作用于正文");
+  });
+
+  it("认不出的 source 直接拒绝，不静默退回全书", async () => {
+    const out = await withFacts().call("search_docs", { query: "林夜", source: "web" });
+    expect(out.ok).toBe(false);
+    expect(out.text).toContain("source");
   });
 });

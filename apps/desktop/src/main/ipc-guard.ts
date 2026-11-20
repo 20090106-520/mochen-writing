@@ -418,6 +418,9 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   [IPC_CHANNELS.providerProfileUpsert]: [objectRule("这份档案草稿")],
   [IPC_CHANNELS.providerProfileRemove]: [id("要删的档案")],
   [IPC_CHANNELS.providerProfileEnable]: [id("要启停的档案"), booleanRule("档案的启停")],
+  // 后台杂活模型（2026-11-20）：`{ profileId: string | null }`。字段语义与外键判定
+  // 住在 contracts 的 setUtilityProfileInputSchema 与 provider-settings，这里只看形状。
+  [IPC_CHANNELS.providerSetUtility]: [objectRule("后台杂活模型的选择")],
   [IPC_CHANNELS.appOpenExternal]: [id("这家服务商")],
   [IPC_CHANNELS.appOpenWebSource]: [
     textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "要打开的链接" })

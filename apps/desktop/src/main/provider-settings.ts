@@ -28,12 +28,24 @@ import {
 import { defaultAtomicFs, writeFileAtomic, type AtomicWriteFs } from "@mochen/fs-store";
 import type { CredentialStore, ReadTextFile } from "./credential-store.js";
 
+/** 模型分工的两条通路（2026-11-20）：写作轮与后台杂活（摘要 / 全书状态卡）。 */
+export type ModelRole = "chat" | "utility";
+
 export interface ProviderSettings {
   view(): Promise<ProviderView>;
-  /** 发一轮请求要的取数形状（agent-service 消费）：启用中那条档案 + 它那条连接的地址。 */
+  /**
+   * 按用途取一次可发请求的配置（2026-11-20）。
+   *
+   * 解析顺序住在这里一处：目标档案 → 启用档案 → 第一条可用档案。
+   * 「可用」= 档案存在、连接存在、且该连接的密钥读得到。全不可用回 null。
+   */
+  configFor(role: ModelRole): Promise<{ config: ProviderConfig; apiKey: string } | null>;
+  /** 写作轮要的取数形状：`configFor("chat")` 的投影，保留旧调用方与旧语义。 */
   config(): Promise<ProviderConfig | null>;
-  /** 启用中那条档案用的密钥。**按连接取**——多供应商并存之后全局一份已经不成立。 */
+  /** 写作轮那条档案用的密钥（同样走 `configFor("chat")`）。 */
   apiKey(): Promise<string | null>;
+  /** 指定 / 清空「后台杂活模型」：null = 跟随主模型。 */
+  setUtilityProfile(profileId: string | null): Promise<ProviderView>;
   /**
    * 某条连接的出网取数：地址 + 请求头形态 + 该连接自己的密钥。
    * 拉名单与体检都走它（provider-models），所以「发哪种头」只有这一份实现。
@@ -195,7 +207,15 @@ export function createProviderSettings(deps: {
         keyMask: key === null ? "" : maskApiKey(key)
       });
     }
-    return { connections, profiles: (store?.profiles ?? []).map((profile) => ({ ...profile })) };
+    const profiles = (store?.profiles ?? []).map((profile) => ({ ...profile }));
+    // 悬空引用不外露：档案被删后视图里不该再出现这个 id，
+    // 设置页据此回落到「跟随主模型」，而不是显示一条已经不存在的模型。
+    const utility =
+      store?.utilityProfileId !== undefined &&
+      profiles.some((profile) => profile.id === store.utilityProfileId)
+        ? { utilityProfileId: store.utilityProfileId }
+        : {};
+    return { connections, profiles, ...utility };
   }
 
   /** 落盘前的最后一道形状关卡（id 由本模块生成，model 由调用方保证非空）。 */
@@ -203,44 +223,94 @@ export function createProviderSettings(deps: {
     return profiles.map((profile) => providerProfileSchema.parse(profile));
   }
 
+  /** 把一条档案 + 它的连接解析成可发请求的形状；连接缺失 / 密钥读不到都算不可用。 */
+  async function resolveProfile(
+    store: ProviderStoreFile,
+    profile: ProviderProfile
+  ): Promise<{ config: ProviderConfig; apiKey: string } | null> {
+    const connection = connectionOf(store, profile.connectionId);
+    if (connection === null) return null;
+    let key: string | null;
+    try {
+      key = await deps.credentials.read(connection.id);
+    } catch (error) {
+      console.error(`读取连接 ${connection.id} 的密钥失败`, error);
+      return null;
+    }
+    // 空串是「明确清空」之后的状态：拿它发请求只会换来 401，不如当作不可用去试下一条。
+    if (key === null || key === "") return null;
+    return {
+      config: {
+        baseURL: connection.baseURL,
+        model: profile.model,
+        authHeader: connection.authHeader,
+        thinkingWire: connection.thinkingWire,
+        ...(connection.contextWindow === undefined
+          ? {}
+          : { contextWindow: connection.contextWindow })
+      },
+      apiKey: key
+    };
+  }
+
+  /**
+   * 一条通路里的候选顺序（2026-11-20）：目标 → 启用 → 其余。
+   * 顺序本身是唯一判据，两个角色共用，避免「utility 的降级路和 chat 的不一样」。
+   */
+  function candidatesOf(store: ProviderStoreFile, role: ModelRole): ProviderProfile[] {
+    const enabled = store.profiles.find((profile) => profile.enabled);
+    const preferred: ProviderProfile[] = [];
+    if (role === "utility" && store.utilityProfileId !== undefined) {
+      const hit = store.profiles.find((profile) => profile.id === store.utilityProfileId);
+      if (hit !== undefined) preferred.push(hit);
+    }
+    if (enabled !== undefined && !preferred.includes(enabled)) preferred.push(enabled);
+    // 剩下的按存储顺序补齐：用户没指定 / 指定的坏了，也还有别的档案可试。
+    return [...preferred, ...store.profiles.filter((profile) => !preferred.includes(profile))];
+  }
+
+  async function configFor(
+    role: ModelRole
+  ): Promise<{ config: ProviderConfig; apiKey: string } | null> {
+    const store = await ensure();
+    if (store === null) return null;
+    for (const profile of candidatesOf(store, role)) {
+      const resolved = await resolveProfile(store, profile);
+      if (resolved !== null) return resolved;
+    }
+    return null;
+  }
+
   return {
     async view() {
       return toView(await ensure());
     },
 
+    configFor,
+
+    // 两个旧入口都成了 configFor("chat") 的投影：判据一处，不再有第二套「启用中的那条」。
     async config() {
-      const store = await ensure();
-      const enabled = store?.profiles.find((profile) => profile.enabled);
-      if (store === null || enabled === undefined) return null;
-      const connection = connectionOf(store, enabled.connectionId);
-      // 外键完整性在 schema 上已经把关；这里仍兜一道：**发请求时拿不到地址就当没配**，
-      // 绝不能拿一个空 baseURL 去拼 URL（那会打到一个诡异的相对路径上）。
-      if (connection === null) return null;
-      return {
-        baseURL: connection.baseURL,
-        model: enabled.model,
-        authHeader: connection.authHeader,
-        // 最高档思考在线上叫什么（Agnes 那类端点叫 xhigh）。和 authHeader 一样**整个递下去**：
-        // agent-service 把 config 铺进 TurnDeps.provider，tool-loop 再铺进出站请求。
-        thinkingWire: connection.thinkingWire,
-        // P0-3：上下文窗口从模型配置读取。旧配置没有这一项 ⇒ 不写这个键，
-        // 由 agent-service 回退到 DEFAULT_CONTEXT_WINDOW_TOKENS（单一默认值在 contracts）。
-        ...(connection.contextWindow === undefined
-          ? {}
-          : { contextWindow: connection.contextWindow })
-      };
+      return (await configFor("chat"))?.config ?? null;
     },
 
     async apiKey() {
+      return (await configFor("chat"))?.apiKey ?? null;
+    },
+
+    async setUtilityProfile(profileId) {
       const store = await ensure();
-      const enabled = store?.profiles.find((profile) => profile.enabled);
-      if (store === null || enabled === undefined) return null;
-      try {
-        return await deps.credentials.read(enabled.connectionId);
-      } catch (error) {
-        console.error("读取启用模型的密钥失败", error);
-        return null;
-      }
+      if (store === null) throw new Error("还没有配置模型，先添加一条连接与模型。");
+      if (profileId !== null && !store.profiles.some((profile) => profile.id === profileId))
+        throw new Error("没有找到这条模型，可能已经被删除。");
+      const profiles = checkedProfiles(store.profiles);
+      const next: ProviderStoreFile = {
+        connections: store.connections,
+        profiles,
+        ...(profileId === null ? {} : { utilityProfileId: profileId })
+      };
+      await writeStore(next);
+      cached = next;
+      return toView(next);
     },
 
     async connectionTarget(connectionId) {
@@ -304,7 +374,11 @@ export function createProviderSettings(deps: {
 
       const next: ProviderStoreFile = {
         connections,
-        profiles: checkedProfiles(store?.profiles ?? [])
+        profiles: checkedProfiles(store?.profiles ?? []),
+        // 改连接不该把「后台杂活模型」这一格顺手丢掉。
+        ...(store?.utilityProfileId === undefined
+          ? {}
+          : { utilityProfileId: store.utilityProfileId })
       };
       await writeStore(next);
       cached = next;
@@ -322,16 +396,22 @@ export function createProviderSettings(deps: {
       // （写成 `enabled: index === 0 && …` 会把原有的启停**覆盖**掉——
       //  接线测试当场抓到了这个：删 b 之后本该启用的 a 被写成了 false）。
       const noneEnabled = kept.length > 0 && kept.every((p) => !p.enabled);
+      const profiles = kept.map((profile, index) => ({
+        ...profile,
+        // 删掉的正是启用中那条时，剩下的档案会**全部处于停用**——
+        // 界面上「一条都没启用」，发请求时 config() 返 null，看起来像压根没配模型，
+        // 而用户明明还留着能用的那些。补一个默认启用，省得他去面板里一个个拨。
+        enabled: noneEnabled ? index === 0 : profile.enabled
+      }));
       const next: ProviderStoreFile = {
         connections: store.connections.filter((c) => c.id !== connectionId),
         // 挂在它下面的档案一起走：留一个指向空连接的档案，卡片上就会列出一个永远发不出请求的模型。
-        profiles: kept.map((profile, index) => ({
-          ...profile,
-          // 删掉的正是启用中那条时，剩下的档案会**全部处于停用**——
-          // 界面上「一条都没启用」，发请求时 config() 返 null，看起来像压根没配模型，
-          // 而用户明明还留着能用的那些。补一个默认启用，省得他去面板里一个个拨。
-          enabled: noneEnabled ? index === 0 : profile.enabled
-        }))
+        profiles,
+        // 后台杂活指向的档案若随连接一起被删，这一格必须同时清掉，别留悬空引用。
+        ...(store.utilityProfileId !== undefined &&
+        profiles.some((profile) => profile.id === store.utilityProfileId)
+          ? { utilityProfileId: store.utilityProfileId }
+          : {})
       };
       await writeStore(next);
       cached = next;
@@ -356,7 +436,10 @@ export function createProviderSettings(deps: {
         profiles: store.profiles.map((profile) => ({
           ...profile,
           enabled: profile.model === name && profile.connectionId === parsed.data.connectionId
-        }))
+        })),
+        ...(store.utilityProfileId === undefined
+          ? {}
+          : { utilityProfileId: store.utilityProfileId })
       };
       // 同名幂等只在**同一条连接**上；换个供应商用同一个模型名是常事，那是两条档案。
       if (existing === undefined)
@@ -375,7 +458,11 @@ export function createProviderSettings(deps: {
         throw new Error("没有找到这条模型，可能已经被删除。");
       const next: ProviderStoreFile = {
         connections: store.connections,
-        profiles: store.profiles.filter((profile) => profile.id !== id)
+        profiles: store.profiles.filter((profile) => profile.id !== id),
+        // 删的正是后台杂活模型 ⇒ 一起回到「跟随主模型」。
+        ...(store.utilityProfileId === id || store.utilityProfileId === undefined
+          ? {}
+          : { utilityProfileId: store.utilityProfileId })
       };
       await writeStore(next);
       cached = next;
@@ -392,7 +479,10 @@ export function createProviderSettings(deps: {
           ...profile,
           // 互斥启用：开某条时其余全停；停用就是单纯停用。
           enabled: profile.id === id ? enabled : enabled ? false : profile.enabled
-        }))
+        })),
+        ...(store.utilityProfileId === undefined
+          ? {}
+          : { utilityProfileId: store.utilityProfileId })
       };
       await writeStore(next);
       cached = next;

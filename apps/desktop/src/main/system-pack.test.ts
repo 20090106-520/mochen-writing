@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildContextPack, SKILL_HINT } from "./system-pack.js";
+import { bookDigestBlock, buildContextPack, SKILL_HINT } from "./system-pack.js";
 
 const noIndex = { text: "", total: 0, shown: 0 };
 
@@ -44,6 +44,28 @@ describe("系统提示里的上下文包", () => {
       skillIndex: { text: "- a（global:a）：x", total: 1, shown: 1 }
     });
     expect(out).toBe("\n\n【已装配的上下文】\n第一章\n\n【技能库】\n- a（global:a）：x");
+  });
+});
+
+describe("全书摘要与人物状态（2026-11-20）", () => {
+  it("没有状态卡 / 摘要为空 ⇒ 整段不出现", () => {
+    expect(bookDigestBlock(null)).toBe("");
+    expect(bookDigestBlock({ summary: "   ", cast: "- 林夜：在雾港。" })).toBe("");
+  });
+
+  it("人物为空时只出摘要两行，不留空「人物：」标题", () => {
+    expect(bookDigestBlock({ summary: "林夜抵达雾港。", cast: "" })).toBe(
+      "【全书摘要与人物状态】\n一句话：林夜抵达雾港。"
+    );
+  });
+
+  it("状态卡放在上下文段之前：模型先拿到全局，再读这一轮的条目", () => {
+    const out = buildContextPack(
+      { contextBlock: "第一章 1200 字", skillHint: "", skillIndex: noIndex },
+      { summary: "林夜抵达雾港。", cast: "- 林夜：在找船。" }
+    );
+    expect(out.indexOf("【全书摘要与人物状态】")).toBeLessThan(out.indexOf("【已装配的上下文】"));
+    expect(out).toContain("人物：\n- 林夜：在找船。");
   });
 });
 

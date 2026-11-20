@@ -1,7 +1,9 @@
 import { shell } from "electron";
 import {
+  firstIssueMessage,
   IPC_CHANNELS,
   presetOf,
+  setUtilityProfileInputSchema,
   type ConnectionDraft,
   type ContextPreviewQuery,
   type DecideInput,
@@ -109,6 +111,13 @@ export function registerProviderIpc(
   handleTrusted(handle, IPC_CHANNELS.providerProfileEnable, (_event, id, enabled) =>
     settings.enableProfile(id as string, enabled as boolean)
   );
+  // 后台杂活模型（2026-11-20）：null = 跟随主模型。形状在这道口收住，别把脏值写进 config.json。
+  handleTrusted(handle, IPC_CHANNELS.providerSetUtility, (_event, input) => {
+    const parsed = setUtilityProfileInputSchema.safeParse(input);
+    if (!parsed.success)
+      throw new Error(firstIssueMessage(parsed.error, "后台杂活模型没保存：选择的内容不对。"));
+    return settings.setUtilityProfile(parsed.data.profileId);
+  });
   // 「获取 API 密钥」：只收 providerId，地址由主进程从预设表查出来。
   // 渲染层递不了任意 URL 出去——那条路会把 file:// 与内网地址一并放行。
   handleTrusted(handle, IPC_CHANNELS.appOpenExternal, async (_event, providerId) => {

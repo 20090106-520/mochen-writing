@@ -34,6 +34,23 @@ const groups = computed<ConnectionGroup[]>(() =>
   }))
 );
 
+/**
+ * 「后台杂活模型」的可选项（2026-11-20）：每条档案都列出来，
+ * 标签带上连接名——两家供应商都叫同一个模型名时，只看模型名会分不清。
+ */
+const utilityOptions = computed(() =>
+  (provider.view?.profiles ?? []).map((profile) => ({
+    id: profile.id,
+    label: `${provider.connectionOf(profile.connectionId)?.label ?? "未知连接"} · ${profile.model}`
+  }))
+);
+
+function chooseUtility(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value;
+  // 空串 = 跟随主模型；主进程收 null 才会把这一格删掉。
+  void provider.setUtility(value === "" ? null : value);
+}
+
 function openAdd(): void {
   editingModel.value = "";
   dialogMode.value = "add";
@@ -104,6 +121,25 @@ onUnmounted(() => {
     </div>
 
     <p v-if="provider.error" class="provider-error">{{ provider.error }}</p>
+
+    <!-- 后台杂活模型（2026-11-20）：写作轮永远用主模型，这里只改摘要 / 状态卡走哪条。 -->
+    <div v-if="utilityOptions.length" class="provider-utility">
+      <label class="provider-utility-label" for="provider-utility-select">后台杂活模型</label>
+      <select
+        id="provider-utility-select"
+        class="provider-utility-select"
+        :value="provider.view?.utilityProfileId ?? ''"
+        @change="chooseUtility"
+      >
+        <option value="">跟随主模型</option>
+        <option v-for="option in utilityOptions" :key="option.id" :value="option.id">
+          {{ option.label }}
+        </option>
+      </select>
+      <p class="provider-panel-note">
+        用于章末摘要与全书状态卡，可以选更便宜或更快的模型；写作仍用主模型。
+      </p>
+    </div>
 
     <ul v-if="groups.length" class="provider-connection-list">
       <li v-for="group in groups" :key="group.connection.id" class="provider-connection-card">

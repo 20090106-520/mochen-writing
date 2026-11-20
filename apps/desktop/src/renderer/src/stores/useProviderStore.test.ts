@@ -69,7 +69,6 @@ const providerVerify = vi.fn(async (): Promise<VerifyResult> => ({
 }));
 const openProviderKeyPage = vi.fn(async (): Promise<boolean> => true);
 const openWebSource = vi.fn(async (): Promise<boolean> => true);
-
 /**
  * 档案管理三条通道：加一条 / 删一条 / 启停。桩只记调用，断言交给用例。
  * 桩镜像主进程的**启停互斥**，否则 modelLabel 会因为两条 enabled 都为真而取错档案。
@@ -133,6 +132,7 @@ const api = {
   profileUpsert,
   profileRemove,
   profileEnable,
+  setUtility: offLimits("setUtility"),
   appearanceGet: offLimits("appearanceGet"),
   appearanceSave: offLimits("appearanceSave"),
   saveFile: offLimits("saveFile"),

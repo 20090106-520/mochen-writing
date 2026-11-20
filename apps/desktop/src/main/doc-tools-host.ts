@@ -1,9 +1,8 @@
-import path from "node:path";
-import { readFile } from "node:fs/promises";
 import { assertSafeRelPath, kindOfRelPath, makeFingerprint, readDocFile } from "@mochen/fs-store";
 import type {
   AgentProfile,
   AgentToolName,
+  BibleEntry,
   BookKind,
   DocRef,
   EditProposal,
@@ -13,11 +12,8 @@ import type {
   WriteScope
 } from "@mochen/contracts";
 import {
-  BOOK_KINDS,
   defaultProfile,
   writeScopeAllows,
-  fuzzyEligible,
-  fuzzyFindInLine,
   aiFlavorGate,
   AI_FLAVOR_STRUCTURE_MIN_COUNT,
   skillBriefLine,
@@ -28,6 +24,8 @@ import {
   type StyleProfile
 } from "@mochen/contracts";
 import { disabledSkillText, skillReadMissText } from "./skill-receipt.js";
+// 检索真身迁到独立模块（2026-11-20）：宿主贴着 800 行预算，补设定库 / 前情来源必须外移。
+import { runSearchDocs } from "./doc-tools-search.js";
 import {
   applyPatch,
   checkWritePermission,
@@ -173,6 +171,12 @@ export interface DocToolHostDeps {
    * 只挡清单不挡正文，停用开关就等于没关。缺省 ⇒ 不停用任何技能。
    */
   skillDisabled?: ((id: string) => boolean) | undefined;
+  /**
+   * 检索要用的另外两份事实（2026-11-20）：故事圣经条目与章末摘要。
+   * 都是只读；缺省 ⇒ 该来源当空表（老测试不必重搭夹具）。
+   */
+  bible?: (() => Promise<readonly BibleEntry[]>) | undefined;
+  recaps?: (() => Readonly<Record<string, string>>) | undefined;
 }
 
 function str(args: Record<string, unknown>, key: string): string {
@@ -206,62 +210,6 @@ function inWritableDir(relPath: string): boolean {
  */
 function sentence(text: string): string {
   return /[。．.!?！？…]$/.test(text.trimEnd()) ? text.trimEnd() : `${text}。`;
-}
-
-/* ── search_docs 的两种回执（2026-10-22 扩形）──
- * 逐行档回答「这一句在哪」，按篇档回答「哪些章提到它」。两档用的是**同一次**扫盘结果，
- * 差别只在排版——所以收集与排版分开，判据一处。
- * 上限 50 而不是无限：回执直接进模型上下文，整本倾倒会把这轮的对话预算吃光。 */
-const SEARCH_LIMIT_DEFAULT = 20;
-const SEARCH_LIMIT_MAX = 50;
-
-interface SearchHit {
-  ref: DocRef;
-  /** 1 起的行号。 */
-  line: number;
-  /** 命中行原文（已 trim）。 */
-  text: string;
-}
-
-/** 模型可能给数字也可能给字符串；缺省/非法一律回默认，超上限截到上限。 */
-function searchLimitOf(raw: unknown): number {
-  const value = typeof raw === "number" ? raw : Number(raw);
-  if (!Number.isFinite(value)) return SEARCH_LIMIT_DEFAULT;
-  return Math.min(SEARCH_LIMIT_MAX, Math.max(1, Math.floor(value)));
-}
-
-function searchReceipt(input: {
-  hits: SearchHit[];
-  group: "line" | "doc";
-  limit: number;
-  /** 限定的文稿类型（空串 = 全书）；回执要把这件事说清，免得模型以为搜过整本。 */
-  scope: string;
-  lead: string;
-  fuzzy: boolean;
-}): string {
-  const { hits, group, limit, scope, lead, fuzzy } = input;
-  const scopeNote = scope === "" ? "" : `（只搜了 ${scope} 类文稿）`;
-  const fuzzyNote = fuzzy ? "（命中的字可能与查询不完全相同，引用前先核对）" : "";
-  if (group === "doc") {
-    const byDoc = new Map<string, SearchHit[]>();
-    for (const hit of hits) {
-      const bucket = byDoc.get(hit.ref.relPath);
-      if (bucket === undefined) byDoc.set(hit.ref.relPath, [hit]);
-      else bucket.push(hit);
-    }
-    const docs = [...byDoc.values()];
-    const shown = docs.slice(0, limit);
-    const rows = shown.map((bucket) => {
-      const first = bucket[0]!;
-      return `- ${first.ref.relPath} · ${first.ref.title}（命中 ${bucket.length} 处，首处第 ${first.line} 行：${first.text}）`;
-    });
-    const tail = docs.length > shown.length ? `，只列前 ${shown.length} 篇` : "";
-    return `${lead} ${hits.length} 处，分布在 ${docs.length} 篇${scopeNote}${tail}${fuzzyNote}：\n${rows.join("\n")}`;
-  }
-  const shown = hits.slice(0, limit);
-  const rows = shown.map((hit) => `${hit.ref.relPath}:${hit.line}: ${hit.text}`);
-  const tail = hits.length > shown.length ? `，只列前 ${shown.length} 条` : "";
-  return `${lead} ${hits.length} 处${scopeNote}${tail}${fuzzyNote}：\n${rows.join("\n")}`;
 }
 
 /* ── AI 味自动退稿闸（2026-10-10 二段）──
@@ -545,71 +493,17 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
       }
 
       if (name === "search_docs") {
-        const query = str(args, "query");
-        if (query === "") return deny("search_docs 需要非空的 query。");
-        const root = deps.root();
-        if (root === null) return deny("尚未打开作品目录。");
-        // 2026-10-22：kind 把检索限定在一类文稿上（人物卡、场景、伏笔……）。
-        // 认不出的 kind 不静默退回全书——那样作者以为只搜了人物，实际搜了整本。
-        const kind = str(args, "kind");
-        if (kind !== "" && !(BOOK_KINDS as readonly string[]).includes(kind))
-          return deny(
-            `不认识的文稿类型「${kind}」。可用的是 ${BOOK_KINDS.join("、")}；不传则搜全书。`
-          );
-        const refs = deps.docs().filter((ref) => kind === "" || ref.kind === kind);
-        // group="doc"：按篇聚合，答「哪些章节提到漕运」——这是 kind 之外的另一半。
-        const group = str(args, "group") === "doc" ? "doc" : "line";
-        const limit = searchLimitOf(args.limit);
-
-        const collect = async (match: (line: string) => boolean) => {
-          const hits: SearchHit[] = [];
-          for (const ref of refs) {
-            const body = await readFile(path.join(root, ...ref.relPath.split("/")), "utf8").catch(
-              () => null
-            );
-            if (body === null) continue;
-            for (const [index, line] of body.split("\n").entries()) {
-              if (!match(line)) continue;
-              hits.push({ ref, line: index + 1, text: line.trim() });
-            }
-          }
-          return hits;
-        };
-
-        const exact = await collect((line) => line.includes(query));
-        // 一字之差兜底（2026-10-10）：与渲染层全文搜索同一份真身（contracts/search-match），
-        // 精确零命中才跑第二轮，并在回执里如实写明这是容错命中——模型据此知道窗口里
-        // 的字与 query 并不相同（比如「林潮生」命中了「林潮升」），不能照抄。
-        if (exact.length === 0 && fuzzyEligible(query)) {
-          const fuzzy = await collect((line) => fuzzyFindInLine(line, query) !== null);
-          if (fuzzy.length === 0)
-            return { ok: true, text: `没有命中「${query}」。`, proposals: [] };
-          return {
-            ok: true,
-            text: searchReceipt({
-              hits: fuzzy,
-              group,
-              limit,
-              scope: kind,
-              lead: `精确搜索没有命中「${query}」，按一字之差容错命中`,
-              fuzzy: true
-            }),
-            proposals: []
-          };
-        }
-        if (exact.length === 0) return { ok: true, text: `没有命中「${query}」。`, proposals: [] };
-        return {
-          ok: true,
-          text: searchReceipt({
-            hits: exact,
-            group,
-            limit,
-            scope: kind,
-            lead: "命中",
-            fuzzy: false
-          }),
-          proposals: []
-        };
+        // 检索真身迁到 doc-tools-search.ts（2026-11-20）：这里只转交来源与参数，
+        // 不重算任何一路判据（kind / group / limit / 容错都住在那边）。
+        return await runSearchDocs(
+          {
+            docs: deps.docs,
+            root: deps.root,
+            bible: deps.bible ?? (async () => []),
+            recaps: deps.recaps ?? (() => ({}))
+          },
+          args
+        );
       }
 
       if (name === "web_search") {

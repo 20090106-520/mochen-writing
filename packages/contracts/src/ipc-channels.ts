@@ -68,6 +68,7 @@ export const IPC_CHANNELS = {
   providerProfileUpsert: "provider:profile-upsert",
   providerProfileRemove: "provider:profile-remove",
   providerProfileEnable: "provider:profile-enable",
+  providerSetUtility: "provider:set-utility",
   skillsList: "skills:list",
   skillsRead: "skills:read",
   /**

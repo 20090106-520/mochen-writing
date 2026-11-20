@@ -277,6 +277,9 @@ export const api = {
   profileEnable: vi.fn(async (): Promise<never> => {
     throw new Error("agent-store-fixture 不该调用 profileEnable");
   }),
+  setUtility: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 setUtility");
+  }),
   appearanceGet: vi.fn(async (): Promise<never> => {
     throw new Error("agent-store-fixture 不该调用 appearanceGet");
   }),

@@ -11,9 +11,12 @@ import {
   eventsToMessages,
   findLatestSession,
   historyStatFor,
-  readSession
+  readSession,
+  UPSTREAM_WINDOW_TOKENS
 } from "@mochen/agent-runtime";
 import type { BookService } from "./book-service.js";
+import type { ProviderSettings } from "./provider-settings.js";
+import { bookDigestBlock } from "./system-pack.js";
 import type { TurnContext } from "./turn-context.js";
 
 export interface ContextPreviewDeps {
@@ -22,15 +25,29 @@ export interface ContextPreviewDeps {
   /** 这条线程上一轮落盘的 jsonl（与 startTurn 共用同一张表，否则下一轮会拉回最近那条）。 */
   threadOf(threadKey: string): string | undefined;
   /**
-   * 分母：模型配置里的上下文窗口（P0-3）。没填 / 读不出 ⇒ 回退到默认值。
-   * 读盘与回退都归调用方，这里只管用——占用条不因配置读不出来整块报错。
+   * 分母取自模型配置里的上下文窗口（P0-3）。没填 / 读不出 / 旧配置 ⇒ 回退到默认值：
+   * 回退与读盘都归这里（2026-11-20 从 agent-service 搬来，它只给占用条用），
+   * 占用条不因配置读不出来整块报错。
    */
-  windowTokens(): Promise<number>;
+  settings: ProviderSettings;
 }
 
 export function createContextPreview(
   deps: ContextPreviewDeps
 ): (query: ContextPreviewQuery) => Promise<ContextPreview> {
+  /**
+   * 分母的读法（P0-3）：没填 / 读不出 / 旧配置 ⇒ 回退到默认值。
+   * startTurn 手里已经有 config，直接读同一格，不重复读盘；这一份只服务占用条。
+   */
+  async function resolveWindowTokens(): Promise<number> {
+    try {
+      const config = await deps.settings.config();
+      return config?.contextWindow ?? UPSTREAM_WINDOW_TOKENS;
+    } catch {
+      return UPSTREAM_WINDOW_TOKENS;
+    }
+  }
+
   return async function contextPreview(query: ContextPreviewQuery): Promise<ContextPreview> {
     const current = deps.book.current();
     if (current === null)
@@ -60,10 +77,13 @@ export function createContextPreview(
       skills,
       query.excludedBible ?? []
     );
+    // 全书状态卡（2026-11-20）：它和技能库索引一样占系统提示字数，却没进 items。
+    // 不把它算进来，占用条就少报一截；渲染与真身同取 `bookDigestBlock`，不另拼一遍。
+    const digestText = bookDigestBlock(current.meta.digest);
     // P1-3：占用条必须把历史这一格算进去——不报历史，剩余预算就是假的（面板上的「还能塞」骗人）。
     // 数字只有 `historyStatFor` 那一份判据：这里再手搓一遍字段映射，就是第二套口径（铁律 6）。
     // P0-3：分母取自模型配置的上下文窗口；读不出配置时回退到默认值，占用条不因此整块报错。
-    const windowTokens = await deps.windowTokens();
+    const windowTokens = await resolveWindowTokens();
     let historyStat = historyStatFor(null, windowTokens);
     try {
       const key = query.docRelPath ?? UNBOUND;
@@ -88,9 +108,10 @@ export function createContextPreview(
         chars: item.chars,
         active: item.active
       })),
-      chars: assembled.chars + [...indexText.text].length,
-      approxTokens: assembled.approxTokens + estimateTokens(indexText.text),
-      empty: assembled.items.length === 0 && indexText.text === "",
+      chars: assembled.chars + [...indexText.text].length + [...digestText].length,
+      approxTokens:
+        assembled.approxTokens + estimateTokens(indexText.text) + estimateTokens(digestText),
+      empty: assembled.items.length === 0 && indexText.text === "" && digestText === "",
       skillIndex: {
         chars: [...indexText.text].length,
         shown: indexText.shown,

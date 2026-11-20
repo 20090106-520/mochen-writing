@@ -13,6 +13,7 @@ import {
   type BookCreateResult,
   type BookDataReadResult,
   type BookDataWriteResult,
+  type BookDigest,
   type BookMeta,
   type BookOpenResult,
   type BookReplaceResult,
@@ -53,6 +54,22 @@ export interface BookService {
   /** 建新书骨架并立刻打开：成功返回与 open 同构的结果，渲染层一套填充逻辑两用。 */
   createBook(input: BookCreateInput): Promise<BookCreateResult>;
   saveMeta(meta: BookMeta): Promise<void>;
+  /**
+   * 只把一章的摘要并进 `book.json`（2026-11-20 审计 R-4）。
+   *
+   * 章末摘要是后台旁路，生成要几十秒；这期间用户完全可能在设置里改书名、阶段、技能开关。
+   * 此前摘要拿「生成前那份 meta」整份回写，会把用户那次改动静默回滚。这里只并 `recaps` 一格，
+   * 且**在队列里现取最新 meta**——`saveMeta` 与它共用同一条写队列，不会交错落盘。
+   * 没开书 / 换书后取不到原书根 ⇒ 安静丢弃（摘要丢一次比写进别人书里轻得多）。
+   */
+  mergeRecaps(relPath: string, text: string): Promise<void>;
+  /**
+   * 只把全书状态并进 `book.json`（2026-11-20）。
+   *
+   * 与 `mergeRecaps` 完全同构：现取最新 meta、只并 `digest` 一格、跨书安静丢弃。
+   * 状态卡也是几十秒后才回来，整份回写会把用户这期间的设置改动一起回滚。
+   */
+  mergeDigest(digest: BookDigest): Promise<void>;
   readDoc(relPath: string): Promise<DocContent>;
   writeDoc(relPath: string, content: string, expectedFingerprint: string): Promise<DocWriteResult>;
   /**
@@ -221,6 +238,22 @@ export interface BookServiceDeps {
 
 export function createBookService(deps: BookServiceDeps): BookService {
   let snapshot: BookSnapshot | null = null;
+  /**
+   * `book.json` 的写入队列（审计 R-4）。
+   *
+   * 两条通路都写同一份 meta：用户保存设置（`saveMeta`，整份）与章末摘要（`mergeRecaps`，一格）。
+   * 不串行时后落的那一单会盖掉前一单，而摘要总在几十秒后才落——正好踩中用户改设置。
+   * 队列头只看「这一单跑完没有」：失败也放行下一单，错误仍由各自那一单抛给调用方。
+   */
+  let metaWrites: Promise<void> = Promise.resolve();
+  function enqueueMetaWrite(task: () => Promise<void>): Promise<void> {
+    const next = metaWrites.then(task);
+    metaWrites = next.then(
+      () => undefined,
+      () => undefined
+    );
+    return next;
+  }
 
   return {
     async open(rootPath: string) {
@@ -267,12 +300,48 @@ export function createBookService(deps: BookServiceDeps): BookService {
     },
 
     async saveMeta(meta: BookMeta) {
-      if (snapshot === null) throw new Error("尚未打开作品目录，无法保存 book.json");
-      // 原子写（P0-1）：book.json 是这本书的门牌，半截 JSON 会让「正文一篇没丢」变成「书打不开」。
-      // 形状与写法都住在 fs-store 的 `book-meta` 那一处，主进程不再自己 stringify（铁律 6）。
-      // 只有写成功才刷新快照：否则界面上显示的是新书名/新权限档，盘上还是旧的，两处从此分家。
-      const parsed = await writeBookMetaFile(snapshot.root, meta, deps.fs);
-      snapshot = { ...snapshot, meta: parsed };
+      const root = snapshot?.root;
+      if (root === undefined) throw new Error("尚未打开作品目录，无法保存 book.json");
+      await enqueueMetaWrite(async () => {
+        const current = snapshot;
+        // 排队期间换了书 / 关了书：这一单带的是上一本的整份 meta，落进新书会把两本书搅在一起。
+        if (current === null || current.root !== root) {
+          throw new Error("书已经换过或关闭，这次设置没有保存。");
+        }
+        // 原子写（P0-1）：book.json 是这本书的门牌，半截 JSON 会让「正文一篇没丢」变成「书打不开」。
+        // 形状与写法都住在 fs-store 的 `book-meta` 那一处，主进程不再自己 stringify（铁律 6）。
+        // 只有写成功才刷新快照：否则界面上显示的是新书名/新权限档，盘上还是旧的，两处从此分家。
+        const parsed = await writeBookMetaFile(current.root, meta, deps.fs);
+        snapshot = { ...current, meta: parsed };
+      });
+    },
+
+    async mergeRecaps(relPath, text) {
+      const root = snapshot?.root;
+      if (root === undefined) return;
+      await enqueueMetaWrite(async () => {
+        const current = snapshot;
+        // 换书 / 关书后旧摘要一律丢弃：跨书落一格比丢一次摘要严重得多。
+        if (current === null || current.root !== root) return;
+        const parsed = await writeBookMetaFile(
+          current.root,
+          { ...current.meta, recaps: { ...(current.meta.recaps ?? {}), [relPath]: text } },
+          deps.fs
+        );
+        snapshot = { ...current, meta: parsed };
+      });
+    },
+
+    async mergeDigest(digest) {
+      const root = snapshot?.root;
+      if (root === undefined) return;
+      await enqueueMetaWrite(async () => {
+        const current = snapshot;
+        // 同一套跨书口径：换书 / 关书后旧状态一律丢弃，绝不写进别人的书里。
+        if (current === null || current.root !== root) return;
+        const parsed = await writeBookMetaFile(current.root, { ...current.meta, digest }, deps.fs);
+        snapshot = { ...current, meta: parsed };
+      });
     },
 
     async readDoc(relPath: string) {

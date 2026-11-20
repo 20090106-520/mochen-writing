@@ -202,26 +202,13 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     readSkill: deps.readSkill
   });
 
-  /**
-   * 模型配置里的上下文窗口（P0-3）。没填 / 读不出 / 旧配置 ⇒ 回退到默认值。
-   * 只给占用条预览用：startTurn 手里已经有 config，直接读同一格，不重复读盘。
-   */
-  async function contextWindowTokens(): Promise<number> {
-    try {
-      const config = await deps.settings.config();
-      return config?.contextWindow ?? UPSTREAM_WINDOW_TOKENS;
-    } catch {
-      return UPSTREAM_WINDOW_TOKENS;
-    }
-  }
-
   // 占用条的装配与历史统计住在 agent-context-preview.ts（同 multi-sample.ts 的拆法：为 800 行预算
   // 拆出去，不跑 turn、不碰提案；线程表借用这里那张 threads 的真身）。
   const contextPreviewOf = createContextPreview({
     book: deps.book,
     turnContext,
     threadOf: (threadKey) => threads.get(threadKey),
-    windowTokens: contextWindowTokens
+    settings: deps.settings
   });
 
   async function drain(): Promise<void> {
@@ -371,6 +358,8 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
       webRead: (url) => webRead(url, { fetchImpl: abortableFetch(fetch, signal) }),
       // 技能自选（use_skill，2026-10-23）：列清单与按 id 读正文，都用装配层传进来的那份。
       listSkills: deps.listSkills,
+      // 检索的另外两份事实（2026-11-20）：设定库与章末摘要，取值判据住在装配层。
+      ...turnContext.searchSources(),
       readSkill: deps.readSkill,
       skillDisabled: deps.skillDisabled
     });
@@ -640,7 +629,11 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         const hasSkill = assembled.items.some((item) => item.kind === "skill");
         const skillHint = hasSkill ? (preload === null ? SKILL_HINT : SKILL_HINT_WITH_PRELOAD) : "";
         // P0-3：上下文包与系统提示分开算 token（三路预算要各自可量）；拼法住在 system-pack.ts。
-        const contextPackText = buildContextPack({ contextBlock, skillHint, skillIndex, preload });
+        const contextPackText = buildContextPack(
+          { contextBlock, skillHint, skillIndex, preload },
+          // 全书状态卡（2026-11-20）：老书没有这一格时整段不出现。
+          current.meta.digest ?? null
+        );
         const systemPromptText = `${prompt}${contextPackText}`;
         // P1-3 历史切片 / P0-3 三路预算：窗口取自模型配置的 contextWindow（没填就回退到
         // DEFAULT_CONTEXT_WINDOW_TOKENS）。系统提示与上下文包分开报（见上），两者之和

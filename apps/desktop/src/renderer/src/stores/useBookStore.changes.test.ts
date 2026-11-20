@@ -152,6 +152,9 @@ const api = {
   profileEnable: vi.fn(async () => {
     throw new Error("不该启停");
   }),
+  setUtility: vi.fn(async () => {
+    throw new Error("不该改后台杂活模型");
+  }),
   onAgentEvent: vi.fn(() => () => {}),
   // 退出握手（P0-6）：这一格用例不碰它，给一对无害的假身即可过 RendererApi 的形状关。
   onQuitFlushRequest: () => () => {},

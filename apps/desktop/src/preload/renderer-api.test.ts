@@ -209,6 +209,8 @@ describe("createRendererApi", () => {
     await api.profileUpsert(profileDraft);
     await api.profileRemove("m-1");
     await api.profileEnable("m-1", true);
+    // 后台杂活模型（2026-11-20）：只递档案 id；写作轮不受这一格影响。
+    await api.setUtility("m-1");
     await api.appearanceGet();
     await api.appearanceSave(appearanceSettings);
     await api.listSkills();
@@ -289,7 +291,7 @@ describe("createRendererApi", () => {
     await api.webdavList();
     await api.webdavPull("book-2026-10-15-12-00-00");
 
-    expect(calls.length).toBe(73);
+    expect(calls.length).toBe(74);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -333,6 +335,7 @@ describe("createRendererApi", () => {
       "provider:profile-upsert",
       "provider:profile-remove",
       "provider:profile-enable",
+      "provider:set-utility",
       "appearance:get",
       "appearance:save",
       "skills:list",
@@ -427,6 +430,7 @@ describe("createRendererApi", () => {
       [profileDraft],
       ["m-1"],
       ["m-1", true],
+      [{ profileId: "m-1" }],
       [],
       [appearanceSettings],
       [],
@@ -588,6 +592,7 @@ describe("createRendererApi", () => {
       "saveAuthoredSkill",
       "saveFile",
       "saveMeta",
+      "setUtility",
       "startTurn",
       "togglePlugin",
       // 删除那一枚与「检查更新」一枚（2026-10-10）：检查只报告不下载，更新源在主进程 env 里。

@@ -12,7 +12,7 @@
  * 「按需自己调用技能」实际退化成了「用手挑」。这一段把整库摊开（只列名字与一句说明，
  * 正文仍由 use_skill 现读），模型才可能自己决定读哪一份。
  */
-import type { SkillIndexResult } from "@mochen/contracts";
+import type { BookDigest, SkillIndexResult } from "@mochen/contracts";
 
 /**
  * 「标注技能的那些其实只是清单」这句提醒（2026-11-12 从 agent-service 搬来）。
@@ -47,6 +47,26 @@ export interface PreloadedSkillBlock {
   clipped: boolean;
 }
 
+/**
+ * 全书状态卡那一段（2026-11-20）。
+ *
+ * 【为什么单独一段、放在最前】它回答的是「故事到哪儿了、谁现在什么处境」，
+ * 不属于「这一轮装配了哪些文稿」的条目清单，却每轮都该看见。放最前面，
+ * 模型先拿到全局，再读本章与前情，不容易把已经发生的事当成新起点。
+ *
+ * 【为什么空值整段不出现】老书没生成过状态卡、或后台那次失败了，都该保持
+ * 与升级前逐字一致的提示词，而不是留一个空标题让人以为漏装了内容。
+ */
+export function bookDigestBlock(digest: BookDigest | null | undefined): string {
+  if (digest === undefined || digest === null) return "";
+  const summary = digest.summary.trim();
+  if (summary === "") return "";
+  const lines = ["【全书摘要与人物状态】", `一句话：${summary}`];
+  const cast = digest.cast.trim();
+  if (cast !== "") lines.push("人物：", cast);
+  return lines.join("\n");
+}
+
 export interface ContextPackInput {
   /** `renderContextBlock` 的产物；空串＝这一轮没有可装的条目。 */
   contextBlock: string;
@@ -61,8 +81,19 @@ export interface ContextPackInput {
   preload?: PreloadedSkillBlock | null;
 }
 
-export function buildContextPack(input: ContextPackInput): string {
+/**
+ * @param digest 全书滚动状态（2026-11-20）。空 / 缺省 = 这一轮没有状态卡，整段不出现。
+ *   作为第二个参数而不是 `ContextPackInput` 的一格：调用方只有 agent-service 一处，
+ *   放进来会把那行调用撑成七行（800 行预算贴着线）。
+ */
+export function buildContextPack(
+  input: ContextPackInput,
+  digest?: BookDigest | null | undefined
+): string {
   const parts: string[] = [];
+  // 状态卡放最前：它是全局定位，先于「这一轮装进来的条目」。
+  const digestBlock = bookDigestBlock(digest);
+  if (digestBlock !== "") parts.push(digestBlock);
   if (input.contextBlock !== "") {
     parts.push(`【已装配的上下文】\n${input.contextBlock}`);
     if (input.skillHint !== "") parts.push(input.skillHint);

@@ -75,6 +75,7 @@ const api = {
   profileUpsert: offLimits("profileUpsert"),
   profileRemove: offLimits("profileRemove"),
   profileEnable: offLimits("profileEnable"),
+  setUtility: offLimits("setUtility"),
   appearanceGet: offLimits("appearanceGet"),
   appearanceSave: offLimits("appearanceSave"),
   saveFile: offLimits("saveFile"),

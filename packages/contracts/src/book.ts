@@ -19,6 +19,13 @@ export const BOOK_KINDS = [
 ] as const;
 export type BookKind = (typeof BOOK_KINDS)[number];
 
+/**
+ * 全书滚动状态的两道上限（2026-11-20）：生成提示、解析截断与 meta schema 共用这一枚，
+ * 不各写一个数字。摘要只有一句话，故很短；人物状态允许一人一行。
+ */
+export const BOOK_DIGEST_SUMMARY_MAX_CHARS = 120;
+export const BOOK_DIGEST_CAST_MAX_CHARS = 600;
+
 export interface BookStage {
   id: string;
   name: string;
@@ -84,6 +91,22 @@ export interface BookMeta {
    * 老书没有这一格，解析照样过，装配层退回「截上一章尾巴」的老路（判据 `recapOf`）。
    */
   recaps?: Record<string, string> | undefined;
+  /**
+   * 全书滚动状态（2026-11-20）：一句话摘要 + 主要人物当前状态。
+   *
+   * 由章末摘要之后的同一条后台队列生成（输入只有上一份状态与本章摘要），
+   * 每轮固定注入系统提示。老书没有这一格，解析照样过，注入端整段不出现。
+   * 解析判据只住 `parseBookDigest` 一处。
+   */
+  digest?: BookDigest | undefined;
+}
+
+/** 全书滚动状态：给模型「故事到哪儿了、谁现在什么处境」的一页纸。 */
+export interface BookDigest {
+  /** 全书一句话摘要（≤ BOOK_DIGEST_SUMMARY_MAX_CHARS）。 */
+  summary: string;
+  /** 主要人物当前状态，一行一人（≤ BOOK_DIGEST_CAST_MAX_CHARS）。 */
+  cast: string;
 }
 
 /**
@@ -199,7 +222,17 @@ export const bookMetaSchema = z
      * 为什么放 book.json：随书走、随备份走、`open` 已整份加载，不需要新 IPC 通道与第二种文件格式。
      * 老书没有这一格 ⇒ undefined，行为与从前逐字一致。
      */
-    recaps: z.record(z.string(), z.string()).optional()
+    recaps: z.record(z.string(), z.string()).optional(),
+    /**
+     * 全书滚动状态（2026-11-20）。没有这一格 ⇒ undefined，注入端整段不出现。
+     * 两个上限与生成端共用下面两枚常量，不各写一个数字。
+     */
+    digest: z
+      .object({
+        summary: z.string().max(BOOK_DIGEST_SUMMARY_MAX_CHARS),
+        cast: z.string().max(BOOK_DIGEST_CAST_MAX_CHARS)
+      })
+      .optional()
   })
   .superRefine((value, ctx) => {
     const ids = new Set<string>();
@@ -235,6 +268,37 @@ export function recapOf(
   if (text === undefined) return null;
   const trimmed = text.trim();
   return trimmed === "" ? null : trimmed;
+}
+
+/**
+ * 解析后台模型产出的「全书摘要 + 人物状态」（2026-11-20）。**判据只在这一处**：
+ * 生成端（chapter-recap）只负责拿文本并调它，注入端只读解析结果。
+ *
+ * 认两个固定小标题；模型偶尔会多写一句前言或客套，按「标题之间取正文」的口径吸收，
+ * 不要求它整段就是纯正文。没有摘要标题、或摘要为空 ⇒ `null`（宁可这一轮不注入，
+ * 也不注入一段只有标题的空壳）。人物段允许为空：第一章还没人物也合法。
+ */
+export function parseBookDigest(raw: string): BookDigest | null {
+  const summaryTag = "【全书摘要】";
+  const castTag = "【人物状态】";
+  const summaryAt = raw.indexOf(summaryTag);
+  if (summaryAt < 0) return null;
+  const castAt = raw.indexOf(castTag, summaryAt + summaryTag.length);
+  const summaryEnd = castAt >= 0 ? castAt : raw.length;
+  const summary = clipDigest(
+    raw.slice(summaryAt + summaryTag.length, summaryEnd),
+    BOOK_DIGEST_SUMMARY_MAX_CHARS
+  );
+  if (summary === "") return null;
+  const cast =
+    castAt < 0 ? "" : clipDigest(raw.slice(castAt + castTag.length), BOOK_DIGEST_CAST_MAX_CHARS);
+  return { summary, cast };
+}
+
+/** 截断并清掉首尾空白。截的是码点，避免把代理对切成半个字符。 */
+function clipDigest(text: string, max: number): string {
+  const chars = Array.from(text.trim());
+  return chars.slice(0, max).join("").trim();
 }
 
 /**

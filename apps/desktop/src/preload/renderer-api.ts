@@ -81,6 +81,9 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     profileRemove: (id: string) => invoke(IPC_CHANNELS.providerProfileRemove, id),
     profileEnable: (id: string, enabled: boolean) =>
       invoke(IPC_CHANNELS.providerProfileEnable, id, enabled),
+    // 后台杂活模型（2026-11-20）：null = 跟随主模型；写作轮不受影响。
+    setUtility: (profileId: string | null) =>
+      invoke(IPC_CHANNELS.providerSetUtility, { profileId }),
     appearanceGet: () => invoke(IPC_CHANNELS.appearanceGet),
     appearanceSave: (settings) => invoke(IPC_CHANNELS.appearanceSave, settings),
     listSkills: () => invoke(IPC_CHANNELS.skillsList),

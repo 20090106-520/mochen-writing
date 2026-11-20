@@ -460,6 +460,11 @@ export interface RendererApi {
   /** 启停一条模型档案（互斥：启用某条时其余自动停用）。 */
   profileEnable(id: string, enabled: boolean): Promise<ProviderView>;
   /**
+   * 指定后台杂活模型（2026-11-20）：章末摘要与全书状态卡走这条档案；
+   * `null` = 跟随主模型。写作轮永远用启用中的主档案。
+   */
+  setUtility(profileId: string | null): Promise<ProviderView>;
+  /**
    * 技能库只读浏览（spec §11）：全局与书内两个来源合并去重，**书内同名优先**。
    * 没开书时只回全局那一份（书内来源要书目录才谈得上）。
    */

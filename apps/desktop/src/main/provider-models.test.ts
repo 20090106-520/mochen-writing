@@ -54,7 +54,13 @@ function settingsStub(
     config: async () => {
       throw new Error("枚举模型不许走 config()：那个取数形状归 agent-service");
     },
+    configFor: async () => {
+      throw new Error("枚举模型不许走 configFor()：那个取数形状归 agent-service");
+    },
     apiKey: async () => key,
+    setUtilityProfile: async () => {
+      throw new Error("枚举模型永不改后台杂活模型");
+    },
     saveConnection: async () => {
       throw new Error("枚举模型永不写配置");
     },

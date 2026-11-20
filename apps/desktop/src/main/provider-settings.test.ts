@@ -59,6 +59,84 @@ async function rejectMessage(promise: Promise<unknown>): Promise<string> {
   return message;
 }
 
+describe("providerSettings · 多模型分工（2026-11-20）", () => {
+  /** 造两条连接各挂一条模型：后加的 B 是主模型，A 留给后台杂活。 */
+  async function twoModels() {
+    const settings = createProviderSettings({ dir, credentials });
+    const one = await settings.saveConnection({ ...DEEPSEEK, apiKey: "sk-deepseek" });
+    const a = one.connections[0]!.id;
+    await settings.upsertProfile({ model: "deepseek-chat", connectionId: a });
+    const two = await settings.saveConnection({ ...MIMO, apiKey: "sk-mimo" });
+    const b = two.connections.find((connection) => connection.id !== a)!.id;
+    const view = await settings.upsertProfile({ model: "mimo-chat", connectionId: b });
+    const profileA = view.profiles.find((profile) => profile.connectionId === a)!;
+    const profileB = view.profiles.find((profile) => profile.connectionId === b)!;
+    return { settings, profileA, profileB };
+  }
+
+  it("写作轮取启用中的主档案，杂活取指定的那条；没指定时跟随主档案", async () => {
+    const { settings, profileA, profileB } = await twoModels();
+    expect((await settings.configFor("chat"))?.config.model).toBe(profileB.model);
+    expect((await settings.configFor("utility"))?.config.model).toBe(profileB.model);
+
+    await settings.setUtilityProfile(profileA.id);
+    expect((await settings.configFor("utility"))?.config.model).toBe(profileA.model);
+    // 写作轮不受影响：分工只改后台那条。
+    expect((await settings.configFor("chat"))?.config.model).toBe(profileB.model);
+  });
+
+  it("指定的杂活档案被删 / 连接被删 ⇒ 自动回到主档案，不留悬空引用", async () => {
+    const { settings, profileA } = await twoModels();
+    await settings.setUtilityProfile(profileA.id);
+    expect((await storeOnDisk()) as { utilityProfileId?: string }).toMatchObject({
+      utilityProfileId: profileA.id
+    });
+
+    const view = await settings.removeProfile(profileA.id);
+    expect(view.utilityProfileId).toBeUndefined();
+    expect((await settings.configFor("utility"))?.config.model).toBe("mimo-chat");
+    expect((await storeOnDisk()) as { utilityProfileId?: string }).not.toHaveProperty(
+      "utilityProfileId"
+    );
+  });
+
+  it("指定 null 等于跟随主模型：盘上这一格被删掉", async () => {
+    const { settings, profileA } = await twoModels();
+    await settings.setUtilityProfile(profileA.id);
+    const view = await settings.setUtilityProfile(null);
+    expect(view.utilityProfileId).toBeUndefined();
+    expect((await storeOnDisk()) as { utilityProfileId?: string }).not.toHaveProperty(
+      "utilityProfileId"
+    );
+  });
+
+  it("指定不存在的档案 ⇒ 单句中文拒绝，盘上不动", async () => {
+    const { settings } = await twoModels();
+    const before = await storeOnDisk();
+    expect(await rejectMessage(settings.setUtilityProfile("p-missing"))).toContain("模型");
+    expect(await storeOnDisk()).toEqual(before);
+  });
+
+  it("全部档案都没启用时，chat 按存储顺序取第一条可用档案（配置层降级）", async () => {
+    const { settings, profileA, profileB } = await twoModels();
+    await settings.enableProfile(profileB.id, false);
+    await settings.enableProfile(profileA.id, false);
+    // 没有启用档案 ⇒ 不再「看起来像没配模型」，按顺序试到第一条能用的。
+    expect((await settings.configFor("chat"))?.config.model).toBe(profileA.model);
+  });
+
+  it("改连接 / 启停别把杂活选择顺手丢掉", async () => {
+    const { settings, profileA, profileB } = await twoModels();
+    await settings.setUtilityProfile(profileA.id);
+    await settings.enableProfile(profileB.id, true);
+    expect(await settings.setUtilityProfile(profileA.id)).toMatchObject({
+      utilityProfileId: profileA.id
+    });
+    await settings.saveConnection({ connectionId: profileB.connectionId, ...MIMO, apiKey: null });
+    expect((await settings.view()).utilityProfileId).toBe(profileA.id);
+  });
+});
+
 describe("providerSettings · 连接与档案（v3：多连接并存）", () => {
   it("未配置时：空连接表、空档案表，config() 为 null", async () => {
     const settings = createProviderSettings({ dir, credentials });

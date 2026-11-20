@@ -145,6 +145,7 @@ export function createBookApi(): BookApiFixture {
     profileUpsert: offLimits("profileUpsert"),
     profileRemove: offLimits("profileRemove"),
     profileEnable: offLimits("profileEnable"),
+    setUtility: offLimits("setUtility"),
     onAgentEvent: vi.fn(() => () => {}),
     // 退出握手：订阅收进 quitRequests，回程进 quitFlushDone，两个都由用例点名。
     onQuitFlushRequest: vi.fn((listener: () => void) => {
