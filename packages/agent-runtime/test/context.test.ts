@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { findProfile, type BibleEntry } from "@mochen/contracts";
 import {
   BIBLE_TOTAL_CHARS,
+  FORESHADOW_REL_PATH,
+  FORESHADOW_TOTAL_CHARS,
   PINNED_SKILL_CHARS,
   PRIOR_CHAPTER_TAIL_CHARS,
   assembleContext,
@@ -56,6 +58,8 @@ const base = {
   recaps: {} as Record<string, string>,
   // 「本轮不带」（W-01 补完）：默认空表 = 全带，与从前逐字一致。
   excludedBible: [] as string[],
+  // 待收伏笔清单（2026-11-20）：类型先声明，默认空表 = 老书行为，与从前逐字一致。
+  foreshadows: [] as { relPath: string; title: string; plantedIn: string }[],
   chapterOrder: [
     "chapters/01-开篇.md",
     "chapters/02-暗流.md",
@@ -480,6 +484,13 @@ describe("renderContextBlock · 空包不许产出空标题块", () => {
     const block = renderContextBlock(assemble("lead-writer"));
     expect(block).toContain("正文（本章）·深渊之下");
   });
+
+  it("伏笔段用「伏笔」标签单独成块：占用条与提示词块读同一份标签表（2026-11-20）", () => {
+    const result = assemble("lead-writer", {
+      foreshadows: [{ relPath: "foreshadow/老枪.md", title: "老枪的伤", plantedIn: "开篇" }]
+    });
+    expect(renderContextBlock(result)).toContain("【伏笔·待收伏笔 1 条】");
+  });
 });
 
 describe("出场人物卡按真出场过滤（2026-10-10 三段：给 AI 的上下文要聚焦）", () => {
@@ -633,5 +644,73 @@ describe("各章结尾句 closings（2026-11-16：取尾部，不取头部）", 
     });
     expect(result.closings).toHaveLength(3);
     expect(result.closings).not.toContain("");
+  });
+});
+
+describe("待收伏笔清单进上下文（2026-11-20 病灶：台账标着待收，模型写那一章却不知道）", () => {
+  const hints = [
+    { relPath: "foreshadow/老枪.md", title: "老枪的伤", plantedIn: "开篇" },
+    { relPath: "foreshadow/银哨.md", title: "银哨", plantedIn: "暗流" }
+  ];
+
+  it("写章节时注入：题名与埋设章进清单，插在大纲/人物卡之后、前情之前", () => {
+    const result = assemble("lead-writer", { foreshadows: hints });
+    const kinds = result.items.map((item) => item.kind);
+    const at = kinds.indexOf("foreshadow");
+    expect(at).toBeGreaterThan(0);
+    // 优先级：outline/character 在前，伏笔段排在它们之后
+    expect(kinds.indexOf("outline")).toBeLessThan(at);
+    expect(kinds.lastIndexOf("character")).toBeLessThan(at);
+    const item = result.items[at]!;
+    expect(item.text).toContain("老枪的伤（埋设于 开篇）");
+    expect(item.text).toContain("已埋未收");
+  });
+
+  it("没开章不注入：补设定、审全书没有「这一章该收哪条线」", () => {
+    const result = assemble("lead-writer", { activeDocRelPath: null, foreshadows: hints });
+    expect(paths(result.items)).not.toContain(FORESHADOW_REL_PATH);
+  });
+
+  it("active 不是章节文稿不注入（伏笔跟着「写章节」走，不跟着档案走）", () => {
+    const result = assemble("lead-writer", {
+      activeDocRelPath: "outline/全书.md",
+      foreshadows: hints
+    });
+    expect(paths(result.items)).not.toContain(FORESHADOW_REL_PATH);
+  });
+
+  it("最多 8 条：清单再长模型就会当任务清单逐条硬凑，而不是写作提醒", () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      relPath: `foreshadow/f${i}.md`,
+      title: `伏笔${i}`,
+      plantedIn: "开篇"
+    }));
+    const result = assemble("lead-writer", { foreshadows: many });
+    const item = result.items.find((one) => one.kind === "foreshadow")!;
+    expect(item.title).toBe("待收伏笔 8 条");
+  });
+
+  it("整段让位：装配已顶满上下文包预算刻度时不出伏笔段，先保证正文相关材料", () => {
+    const result = assemble("reviewer", {
+      contents: { ...CONTENTS, "chapters/03-深渊之下.md": "长".repeat(9000) },
+      foreshadows: hints
+    });
+    expect(paths(result.items)).not.toContain(FORESHADOW_REL_PATH);
+  });
+
+  it("整行装不下就舍弃那一行（不做半句截断），后面的短行照装", () => {
+    const result = assemble("lead-writer", {
+      foreshadows: [
+        {
+          relPath: "foreshadow/长.md",
+          title: "极".repeat(FORESHADOW_TOTAL_CHARS),
+          plantedIn: "开篇"
+        },
+        { relPath: "foreshadow/短.md", title: "短伏笔", plantedIn: "开篇" }
+      ]
+    });
+    const item = result.items.find((one) => one.kind === "foreshadow")!;
+    expect(item.text).toContain("短伏笔");
+    expect(item.text).not.toContain("极极极");
   });
 });

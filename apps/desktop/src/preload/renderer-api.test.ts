@@ -178,6 +178,8 @@ describe("createRendererApi", () => {
     await api.readDoc("chapters/01-开局.md");
     await api.writeDoc("chapters/01-开局.md", "正文", "fp-1");
     await api.createDoc("chapters/02-新章.md", "新章");
+    // 改文件名（2026-11-20）：只递旧路径与新标题；新路径与 chapterOrder/recaps 的迁移在主进程一次做完。
+    await api.renameDoc("chapters/01-开局.md", "第一章 开局");
     // 只重算一篇（2026-10-10 P1-4 后半）：这一枚递的必须**只是**那一条相对路径，
     // 多递一个「整本清单」的参数、或把它接到 book:open 上，下面的通道名点名当场红。
     await api.refreshDoc("chapters/01-开局.md");
@@ -291,7 +293,7 @@ describe("createRendererApi", () => {
     await api.webdavList();
     await api.webdavPull("book-2026-10-15-12-00-00");
 
-    expect(calls.length).toBe(74);
+    expect(calls.length).toBe(75);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -305,6 +307,7 @@ describe("createRendererApi", () => {
       "doc:read",
       "doc:write",
       "doc:create",
+      "doc:rename",
       "doc:refresh",
       "book-data:read",
       "book-data:write",
@@ -400,6 +403,8 @@ describe("createRendererApi", () => {
       ["chapters/01-开局.md"],
       ["chapters/01-开局.md", "正文", "fp-1"],
       ["chapters/02-新章.md", "新章"],
+      // 改文件名（2026-11-20）：旧路径 + 新标题；新路径与两处键的迁移都在主进程。
+      ["chapters/01-开局.md", "第一章 开局"],
       ["chapters/01-开局.md"],
       ["notes"],
       ["story-bible", "[]"],
@@ -583,6 +588,9 @@ describe("createRendererApi", () => {
       // 少一枚渲染层就调不到（退回整本重扫），多一枚就是多开的口子。
       "refreshDoc",
       "removeSkill",
+      // 改文件名（2026-11-20）：改名 + 迁移 chapterOrder / recaps 两处键由主进程一次做完。
+      // 进这份点名册与别的改稿通道同一规矩：少一枚 preload 调不到，多一枚就是多开的口子。
+      "renameDoc",
       // 全书替换（2026-10-15）：这条通道会把整本书翻一遍，和其它改稿通道一样进这份点名册：
       // 少一枚面板点不到、多一枚就是多开的口子。
       "replaceAllInBook",

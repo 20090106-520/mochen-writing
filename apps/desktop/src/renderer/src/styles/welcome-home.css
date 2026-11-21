@@ -81,7 +81,9 @@
    于是它既看不全也滚不动，屏幕上像一行被裁断的胶囊。
    不能在 `.composer-wrap` 上加滚动：输入卡的「更多」「引用」弹层是**向上开**的绝对定位，
    套进 overflow 容器就被裁掉（那是比切 7px 更严重的缺陷）。
-   所以按高度收一档自身尺寸：少的是留白与 logo 的 8px，字阶只降半档，读起来仍是那一组。 */
+   所以按高度收一档自身尺寸：少的是留白与 logo 的 8px，字阶只降半档，读起来仍是那一组。
+   2026-11-20 C6 加表情球后：矮窗那一档把它**整枚收掉**——它是纯装饰，不承载信息，
+   真缺高度时先牺牲它，不挤「问候 + 卡 + 快捷行」这组的可读性。 */
 @media (max-height: 560px) {
   .welcome-hero {
     gap: 10px;
@@ -96,6 +98,10 @@
 
   .welcome-hero-title {
     font-size: 1.285714rem;
+  }
+
+  .welcome-hero-face {
+    display: none;
   }
 
   .welcome-shortcuts {
@@ -117,6 +123,15 @@
   font-weight: 640;
   letter-spacing: -0.025em;
   line-height: 1.35;
+}
+
+/* 表情球（2026-11-20 C6）：EmotionAvatar 的宿主是 100%×100%，
+   尺寸由外面这个盒子给定——34px 与对话链头像同口径（emotion-avatar.css 的裁定）。
+   aria-hidden 在组件模板里已经挂了，这里只是定位盒。 */
+.welcome-hero-face {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
 }
 
 .welcome-shortcuts {
@@ -142,7 +157,10 @@
   cursor: pointer;
   transition:
     background 120ms ease,
-    color 120ms ease;
+    color 120ms ease,
+    /* 2026-11-20 B3：补上全局统一的按压手感（.agent-mode-card 那一档）——
+       原先这行胶囊 hover 只换底色，按下去没有任何回应。 */
+    transform var(--dur-fast, 120ms) var(--ease-out-soft, ease);
 }
 
 .welcome-shortcut:hover {
@@ -150,7 +168,23 @@
   color: var(--text-primary);
 }
 
+.welcome-shortcut:active {
+  transform: translateY(1px);
+}
+
 .welcome-shortcut:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+
+/* 「继续写《书名》」（2026-11-20 C4）：离写作现场最近的那一枚，高亮一档——
+   强调色淡底 + 强调色描边 + 正文级字色。它是快捷行里的第一位，但不是普通成员。 */
+.welcome-shortcut.is-resume {
+  border-color: color-mix(in srgb, var(--focus) 45%, var(--line-soft));
+  background: color-mix(in srgb, var(--focus) 10%, transparent);
+  color: var(--text-primary);
+}
+
+.welcome-shortcut.is-resume:hover {
+  background: color-mix(in srgb, var(--focus) 16%, transparent);
 }

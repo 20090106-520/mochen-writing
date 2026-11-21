@@ -278,6 +278,8 @@ let unwatchPreview: (() => void) | null = null;
 let unwatchHasBook: (() => void) | null = null;
 // 「有没有打开文稿 → 右栏收放」这条 watch 的句柄（2026-10-14 UI 评审批次）。
 let unwatchActiveDoc: (() => void) | null = null;
+// 设定库深处入口（2026-11-20）：上下文条的「设定库」钮走 layoutStore 的自增请求。
+let unwatchBibleRequests: (() => void) | null = null;
 
 /**
  * 没打开作品时把右栏收起来（2026-10-11）。判据的真身是
@@ -375,8 +377,17 @@ onMounted(() => {
   // 【watch 源刻意不含 rightPaneMode】用户亲手点「文稿」页签是在表达意图，
   // 此刻自动把它收走就是跟用户打架；判据读 mode 只为「收的瞬间别误伤浏览/资料」。
   unwatchActiveDoc = watch(() => [book.hasBook, book.activeDocTab], applyActiveDocRightPane);
-  // 挂载这一拍就先判一次：会话恢复时若已有一篇开着的文稿，右栏当场就位，不等第一次改动。
+  // 挂载这一拍就先判一次：启动会话恢复（main.ts 的 restoreLastSession）开书落章后，
+  // 上面的 watch 会接住；这里兜的是「挂载瞬间就已有文稿」的极端时序。
   applyActiveDocRightPane();
+  // 设定库的深处入口（2026-11-20）：上下文条的「设定库」钮够不着这里的本地 ref，
+  // 发一枚自增请求（真身见 layoutStore.requestStoryBible 的注释），这里 watch 到就开门。
+  unwatchBibleRequests = watch(
+    () => layout.bibleOpenRequests,
+    () => {
+      bibleOpen.value = true;
+    }
+  );
 });
 
 onBeforeUnmount(() => {
@@ -386,6 +397,7 @@ onBeforeUnmount(() => {
   unwatchPreview?.();
   unwatchHasBook?.();
   unwatchActiveDoc?.();
+  unwatchBibleRequests?.();
 });
 
 /**

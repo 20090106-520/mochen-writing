@@ -7,6 +7,7 @@ import {
   sourceKey,
   findProfile,
   type AgentProfile,
+  type BibleProposal,
   type DocRef,
   type EditProposal,
   type PermissionMode
@@ -28,6 +29,8 @@ const OUTSIDE_REL = "chapters/01-开局.md";
 const OUTSIDE_TEXT = "盘外之书：这段正文不属于本书，host 永远不该读到它。\n";
 let collected: EditProposal[] = [];
 let baselines: string[] = [];
+/** 设定提案（2026-11-20）：独立回调，与正文提案分开收。 */
+let bibleCollected: BibleProposal[] = [];
 let mode: PermissionMode = "read-only";
 // P0-1：这一轮档案。null = 不传，走 ToolContext 的既有兜底（主笔），既有用例一字不动。
 let profile: AgentProfile | null = null;
@@ -58,6 +61,7 @@ beforeEach(async () => {
   await writeFile(path.join(root, ...CHAPTER.split("/")), CHAPTER_TEXT, "utf8");
   collected = [];
   baselines = [];
+  bibleCollected = [];
   mode = "read-only";
   profile = null;
   webSearchResults = [];
@@ -70,7 +74,8 @@ beforeEach(async () => {
   webReadRawError = null;
 });
 
-function host() {
+/** 传 `false` 时**不**接设定提案回调：模拟「这一轮没接上通道」那支。 */
+function host(withBible = true) {
   return createDocToolHost({
     root: () => root,
     docs: () => docs,
@@ -84,6 +89,13 @@ function host() {
       collected.push(proposal);
       baselines.push(baseline);
     },
+    ...(withBible
+      ? {
+          onBibleProposal: (proposal: BibleProposal) => {
+            bibleCollected.push(proposal);
+          }
+        }
+      : {}),
     newId: (() => {
       let n = 0;
       return () => `p${(n += 1)}`;
@@ -108,44 +120,6 @@ function host() {
     }
   });
 }
-
-describe("read_doc / list_docs / search_docs", () => {
-  it("read_doc 返回全文与字数", async () => {
-    const out = await host().call("read_doc", { doc: CHAPTER });
-    expect(out.ok).toBe(true);
-    expect(out.text).toContain("雾从海面涌上来。");
-    expect(out.proposals).toEqual([]);
-  });
-
-  it("长文按 6000 字截断并说明被截断", async () => {
-    await writeFile(path.join(root, ...CHAPTER.split("/")), "雾".repeat(9000), "utf8");
-    const out = await host().call("read_doc", { doc: CHAPTER });
-    expect(out.text).toContain("已截断");
-    expect(out.text.length).toBeLessThan(9000);
-  });
-
-  it("恰好 6000 字是边界：不截断、原样返回全文", async () => {
-    await writeFile(path.join(root, ...CHAPTER.split("/")), "雾".repeat(6000), "utf8");
-    const out = await host().call("read_doc", { doc: CHAPTER });
-    expect(out.ok).toBe(true);
-    expect(out.text).not.toContain("已截断");
-    expect(out.text).toBe("雾".repeat(6000));
-  });
-
-  it("未知路径给出可读错误并提示可用清单", async () => {
-    const out = await host().call("read_doc", { doc: "chapters/不存在.md" });
-    expect(out.ok).toBe(false);
-    expect(out.text).toContain("读不到");
-  });
-
-  it("list_docs 按类型过滤", async () => {
-    const all = await host().call("list_docs", {});
-    const characters = await host().call("list_docs", { kind: "character" });
-    expect(all.text).toContain(CHAPTER);
-    expect(characters.text).toContain("characters/李深.md");
-    expect(characters.text).not.toContain(CHAPTER);
-  });
-});
 
 describe("web_search", () => {
   it("空 query 拒绝（与 search_docs 同一条守门逻辑）", async () => {

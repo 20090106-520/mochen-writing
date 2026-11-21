@@ -1,0 +1,331 @@
+/**
+ * 通知中心（2026-11-20 通知整修 A2+B4）。
+ *
+ * 形态照中栏头部浮层家族（conversation-history.css 那一族的骨架）：
+ * 触发钮相对定位、遮罩全屏、面板 absolute 从头部右下展开。
+ * 材质读浮层家族的同一张面：发丝线、12px 圆角、浮层阴影；
+ * 液态玻璃开着时由 liquid-glass.css 的 `.notification-center` 那一条接管表面。
+ */
+
+.notification-center-control {
+  position: relative;
+  z-index: var(--z-popover-3);
+  flex: 0 0 auto;
+  -webkit-app-region: no-drag;
+}
+
+/* 触发钮：图标钮本体沿用 header-text-button 的形，徽章钉在右上角。 */
+.notification-center-trigger {
+  position: relative;
+}
+
+/* 未读徽章：一枚小圆点带计数，>9 显示 9+（数字宽度不该撑破按钮）。 */
+.notification-center-dot {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #ffffff;
+  font-size: 0.642857rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.notification-center-dismiss {
+  position: fixed;
+  z-index: var(--z-popover);
+  inset: 0;
+}
+
+.notification-center {
+  position: absolute;
+  z-index: var(--z-popover-2);
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(370px, calc(100vw - 28px));
+  max-height: min(560px, calc(100vh - 72px));
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--shadow-color) 70%, transparent);
+  color: var(--text);
+  -webkit-app-region: no-drag;
+}
+
+.notification-center > :not(.notification-center-list) {
+  flex-shrink: 0;
+}
+
+.notification-center > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.notification-center-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.notification-center-heading strong {
+  color: var(--text);
+  font-size: 0.928571rem;
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.notification-center-heading span {
+  color: var(--text-faint);
+  font-size: 0.714286rem;
+}
+
+.notification-center-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+/* 头部的两枚文字动作：小、淡、贴着关闭钮，不抢列表的主次。 */
+.notification-center-head-button {
+  padding: 3px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-soft);
+  font-family: var(--ui-font);
+  font-size: 0.785714rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.notification-center-head-button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.notification-center-head-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.notification-center > header > .notification-center-head-actions > button[aria-label] {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.notification-center > header > .notification-center-head-actions > button[aria-label]:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.notification-center-list {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.notification-center-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.notification-center-item:hover {
+  background: var(--hover);
+  /* 状态档底：族内两档灰字（副文 / 时间）压上去会掉线，
+     按conversation-history-item:hover 的同款手法在本档升到状态档专用字色。
+     判据见 composables/appearance-surface-ladder.test.ts 的普查表。 */
+  --text-soft: var(--text-on-state);
+  --text-faint: var(--text-on-state);
+}
+
+/* 未读行：左侧一根级别色细条 + 标题加重——「没看过」得一眼分得出来。 */
+.notification-center-item.is-unread {
+  border-left: 3px solid var(--focus);
+  padding-left: 6px;
+}
+
+.notification-center-item.is-unread.is-success {
+  border-left-color: var(--success);
+}
+
+.notification-center-item.is-unread.is-error {
+  border-left-color: var(--danger);
+}
+
+.notification-center-item.is-unread.is-warning {
+  border-left-color: var(--warning);
+}
+
+.notification-center-item.is-unread strong {
+  font-weight: 600;
+}
+
+/* 级别徽章：与 Toast 同一枚徽章语言（淡底圆片 + 级别色图标），两处一份视觉。 */
+.notification-center-badge {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.notification-center-item.is-success .notification-center-badge {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.notification-center-item.is-error .notification-center-badge {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+
+.notification-center-item.is-warning .notification-center-badge {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+
+.notification-center-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-center-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.notification-center-title-row strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.857143rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-center-title-row time {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 0.642857rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.notification-center-copy small {
+  color: var(--text-soft);
+  font-size: 0.785714rem;
+  line-height: 1.5;
+}
+
+.notification-center-action {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, var(--focus) 45%, var(--line-soft));
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--focus) 85%, var(--text));
+  font-family: var(--ui-font);
+  font-size: 0.785714rem;
+  cursor: pointer;
+}
+
+.notification-center-action:hover {
+  background: color-mix(in srgb, var(--focus) 12%, transparent);
+}
+
+.notification-center-action:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* 行尾的删除钮：平时收着，hover 才露面——它是低频动作，不该常驻抢视线。 */
+.notification-center-remove {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.notification-center-item:hover .notification-center-remove,
+.notification-center-remove:focus-visible {
+  opacity: 1;
+}
+
+.notification-center-remove:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.notification-center-remove:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.notification-center-empty {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-height: 160px;
+  padding: 28px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.notification-center-empty strong {
+  margin-top: 4px;
+  color: var(--text-soft);
+  font-size: 0.857143rem;
+  font-weight: 590;
+}

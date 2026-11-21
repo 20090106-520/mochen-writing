@@ -16,6 +16,8 @@ import {
 } from "../utils/vue-source-reader";
 
 const CENTER = "components/CenterColumn.vue";
+/** 头部动作区（2026-11-20 自 CenterColumn 拆出）：动作区自己的判据读这一份。 */
+const ACTIONS = "components/CenterHeaderActions.vue";
 const LEFT = "components/LeftSidebar.vue";
 
 /** 只看代码、不看注释的一份源：反着钉的断言必须用它，否则「这里没有 X」那句注释自己就能让断言红。 */
@@ -23,44 +25,48 @@ function codeOf(path: string): string {
   return scriptSource(path) + templateSource(path);
 }
 
-/** 头部动作区那一格（从 actions 容器到 `</header>`）。 */
+/** 头部动作区那一格（从 actions 容器到模板结尾——拆出后它就是 Actions 组件的整份模板）。 */
 function headerActions(): string {
-  const m = templateSource(CENTER);
+  const m = templateSource(ACTIONS);
   const at = m.indexOf('class="conversation-header-actions"');
   expect(at, "头部动作区容器必须在").toBeGreaterThan(-1);
-  return m.slice(at, m.indexOf("</header>", at));
+  return m.slice(at);
 }
 
 describe("对齐他的头部钮 · 「新建对话」取代自造的「模型设置」", () => {
   it("动作区只有一枚 header-text-button，内容是 plus 图标 + 「新建对话」，几何照他的 16px 图标", () => {
     const actions = headerActions();
     expect(countNeedle('class="header-text-button"', actions)).toBe(1);
-    // 切片只看得见头部：同一份样式名在文件别处再挂一次，切片计数抓不到——全文件再数一遍。
+    // 切片只看得见动作区：同一份样式名在文件别处再挂一次，切片计数抓不到——两个文件各数一遍。
     // 「历史对话」那枚住在 ConversationHistoryMenu.vue 自己的模板里（#113e），不数进这里。
     expect(
-      countNeedle('class="header-text-button"', templateSource(CENTER)),
-      "整份模板只允许一枚"
+      countNeedle('class="header-text-button"', templateSource(ACTIONS)),
+      "动作区整份模板只允许一枚"
     ).toBe(1);
+    expect(
+      countNeedle('class="header-text-button"', templateSource(CENTER)),
+      "中栏骨架里不许再留一枚——动作区已经整块拆去了 CenterHeaderActions"
+    ).toBe(0);
     expect(actions).toContain('@click="startNewConversation"');
     expect(actions).toContain('<AppIcon name="plus" :size="16" />');
     expect(actions).toContain("新建对话");
   });
 
   it("点它走的是与左栏同一个真身：store 的 clearThreadView，键用现成的 threadKey computed", () => {
-    const s = scriptSource(CENTER);
+    const s = scriptSource(ACTIONS);
     expect(s).toContain("function startNewConversation(): void {");
     expect(s).toContain("agent.clearThreadView(threadKey.value)");
     // 键只从 computed 拿：模板里再 threadKeyFor(...) 一次就是第二份判据。
-    expect(templateSource(CENTER)).not.toContain("threadKeyFor(");
+    expect(templateSource(ACTIONS)).not.toContain("threadKeyFor(");
     expect(s).toContain("const threadKey = computed(() => threadKeyFor(book.activeDocTab));");
   });
 
   it("title 说实话：这一格只做渲染层清空（与左栏同一句常量，不手抄第二份文案）", () => {
     const actions = headerActions();
     expect(actions).toContain(':title="CLEAR_VIEW_SENTENCE"');
-    expect(scriptSource(CENTER)).toContain("CLEAR_VIEW_SENTENCE,");
+    expect(scriptSource(ACTIONS)).toContain("CLEAR_VIEW_SENTENCE,");
     // 2026-10-23：「写作」组（AI 写作 / 章节编辑器）已删，左栏不再消费 CLEAR_VIEW_SENTENCE——
-    // 这句常量现在只有中栏头部那一处（上面 :title）在用。左栏仍挂 childState 的 title 载体。
+    // 这句常量现在只有头部动作区那一处（上面 :title）在用。左栏仍挂 childState 的 title 载体。
     expect(scriptSource(LEFT)).not.toContain("CLEAR_VIEW_SENTENCE");
     expect(templateSource(LEFT)).toContain(':title="childState(child).hint"');
   });
@@ -72,7 +78,10 @@ describe("对齐他的头部钮 · 「新建对话」取代自造的「模型设
     // **只许这一处，且必须走 layout 真身**：自己另捏一份开关（showSettings.value = ）仍然禁止。
     expect(code).not.toContain("showSettings.value = ");
     expect(code).not.toContain('name="settings"');
-    expect(code).not.toContain("模型设置");
+    // 动作区拆出去之后，「模型设置」三字在两个文件里都不许有（ModelSelect 的失败出口说的
+    // 是「去模型设置」，按按钮文案判——它写的是『去模型设置』，含这三个字的是同一处）。
+    expect(codeOf(ACTIONS)).not.toContain('name="settings"');
+    expect(codeOf(ACTIONS)).not.toContain("showSettings");
     // 正面钉住那唯一一处的形状：它在 ModelSelect 的 open-settings 事件上，不是常驻头部入口。
     expect(code).toContain('@open-settings="openModelSettings"');
     const fn = /function openModelSettings\(\): void \{[\s\S]*?\}/.exec(code)?.[0] ?? "";
@@ -92,10 +101,12 @@ describe("对齐他的头部钮 · 「新建对话」取代自造的「模型设
     // 「全部可点、点了有真响应」这条裁定仍由 side-nav 四态（ready / need-book / need-doc / planned）承担。
     expect(scriptSource(LEFT)).toContain("sideNavChildState(child, book.docs)");
     expect(scriptSource(LEFT)).toContain("guideToDoc");
-    // 2026-10-23：左栏「AI 写作」已删，clearThreadView 只剩中栏一处；反向两条对两栏都仍要。
-    expect(countNeedle("clearThreadView(", codeOf(CENTER)), "中栏只调一次").toBe(1);
+    // 2026-10-23：左栏「AI 写作」已删，clearThreadView 只剩头部动作区一处；
+    // 动作区拆出后，中栏骨架（CENTER）里不许再有第二次。
+    expect(countNeedle("clearThreadView(", codeOf(ACTIONS)), "动作区只调一次").toBe(1);
+    expect(codeOf(CENTER), "中栏骨架里不再有 clearThreadView").not.toContain("clearThreadView(");
     expect(codeOf(LEFT), "左栏不再有 clearThreadView").not.toContain("clearThreadView(");
-    for (const file of [CENTER, LEFT]) {
+    for (const file of [CENTER, ACTIONS, LEFT]) {
       expect(codeOf(file)).not.toContain("hydrated = true");
       expect(codeOf(file)).not.toContain("items = []");
     }

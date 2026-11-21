@@ -38,6 +38,9 @@
 @import "./styles/submission-checklist.css";
 @import "./styles/material-panel.css";
 @import "./styles/toast.css";
+/* 通知中心（2026-11-20）：紧跟 toast.css——两者是同一条通知链的两端
+   （Toast 是瞬时露出，中心是全量回看），改一处能看见另一处。 */
+@import "./styles/notification-center.css";
 @import "./styles/theme-runtime.css";
 @import "./styles/interaction.css";
 @import "./styles/motion.css";

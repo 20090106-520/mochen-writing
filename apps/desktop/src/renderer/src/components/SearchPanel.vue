@@ -1,10 +1,9 @@
 <!-- 全文搜索面板：浮层，快捷键 Ctrl+Shift+F 唤起 -->
 <script setup lang="ts">
-import { computed, ref, watch, toRef } from "vue";
+import { computed, nextTick, ref, watch, toRef } from "vue";
 import { storeToRefs } from "pinia";
 import { useSearchStore, type SearchHit } from "../stores/useSearchStore";
 import { useBookStore } from "../stores/useBookStore";
-import { useLayoutStore } from "../stores/layoutStore";
 import { BOOK_KIND_LABELS } from "../utils/book-kinds";
 import { useModalFocus } from "../composables/useModalFocus";
 import AppIcon from "./AppIcon.vue";
@@ -12,6 +11,7 @@ import { imeOwnsKey } from "../utils/slash-commands";
 import { loadAllDocContents } from "../utils/doc-checkup";
 import { useNotificationStore } from "../stores/useNotificationStore";
 import { bookReplaceNotice, runBookReplace } from "../utils/book-replace";
+import { revealEditorLine } from "../utils/editor-reveal";
 
 const props = defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -32,7 +32,6 @@ useModalFocus({
 
 const search = useSearchStore();
 const book = useBookStore();
-const layout = useLayoutStore();
 const notif = useNotificationStore();
 
 const { lastResult, isSearching, searchHistory } = storeToRefs(search);
@@ -151,16 +150,19 @@ const groupedHits = computed(() => {
   return [...map.values()];
 });
 
-function jumpToHit(hit: SearchHit): void {
+async function jumpToHit(hit: SearchHit): Promise<void> {
   const ref = book.refOf(hit.docRelPath);
   if (!ref) return;
   if (ref.kind === "chapter") {
-    void book.openDocTab(hit.docRelPath);
+    // 打开命中那一章后直接定位到行：revealEditorLine 是交稿体检同一条真身。
+    // 之前发的 requestDocGroup 会让左栏打开该分组第一篇，把刚开的命中章顶掉——
+    // 搜「某人」命中第 12 章，点过去却站在第 1 章，全书检索基本废了，已摘。
+    await book.openDocTab(hit.docRelPath);
+    await nextTick();
+    revealEditorLine(hit.lineNumber);
   } else {
     book.browse(ref);
   }
-  // 通知右栏滚动到对应行（后续 IPC 支持）
-  layout.requestDocGroup(ref.kind);
   emit("close");
 }
 

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { DraftReading } from "./draft-rank.js";
 import { draftSampleCountSchema } from "./draft-rank.js";
 import { editProposalSchema, PROPOSAL_DECISIONS } from "./patch.js";
+import { bibleProposalSchema } from "./bible-proposal.js";
 import { thinkingLevelSchema } from "./per-run.js";
 import { SKILL_PATH_MAX_LEN, skillPathsSchema } from "./skill.js";
 
@@ -16,6 +17,10 @@ export const AGENT_EVENT_TYPES = [
   "message",
   "tool-call",
   "proposal",
+  // 2026-11-20：模型提了一条设定（人物/地点/时间线）。与正文提案各自一枚事件——
+  // 形状不同（没有 docRelPath/anchor），硬塞进 proposal 会让审批与回放都长分支。
+  "bible-proposal",
+  "bible-written",
   "decision",
   "written",
   "interrupted",
@@ -78,6 +83,15 @@ export const agentEventSchema = z.discriminatedUnion("type", [
     empty: z.boolean().optional()
   }),
   z.object({ ...turn, type: z.literal("proposal"), proposal: editProposalSchema }),
+  z.object({ ...turn, type: z.literal("bible-proposal"), proposal: bibleProposalSchema }),
+  z.object({
+    ...turn,
+    type: z.literal("bible-written"),
+    proposalId: id,
+    entryId: id,
+    title: z.string().min(1),
+    entryType: bibleProposalSchema.shape.type
+  }),
   z.object({
     ...turn,
     type: z.literal("decision"),

@@ -8,6 +8,7 @@ import {
   recapOf,
   splitFrontmatter
 } from "@mochen/contracts";
+import { CONTEXT_PACK_DEFAULT_BUDGET } from "./history-window.js";
 
 /**
  * 上下文包装配（spec §5「上下文包 = 当前章正文 + 大纲摘要 + 出场人物卡 + 前情提要 + 显式挂入的素材与技能」）。
@@ -83,6 +84,21 @@ export interface AssembleContextInput {
    * 只在这一次请求里有效（渲染层不落盘）；缺省 ⇒ 与从前逐字一致。
    */
   excludedBible?: readonly string[] | undefined;
+  /**
+   * 待收伏笔清单（2026-11-20）：**已由主进程过滤好**——只含台账里 `status: planted` 的那几条，
+   * 每条带文稿题与埋设章显示名。装配层不做状态判定，也不读盘（它是纯函数）；
+   * 判据只有 contracts 的 `parseForeshadowMeta` 一处，主进程照它筛。
+   * 缺省/空表 ⇒ 与从前逐字一致。
+   */
+  foreshadows?: readonly ForeshadowHint[] | undefined;
+}
+
+/** 一条待收伏笔在装配层的形状：只带题名与埋设章，正文不读（台账正文是给作者看的，不是给模型的）。 */
+export interface ForeshadowHint {
+  relPath: string;
+  title: string;
+  /** 埋设章的显示名；主进程换不到章题时原样给文稿路径，不编一个名字。 */
+  plantedIn: string;
 }
 
 /** 设定条目的上下文 relPath 形状：`bible:<类型>:<id>`。占用条与「本轮不带」共用这一份。 */
@@ -221,6 +237,18 @@ function chapterLines(
  */
 export const BIBLE_ENTRY_CHARS = 800;
 export const BIBLE_TOTAL_CHARS = 2400;
+
+/**
+ * 待收伏笔段（2026-11-20）的额度：最多 8 条，整段 600 字（约 8 行短句）。
+ *
+ * 台账正文是给作者看的，不装；装给模型的只是「哪条线还没收、埋在哪」的清单。
+ * 8 条是刻意保守：清单长了模型就会把它当任务清单逐条硬凑，而不是写作提醒。
+ */
+export const FORESHADOW_MAX_ITEMS = 8;
+export const FORESHADOW_TOTAL_CHARS = 600;
+
+/** 伏笔段的合成 relPath（与 bibleKeyOf 同思路）：它不在文稿树上，只用一次，保证不与真文稿撞名。 */
+export const FORESHADOW_REL_PATH = "foreshadow:pending";
 
 const BIBLE_TYPE_ORDER: Record<BibleEntry["type"], number> = {
   character: 0,
@@ -500,6 +528,55 @@ export function assembleContext(input: AssembleContextInput): AssembledContext {
       loaded += 1;
     }
     bibleOmitted = Math.max(0, ranked.length - deduped - loaded);
+  }
+
+  // ⑧½ 待收伏笔清单（2026-11-20 病灶：伏笔台账里标着「待收」（status: planted）的伏笔从不进
+  //    上下文，模型写那一章时不知道「这里该有个交代」——长篇崩掉最常见的死法之一）。
+  //
+  //    装的是**精简清单**，不是台账正文：每条一行（题名 + 埋设章 + 一句状态说明）。
+  //    判定刻意保守：不做任何「与本章相关」的聪明匹配，全部待收的都摆出来（截到前 8 条）——
+  //    相关性算错一条，作者就得回来查一次台账；而清单本身只有几行字，多摆几行的代价远小于漏一条。
+  //
+  //    只在写章节（active 指着 chapter 文稿）时注入：补设定、审全书这些场合没有「这一章该收哪条线」。
+  //
+  //    预算取舍：伏笔段用自己的小额度，不挤占正文/大纲/人物卡的既有档位，优先级排在它们**之后**——
+  //    整行装不下就舍弃那一行（不做半句截断，半个交代比没有更误导）；当前章装配已经顶满
+  //    上下文包这一路的预算刻度（CONTEXT_PACK_DEFAULT_BUDGET，默认窗口的 35%那一档；
+  //    中文章节装配的字数≈token 数，拿字数对刻度是保守近似）时整段让位，先保证正文相关材料。
+  if (
+    input.foreshadows !== undefined &&
+    input.foreshadows.length > 0 &&
+    active !== null &&
+    docByPath.get(active)?.kind === "chapter"
+  ) {
+    const soFar = items.reduce((sum, item) => sum + item.chars, 0);
+    if (soFar < CONTEXT_PACK_DEFAULT_BUDGET) {
+      const lines: string[] = [];
+      let budget = FORESHADOW_TOTAL_CHARS;
+      for (const hint of input.foreshadows.slice(0, FORESHADOW_MAX_ITEMS)) {
+        const line = `${hint.title}（埋设于 ${hint.plantedIn}）——已埋未收，写到相关情节时记得交代或推进这条线`;
+        if (line.length > budget) continue;
+        budget -= line.length;
+        lines.push(line);
+      }
+      if (lines.length > 0) {
+        const text = lines.join("\n");
+        // 位置：插在 outline/character 之后——先告诉模型「写什么、谁在场」，再提醒「有什么线没收」。
+        let insertAt = 0;
+        for (const [index, item] of items.entries()) {
+          if (item.kind === "outline" || item.kind === "character") insertAt = index + 1;
+        }
+        items.splice(insertAt, 0, {
+          kind: "foreshadow",
+          relPath: FORESHADOW_REL_PATH,
+          title: `待收伏笔 ${lines.length} 条`,
+          text,
+          chars: text.length,
+          active: false
+        });
+        seen.add(FORESHADOW_REL_PATH);
+      }
+    }
   }
 
   // ⑨ 用户显式挂入的（@ 引用 / 加入当前上下文 / 技能）—— 挂了就一定装，不看 scope

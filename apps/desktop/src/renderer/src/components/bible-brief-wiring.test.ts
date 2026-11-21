@@ -55,9 +55,10 @@ describe("输入区「本章带入」：读数仍只来自主进程预览；移�
     expect(template).toContain('class="bible-brief-restore"');
     expect(template).toContain('class="bible-brief-restore-all"');
     expect(countNeedle("<details", template)).toBe(1);
-    // 芯片不是第四枚「绑定选择器」：那三枚（书 / 文档 / 阶段）的语义与计数由既有守卫钉着。
+    // 芯片不是「绑定选择器」：绑定条的枚数（书 / 文档 / 阶段 / 设定库入口，2026-11-20 后四枚）
+    // 的语义与计数由既有守卫钉着；芯片自己另用 bible-brief-chip 类，不搅进那份计数。
     expect(template).not.toContain("composer-context-item bible-brief-chip");
-    expect(countNeedle('class="composer-context-item', template)).toBe(3);
+    expect(countNeedle('class="composer-context-item', template)).toBe(4);
   });
 });
 

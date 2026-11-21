@@ -99,6 +99,9 @@ const api = {
   createDoc: vi.fn(async () => {
     throw new Error("不该建稿");
   }),
+  renameDoc: vi.fn(async () => {
+    throw new Error("不该改文件名");
+  }),
   appearanceGet: vi.fn(async () => {
     throw new Error("不该读外观");
   }),

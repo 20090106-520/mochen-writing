@@ -3,9 +3,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
-  BOOK_DATA_LABELS,
   PROPOSAL_STATUS_LABELS,
-  presentableFailureMessage,
   workModeOf,
   type AgentEvent,
   type ProposalDecision
@@ -14,17 +12,24 @@ import AppIcon from "./AppIcon.vue";
 import AgentTimeline from "./AgentTimeline.vue";
 import AutoCheckupCard from "./AutoCheckupCard.vue";
 import ProposalCard from "./ProposalCard.vue";
+import BibleProposalCard from "./BibleProposalCard.vue";
 import ComposerBox from "./ComposerBox.vue";
 import DraftCandidates from "./DraftCandidates.vue";
 import ContextMeter from "./ContextMeter.vue";
 import ToolRoster from "./ToolRoster.vue";
 import ModelSelect from "./ModelSelect.vue";
 import BookWorkbench from "./BookWorkbench.vue";
-import ConversationHistoryMenu from "./ConversationHistoryMenu.vue";
-import { cardTurnLabel, splitProposalCards, turnAnchors } from "../utils/timeline";
-import { showContextBar } from "../utils/composer-context";
+import CenterHeaderActions from "./CenterHeaderActions.vue";
+import {
+  cardTurnLabel,
+  orphanErrorText,
+  splitProposalCards,
+  threadCardsOf,
+  turnAnchors
+} from "../utils/timeline";
+import { showContextBar, threadIsEmpty } from "../utils/composer-context";
 import { clearComposerAfterSend } from "../utils/auto-behavior-preference";
-import { conversationTitleLabel } from "../utils/profile-options";
+import { chapterContextTitle, conversationTitleLabel } from "../utils/profile-options";
 import {
   WORKBENCH_CARD_PREFILL,
   workbenchCards,
@@ -40,16 +45,21 @@ import { useLayoutStore } from "../stores/layoutStore";
 import { useProviderStore } from "../stores/useProviderStore";
 import { useReferenceMenuStore } from "../stores/useReferenceMenuStore";
 import {
-  CLEAR_VIEW_SENTENCE,
   composeStatusLine,
   threadKeyFor,
   useAgentStore,
-  type ProposalView,
+  type BibleProposalView,
   type ThreadView
 } from "../stores/useAgentStore";
-import { assistantEmotion } from "../utils/emotion-signal";
+import { assistantFaceOf } from "../utils/emotion-signal";
+import { isWelcomeHome } from "../utils/welcome-home";
+import {
+  acceptAllReceipt,
+  flushFailedNamesOf,
+  flushFailureNotice
+} from "../utils/center-column-actions";
 import { resumeAffordanceOf } from "../utils/turn-resume";
-import { isStuckToBottom, streamKey, type ScrollMetrics } from "../utils/stick-to-bottom";
+import { isStuckToBottom, scrollMetricsOf, streamKey } from "../utils/stick-to-bottom";
 import { useNotificationStore } from "../stores/useNotificationStore";
 import { PREFILL_NOTICE } from "../utils/message-actions";
 import { turnProgressOf } from "../utils/turn-progress";
@@ -81,11 +91,9 @@ const notif = useNotificationStore();
  * 清单本身只由 bookDataRegistry 写；这里只负责展示与重试的瞬时态。
  */
 const flushRetrying = ref(false);
-const flushFailedNames = computed(() =>
-  bookDataFlushFailedKeys.value.map((key) => BOOK_DATA_LABELS[key]).join("、")
-);
+const flushFailedNames = computed(() => flushFailedNamesOf(bookDataFlushFailedKeys.value));
 function revealFlushFailures(): void {
-  book.notice = `没存进目录的设定：${flushFailedNames.value}。可点「重试保存」，或到对应面板重新保存一次。`;
+  book.notice = flushFailureNotice(flushFailedNames.value);
 }
 async function retryFlush(): Promise<void> {
   if (flushRetrying.value) return;
@@ -124,53 +132,44 @@ const hydrating = computed(() => thread.value?.hydrating ?? false);
 const hydratedEmpty = computed(
   () => thread.value?.hydrated === true && (thread.value?.items.length ?? 0) === 0
 );
-/** 本线程的**全部**卡（含已裁决）。以前这份就叫 pending，名不副实且把卡全摊在最底部。 */
-const threadCards = computed<ProposalView[]>(() =>
-  Object.values(agent.proposals).filter((view) => view.proposal.threadKey === threadKey.value)
-);
+/** 本线程的**全部**卡（含已裁决）；过滤真身在 utils/timeline 的 threadCardsOf。 */
+const threadCards = computed(() => threadCardsOf(Object.values(agent.proposals), threadKey.value));
 // 判定层在 utils（本仓没有组件测试）：轮次锚点、待审/已裁决分组、卡头标签文字全部走纯函数。
 const anchors = computed(() => turnAnchors(items.value));
 const cardSplit = computed(() => splitProposalCards(threadCards.value, anchors.value));
 const openCards = computed(() => cardSplit.value.open);
 const settledCards = computed(() => cardSplit.value.settled);
 const expiredCards = computed(() => cardSplit.value.expired);
-/**
- * 「这一格还是空的」的唯一判据：时间线没有事件、本轮没在跑、没在水合，且三类提案卡全为空。
- * 两个消费者共用它——工作台式的空状态（原先这串条件裸写在模板里）与 #113c 输入卡上方的绑定条。
- */
-const messagesEmpty = computed(
-  () =>
-    items.value.length === 0 &&
-    !running.value &&
-    !hydrating.value &&
-    openCards.value.length === 0 &&
-    settledCards.value.length === 0 &&
-    expiredCards.value.length === 0
+/** 本线程的设定提案（2026-11-20）：与正文提案分开渲染，但共用同一套「待审 / 已决」分组规则。 */
+const bibleSplit = computed(() =>
+  splitProposalCards<BibleProposalView>(
+    threadCardsOf(Object.values(agent.bibleProposals), threadKey.value),
+    anchors.value
+  )
+);
+const openBibleCards = computed(() => bibleSplit.value.open);
+const settledBibleCards = computed(() => bibleSplit.value.settled);
+const expiredBibleCards = computed(() => bibleSplit.value.expired);
+/** 「待审」总数：状态行、批量入口、空态判据都用这一份，别在模板里各加一遍。 */
+const pendingTotal = computed(() => openCards.value.length + openBibleCards.value.length);
+const messagesEmpty = computed(() =>
+  threadIsEmpty({
+    itemCount: items.value.length,
+    running: running.value,
+    hydrating: hydrating.value,
+    cards: cardSplit.value,
+    bible: bibleSplit.value
+  })
 );
 const contextBarVisible = computed(() =>
   showContextBar({ hasBook: book.hasBook, threadEmpty: messagesEmpty.value })
 );
-/**
- * 欢迎首页（2026-11-09 用户给的参考图）：**只有「没打开作品 + 这一格还没有消息」才是首页**。
- * 有书的空线程仍摆作品工作台（五张能力卡），有消息就是正常对话——首页不接管那两态。
- * 这一格判据只有这一份，中栏的 is-welcome 与输入卡的 welcome 都读它，不各写一遍。
- */
-const welcomeHome = computed(() => messagesEmpty.value && !book.hasBook);
+const welcomeHome = computed(() => isWelcomeHome(messagesEmpty.value, book.hasBook));
 /**
  * 助手头像这一刻的表情（2026-10-21）：判定真身在 utils/emotion-signal.ts，
  * 这里只负责把本线程的六路信号喂进去——不在这写第二份「running ? …」。
  */
-const assistantFace = computed(() =>
-  assistantEmotion({
-    running: running.value,
-    items: items.value,
-    tail: tail.value,
-    endedAs: thread.value?.endedAs ?? "",
-    lastError: thread.value?.lastError ?? "",
-    pendingProposals: openCards.value.length,
-    hydrating: hydrating.value
-  })
-);
+const assistantFace = computed(() => assistantFaceOf(thread.value, pendingTotal.value));
 /**
  * 对话自动跟随（2026-11-10 用户原话：「对话自动往下拉」）。
  *
@@ -202,17 +201,11 @@ const streamShape = computed(() =>
     itemCount: items.value.length,
     messageChars: tail.value.message.length,
     reasoningChars: tail.value.reasoning.length,
-    openCards: openCards.value.length,
+    openCards: pendingTotal.value,
     settledCards: settledCards.value.length,
     expiredCards: expiredCards.value.length
   })
 );
-
-function scrollMetrics(): ScrollMetrics | null {
-  const el = scrollEl.value;
-  if (el === null) return null;
-  return { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight };
-}
 
 /** 贴到底。**不做平滑滚动**：正在吐字时动画每帧都会被新内容打断，抖得比直接跳更难看。 */
 function pinToBottom(): void {
@@ -257,9 +250,9 @@ function onWindowVisibility(): void {
 
 /** 用户的滚动：唯一的重算点。滚回底部即恢复跟随，并把「有新内容」收掉。 */
 function onConversationScroll(): void {
-  const metrics = scrollMetrics();
-  if (metrics === null) return;
-  sticking.value = isStuckToBottom(metrics);
+  const el = scrollEl.value;
+  if (el === null) return;
+  sticking.value = isStuckToBottom(scrollMetricsOf(el));
   if (sticking.value) unseenBelow.value = false;
 }
 
@@ -298,7 +291,7 @@ function jumpToBottom(): void {
   pinToBottom();
 }
 
-function turnLabel(card: ProposalView): string {
+function turnLabel(card: { proposal: { turnId: string } }): string {
   return cardTurnLabel(anchors.value, card.proposal.turnId);
 }
 // 水合时机（spec §4.4）：开书后（rootPath 落定）与切文稿标签（threadKey 变）各触发一次。
@@ -348,40 +341,15 @@ function resumeTurn(): void {
 // 不再是「正文智能体」那种 `${stage.name}智能体` 的功能泛称——
 // 泛称回答不了「现在是谁在写」。判定在 utils/profile-options 的 conversationTitleLabel。
 const agentLabel = computed(() => conversationTitleLabel(book.meta));
-const contextTitle = computed(() => {
-  if (!book.meta) return "无";
-  const chapter = book.docs.find((doc) => doc.relPath === book.activeDocTab);
-  return `${book.meta.title} · ${chapter ? chapter.title : "未打开章节"}`;
-});
+const contextTitle = computed(() =>
+  book.meta ? chapterContextTitle(book.meta.title, book.docs, book.activeDocTab) : "无"
+);
 // 档位 chip 的判定唯一来自 permissionChipView（设计决定 4）——#105 起这枚 chip 连弹层一起住进输入卡，
 // 头部不再自行算一份（composerChips 内部还是只调 permissionChipView 一次，真身没有第二份）。
 
-/**
- * 装配层去重（Wave A 顾虑 1）：`error` 事件既进 items（时间线里的 error 块），
- * 又写 thread.lastError（useAgentStore.ts:237-240），同一句中文会显示两遍。
- * 但 lastError 还有三类**不产生时间线块**的来源——send 被边界拒绝（:320-324）、
- * stop 被拒绝（:340-345）、turn-end{failed}（:214）——所以不能简单砍掉单列段。
- * 规则：与时间线里最后一条 error 文本相同就不重复渲染，其余照旧显示。
- * 刻意不改 store 与 timeline 的语义（那是上游契约）。
- *
- * 【2026-10-25】去重比对的是**原始**文本（event.message 对 thread.lastError），
- * 翻译只发生在**显示**那一步（两处都走 contracts 的 presentableFailureMessage）——
- * 所以去重不会因为两边都翻过而错位。
- */
-const lastTimelineError = computed(() => {
-  const list = items.value;
-  for (let index = list.length - 1; index >= 0; index -= 1) {
-    const event = list[index];
-    if (event?.type === "error") return event.message;
-  }
-  return "";
-});
-const orphanError = computed(() => {
-  const text = thread.value?.lastError ?? "";
-  if (text === "" || text === lastTimelineError.value) return "";
-  // 与时间线那条同一个真身（contracts）：屏上不出现原始英文异常。
-  return presentableFailureMessage(text);
-});
+// 孤字那条与时间线失败条同走 contracts 的 presentableFailureMessage；
+// 去重规则与判定真身住 utils/timeline 的 orphanErrorText（错误块不重复报同一句）。
+const orphanError = computed(() => orphanErrorText(thread.value?.lastError ?? "", items.value));
 
 // 作品工作台（F-A + 示意稿 A）：判定全在 utils/workbench-state，这里只接线；hasBook 不设本地 computed，
 // 统一读 store getter（T7-1 单一真身）。
@@ -447,6 +415,36 @@ function onWorkbenchSuggestion(suggestion: WorkbenchSuggestion): void {
 
 function decide(proposalId: string, decision: ProposalDecision, guidance: string): void {
   void agent.decide(proposalId, decision, guidance);
+}
+
+const acceptingAll = ref(false);
+
+/**
+ * 「本轮全部接受」（2026-11-20）：一轮五条提案不该点五次。
+ *
+ * 逐条仍走 `agent.decide` 那枚既有 IPC（accept-once），不新造批量协议——
+ * 批量协议会绕过主进程逐条校验，也拿不到每一条各自的成败。
+ * 成败以卡片状态为准：还在 pending 就是没写成（原因已由主进程写在卡上）。
+ * 设定提案也在这一轮里（2026-11-20）：审批通道是同一条，只是落在另一张表上。
+ */
+async function acceptAll(): Promise<void> {
+  if (acceptingAll.value) return;
+  acceptingAll.value = true;
+  const ids = [
+    ...openCards.value.map((card) => card.proposal.id),
+    ...openBibleCards.value.map((card) => card.proposal.id)
+  ];
+  let ok = 0;
+  let failed = 0;
+  for (const id of ids) {
+    // 成败以 IPC 回执为准：accept-once 成功时卡片终态靠异存的 written 事件收尾，
+    // 拿 pending 判成败会把已写盘的提案报成「没写成」。
+    const result = await agent.decide(id, "accept-once", "");
+    if (result !== null && result.ok) ok += 1;
+    else failed += 1;
+  }
+  acceptingAll.value = false;
+  agent.notice = acceptAllReceipt(ok, failed);
 }
 
 /**
@@ -515,15 +513,6 @@ function onComposerSend(text: string): void {
 // 设置的可见性真身是 layout.currentView（设计决定 2）：
 // 左栏的两枚入口、Ctrl+,、/model、Esc 全部读写同一个 currentView；整页视图挂载在 App.vue。
 
-/**
- * 头部「新建对话」（照他的钮，动作走本仓已有的唯一真身）：清空**本页**显示，
- * 与左栏「本章新对话」调的是同一个 store action、同一个 threadKey computed，不另起第二份判据。
- * 没有开章时 threadKey 就是独立线程那一格——清的正是在看的那一条，所以这一枚不必禁用。
- */
-function startNewConversation(): void {
-  agent.clearThreadView(threadKey.value);
-}
-
 let timer: number | undefined;
 onMounted(() => {
   agent.startListening();
@@ -557,32 +546,7 @@ onBeforeUnmount(() => {
           >
         </div>
       </div>
-      <div class="conversation-header-actions">
-        <!-- #113e：他的头部动作区第一枚就是「历史对话」（AgentConversation.vue:274），排在「新建对话」之前。 -->
-        <ConversationHistoryMenu />
-        <!-- #105：权限档 chip 与 PermissionMenu 弹层真身一起搬进输入卡右端（deepwrite 的「更多」那一端）；
-             头部再挂一枚就是同一个开关两份真身，故整块退役。
-             #113d：同一格里改挂他的「新建对话」（AgentConversation.vue:281-288）。 -->
-        <button
-          class="header-text-button"
-          type="button"
-          :title="CLEAR_VIEW_SENTENCE"
-          @click="startNewConversation"
-        >
-          <AppIcon name="plus" :size="16" />
-          <!-- 批次 5-㉓：与历史对话那枚同一件事——文案包一层，窄栏只藏文字留图标。 -->
-          <span class="header-text-button-label">新建对话</span>
-        </button>
-        <button
-          v-if="rightCollapsed"
-          class="icon-button"
-          type="button"
-          aria-label="展开文本内容栏"
-          @click="emit('toggleRight')"
-        >
-          <AppIcon name="panel-right" :size="18" />
-        </button>
-      </div>
+      <CenterHeaderActions :right-collapsed="rightCollapsed" @toggle-right="emit('toggleRight')" />
     </header>
 
     <div class="conversation-scroll-shell">
@@ -616,9 +580,24 @@ onBeforeUnmount(() => {
             @prefill="onPrefillFromTimeline"
           />
 
-          <div v-if="openCards.length" class="proposal-stack">
+          <div v-if="pendingTotal" class="proposal-stack">
+            <!-- 两条以上才给批量入口：只有一条时它和卡上的「仅这一次批准」是同一件事。 -->
+            <div v-if="pendingTotal > 1" class="proposal-bulk">
+              <span>本轮共 {{ pendingTotal }} 条待审</span>
+              <button type="button" :disabled="acceptingAll" @click="acceptAll">
+                {{ acceptingAll ? "正在接受…" : `本轮全部接受（${pendingTotal} 条）` }}
+              </button>
+            </div>
             <ProposalCard
               v-for="card in openCards"
+              :key="card.proposal.id"
+              :view="card"
+              :turn-label="turnLabel(card)"
+              @decide="(decision, guidance) => decide(card.proposal.id, decision, guidance)"
+            />
+            <!-- 设定提案（2026-11-20）：同一轮里提出的新人物 / 新地点，批准后追加进设定库。 -->
+            <BibleProposalCard
+              v-for="card in openBibleCards"
               :key="card.proposal.id"
               :view="card"
               :turn-label="turnLabel(card)"
@@ -627,11 +606,20 @@ onBeforeUnmount(() => {
           </div>
 
           <!-- 已裁决的卡默认折叠（F-1：不再把「已写入」也摊在最底部抢位置）。 -->
-          <details v-if="settledCards.length" class="settled-stack">
-            <summary class="settled-summary">已裁决的提案 · {{ settledCards.length }} 条</summary>
+          <details v-if="settledCards.length || settledBibleCards.length" class="settled-stack">
+            <summary class="settled-summary">
+              已裁决的提案 · {{ settledCards.length + settledBibleCards.length }} 条
+            </summary>
             <div class="settled-cards">
               <ProposalCard
                 v-for="card in settledCards"
+                :key="card.proposal.id"
+                :view="card"
+                :turn-label="turnLabel(card)"
+                @decide="(decision, guidance) => decide(card.proposal.id, decision, guidance)"
+              />
+              <BibleProposalCard
+                v-for="card in settledBibleCards"
                 :key="card.proposal.id"
                 :view="card"
                 :turn-label="turnLabel(card)"
@@ -641,13 +629,21 @@ onBeforeUnmount(() => {
           </details>
 
           <!-- 上次会话未处理（D1）：回放的未裁决卡，按钮禁用，绝不伪装成可批准。 -->
-          <details v-if="expiredCards.length" class="expired-stack">
+          <details v-if="expiredCards.length || expiredBibleCards.length" class="expired-stack">
             <summary class="expired-summary">
-              {{ PROPOSAL_STATUS_LABELS.expired }} · {{ expiredCards.length }} 条
+              {{ PROPOSAL_STATUS_LABELS.expired }} ·
+              {{ expiredCards.length + expiredBibleCards.length }} 条
             </summary>
             <div class="expired-cards">
               <ProposalCard
                 v-for="card in expiredCards"
+                :key="card.proposal.id"
+                :view="card"
+                :turn-label="turnLabel(card)"
+                @decide="(decision, guidance) => decide(card.proposal.id, decision, guidance)"
+              />
+              <BibleProposalCard
+                v-for="card in expiredBibleCards"
                 :key="card.proposal.id"
                 :view="card"
                 :turn-label="turnLabel(card)"

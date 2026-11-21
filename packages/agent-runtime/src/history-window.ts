@@ -56,6 +56,16 @@ export function windowBudgetPlan(windowTokens: number): WindowBudgetPlan {
 export const HISTORY_TOKEN_BUDGET = windowBudgetPlan(UPSTREAM_WINDOW_TOKENS).historyBudget;
 
 /**
+ * 上下文包这一路在**默认窗口**下的预算刻度（tokens，2026-11-20）。
+ *
+ * 只有一处用：装配层的待收伏笔段「顶满让位」判定——当前章装配已经把这一路刻度吃满时，
+ * 伏笔段整段不出（先保证正文相关材料）。由占比推出来：改占比或改默认窗口，这一枚自动跟着走，
+ * 不在此处另抄一份 35% 或 24000（铁律 6）。
+ */
+export const CONTEXT_PACK_DEFAULT_BUDGET =
+  windowBudgetPlan(UPSTREAM_WINDOW_TOKENS).contextPackBudget;
+
+/**
  * 一条消息在**上游 wire 上**大致占多少 tokens。
  *
  * 为什么不只数 `content`：OpenAI 兼容层把 `tool_calls` 的 `arguments` 原样发出去，

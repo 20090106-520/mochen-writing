@@ -489,6 +489,15 @@ describe("LeftSidebar · 树行操作菜单与行内改名（deepwrite 对齐收
     expect(script).toContain("actionMenuFor.value === relPath ? null : relPath");
   });
 
+  it("菜单项「改文件名」与改标题分两条：文件名那条调 book.renameDocFile（relPath 真的换）", () => {
+    expect(template).toContain('@click="startRenamingFile(node.relPath, node.title)"');
+    expect(template).toContain("<span>改文件名</span>");
+    expect(script).toContain('const renameMode = ref<"title" | "file">("title")');
+    const body = /async function confirmRenaming[\s\S]*?\n\}/.exec(script)?.[0] ?? "";
+    expect(body).toContain("book.renameDocFile(relPath, title)");
+    expect(body).toContain("book.renameDocTitle(relPath, title)");
+  });
+
   it("行内改名行沿用 tree-add-row 形状：Enter 确认 / Esc 取消 / blur 取消，确认钮空名 disabled 且 mousedown.prevent", () => {
     const row = /<div v-if="renamingPath === node\.relPath"[\s\S]*?@click="confirmRenaming"/.exec(
       template

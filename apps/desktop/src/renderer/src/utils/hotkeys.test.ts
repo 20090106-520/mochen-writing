@@ -39,10 +39,10 @@ describe("resolveHotkey · composer 区", () => {
       "submit"
     );
   });
-  it("Enter 但 turnRunning ⇒ none（要追加指令走 Tab）", () => {
+  it("Enter 但 turnRunning ⇒ queue（运行中追指令走同一条排队通路，不再静默丢弃）", () => {
     expect(
       resolveHotkey(focus({ composerIsFocused: true, turnRunning: true }), "Enter", mods()).action
-    ).toBe("none");
+    ).toBe("queue");
   });
   it("Shift+Enter 与 Ctrl+J ⇒ newline", () => {
     expect(
@@ -393,7 +393,7 @@ describe("resolveHotkey · 发送键第二档（2026-10-05 设置页新增）", 
     expect(resolveHotkey(ctrlMode, "Enter", mods()).action).toBe("newline");
     expect(resolveHotkey(ctrlMode, "Enter", mods({ shift: true })).action).toBe("newline");
   });
-  it("ctrl-enter 档：Ctrl+Enter ⇒ submit；turnRunning 时 ⇒ none（与 enter 档同一护栏）", () => {
+  it("ctrl-enter 档：Ctrl+Enter ⇒ submit；turnRunning 时 ⇒ queue（运行中追指令排队，不再丢弃）", () => {
     const running = focus({ composerIsFocused: true, submitKey: "ctrl-enter", turnRunning: true });
     expect(
       resolveHotkey(
@@ -404,7 +404,7 @@ describe("resolveHotkey · 发送键第二档（2026-10-05 设置页新增）", 
         })
       ).action
     ).toBe("submit");
-    expect(resolveHotkey(running, "Enter", mods({ ctrl: true })).action).toBe("none");
+    expect(resolveHotkey(running, "Enter", mods({ ctrl: true })).action).toBe("queue");
   });
   it("ctrl-enter 档：composer 无焦点时 Ctrl+Enter ⇒ none（发送键属于 composer）", () => {
     expect(

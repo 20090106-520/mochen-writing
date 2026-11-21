@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { scriptSource, styleSource, templateSource } from "../utils/vue-source-reader";
+import { countNeedle, scriptSource, styleSource, templateSource } from "../utils/vue-source-reader";
 
 const card = "components/ProposalCard.vue";
 const column = "components/CenterColumn.vue";
@@ -27,9 +27,10 @@ describe("ProposalCard · 唯一发射口是 decide（化石不许回来）", ()
     expect(script).not.toContain("running");
   });
 
-  it("父侧三处卡（在审 / 已收场 / 已过期）都只接 decide，一处不漏、一处不多", () => {
+  it("父侧卡位（在审 / 已收场 / 已过期 × 正文 / 设定）都只接 decide，一处不漏、一处不多", () => {
     const markup = templateSource(column);
-    expect(markup.match(/@decide="\(decision, guidance\) => decide\(/g)?.length).toBe(3);
+    // 2026-11-20 起两种卡各三处（正文提案 + 设定提案），同一枚处理器。
+    expect(markup.match(/@decide="\(decision, guidance\) => decide\(/g)?.length).toBe(6);
     expect(markup).not.toContain("@interrupt");
   });
 
@@ -38,6 +39,49 @@ describe("ProposalCard · 唯一发射口是 decide（化石不许回来）", ()
     const markup = templateSource(column);
     const composer = /<ComposerBox\b[\s\S]*?\/>/.exec(markup)?.[0] ?? "";
     expect(composer).toContain(':running="running"');
+  });
+});
+
+describe("ProposalCard · 本轮全部接受（2026-11-20）", () => {
+  // 一轮五条提案不该点五次。批量入口刻意留在 CenterColumn（那里才有本线程待审列表），
+  // 卡内不复制这颗按钮——每张卡各长一颗「全部接受（N 条）」只会更乱。
+  it("两条以上待审才出场（含设定提案），按钮文案带条数", () => {
+    const markup = templateSource(column);
+    expect(markup).toContain("pendingTotal > 1");
+    expect(markup).toContain("本轮全部接受");
+    expect(markup).toContain("pendingTotal }} 条");
+  });
+
+  it("逐条走既有 decide（accept-once），不新造批量 IPC", () => {
+    const script = scriptSource(column);
+    expect(script).toMatch(/await agent\.decide\(id, "accept-once", ""\)/);
+    expect(script).not.toContain("acceptAllProposals");
+    expect(script).not.toContain("decideProposalBatch");
+  });
+});
+
+describe("设定提案卡（2026-11-20）", () => {
+  const bible = "components/BibleProposalCard.vue";
+
+  it("卡只发射 decide，自己不调审批 IPC", () => {
+    const script = scriptSource(bible);
+    expect(script).toContain('emit("decide"');
+    expect(script).not.toContain("decideProposal");
+    expect(script).not.toContain("window.mochen");
+  });
+
+  it("三处卡位（待审 / 已裁决 / 已过期）都摆得出设定提案", () => {
+    const markup = templateSource(column);
+    expect(countNeedle("<BibleProposalCard", markup)).toBe(3);
+    expect(countNeedle("openBibleCards", markup)).toBeGreaterThan(0);
+  });
+
+  it("档位不对时给的是能点的出路（切档 / 切权限），不是一句安慰话", () => {
+    const script = scriptSource(bible);
+    expect(script).toContain('book.setWorkMode("act")');
+    expect(script).toContain('book.setPermissionMode("full-access")');
+    // 审批按钮只在待审时出现：已写入 / 已失效的卡不许再给人点一次。
+    expect(templateSource(bible)).toContain('v-if="pending"');
   });
 });
 

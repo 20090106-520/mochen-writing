@@ -385,6 +385,11 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
     relPath("新建文稿"),
     textRule({ maxLength: MAX_REL_PATH_CHARS, label: "文稿标题" })
   ],
+  // 改文件名（2026-11-20）：与新建同形——旧 relPath + 新标题；新路径由主进程用同一份 `planDocRelPath` 规划。
+  [IPC_CHANNELS.docRename]: [
+    relPath("要改名的文稿"),
+    textRule({ maxLength: MAX_REL_PATH_CHARS, label: "新标题" })
+  ],
   // 只重算一篇（P1-4 后半，2026-10-10）：入参与 `doc:read` 同形，但它是这一批新开的通道，
   // 所以按最严的那条走——realpath 的「书内」判定也一并挂上（注册点那条 `check`），
   // 不继承 `doc:read` 当时的历史遗漏。`doc:read` 要不要补同一道，记在扫描总单 P1-7 的后续里。
@@ -550,27 +555,27 @@ const webdavDenyIo = (info: DenyInfo): unknown => ({
  * 加固如果改成抛错或回一个没写过的形状，轻则红色错误条、重则那一格永远空着（P1-9 那种病）。
  * 抛错类的通道（`book:open`、`doc:read`、两条 shell 桥…）本来就有抛错路径，用默认抛错。
  */
+/**
+ * 文档类五条（写 / 新建 / 改名 / 重算 / 回收）被挡时是**同一形状**：把 DenyInfo 译成
+ * 各自契约里同形的失败档。抽一处是因为五份一模一样的闭包只会分家，也在预算里白占行数。
+ */
+const docDeny = (info: DenyInfo): unknown => ({
+  ok: false,
+  reason: info.kind === "check" ? "outside-book" : "invalid-path",
+  message: info.message
+});
+
 const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
   [IPC_CHANNELS.bookCreate]: (info) => ({ ok: false, message: info.message }),
   // 作品库移除（2026-10-21）被挡时回空清单：调用点按 result.books 渲染，抛错会让那一行悬在 await 上。
   [IPC_CHANNELS.bookForget]: () => ({ books: [] }),
-  [IPC_CHANNELS.docWrite]: (info) => ({
-    ok: false,
-    reason: info.kind === "check" ? "outside-book" : "invalid-path",
-    message: info.message
-  }),
-  [IPC_CHANNELS.docCreate]: (info) => ({
-    ok: false,
-    reason: info.kind === "check" ? "outside-book" : "invalid-path",
-    message: info.message
-  }),
+  [IPC_CHANNELS.docWrite]: docDeny,
+  [IPC_CHANNELS.docCreate]: docDeny,
+  // 改文件名（2026-11-20）：与新建同形，新路径由主进程规划，失败档也照 DocRenameResult 回。
+  [IPC_CHANNELS.docRename]: docDeny,
   // doc:refresh 被挡时回 DocRefreshResult 而不是抛错：调用点在 `syncDocRef` 里按 `result.ok` 分支，
   // 抛错会让「改名 / 吸收智能体写入」那条链红屏中断，而这条路本来就有整本温和重扫兜底。
-  [IPC_CHANNELS.docRefresh]: (info) => ({
-    ok: false,
-    reason: info.kind === "check" ? "outside-book" : "invalid-path",
-    message: info.message
-  }),
+  [IPC_CHANNELS.docRefresh]: docDeny,
   [IPC_CHANNELS.bookDataRead]: (info) => ({
     ok: false,
     reason: "invalid-key",
@@ -582,11 +587,7 @@ const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
     message: info.message
   }),
   // 回收站三条（2026-10-10）被挡时照各自契约的失败档回话：调用点都按 result.ok 分支。
-  [IPC_CHANNELS.docTrash]: (info) => ({
-    ok: false,
-    reason: info.kind === "check" ? "outside-book" : "invalid-path",
-    message: info.message
-  }),
+  [IPC_CHANNELS.docTrash]: docDeny,
   [IPC_CHANNELS.trashList]: (info) => ({
     ok: false,
     reason: "no-book",

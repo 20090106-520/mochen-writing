@@ -53,6 +53,9 @@ html[data-liquid-glass="on"] .toast,
 html[data-liquid-glass="on"] .material-panel,
 html[data-liquid-glass="on"] .scroll-to-bottom,
 html[data-liquid-glass="on"] .redeem-sheet,
+/* 通知中心（2026-11-20 通知整修 A2）：中栏头部浮层家族的一员，
+   与历史对话面板同一张面——玻璃开着时读同一种材质。 */
+html[data-liquid-glass="on"] .notification-center,
 /* 状态栏（2026-11-20 材质刀）：原先它自带一份写死的 `blur(8px)`，不归总闸管——
    液态玻璃关掉它照样糊着，而且用的是第三套模糊数值。
    收进族里之后，栏头 / 状态栏 / 输入卡读成同一种材质。 */

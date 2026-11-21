@@ -190,10 +190,17 @@ const object = (
 /** 花名册的唯一工具清单（§6：七枚，不多不少）；顺序与 AGENT_TOOL_NAMES 一致。 */
 export const TOOL_SPECS: ChatToolSpec[] = [
   {
+    // 2026-11-20 行长偏移：长章只读前 6000 字时，后半段模型永远读不到，改稿只能靠猜。
+    // 用 from/lines 接着读；两个参数都可选，不传时回执与旧版逐字一致。
     name: "read_doc",
-    description: "读书稿全文（含 frontmatter）。改稿前先用它确认原文逐字。",
+    description:
+      "读书稿全文（含 frontmatter）。长章被截断时，用 from 指定起始行接着读后面。改稿前先用它确认原文逐字。",
     parameters: object(
-      { doc: { type: "string", description: "书内相对路径，如 chapters/03-章名.md" } },
+      {
+        doc: { type: "string", description: "书内相对路径，如 chapters/03-章名.md" },
+        from: { type: "number", description: "可选：从第几行开始读（1 起，默认第 1 行）" },
+        lines: { type: "number", description: "可选：最多读多少行，默认一直读到文末" }
+      },
       ["doc"]
     )
   },
@@ -219,18 +226,16 @@ export const TOOL_SPECS: ChatToolSpec[] = [
         query: { type: "string", description: "要检索的字面文本" },
         source: {
           type: "string",
-          description:
-            "可选：docs=只搜正文，bible=只搜设定库，recaps=只搜章末摘要，all=全搜（默认）"
+          description: "可选：只想看哪一类——正文、设定库、前情摘要，或者全都看（默认）。"
         },
         kind: {
           type: "string",
-          description:
-            "可选：只在这一类文稿里搜。chapter=章节，character=人物，location=场景/地点，" +
-            "worldview=世界观，foreshadow=伏笔，outline=大纲，volume=分卷，material=素材…"
+          description: "可选：只在某一类文稿里找（章节、人物卡、地点、世界观、伏笔、大纲……）。"
         },
         group: {
           type: "string",
-          description: "可选：doc = 按篇聚合（查「哪些章提到它」），line = 逐行列出（默认）"
+          description:
+            "可选：想先知道「哪几章提到它」就选「按篇」，想逐行看原文就选「逐行」（默认）。"
         },
         limit: {
           type: "number",
@@ -294,6 +299,28 @@ export const TOOL_SPECS: ChatToolSpec[] = [
         description: "可选：要从技能库载入的技能 id；不给就先列出全部可用技能"
       }
     })
+  },
+  {
+    // 2026-11-20：模型此前只能读设定库，新人物/新地点只能用户手填，AI 不会记账。
+    // 与正文提案同一条纪律：只提、不落盘；批准后才写进 story-bible.json。
+    // 顺序照 AGENT_TOOL_NAMES：排在花名册末尾。
+    name: "propose_bible",
+    description:
+      "把一条新设定记进设定库（人物 / 地点 / 时间线）。只提案、不落盘：用户批准后才写进故事圣经。" +
+      "人物写清身份、外貌、目标与关系；地点写清方位与它在这本书里的作用；时间线写清何时发生、后果是什么。" +
+      "只在故事里真的出现了新设定、或用户明确要求「记进设定」时调用，别把已有条目重提一遍。",
+    parameters: object(
+      {
+        type: {
+          type: "string",
+          description: "character = 人物，location = 地点，timeline = 时间线"
+        },
+        title: { type: "string", description: "条目名，如「沈青崖」「云州」「三年前那场大火」" },
+        content: { type: "string", description: "条目正文，写清楚到以后不用再问一遍" },
+        why: { type: "string", description: "中文理由：为什么现在该把它记下来" }
+      },
+      ["type", "title", "why"]
+    )
   }
 ];
 

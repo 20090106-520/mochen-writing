@@ -317,4 +317,97 @@ describe("bookService", () => {
     expect(noTitle.ok).toBe(false);
     await service.close();
   });
+
+  it("renameDoc 真的改名，并迁移 chapterOrder 与 recaps 的键（2026-11-20）", async () => {
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    await service.open(root);
+    await service.createDoc("chapters/90-旧名.md", "90-旧名");
+    const meta = service.current()?.meta;
+    if (meta === undefined) throw new Error("书该开着");
+    await service.saveMeta({
+      ...meta,
+      chapterOrder: ["chapters/90-旧名.md"],
+      recaps: { "chapters/90-旧名.md": "旧摘要" }
+    });
+    // 2026-11-20 P0：会话文件的章节归属在首行 meta 的 docRelPath（文件名只有日期与 sessionId）。
+    // 预埋一条这一章的会话，改名后首行必须跟着换成新路径，否则这一章的 AI 历史成孤儿。
+    const sessionDir = path.join(root, ".mochen", "sessions", "2026", "11", "20");
+    await mkdir(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, "rollout-20261120-120000-s1.jsonl");
+    await writeFile(
+      sessionFile,
+      `${JSON.stringify({
+        type: "session-meta",
+        sessionId: "s1",
+        docRelPath: "chapters/90-旧名.md",
+        stageId: "draft",
+        model: "test-model",
+        startedAt: "2026-11-20T12:00:00.000Z"
+      })}\n${JSON.stringify({ type: "user-message", id: "e1", turnId: "t1", ts: "2026-11-20T12:00:01.000Z", text: "开场" })}\n`
+    );
+    const result = await service.renameDoc("chapters/90-旧名.md", "91-新名");
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("不该走到这里");
+    expect(result.relPath).toBe("chapters/91-新名.md");
+    expect(result.meta.chapterOrder).toEqual(["chapters/91-新名.md"]);
+    expect(result.meta.recaps?.["chapters/91-新名.md"]).toBe("旧摘要");
+    expect(result.meta.recaps?.["chapters/90-旧名.md"]).toBeUndefined();
+    const files = await readdir(path.join(root, "chapters"));
+    expect(files).toContain("91-新名.md");
+    expect(files).not.toContain("90-旧名.md");
+    // 只看回执不够：重开一份也要读到迁移后的键，否则「排序/摘要丢了」只在下次启动暴露。
+    const onDisk = JSON.parse(await readFile(path.join(root, "book.json"), "utf8")) as {
+      chapterOrder: string[];
+      recaps: Record<string, string>;
+    };
+    expect(onDisk.chapterOrder).toEqual(["chapters/91-新名.md"]);
+    expect(onDisk.recaps["chapters/91-新名.md"]).toBe("旧摘要");
+    // 会话首行同样要看盘上真身（2026-11-20 P0）：回执 ok 不代表首行真换了，只换内存会两头分家。
+    expect(result.sessionWarning).toBeNull();
+    const sessionLines = (await readFile(sessionFile, "utf8")).split("\n");
+    const migratedMeta = JSON.parse(sessionLines[0] ?? "") as { docRelPath: string };
+    expect(migratedMeta.docRelPath).toBe("chapters/91-新名.md");
+    // 首行之后的事件一个字都不能动：迁移只换归属，不碰历史内容。
+    expect(sessionLines[1]).toContain('"开场"');
+    // 收尾：把这一轮造的排序/摘要清掉，别让后跑的用例读到。
+    await service.saveMeta({ ...service.current()!.meta, chapterOrder: [], recaps: {} });
+    await rm(path.join(root, "chapters", "91-新名.md"), { force: true });
+    await rm(path.join(root, ".mochen"), { recursive: true, force: true });
+    await service.close();
+  });
+
+  it("renameDoc 目标已存在时拒绝，两篇都不动", async () => {
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    await service.open(root);
+    await service.createDoc("chapters/92-甲.md", "92-甲");
+    await service.createDoc("chapters/93-乙.md", "93-乙");
+    const result = await service.renameDoc("chapters/92-甲.md", "93-乙");
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("不该走到这里");
+    expect(result.reason).toBe("exists");
+    expect(result.message).toContain("没有覆盖");
+    const files = await readdir(path.join(root, "chapters"));
+    expect(files).toContain("92-甲.md");
+    expect(files).toContain("93-乙.md");
+    await rm(path.join(root, "chapters", "92-甲.md"), { force: true });
+    await rm(path.join(root, "chapters", "93-乙.md"), { force: true });
+    await service.close();
+  });
+
+  it("renameDoc 的保留名与未开书各自给对理由", async () => {
+    const idle = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    const noBook = await idle.renameDoc("chapters/01-a.md", "新名");
+    expect(noBook.ok).toBe(false);
+    if (noBook.ok) throw new Error("不该走到这里");
+    expect(noBook.reason).toBe("no-book");
+
+    const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+    await service.open(root);
+    const reserved = await service.renameDoc("chapters/01-a.md", "CON");
+    expect(reserved.ok).toBe(false);
+    if (reserved.ok) throw new Error("不该走到这里");
+    expect(reserved.reason).toBe("invalid-path");
+    expect(reserved.message).toContain("CON");
+    await service.close();
+  });
 });

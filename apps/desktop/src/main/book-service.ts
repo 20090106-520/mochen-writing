@@ -7,6 +7,7 @@ import {
   IPC_CHANNELS,
   normalizeBookProject,
   parseBookMeta,
+  planDocRelPath,
   sanitizeDocFileName,
   windowsReservedNameProblem,
   type BookCreateInput,
@@ -19,17 +20,21 @@ import {
   type BookReplaceResult,
   type DocContent,
   type DocCreateResult,
+  type DocRenameResult,
   type DocRefreshResult,
   type DocRef,
   type DocWriteResult
 } from "@mochen/contracts";
 import {
+  assertSafeRelPath,
   createBookSkeleton,
   createDocFile,
   docRefFor,
   isBookDataKey,
+  kindOfRelPath,
   readBookData,
   readDocFile,
+  renameDocFile,
   scanBook,
   sortChapters,
   writeBookData,
@@ -37,6 +42,8 @@ import {
   writeDocFile,
   type AtomicWriteFs
 } from "@mochen/fs-store";
+// 会话文件迁移（2026-11-20 P0）：改章节文件名时同批迁该章的 AI 历史，真身判据只有 agent-runtime 那一份。
+import { renameSessionsForDoc } from "@mochen/agent-runtime";
 // 来源闸 + 参数形状 + 书根 realpath 判定：判据只有这一份，注册点只调不改写（P1-7）。
 import { handleTrusted, relPathStaysInsideRoot, type IpcRegistrar } from "./ipc-guard.js";
 // 全书替换的循环住在自己那个模块里（与 book-backup / doc-trash 同一安排）：
@@ -80,6 +87,11 @@ export interface BookService {
   replaceAllInBook(input: unknown): Promise<BookReplaceResult>;
   /** 按规划好的书内路径建一篇空文档；relPath 由渲染层用 contracts 的 planDocRelPath 生成，这里兜底再验一遍。 */
   createDoc(relPath: string, title: string): Promise<DocCreateResult>;
+  /**
+   * 改文件名（2026-11-20）。现有的「改标题」只动 frontmatter，文件名与 relPath 不变；
+   * 这一条把文件真的改名，并在同一处迁移 `chapterOrder` / `recaps` 两处键，回执带新 meta。
+   */
+  renameDoc(relPath: string, title: string): Promise<DocRenameResult>;
   /**
    * 只重算**一篇**文稿的 DocRef（`doc:refresh`，P1-4 后半）。
    *
@@ -149,6 +161,13 @@ export function registerBookIpc(
     IPC_CHANNELS.docCreate,
     (_event, relPath, title) => service.createDoc(relPath as string, title as string),
     { check: insideCurrentBook("新建文稿", service) }
+  );
+  // 改文件名（2026-11-20）：与新建同一套闸——形状 + 书内 realpath；迁移 chapterOrder/recaps 在 service 内一次做完。
+  handleTrusted(
+    register,
+    IPC_CHANNELS.docRename,
+    (_event, relPath, title) => service.renameDoc(relPath as string, title as string),
+    { check: insideCurrentBook("改文件名", service) }
   );
   // 只重算一篇（P1-4 后半）：新开的通道一律按最严的现有判据挂闸——形状 + 书内 realpath，
   // 不继承 `doc:read` 当年的历史遗漏（那条要不要补记在扫描总单 P1-7 的后续里）。
@@ -415,6 +434,93 @@ export function createBookService(deps: BookServiceDeps): BookService {
         relPath,
         fingerprint: result.fingerprint,
         doc: rescan.find((doc) => doc.relPath === relPath) ?? null
+      };
+    },
+
+    /**
+     * 改文件名（2026-11-20）。「改标题」只动 frontmatter，这一条才是文件真的改名。
+     *
+     * `chapterOrder` 与 `recaps` 都以 relPath 为键：改名不一起迁，排序与章末摘要立刻成孤儿，
+     * 而用户从界面上完全看不出来。迁移只在这里做一次（铁律 6），渲染层直接换掉回执里的 meta。
+     */
+    async renameDoc(relPath, title) {
+      const current = snapshot;
+      if (current === null)
+        return { ok: false, reason: "no-book", message: "尚未打开作品目录，改不了文件名。" };
+      try {
+        assertSafeRelPath(relPath);
+      } catch {
+        return { ok: false, reason: "invalid-path", message: "这一篇的路径不在书里，改不了名。" };
+      }
+      // 与 createDoc 同一句人话、同一条判据：保留名与「起不出文件名」分成两档说清楚。
+      const reserved = windowsReservedNameProblem(title);
+      if (reserved !== null) return { ok: false, reason: "invalid-path", message: reserved };
+      const kind =
+        current.docs.find((doc) => doc.relPath === relPath)?.kind ?? kindOfRelPath(relPath);
+      if (kind === null)
+        return {
+          ok: false,
+          reason: "invalid-path",
+          message: "认不出这一篇属于哪一类文稿，改不了名。"
+        };
+      // 目标路径一律由 contracts 规划（同目录），渲染层递不了路径。
+      const nextRelPath = planDocRelPath(kind, title);
+      if (nextRelPath === null)
+        return { ok: false, reason: "invalid-path", message: "标题起不了文件名，换一个名字。" };
+      if (nextRelPath === relPath) {
+        const file = await readDocFile(current.root, relPath).catch(() => null);
+        return {
+          ok: true,
+          relPath,
+          fingerprint: file?.fingerprint ?? "",
+          doc: current.docs.find((doc) => doc.relPath === relPath) ?? null,
+          meta: current.meta,
+          sessionWarning: null
+        };
+      }
+      const moved = await renameDocFile(current.root, relPath, nextRelPath);
+      if (!moved.ok) return moved;
+      // 迁移与正文落盘共用同一条 meta 写队列：用户此刻在设置里改书名也不会被这份旧 meta 回滚。
+      await enqueueMetaWrite(async () => {
+        const latest = snapshot;
+        // 换书 / 关书后不追写：文件已经改完，但 meta 不能写进别人的书里。
+        if (latest === null || latest.root !== current.root) return;
+        const chapterOrder = (latest.meta.chapterOrder ?? []).map((item) =>
+          item === relPath ? nextRelPath : item
+        );
+        const recaps = { ...(latest.meta.recaps ?? {}) };
+        const recap = recaps[relPath];
+        if (recap !== undefined) {
+          delete recaps[relPath];
+          recaps[nextRelPath] = recap;
+        }
+        const meta = await writeBookMetaFile(
+          latest.root,
+          { ...latest.meta, chapterOrder, recaps },
+          deps.fs
+        );
+        // 清单只换这一篇：改名是低频操作，但也没必要为它整本重扫（与 createDoc 同一条 `docRefFor`）。
+        const rest = latest.docs.filter((doc) => doc.relPath !== relPath);
+        const fresh = await docRefFor(latest.root, nextRelPath);
+        snapshot = {
+          ...latest,
+          meta,
+          docs: sortChapters(fresh === null ? rest : [...rest, fresh], meta.chapterOrder)
+        };
+      });
+      // 2026-11-20 P0：会话 JSONL 的章节归属写在首行 meta 的 docRelPath 里（文件名不含 relPath），
+      // 不跟着迁移，这一章的 AI 历史（面板、最近一条）就在盘上成了孤儿。放在 meta 队列之后：
+      // 改名已经落盘，历史只能尽量跟上；迁移失败不改名回滚，警告捎在回执里让渲染层转述。
+      const sessionWarning = await renameSessionsForDoc(current.root, relPath, nextRelPath);
+      const after = snapshot;
+      const sameBook = after !== null && after.root === current.root;
+      return {
+        ok: true,
+        relPath: nextRelPath,
+        fingerprint: moved.fingerprint,
+        doc: sameBook ? (after.docs.find((doc) => doc.relPath === nextRelPath) ?? null) : null,
+        meta: sameBook ? after.meta : current.meta,
+        sessionWarning
       };
     },
 

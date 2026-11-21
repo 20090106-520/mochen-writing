@@ -34,7 +34,8 @@ const CARD = styleSource("agent-pane.css");
 // 2026-11-20：占用读数那一枚搬去了状态栏，它的规则跟着搬进 context-meter.css。
 const METER = styleSource("context-meter.css");
 
-const CENTER = templateSource("components/CenterColumn.vue");
+/** 头部动作区（2026-11-20 自 CenterColumn 拆出）——「新建对话」那一枚的文案住在这里。 */
+const HEADER_ACTIONS = templateSource("components/CenterHeaderActions.vue");
 const HISTORY_MENU = templateSource("components/ConversationHistoryMenu.vue");
 
 /**
@@ -180,7 +181,9 @@ describe("5-㉓ ② 会话栏头：控件不缩，文字缩", () => {
     expect(
       countNeedle('<span class="header-text-button-label">历史对话</span>', HISTORY_MENU)
     ).toBe(1);
-    expect(countNeedle('<span class="header-text-button-label">新建对话</span>', CENTER)).toBe(1);
+    expect(
+      countNeedle('<span class="header-text-button-label">新建对话</span>', HEADER_ACTIONS)
+    ).toBe(1);
     // 三角与图标不许跟着藏：只许那一个类名进 display:none。
     const noneInNarrow = [...narrow[0]!.matchAll(/([^{}]+)\{([^{}]*display:\s*none[^{}]*)\}/g)];
     expect(noneInNarrow).toHaveLength(1);

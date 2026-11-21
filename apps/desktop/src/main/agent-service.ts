@@ -11,6 +11,7 @@ import {
   type AgentEvent,
   type AgentOutbound,
   type AgentProfile,
+  type BibleProposal,
   type ContextPreview,
   type ContextPreviewQuery,
   type DecideInput,
@@ -28,7 +29,6 @@ import {
 import {
   appendAgentEvent,
   applyPatch,
-  checkWritePermission,
   createSession,
   estimateTokens,
   eventsToMessages,
@@ -46,11 +46,10 @@ import {
   type ProviderFetch,
   type ToolHost
 } from "@mochen/agent-runtime";
-import { makeFingerprint } from "@mochen/fs-store";
 import type { BookService, BookSnapshot } from "./book-service.js";
 import type { ProviderSettings } from "./provider-settings.js";
 import { createBookScope, scopedApprovalKey } from "./book-scope.js";
-import { readForApproval } from "./approval-read.js";
+import { createProposalDecision, ruleKey, type PendingProposal } from "./proposal-decision.js";
 import { createDocToolHost } from "./doc-tools-host.js";
 // 会话的只读回程（回放与全书总览）住在 agent-session-read.ts：它不跑 turn、不碰提案，与服务编排不共享状态。
 import { listBookSessions, loadSavedSession } from "./agent-session-read.js";
@@ -129,20 +128,10 @@ export interface AgentService {
   dispose(): void;
 }
 
-interface PendingProposal {
-  proposal: EditProposal;
-  baseline: string;
-}
-
 /**
- * `accept-prefix`（同文档同类改动不再问）的**本地判别式**：文档::工具。
- * 这一串只是「键的一半」——不含书身份，单独拿去比会跨书撞名（两本书同名文稿的同一工具一模一样）。
- * 真正的存储/命中键一律再过 `scopedApprovalKey(书根, ...)` 这一道（单一真身住在 book-scope.ts）。
+ * 待审提案与审批落地的判定住在 proposal-decision.ts（2026-11-20 为 800 行预算拆出）：
+ * 那里回答「点了同意之后到底能不能写、写到哪」，这一层只登记提案与转发结果。
  */
-function ruleKey(proposal: EditProposal): string {
-  return `${proposal.docRelPath}::${proposal.tool}`;
-}
-
 export function createAgentService(deps: AgentServiceDeps): AgentService {
   const pending = new Map<string, PendingProposal>();
   const diffs = new Map<string, string>();
@@ -300,7 +289,7 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
   ): void {
     proposal.turnId = turnId;
     proposal.threadKey = threadKey;
-    pending.set(proposal.id, { proposal, baseline });
+    pending.set(proposal.id, { kind: "doc", proposal, baseline });
     const applied = applyPatch(baseline, proposal.mode, proposal.anchor, proposal.replace);
     diffs.set(
       proposal.id,
@@ -322,6 +311,24 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
   }
 
   /**
+   * 设定提案登记（2026-11-20）：与正文提案同一张 pending 表、同一枚审批 IPC，
+   * 但**不进自动批准**——「本章不再问 / 同类不再问」授权的是改正文，不是改整本书的设定。
+   * turnId / threadKey 在这里就地覆写（同 registerProposal 的理由：空值过不了事件 schema）。
+   */
+  function registerBibleProposal(turnId: string, threadKey: string, proposal: BibleProposal): void {
+    proposal.turnId = turnId;
+    proposal.threadKey = threadKey;
+    pending.set(proposal.id, { kind: "bible", proposal });
+    publish(threadKey, {
+      id: deps.newId(),
+      ts: deps.isoNow(),
+      turnId,
+      type: "bible-proposal",
+      proposal
+    });
+  }
+
+  /**
    * 一轮的工具宿主。`onProposal` 可注入（P0-②）：多稿采样时那一稿的提案只进它自己的收藏夹
    * （不 registerProposal、不发卡、不自动批准），**不传就是既有行为**——单稿那条路的
    * 提案登记一字不变，这就是「不开开关行为一字不变」在装配处的落点。
@@ -332,7 +339,8 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     docRelPath: string | null,
     signal: AbortSignal,
     profile: AgentProfile,
-    onProposal?: ((proposal: EditProposal, baseline: string) => void) | undefined
+    onProposal?: ((proposal: EditProposal, baseline: string) => void) | undefined,
+    onBible?: ((proposal: BibleProposal) => void) | undefined
   ): ToolHost {
     const register =
       onProposal ??
@@ -349,6 +357,8 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
         profile
       }),
       onProposal: register,
+      // 设定提案走另一条登记口：不写正文、不取基线，只进待审表并发一枚 bible-proposal。
+      onBibleProposal: onBible,
       newId: deps.newId,
       now: deps.isoNow,
       // P1-1 的②：联网工具必须接上**这一轮**那只 AbortController。web-search/web-read 各自把
@@ -367,151 +377,17 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
     return withPlugins(base, deps.plugins);
   }
 
-  async function applyDecision(
-    proposalId: string,
-    decision: ProposalDecision,
-    guidance: string,
-    auto: boolean
-  ): Promise<DecisionResult> {
-    bookScope.sync();
-    const entry = pending.get(proposalId);
-    const current = deps.book.current();
-    if (entry === undefined || current === null) {
-      return {
-        ok: false,
-        reason: "not-pending",
-        message: "这条提案已不在待审列表里（可能已经处理过，或换了作品目录）。"
-      };
-    }
-    const { proposal } = entry;
-    const threadKey = proposal.threadKey;
-    const event = (body: Record<string, unknown>): AgentEvent =>
-      ({ id: deps.newId(), ts: deps.isoNow(), turnId: proposal.turnId, ...body }) as AgentEvent;
-    const decideEvent = () => event({ type: "decision", proposalId, decision, guidance, auto });
-
-    if (decision === "cancel" || decision === "deny-with-guidance") {
-      pending.delete(proposalId);
-      publish(threadKey, decideEvent());
-      return decision === "cancel"
-        ? { ok: false, reason: "cancelled", message: "已取消这条提案，文件未改动。" }
-        : {
-            ok: false,
-            reason: "denied",
-            message: "已拒绝这条提案，你的说明会在下一轮回喂给模型。"
-          };
-    }
-
-    // 档位闸的是「落地」这一刀：提案生成时不判档（只读档也要能出建议），批准时才判。
-    const permission = checkWritePermission({
-      mode: current.meta.permissionMode,
-      docRelPath: proposal.docRelPath,
-      // 审批时的「当前章」取这条提案所绑线程的文稿；Plan 3 换成随右栏活动标签走
-      currentChapter: threadKey === UNBOUND ? null : threadKey,
-      workMode: workModeOf(current.meta)
-    });
-    if (!permission.allowed) {
-      // 不删 pending：档位收紧只挡这一步，放开后同一条提案还能批准（§5.1 约束 3）
-      publish(
-        threadKey,
-        event({ type: "error", message: `这条提案没有写入：${permission.reason}` })
-      );
-      return { ok: false, reason: "permission-denied", message: permission.reason };
-    }
-
-    const read = await readForApproval(current.root, proposal.docRelPath);
-    if (read.status === "unreadable") {
-      // 读不到不等于不存在，更不等于「指纹相符」：这一步必须停手，让用户重试（§9 第 2 行）。
-      publish(
-        threadKey,
-        event({
-          type: "error",
-          message: `读不到 ${proposal.docRelPath}（${read.message}），所以没有写入任何内容。请稍后重试。`
-        })
-      );
-      return { ok: false, reason: "io", message: `读取失败：${read.message}` };
-    }
-
-    const onDisk = read.status === "ok" ? read.fingerprint : makeFingerprint("");
-    if (onDisk !== proposal.expectedFingerprint) {
-      pending.delete(proposalId);
-      publish(
-        threadKey,
-        event({
-          type: "error",
-          proposalId,
-          message:
-            `提案之后 ${proposal.docRelPath} 又被改动过，这条建议已失效；` +
-            "我没有覆盖你的改动，请让模型基于最新正文重出一条。"
-        })
-      );
-      return { ok: false, reason: "stale", message: "原稿已被改动，没有覆盖。" };
-    }
-
-    const applied = applyPatch(
-      read.status === "ok" ? read.content : "",
-      proposal.mode,
-      proposal.anchor,
-      proposal.replace
-    );
-    if (applied.status !== "unique") {
-      pending.delete(proposalId);
-      publish(threadKey, event({ type: "error", proposalId, message: applied.message }));
-      return { ok: false, reason: "stale", message: applied.message };
-    }
-
-    // 唯一的写盘通路：批准 → book.writeDoc → writeDocFile（先备份原稿，再按指纹覆写）。
-    const write = await deps.book.writeDoc(proposal.docRelPath, applied.content, onDisk);
-    if (!write.ok) {
-      if (write.reason === "stale") {
-        pending.delete(proposalId);
-        // 裁定 A：审批前比对通过、落盘那一刻才发现被改——pending 已删，这一支不再静默，
-        // 同一条「提案已失效」的中文必须进对话流与 JSONL，否则回放会把它念成 expired。
-        publish(
-          threadKey,
-          event({
-            type: "error",
-            proposalId,
-            message:
-              `写入时 ${proposal.docRelPath} 又被改动过，这条建议已失效；` +
-              "我没有覆盖你的改动，请让模型基于最新正文重出一条。"
-          })
-        );
-        return { ok: false, reason: "stale", message: "原稿已被改动，没有覆盖。" };
-      }
-      // io / invalid-path / outside-book：提案留在 pending，用户可以重试（§9 第 2 行）
-      publish(threadKey, event({ type: "error", message: `写入失败：${write.message}` }));
-      return { ok: false, reason: "io", message: write.message };
-    }
-
-    pending.delete(proposalId);
-    // 记规则时同样并入书根：这一支的 `current` 必非 null（上面已挡 no-book），键也就必非 null。
-    if (decision === "accept-session") {
-      const key = scopedApprovalKey(current.root, threadKey);
-      if (key !== null) autoSession.add(key);
-    }
-    if (decision === "accept-prefix") {
-      const key = scopedApprovalKey(current.root, ruleKey(proposal));
-      if (key !== null) autoDocTool.add(key);
-    }
-    publish(threadKey, decideEvent());
-    publish(
-      threadKey,
-      event({
-        type: "written",
-        proposalId,
-        docRelPath: proposal.docRelPath,
-        fingerprint: write.fingerprint,
-        backupRelPath: write.backupRelPath
-      })
-    );
-    return {
-      ok: true,
-      docRelPath: proposal.docRelPath,
-      fingerprint: write.fingerprint,
-      backupRelPath: write.backupRelPath,
-      auto
-    };
-  }
+  // 审批落地判定住在 proposal-decision.ts（2026-11-20 拆出）：这里只把它接上本地的几张表。
+  const applyDecision = createProposalDecision({
+    pending,
+    book: deps.book,
+    newId: deps.newId,
+    isoNow: deps.isoNow,
+    publish,
+    syncBookScope: () => bookScope.sync(),
+    autoSession,
+    autoDocTool
+  });
 
   // 多稿采样的编排实例（P0-②）：依赖全借这一层的真身——`runningTurns` / `draftSets` 是同一张表，
   // `registerProposal` 是同一份写盘通路，`bookScope.sync()` 与其它方法同口径（先归位再判书）。
@@ -661,7 +537,12 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
                 docRelPath,
                 controller.signal,
                 profile,
-                capture.onProposal
+                capture.onProposal,
+                // 采样期不登记设定提案（与 onProposal 同一条纪律：那一稿一个字都不许上桌），
+                // 单稿那条路把回调指到 registerBibleProposal。
+                capture.onProposal === undefined
+                  ? (proposal) => registerBibleProposal(turnId, threadKey, proposal)
+                  : undefined
               ),
               emit: capture.emit,
               emitDelta: capture.emitDelta,

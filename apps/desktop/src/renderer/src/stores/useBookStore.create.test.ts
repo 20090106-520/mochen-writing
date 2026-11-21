@@ -4,11 +4,13 @@ import type {
   BookCreateResult,
   BookOpenResult,
   DocCreateResult,
+  DocRenameResult,
   DocWriteResult,
   RendererApi
 } from "@mochen/contracts";
 import { DEFAULT_CHANGE_RETENTION } from "@mochen/contracts";
 import { useBookStore } from "./useBookStore";
+import { useAgentStore } from "./useAgentStore";
 import { SKILL_API_STUBS } from "./skill-api-stub";
 
 /**
@@ -55,6 +57,18 @@ const createDocIpc = vi.fn<(relPath: string, title: string) => Promise<DocCreate
     doc: null
   })
 );
+/**
+ * 改文件名（2026-11-20）：主进程一次完成「改名 + 迁移 chapterOrder/recaps」，
+ * 回执带新 meta。用例只验渲染层接线（换标签/换草稿键/换 docs），迁移本身在 book-service 用例里钉。
+ */
+const renameDocIpc = vi.fn(async (relPath: string, title: string): Promise<DocRenameResult> => ({
+  ok: true,
+  relPath: `chapters/${title}.md`,
+  fingerprint: "fp-renamed",
+  doc: { relPath: `chapters/${title}.md`, kind: "chapter", title },
+  meta: result.meta,
+  sessionWarning: null
+}));
 const createBookIpc = vi.fn(async (): Promise<BookCreateResult> => ({
   ok: false,
   message: "stub"
@@ -76,6 +90,7 @@ const api = {
   readDoc,
   writeDoc,
   createDoc: createDocIpc,
+  renameDoc: renameDocIpc,
   startTurn: offLimits("startTurn"),
   interruptTurn: offLimits("interruptTurn"),
   decideProposal: offLimits("decideProposal"),
@@ -216,6 +231,7 @@ beforeEach(() => {
   readDoc.mockReset();
   writeDoc.mockReset();
   createDocIpc.mockReset();
+  renameDocIpc.mockReset();
   createBookIpc.mockReset();
   api.openBook.mockReset();
 });
@@ -317,6 +333,57 @@ describe("新建通路（doc:create / book:create）", () => {
     expect(store.activeDocTab).toBe("chapters/01-a.md");
     expect(store.draft).toBe("我改了一半的字");
     expect(store.dirty).toBe(true);
+  });
+});
+
+describe("改文件名（2026-11-20）", () => {
+  it("成功后换 docs、换标签、换草稿键，并整份换掉 meta（迁移在主进程做）", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    await store.openDocTab("chapters/01-a.md");
+    // 模拟这一篇有未保存草稿：键必须跟着新路径走，否则切回来会读成「没有草稿」。
+    store.draftsByPath["chapters/01-a.md"] = {
+      draft: "写了一半",
+      savedFingerprint: "fp-a",
+      dirty: true,
+      conflict: null
+    } as (typeof store.draftsByPath)[string];
+    // 2026-11-20 P0：agent 那两张以 threadKey（＝relPath）为键的表同批搬家——技能覆盖判
+    // 「键在不在」，输入框草稿只看值；键不跟着换，这一章的覆盖与打了一半的字就成了孤儿。
+    const agent = useAgentStore();
+    agent.skillPathsByThread["chapters/01-a.md"] = ["global:节奏"];
+    agent.composerDrafts["chapters/01-a.md"] = "打了一半的输入";
+    const ok = await store.renameDocFile("chapters/01-a.md", "第二章 风起");
+    expect(ok).toBe(true);
+    expect(renameDocIpc).toHaveBeenCalledWith("chapters/01-a.md", "第二章 风起");
+    expect(store.notice).toContain("文件名");
+    expect(store.docTabs).toContain("chapters/第二章 风起.md");
+    expect(store.docTabs).not.toContain("chapters/01-a.md");
+    expect(store.activeDocTab).toBe("chapters/第二章 风起.md");
+    expect(store.draftsByPath["chapters/第二章 风起.md"]?.draft).toBe("写了一半");
+    expect(store.draftsByPath["chapters/01-a.md"]).toBeUndefined();
+    expect(agent.skillPathsByThread["chapters/第二章 风起.md"]).toEqual(["global:节奏"]);
+    expect(agent.composerDrafts["chapters/第二章 风起.md"]).toBe("打了一半的输入");
+    expect(agent.skillPathsByThread["chapters/01-a.md"]).toBeUndefined();
+    expect(agent.composerDrafts["chapters/01-a.md"]).toBeUndefined();
+    expect(store.docs.map((doc) => doc.relPath)).toContain("chapters/第二章 风起.md");
+    expect(store.docs.map((doc) => doc.relPath)).not.toContain("chapters/01-a.md");
+  });
+
+  it("主进程拒绝时如实转述理由，状态一动不动", async () => {
+    const store = useBookStore();
+    await store.openBook("/book");
+    await store.openDocTab("chapters/01-a.md");
+    renameDocIpc.mockResolvedValueOnce({
+      ok: false,
+      reason: "exists",
+      message: "chapters/第二章 风起.md 已经有一篇同名文稿，没有覆盖它。"
+    });
+    const ok = await store.renameDocFile("chapters/01-a.md", "第二章 风起");
+    expect(ok).toBe(false);
+    expect(store.notice).toBe("chapters/第二章 风起.md 已经有一篇同名文稿，没有覆盖它。");
+    expect(store.activeDocTab).toBe("chapters/01-a.md");
+    expect(store.docs.map((doc) => doc.relPath)).toContain("chapters/01-a.md");
   });
 });
 

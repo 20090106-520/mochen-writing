@@ -46,6 +46,9 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     writeDoc: (relPath, content, expectedFingerprint) =>
       invoke(IPC_CHANNELS.docWrite, relPath, content, expectedFingerprint),
     createDoc: (relPath, title) => invoke(IPC_CHANNELS.docCreate, relPath, title),
+    // 改文件名（2026-11-20）：只递旧路径与新标题；新路径由主进程用 planDocRelPath 规划，
+    // 迁移 chapterOrder/recaps 也在主进程一次做完——preload 不判、不拼。
+    renameDoc: (relPath, title) => invoke(IPC_CHANNELS.docRename, relPath, title),
     // 只重算一篇（P1-4 后半）：这一层照旧不加判定——递出去的就是那一条相对路径，
     // 「算不出就退回整本重扫」的分支住在渲染层，preload 里写第二份判据迟早与它分家。
     refreshDoc: (relPath) => invoke(IPC_CHANNELS.docRefresh, relPath),

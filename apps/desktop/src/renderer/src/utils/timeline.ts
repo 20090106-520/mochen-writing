@@ -128,7 +128,9 @@ export const TOOL_LABELS: Record<AgentToolName, string> = {
   web_search: "联网搜索",
   web_read: "读取网页",
   // 2026-10-23 技能自选：模型自己列技能库、按需载入正文（只读）。名字与 tool-roster 同一份口径。
-  use_skill: "查技能"
+  use_skill: "查技能",
+  // 2026-11-20 设定提案：不写正文，生成一张待批准的设定卡。
+  propose_bible: "提设定"
 };
 
 /**
@@ -387,6 +389,14 @@ export function splitProposalCards<T extends ProposalCardInput>(
   return { open, settled, expired };
 }
 
+/** 本线程的**全部**卡（含已裁决）。以前这份就叫 pending，名不副实且把卡全摊在最底部。 */
+export function threadCardsOf<T extends { proposal: { threadKey: string } }>(
+  views: T[],
+  threadKey: string
+): T[] {
+  return views.filter((view) => view.proposal.threadKey === threadKey);
+}
+
 /**
  * 回放派生扫描（spec §4.3 第 6 条）：对每条 proposal 事件，
  * 其后有 decision/written ⇒ 给已裁决态（沿用 store 语义）；没有 ⇒ expired。
@@ -399,6 +409,16 @@ export function replayProposalStatuses(events: AgentEvent[]): Record<string, Pro
   for (const event of events) {
     if (event.type === "proposal") {
       status[event.proposal.id] = "expired";
+      continue;
+    }
+    // 设定提案与正文提案共用一张 id → 状态表（id 是全局唯一的）：
+    // 回放时卡片的初值同样是「未处理」，随后由 decision / bible-written 覆盖。
+    if (event.type === "bible-proposal") {
+      status[event.proposal.id] = "expired";
+      continue;
+    }
+    if (event.type === "bible-written") {
+      status[event.proposalId] = "written";
       continue;
     }
     if (event.type === "decision") {
@@ -420,4 +440,30 @@ export function replayProposalStatuses(events: AgentEvent[]): Record<string, Pro
     }
   }
   return status;
+}
+
+/**
+ * 装配层去重（Wave A 顾虑 1）：`error` 事件既进 items（时间线里的 error 块），
+ * 又写 thread.lastError（useAgentStore.ts:237-240），同一句中文会显示两遍。
+ * 但 lastError 还有三类**不产生时间线块**的来源——send 被边界拒绝（:320-324）、
+ * stop 被拒绝（:340-345）、turn-end{failed}（:214）——所以不能简单砍掉单列段。
+ * 规则：与时间线里最后一条 error 文本相同就不重复渲染，其余照旧显示。
+ * 刻意不改 store 与 timeline 的语义（那是上游契约）。
+ *
+ * 【2026-10-25】去重比对的是**原始**文本（event.message 对 thread.lastError），
+ * 翻译只发生在**显示**那一步（两处都走 contracts 的 presentableFailureMessage）——
+ * 所以去重不会因为两边都翻过而错位。
+ */
+export function orphanErrorText(threadLastError: string, items: AgentEvent[]): string {
+  let lastTimelineError = "";
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const event = items[index];
+    if (event?.type === "error") {
+      lastTimelineError = event.message;
+      break;
+    }
+  }
+  if (threadLastError === "" || threadLastError === lastTimelineError) return "";
+  // 与时间线那条同一个真身（contracts）：屏上不出现原始英文异常。
+  return presentableFailureMessage(threadLastError);
 }

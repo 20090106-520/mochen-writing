@@ -72,3 +72,30 @@ export function assistantEmotion(input: AssistantEmotionInput): string {
   if (input.endedAs === "done") return "33";
   return EMOTION_IDLE;
 }
+
+/** 装配层视角的信号包：字段与 ThreadView 一一对应，缺的按「什么都没发生」补默认。 */
+export interface AssistantFaceSignals {
+  running?: boolean;
+  items?: AgentEvent[];
+  /** ThreadView 的流式尾巴字段名叫 streaming（AssistantEmotionInput 里叫 tail）。 */
+  streaming?: StreamingTail;
+  endedAs?: string;
+  lastError?: string;
+  hydrating?: boolean;
+}
+
+/** 从线程视图直接算表情，装配层不用再逐字段搬运拼 AssistantEmotionInput。 */
+export function assistantFaceOf(
+  thread: AssistantFaceSignals | undefined,
+  pendingProposals: number
+): string {
+  return assistantEmotion({
+    running: thread?.running ?? false,
+    items: thread?.items ?? [],
+    tail: thread?.streaming ?? { reasoning: "", message: "" },
+    endedAs: thread?.endedAs ?? "",
+    lastError: thread?.lastError ?? "",
+    pendingProposals,
+    hydrating: thread?.hydrating ?? false
+  });
+}

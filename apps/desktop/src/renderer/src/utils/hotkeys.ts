@@ -149,8 +149,9 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
       if (k === "f") return { action: "open-find-replace" };
       // 发送键第二档（设置页可换）：Ctrl+Enter 发送。必须住在 Ctrl 分支里——
       // 落到下面裸 Enter 分支的键已经排除了 Ctrl，写那儿就永远轮不到。
+      // 运行中不丢弃：改成排队（与 Tab 排队同一通路），追指令最自然的动作就是打完按回车。
       if (focus.composerIsFocused && focus.submitKey === "ctrl-enter" && k === "Enter")
-        return focus.turnRunning ? { action: "none" } : { action: "submit" };
+        return focus.turnRunning ? { action: "queue" } : { action: "submit" };
     }
     return { action: "none" }; // 其余 Ctrl 组合不在键位表
   }
@@ -191,7 +192,9 @@ export function resolveHotkey(focus: HotkeyFocus, key: string, mods: HotkeyMods)
     // ctrl-enter 档：回车整档让给换行（含 Shift+Enter），发送只走上面 Ctrl 分支那一条。
     if (focus.submitKey === "ctrl-enter") return { action: "newline" };
     if (mods.shift) return { action: "newline" };
-    return focus.turnRunning ? { action: "none" } : { action: "submit" };
+    // 运行中排队而不是静默丢弃（与上面 Ctrl+Enter 分支同一口径）：
+    // 用户以为发送失败了，重发就是第二条；排队有满额中文提示。
+    return focus.turnRunning ? { action: "queue" } : { action: "submit" };
   }
 
   // 审批四键：只作用于聚焦的那一张待审卡，且不在文本框里（护栏 2、4）

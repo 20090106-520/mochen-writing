@@ -3,17 +3,18 @@
      导航表与占位判定的唯一真身在 utils/side-nav.ts；文稿树（五类分组）整体住在「我的作品」组内。 -->
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import type { BookKind, DocRef } from "@mochen/contracts";
+import type { BookKind } from "@mochen/contracts";
 import { Ellipsis, X } from "lucide";
 import { MorphIcon } from "morphicons/vue";
 import AppIcon from "./AppIcon.vue";
 import ChapterDriftBadge from "./ChapterDriftBadge.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { createTransientScrollbarController } from "../utils/transientScrollbar";
+import { createChapterDrag } from "../utils/chapter-drag";
 import { loadReducedMotion, motionPreferenceStorage } from "../utils/motion-preference";
 import { shortenRootPath } from "../utils/book-path";
 import { manuscriptSections } from "../utils/manuscript-sections";
-import { newDocButtonTitle, newDocPlan } from "../utils/new-doc";
+import { newDocButtonTitle, newDocPlan, nextChapterTitle } from "../utils/new-doc";
 import { statsRowsOf } from "../utils/stats-rows";
 import { textRowKeydown } from "../utils/text-row-keydown";
 import {
@@ -95,9 +96,6 @@ function handleSidebarScroll(event: Event): void {
   if (element instanceof HTMLElement) sidebarScrollbar.reveal(element);
 }
 onBeforeUnmount(() => sidebarScrollbar.dispose());
-onBeforeUnmount(() => {
-  if (dragLeaveTimer !== null) clearTimeout(dragLeaveTimer);
-});
 
 /** 「我在改哪本书、它落在哪个盘」落到「我的作品」组内（deepwrite 也把工作目录放侧栏；
  * 这里没有切书的 IPC，所以是字不是下拉）。两个字段齐了才出现：只有 rootPath 没 meta
@@ -320,7 +318,8 @@ function setNewDocInput(el: unknown): void {
 
 async function startAdding(kind: BookKind): Promise<void> {
   addingKind.value = kind;
-  newDocTitle.value = "";
+  // 章节预填「第 N 章」（编号从既有章节往下数，可改）：编号全靠手打是纯粹的抄写。
+  newDocTitle.value = kind === "chapter" ? nextChapterTitle(book.docs) : "";
   await nextTick();
   newDocInput.value?.focus();
 }
@@ -360,6 +359,8 @@ function closeActionMenu(): void {
 const renamingPath = ref<string | null>(null);
 const renameValue = ref("");
 const renameInput = ref<HTMLInputElement | null>(null);
+/** 行内输入框这一轮改的是标题（frontmatter）还是文件名（relPath 真的换）。 */
+const renameMode = ref<"title" | "file">("title");
 
 function setRenameInput(el: unknown): void {
   renameInput.value = el instanceof HTMLInputElement ? el : null;
@@ -367,11 +368,22 @@ function setRenameInput(el: unknown): void {
 
 async function startRenaming(relPath: string, title: string): Promise<void> {
   closeActionMenu();
+  renameMode.value = "title";
   renamingPath.value = relPath;
   renameValue.value = title;
   await nextTick();
   renameInput.value?.focus();
   renameInput.value?.select();
+}
+
+/**
+ * 「改文件名」（2026-11-20）：文件名真的换，`chapterOrder` / `recaps` 由主进程迁移。
+ * 输入框预填**当前文件名去掉 .md**——用户改的是名字，不是再去背一遍目录规则。
+ */
+async function startRenamingFile(relPath: string, title: string): Promise<void> {
+  await startRenaming(relPath, title);
+  renameMode.value = "file";
+  renameValue.value = relPath.split("/").pop()?.replace(/\.md$/i, "") ?? title;
 }
 
 // 两个行内输入框（改标题 / 新建）共用的键盘裁决：真身住在 utils/text-row-keydown
@@ -382,78 +394,39 @@ const onAddKeydown = textRowKeydown(() => void confirmAdding(), cancelAdding);
 function cancelRenaming(): void {
   renamingPath.value = null;
   renameValue.value = "";
+  renameMode.value = "title";
 }
 
 async function confirmRenaming(): Promise<void> {
   if (renamingPath.value === null) return;
   const relPath = renamingPath.value;
   const title = renameValue.value;
+  const mode = renameMode.value;
   cancelRenaming();
-  await book.renameDocTitle(relPath, title);
+  if (mode === "file") await book.renameDocFile(relPath, title);
+  else await book.renameDocTitle(relPath, title);
 }
 
 // —— 章节拖拽重排（原生 HTML5 DnD，仅 chapter 分组） ——
-
-const dragFromRelPath = ref<string | null>(null);
-const dragOverRelPath = ref<string | null>(null);
-let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null;
-
-function onChapterDragStart(event: DragEvent, relPath: string): void {
-  dragFromRelPath.value = relPath;
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", relPath);
+// 状态机（五个 handler + 拖拽态 + 延迟清除定时器）住 utils/chapter-drag；这里只接线。
+const chapterDrag = createChapterDrag({
+  targetIndexOf: (targetNode) => {
+    const chapterSection = sections.value.find((s) => s.id === "chapter");
+    return chapterSection?.nodes.indexOf(targetNode) ?? -1;
+  },
+  moveChapter: (from, targetIndex) => {
+    void book.moveChapterByRelPath(from, targetIndex);
   }
-}
-
-function onChapterDragOver(event: DragEvent, relPath: string): void {
-  event.preventDefault();
-  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-  // 延迟清除 dragLeave 状态，避免子元素切换时闪烁
-  if (dragLeaveTimer !== null) {
-    clearTimeout(dragLeaveTimer);
-    dragLeaveTimer = null;
-  }
-  dragOverRelPath.value = relPath;
-}
-
-function onChapterDragLeave(): void {
-  // 微延迟：子元素切换会触发 li 的 dragleave，用定时器过滤掉
-  if (dragLeaveTimer !== null) clearTimeout(dragLeaveTimer);
-  dragLeaveTimer = setTimeout(() => {
-    dragOverRelPath.value = null;
-    dragLeaveTimer = null;
-  }, 30);
-}
-
-function onChapterDrop(event: DragEvent, targetNode: DocRef): void {
-  event.preventDefault();
-  event.stopPropagation();
-  const from = dragFromRelPath.value;
-  dragFromRelPath.value = null;
-  dragOverRelPath.value = null;
-  if (dragLeaveTimer !== null) {
-    clearTimeout(dragLeaveTimer);
-    dragLeaveTimer = null;
-  }
-  if (!from) return;
-  const chapterSection = sections.value.find((s) => s.id === "chapter");
-  if (!chapterSection) return;
-  const targetIndex = chapterSection.nodes.indexOf(targetNode);
-  if (targetIndex === -1) return;
-  // 落盘通路是异步的（走 useBookStore.persistMeta，失败会进 notice）：这里不 await，
-  // 但要把「我知道它是异步、不接 rejection」写在字面上，别留成未处理拒绝。
-  void book.moveChapterByRelPath(from, targetIndex);
-}
-
-function onChapterDragEnd(): void {
-  dragFromRelPath.value = null;
-  dragOverRelPath.value = null;
-  if (dragLeaveTimer !== null) {
-    clearTimeout(dragLeaveTimer);
-    dragLeaveTimer = null;
-  }
-}
+});
+const { dragFromRelPath, dragOverRelPath } = chapterDrag.state;
+const {
+  onChapterDragStart,
+  onChapterDragOver,
+  onChapterDragLeave,
+  onChapterDrop,
+  onChapterDragEnd
+} = chapterDrag;
+onBeforeUnmount(() => chapterDrag.dispose());
 </script>
 
 <template>
@@ -644,6 +617,15 @@ function onChapterDragEnd(): void {
                         >
                           <AppIcon name="edit" :size="14" />
                           <span>改标题</span>
+                        </button>
+                        <button
+                          class="tree-node-action-menu-item"
+                          type="button"
+                          role="menuitem"
+                          @click="startRenamingFile(node.relPath, node.title)"
+                        >
+                          <AppIcon name="file" :size="14" />
+                          <span>改文件名</span>
                         </button>
                         <button
                           class="tree-node-action-menu-item"

@@ -45,7 +45,17 @@ export interface ContextScope {
  * Record<联合, string> 是穷尽表——加一类不写标签，编译不过。
  */
 export type ContextKind =
-  "chapter" | "outline" | "character" | "material" | "world" | "pinned" | "skill";
+  | "chapter"
+  | "outline"
+  | "character"
+  | "material"
+  | "world"
+  | "pinned"
+  | "skill"
+  // 2026-11-20：伏笔台账里「待收」（status: planted）的那一小段清单也进上下文包了，
+  // 单列一类而不是并进「设定」（world）——伏笔是「本章该怎么写」的指令，不是设定资料，
+  // 混在一格里作者就看不见模型到底带没带「这里该有个交代」。
+  | "foreshadow";
 
 export const CONTEXT_KIND_LABELS: Record<ContextKind, string> = {
   chapter: "正文",
@@ -55,7 +65,9 @@ export const CONTEXT_KIND_LABELS: Record<ContextKind, string> = {
   world: "设定",
   pinned: "挂入",
   // P0-2：技能只装清单（名称/用途/何时用），正文由 use_skill 按需读取，占用条单独计量。
-  skill: "技能"
+  skill: "技能",
+  // 2026-11-20：待收伏笔清单的屏显说法。穷尽表：不加这行，Record<联合> 编译不过。
+  foreshadow: "伏笔"
 };
 
 /** 当前正在写的那一章：条目前缀「（本章）」，只在这一条上打标。 */
@@ -104,6 +116,7 @@ const READ_TOOLS = [
 const WRITE_TOOLS_ALLOWED = [
   ...READ_TOOLS,
   "propose_patch",
+  "propose_bible",
   "write_doc"
 ] as const satisfies readonly AgentToolName[];
 
@@ -207,7 +220,7 @@ export const AGENT_PROFILES: readonly AgentProfile[] = [
     name: "墨宸 · 审稿",
     duty: "逻辑与文风检查：矛盾、节奏漂移、口吻走形",
     prompt: "你在修订阶段做审稿：查逻辑矛盾、节奏漂移、口吻走形。只出批注式提案，不直接改正文。",
-    tools: [...READ_TOOLS, "propose_patch"] as const,
+    tools: [...READ_TOOLS, "propose_patch", "propose_bible"] as const,
     context: {
       currentChapter: "full",
       outlineSummary: true,

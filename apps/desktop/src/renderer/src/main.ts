@@ -2,6 +2,8 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import { useNotificationStore } from "./stores/useNotificationStore";
+import { useBookStore } from "./stores/useBookStore";
+import { restoreLastSession } from "./utils/session-restore";
 import "./styles.css";
 
 const pinia = createPinia();
@@ -37,3 +39,34 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 app.mount("#app");
+
+/**
+ * 启动时静默恢复上次会话（2026-11-24）：挂载完成后把「最近一次打开的书」接回来，
+ * 开成后顺带落一个文稿标签。接线放**入口**而不是根组件——根组件（App.vue）的挂载
+ * 段是并行改动的高危区，而恢复需要的只是 pinia 实例与 preload，挂载后这里全都有；
+ * 挂载先走完，恢复的 IPC 在其后异步回来，界面经既有 watch（hasBook / activeDocTab）
+ * 自然就位，不会挡住首帧。
+ *
+ * 「上次是哪本」的信号、第一章的取舍、静默与降级的全部代价与边界，见
+ * `utils/session-restore.ts` 头注释——这里只接线，不复制判据（铁律 6）。
+ */
+void restoreLastSession(
+  (() => {
+    const book = useBookStore(pinia);
+    return {
+      listRecent: () => window.mochen.listRecentBooks(),
+      // 走 store 的 openBook（openBookInto 是开书通路的唯一一份：flush 上一本、失败文案）。
+      // 失败时它把人话写进 notice 而不抛，这里以「手上有没有书」作成败判据交回去。
+      open: async (rootPath: string) => {
+        await book.openBook(rootPath);
+        return book.hasBook;
+      },
+      clearNotice: () => {
+        book.notice = "";
+      },
+      docs: () => book.docs,
+      chapterOrder: () => book.meta?.chapterOrder ?? [],
+      openDoc: (relPath: string) => book.openDocTab(relPath)
+    };
+  })()
+);

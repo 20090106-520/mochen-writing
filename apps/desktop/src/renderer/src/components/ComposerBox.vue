@@ -14,7 +14,7 @@
      不靠 title 兜（Chromium 不给 disabled 元素弹 title）。绝不允许画成可点、点了没反应。
      这里不含业务判断，一切交给 store；输入值本身也由 store 持有（F-A 前置）。 -->
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type {
   DraftSampleCount,
   PermissionMode,
@@ -23,8 +23,11 @@ import type {
   WorkMode
 } from "@mochen/contracts";
 import AppIcon from "./AppIcon.vue";
+import EmotionAvatar from "./EmotionAvatar.vue";
 import brandMark from "../assets/brand/mochen-lockup.jpg";
 import { welcomeGreeting } from "../utils/welcome-home";
+import { EMOTION_IDLE } from "../utils/emotion-signal";
+import { bookDisplayTitle } from "../utils/book-path";
 import { useBookStore } from "../stores/useBookStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useReferenceMenuStore } from "../stores/useReferenceMenuStore";
@@ -81,13 +84,72 @@ const props = defineProps<{
   welcome?: boolean;
 }>();
 
-// 欢迎首页那一组（只在 welcome 为真时渲染）。**五枚都是真入口**：书务走 book / layout 的同一真身，
+// 欢迎首页那一组（只在 welcome 为真时渲染）。**全是真入口**：书务走 book / layout 的同一真身，
 // 换页走 layout.showCenter —— 参考图那行 chips 不照抄成点了没反应的装饰按钮。
 const book = useBookStore();
 const layout = useLayoutStore();
 const agent = useAgentStore();
 const autoSkill = useAutoSkillStore();
-const greeting = computed(() => welcomeGreeting(new Date().getHours()));
+
+/**
+ * 问候语（2026-11-20 通知整修 A5：原先它会一整天不换挡）。
+ * `computed(() => welcomeGreeting(new Date().getHours()))` 没有任何响应式依赖——
+ * Vue 只在组件创建时算一次，应用跨过 11 点 / 18 点开着不动，大堂问候停在旧时段。
+ * 现在每分钟对一次表（挂载起、卸载止），跨档那一分钟里文案自己跟上。
+ */
+const greeting = ref(welcomeGreeting(new Date().getHours()));
+let greetingTimer: number | undefined;
+
+onMounted(() => {
+  // 大堂的「继续写」入口读最近作品清单。左栏挂载时已经 load 过，这里再调一次是幂等的——
+  // 保险给「清单恰好还没回来」的那一帧兜底，不做第二份判据。
+  void book.loadRecentBooks();
+  greetingTimer = window.setInterval(() => {
+    greeting.value = welcomeGreeting(new Date().getHours());
+  }, 60_000);
+});
+
+onBeforeUnmount(() => {
+  if (greetingTimer !== undefined) {
+    window.clearInterval(greetingTimer);
+    greetingTimer = undefined;
+  }
+});
+
+/**
+ * 大堂的「继续上次」入口（2026-11-20 通知整修 C4）。
+ *
+ * 快捷行原先五枚全是「全局动作」（开目录 / 新建 / 设置 / 技能 / 皮肤），缺一条
+ * **离你的写作现场最近的路**。最近作品清单的第一条（主进程按 lastOpenedAt 倒序）
+ * 就是那个现场——插一枚高亮胶囊，一键回去。措辞按 welcome-home.test.ts 的铁律：
+ * 「继续写《书名》」说的动作是「打开那本书」，书真在盘上，这不是承诺不存在的事。
+ */
+const lastBook = computed(() => book.recentBooks[0] ?? null);
+const baseShortcuts = [
+  { id: "open", label: "打开作品目录", icon: "directory", run: () => void book.pickAndOpen() },
+  { id: "new", label: "新建作品", icon: "plus", run: () => layout.openNewBook() },
+  { id: "model", label: "模型设置", icon: "model", run: () => layout.showSettings("model") },
+  // 2026-11-10 用户裁定：这一枚**就地开技能卡**，不再跳到中栏技能库页。
+  // 他要的是「这一轮用哪几枚」——那是输入卡上的事；装新的/改正文才属于技能库页（卡片里有出口）。
+  { id: "skills", label: "技能库", icon: "wand", run: () => openAutoSkills() },
+  { id: "skins", label: "皮肤广场", icon: "image", run: () => layout.showCenter("skins") }
+] as const;
+
+const welcomeShortcuts = computed(() => {
+  const last = lastBook.value;
+  if (last === null) return [...baseShortcuts];
+  return [
+    {
+      id: "resume",
+      label: `继续写《${bookDisplayTitle(last.title, last.rootPath)}》`,
+      icon: "book" as const,
+      run: (): void => {
+        void book.openBook(last.rootPath);
+      }
+    },
+    ...baseShortcuts
+  ];
+});
 
 /**
  * 自动挂入必须看得见：这一行把「这一轮替你挂了哪几枚」摆在输入卡上，
@@ -111,15 +173,6 @@ const placeholder = computed(() => {
     ? "输入正文，/ 唤出命令，@ 引用素材……"
     : "先在左栏打开作品；模型在左下角齿轮（设置）里配。";
 });
-const welcomeShortcuts = [
-  { id: "open", label: "打开作品目录", icon: "directory", run: () => void book.pickAndOpen() },
-  { id: "new", label: "新建作品", icon: "plus", run: () => layout.openNewBook() },
-  { id: "model", label: "模型设置", icon: "model", run: () => layout.showSettings("model") },
-  // 2026-11-10 用户裁定：这一枚**就地开技能卡**，不再跳到中栏技能库页。
-  // 他要的是「这一轮用哪几枚」——那是输入卡上的事；装新的/改正文才属于技能库页（卡片里有出口）。
-  { id: "skills", label: "技能库", icon: "wand", run: () => openAutoSkills() },
-  { id: "skins", label: "皮肤广场", icon: "image", run: () => layout.showCenter("skins") }
-] as const;
 
 const emit = defineEmits<{
   "update:modelValue": [value: string];
@@ -453,6 +506,11 @@ function submit(): void {
     <div v-if="welcome" class="welcome-hero">
       <img class="welcome-hero-mark" :src="brandMark" alt="" width="44" height="44" />
       <h1 class="welcome-hero-title">{{ greeting }}</h1>
+      <!-- 大堂的表情球（2026-11-20 C6）：待机表情常驻门面，门口那张脸是「活」的。
+           一枚 34px 的球不参与滚动区，rAF 只这一条，代价可控。 -->
+      <div class="welcome-hero-face" aria-hidden="true">
+        <EmotionAvatar :emotion="EMOTION_IDLE" :animated="true" :eye-scale="2" />
+      </div>
     </div>
     <div class="composer" :class="{ 'is-disabled': running }">
       <!-- #113c 对齐 deepwrite 的挂载点：绑定条是 .composer 的第一个孩子，住在输入面之上、卡片圆角之内，
@@ -686,12 +744,13 @@ function submit(): void {
         <ComposerProjectBar :running="running" />
       </div>
     </div>
-    <!-- 参考图里输入卡下方那一行胶囊快捷入口（五枚都接真身，见 script 的 welcomeShortcuts）。 -->
+    <!-- 参考图里输入卡下方那一行胶囊快捷入口（都接真身，见 script 的 welcomeShortcuts）；
+         2026-11-20 C4 起，最近作品在清单里时最前面多一枚高亮的「继续写《书名》」。 -->
     <nav v-if="welcome" class="welcome-shortcuts" aria-label="快捷入口">
       <button
         v-for="item in welcomeShortcuts"
         :key="item.id"
-        class="welcome-shortcut"
+        :class="['welcome-shortcut', { 'is-resume': item.id === 'resume' }]"
         type="button"
         @click="item.run()"
       >

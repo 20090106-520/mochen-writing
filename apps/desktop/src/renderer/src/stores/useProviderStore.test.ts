@@ -1,18 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import type {
-  ConnectionDraft,
-  ModelListResult,
-  ProfileDraft,
-  ProviderSaveResult,
-  ProviderView,
-  RendererApi,
-  VerifyResult
+import {
+  DEFAULT_CHANGE_RETENTION,
+  type ConnectionDraft,
+  type ModelListResult,
+  type ProfileDraft,
+  type ProviderSaveResult,
+  type ProviderView,
+  type RendererApi,
+  type VerifyResult
 } from "@mochen/contracts";
-import { DEFAULT_CHANGE_RETENTION } from "@mochen/contracts";
 import { profilesOfConnection, useProviderStore } from "./useProviderStore";
 import { SKILL_API_STUBS } from "./skill-api-stub";
-
 /**
  * 连接视图（2026-10-06 批次 5-⑤ 起）：**地址与密钥不再是全局一份**，
  * 每家供应商一条连接，档案挂在某条连接上。modelLabel / configured 从「启用中的档案」派生。
@@ -121,6 +120,7 @@ const api = {
   listSessions: offLimits("listSessions"),
   contextPreview: offLimits("contextPreview"),
   createDoc: offLimits("createDoc"),
+  renameDoc: offLimits("renameDoc"),
   createBook: offLimits("createBook"),
   providerView,
   providerSave,
@@ -152,7 +152,6 @@ const api = {
   readChange: offLimits("readChange"),
   diffChange: offLimits("diffChange"),
   restoreChange: offLimits("restoreChange"),
-
   // 2026-10-06 批次 5-⑧：保留上限的读 / 写 / 立即清理。
   // 下面这些 store 都用不到它们，桩成「越权就抛」——真被调用到时那条用例会立刻炸，
   // 而不是悄悄返回 undefined 让断言在别处莫名其妙地红。
@@ -241,11 +240,9 @@ const api = {
     throw new Error("不该在这条用例里丢稿");
   }
 } satisfies RendererApi;
-
 function store() {
   return useProviderStore();
 }
-
 const DRAFT: ConnectionDraft = {
   providerId: "deepseek",
   baseURL: "https://api.deepseek.com/v1",
@@ -253,7 +250,6 @@ const DRAFT: ConnectionDraft = {
   thinkingWire: "standard",
   apiKey: "sk-x"
 };
-
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.stubGlobal("window", { mochen: api });
@@ -296,7 +292,6 @@ beforeEach(() => {
   profileRemove.mockClear();
   profileEnable.mockClear();
 });
-
 describe("useProviderStore · 视图", () => {
   it("refresh 成功 ⇒ view 就位、error 清空、chip 报得出当前模型名", async () => {
     await store().refresh();

@@ -17,6 +17,7 @@ import { BOOK_KIND_LABELS } from "../utils/book-kinds";
 import { splitFrontmatter } from "@mochen/contracts";
 import { useBookStore } from "../stores/useBookStore";
 import { useAgentStore } from "../stores/useAgentStore";
+import { useLayoutStore } from "../stores/layoutStore";
 import { useBibleExclusionStore } from "../stores/useBibleExclusionStore";
 import { BIBLE_DIVISION_NOTE, bibleBriefOf, type BibleBriefRow } from "../utils/bible-brief";
 
@@ -24,6 +25,9 @@ const props = defineProps<{ running: boolean }>();
 
 const book = useBookStore();
 const agent = useAgentStore();
+// 设定库的可见入口（2026-11-20）：此前设定库只有 Ctrl+B 能开（全仓唯一引用），
+// 不知道快捷键的用户进不去；现在这枚钮与它同一扇门（真身见 layoutStore.requestStoryBible）。
+const layout = useLayoutStore();
 // 弹层开合是这一格的局部 UI 态（同 ToolRoster / ModelSelect：关掉不带走状态），不进 store。
 const menuOpen = shallowRef(false);
 const anchor = shallowRef<HTMLElement>();
@@ -187,6 +191,18 @@ function unbindDoc(): void {
         <p class="bible-brief-note">{{ BIBLE_DIVISION_NOTE }}</p>
       </div>
     </details>
+    <!-- 设定库入口（2026-11-20）：无论本轮带了几条设定都在——它通向的是设定库本身，
+         不是这份本轮摘要；藏在 <details> 里的话，没带设定时就找不到门了。 -->
+    <button
+      class="composer-context-item composer-bible-entry"
+      type="button"
+      title="打开设定库（人物 / 地点 / 时间线；快捷键 Ctrl+B）"
+      aria-label="打开设定库"
+      @click="layout.requestStoryBible()"
+    >
+      <AppIcon name="brain" :size="16" />
+      <strong>设定库</strong>
+    </button>
     <button
       class="composer-context-item composer-stage-context"
       type="button"

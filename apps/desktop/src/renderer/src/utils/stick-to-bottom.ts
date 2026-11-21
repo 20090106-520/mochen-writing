@@ -85,3 +85,8 @@ export function streamKey(shape: StreamShape): string {
     shape.expiredCards
   ].join(":");
 }
+
+/** 从 DOM 滚动容器取三个读数：装配层只搬原值，判据仍走 isStuckToBottom。 */
+export function scrollMetricsOf(el: HTMLElement): ScrollMetrics {
+  return { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight };
+}

@@ -236,6 +236,9 @@ export const api = {
   createDoc: vi.fn(async (): Promise<never> => {
     throw new Error("agent-store-fixture 不该调用 createDoc");
   }),
+  renameDoc: vi.fn(async (): Promise<never> => {
+    throw new Error("agent-store-fixture 不该调用 renameDoc");
+  }),
   startTurn,
   interruptTurn,
   decideProposal,

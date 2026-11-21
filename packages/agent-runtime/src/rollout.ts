@@ -291,6 +291,37 @@ export async function findSessionById(
 }
 
 /**
+ * 章节改名后同批迁移这一章的会话文件（2026-11-20 P0）。
+ *
+ * 病灶：会话的章节归属不在文件名里（文件名只有日期与 sessionId），在**首行 meta 的 docRelPath**
+ * 里——`findLatestSession` / `findSessionById` 都按它找。文件名一改不改首行，这一章的 AI 历史
+ * 就在盘上成了孤儿：面板列不出、「最近一条」也接不上，用户完全看不出哪里坏了。
+ * 所以这里是改写首行而不是搬文件。没找到这一章的会话（从没跟 AI 对过话）不算失败，静默跳过；
+ * 读写了才失败时把中文警告递回调用方——改名本身不回滚，警告只能捎在回执里说清楚。
+ *
+ * 只认首行过得了 `sessionMetaSchema` 的文件（与 findLatestSession / findSessionById 同口径）：
+ * 首行坏的会话本来就列不出来，改不改它对界面没有观察差别，不替它冒险整文件重写。
+ */
+export async function renameSessionsForDoc(
+  root: string,
+  oldRel: string,
+  newRel: string
+): Promise<string | null> {
+  try {
+    for await (const file of walkJsonl(path.join(root, ...SESSIONS_DIR.split("/")))) {
+      const parsed = sessionMetaSchema.safeParse(safeJson(await readFirstLine(file)));
+      if (!parsed.success || parsed.data.docRelPath !== oldRel) continue;
+      const lines = (await readFile(file, "utf8")).split("\n");
+      lines[0] = JSON.stringify({ ...parsed.data, docRelPath: newRel });
+      await writeFile(file, lines.join("\n"), "utf8");
+    }
+    return null;
+  } catch (error) {
+    return `该章的会话历史没迁过去：${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/**
  * 旧回放格式留下的「整条思考被写进正文」消息（2026-11-12）。
  *
  * 2026-11-10 之前，reasoning 会以 `assistant:（思考摘要）…` 回喂；那几条事件**已经落进用户书里的

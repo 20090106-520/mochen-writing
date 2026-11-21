@@ -3,6 +3,8 @@ import type {
   AgentProfile,
   AgentToolName,
   BibleEntry,
+  BibleProposal,
+  BibleProposalType,
   BookKind,
   DocRef,
   EditProposal,
@@ -12,6 +14,8 @@ import type {
   WriteScope
 } from "@mochen/contracts";
 import {
+  BIBLE_PROPOSAL_TYPE_LABELS,
+  BIBLE_PROPOSAL_TYPES,
   defaultProfile,
   writeScopeAllows,
   aiFlavorGate,
@@ -39,6 +43,9 @@ import { WebReadError, webReadReceipt, type WebReadOutcome } from "./web-read.js
 
 /** read_doc 的回执上限：超过就截断，防整本长文灌进模型上下文。边界是 >，恰好 6000 不截。 */
 export const READ_TRUNCATE_AT = 6000;
+
+/** 设定条目的正文上限：不是拒收，是截断——模型偶尔会把整段小传塞进来。 */
+export const BIBLE_PROPOSAL_CONTENT_MAX = 2000;
 
 /**
  * 结构上限那枚「一章最多 N 处」的数字：起报线 −1（起报线 = 生成端写明的上限＋1，见
@@ -177,11 +184,23 @@ export interface DocToolHostDeps {
    */
   bible?: (() => Promise<readonly BibleEntry[]>) | undefined;
   recaps?: (() => Readonly<Record<string, string>>) | undefined;
+  /**
+   * 设定提案（2026-11-20）：只登记，不落盘。缺省 ⇒ `propose_bible` 回「没接上通道」，
+   * 而不是假装记下了——那种「成功」会让模型以为设定已经进库。
+   */
+  onBibleProposal?: ((proposal: BibleProposal) => void) | undefined;
 }
 
 function str(args: Record<string, unknown>, key: string): string {
   const value = args[key];
   return typeof value === "string" ? value : "";
+}
+
+/** 数字参数：模型可能给数字也可能给数字字符串；缺省/空串/认不出的一律回 null。 */
+function intArg(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const value = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(value) ? Math.floor(value) : null;
 }
 
 /**
@@ -430,12 +449,28 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
         const doc = str(args, "doc");
         const body = await text(doc);
         if (body === null) return deny(`读不到 ${doc || "（空路径）"}。书名稿见 list_docs。`);
-        const clipped = body.length > READ_TRUNCATE_AT;
-        return {
-          ok: true,
-          text: `${clipped ? `${body.slice(0, READ_TRUNCATE_AT)}\n（已截断，全文 ${body.length} 字）` : body}`,
-          proposals: []
-        };
+        // 2026-11-20 行偏移：长章后半段过去永远读不到（只取前 6000 字且无偏移）。
+        // 先按行切，再对**这一段**截字——截断只损失这一次没要的部分，不连累后面的行。
+        const lines = body.split("\n");
+        const from = Math.max(1, intArg(args.from) ?? 1);
+        if (from > lines.length)
+          return deny(`第 ${from} 行超出范围：${doc} 共 ${lines.length} 行。`);
+        const count = intArg(args.lines);
+        const picked = lines
+          .slice(from - 1, count === null ? undefined : from - 1 + Math.max(1, count))
+          .join("\n");
+        const clipped = picked.length > READ_TRUNCATE_AT;
+        const shown = clipped ? picked.slice(0, READ_TRUNCATE_AT) : picked;
+        // 截断点可能落在行中间：用「第 K 行」而不是 K+1，重读这一行只会重复半句，不会丢字。
+        const endShown = from - 1 + shown.split("\n").length;
+        const header =
+          from > 1 || count !== null || clipped
+            ? `【${doc} 第 ${from}–${endShown} 行（共 ${lines.length} 行）】\n`
+            : "";
+        const tail = clipped
+          ? `\n（这一段已截断：读到第 ${endShown} 行（共 ${lines.length} 行）；接着读用 from=${endShown}）`
+          : "";
+        return { ok: true, text: `${header}${shown}${tail}`, proposals: [] };
       }
 
       if (name === "list_docs") {
@@ -567,6 +602,38 @@ export function createDocToolHost(deps: DocToolHostDeps): ToolHost {
           // WebSource 的 snippet 字段对这一枚没有意义（正文已在 text 里），留空串——
           // 形状必须齐全（schema 钉着），语义上不塞假摘要。
           sources: [{ title: outcome.title, url: outcome.url, snippet: "" }]
+        };
+      }
+
+      if (name === "propose_bible") {
+        // 通道没接上就说没接上：假装记下了会让模型以为设定已经进库，下一轮继续引用一条不存在的设定。
+        if (deps.onBibleProposal === undefined)
+          return deny("这一轮没接上设定提案通道，设定没有记。");
+        const type = str(args, "type").trim() as BibleProposalType;
+        if (!(BIBLE_PROPOSAL_TYPES as readonly string[]).includes(type))
+          return deny("设定类型只能是 character（人物）、location（地点）或 timeline（时间线）。");
+        const title = str(args, "title").trim();
+        if (title === "") return deny("设定条目必须有名字，设定没有记。");
+        const why = str(args, "why").trim();
+        if (why === "") return deny("必须给出中文理由 why，用户要在审批卡片上看这条。");
+        // 正文截断而不是拒收：模型偶尔会把整段人物小传塞进来，截一半比整条丢掉更可用。
+        const content = str(args, "content").slice(0, BIBLE_PROPOSAL_CONTENT_MAX);
+        const proposal: BibleProposal = {
+          id: deps.newId(),
+          // turnId 由装配层覆写成这一轮的真实 id（host 不知道本轮编号）。
+          turnId: "",
+          threadKey: deps.context().docRelPath ?? "unbound",
+          type,
+          title,
+          content,
+          why,
+          createdAt: deps.now()
+        };
+        deps.onBibleProposal(proposal);
+        return {
+          ok: true,
+          text: `设定提案 ${proposal.id}（${BIBLE_PROPOSAL_TYPE_LABELS[type]}「${title}」）已生成，等待用户批准；未批准前设定库没有改动。`,
+          proposals: []
         };
       }
 

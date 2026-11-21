@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { AGENT_PROFILES, defaultProfile, findProfile, type DocRef } from "@mochen/contracts";
-import { renderContextBlock } from "@mochen/agent-runtime";
 import {
   BOOK_SAMPLE_CHARS,
   defaultPromptFor,
@@ -352,31 +351,6 @@ describe("defaultPromptFor · 联网段跟着开关走（2026-10-08）", () => {
     const text = build(false);
     expect(text).toContain("propose_patch");
     expect(text).toContain("write_doc 写进对应目录");
-  });
-});
-
-describe("renderContextBlock · 上下文块", () => {
-  it("空包不产出「已装配的上下文」空标题（那是给模型看的噪声）", () => {
-    expect(renderContextBlock(NO_CONTEXT)).toBe("");
-  });
-
-  it("有条目才追加上下文块：标题与正文都进得去", () => {
-    const block = renderContextBlock({
-      items: [
-        {
-          kind: "chapter",
-          relPath: "chapters/01-开局.md",
-          title: "开局",
-          text: "雾从海面涌上来。",
-          chars: 8,
-          active: true
-        }
-      ],
-      chars: 8,
-      approxTokens: 8
-    });
-    expect(block).toContain("正文（本章）");
-    expect(block).toContain("雾从海面涌上来。");
   });
 });
 

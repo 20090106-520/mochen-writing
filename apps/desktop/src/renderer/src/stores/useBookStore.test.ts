@@ -72,6 +72,7 @@ const api = {
   listModels: offLimits("listModels"),
   createBook: offLimits("createBook"),
   createDoc: offLimits("createDoc"),
+  renameDoc: offLimits("renameDoc"),
   profileUpsert: offLimits("profileUpsert"),
   profileRemove: offLimits("profileRemove"),
   profileEnable: offLimits("profileEnable"),

@@ -79,12 +79,14 @@ describe("挂载点 · 条住在 .composer 的第一个子节点（照他的 v-i
 });
 
 describe("绑定条两格 · 有真契约的那一格才许挂弹层（裁定 R1）", () => {
-  it("条是 role=group 的一条三枚（书/阶段/文档），直接读 store，不再套一层 inject", () => {
+  it("条是 role=group 的一条四枚（书/阶段/文档/设定库），直接读 store，不再套一层 inject", () => {
     const m = barMarkup();
     const s = scriptSource(BAR);
     expect(m).toContain('class="composer-context-bar"');
     expect(m).toContain('role="group"');
-    expect(countNeedle('class="composer-context-item', m)).toBe(3);
+    // 2026-11-20 增设设定库入口钮：此前设定库只有 Ctrl+B 能开（全仓唯一引用），
+    // 不知道快捷键的用户进不去；四枚的语义与计数由本守卫钉着。
+    expect(countNeedle('class="composer-context-item', m)).toBe(4);
     expect(s).toContain("useBookStore()");
     expect(s).not.toContain("inject(");
     expect(m).toContain(':aria-label="`当前绑定：书籍 ${bookTitle}，阶段 ${stageLabel}`"');

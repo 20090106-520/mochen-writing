@@ -27,7 +27,6 @@ import {
   readPlantedChapters,
   type ForeshadowRow
 } from "../utils/foreshadow";
-import { renameTitleInContent } from "../utils/doc-title";
 import { moveOrderItem, nextTabInCycle, sortDocsByOrder, tabAtIndex } from "../utils/doc-order";
 import {
   AUTOSAVE_DEFAULT_DELAY_MS,
@@ -63,6 +62,7 @@ import {
   undoChange,
   type ChangePreview
 } from "./book-change-history";
+import { renameDocFile, renameDocTitle } from "./book-doc-rename";
 import { withBookDataFlush } from "../composables/bookDataRegistry";
 import { openBookInto, pickAndOpenInto } from "../composables/book-open";
 
@@ -217,6 +217,12 @@ export const useBookStore = defineStore("book", {
       this.rightPaneMode = "manuscript";
       this.editorViewMode = "edit";
       this.draftsByPath = {};
+      // 伏笔台账同属上一本书（2026-11-20）：不清的话切书后台账还列着上一本的伏笔，
+      // C6 关键词回归读的也是上一本的章。台账重开会经 loadForeshadows 重灌。
+      this.foreshadowsOpen = false;
+      this.foreshadowRows = [];
+      this.foreshadowChapterTexts = new Map();
+      this.foreshadowsBusy = false;
       // 线程级技能覆盖同属上一本书：线程键就是 relPath，不清的话同名章会继承上一本的口味。
       useAgentStore().skillPathsByThread = {};
       Object.assign(this, EMPTY_DOC);
@@ -297,68 +303,14 @@ export const useBookStore = defineStore("book", {
       return this.docs.find((doc) => doc.relPath === relPath) ?? null;
     },
 
-    /**
-     * 改标题真通路：读盘上最新版 → 纯函数只改 frontmatter 的 title 行 → 按指纹链写回 → 温和重扫。
-     * relPath 与文件名一概不动（那要牵动 chapterOrder 与会话，是另一条通路的事）；
-     * 树、面包屑、标签上的 title 都来自 docs，重扫后自然换新。
-     * 右栏同步照 absorbAgentWrite 的镜像：干净草稿吸收盘上新内容，未保存的手改绝不覆盖，
-     * 改成挂冲突由人决定重载还是覆盖——两边都不静默互踩。
-     */
+    /** 改标题真通路（真身在 book-doc-rename，2026-11-20 预算拆出）：这里只转交。 */
     async renameDocTitle(relPath: string, nextTitle: string): Promise<boolean> {
-      if (!this.hasBook) {
-        this.notice = "还没打开作品目录，改不了标题。";
-        return false;
-      }
-      const trimmed = nextTitle.trim();
-      const current = this.refOf(relPath);
-      if (trimmed === "") {
-        this.notice = "标题不能是空的。";
-        return false;
-      }
-      if (current?.title === trimmed) {
-        this.notice = "标题没变，不用改。";
-        return false;
-      }
-      const loaded = await window.mochen.readDoc(relPath);
-      const renamed = renameTitleInContent(loaded.content, trimmed);
-      if (!renamed.ok) {
-        this.notice =
-          renamed.reason === "no-fence"
-            ? "这篇开头没有 --- 元数据栏，标题改不了；直接在正文第一行改吧。"
-            : "标题没改成：新名字不合法。";
-        return false;
-      }
-      const result = await window.mochen.writeDoc(relPath, renamed.content, loaded.fingerprint);
-      if (!result.ok) {
-        this.notice =
-          result.reason === "stale"
-            ? "标题没改成：文件刚被别处改动，再试一次。"
-            : `标题没改成：${result.message}`;
-        return false;
-      }
-      const stashed = this.draftsByPath[relPath];
-      if (stashed?.dirty) {
-        this.draftsByPath[relPath] = {
-          ...stashed,
-          conflict: { currentFingerprint: result.fingerprint }
-        };
-        if (this.activeDocTab === relPath)
-          this.conflict = { currentFingerprint: result.fingerprint };
-      } else {
-        // 干净的暂存副本已经过期（盘上换了 title 行）：作废，下次打开按盘上真身重读。
-        delete this.draftsByPath[relPath];
-        if (this.activeDocTab === relPath) {
-          this.draft = renamed.content;
-          this.savedFingerprint = result.fingerprint;
-          this.dirty = false;
-          this.conflict = null;
-        }
-      }
-      await this.refreshDocs();
-      // 浏览标签里存的是改名前的 DocRef 引用，从重扫后的 docs 里换新，右栏浏览态才不显示旧标题。
-      this.browseTabs = this.browseTabs.map((doc) => this.refOf(doc.relPath) ?? doc);
-      this.notice = `标题已改为「${trimmed}」`;
-      return true;
+      return renameDocTitle(this, relPath, nextTitle);
+    },
+
+    /** 改文件名真通路（真身在 book-doc-rename）：这里只转交。 */
+    async renameDocFile(relPath: string, nextTitle: string): Promise<boolean> {
+      return renameDocFile(this, relPath, nextTitle);
     },
 
     /**

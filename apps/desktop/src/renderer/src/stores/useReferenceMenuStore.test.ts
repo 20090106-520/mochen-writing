@@ -69,11 +69,12 @@ describe("useReferenceMenuStore · 条目来源与可用性闸", () => {
 
   it("无书那一格只列接得通的命令：/stage 被通路闸掉，/permissions 与 /resume 因无书不列", () => {
     menu().summon("/");
-    // 【plugins / skins / newbook 留下】它们没有书内来源——插件面板与皮肤广场列的是应用自己的
-    // 目录，与当前书无关；newbook 恰恰是无书时的第一步（理由见 slash-commands.test.ts 那条同样的改动）。
+    // 【skills / plugins / skins / newbook 留下】skills 与插件、皮肤一样没有书内来源——
+    // 技能库页无书也能开（首页快捷入口就在开），书闸是假拒绝（2026-11-20 摘除）；
+    // newbook 恰恰是无书时的第一步（理由见 slash-commands.test.ts 那条同样的改动）。
     // 【export / wordcount 被拿掉】它们都要有书才有内容。
     // 2026-11-09：按用途归堆（书稿 → 会话 → 视图 → 配置），分组标题才不会重名。
-    expect(labels()).toEqual(["newbook", "status", "clear", "plugins", "skins", "model"]);
+    expect(labels()).toEqual(["newbook", "status", "clear", "skills", "plugins", "skins", "model"]);
   });
 
   it("那一轮正在跑：只剩 model / permissions / status / clear（与 slash-commands 同一道闸，不在这里再写一份）", async () => {

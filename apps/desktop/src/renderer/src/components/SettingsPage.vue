@@ -16,6 +16,7 @@ import ProviderSettings from "./ProviderSettings.vue";
 import WritingPanel from "./WritingPanel.vue";
 import WritingGoalSettingsPanel from "./WritingGoalSettingsPanel.vue";
 import ProjectSettingsPanel from "./ProjectSettingsPanel.vue";
+import MemoryPanel from "./MemoryPanel.vue";
 import { useLayoutStore, type SettingsTab } from "../stores/layoutStore";
 import type { IconName } from "../types/icons";
 import { showsSectionLabel } from "../utils/settings-nav";
@@ -50,6 +51,12 @@ const SECTIONS: SettingsSection[] = [
         icon: "bot",
         keywords:
           "权限档 写盘 只读 审批 提案 联网 搜索 web_search 默认 思考档 记忆 发送键 回车 Ctrl+Enter 换行"
+      },
+      {
+        id: "memory",
+        label: "AI 记忆",
+        icon: "bot",
+        keywords: "记忆 摘要 前情 人物状态 digest recap 全书 上下文"
       },
       {
         id: "writing",
@@ -166,6 +173,7 @@ function selectCategory(id: SettingsTab): void {
 
         <ProviderSettings v-if="settingsTab === 'model'" />
         <AgentSettingsPanel v-else-if="settingsTab === 'agent'" />
+        <MemoryPanel v-else-if="settingsTab === 'memory'" />
         <WritingPanel v-else-if="settingsTab === 'writing'" />
         <AppearancePanel v-else-if="settingsTab === 'appearance'" />
         <HotkeysPanel v-else-if="settingsTab === 'shortcuts'" />

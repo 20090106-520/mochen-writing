@@ -53,6 +53,7 @@ export type CenterView = "chat" | "skills" | "plugins" | "skins";
 export type SettingsTab =
   | "model"
   | "agent"
+  | "memory"
   | "writing"
   | "appearance"
   | "shortcuts"
@@ -211,6 +212,26 @@ export const useLayoutStore = defineStore("layout", () => {
   const settingsTab = ref<SettingsTab>("model");
   /** 「新建作品」对话框的唯一开合真身：左栏与工作台降级区都开它，不再各持一份布尔。 */
   const newBookOpen = ref(false);
+  /**
+   * 「通知中心」浮层的唯一开合真身（2026-11-20 通知整修 A2+C5）。
+   * 触发钮住中栏头部（NotificationCenter），但 Toast 的「+N」徽章在 App.vue 那一层，
+   * 它也要开同一张面板——开合真身住 store，两个入口指着同一份布尔，不开第二份。
+   */
+  const notificationCenterOpen = ref(false);
+  function openNotificationCenter(): void {
+    notificationCenterOpen.value = true;
+  }
+
+  /**
+   * 设定库开门请求（2026-11-20）：StoryBiblePanel 的可见态住在 App.vue——它要参与
+   * 整屏面板互斥装配，那是 App 的事。但深处组件（上下文条的设定芯片行）够不着那枚
+   * 本地 ref，事件链要穿三层（ContextBar → ComposerBox → CenterColumn → App）；
+   * 于是这里放一枚自增请求，App.vue watch 到就开门。
+   */
+  const bibleOpenRequests = ref(0);
+  function requestStoryBible(): void {
+    bibleOpenRequests.value += 1;
+  }
   /** 「导入 TXT」对话框的唯一开合真身（2026-10-11）：入口在左栏书务行，与 newBookOpen 同一套开合法。 */
   const importTxtOpen = ref(false);
   /**
@@ -701,6 +722,7 @@ export const useLayoutStore = defineStore("layout", () => {
     centerView,
     settingsTab,
     newBookOpen,
+    notificationCenterOpen,
     importTxtOpen,
     importTxtTarget,
     docGroupRequest,
@@ -725,8 +747,10 @@ export const useLayoutStore = defineStore("layout", () => {
     openProjectSettings,
     showWorkspace,
     showCenter,
+    requestStoryBible,
     openNewBook,
     closeNewBook,
+    openNotificationCenter,
     openImportTxt,
     closeImportTxt,
     requestDocGroup,

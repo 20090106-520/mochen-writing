@@ -219,6 +219,10 @@ export function contextPressureReading(preview: ContextPreview | null): ContextP
   // 本轮真正装进来的条目（名字命中的、importance 高的），与正文/人物卡/大纲分开计量。
   const settings = preview.items.filter((item) => item.kind === "world");
   const settingsChars = settings.reduce((sum, item) => sum + item.chars, 0);
+  // 2026-11-20：待收伏笔段单独报一行，口径与「设定」同款（条数 + 字数）。它是装配条目
+  // 里的 kind="foreshadow" 那一条，与正文/设定分开计量，作者才能看清模型带没带「待收清单」。
+  const foreshadows = preview.items.filter((item) => item.kind === "foreshadow");
+  const foreshadowChars = foreshadows.reduce((sum, item) => sum + item.chars, 0);
 
   // 主读一行只放「占了多少」：百分比与 tokens。分项另起一行——
   // 两批信息混在一行，窄面板里折行会断在数字中间（见接口注释里的现场）。
@@ -228,6 +232,7 @@ export function contextPressureReading(preview: ContextPreview | null): ContextP
   ];
   const details: string[] = [];
   if (settings.length > 0) details.push(`设定 ${settings.length} 项 ${settingsChars} 字`);
+  if (foreshadows.length > 0) details.push(`伏笔 ${foreshadows.length} 条 ${foreshadowChars} 字`);
   if (pinned > 0) details.push(`已挂入 ${pinned} 项`);
   if (skills > 0) details.push(`技能 ${skills} 项`);
   if (index !== undefined && index.shown > 0)
@@ -242,6 +247,10 @@ export function contextPressureReading(preview: ContextPreview | null): ContextP
   if (settings.length > 0)
     hints.push(
       "「设定」单独计量：世界观文稿 + 故事圣经里本轮真正装进来的条目（本章提到的、importance 高的），不含正文与人物卡。"
+    );
+  if (foreshadows.length > 0)
+    hints.push(
+      "「伏笔」单独计量：台账里标着待收（planted）的伏笔清单，只带题名与埋设章，不含台账正文；装配已顶满预算时这一段会整段让位。"
     );
   if (pinned > 0) hints.push("「已挂入」只数你显式挂进来的书内文稿（@ 引用 / 加入上下文）。");
   if (skills > 0) hints.push("「技能」单独计量：系统提示只带清单，正文由 use_skill 按需读取。");

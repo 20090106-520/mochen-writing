@@ -56,6 +56,9 @@ const source = computed(() => ({
   excludedBible: book.meta === null ? [] : exclusion.keysOf(book.meta.id)
 }));
 const key = computed(() => contextMeterQueryKey(source.value));
+// 会话越长，历史那一路占用越大（历史格已计入装配）：线程条数也在装配输入里，
+// 不盯上它，占用条就停在挂载时的读数，长会话越用越假。
+const threadKey = computed(() => threadKeyFor(book.activeDocTab));
 const summary = computed(() => contextMeterSummary(agent.contextPreview));
 // 窗口压力那一行只住展开面板：折叠 chip 的横向额度是稀缺资源（见 composer-toolbar-overflow
 // 那笔 13px 缺额摊成五枚省略号的实测），而百分比是给「点开想知道详情的人」看的。
@@ -75,7 +78,14 @@ async function refresh(): Promise<void> {
 // 书里的文档增减、阶段默认档案变化都影响装了什么，但都不在这三个字段里：
 // 所以除了 key，再盯住装配输入本身（rootPath / meta / docs / 解析出的档案 id）。
 watch(
-  () => [key.value, book.rootPath, book.meta, book.docs, activeProfileOf(book.meta).id],
+  () => [
+    key.value,
+    book.rootPath,
+    book.meta,
+    book.docs,
+    activeProfileOf(book.meta).id,
+    agent.threads[threadKey.value]?.items.length ?? 0
+  ],
   () => {
     // 200ms 静默窗：连着切几个标签时只问一次，不把 IPC 打成连珠炮。
     window.clearTimeout(timer);

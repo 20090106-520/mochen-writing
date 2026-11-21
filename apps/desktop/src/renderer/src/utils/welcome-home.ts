@@ -17,3 +17,12 @@ export function welcomeGreeting(hour: number): string {
   if (normalized < 18) return "下午好呀，先开一本就能开写";
   return "晚上好呀，把今天的故事记下来";
 }
+
+/**
+ * 欢迎首页（2026-11-09 用户给的参考图）：**只有「没打开作品 + 这一格还没有消息」才是首页**。
+ * 有书的空线程仍摆作品工作台（五张能力卡），有消息就是正常对话——首页不接管那两态。
+ * 这一格判据只有这一份，中栏的 is-welcome 与输入卡的 welcome 都读它，不各写一遍。
+ */
+export function isWelcomeHome(messagesEmpty: boolean, hasBook: boolean): boolean {
+  return messagesEmpty && !hasBook;
+}

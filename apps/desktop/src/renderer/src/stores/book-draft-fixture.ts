@@ -124,6 +124,7 @@ export function createBookApi(): BookApiFixture {
     readDoc,
     writeDoc,
     createDoc: offLimits("createDoc"),
+    renameDoc: offLimits("renameDoc"),
     readBookData,
     writeBookData,
     appearanceGet: offLimits("appearanceGet"),

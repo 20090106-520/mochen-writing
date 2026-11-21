@@ -66,7 +66,12 @@ const PHRASE: Record<string, (a: Record<string, unknown>) => string | null> = {
   },
   read_doc: (a) => {
     const title = docTitle(str(a["doc"]));
-    return title === "" ? null : `读《${title}》全文。`;
+    if (title === "") return null;
+    // 带行偏移时把「从第几行起」说出来：同一张卡上「读全文」和「读后半段」是两件事。
+    const from = typeof a["from"] === "number" ? Math.floor(a["from"]) : Number(a["from"]);
+    return Number.isFinite(from) && from > 1
+      ? `读《${title}》第 ${from} 行起。`
+      : `读《${title}》全文。`;
   },
   web_search: (a) => {
     const query = str(a["query"]);

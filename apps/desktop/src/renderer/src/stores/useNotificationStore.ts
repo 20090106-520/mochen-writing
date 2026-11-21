@@ -8,6 +8,10 @@
  */
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
+import {
+  isNotificationActionKind,
+  type NotificationActionKind
+} from "../utils/notification-actions";
 
 export type NotificationLevel = "info" | "success" | "warning" | "error";
 
@@ -18,8 +22,13 @@ export interface AppNotification {
   level: NotificationLevel;
   timestamp: number;
   read: boolean;
-  /** 可选动作标签，通知可点击 */
-  actionLabel?: string;
+  /**
+   * 可选动作（2026-11-20 通知整修 A3+C2）。只存 kind——可序列化的字符串，
+   * 能进 localStorage；kind → 中文标签住 utils/notification-actions.ts，
+   * kind → 真动作住 composables/useNotificationActionRunner.ts。
+   * 原 actionLabel 是一个没人传、没人画的死字段，这一刀把它换成了真能力。
+   */
+  actionKind?: NotificationActionKind;
 }
 
 const STORAGE_KEY = "mochen.notifications.v1";
@@ -34,6 +43,9 @@ const LEVELS: readonly NotificationLevel[] = ["info", "success", "warning", "err
 function isNotification(raw: unknown): raw is AppNotification {
   if (typeof raw !== "object" || raw === null) return false;
   const one = raw as Record<string, unknown>;
+  // actionKind 是可选格：在场时必须是现役 kind——localStorage 里一个旧数据 / 手改出来的
+  // 坏字符串不能递给执行器（utils/notification-actions.test.ts 钉着这张表）。
+  const kindOk = one.actionKind === undefined || isNotificationActionKind(one.actionKind);
   return (
     typeof one.id === "string" &&
     typeof one.title === "string" &&
@@ -41,7 +53,8 @@ function isNotification(raw: unknown): raw is AppNotification {
     typeof one.timestamp === "number" &&
     typeof one.read === "boolean" &&
     typeof one.level === "string" &&
-    LEVELS.includes(one.level as NotificationLevel)
+    LEVELS.includes(one.level as NotificationLevel) &&
+    kindOk
   );
 }
 
@@ -91,8 +104,9 @@ export const useNotificationStore = defineStore("notification", () => {
     title: string;
     message: string;
     level?: NotificationLevel;
-    actionLabel?: string;
-    /** 是否同步发系统通知（Electron） */
+    /** 可选动作 kind（按钮文案与执行见 utils/notification-actions.ts 一族）。 */
+    actionKind?: NotificationActionKind;
+    /** 是否在窗口失焦时同步发系统通知（Electron）；前台只走应用内 Toast。 */
     systemNotify?: boolean;
   }): AppNotification {
     const n: AppNotification = {
@@ -102,7 +116,7 @@ export const useNotificationStore = defineStore("notification", () => {
       level: input.level ?? "info",
       timestamp: Date.now(),
       read: false,
-      ...(input.actionLabel !== undefined ? { actionLabel: input.actionLabel } : {})
+      ...(input.actionKind !== undefined ? { actionKind: input.actionKind } : {})
     };
 
     notifications.value.unshift(n);
@@ -112,8 +126,9 @@ export const useNotificationStore = defineStore("notification", () => {
       notifications.value = notifications.value.slice(0, HISTORY_LIMIT);
     }
 
-    // 系统通知（异步；若 IPC 不可用就退化到应用内）
-    if (input.systemNotify && typeof window !== "undefined") {
+    // 系统通知（异步；若 IPC 不可用就退化到应用内）。只在窗口失焦时发——
+    // 用户正对着屏幕时再弹一枚原生通知是双重打扰（2026-11-20 C3）。
+    if (input.systemNotify && typeof document !== "undefined" && !document.hasFocus()) {
       void sendSystemNotification(n);
     }
 

@@ -15,9 +15,11 @@
 import {
   assembleContext,
   selectBudgetDocPaths,
-  type AssembledContext
+  type AssembledContext,
+  type ForeshadowHint
 } from "@mochen/agent-runtime";
 import {
+  parseForeshadowMeta,
   resolveProfile,
   skillBriefLine,
   skillIndexBlock,
@@ -129,6 +131,8 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     });
     const contents: Record<string, string> = {};
     const bibleEntriesPromise = readStoryBibleEntries(book.root);
+    // 待收伏笔清单（2026-11-20）与正文/设定读取并行：读不到/坏文件就当这本书没有伏笔，照常生成。
+    const foreshadowsPromise = collectPendingForeshadows(book, docRelPath);
     await Promise.all(
       budget.map(async (relPath) => {
         try {
@@ -165,8 +169,65 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
       // W-01 补完：本轮被作者点名「不带」的条目在装配层剔除（不算额度不够）。
       excludedBible,
       // 阶段 C：有摘要的章用摘要进前情提要（缺失时装配层自动退回尾部截取）。
-      recaps: book.meta.recaps
+      recaps: book.meta.recaps,
+      // 2026-11-20 病灶：伏笔台账里标着「待收」的伏笔从不进上下文，模型写那一章时
+      // 不知道「这里该有个交代」。清单已由 collectPendingForeshadows 过滤好；
+      // 额度与取舍（限 8 条、顶满让位）判据只在 agent-runtime 的 assembleContext 一处。
+      foreshadows: await foreshadowsPromise
     });
+  }
+
+  /**
+   * 待收伏笔清单（2026-11-20）。
+   *
+   * 读取链路与台账面板同源：一条伏笔就是 `foreshadow/` 目录下的一篇普通文稿，状态在
+   * frontmatter（`status: planted|paid|dropped`，contracts/foreshadow 那份真身），
+   * 主进程与渲染层读同一份 `parseForeshadowMeta`（铁律 6），不另抄一套状态机。
+   *
+   * 只在写章节（activeDoc 是 chapter 文稿）时才读：补设定、审全书的场合没有
+   * 「这一章该收哪条线」，读了一轮台账也是白读。状态只留 `planted`（已埋未收）——
+   * 已回收/已弃用的线不需要模型再操心；状态字段认不出的那条 parseForeshadowMeta
+   * 会保守地按「已埋」算，与台账面板同一口径。
+   *
+   * 正文不读：模型要的是「哪条线没收、埋在哪」，台账正文是给作者看的；
+   * 需要细节时模型自己有 read_doc/search_docs。
+   */
+  async function collectPendingForeshadows(
+    book: BookSnapshot,
+    docRelPath: string | null
+  ): Promise<readonly ForeshadowHint[]> {
+    const activeDoc = book.docs.find((doc) => doc.relPath === docRelPath);
+    if (activeDoc === undefined || activeDoc.kind !== "chapter") return [];
+    const shadowDocs = book.docs.filter((doc) => doc.kind === "foreshadow");
+    if (shadowDocs.length === 0) return [];
+    // 埋设章显示名：台账里 `planted:` 写的是文稿相对路径，拼给模型前换成章题；
+    // 换不到（章被改名/删掉，台账断线）就原样给路径——宁可糙一点，也不编一个章名。
+    const chapterTitles = new Map(
+      book.docs
+        .filter((doc) => doc.kind === "chapter")
+        .map((doc) => [doc.relPath, doc.title] as const)
+    );
+    const hints: ForeshadowHint[] = [];
+    await Promise.all(
+      shadowDocs.map(async (doc) => {
+        let raw: string;
+        try {
+          raw = (await readDocFile(book.root, doc.relPath)).content;
+        } catch {
+          return; // 读不到就当这条不存在：与正文读取同一套「宁可少装一条」的口径
+        }
+        const meta = parseForeshadowMeta(raw);
+        if (meta.status !== "planted") return;
+        hints.push({
+          relPath: doc.relPath,
+          title: doc.title,
+          plantedIn: chapterTitles.get(meta.plantedIn) ?? meta.plantedIn
+        });
+      })
+    );
+    // Promise.all 的回填顺序不定：按文稿路径排一次，保证同一份数据每次装出来的顺序都一样。
+    hints.sort((a, b) => a.relPath.localeCompare(b.relPath));
+    return hints;
   }
 
   /**

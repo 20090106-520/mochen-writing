@@ -73,15 +73,17 @@ describe("slash-commands · 运行期可用性", () => {
     ]);
   });
 
-  it("没开书：要读书目录的 resume / permissions / stage / skills / export / wordcount 一起拿掉，plugins / skins / newbook **留下**", () => {
+  it("没开书：要读书目录的 resume / permissions / stage / export / wordcount 一起拿掉，skills / plugins / skins / newbook **留下**", () => {
+    // 【skills 也不设书闸（2026-11-20）】技能库页无书也能开（首页快捷入口就在开），
+    // 派发只是 layout.showCenter("skills")——书闸是假的拒绝，还挡住没开书时先管技能的路。
     // 【plugins / skins 刻意不设书闸】
-    // skills 被闸是因为它有**书内**来源（`.mochen/skills/`），没书就少一半。
     // 插件与皮肤广场只有全局那一份，面板列的是应用自己的目录，与当前书毫无关系——
     // 给它们加书闸就等于「没开书时不让用户管理插件/外观」，而那正是他最想管的时候。
     // newbook 也不设闸：没书时它恰恰是第一步（新建一本，再去开书写）。
     expect(availableCommands({ hasBook: false, turnRunning: false })).toEqual([
       "model",
       "status",
+      "skills",
       "plugins",
       "skins",
       "newbook",

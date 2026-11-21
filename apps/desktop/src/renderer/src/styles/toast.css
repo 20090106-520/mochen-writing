@@ -1,17 +1,19 @@
 /**
- * 通知 Toast 的样式（2026-10-05 批次 3，从 NotificationToast.vue 的 <style scoped> 搬来）。
+ * 通知 Toast 的样式（2026-10-05 批次 3 自组件收编；2026-11-20 通知整修 A4+B1+B2+B5 重排）。
  *
- * 搬家的理由不是「顺手」：本仓规矩是样式全在 `styles/` 下、`.vue` 零样式块，
- * 这一个组件是漏网的。搬过来之后它才受 dead-css-guard 扫得到——
- * 之前它在 .vue 里，写死了没人管，改类名不会有人拦。
+ * **落点在左上**：本仓所有浮层都从右栏锚点向右展开，右上角是浮层的地盘，
+ * toast 钉右上会把浮层标题连同关闭按钮整个盖住（2026-10-05 真机截图）。
+ * 左上是全应用唯一没有浮层会去的角。入场方向跟着锚点：从左滑入。
+ * z-index 保持最高——提示要压得住任何浮层，只是不该压它们的**标题**。
  *
- * **落点从右上挪到左上**，这是这次搬家真正的理由：
- * 本仓所有浮层都从右栏锚点向右展开，右上角是浮层的地盘，
- * toast 钉在 `top: 16px; right: 16px` 会把浮层标题连同关闭按钮整个盖住
- * （2026-10-05 真机截图：批准一次改稿，toast 正压在「改稿历史」标题上，关不掉也读不全）。
- * 左上是全应用唯一没有浮层会去的角，所以往那儿挪。
- * 入场方向也跟着改：从左滑入（`translateX(-20px)`），锚点在左，进场就该从左来。
- * z-index 保持 9999 不动——提示要压得住任何浮层，只是不该压它们的**标题**。
+ * 【2026-11-20 整修的三件事】
+ * ① 形状并入浮层家族（B1）：原先还是老底 `dropdown-bg` + 8px 圆角 + 左侧 3px 粗色条，
+ *    与七张检查浮层那套「发丝线 + 12px 圆角 + 浮层阴影」不是一种材质——虽然进了玻璃族，
+ *    形状没跟上。现在级别区分从「粗色条」改成**图标徽章**（级别色的淡底圆片），
+ *    error/warning 再加一档发丝描边强调；边线与圆角与浮层家族同一档。
+ * ② 多行错误（A4）：`.toast-msg` 原先一律单行截断，而全局错误兜底把整段失败理由
+ *    写进通知——最需要读全的一类消息被截成一行。error / warning 放开为三行钳制。
+ * ③ 曲线换 token（B2）：入场/出场改读 motion.css 的手感 token，不再自带一套 ease。
  */
 
 .toast-stack {
@@ -21,124 +23,193 @@
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  /* 6px → 8px（B5）：三枚同屏时读起来不再挤成一坨，与浮层内间距档一致。 */
+  gap: 8px;
   pointer-events: none;
 }
 
 .toast {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  min-width: 260px;
-  max-width: 360px;
-  background: var(--dropdown-bg, #1e1e2a);
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-  border-radius: 8px;
-  box-shadow: var(--shadow-lg);
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  min-width: 280px;
+  max-width: 380px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--shadow-color) 70%, transparent);
   pointer-events: auto;
-  cursor: pointer;
+  cursor: default;
 }
 
-.toast.is-success {
-  border-left: 3px solid var(--success);
-}
-
+/* error / warning 的描边强调：级别色淡淡地混进发丝线，边还是那条边，只是多了一层身份。 */
 .toast.is-error {
-  border-left: 3px solid var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--line-soft));
 }
 
 .toast.is-warning {
-  border-left: 3px solid var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--line-soft));
 }
 
-.toast.is-info {
-  border-left: 3px solid var(--accent);
+/* 图标徽章：级别区分的主视觉。淡底圆片 + 级别色图标，比一根粗色条精细得多。 */
+.toast-badge {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
 }
 
-.toast-icon {
-  flex-shrink: 0;
-}
-
-.toast.is-success .toast-icon {
+.toast.is-success .toast-badge {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
   color: var(--success);
 }
 
-.toast.is-error .toast-icon {
+.toast.is-error .toast-badge {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
   color: var(--danger);
 }
 
-.toast.is-warning .toast-icon {
+.toast.is-warning .toast-badge {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
   color: var(--warning);
 }
 
-.toast.is-info .toast-icon {
-  color: var(--accent);
+.toast-badge .toast-icon {
+  flex-shrink: 0;
 }
 
 .toast-body {
   display: flex;
   flex-direction: column;
+  gap: 2px;
   flex: 1;
   min-width: 0;
 }
 
 .toast-title {
   font-size: 0.857143rem;
-  color: var(--text-primary, #e8e8e8);
+  color: var(--text);
   font-weight: 500;
 }
 
 .toast-msg {
   font-size: 0.785714rem;
-  color: var(--text-secondary, #999);
+  color: var(--text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* error / warning 放开为三行钳制（A4）：失败理由是最需要读全的一类消息。 */
+.toast.is-error .toast-msg,
+.toast.is-warning .toast-msg {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+/* 动作按钮（A3+C2 落地）：通知可以带一枚真动作。描边小钮，不抢关闭钮的主次。 */
+.toast-action {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--focus) 45%, var(--line-soft));
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--focus) 85%, var(--text));
+  font-family: var(--ui-font);
+  font-size: 0.785714rem;
+  cursor: pointer;
+}
+
+.toast-action:hover {
+  background: color-mix(in srgb, var(--focus) 12%, transparent);
+}
+
+.toast-action:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
 .toast-time {
   font-size: 0.714286rem;
-  color: var(--text-muted, #777);
+  color: var(--text-faint);
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .toast-close {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 18 → 22（2026-10-11）：18px 低于常用最小热区，且本仓另有两级现成刻度——
-     .icon-button 32 / .icon-btn-sm 22。这里并到 .icon-btn-sm 那一档，
-     不自造第三个尺寸；字形仍是 10px（AppIcon :size="10"），只是可点范围变大，
-     toast 的行高与左上的落位一字未动。 */
+  /* 22px 并到 .icon-btn-sm 那一档（2026-10-11），字形仍是 10px。 */
   width: 22px;
   height: 22px;
   background: transparent;
   border: none;
   border-radius: 4px;
-  color: var(--text-muted, #777);
+  color: var(--text-faint);
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .toast-close:hover {
-  color: var(--text-secondary, #999);
+  color: var(--text-soft);
 }
 
-/* 这一枚原先只有 :hover，键盘用户看不见焦点在哪。环的形状照全仓既有写法
-   （styles.css 的 focus-visible 与 interaction.css 的浮层控件同款）。 */
+/* 这一枚原先只有 :hover，键盘用户看不见焦点在哪。环的形状照全仓既有写法。 */
 .toast-close:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
 
-/* Transition：锚点在左，进出场都从左滑（原来锚右时是 +20px）。 */
+/* 排队徽章（C5）：只露 3 条，第 4 条起收敛进这枚 +N。点它开通知中心。 */
+.toast-queue-badge {
+  align-self: flex-start;
+  min-height: 26px;
+  padding: 3px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-color) 60%, transparent);
+  color: var(--text-soft);
+  font-family: var(--ui-font);
+  font-size: 0.785714rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.toast-queue-badge:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.toast-queue-badge:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* Transition：锚点在左，进出场都从左滑。曲线与时长读 motion.css 的手感 token（B2），
+   出场比入场短——走的东西不该恋战。 */
 .toast-enter-active {
-  transition: all 0.3s ease;
+  transition:
+    opacity var(--dur-pop) var(--ease-out-soft),
+    transform var(--dur-pop) var(--ease-out-soft);
 }
 
 .toast-leave-active {
-  transition: all 0.2s ease;
+  transition:
+    opacity var(--dur-fast) var(--ease-out-soft),
+    transform var(--dur-fast) var(--ease-out-soft);
 }
 
 .toast-enter-from {

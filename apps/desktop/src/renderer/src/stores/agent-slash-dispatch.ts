@@ -10,6 +10,7 @@ import {
   cardsCountOf,
   composeStatusReport,
   threadKeyFor,
+  type BibleProposalView,
   type ProposalView,
   type ThreadView
 } from "../utils/agent-thread";
@@ -23,6 +24,7 @@ export interface SlashDispatchHost {
   notice: string;
   threads: Record<string, ThreadView>;
   proposals: Record<string, ProposalView>;
+  bibleProposals: Record<string, BibleProposalView>;
   pendingOf(threadKey: string): number;
   ensureHydrated(threadKey: string): Promise<void>;
   clearThreadView(threadKey: string): void;
@@ -59,7 +61,8 @@ export function dispatchSlashCommand(
       host.notice = composeStatusReport({
         threadKey,
         thread: host.threads[threadKey],
-        cards: cardsCountOf(host.proposals, threadKey),
+        cards:
+          cardsCountOf(host.proposals, threadKey) + cardsCountOf(host.bibleProposals, threadKey),
         pending: host.pendingOf(threadKey),
         hasBook: book.hasBook,
         permissionMode: book.meta?.permissionMode ?? null,

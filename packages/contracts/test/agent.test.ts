@@ -230,9 +230,10 @@ describe("provider 与掩码", () => {
     expect(maskApiKey("ab")).toBe("••••");
   });
 
-  it("八个工具名固定，多一个少一个都算违约", () => {
+  it("九个工具名固定，多一个少一个都算违约", () => {
     expect([...AGENT_TOOL_NAMES].sort()).toEqual([
       "list_docs",
+      "propose_bible",
       "propose_patch",
       "read_doc",
       "search_docs",
@@ -243,11 +244,12 @@ describe("provider 与掩码", () => {
     ]);
   });
 
-  it("八个工具名的排列顺序同样是契约（上一条先排序再比对，钉不住原序）", () => {
+  it("九个工具名的排列顺序同样是契约（上一条先排序再比对，钉不住原序）", () => {
     // 注册表顺序决定提示词与工具卡的展示顺序；被重排必须转红。
     // 2026-10-04 追加 web_search（免费联网搜索，主进程出网）排在末尾；
     // 2026-10-11 追加 web_read（网页正文抓取）紧随其后——先搜后读，读的序跟着搜的序走；
     // 2026-10-23 追加 use_skill（技能自选，只读）。
+    // 2026-11-20 追加 propose_bible（设定提案）排在末尾——不写正文，走另一条审批通道。
     expect([...AGENT_TOOL_NAMES]).toEqual([
       "read_doc",
       "list_docs",
@@ -256,7 +258,8 @@ describe("provider 与掩码", () => {
       "write_doc",
       "web_search",
       "web_read",
-      "use_skill"
+      "use_skill",
+      "propose_bible"
     ]);
   });
 

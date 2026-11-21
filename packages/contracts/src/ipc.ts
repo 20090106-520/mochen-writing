@@ -229,6 +229,30 @@ export type DocCreateResult =
     };
 
 /**
+ * doc:rename 的返回（2026-11-20）。
+ *
+ * ok 侧带 `meta`：`chapterOrder` / `recaps` 都以 relPath 为键，改名必须在主进程一次迁移完，
+ * 渲染层直接换掉整份 meta——让渲染层再抄一遍迁移判据就是第二套真相（铁律 6）。
+ *
+ * `sessionWarning`（2026-11-20 P0）：该章会话历史的迁移警告，null＝迁移成功或本来就没有历史。
+ * 迁移失败不让改名回滚——文件已经改完，历史只能尽量跟上，跟不上就把警告捎回去给渲染层转述。
+ */
+export type DocRenameResult =
+  | {
+      ok: true;
+      relPath: string;
+      fingerprint: string;
+      doc: DocRef | null;
+      meta: BookMeta;
+      sessionWarning: string | null;
+    }
+  | {
+      ok: false;
+      reason: "no-book" | "invalid-path" | "outside-book" | "exists" | "missing" | "io-error";
+      message: string;
+    };
+
+/**
  * doc:refresh 的返回：只重算一篇，绝不带整本清单回来（那正是这一刀要省掉的读放大）。
  *
  * `doc: null`＝盘上这一篇读不回（外力删除、改名、占用）。这不是失败：请求本身做到了，
@@ -368,6 +392,11 @@ export interface RendererApi {
   replaceAllInBook(input: BookReplaceInput): Promise<BookReplaceResult>;
   /** 按已规划好的书内路径建一篇空文档（frontmatter title 用用户起的名字）；文件已存在会被拒绝，绝不盖写。 */
   createDoc(relPath: string, title: string): Promise<DocCreateResult>;
+  /**
+   * 改文件名（2026-11-20）：把 `relPath` 那一篇改成由 `title` 规划出的同目录新路径，
+   * 并同步迁移 `chapterOrder` 与 `recaps` 的键。目标已存在时拒绝，绝不覆盖。
+   */
+  renameDoc(relPath: string, title: string): Promise<DocRenameResult>;
   /**
    * 只重算**一篇**文稿的 DocRef（P1-4 后半）。
    * 改完标题、吸收智能体写入之后要用它取代 `openBook` 那次整本温和重扫：主进程用与扫描同一份判据

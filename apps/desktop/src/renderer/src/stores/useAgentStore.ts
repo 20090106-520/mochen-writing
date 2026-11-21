@@ -23,13 +23,13 @@ import {
   ProposalView,
   ThreadView,
   UNBOUND,
+  type BibleProposalView,
   decisionViewPatch,
   enqueueText,
   malformedPush,
   newThread,
   pendingCountOf,
   plainList,
-  purgeThreadProposals,
   reasonOf,
   runningSeconds,
   threadKeyFor
@@ -37,7 +37,6 @@ import {
 import { DRAFT_DISCARD_DONE, nextDraftSampleCount, resolveDraft } from "../utils/draft-candidates";
 import { useBibleExclusionStore } from "./useBibleExclusionStore";
 import { readRemote } from "../utils/agent-requests";
-import { replayProposalStatuses } from "../utils/timeline";
 import { type SlashCommand } from "../utils/slash-commands";
 import { prefillText } from "../utils/composer-draft";
 import { clearComposerAfterSend } from "../utils/auto-behavior-preference";
@@ -57,6 +56,14 @@ import {
   thinkingPreferenceStorage
 } from "../utils/thinking-preference";
 import { dispatchSlashCommand } from "./agent-slash-dispatch";
+import {
+  applyReplay,
+  ensureHydrated,
+  refreshSessions,
+  resetThreadView,
+  runHydrate,
+  showSession
+} from "./agent-session-view";
 import { useAutoCheckupStore } from "./useAutoCheckupStore";
 import { useBookStore } from "./useBookStore";
 
@@ -80,6 +87,8 @@ export const useAgentStore = defineStore("agent", {
      */
     skillPathsByThread: {} as Record<string, string[]>,
     proposals: {} as Record<string, ProposalView>,
+    /** 设定提案（2026-11-20）：与正文提案同一枚审批 IPC，但形状不同，单独一张表。 */
+    bibleProposals: {} as Record<string, BibleProposalView>,
     notice: "",
     seconds: 0,
     /**
@@ -123,7 +132,7 @@ export const useAgentStore = defineStore("agent", {
     pendingOf:
       (state) =>
       (threadKey: string): number =>
-        pendingCountOf(state.proposals, threadKey)
+        pendingCountOf(state.proposals, threadKey) + pendingCountOf(state.bibleProposals, threadKey)
   },
 
   actions: {
@@ -346,6 +355,22 @@ export const useAgentStore = defineStore("agent", {
         if (options?.fetchDiff !== false) void this.loadDiff(event.proposal.id);
         return;
       }
+      if (event.type === "bible-proposal") {
+        this.bibleProposals[event.proposal.id] = {
+          proposal: event.proposal,
+          status: "pending",
+          message: ""
+        };
+        return;
+      }
+      if (event.type === "bible-written") {
+        const written = this.bibleProposals[event.proposalId];
+        if (written) {
+          written.status = "written";
+          written.message = `已加入设定库：${event.title}。`;
+        }
+        return;
+      }
       if (event.type === "error") {
         thread.lastError = event.message;
         // 缺陷③的 live 半边（评审 T3-1）：带 proposalId 的 error 是主进程「这条提案已确定失效」的
@@ -360,6 +385,11 @@ export const useAgentStore = defineStore("agent", {
         if (event.proposalId !== undefined) {
           const card = this.proposals[event.proposalId];
           if (card !== undefined && card.status === "pending") card.status = "stale";
+          const bibleCard = this.bibleProposals[event.proposalId];
+          if (bibleCard !== undefined && bibleCard.status === "pending") {
+            bibleCard.status = "stale";
+            bibleCard.message = event.message;
+          }
         }
         return;
       }
@@ -380,6 +410,16 @@ export const useAgentStore = defineStore("agent", {
         return;
       }
       if (event.type !== "decision") return;
+      // 设定提案与正文提案的裁决语义相同，但要落在各自的表上。
+      const bible = this.bibleProposals[event.proposalId];
+      if (bible !== undefined) {
+        if (event.decision === "cancel") bible.status = "cancelled";
+        if (event.decision === "deny-with-guidance") {
+          bible.status = "rejected";
+          bible.message = event.guidance;
+        }
+        return;
+      }
       const view = this.proposals[event.proposalId];
       if (!view) return;
       // 批准类的终态由 written / decide 返回值落，这里只处理两种即时裁决。
@@ -407,23 +447,29 @@ export const useAgentStore = defineStore("agent", {
      * 成功等 written 事件；失败一律保持 pending（spec §9：写盘失败可重试）。
      * 裁定 m1：跨 IPC 的拒绝也写成中文贴在卡片上，卡片保持待审可重试。
      */
-    async decide(proposalId: string, decision: ProposalDecision, guidance: string): Promise<void> {
+    /** 返回值是 IPC 回执本体：调用处（「本轮全部接受」）据 result.ok 计数成败——卡片终态靠异存的 written 事件收尾，拿 pending 判成败会把已写盘的提案报成失败。没送达主进程时回 null。 */
+    async decide(
+      proposalId: string,
+      decision: ProposalDecision,
+      guidance: string
+    ): Promise<DecisionResult | null> {
       const input: DecideInput = { proposalId, decision, guidance };
       let result: DecisionResult;
       try {
         result = await window.mochen.decideProposal(input);
       } catch (err) {
         const reason = reasonOf(err);
-        const card = this.proposals[proposalId];
+        const card = this.proposals[proposalId] ?? this.bibleProposals[proposalId];
         if (card) card.message = reason;
         this.notice = `审批没能送达主进程：${reason}`;
-        return;
+        return null;
       }
-      const view = this.proposals[proposalId];
+      const view = this.proposals[proposalId] ?? this.bibleProposals[proposalId];
       const patch = decisionViewPatch(result, guidance);
-      if (!view || patch === null) return;
+      if (!view || patch === null) return result;
       if (patch.status !== undefined) view.status = patch.status;
       if (patch.message !== undefined) view.message = patch.message;
+      return result;
     },
 
     /**
@@ -546,76 +592,21 @@ export const useAgentStore = defineStore("agent", {
       }
     },
 
-    /** 水合入口：八条规则逐字照 spec §4.3。判定与取数全在 store，组件只触发。 */
+    /** 水合入口（真身在 agent-session-view，2026-11-20 预算拆出）：这里只转交。 */
     async ensureHydrated(threadKey: string): Promise<void> {
-      const thread = this.viewOf(threadKey);
-      if (thread.hydrated) return; // 规则1 幂等
-      if (thread.running) return; // 规则2 running 时不抢顺序
-      if (thread.hydrating) {
-        // 规则3 并发合流：复用同一次在途取数，不发第二条 IPC
-        const inflight = this.hydrateInflight[threadKey];
-        if (inflight !== undefined) await inflight;
-        return;
-      }
-      thread.hydrating = true;
-      const task = this.runHydrate(threadKey, thread);
-      this.hydrateInflight[threadKey] = task;
-      try {
-        await task;
-      } finally {
-        delete this.hydrateInflight[threadKey];
-      }
+      await ensureHydrated(this, threadKey);
     },
 
     async runHydrate(threadKey: string, thread: ThreadView): Promise<void> {
-      let result: SessionLoadResult;
-      try {
-        result = await window.mochen.loadSession(threadKey);
-      } catch (err) {
-        // 规则3 失败回滚：首行坏 / IPC 抛 ⇒ 留待用户再按 /resume 重试
-        thread.hydrating = false;
-        this.notice = `这条线程的历史没有读回来：${reasonOf(err)}`;
-        return;
-      }
-      thread.hydrating = false;
-      if (!result.found) {
-        // 规则5：no-session 视为确实没有历史 ⇒ 置位；no-book 不置位（下次开书还得能水合）
-        if (result.reason === "no-session") thread.hydrated = true;
-        return;
-      }
-      this.applyReplay(thread, result);
-      thread.hydrated = true;
+      await runHydrate(this, threadKey, thread);
     },
 
-    /** 回放载荷落进线程视图的共用一段（`/resume` 与面板指名切换同一条通路）：按事件 id 去重（规则4）、派生扫描覆盖卡片状态（规则6）、只有 interrupted 结尾才复活「继续」（规则8）、坏行如实播报（规则7）；回放路径既关 diff 取数（M1），也关写盘回吸收与实时提示覆盖（D1）。 */
     applyReplay(thread: ThreadView, result: Extract<SessionLoadResult, { found: true }>): void {
-      // 规则4：只归约 items 里不存在该事件 id 的那些
-      const known = new Set(thread.items.map((item) => item.id));
-      for (const event of result.events) {
-        if (known.has(event.id)) continue;
-        known.add(event.id);
-        this.reduceEvent(thread, event, { fetchDiff: false, absorbWrites: false });
-      }
-      // 规则6：派生扫描覆盖这些卡的 status（expired 卡已在规则4 里没请求 diff）
-      const replayed = replayProposalStatuses(result.events);
-      for (const [id, status] of Object.entries(replayed)) {
-        const view = this.proposals[id];
-        if (view) view.status = status;
-      }
-      // 规则8：只有最后一条是 interrupted 才复活「继续」；error 保守不标 failed
-      const last = result.events[result.events.length - 1];
-      if (last?.type === "interrupted") thread.endedAs = "interrupted";
-      thread.sessionId = result.meta.sessionId;
-      // 规则7：坏行如实播报，不伪造事件、不静默
-      if (result.droppedLines.length > 0)
-        this.notice = `这条线程有 ${result.droppedLines.length} 行没能读回，其余内容已恢复。`;
+      applyReplay(this, thread, result);
     },
 
-    /** 面板打开时的取数：失败只写 notice、不清空已显示的行——把「读不到」伪装成「没有历史」比报错更坏。 */
     async refreshSessions(): Promise<void> {
-      const read = await readRemote(() => window.mochen.listSessions(), "历史对话没有读回来");
-      if (read.ok) this.sessions = read.value;
-      else this.notice = read.notice;
+      await refreshSessions(this);
     },
 
     /**
@@ -726,47 +717,14 @@ export const useAgentStore = defineStore("agent", {
       });
     },
 
-    /** 覆盖式切换用的清空：显示态归零，并删掉这一条线程名下的提案卡（旧会话的卡不许留在新视图上）。 */
+    /** 覆盖式切换用的清空（真身在 agent-session-view）：这里只转交。 */
     resetThreadView(threadKey: string): void {
-      const thread = this.viewOf(threadKey);
-      thread.items = [];
-      thread.streaming = { ...EMPTY_STREAM };
-      thread.lastError = "";
-      thread.endedAs = "";
-      thread.sessionId = "";
-      purgeThreadProposals(this.proposals, threadKey);
+      resetThreadView(this, threadKey);
     },
 
-    /** 点面板一行 = 切到那条会话接着聊。与 `/resume` 的分别是「最近那条」对「指名的那条」：主进程 loadSession 收到 sessionId 会把这一条线程的写入目标改过去，下一轮就续在它后面。 */
+    /** 点面板一行 = 切到那条会话接着聊（真身在 agent-session-view）：这里只转交。 */
     async showSession(item: SessionListItem): Promise<void> {
-      const action = this.rowActionFor(item);
-      if (action.kind !== "open") {
-        this.notice = action.reason;
-        return;
-      }
-      const threadKey = item.docRelPath; // 裁定 o：绑定线程的键恒等于文稿路径
-      const book = useBookStore();
-      // 抢在换标签之前置位：openDocTab 会让组件补一次「最近那条」的自动水合，那一读若先回来就把
-      // 用户亲手点开的这一条盖掉了；读失败再照原值退回，`/resume` 还能重试。
-      const wasHydrated = this.viewOf(threadKey).hydrated;
-      this.viewOf(threadKey).hydrated = true;
-      if (book.activeDocTab !== threadKey) await book.openDocTab(threadKey);
-      let result: SessionLoadResult;
-      try {
-        result = await window.mochen.loadSession(threadKey, item.sessionId);
-      } catch (err) {
-        this.viewOf(threadKey).hydrated = wasHydrated;
-        this.notice = `这条线程的历史没有读回来：${reasonOf(err)}`;
-        return;
-      }
-      this.resetThreadView(threadKey);
-      this.notice = "";
-      if (!result.found) {
-        // 主进程那句中文就是全部实话：不假装切过去了，也不留下上一条会话的显示。
-        this.notice = result.message;
-        return;
-      }
-      this.applyReplay(this.viewOf(threadKey), result);
+      await showSession(this, item);
     },
 
     /** `/` 面板唯一派发口：switch 表住在 `agent-slash-dispatch`（本文件贴到 800 行预算后拆出），这里只转交。 */
@@ -782,7 +740,8 @@ export const useAgentStore = defineStore("agent", {
      */
     clearThreadView(threadKey: string): void {
       const thread = this.viewOf(threadKey);
-      const pendingCards = pendingCountOf(this.proposals, threadKey);
+      const pendingCards =
+        pendingCountOf(this.proposals, threadKey) + pendingCountOf(this.bibleProposals, threadKey);
       thread.hydrated = true;
       this.resetThreadView(threadKey);
       this.notice =

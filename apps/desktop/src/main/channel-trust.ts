@@ -93,6 +93,7 @@ export const IPC_TRUST_LEVELS: Record<string, "public" | "self" | "sensitive"> =
   [IPC_CHANNELS.docRead]: "self",
   [IPC_CHANNELS.docWrite]: "self",
   [IPC_CHANNELS.docCreate]: "self",
+  [IPC_CHANNELS.docRename]: "self",
   [IPC_CHANNELS.docRefresh]: "self",
   [IPC_CHANNELS.docTrash]: "self",
   // —— 回收站（书内 .mochen/trash/） ——

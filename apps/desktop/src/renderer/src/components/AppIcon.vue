@@ -42,6 +42,14 @@ const strokeWidth = computed(() => (box.value >= 16 ? 1.8 : 2));
     <template v-else-if="name === 'close'">
       <path d="m6 6 12 12M18 6 6 18" />
     </template>
+    <!-- 通知中心的铃铛（2026-11-20 通知整修 A2，本仓自造一枚）：
+         描边语言与其余字形一致（24 viewBox / 1.8），喇叭体 + 一条铃舌弧。 -->
+    <template v-else-if="name === 'bell'">
+      <path
+        d="M6 10a6 6 0 0 1 12 0c0 3.6 1.2 5 2.2 6.2.5.6.1 1.3-.7 1.3H4.5c-.8 0-1.2-.7-.7-1.3C4.8 15 6 13.6 6 10z"
+      />
+      <path d="M9.8 20a2.3 2.3 0 0 0 4.4 0" />
+    </template>
     <template v-else-if="name === 'directory'">
       <path d="M3.5 6.5h6l2 2h9v9.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
       <path d="M3.5 9h17" />

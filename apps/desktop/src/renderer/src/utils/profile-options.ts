@@ -117,3 +117,17 @@ const KIND_LABELS: Record<string, string> = {
   character: "人物卡",
   chapter: "当前章"
 };
+
+/**
+ * 顶栏右半标题（2026-10-12 用户裁定）：当前章名随行，别让用户回头翻目录。
+ * 没开章节时说一句人话，不拿空字符串留白。
+ */
+export function chapterContextTitle(
+  bookTitle: string,
+  docs: Array<{ relPath: string; title: string }>,
+  activeDocTab: string | null
+): string {
+  const chapter =
+    activeDocTab === null ? undefined : docs.find((doc) => doc.relPath === activeDocTab);
+  return `${bookTitle} · ${chapter ? chapter.title : "未打开章节"}`;
+}

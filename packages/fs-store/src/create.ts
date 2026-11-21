@@ -1,4 +1,4 @@
-import { mkdir, readdir } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import type { BookMeta, DocCreateResult } from "@mochen/contracts";
 import { bookConventionBody, parseBookMeta } from "@mochen/contracts";
@@ -67,6 +67,61 @@ export async function createDocFile(
   // 新建也走原子写：半途而废的「新文档」同样是一篇读不回来的正文（P0-1）。
   await writeFileAtomic(target, content, fs);
   return { ok: true, fingerprint: makeFingerprint(content) };
+}
+
+/**
+ * 改文件名的盘上一半（2026-11-20）。三条边界与新建同源：
+ * ① 两侧都过 `assertSafeRelPath`；② 源不存在如实说；③ 目标已存在**绝不覆盖**。
+ *
+ * 目标路径由调用方用 `planDocRelPath` 规划（同目录），所以这里不做跨目录搬家的特殊判断。
+ * 回执带新文件的指纹：渲染层改名后要接着读/写这一篇，指纹链不该从零再读一遍找。
+ */
+export type RenameDocFileResult =
+  | { ok: true; fingerprint: string }
+  | {
+      ok: false;
+      reason: "invalid-path" | "outside-book" | "missing" | "exists" | "io-error";
+      message: string;
+    };
+
+export async function renameDocFile(
+  root: string,
+  fromRel: string,
+  toRel: string
+): Promise<RenameDocFileResult> {
+  let from: string;
+  let to: string;
+  try {
+    from = assertSafeRelPath(fromRel);
+    to = assertSafeRelPath(toRel);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      reason: message.startsWith("outside-book") ? "outside-book" : "invalid-path",
+      message
+    };
+  }
+  const source = path.join(root, ...from.split("/"));
+  const target = path.join(root, ...to.split("/"));
+  const sourceStat = await stat(source).catch((error: NodeJS.ErrnoException) =>
+    error.code === "ENOENT" ? null : Promise.reject(error)
+  );
+  if (sourceStat === null || !sourceStat.isFile())
+    return { ok: false, reason: "missing", message: `盘上没有 ${from} 这一篇，改不了名。` };
+  const exists = await stat(target).then(
+    () => true,
+    (error: NodeJS.ErrnoException) => (error.code === "ENOENT" ? false : Promise.reject(error))
+  );
+  if (exists)
+    return { ok: false, reason: "exists", message: `${to} 已经有一篇同名文稿，没有覆盖它。` };
+  try {
+    await rename(source, target);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, reason: "io-error", message: `改名失败：${message}` };
+  }
+  return { ok: true, fingerprint: makeFingerprint(await readFile(target, "utf8")) };
 }
 
 /**

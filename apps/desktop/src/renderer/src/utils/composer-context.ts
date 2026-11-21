@@ -78,3 +78,29 @@ export function stageContextOptions(meta: BookMeta | null, busy: boolean): Conte
 export function showContextBar(input: { hasBook: boolean; threadEmpty: boolean }): boolean {
   return input.hasBook && input.threadEmpty;
 }
+
+/**
+ * 「这一格还是空的」的唯一判据：时间线没有事件、本轮没在跑、没在水合，且三类提案卡全为空。
+ * 两个消费者共用它——工作台式的空状态（原先这串条件裸写在模板里）与 #113c 输入卡上方的绑定条。
+ */
+export interface ThreadEmptinessInput {
+  itemCount: number;
+  running: boolean;
+  hydrating: boolean;
+  cards: { open: unknown[]; settled: unknown[]; expired: unknown[] };
+  bible: { open: unknown[]; settled: unknown[]; expired: unknown[] };
+}
+
+export function threadIsEmpty(input: ThreadEmptinessInput): boolean {
+  return (
+    input.itemCount === 0 &&
+    !input.running &&
+    !input.hydrating &&
+    input.cards.open.length === 0 &&
+    input.cards.settled.length === 0 &&
+    input.cards.expired.length === 0 &&
+    input.bible.open.length === 0 &&
+    input.bible.settled.length === 0 &&
+    input.bible.expired.length === 0
+  );
+}

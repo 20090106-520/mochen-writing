@@ -156,10 +156,34 @@ interface FileSites {
  */
 const STATE_RUNG_SITES: readonly FileSites[] = [
   /* 欢迎首页胶囊（2026-11-09 参考图）：hover 换的是 --hover 状态档底，块里自己写了
-     --text-primary 字色 ⇒ primary，不靠基规则带。新族登记在此，别绕开结构律。 */
+   --text-primary 字色 ⇒ primary，不靠基规则带。新族登记在此，别绕开结构律。
+   （2026-11-20 C4 的 .is-resume 高亮胶囊底是 color-mix(--focus)——不在 DEEP_TOKENS
+   里，不进普查；它的基规则与 hover 都自己写了正文级字色。） */
   {
     file: "styles/welcome-home.css",
     sites: [{ needle: ".welcome-shortcut:hover", primary: true }]
+  },
+  {
+    file: "styles/toast.css",
+    sites: [
+      /* 2026-11-20 通知整修 C5：排队徽章 hover 换 --hover 档底，块里自己写了正文级字色。 */
+      { needle: ".toast-queue-badge:hover", primary: true }
+    ]
+  },
+  {
+    file: "styles/notification-center.css",
+    sites: [
+      /* 2026-11-20 通知整修 A2 的四条状态档底。行 hover 与 conversation-history-item:hover
+       同一手法（族内两档灰字在本档升到状态档专用字色）；头部两枚文字钮与行尾删除钮
+       块里自己写了正文级字色 ⇒ primary。 */
+      { needle: ".notification-center-item:hover", shadow: ["--text-soft", "--text-faint"] },
+      { needle: ".notification-center-head-button:hover", primary: true },
+      {
+        needle: ".notification-center-head-actions > button[aria-label]:hover",
+        primary: true
+      },
+      { needle: ".notification-center-remove:hover", primary: true }
+    ]
   },
   {
     file: "styles/agent-pane.css",

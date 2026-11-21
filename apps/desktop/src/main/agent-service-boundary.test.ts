@@ -442,8 +442,8 @@ describe("agentService 边界拒绝与线程归一", () => {
     // 出站每一条都必须是完整 function 条目。2026-10-08 的裸 `{type:"web_search"}` 会让
     // 严格校验的端点回 400/422（tools[9].function: missing field `parameters`），整笔请求报废。
     expect(tools.every((tool) => tool.type === "function")).toBe(true);
-    // 八枚本仓工具一枚不许被联网条目挤掉（TOOL_SPECS 是唯一真身）。
-    expect(tools.filter((tool) => tool.type === "function").length).toBe(8);
+    // 九枚本仓工具一枚不许被联网条目挤掉（TOOL_SPECS 是唯一真身；propose_bible 加入后 +1）。
+    expect(tools.filter((tool) => tool.type === "function").length).toBe(9);
     service.dispose();
   });
 
@@ -468,8 +468,8 @@ describe("agentService 边界拒绝与线程归一", () => {
     // NETWORK_TOOL_NAMES 这一整类），不是「发个 false 字段」。
     expect(names).not.toContain(WEB_SEARCH_TOOL_NAME);
     expect(names).not.toContain("web_read");
-    // 摘掉联网不牵连别的：六枚书稿/技能工具一枚不少。
-    expect(names.length).toBe(6);
+    // 摘掉联网不牵连别的：七枚书稿/技能/设定提案工具一枚不少（propose_bible 加入后 +1）。
+    expect(names.length).toBe(7);
     service.dispose();
   });
 });

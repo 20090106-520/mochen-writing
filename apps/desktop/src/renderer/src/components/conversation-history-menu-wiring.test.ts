@@ -211,18 +211,21 @@ describe("裁定 R3 · 时间格式化只有一份", () => {
   });
 });
 
-describe("挂载点 · 中栏头部，排在「新建对话」之前", () => {
-  it("CenterColumn 只挂一次，且在同一个 actions 格里", () => {
-    const m = templateSource(CENTER);
+describe("挂载点 · 中栏头部动作区，排在「新建对话」之前", () => {
+  it("头部动作区（CenterHeaderActions，2026-11-20 自 CenterColumn 拆出）只挂一次，且在同一个 actions 格里", () => {
+    const HOST = "components/CenterHeaderActions.vue";
+    const m = templateSource(HOST);
     const at = m.indexOf("<ConversationHistoryMenu />");
     const newChat = m.indexOf("新建对话");
     expect(at).toBeGreaterThan(-1);
     expect(newChat).toBeGreaterThan(-1);
     expect(at, "历史对话在 deepwrite 的头部里排在「新建对话」之前").toBeLessThan(newChat);
     expect(countNeedle("<ConversationHistoryMenu />", m)).toBe(1);
-    expect(scriptSource(CENTER)).toContain(
+    expect(scriptSource(HOST)).toContain(
       'import ConversationHistoryMenu from "./ConversationHistoryMenu.vue"'
     );
+    // 挂载点整块拆出去后，中栏骨架里不许再留第二份。
+    expect(templateSource(CENTER)).not.toContain("<ConversationHistoryMenu />");
   });
 });
 

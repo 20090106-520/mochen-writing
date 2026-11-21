@@ -16,6 +16,7 @@ import {
   type AgentDeltaKind,
   type AgentEvent,
   type AgentEventType,
+  type BibleProposal,
   type DecisionResult,
   type EditProposal,
   type PermissionMode,
@@ -67,6 +68,23 @@ export interface ProposalView {
   status: ProposalStatus;
   message: string;
   diff: string;
+}
+
+/**
+ * 设定提案的视图（2026-11-20）。没有 diff：设定是「往库里追加一条」，不存在原稿可比。
+ * 与正文提案分成两张表，是因为两者形状不同（没有 docRelPath/anchor/mode），
+ * 硬并成一种视图会让每处渲染都多一串类型判断。
+ */
+export interface BibleProposalView {
+  proposal: BibleProposal;
+  status: ProposalStatus;
+  message: string;
+}
+
+/** 卡片计数/清理只需要这两格：正文提案与设定提案的视图都满足它。 */
+export interface CardViewLike {
+  proposal: { threadKey: string };
+  status: ProposalStatus;
 }
 
 export const EMPTY_STREAM = { reasoning: "", message: "" };
@@ -352,20 +370,20 @@ export function composeStatusReport(facts: StatusFacts): string {
 }
 
 /** 某条线程的待审张数：状态行、清视图、状态报告都数这一份，口径只留一处。 */
-export function pendingCountOf(proposals: Record<string, ProposalView>, threadKey: string): number {
+export function pendingCountOf(proposals: Record<string, CardViewLike>, threadKey: string): number {
   return Object.values(proposals).filter(
     (view) => view.proposal.threadKey === threadKey && view.status === "pending"
   ).length;
 }
 
 /** 某条线程的卡片总张数（清视图与状态报告共用；含待审与已决，不是只数待审）。 */
-export function cardsCountOf(proposals: Record<string, ProposalView>, threadKey: string): number {
+export function cardsCountOf(proposals: Record<string, CardViewLike>, threadKey: string): number {
   return Object.values(proposals).filter((view) => view.proposal.threadKey === threadKey).length;
 }
 
 /** 抹掉某条线程的全部提案（`/clear` 与换线程共用）：只删名下条目，别条线程一张不动。 */
 export function purgeThreadProposals(
-  proposals: Record<string, ProposalView>,
+  proposals: Record<string, CardViewLike>,
   threadKey: string
 ): void {
   for (const id of Object.keys(proposals)) {

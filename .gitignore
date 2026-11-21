@@ -48,6 +48,10 @@ release-e2e/
 # （既例见上面 `.workbuddy/` / `.mavis/` / `.trae-html-share-packages/` 那几条工具目录）。
 .codeartsdoer/
 
+# ---- 2026-11-20 补上的忽略（收口工具目录，既例见上面 .codeartsdoer 那几条）----
+# `.trae/` —— 第三方 Agent 工具的本地工作区（spec/tasks 草稿），未跟踪、可再生产，不属于项目内容。
+.trae/
+
 # ---- 2026-10-20 补上的忽略（P0-① 判据阈值真人语料校准）----
 # `packages/contracts/corpus/` —— 喂给 `flavor-calibration` 出表的**真人语料**：多为受版权保护的
 # 出版文本，只在本地当对照算出分位与误报率，本体不跟着代码走（既例见上面那几条语料/工具目录）。

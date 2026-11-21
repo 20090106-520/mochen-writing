@@ -902,6 +902,37 @@ html[data-platform="darwin"] .conversation-pane {
   margin-top: 8px;
 }
 
+/* 2026-11-20：一轮五条提案不该点五次。这里只是一条批量入口，
+   逐条仍走同一枚 decideProposal（accept-once），不新造批量协议。 */
+.proposal-bulk {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  font-size: 0.857143rem;
+  color: var(--text-soft);
+}
+
+.proposal-bulk button {
+  padding: 4px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-control);
+  background: var(--editor);
+  color: var(--text);
+  font-size: 0.857143rem;
+  cursor: pointer;
+}
+
+.proposal-bulk button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.proposal-bulk button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* F-1：卡头的轮次锚点。文字由 utils/timeline 的 cardTurnLabel 生成，这里只管排布。
    字色用 `--text-on-state` 而不是 `--text-soft`：这一枚的底是 selected 档（浅 0.12），
    0.71 的次要灰压上去只有 4.09:1。判据见 appearance-surface-ladder.test.ts。 */

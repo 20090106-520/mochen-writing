@@ -10,7 +10,10 @@ export const AGENT_TOOL_NAMES = [
   "web_read",
   // 2026-10-23 追加 use_skill（技能自选，放宽 spec §11）：技能此前只能由用户手选挂入；
   // 这一枚让模型自己列技能库、按需载入。只读，不写盘、不出网。
-  "use_skill"
+  "use_skill",
+  // 2026-11-20 追加 propose_bible：模型此前只能读设定库，新人物/新地点只能用户手填。
+  // 它**不进 WRITE_TOOLS**：不写正文，走的是另一条「设定提案」审批通道。
+  "propose_bible"
 ] as const;
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
 

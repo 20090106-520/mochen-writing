@@ -96,7 +96,8 @@ const NEEDS_BOOK: readonly SlashCommand[] = [
   "resume",
   "permissions",
   "stage",
-  "skills",
+  // skills 不在门控里（2026-11-20）：技能库页无书也能开（首页快捷入口就在开），
+  // 派发只是 layout.showCenter("skills")——把它列这儿是无书的假拒绝。
   // 导出 / 字数统计要有书才有内容：两处都读 book.docs，没书就只有一排零。
   "export",
   "wordcount"

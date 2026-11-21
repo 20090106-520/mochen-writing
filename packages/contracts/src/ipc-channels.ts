@@ -40,6 +40,12 @@ export const IPC_CHANNELS = {
    * （`fs-store` 的 `docRefFor`），顺手把它自己的快照也换成新值——两处同步，一次读盘。
    */
   docRefresh: "doc:refresh",
+  /**
+   * 改文件名（2026-11-20）。现有的「改标题」只动 frontmatter，文件名与 relPath 不变；
+   * 名字起错了去资源管理器改，`chapterOrder` 与 `recaps` 的键立刻成孤儿。
+   * 这一条由主进程一次做完：改名 + 迁移两处键 + 重扫，回执带上新 meta。
+   */
+  docRename: "doc:rename",
   agentStartTurn: "agent:start-turn",
   agentInterrupt: "agent:interrupt",
   agentDecide: "agent:decide",

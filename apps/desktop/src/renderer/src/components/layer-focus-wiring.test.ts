@@ -42,6 +42,10 @@ const EXCEPTIONS: Record<string, string> = {
   ConversationHistoryMenu:
     "它的 @keydown.esc 挂在 .conversation-history-control 上——那是**触发钮的祖先**，" +
     "焦点本来就在钮上，事件自然冒得到（p536n 量到它是九枚里 Esc 可收的一枚）。",
+  NotificationCenter:
+    "与 ConversationHistoryMenu 同构（2026-11-20 通知整修）：@keydown.esc 挂在" +
+    " .notification-center-control 上——也是**触发钮的祖先**，焦点在钮上时事件冒得到；" +
+    "面板开着时焦点在面板内部，Esc 同样冒到 control 那格被收走。",
   OnboardingGuide:
     "引导流程：只有上一步/下一步/完成，Esc 在这里的语义是「跳过」，与「收层」不是一回事（5-㊲ 裁定）。"
 };
