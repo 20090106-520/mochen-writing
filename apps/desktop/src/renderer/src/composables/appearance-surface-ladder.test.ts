@@ -264,6 +264,10 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
       /* 2026-11-20 新建作品智能刀：「沿用」那枚小钮的悬停底换的是 hover 档，
          字色同时升到正文级（primary）。 */
       { needle: ".new-book-remembered-button:hover", primary: true },
+      /* 2026-11-20 模型对话框重排：供应商卡片与高级区 summary 的悬停底是 hover 档，
+         两块里都自己写了正文级字色（primary）。 */
+      { needle: ".provider-card:hover", primary: true },
+      { needle: ".provider-advanced > summary:hover", primary: true },
       {
         needle: ".appearance-toggle",
         exempt: {

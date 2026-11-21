@@ -66,6 +66,18 @@ const contextWindowText = ref(
     ? ""
     : String(editingConnection.value.contextWindow)
 );
+/**
+ * 高级折叠区的初始开合（2026-11-20 重排）。
+ * 主路径只留「选卡 → 填密钥 → 选模型」，但编辑态里若这条连接改过任一高级项
+ * （密钥头不是 bearer / 思考档不是 standard / 上下文窗口手动填过），进来就展开——
+ * 收起会藏掉「为什么 401」的答案。`:open` 只管初始值，之后用户手动开合不被接管。
+ */
+const advancedOpen = ref(
+  editingConnection.value !== null &&
+    (editingConnection.value.authHeader !== "bearer" ||
+      editingConnection.value.thinkingWire !== "standard" ||
+      editingConnection.value.contextWindow !== undefined)
+);
 const saving = ref(false);
 /** 已保存的连接（刚存完那一条）：软校验结果挂在这里，别随对话框一起消失。 */
 const savedConnectionId = ref<string | null>(props.connectionId ?? null);
@@ -342,34 +354,45 @@ useDialogMotion({ root: dialogRoot });
           </button>
         </header>
         <div class="dialog-content">
-          <label class="provider-field">
-            <span>供应商</span>
-            <!-- 真能切：optgroup 按国内 / 国外 / 自定义分组。 -->
-            <select v-model="providerId">
-              <optgroup
-                v-for="group in PROVIDER_DIALOG_GROUPS"
-                :key="group.group"
-                :label="group.label"
-              >
-                <option v-for="id in group.ids" :key="id" :value="id">
-                  {{
-                    id === CUSTOM_PROVIDER_ID ? CUSTOM_PROVIDER_LABEL : (presetOf(id)?.label ?? id)
-                  }}
-                </option>
-              </optgroup>
-            </select>
-            <button
-              v-if="!isCustom"
-              class="dialog-secondary-button provider-key-link"
-              type="button"
-              @click="openKeyPage"
+          <!--
+            供应商卡片网格（2026-11-20 视觉重排，对齐大厂模型配置页）。
+            此前是原生 select + optgroup：分组看得见，但「这一家配什么地址」毫无预告，
+            选完还得看地址框才知道发生了什么。卡片把「谁可选」直接铺开，
+            点卡即切（providerId 仍是唯一真身，watch 带地址与请求头的老路一根没动）。
+            分组顺序仍来自 contracts 的 PROVIDER_DIALOG_GROUPS（铁律 6：组件里不自己排）。
+          -->
+          <div class="provider-cards" role="radiogroup" aria-label="供应商">
+            <div
+              v-for="group in PROVIDER_DIALOG_GROUPS"
+              :key="group.group"
+              class="provider-card-group"
             >
-              获取 API 密钥
-            </button>
-            <small v-if="preset && preset.note !== ''" class="provider-field-note">
-              {{ preset.note }}
-            </small>
-          </label>
+              <span class="provider-card-group-label">{{ group.label }}</span>
+              <div class="provider-card-row">
+                <button
+                  v-for="id in group.ids"
+                  :key="id"
+                  type="button"
+                  :class="['provider-card', { 'is-chosen': providerId === id }]"
+                  :aria-pressed="providerId === id"
+                  @click="providerId = id"
+                >
+                  <span class="provider-card-name">{{
+                    id === CUSTOM_PROVIDER_ID ? CUSTOM_PROVIDER_LABEL : (presetOf(id)?.label ?? id)
+                  }}</span>
+                  <AppIcon
+                    v-if="providerId === id"
+                    name="check"
+                    :size="13"
+                    class="provider-card-check"
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+          <small v-if="preset && preset.note !== ''" class="provider-field-note">
+            {{ preset.note }}
+          </small>
 
           <label class="provider-field">
             <span>接口地址（Base URL）</span>
@@ -403,42 +426,11 @@ useDialogMotion({ root: dialogRoot });
             </small>
           </label>
 
-          <label class="provider-field">
-            <span>密钥放在哪个请求头</span>
-            <!--
-              这一格不是装饰：小米 MiMo 官方只认 api-key 头，发 Bearer 会永远 401。
-              预置已经替你选对了，这里是给自填地址时兜底与覆盖用的。
-            -->
-            <select v-model="authHeader">
-              <option value="bearer">Authorization: Bearer（绝大多数 OpenAI 兼容端点）</option>
-              <option value="api-key">api-key（小米 MiMo 等）</option>
-            </select>
-            <small class="provider-field-note"
-              >协议固定是 Chat Completions（OpenAI 兼容），暂不支持别的形态。</small
-            >
-          </label>
-
           <!--
-            思考档的线格式（2026-10-09 批次 5-㊻）。与上面那格同一族：
-            **「OpenAI 兼容」不等于字段值一样**。
-            Agnes AI Hub 的真机回执原文——「Unexpected reasoning effort high.
-            Supported types are xhigh (default), medium, and low.」：
-            它照收 low / medium，唯独最高那一档叫 xhigh，我们发 high 上去**整笔请求 400**，
-            症状是「地址密钥全对但一个字都发不出去」。
-            分歧只在最高档（另两档各家一致），所以这一格只改那一档的字。
+            密钥头与思考档两格（2026-11-20 重排）搬进了下方「高级选项」折叠区：
+            预置供应商这两格都有对的默认值，主路径（选卡 → 填密钥 → 选模型）不该被
+            90% 的用户用不到的选项顶着往下滚。
           -->
-          <label class="provider-field">
-            <span>深度思考在线上叫什么</span>
-            <select v-model="thinkingWire">
-              <option value="standard">{{ THINKING_WIRE_LABELS.standard }}</option>
-              <option value="xhigh">{{ THINKING_WIRE_LABELS.xhigh }}</option>
-            </select>
-            <small class="provider-field-note"
-              >只有「深度」那一档会变：选 xhigh 时本轮出站发
-              <code>reasoning_effort=xhigh</code>，较低/标准两档照发 low / medium。</small
-            >
-          </label>
-
           <label class="provider-field">
             <span>API Key</span>
             <div class="provider-key-row">
@@ -457,6 +449,14 @@ useDialogMotion({ root: dialogRoot });
                 @click="showKey = !showKey"
               >
                 <AppIcon name="eye" :size="15" />
+              </button>
+              <button
+                v-if="!isCustom"
+                class="dialog-secondary-button provider-key-link"
+                type="button"
+                @click="openKeyPage"
+              >
+                获取 API 密钥
               </button>
             </div>
             <small class="provider-field-note">
@@ -565,25 +565,68 @@ useDialogMotion({ root: dialogRoot });
           </div>
 
           <!--
-            P0-3：上下文窗口。它是本仓做上下文预算的唯一来源（占用条分母 + 历史切片），
-            所以必须有地方让用户按实际模型改，而不是永远吃默认 24000。
-            和上面几格一样是**连接级**：同一端点下的模型窗口在设置这一步就确认了。
+            高级选项（2026-11-20 重排）：密钥请求头 / 思考档线格式 / 上下文窗口三格收进折叠区。
+            【密钥头不是装饰】小米 MiMo 官方只认 api-key 头，发 Bearer 会永远 401——
+            预置已替你选对，这里是给自填地址时兜底与覆盖用的。
+            【思考档的线格式（2026-10-09 批次 5-㊻）】「OpenAI 兼容」不等于字段值一样：
+            Agnes AI Hub 的真机回执原文——「Unexpected reasoning effort high.
+            Supported types are xhigh (default), medium, and low.」——它照收 low / medium，
+            唯独最高那一档叫 xhigh，我们发 high 上去**整笔请求 400**，症状是
+            「地址密钥全对但一个字都发不出去」。分歧只在最高档，所以这一格只改那一档的字。
+            编辑态里任一项不是默认值时自动展开：收起会藏掉「为什么 401」的答案。
           -->
-          <label class="provider-field">
-            <span>上下文窗口（tokens）</span>
-            <input
-              v-model="contextWindowText"
-              type="number"
-              min="1"
-              step="1"
-              inputmode="numeric"
-              :placeholder="`默认 ${DEFAULT_CONTEXT_WINDOW_TOKENS}`"
-            />
-            <small class="provider-field-note">
-              填这个模型的上游窗口；留空按默认 {{ DEFAULT_CONTEXT_WINDOW_TOKENS }} 估算。
-              它决定占用条的分母与能带多少历史，不改变上游真实上限。
-            </small>
-          </label>
+          <details class="provider-advanced" :open="advancedOpen">
+            <summary>
+              <span class="provider-advanced-title">高级选项</span>
+              <small class="provider-advanced-hint">密钥请求头 · 思考档线格式 · 上下文窗口</small>
+              <AppIcon name="chevron" :size="13" class="provider-advanced-caret" />
+            </summary>
+            <div class="provider-advanced-body">
+              <label class="provider-field">
+                <span>密钥放在哪个请求头</span>
+                <select v-model="authHeader">
+                  <option value="bearer">Authorization: Bearer（绝大多数 OpenAI 兼容端点）</option>
+                  <option value="api-key">api-key（小米 MiMo 等）</option>
+                </select>
+                <small class="provider-field-note"
+                  >协议固定是 Chat Completions（OpenAI 兼容），暂不支持别的形态。</small
+                >
+              </label>
+
+              <label class="provider-field">
+                <span>深度思考在线上叫什么</span>
+                <select v-model="thinkingWire">
+                  <option value="standard">{{ THINKING_WIRE_LABELS.standard }}</option>
+                  <option value="xhigh">{{ THINKING_WIRE_LABELS.xhigh }}</option>
+                </select>
+                <small class="provider-field-note"
+                  >只有「深度」那一档会变：选 xhigh 时本轮出站发
+                  <code>reasoning_effort=xhigh</code>，较低/标准两档照发 low / medium。</small
+                >
+              </label>
+
+              <!--
+                P0-3：上下文窗口。它是本仓做上下文预算的唯一来源（占用条分母 + 历史切片），
+                所以必须有地方让用户按实际模型改，而不是永远吃默认 24000。
+                和上面几格一样是**连接级**：同一端点下的模型窗口在设置这一步就确认了。
+              -->
+              <label class="provider-field">
+                <span>上下文窗口（tokens）</span>
+                <input
+                  v-model="contextWindowText"
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputmode="numeric"
+                  :placeholder="`默认 ${DEFAULT_CONTEXT_WINDOW_TOKENS}`"
+                />
+                <small class="provider-field-note">
+                  填这个模型的上游窗口；留空按默认 {{ DEFAULT_CONTEXT_WINDOW_TOKENS }} 估算。
+                  它决定占用条的分母与能带多少历史，不改变上游真实上限。
+                </small>
+              </label>
+            </div>
+          </details>
 
           <!--
  拉取状态不再单列一行：「正在拉取…」进了重新拉取那颗按钮，

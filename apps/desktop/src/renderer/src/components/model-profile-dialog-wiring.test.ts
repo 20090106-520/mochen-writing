@@ -200,16 +200,37 @@ describe("ModelProfileDialog · 出网与数据通路", () => {
   });
 });
 
-describe("ModelProfileDialog · 供应商可切（批次 5-⑤ 的正题）", () => {
-  it("供应商是真能切的下拉，且按国内/国外/自定义分组", () => {
+describe("ModelProfileDialog · 供应商可切（2026-11-20 重排成卡片网格）", () => {
+  it("供应商是真能切的卡片网格，且按国内/国外/自定义分组（点卡即切，不是装饰）", () => {
     const markup = markupOf();
     const script = scriptOf();
-    expect(markup).toContain('<select v-model="providerId">');
-    expect(markup).toContain('<optgroup v-for="group in PROVIDER_DIALOG_GROUPS"');
-    expect(markup).toContain(':label="group.label"');
-    // 分组表来自 contracts，组件里不自己排一遍（铁律 6：一份实现）。
+    // 分组顺序仍来自 contracts，组件里不自己排一遍（铁律 6：一份实现）。
+    expect(markup).toContain('v-for="group in PROVIDER_DIALOG_GROUPS"');
+    // 点卡即切：providerId 仍是唯一真身，watch 带地址与请求头（下一条钉）。
+    expect(markup).toContain("providerId = id");
+    expect(markup).toContain(`'is-chosen': providerId === id`);
     expect(script).toContain("PROVIDER_DIALOG_GROUPS");
     expect(script).toContain('from "@mochen/contracts"');
+    // 旧的原生下拉不许回来（它就是用户说「不好看」的那个形状）。
+    expect(markup).not.toContain('<select v-model="providerId">');
+  });
+
+  it("低频高级项收进折叠区：主路径只剩 供应商 → 密钥 → 模型", () => {
+    const markup = markupOf();
+    expect(markup).toContain('<details class="provider-advanced" :open="advancedOpen">');
+    expect(markup).toContain("<summary>");
+    // 密钥头与思考档的 select 还在——搬了家，不是删了功能（断言沿用旧钉）。
+    expect(markup).toContain('<select v-model="authHeader">');
+    expect(markup).toContain('<option value="bearer">');
+    expect(markup).toContain('<option value="api-key">');
+    expect(markup).toContain('<select v-model="thinkingWire">');
+  });
+
+  it("编辑态里高级项被改过时折叠区自动展开（收起会藏掉「为什么 401」的答案）", () => {
+    const script = scriptOf();
+    expect(script).toContain("const advancedOpen = ref(");
+    expect(script).toContain('editingConnection.value.authHeader !== "bearer"');
+    expect(script).toContain('editingConnection.value.thinkingWire !== "standard"');
   });
 
   // 这条是上面那条的根据：不 watch providerId，切换就只是换了下拉里的一个字。

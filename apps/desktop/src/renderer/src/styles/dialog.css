@@ -730,3 +730,158 @@
 .new-book-structure-item.is-conditional .new-book-structure-path {
   color: var(--text-secondary);
 }
+
+/* ==== 添加/编辑模型对话框 · 视觉重排（2026-11-20，对齐大厂模型配置页） ====
+   主路径收紧为「选供应商卡 → 填密钥 → 选模型」，低频三项（密钥请求头 / 思考档线格式 /
+   上下文窗口）收进折叠区。材质全部走浮层家族与对话框既有 token，不新增变量。 */
+
+/* 供应商卡片网格：组标题 + 每组一行卡片。 */
+.provider-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.provider-card-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.provider-card-group-label {
+  color: var(--text-tertiary);
+  font-size: 0.714286rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+}
+
+.provider-card-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.provider-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+  color: var(--text-soft);
+  font-family: var(--ui-font);
+  font-size: 0.857143rem;
+  cursor: pointer;
+  transition:
+    border-color 120ms var(--ease-out-soft, ease),
+    background 120ms var(--ease-out-soft, ease);
+}
+
+.provider-card:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.provider-card:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.provider-card.is-chosen {
+  border-color: color-mix(in srgb, var(--focus) 55%, var(--line-soft));
+  background: color-mix(in srgb, var(--focus) 10%, transparent);
+  color: var(--text);
+  font-weight: 590;
+}
+
+.provider-card-check {
+  flex: 0 0 auto;
+  color: var(--focus);
+}
+
+/* 「获取 API 密钥」并进密钥行：一行三件（输入框 / 显隐 / 去取），主路径不再分叉。 */
+.provider-key-row .provider-key-link {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* 高级选项折叠区：summary 是一行低调的可点标题，展开后箭头转半圈。 */
+.provider-advanced {
+  margin-bottom: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+}
+
+.provider-advanced > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 12px;
+  border-radius: inherit;
+  color: var(--text-soft);
+  font-size: 0.857143rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.provider-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.provider-advanced > summary:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.provider-advanced > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.provider-advanced-title {
+  color: var(--text);
+  font-weight: 590;
+}
+
+.provider-advanced-hint {
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 0.714286rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-advanced-caret {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  transform: rotate(-90deg);
+  transition: transform 140ms var(--ease-out-soft, ease);
+}
+
+.provider-advanced[open] .provider-advanced-caret {
+  transform: rotate(0deg);
+}
+
+/* 折叠区里的表单比外面窄一圈：左缘对齐 summary 文字，右缘留同一档呼吸。 */
+.provider-advanced-body {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 12px 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.provider-advanced-body .provider-field {
+  margin-bottom: 10px;
+}
+
+.provider-advanced-body .provider-field:last-child {
+  margin-bottom: 2px;
+}
