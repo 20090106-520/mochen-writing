@@ -120,6 +120,14 @@ describe("ModelSelect · 弹层本体", () => {
     // 类名刻意避开 model-select-badge（那是旧徽章时代的名字，下面那条反向钉管着）。
     const rowIconCount = markup.split('class="model-select-row-icon"').length - 1;
     expect(rowIconCount, "两处行模板各要一枚行首徽章").toBe(2);
+    // 2026-11-20 第三刀（参考图同款的结构）：每一行右缘一枚元信息位——参考图那里是积分
+    // 倍率（x0.8），本仓没有这个数据，放的是名字里自带的版本号（versionBadgeOf），
+    // 不放假倍率。两处行模板各一枚；版本位是不是真「读名字」由 utils 的单测钉。
+    const metaCount = markup.split('class="model-select-meta"').length - 1;
+    expect(metaCount, "两处行模板各要一枚右缘元信息位").toBe(2);
+    // 版本位是不是真「读名字」：import 在 script、调用在模板——两头都要有。
+    expect(script).toContain("versionBadgeOf,");
+    expect(markup).toContain("versionBadgeOf(name)");
 
     // 「按了有反应」那一半：钉在 pick 的函数体上，不靠读模板的 if。
     const pick = /function pick\(name: string\): void \{[\s\S]*?\n\}/.exec(script)?.[0] ?? "";
@@ -340,6 +348,29 @@ describe("ModelSelect · 弹层本体", () => {
     expect(markup).toContain("<kbd>↑</kbd>");
     expect(markup).toContain("<kbd>Enter</kbd>");
     expect(markup).toContain("<kbd>Esc</kbd>");
+  });
+
+  /**
+   * 2026-11-20（参考图同款的结构）：「刷新模型列表」从头部图标钮搬到底部**文字行**——
+   * 排障动作与脚注说明同区，主路径只剩名单。通道名仍只进悬停提示（下面那条旧闸管着）。
+   * 头部图标钮的形状（.model-select-icon-btn）随之退役，CSS 里也删了，dead-css-guard 盯着。
+   */
+  it("刷新搬到底部文字行（与脚注同区），头部不再有图标钮", () => {
+    const markup = templateSource(POPOVER);
+    expect(markup).toContain('class="model-select-refresh"');
+    expect(markup).toContain("刷新模型列表");
+    const refreshAt = markup.indexOf('class="model-select-refresh"');
+    const footAt = markup.indexOf('class="model-select-foot"');
+    const headAt = markup.indexOf("</header>");
+    expect(refreshAt, "刷新行不在面板尾部").toBeGreaterThan(headAt);
+    expect(refreshAt, "刷新行要贴着脚注（同区）").toBeLessThan(footAt);
+    expect(markup).not.toContain("model-select-icon-btn");
+  });
+
+  it("脚注带「*」前缀：它是元信息不是正文（参考图同款）", () => {
+    const markup = templateSource(POPOVER);
+    const foot = /<p class="model-select-foot">([\s\S]*?)<\/p>/.exec(markup)?.[1] ?? "";
+    expect(foot).toContain("*");
   });
 
   /**

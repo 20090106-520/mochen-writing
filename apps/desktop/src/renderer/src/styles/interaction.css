@@ -529,25 +529,25 @@
   font-weight: 500;
 }
 
-/* 刷新（2026-10-25 从文字钮改成图标钮）：头部原本是「标题 + 计数 + 刷新文字钮 + ×」四件，
-   挤在一行里谁都不显眼。刷新是一枚低频动作，图标钮够用；
-   通道名挪进它的悬停提示——那是排查用的，不该摊在正文上（可见文字里不该有 provider:list-models）。 */
-.model-select-icon-btn {
+/* 刷新（2026-11-20 照参考图搬到底部文字行）：「重新拉名单」是排障动作，参考图把它
+   摆在面板末尾与说明同区。头部不再有图标钮（.model-select-icon-btn 规则一并退役，
+   dead-css-guard 会盯着它别回来）。 */
+.model-select-refresh {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 7px;
   flex: none;
-  width: 28px;
-  height: 28px;
-  padding: 0;
+  padding: 5px 8px;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--text-soft);
+  font-family: var(--ui-font);
+  font-size: 0.857143rem;
   cursor: pointer;
 }
 
-.model-select-icon-btn:disabled {
+.model-select-refresh:disabled {
   opacity: 0.5;
   cursor: default;
 }
@@ -693,10 +693,10 @@
 }
 
 /* 行尾那枚模态标记：只出现在「正在用」那一行（当前在用的这一枚可能不是写作模型，
-   标出来是诚实）。靠 auto 推到右端；它和 ✓ 同时在场时 ✓ 不再抢中段空白。 */
+   标出来是诚实）。2026-11-20 起 tag 不再自己推到右端——右缘的位置让给版本徽章
+   （.model-select-meta 持 auto），tag 跟在名字后面。 */
 .model-select-tag {
   flex: none;
-  margin-left: auto;
   padding: 1px 6px;
   border-radius: 999px;
   background: var(--hover);
@@ -706,8 +706,25 @@
   font-size: 0.785714rem;
 }
 
-.model-select-tag + .model-select-check {
-  margin-left: 6px;
+.model-select-tag + .model-select-meta {
+  margin-left: auto;
+}
+
+/* 右缘元信息位（2026-11-20 照参考图结构）：那一格在参考图里是积分倍率（x0.8），
+   本仓放的是**名字里自带的版本号**（versionBadgeOf，不放假倍率）。
+   等宽数字 + 第三级灰——它是「扫一眼的元信息」，不进视线焦点。 */
+.model-select-meta {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-faint);
+  font-family: var(--code-font);
+  font-size: 0.785714rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 当前行的 meta 与 ✓ 同在右缘：勾跟在 meta 后面，间隔交给行 gap。 */
+.model-select-row.is-current .model-select-meta {
+  color: var(--text-soft);
 }
 
 .model-select-retry,
@@ -744,7 +761,7 @@
 .model-select-retry:hover,
 .model-select-settings:hover,
 .model-select-close:hover,
-.model-select-icon-btn:hover {
+.model-select-refresh:hover {
   background: var(--hover);
   /* 这一组里三枚各写自己的字色（retry 与 close 是 `--text-soft`，settings 是实心主按钮），
      所以升档只能 shadow 那一枚 token，不能在这里补一条 `color:` 把实心按钮一起改掉。 */
@@ -783,7 +800,7 @@
 .model-select-retry:focus-visible,
 .model-select-settings:focus-visible,
 .model-select-close:focus-visible,
-.model-select-icon-btn:focus-visible {
+.model-select-refresh:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
 }

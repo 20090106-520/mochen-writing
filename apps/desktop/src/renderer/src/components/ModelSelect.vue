@@ -28,6 +28,7 @@ import {
   filterModels,
   modalityLabelOf,
   splitByCurrentModel,
+  versionBadgeOf,
   writableModels
 } from "../utils/model-picker";
 import type { HotkeyMods } from "../utils/hotkeys";
@@ -242,17 +243,6 @@ function setActive(name: string): void {
       <header class="model-select-head">
         <strong>切换模型</strong>
         <span v-if="upstream.length" class="model-select-count">{{ countText }}</span>
-        <button
-          v-if="upstream.length && !loading"
-          class="model-select-icon-btn"
-          type="button"
-          :disabled="switching"
-          title="重新拉取模型名单（provider:list-models）"
-          aria-label="重新拉取模型名单"
-          @click="emit('retry')"
-        >
-          <AppIcon name="refresh" :size="14" />
-        </button>
         <button class="model-select-close" type="button" aria-label="关闭模型列表" @click="close">
           <AppIcon name="close" :size="14" />
         </button>
@@ -317,6 +307,8 @@ function setActive(name: string): void {
             <span v-if="modalityLabelOf(name)" class="model-select-tag">{{
               modalityLabelOf(name)
             }}</span>
+            <!-- 右缘元信息位（参考图那个 x 倍率的位置）：放的是名字里自带的版本号，不放假倍率。 -->
+            <span class="model-select-meta">{{ versionBadgeOf(name) }}</span>
             <AppIcon class="model-select-check" name="check" :size="14" />
           </button>
         </li>
@@ -336,6 +328,7 @@ function setActive(name: string): void {
               <AppIcon name="model" :size="12" />
             </span>
             <span class="model-select-name">{{ name }}</span>
+            <span class="model-select-meta">{{ versionBadgeOf(name) }}</span>
           </button>
         </li>
       </ul>
@@ -361,11 +354,24 @@ function setActive(name: string): void {
       <p v-if="truncated" class="model-select-note">
         名单太长，这里只列了前 {{ MODEL_PICKER_LIST_LIMIT }} 个；用搜索找其余的。
       </p>
-      <!-- 脚注（2026-10-25 去术语）：原来写的是「名单来自 provider:list-models（主进程按模型设置里的
-           baseURL 出网）」——通道名、主进程、baseURL 三个词摊在正文上，对写作者一个都不解释。
-           现在只说「去哪儿改」；通道名挪进「刷新」那颗钮的悬停提示（排查用，不摊在正文上）。 -->
+      <!-- 刷新搬到底部文字行（2026-11-20，照用户参考图的结构）：此前是头部图标钮——
+           但「重新拉名单」是排障动作，参考图把它摆在面板末尾与说明同区，主路径更干净。
+           通道名仍在悬停提示里（铁律：控件要报得出自己走哪条通道）。 -->
+      <button
+        v-if="upstream.length && !loading"
+        class="model-select-refresh"
+        type="button"
+        :disabled="switching"
+        title="重新拉取模型名单（provider:list-models）"
+        @click="emit('retry')"
+      >
+        <AppIcon name="refresh" :size="13" />
+        刷新模型列表
+      </button>
+      <!-- 脚注（2026-10-25 去术语）：只说「去哪儿改」；通道名在上面刷新钮的悬停提示里。
+           2026-11-20 照参考图加「*」前缀——它是元信息，不是正文。 -->
       <p class="model-select-foot">
-        名单来自「模型设置」里填的地址。改地址、换密钥或手填模型名，都在那儿改。
+        * 名单来自「模型设置」里填的地址。改地址、换密钥或手填模型名，都在那儿改。
       </p>
       <!-- 键位提示行（2026-10-25 照 @ 引用菜单那份来）：那个浮层是同一族里做得最全的，
            底部一枚 kbd 提示行把「能怎么用」说清楚，不用猜。 -->
