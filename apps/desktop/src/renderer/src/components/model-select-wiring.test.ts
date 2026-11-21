@@ -115,6 +115,12 @@ describe("ModelSelect · 弹层本体", () => {
     expect(markup).toContain('aria-current="true"');
     expect(markup).toContain(`class="model-select-check" name="check"`);
 
+    // 2026-11-20 第二刀（参考图同款）：两处行模板（当前 + 其余）行首各一枚通用图标徽章——
+    // 各家 logo 我们没有资产也没有数据通路，放的是 model 图标，不放假 logo。
+    // 类名刻意避开 model-select-badge（那是旧徽章时代的名字，下面那条反向钉管着）。
+    const rowIconCount = markup.split('class="model-select-row-icon"').length - 1;
+    expect(rowIconCount, "两处行模板各要一枚行首徽章").toBe(2);
+
     // 「按了有反应」那一半：钉在 pick 的函数体上，不靠读模板的 if。
     const pick = /function pick\(name: string\): void \{[\s\S]*?\n\}/.exec(script)?.[0] ?? "";
     expect(pick).toContain("if (name === props.current)");

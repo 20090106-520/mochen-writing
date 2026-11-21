@@ -307,6 +307,9 @@ function setActive(name: string): void {
             @click="pick(name)"
             @mouseenter="setActive(name)"
           >
+            <span class="model-select-row-icon" aria-hidden="true">
+              <AppIcon name="model" :size="12" />
+            </span>
             <span class="model-select-name">{{ name }}</span>
             <!-- 【诚实边界】当前在用的这一枚**可能不是写作模型**（手填的模型名，
                  或者早先误切留下的图像模型）。名单已经只留写作模型，这一行照常摆着，
@@ -329,6 +332,9 @@ function setActive(name: string): void {
             @click="pick(name)"
             @mouseenter="setActive(name)"
           >
+            <span class="model-select-row-icon" aria-hidden="true">
+              <AppIcon name="model" :size="12" />
+            </span>
             <span class="model-select-name">{{ name }}</span>
           </button>
         </li>

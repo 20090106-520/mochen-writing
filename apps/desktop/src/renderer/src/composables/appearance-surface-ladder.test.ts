@@ -201,8 +201,7 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
       { needle: ".composer-context-item:active", shadow: ["--text-tertiary"] },
       { needle: ".context-picker-close:hover", shadow: ["--text-tertiary"] },
       { needle: ".context-option:hover", shadow: ["--text-secondary", "--text-tertiary"] },
-      /* 阶段选择的键盘高亮（2026-10-25）：↑↓ 改的是高亮不是真焦点（改之前是搬真焦点，
-         Enter 还按第一条选）。这一格与 hover 同一块、同样的升档。 */
+      /* 阶段选择的键盘高亮（2026-10-25）：↑↓ 改的是高亮不是真焦点，与 hover 同一块、同样的升档。 */
       { needle: ".context-option.is-selected", shadow: ["--text-secondary", "--text-tertiary"] },
       { needle: ".context-option:active", shadow: ["--text-secondary", "--text-tertiary"] },
       /* 「更多」二级选项卡（2026-11-09 四组统一打开方式）：标题图标自带深底并写明字色；
@@ -335,10 +334,11 @@ const STATE_RUNG_SITES: readonly FileSites[] = [
       { needle: ".composer-chip:hover", primary: true, shadow: ["--text-faint"] },
       { needle: '.composer-chip[aria-pressed="true"]', primary: true, shadow: ["--text-faint"] },
       { needle: ".model-select-row:hover", inheritFrom: ".model-select-row" },
-      /* 键盘高亮那一格（2026-10-25）：↑↓ 走的是高亮而不是真焦点，所以「指着哪一行」
-         自己也画了状态档底。形状与 hover 同一形——字色由基规则 `.model-select-row` 带着。
-         类名从 is-active 改成 is-selected：这一族浮层（模型选择器 / 权限档 / 阶段选择 /
-         @ 引用菜单）统一用同一枚词，各叫各的正是「不一致」的来源。 */
+      /* 2026-11-20 第二刀：当前行改回「浅灰底 + 粗体」（用户给的参考图同款），--selected 档、字色随基规则。 */
+      { needle: ".model-select-row.is-current", inheritFrom: ".model-select-row" },
+      /* 键盘高亮那一格（2026-10-25）：↑↓ 走的是高亮而不是真焦点，「指着哪一行」自己也画了状态档底；
+         字色由基规则 `.model-select-row` 带着。类名从 is-active 改成 is-selected：这一族浮层
+         （模型选择器 / 权限档 / 阶段选择 / @ 引用菜单）统一用同一枚词，各叫各的正是「不一致」的来源。 */
       { needle: ".model-select-row.is-selected", inheritFrom: ".model-select-row" },
       /* 模态标记（2026-10-22）：只有图像/视频模型会渲染出来的小药丸，底是 --hover。 */
       { needle: ".model-select-tag", primary: true },

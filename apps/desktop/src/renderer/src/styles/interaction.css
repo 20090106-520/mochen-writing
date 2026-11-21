@@ -604,6 +604,9 @@
    【2026-11-20 · 大厂密度刀】行高收紧一档（5px 上下 + 12px 字号）：此前 7px 上下
    配等宽大字，整份名单读起来像一列按钮而不是菜单——对照 ChatGPT / Raycast 那一档，
    菜单行的身份是「文字行」，不是「卡」。 */
+/* 【2026-11-20 · 第二刀（照用户给的参考图）】名字从等宽体换成 **UI 字体**：参考图里
+   每一行是「图标 + 产品名 + 右缘倍率」，名字是产品，不是终端串——等宽体把它排成了
+   代码清单。模型名仍是原样显示（不放假的展示名），只是换回界面正文字体。 */
 .model-select-row {
   display: flex;
   gap: 8px;
@@ -614,7 +617,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--text);
-  font-family: var(--code-font);
+  font-family: var(--ui-font);
   font-size: 0.857143rem;
   text-align: left;
   cursor: pointer;
@@ -636,19 +639,36 @@
 }
 
 /* 当前在用的那一行：单开一段摆到最上面（真机读数：原来它混在名单第 4 行）。
-   【2026-11-20 · 大厂密度刀】原先给它铺一整条 accent-soft 大底——整份名单因此读起来
-   像「一列选中的按钮」。现在改成大厂菜单的那一手：**左缘 3px 强调条 + 字重加重 + 右端 ✓**，
-   底色只在「指着」时由 `.is-selected` 那条带着——「在用」（条）与「指着」（底）两件事
-   各有各的记号，谁也不吞谁。 */
+   【2026-11-20 · 第二刀（照用户给的参考图）】当前行是**浅灰底 + 粗体 + 右端 ✓**——
+   上一刀试过的「左缘强调条」方向不对，用户要的是参考图那一张的脸：整行轻灰底，
+   名字加重。底走 `--selected`（中性灰），不是最初的 `--accent-soft` 大蓝底；
+   普查表以 inheritFrom 登记（字色由基规则 `.model-select-row` 带着）。 */
 .model-select-row.is-current {
-  box-shadow: inset 3px 0 0 var(--focus);
+  background: var(--selected);
   color: var(--text);
   font-weight: 600;
 }
 
+/* 行首图标徽章（参考图每一行都有一枚 logo 位）：20px 方、发丝线圆角小块，
+   图标色次级——它是锚点不是主角，不跟名字抢视线。各家 logo 我们没有资产
+   也没有数据通路，放的是通用 model 图标，不放假 logo。
+   （类名刻意避开 model-select-badge：那是旧徽章时代的名字，wiring 里有反向钉。） */
+.model-select-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-soft);
+}
+
 .model-select-name {
   /* 模型名是不分词的 ASCII 串（`claude-3-5-sonnet`、带 vendor 前缀的长名都有），
-     所以断行交给 break-all；这一格仍用等宽体——用户比对的正是这些字面的差别。 */
+     所以断行交给 break-all。字体已随行换回 UI 体（2026-11-20 第二刀，见上）。 */
   min-width: 0;
   word-break: break-all;
 }
