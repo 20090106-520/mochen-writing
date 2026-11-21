@@ -20,6 +20,15 @@ directories:
   output: release
   buildResources: resources
 
+# 安装包体积两刀（2026-11-20）：
+# - compression: maximum —— NSIS 的 LZMA 压到最紧；代价是打包慢几分钟，安装包是一次性下载，划算。
+# - electronLanguages —— Electron 自带约 50 种语言的 .pak，界面只有中文，只留两枚：省 ~2MB 安装体积，
+#   也少一层「卸载残留」的面。
+compression: maximum
+electronLanguages:
+  - zh-CN
+  - en-US
+
 files:
   - out/**
   - resources/**
