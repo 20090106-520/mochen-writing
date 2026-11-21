@@ -506,7 +506,8 @@
   align-items: center;
   gap: 8px;
   flex: none;
-  padding: 2px 6px 6px;
+  padding: 4px 6px 8px;
+  border-bottom: 1px solid var(--line-soft);
   color: var(--text-soft);
   font-size: 0.857143rem;
   font-weight: 600;
@@ -599,19 +600,22 @@
 }
 
 /* 整行可点（参考图那一版）：宽度、左右两端的对齐都交给这一行自己撑，
-   勾在右端靠 `margin-left: auto` 推开——不写死像素偏移，名字长短变了勾也不会歪。 */
+   勾在右端靠 `margin-left: auto` 推开——不写死像素偏移，名字长短变了勾也不会歪。
+   【2026-11-20 · 大厂密度刀】行高收紧一档（5px 上下 + 12px 字号）：此前 7px 上下
+   配等宽大字，整份名单读起来像一列按钮而不是菜单——对照 ChatGPT / Raycast 那一档，
+   菜单行的身份是「文字行」，不是「卡」。 */
 .model-select-row {
   display: flex;
   gap: 8px;
   align-items: center;
   width: 100%;
-  padding: 7px 8px;
+  padding: 5px 10px;
   border: none;
   border-radius: 8px;
   background: transparent;
   color: var(--text);
   font-family: var(--code-font);
-  font-size: var(--code-font-size);
+  font-size: 0.857143rem;
   text-align: left;
   cursor: pointer;
 }
@@ -631,18 +635,15 @@
   background: var(--selected);
 }
 
-/* 当前在用的那一行：单开一段摆到最上面（真机读数：原来它混在名单第 4 行），
-   所以这一行得比别行更「在用」——底是强调色的淡调，字加粗，右端带 ✓。
-   底用 `--accent-soft` 而不是 `--selected`：后者是中性灰，压在它上面读不出「这一枚是现在在用的」。 */
+/* 当前在用的那一行：单开一段摆到最上面（真机读数：原来它混在名单第 4 行）。
+   【2026-11-20 · 大厂密度刀】原先给它铺一整条 accent-soft 大底——整份名单因此读起来
+   像「一列选中的按钮」。现在改成大厂菜单的那一手：**左缘 3px 强调条 + 字重加重 + 右端 ✓**，
+   底色只在「指着」时由 `.is-selected` 那条带着——「在用」（条）与「指着」（底）两件事
+   各有各的记号，谁也不吞谁。 */
 .model-select-row.is-current {
-  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--focus);
   color: var(--text);
   font-weight: 600;
-}
-
-/* 当前行同时被指着（高亮）时：底再深一档，让「在用」与「指着」两件事同时看得出来。 */
-.model-select-row.is-current.is-selected {
-  background: color-mix(in srgb, var(--focus) 18%, transparent);
 }
 
 .model-select-name {
