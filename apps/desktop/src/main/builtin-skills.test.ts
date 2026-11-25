@@ -108,9 +108,18 @@ describe("builtinActionOf · 该写、该升、还是别动", () => {
 });
 
 describe("LEGACY_SKILL_SHA · 迁移表", () => {
-  it("四枚出厂技能各有一条 v0 指纹", () => {
-    for (const skill of BUILTIN_SKILLS) {
-      expect(LEGACY_SKILL_SHA[skill.dirName]?.length, skill.dirName).toBeGreaterThan(0);
+  it("表里每一枚都是出厂技能（迁移表是历史，不再增长——新技能从 v1 起带元数据）", () => {
+    for (const dirName of Object.keys(LEGACY_SKILL_SHA)) {
+      expect(
+        BUILTIN_SKILLS.some((skill) => skill.dirName === dirName),
+        dirName
+      ).toBe(true);
+    }
+  });
+
+  it("出厂四件套各留有 v0 指纹（那四份落盘早于元数据机制）", () => {
+    for (const dirName of ["check-consistency", "check-plot", "check-logic", "check-style"]) {
+      expect(LEGACY_SKILL_SHA[dirName]?.length, dirName).toBeGreaterThan(0);
     }
   });
 
@@ -227,7 +236,6 @@ describe("出厂技能的 stage 与新建书同口径", () => {
     }
   });
 });
-
 /**
  * 公共前言（2026-11-12 压缩，161 字 → 82 字）。
  *
@@ -286,7 +294,7 @@ describe("四条审校技能的公共前言", () => {
     expect(preamble).toContain("当前这份");
   });
 
-  it("四条都以同一段前言开头（结构统一才谈得上「读一次就认识」）", () => {
+  it("每一条都以同一段前言开头（结构统一才谈得上「读一次就认识」）", () => {
     for (const body of bodies) expect(preambleOf(body)).toBe(preamble);
     expect(new Set(bodies.map(preambleOf)).size).toBe(1);
   });
@@ -298,5 +306,42 @@ describe("四条审校技能的公共前言", () => {
         expect(sharedRunOf(tails[i] ?? "", tails[j] ?? "", SHARED_RUN_MAX)).toBe("");
       }
     }
+  });
+});
+
+/**
+ * 章尾钩子检查的正文（2026-11-24 新增）。
+ *
+ * 钉的是它的骨架：判型有类型学、强度只认「翻页才解得开的问题」这一条判据、
+ * 改法只动最后一段且必须挂在前文伏笔上。另外两处边界——「与文风检查的分工」
+ * 和「允许弱钩（节奏是作者定的）」——是这一技能区别于「逼每章天崩地裂」的关键。
+ */
+describe("章尾钩子检查的正文", () => {
+  const HOOK = BUILTIN_SKILLS.find((skill) => skill.dirName === "check-hook")!;
+
+  it("判型有五类钩与各自的例证，无钩要直说", () => {
+    for (const needle of ["悬念钩", "危机钩", "反转钩", "决断钩", "期待钩"]) {
+      expect(HOOK.skillMd).toContain(needle);
+    }
+    expect(HOOK.skillMd).toContain("五类都不是，就直说「无钩」");
+  });
+
+  it("强度只认一条判据：有没有必须翻页才解得开的问题", () => {
+    expect(HOOK.skillMd).toContain("必须翻下一章才解得开的问题");
+  });
+
+  it("改法只动最后一段、必须挂前文伏笔、不许空降与预告腔", () => {
+    expect(HOOK.skillMd).toContain("只动最后一段");
+    expect(HOOK.skillMd).toContain("不许空降新事件");
+    expect(HOOK.skillMd).toContain("不许对读者说话");
+  });
+
+  it("与文风检查划清边界：句子归文风，这里只看钩子", () => {
+    expect(HOOK.skillMd).toContain("那归文风检查");
+  });
+
+  it("允许弱钩：节奏是作者定的，技能只报告不逼人", () => {
+    expect(HOOK.skillMd).toContain("过渡章允许弱钩与中钩");
+    expect(HOOK.skillMd).toContain("不逼每一章都天崩地裂");
   });
 });
