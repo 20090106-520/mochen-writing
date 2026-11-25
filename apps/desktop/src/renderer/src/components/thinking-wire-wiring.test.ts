@@ -78,7 +78,11 @@ describe("ComposerBox · 只是转发，不自行判定", () => {
 describe("composer-chips · 提示报的是真身，不是档位名", () => {
   it("提示用 thinkingWireValueOf 的结果，不是把档位名直接拼上去", () => {
     const chips = typeScriptSource(CHIPS);
-    expect(chips).toContain("const wireValue = thinkingWireValueOf(level, wire)");
+    // 2026-11-21：第三个参数是**当前模型在能力表里那一格**——
+    // 档位名就是线上那个字时（MiniMax-M3.1-Flash 的 xhigh / max），
+    // 而能力表不认这个模型时，才回落到连接级口径（Agnes 那类：最高档叫 high 还是 xhigh）。
+    expect(chips).toContain("const wireValue = thinkingWireValueOf(");
+    expect(chips).toContain("input.thinkingWire");
     expect(chips).toContain("${THINKING_WIRE_FIELD}=${wireValue}");
   });
 

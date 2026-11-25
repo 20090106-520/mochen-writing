@@ -43,7 +43,7 @@ export * from "./tools.js";
 export * from "./agent-event.js";
 export * from "./token-usage.js";
 export * from "./web-source.js";
-export * from "./per-run.js";
+export * from "./model-capability.js";
 export * from "./provider.js";
 export * from "./upstream-error.js";
 export * from "./validation.js";

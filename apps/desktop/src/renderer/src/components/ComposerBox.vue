@@ -17,6 +17,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type {
   DraftSampleCount,
+  ModelCapability,
   PermissionMode,
   ThinkingLevel,
   ThinkingWire,
@@ -68,8 +69,13 @@ const props = defineProps<{
   // #105：权限档弹层真身挂到卡右端（deepwrite 的「更多」那一端）；开合仍由装配处的 useBookStore 裁决。
   permissionMenuOpen: boolean;
   thinkingLevel: ThinkingLevel;
-  /** 启用中那条连接把「深度」在线上叫什么（Agnes 那类端点叫 xhigh）；只影响 chip 的提示。 */
   thinkingWire: ThinkingWire;
+
+  /**
+   * 当前模型在**能力表**里那一格（2026-11-21）：它认哪几档思考深度。
+   * 没有就是 null ⇒ chip 走通用四档（老行为）。
+   */
+  thinkingCapability: ModelCapability | null;
   webSearchEnabled: boolean;
   /** 多稿档（P0-②）：1 = 关。chip 的文案与 title 判定全在 composerChips 那一处，这里只收值。 */
   sampleCount: DraftSampleCount;
@@ -181,7 +187,7 @@ const emit = defineEmits<{
   "open-permission-menu": [];
   "close-permission-menu": [];
   "toggle-work-mode": [];
-  "cycle-thinking": [];
+
   "toggle-web-search": [];
   "cycle-draft-sample": [];
   "open-tool-roster": [];
@@ -226,6 +232,7 @@ const chips = computed(() =>
     saving: props.permissionSaving,
     thinkingLevel: props.thinkingLevel,
     thinkingWire: props.thinkingWire,
+    thinkingCapability: props.thinkingCapability,
     webSearchEnabled: props.webSearchEnabled,
     sampleCount: props.sampleCount,
     modelLabel: props.modelLabel,

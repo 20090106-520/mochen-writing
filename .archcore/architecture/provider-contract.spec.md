@@ -9,9 +9,11 @@ tags:
 
 ## Purpose & Scope
 
-本规范对「模型供应商这一面的形状真身住哪、哪些判定只许有一份」有规范力：`packages/contracts/src/provider.ts` 这一份契约面——连接 / 模型档案 / 草稿 / 视图 / 保存回执 / 体检结果 / 拉模型结果这几组 zod 形状与 TS 类型、内置供应商清单与分组表、按主机名认服务商、自定义连接的卡片名、密钥头与最高档思考的线上字、v1→v2→v3 三代配置迁移、本机端点那几句常量。它是**纯形状 + 纯函数**的一份：**不出网、不写盘、不读存储**——出网在 `main/provider-fetch.ts` 与 `main/provider-models.ts`，密钥落盘在 `credential-store` / `provider-settings`。凡是「同一件事在两处各写一份就会不一致」的判据（密钥头、最高档思考的字、外键完整性、迁移连接 id），真身都在这里。
+本规范对「模型供应商这一面的形状真身住哪、哪些判定只许有一份」有规范力：`packages/contracts/src/provider.ts` 这一份契约面——连接 / 模型档案 / 草稿 / 视图 / 保存回执 / 体检结果 / 拉模型结果这几组 zod 形状与 TS 类型、内置供应商清单与分组表、按主机名认服务商、自定义连接的卡片名、密钥头、模型级窗口与推理档的落盘形状、v1→v2→v3 三代配置迁移、本机端点那几句常量。它是**纯形状 + 纯函数**的一份：**不出网、不写盘、不读存储**——出网在 `main/provider-fetch.ts` 与 `main/provider-models.ts`，密钥落盘在 `credential-store` / `provider-settings`。凡是「同一件事在两处各写一份就会不一致」的判据（密钥头、最高档思考的字、外键完整性、迁移连接 id），真身都在这里。
 
-Depended on by: `main/provider-store.ts`（读 / 写 config.json 与迁移的落盘侧）、`main/provider-models.ts` / `main/provider-fetch.ts`（出网与拉名单）、`main/provider-settings.ts`（密钥与档案的装配）、`renderer/components/ModelProfileDialog.vue` 与 `ComposerBox.vue` 的模型 chip（读视图、草稿、识别结果）、`packages/agent-runtime/src/provider-client.ts`（只 import 类型，`AuthHeader` / `ThinkingWire` 等）。
+**2026-11-21 增补**：思考档枚举、最高档在线上叫什么、以及**模型能力表**（哪个模型多大上下文、认哪几档）搬进了叶子模块 `packages/contracts/src/model-capability.ts`。搬的理由：档案形状（`providerProfileSchema` 的 `thinkingLevel`）也要用那个枚举，两边分住会形成 `provider → model-capability → provider` 的循环引用——**两份真身分家**比循环更难查。搬完之后本文件只从那边取类型，不重复定义。
+
+Depended on by: `main/provider-store.ts`（读 / 写 config.json 与迁移的落盘侧）、`main/provider-models.ts` / `main/provider-fetch.ts`（出网与拉名单）、`main/provider-settings.ts`（密钥与档案的装配）、`renderer/components/ModelProfileDialog.vue` 与 `ComposerBox.vue` 的模型 chip（读视图、草稿、识别结果）、`renderer/components/ModelSelect.vue` 的能力区（读窗口与档位）、`packages/agent-runtime/src/provider-client.ts`（只 import 类型，`AuthHeader` / `ThinkingWire` 等）。
 
 Out of scope:
 
@@ -23,7 +25,11 @@ Out of scope:
 ## Surface
 
 - `providerConfigSchema` / `ProviderConfig` — 同文件 — v1 旧形状（`{baseURL, model}` + 两个带默认的后加键），只为迁移能被认出而留。
-- `AuthHeader` / `ThinkingWire` / `THINKING_WIRE_LABELS` / `THINKING_WIRE_TOP_VALUE` — 同文件 — 密钥头两档、最高档思考在线上叫什么（唯一真身）。
+- `AuthHeader` — 同文件 — 密钥头两档（唯一真身）。
+- `ThinkingWire` / `THINKING_WIRE_LABELS` / `THINKING_WIRE_TOP_VALUE` — **`model-capability.ts`** — 最高档思考在线上叫什么（唯一真身）。2026-11-21 从本文件搬过去（叶子模块，避免与档案形状形成循环引用）。
+- `THINKING_LEVELS` / `thinkingLevelSchema` / `THINKING_LEVEL_LABELS` / `STANDARD_THINKING_LEVELS` / `thinkingWireValueOf` / `nextThinkingLevel` — **`model-capability.ts`** — 思考档枚举与出站映射（唯一真身）。
+- `ModelCapability` / `MODEL_CAPABILITIES` / `capabilityOf` / `thinkingLevelsOf` / `defaultThinkingLevelOf` / `CONTEXT_WINDOW_PRESETS` / `contextWindowLabel` — **`model-capability.ts`** — **模型能力表**（对着厂商文档抄的事实集；查不到就是查不到，不猜）。
+- `effectiveContextWindowOf` — 同文件 — 这个模型按哪个窗口算预算（档案 ⇒ 能力表 ⇒ 连接级 ⇒ 默认值）。
 - `ProviderGroup` / `ProviderPreset` / `PROVIDER_PRESETS` / `PRESET_BY_ID` / `presetOf` / `PROVIDER_DIALOG_GROUPS` — 同文件 — 预设清单与分组表（表驱动）。
 - `CUSTOM_PROVIDER_ID` / `CUSTOM_PROVIDER_LABEL` / `customConnectionLabel` / `providerLabelOf` / `defaultAuthHeaderOf` — 同文件 — 自定义那一档的 id、通用名、带主机名的卡片名、默认头。
 - `DetectedProvider` / `PROVIDER_HOST_ALIASES` / `EXTRA_PROVIDER_NAMES` / `detectProviderByBaseURL` — 同文件 — 按主机名认服务商（含别名表、清单外聚合站、主机名兜底）。
@@ -63,6 +69,10 @@ States: 读取路径（旧存档 → 宽松 schema → 迁移三态）→ 保存
 21. WHEN 摆本机端点，the 契约面 MUST 只给 `OLLAMA_BASE_URL` / `OLLAMA_FILL_LABEL` / `LOCAL_MODEL_KEY_NOTE` 三条常量，且本机端点 MUST NOT 进 `PROVIDER_PRESETS`（用户裁定不要本地的）。
 22. WHEN 摆供应商下拉，the 契约面 MUST 表驱动 `PROVIDER_DIALOG_GROUPS`（国内 / 国外 / 自定义，末尾永远跟 `custom`）。
 23. WHEN `providerSave` 回执要给 id，the 契约面 MUST 由主进程回传 `ProviderSaveResult.connectionId`，MUST NOT 让调用方拿地址回头 `find`（同址双账号必然拿到先存那条）。
+24. WHEN 算「这个模型按哪个窗口算预算」，the 契约面 MUST 经 `effectiveContextWindowOf`（档案填过 ⇒ 能力表 ⇒ 连接级），MUST NOT 在主进程与界面各算一遍（两边分头算，占用条的分母与历史切多少就会对不上）。
+25. WHEN 能力表里没有这个模型，the 契约面 MUST 回「不知道」（`capabilityOf` 给 `null`、档位回落 `STANDARD_THINKING_LEVELS`），MUST NOT 拿相近的名字顶替、也 MUST NOT 猜一个窗口——猜出来的会让占用条的分母说谎。
+26. WHEN 能力表里那个模型**不认 `reasoning_effort`**（百炼用 `enable_thinking`、智谱与 MiMo 用 `thinking.type`、gpt-4o 不是推理模型），the 契约面 MUST 把它的档位集合给成**空数组**，MUST NOT 给一个按下去没反应的控件。
+27. WHEN 档案上没存过档位，the 契约面 MUST 用**该模型的默认档**（能力表给的；MiniMax-M3.1-Flash 是 `max`），MUST NOT 一律按 `off` 起手——那一族省略时默认就是 `max`。
 
 ## Constraints & Invariants
 
@@ -70,6 +80,8 @@ States: 读取路径（旧存档 → 宽松 schema → 迁移三态）→ 保存
 - Constraint: `PROVIDER_PRESETS` 是「有官方文档与密钥页」的清单；聚合站只进 `PROVIDER_HOST_ALIASES` + `EXTRA_PROVIDER_NAMES`，MUST NOT 混进预设表。
 - Invariant: 密钥头真身只有一份（连接上的 `authHeader`）—— 预设表那一列与 `detectProviderByBaseURL` 的结果必须同源（测试钉住「两处不许各写一份」）。
 - Invariant: 最高档思考的线上字只有一份（`THINKING_WIRE_TOP_VALUE`）—— 凡发请求处都读它，写死字面量就是第二份。
+- Invariant: **模型能力表只有一份**（`MODEL_CAPABILITIES`，住在 `model-capability.ts`）—— 窗口与档位集合不许在组件、store、主进程各存一份；表里每一格都有厂商文档出处，抄不着的模型不进表。
+- Invariant: 档案上的两格能力（`contextWindow` / `thinkingLevel`）是**模型级**的落点—— 同一端点下不同模型的窗口差着一个数量级，挂在连接上就等于「换模型不换窗口」。
 - Invariant: 连接与档案的外键完整性只在 schema 这道最后关卡拒 —— 挪到发请求时才判，用户看到的是「配置好好的却发不出去」。
 - Invariant: 迁移连接 id 固定 `legacy`、档案 id 不变 —— 这两条一破，「迁后改的密钥」就会在下次迁移后读不到。
 

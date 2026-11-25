@@ -248,7 +248,10 @@ describe("providerSettings · 连接与档案（v3：多连接并存）", () => 
       baseURL: "https://api.xiaomimimo.com/v1",
       model: "mimo-v2.6-pro",
       authHeader: "api-key",
-      thinkingWire: "standard"
+      thinkingWire: "standard",
+      // 2026-11-21：模型级窗口。档案没填 ⇒ 回落能力表里这个模型那份
+      // （小米官方文档：MiMo-v2.6-Pro 上下文 1M）——窗口是**模型**的属性，不是地址的属性。
+      contextWindow: 1000000
     });
     expect(await settings.apiKey()).toBe("sk-mimo");
   });

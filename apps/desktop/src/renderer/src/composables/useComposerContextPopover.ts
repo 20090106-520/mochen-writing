@@ -18,7 +18,13 @@ export function useComposerContextPopover(
   anchor: () => HTMLElement,
   panel: Ref<HTMLElement | undefined>,
   dismiss: () => void,
-  options?: { limitPx?: number; widthPx?: number; focusSelector?: string }
+  options?: {
+    limitPx?: number;
+    widthPx?: number | (() => number);
+    focusSelector?: string | (() => string);
+    align?: "start" | "end";
+    horizontalOffsetPx?: number | (() => number);
+  }
 ) {
   const style = ref<CSSProperties>({ visibility: "hidden" });
   let restoreFocus = true;
@@ -27,10 +33,18 @@ export function useComposerContextPopover(
 
   function position(): void {
     const rect = anchor().getBoundingClientRect();
+    const preferredWidth =
+      typeof options?.widthPx === "function" ? options.widthPx() : options?.widthPx;
+    const horizontalOffsetPx =
+      typeof options?.horizontalOffsetPx === "function"
+        ? options.horizontalOffsetPx()
+        : options?.horizontalOffsetPx;
     const p = composerPopoverPlacement({
       anchor: rect,
       viewport: { innerWidth: window.innerWidth, innerHeight: window.innerHeight },
-      ...(options?.widthPx === undefined ? {} : { preferredWidth: options.widthPx })
+      ...(preferredWidth === undefined ? {} : { preferredWidth }),
+      ...(options?.align === undefined ? {} : { align: options.align }),
+      ...(horizontalOffsetPx === undefined ? {} : { horizontalOffsetPx })
     });
     style.value = {
       position: "fixed",
@@ -117,10 +131,13 @@ export function useComposerContextPopover(
    * ② 目标得**在层内**——外面那个元素聚焦了，按键同样到不了面板根。
    */
   function preferredFocusTarget(el: HTMLElement): HTMLElement {
-    const selector = options?.focusSelector;
+    const selector =
+      typeof options?.focusSelector === "function"
+        ? options.focusSelector()
+        : options?.focusSelector;
     if (selector !== undefined) {
-      const picked = el.querySelector<HTMLElement>(selector);
-      if (picked !== null && picked.matches(POPOVER_FOCUSABLE)) return picked;
+      const picked = selector === ":scope" ? el : el.querySelector<HTMLElement>(selector);
+      if (picked !== null && (picked === el || picked.matches(POPOVER_FOCUSABLE))) return picked;
     }
     return el.querySelector<HTMLElement>(POPOVER_FOCUSABLE) ?? el;
   }
@@ -158,5 +175,5 @@ export function useComposerContextPopover(
       anchor().focus();
   });
 
-  return { style, close, tab };
+  return { style, close, tab, reposition: position, focus: focusFirstWhenVisible };
 }

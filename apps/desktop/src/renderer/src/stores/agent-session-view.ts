@@ -130,6 +130,42 @@ export function resetThreadView(host: SessionViewHost, threadKey: string): void 
   purgeThreadProposals(host.bibleProposals, threadKey);
 }
 
+/** 换书 / 关书时 useAgentStore 被整体作废的那十格：字段名对得上就行（与 SessionViewHost 同一作风）。 */
+interface BookSwitchResetHost {
+  notice: string;
+  sessions: SessionListItem[];
+  hydrateInflight: Record<string, Promise<void>>;
+  proposals: Record<string, ProposalView>;
+  bibleProposals: Record<string, BibleProposalView>;
+  threads: Record<string, ThreadView>;
+  composerDrafts: Record<string, string>;
+  pendingSend: Record<string, string>;
+  draftSets: Record<string, unknown>;
+  /** 占用条的读数是按这本书算的；换书不清，新书的占用条会挂着上一本的数字。 */
+  contextPreview: unknown;
+}
+
+/**
+ * 换书 / 关书的整体作废（2026-11-24，用户裁定「新书的对话还是第一本的内容」）。
+ * 会话 JSONL 盘上按书分（书内 `.mochen/sessions`），但渲染层的会话视图按**线程键**
+ * （relPath / unbound）记——键里没有书。不清的话新书打开就读到上一本留在内存里的转录，
+ * 看上去就像「新书被第一本覆盖、对话也不分开」。清的是**内容来自某一本具体的书**的内存态：
+ * 转录、历史清单、占用条（contextPreview）、提案、输入框草稿、还字账、多稿候选、在途水合、notice。
+ * 不清：技能库表（全局）、思考档 / 联网 / 工具开关（用户偏好）、线程级技能覆盖（applyOpened 另清）。
+ */
+export function resetForBookSwitch(host: BookSwitchResetHost): void {
+  host.threads = {};
+  host.sessions = [];
+  host.proposals = {};
+  host.bibleProposals = {};
+  host.composerDrafts = {};
+  host.pendingSend = {};
+  host.draftSets = {};
+  host.hydrateInflight = {};
+  host.contextPreview = null;
+  host.notice = "";
+}
+
 /** 点面板一行 = 切到那条会话接着聊。与 `/resume` 的分别是「最近那条」对「指名的那条」：主进程 loadSession 收到 sessionId 会把这一条线程的写入目标改过去，下一轮就续在它后面。 */
 export async function showSession(host: SessionViewHost, item: SessionListItem): Promise<void> {
   const action = host.rowActionFor(item);

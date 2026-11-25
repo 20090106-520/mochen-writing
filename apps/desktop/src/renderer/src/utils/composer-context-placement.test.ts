@@ -53,6 +53,27 @@ describe("composerPopoverPlacement · 朝上翻的判定", () => {
 });
 
 describe("composerPopoverPlacement · 不越出视口", () => {
+  it("右对齐与横向偏移用于级联弹层：设置卡保持在锚点右缘，子面板向外展开", () => {
+    const p = composerPopoverPlacement({
+      anchor: { left: 700, right: 900, top: 700, bottom: 740 },
+      viewport,
+      preferredWidth: 464,
+      align: "end",
+      horizontalOffsetPx: 184
+    });
+    expect(p.leftPx).toBe(900 - 464 + 184);
+    expect(p.transformOrigin).toBe("bottom right");
+  });
+
+  it("右对齐缺省 right 时回退到 left，不改变旧调用方", () => {
+    const p = composerPopoverPlacement({
+      anchor: anchorAt(700, 740),
+      viewport,
+      align: "end"
+    });
+    expect(p.leftPx).toBe(POPOVER_MARGIN);
+  });
+
   it("宽度封顶 320，但窄窗口收到 视口-2*margin", () => {
     expect(composerPopoverPlacement({ anchor: anchorAt(700, 740), viewport }).widthPx).toBe(
       POPOVER_WIDTH

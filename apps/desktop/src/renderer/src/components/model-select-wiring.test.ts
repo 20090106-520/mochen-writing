@@ -250,7 +250,7 @@ describe("ModelSelect · 弹层本体", () => {
    */
   it("面板自报宽高，样式表里不再写第二份几何", () => {
     const script = scriptSource(POPOVER);
-    expect(script).toContain("widthPx: PANEL_WIDTH");
+    expect(script).toContain("widthPx: () => panelWidth.value");
     expect(script).toContain("limitPx: PANEL_MAX_HEIGHT");
     const css = styleSource("interaction.css");
     const panel = ruleBlock(css, ".model-select");
@@ -272,7 +272,9 @@ describe("ModelSelect · 弹层本体", () => {
     const markup = templateSource(POPOVER);
     const script = scriptSource(POPOVER);
     // 切分只有一份判定：utils/model-picker 的 splitByCurrentModel。
-    expect(script).toContain("splitByCurrentModel(rows.value, props.current, showCurrent.value)");
+    expect(script).toContain(
+      'splitByCurrentModel(upstream.value, props.current, props.current !== "")'
+    );
     // 高亮次序：当前那一行在最前，其余在后（不是把当前混在名单中间）。
     expect(script).toContain("...split.value.current,");
     expect(script).toContain("...split.value.rest");
@@ -283,21 +285,15 @@ describe("ModelSelect · 弹层本体", () => {
     expect(markup).toMatch(/v-if="split\.current\.length"[^>]*>\s*正在用/);
   });
 
-  /**
-   * 搜索框常驻 + 打开就把光标放进去（2026-10-25）。
-   *
-   * 改之前是「超过六行才出现」，多数时候面板里就没有搜索框，用户也就不知道能搜；
-   * 光标落在面板容器上，↑↓ 只能走行列表。
-   * 现在：名单里只要有模型就有搜索框，打开时光标就在里面（走共用的合成器 focusSelector，
-   * 不自己 querySelector——自己搜锚点那类坑本仓已经吃过一次）。
-   */
-  it("搜索框常驻且打开就把光标放进去（走共用的合成器选项，不另造焦点机制）", () => {
+  /** 2026-11-21 用户裁定：名单上方不再摆搜索框，首屏只保留模型菜单。 */
+  it("不提供搜索框；打开后焦点仍由共用合成器送进浮层", () => {
     const markup = templateSource(POPOVER);
     const script = scriptSource(POPOVER);
-    expect(markup).toContain('v-if="upstream.length"');
-    expect(markup).not.toContain("rows.length > 6");
-    expect(markup).toContain(`class="model-select-search-input"`);
-    expect(script).toContain('focusSelector: ".model-select-search-input"');
+    expect(markup).not.toContain("model-select-search");
+    expect(markup).not.toContain('type="search"');
+    expect(script).not.toContain("const query");
+    expect(script).toContain("focusSelector: () =>");
+    expect(script).toContain('return ".model-select-menu-row"');
     expect(script).not.toContain("querySelector");
   });
 
@@ -314,40 +310,28 @@ describe("ModelSelect · 弹层本体", () => {
    * ⇒ 现在都走 `composables/useListHighlight.ts` 那一份，
    *   组件里只剩接线（items / onPick / elementOf）。
    */
-  it("↑↓ 走高亮而焦点留在搜索框，Enter 直接切（高亮判据只有一份：共用的 useListHighlight）", () => {
+  it("↑↓ 仍走高亮，Enter 直接切；提示文字删掉后键盘功能不跟着删", () => {
     const script = scriptSource(POPOVER);
-    // 高亮是这一族浮层共用的那一份，组件不自己写一份。
     expect(script).toContain('from "../composables/useListHighlight"');
     expect(script).toContain("useListHighlight<string>({");
     expect(script).toContain("items: () => visibleNames.value");
-    // 反向钉：组件里不许再出现自己那份上下键判据。
     expect(script).not.toContain("moveHighlightIndex");
     expect(script).not.toContain("clampHighlightIndex");
-    // 【为什么钉调用点而不只是函数名】函数名在文件里 ≠ 它还会动高亮：
-    // 把调用摘掉（把 `highlight.move(...)` 换成空操作）照样满足上面的 `toContain`。
     expect(script).toContain('highlight.move(event.key === "ArrowDown" ? 1 : -1)');
-    // Enter 只在搜索框里由面板接管：行本身是 <button>，Enter 会触发它自己的 click，
-    // 在面板根上再接一次就是「按一下切两次」。
-    expect(script).toContain(`event.key === "Enter" && event.target === searchInput.value`);
+    expect(script).toContain('if (event.key === "Enter" && ownsEnter)');
     expect(script).toContain("highlight.pickActive()");
-    // 反向钉：组件不许自己搬真焦点（旧实现是 `buttons[next]?.focus()` 那一套，
-    // 搬走了就打字打不进去——那才是真不好用）。
-    expect(script).not.toContain(".focus()");
+    expect(script).toContain("highlight.reveal()");
   });
 
-  /**
-   * 键位提示行（2026-10-25）：照 @ 引用菜单那一族，底部一枚 kbd 提示行
-   * 把「这个面板能怎么用」说清楚，不用猜。
-   *
-   * 排版（`.list-keys`）在 styles.css 一处共用；这里钉的是**这一行真的在模板里**，
-   * 而且走的是共用那份排版类，不是自己又写一个。
-   */
-  it("底部有键位提示行，且走共用那份排版（`.list-keys`）", () => {
+  /** 2026-11-21 用户裁定：底部「选择 / 切换 / 关闭」提示整行撤掉。 */
+  it("底部没有键位提示行，Esc、Enter 与上下键仍由脚本接管", () => {
     const markup = templateSource(POPOVER);
-    expect(markup).toContain('class="model-select-keys list-keys"');
-    expect(markup).toContain("<kbd>↑</kbd>");
-    expect(markup).toContain("<kbd>Enter</kbd>");
-    expect(markup).toContain("<kbd>Esc</kbd>");
+    const script = scriptSource(POPOVER);
+    expect(markup).not.toContain("model-select-keys");
+    expect(markup).not.toContain("<kbd>");
+    expect(script).toContain("popoverOwnsKey");
+    expect(script).toContain("highlight.pickActive()");
+    expect(script).toContain("highlight.move");
   });
 
   /**
@@ -355,22 +339,21 @@ describe("ModelSelect · 弹层本体", () => {
    * 排障动作与脚注说明同区，主路径只剩名单。通道名仍只进悬停提示（下面那条旧闸管着）。
    * 头部图标钮的形状（.model-select-icon-btn）随之退役，CSS 里也删了，dead-css-guard 盯着。
    */
-  it("刷新搬到底部文字行（与脚注同区），头部不再有图标钮", () => {
+  it("刷新留在名单底部，头部不重复放刷新图标钮", () => {
     const markup = templateSource(POPOVER);
     expect(markup).toContain('class="model-select-refresh"');
     expect(markup).toContain("刷新模型列表");
     const refreshAt = markup.indexOf('class="model-select-refresh"');
-    const footAt = markup.indexOf('class="model-select-foot"');
-    const headAt = markup.indexOf("</header>");
-    expect(refreshAt, "刷新行不在面板尾部").toBeGreaterThan(headAt);
-    expect(refreshAt, "刷新行要贴着脚注（同区）").toBeLessThan(footAt);
+    const listAt = markup.indexOf('class="model-select-list"');
+    expect(refreshAt, "刷新行不在名单后面").toBeGreaterThan(listAt);
     expect(markup).not.toContain("model-select-icon-btn");
   });
 
-  it("脚注带「*」前缀：它是元信息不是正文（参考图同款）", () => {
+  it("不再显示名单来源脚注", () => {
     const markup = templateSource(POPOVER);
-    const foot = /<p class="model-select-foot">([\s\S]*?)<\/p>/.exec(markup)?.[1] ?? "";
-    expect(foot).toContain("*");
+    expect(markup).not.toContain('class="model-select-foot"');
+    expect(markup).not.toContain("名单来自");
+    expect(markup).not.toContain("改地址、换密钥");
   });
 
   /**
@@ -400,37 +383,30 @@ describe("ModelSelect · 弹层本体", () => {
    * ⇒ 脚注只说「去哪儿改」；通道名挪进「刷新」那颗钮的**悬停提示**（那是排查用的），
    * 铁律「报不出通道名的控件不进 UI」照样有着落——它要求的是**控件**报得出，不是正文摊着。
    */
-  it("脚注里没有通道名与 baseURL；通道名只进悬停提示（控件仍要报得出自己走哪条通道）", () => {
+  it("通道名只留在刷新钮的悬停提示，不再额外写一段来源说明", () => {
     const markup = templateSource(POPOVER);
-    const foot = /<p class="model-select-foot">([\s\S]*?)<\/p>/.exec(markup)?.[1] ?? "";
-    expect(foot, "脚注读不到").not.toBe("");
-    expect(foot).not.toContain("provider:list-models");
-    expect(foot).not.toContain("baseURL");
-    expect(foot).not.toContain("主进程");
-    // 通道名仍在（挪进「刷新」那颗钮的悬停提示），不许整个删掉。
-    expect(markup).toContain("provider:list-models");
+    expect(markup).not.toContain('class="model-select-foot"');
+    expect(markup).not.toContain("baseURL");
+    expect(markup).not.toContain("主进程");
+    expect(markup).toContain('title="重新拉取模型名单（provider:list-models）"');
   });
 
-  /**
-   * 名单封顶（2026-10-25）：有些 hub 的 `/models` 会回几百条，全铺开会把浮层撑爆。
-   * **先过滤再封顶** —— 不然位置在第 300 名的模型永远搜不到。
-   * 封顶这件事也要说出来（只列了前 N 个），不然用户以为那就是全部。
-   */
-  it("名单封顶：先过滤再封顶，且封顶这件事说给用户听", () => {
+  it("不再按搜索词或前 N 条截断名单，超高列表由 CSS 滚动承接", () => {
     const script = scriptSource(POPOVER);
     const markup = templateSource(POPOVER);
-    expect(script).toContain("filterModels(upstream.value, query.value)");
-    expect(script).toContain("matched.value.slice(0, MODEL_PICKER_LIST_LIMIT)");
-    expect(markup).toContain("只列了前");
+    expect(script).toContain("splitByCurrentModel(upstream.value");
+    expect(script).not.toContain("MODEL_PICKER_LIST_LIMIT");
+    expect(script).not.toContain(".slice(0,");
+    expect(markup).not.toContain("只列了前");
+    const list = ruleBlock(styleSource("interaction.css"), ".model-select-list");
+    expect(list).toContain("overflow-y: auto");
+    expect(list).toContain("min-height: 0");
   });
 
-  /**
-   * 搜索只有一份判据（铁律 6）：组件引 utils/model-picker 的 filterModels，
-   * 不在组件里另写一遍子串比较（改之前组件里那份与 utils 那份是同款逻辑的两份实现）。
-   */
-  it("搜索只有一份判据：组件不另写子串过滤", () => {
+  it("搜索框删除后，组件里没有遗留的查询状态或子串过滤", () => {
     const script = scriptSource(POPOVER);
-    expect(script).toContain("filterModels(upstream.value, query.value)");
+    expect(script).not.toContain("filterModels");
+    expect(script).not.toContain("query.value");
     expect(script).not.toContain("toLowerCase().includes(");
   });
 });

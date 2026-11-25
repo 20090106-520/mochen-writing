@@ -87,6 +87,7 @@ describe("modelChip 的提示不许自称配置好了", () => {
     });
     const model = withURL.find((chip) => chip.id === "model");
     expect(model?.title).not.toContain("还没有 API 地址");
+    expect(model?.text).toBe("agnes-2.5-pro 关闭");
     // 有地址就说得出真地址，指向的正是 provider:list-models 那一发
     expect(model?.title).toContain("https://apihub.agnes-ai.com/v1/models");
   });

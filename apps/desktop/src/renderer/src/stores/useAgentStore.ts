@@ -14,9 +14,16 @@ import {
   type ContextPreview,
   type ContextPreviewQuery,
   type SkillContent,
-  type SkillRef
+  type SkillRef,
+  type ThinkingLevel
 } from "@mochen/contracts";
-import { SKILL_FILE_NAME, effectiveSkillIds, skillPolicyOf, splitSkillId } from "@mochen/contracts";
+import {
+  SKILL_FILE_NAME,
+  SKILL_PATHS_MAX,
+  effectiveSkillIds,
+  skillPolicyOf,
+  splitSkillId
+} from "@mochen/contracts";
 import {
   CLEAR_VIEW_SENTENCE,
   EMPTY_STREAM,
@@ -60,6 +67,7 @@ import {
   applyReplay,
   ensureHydrated,
   refreshSessions,
+  resetForBookSwitch as resetForBookSwitchOf,
   resetThreadView,
   runHydrate,
   showSession
@@ -136,6 +144,11 @@ export const useAgentStore = defineStore("agent", {
   },
 
   actions: {
+    /** 换书 / 关书的整体作废（2026-11-24）：真身清单在 agent-session-view.ts（会话视图一族同层）。 */
+    resetForBookSwitch(): void {
+      resetForBookSwitchOf(this);
+    },
+
     /**
      * 线程视图的唯一取处。新建时必须**回读** `this.threads[key]` 而不是返回手里的裸对象：
      * 写进 pinia state 的那份会被 Vue 包成响应式代理，裸对象与代理是「同一个 target、两套拦截」，
@@ -179,12 +192,30 @@ export const useAgentStore = defineStore("agent", {
       delete this.composerDrafts[threadKey];
     },
 
-    /** 深度思考 chip：走一格（顺序表在 contracts 的 nextThinkingLevel）；记着档就顺手写记忆档。 */
-    cycleThinking(): void {
-      this.thinkingLevel = nextThinkingLevel(this.thinkingLevel);
+    /**
+     * 深度思考 chip：走一格（顺序表在 contracts 的 nextThinkingLevel）；记着档就顺手写记忆档。
+     *
+     * `levels` 是**当前模型认的那几档**（能力表给的）：走到集合外就是往上游发一个
+     * 它不认的值——MiniMax-M3.1-Flash 只认 low/medium/high/xhigh/max，
+     * 而百炼、智谱、MiMo、gpt-4o 这些压根不认 `reasoning_effort`（集合是空的）。
+     * 不传就按通用四档走（老行为）。
+     */
+    cycleThinking(levels?: readonly ThinkingLevel[]): void {
+      this.thinkingLevel = nextThinkingLevel(this.thinkingLevel, levels);
       if (!this.thinkingRemembered) return;
       const storage = thinkingPreferenceStorage();
       if (storage !== null) saveThinkingLevel(storage, this.thinkingLevel);
+    },
+
+    /**
+     * 把运行态的思考档换成**某个模型自己那一档**（2026-11-21）。
+     *
+     * 换模型之后由 provider store 调（那边知道当前是哪个模型、那一档存在档案上）：
+     * 「每模型一档，切模型带着走」——运行态不跟着换的话，
+     * 界面上 chip 显示的是上一个模型的档，而这一轮发出去的是另一个档。
+     */
+    adoptThinkingLevel(level: ThinkingLevel): void {
+      this.thinkingLevel = level;
     },
 
     /** 「记住思考档」开关（设置页）：落库真身 persistThinkingRemember（关掉连档位记忆一起清）。 */
@@ -644,10 +675,19 @@ export const useAgentStore = defineStore("agent", {
      *
      * P0-4：第一次点就写下显式覆盖（**不再「取到空就删键」**）——删键会退回书级默认，
      * 「本会话把最后一条也取下」就永远表达不出来。空数组是一个明确的「本会话一个都不挂」。
+     *
+     * 【挂满就拒（2026-11-24）】挂入总额有 12 条硬上限：超了的那一轮 startTurn 会在
+     * 边界上被 `skillPathsSchema.max(12)` 整轮拒收——真机上表现为「消息发不出去」，
+     * 用户却看不到是哪枚技能挂多了。所以在这里（唯一挂入口）就把第 13 枚挡下：
+     * 拒绝写覆盖、给一句中文说清怎么办。取下不受限。
      */
     toggleSkillForThread(threadKey: string, id: string): void {
       const current = this.skillPathsOf(threadKey);
       const pinnedNow = !current.includes(id);
+      if (pinnedNow && current.length >= SKILL_PATHS_MAX) {
+        this.notice = `挂入的技能最多 ${SKILL_PATHS_MAX} 个：先取下一枚再挂，或把不常用的停用。`;
+        return;
+      }
       const next = pinnedNow ? [...current, id] : current.filter((one) => one !== id);
       this.skillPathsByThread[threadKey] = next;
       // 亲手取下 = 否决这枚技能的自动挂入；亲手挂回 = 解除否决。所有入口都经这里。

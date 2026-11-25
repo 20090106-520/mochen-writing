@@ -15,6 +15,7 @@ export const POPOVER_MAX_HEIGHT = 380;
 
 export interface PopoverAnchorRect {
   left: number;
+  right?: number;
   top: number;
   bottom: number;
 }
@@ -60,18 +61,21 @@ export function composerPopoverPlacement(input: {
    * 宽度是真身（这里），各面板样式表里的 `width` 让位给它，不再各写一份。
    */
   preferredWidth?: number;
+  align?: "start" | "end";
+  horizontalOffsetPx?: number;
 }): PopoverPlacement {
-  const { anchor, viewport, preferredWidth } = input;
+  const { anchor, viewport, preferredWidth, align = "start", horizontalOffsetPx = 0 } = input;
   const width = Math.min(preferredWidth ?? POPOVER_WIDTH, viewport.innerWidth - POPOVER_MARGIN * 2);
   const above = Math.max(0, anchor.top - POPOVER_GAP - POPOVER_MARGIN);
   const below = Math.max(0, viewport.innerHeight - anchor.bottom - POPOVER_GAP - POPOVER_MARGIN);
   const upward = above >= POPOVER_ABOVE_MIN || above > below;
   const space = upward ? above : below;
+  const anchorLeft = align === "end" ? (anchor.right ?? anchor.left) - width : anchor.left;
   return {
     widthPx: width,
     leftPx: Math.max(
       POPOVER_MARGIN,
-      Math.min(anchor.left, viewport.innerWidth - width - POPOVER_MARGIN)
+      Math.min(anchorLeft + horizontalOffsetPx, viewport.innerWidth - width - POPOVER_MARGIN)
     ),
     side: upward ? "bottom" : "top",
     offsetPx: upward
@@ -79,6 +83,6 @@ export function composerPopoverPlacement(input: {
       : anchor.bottom + POPOVER_GAP,
     maxHeightPx: Math.min(POPOVER_MAX_HEIGHT, space),
     spacePx: space,
-    transformOrigin: upward ? "bottom left" : "top left"
+    transformOrigin: `${upward ? "bottom" : "top"} ${align === "end" ? "right" : "left"}`
   };
 }

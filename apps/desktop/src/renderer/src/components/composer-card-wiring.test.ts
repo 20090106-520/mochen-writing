@@ -175,7 +175,7 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     const want: Record<string, ComposerChipSlot> = {
       // 2026-11-09 参考图②：模型名落在发送键左侧，slot 从 left 改到 right。
       model: "right",
-      thinking: "left",
+
       "web-search": "left",
       draft: "more",
       tools: "more",
@@ -188,7 +188,7 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     // 顺序不许动：composer-chips.test.ts 钉死了 id 序，这里跟着同一序核 slot。
     expect(slots).toEqual([
       ["model", want.model],
-      ["thinking", want.thinking],
+
       ["web-search", want["web-search"]],
       ["draft", want.draft],
       ["tools", want.tools],
@@ -226,7 +226,7 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
   it("#112 图标与下拉三角由 .ts 表驱动：模板只按 chip.icon / chip.caret 渲染，不自行判定任何一档", () => {
     expect(chip("model")?.icon).toBe("model");
     expect(chip("model", { thinkingLevel: "high", webSearchEnabled: true })?.icon).toBe("model");
-    expect(chip("thinking", { thinkingLevel: "low" })?.icon).toBe("brain");
+
     expect(chip("web-search", { webSearchEnabled: true })?.icon).toBe("globe");
     const m = markup();
     // 三条循环（左端 / 右端 / 更多弹层）各自带全三件套 ⇒ 数次数而不是 toContain：
@@ -242,7 +242,7 @@ describe("composer-toolbar 左右分栏 · slot 决策只有 composer-chips.ts �
     expect(countNeedle('v-if="chip.caret"', m), "三条 chip 循环都要按 caret 挂下拉三角").toBe(3);
     expect(countNeedle('name="chevron"', m)).toBe(3);
     // 合并口径与 badge 字段一起退役：模型名里再不许缀思考等级，也不许挂地球角标。
-    expect(chip("model", { thinkingLevel: "high" })?.text).toBe("mochen-mock");
+    expect(chip("model", { thinkingLevel: "high" })?.text).toBe("mochen-mock 高");
     expect(m).not.toContain("chip.badge");
   });
 });

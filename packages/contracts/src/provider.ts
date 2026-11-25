@@ -1,4 +1,11 @@
 import { z } from "zod";
+import {
+  capabilityOf,
+  thinkingLevelSchema,
+  thinkingWireSchema,
+  type ThinkingLevel,
+  type ThinkingWire
+} from "./model-capability.js";
 
 const httpUrl = /^https?:\/\//;
 
@@ -20,7 +27,7 @@ export const providerConfigSchema = z.object({
   /** 密钥放哪个头。带 default 是为了让 v1 旧形状（没有这一项）照样能读。 */
   authHeader: z.enum(["bearer", "api-key"]).default("bearer"),
   /** 最高档思考在线上叫什么。同样带 default：老配置里没有这一项，按通用值走。 */
-  thinkingWire: z.enum(["standard", "xhigh"]).default("standard"),
+  thinkingWire: thinkingWireSchema.default("standard"),
   /** 上下文窗口（tokens）。老配置没有这一项 ⇒ 调用方回退到 DEFAULT_CONTEXT_WINDOW_TOKENS。 */
   contextWindow: z.number().int().positive().optional()
 });
@@ -54,20 +61,12 @@ export type AuthHeader = "bearer" | "api-key";
  * 形状照 `authHeader` 定：两档枚举、默认 `standard`、存在**连接**上（不是全局一份）。
  * 为什么是「连接」而不是「用户设置」：`low` / `medium` 两档各家一致，
  * 分歧只发生在最高那一档，而不同端点的分歧是不同的——按端点存才对。
+ *
+ * **2026-11-21**：这一族连同思考档枚举与模型能力表一起搬进了 `model-capability.ts`
+ * （叶子模块）。搬的理由：档案形状（`providerProfileSchema` 的 `thinkingLevel`）
+ * 也要用那个枚举，两边分住就会形成 `provider → model-capability → provider` 的循环引用。
+ * 真身现在在 `model-capability.ts`；对外仍从 `@mochen/contracts` 这个桶取，路径没变。
  */
-export type ThinkingWire = "standard" | "xhigh";
-
-/** 两档在线上分别发什么字。唯一真身，`per-run-fields` 与输入卡那枚 chip 的提示都读它。 */
-export const THINKING_WIRE_LABELS: Record<ThinkingWire, string> = {
-  standard: "high（OpenAI 兼容的通用值）",
-  xhigh: "xhigh（把最高档叫 xhigh 的端点）"
-};
-
-/** 最高档在线上的真身字。`standard` 原样，`xhigh` 换名；其余两档两家一致，不动。 */
-export const THINKING_WIRE_TOP_VALUE: Record<ThinkingWire, string> = {
-  standard: "high",
-  xhigh: "xhigh"
-};
 
 /** 协议形态。本仓出网只实现了 Chat Completions（`/chat/completions`）；Responses 另算一套。 */
 export type ApiType = "chat";
@@ -110,7 +109,19 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
     keyUrl: "https://bailian.console.aliyun.com/",
     authHeader: "bearer",
-    models: ["qwen-max", "qwen-plus", "qwen-turbo"],
+    /**
+     * 常用模型名 = 官方**当前主推**的三档（2026-11-21 按官方文档重排）。
+     *
+     * 出处：阿里云百炼《文本生成与视觉理解》「推荐模型」表
+     * （https://help.aliyun.com/zh/model-studio/text-generation-model，官方，2026-11-21 读）：
+     * `qwen4-max` 1M（效果优先）、`qwen3.7-plus` 1M（均衡）、`qwen3.8-flash` 1M（成本优先）。
+     *
+     * **换掉的那三个为什么换**：
+     * - `qwen-turbo`：官方现在**任何一张表**里都没有它（推荐表与旧版模型折叠区都没有）⇒ 已下线。
+     * - `qwen-max` / `qwen-plus`：官方仍列在「旧版模型」里（还能调），但明写「不再作为首选推荐」。
+     *   快捷入口给的是**当下该用的那几个**，所以让位给上面三档。
+     */
+    models: ["qwen4-max", "qwen3.7-plus", "qwen3.8-flash"],
     note: ""
   },
   {
@@ -120,7 +131,17 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     baseURL: "https://api.deepseek.com/v1",
     keyUrl: "https://platform.deepseek.com/",
     authHeader: "bearer",
-    models: ["deepseek-chat", "deepseek-reasoner"],
+    /**
+     * 常用模型名 = 官方**当前**的两个（2026-11-21 按官方文档重排）。
+     *
+     * 出处：DeepSeek《Models & Pricing》（https://api-docs.deepseek.com/quick_start/pricing，官方，
+     * 2026-11-21 读）：`deepseek-flash`（实为 DeepSeek-V4.1-Flash-1017）与 `deepseek-v4-pro`
+     * （DeepSeek-V4-Pro-0813），两者上下文都是 **1M**、最大输出 384K。
+     *
+     * **换掉的那两个为什么换**：`deepseek-chat` / `deepseek-reasoner` 已于 **2026-07-24 退役**
+     * （官方 Updates 页），请求由上面两个模型接管。
+     */
+    models: ["deepseek-flash", "deepseek-v4-pro"],
     note: ""
   },
   {
@@ -138,9 +159,22 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     label: "Kimi 月之暗面",
     group: "cn",
     baseURL: "https://api.moonshot.cn/v1",
-    keyUrl: "https://platform.moonshot.cn/",
+    // 取密钥的控制台搬到 platform.kimi.com（官方《API 概述》给的就是这个地址）。
+    keyUrl: "https://platform.kimi.com/console/api-keys",
     authHeader: "bearer",
-    models: ["moonshot-v1-8k", "kimi-k2-0905-preview"],
+    /**
+     * 常用模型名 = 官方《模型列表》里**当前可用**的三档（2026-11-21 按官方文档重排）：
+     * `kimi-k3.1-pro`（旗舰，100 万 token 上下文）、`kimi-k3.1-pro-highspeed`（高速版）、
+     * `kimi-k3`（上一代旗舰，100 万 token 上下文）。
+     *
+     * 出处：Kimi 开放平台《模型列表》（https://platform.kimi.com/docs/models.md，官方，2026-11-21 读）。
+     * **换掉的那两个为什么换**：`moonshot-v1-8k` 与 `kimi-k2-0905-preview` 官方已列入
+     * 「已下线模型」（那一整族 k2 与 moonshot-v1-* 都在已下线清单里）。
+     *
+     * **接口地址没变**：官方《API 概述》写明 Chat Completions 的 base_url 仍是
+     * `https://api.moonshot.cn/v1`（换的只是模型名，不是端点）。
+     */
+    models: ["kimi-k3.1-pro", "kimi-k3.1-pro-highspeed", "kimi-k3"],
     note: ""
   },
   {
@@ -150,7 +184,7 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     baseURL: "https://api.minimaxi.com/v1",
     keyUrl: "https://platform.minimaxi.com/",
     authHeader: "bearer",
-    models: ["MiniMax-M3", "MiniMax-M2.5"],
+    models: ["MiniMax-M3.1-Flash", "MiniMax-M3", "MiniMax-M2.5"],
     note: "国内端点；国际版是 api.minimax.io，记得按你买的套餐改地址。"
   },
   {
@@ -414,7 +448,7 @@ export const providerConnectionSchema = z.object({
    * 不给默认值的话 schema 直接判失败 → 用户的连接**全部读不出来**，
    * 界面上变成「还没有模型」，而他明明配过。
    */
-  thinkingWire: z.enum(["standard", "xhigh"]).default("standard"),
+  thinkingWire: thinkingWireSchema.default("standard"),
   /**
    * 这个模型的上游上下文窗口（tokens，P0-3）。可选：旧配置没有这一项，
    * 读取方回退到 `DEFAULT_CONTEXT_WINDOW_TOKENS`，行为与 P0-3 之前一致。
@@ -431,9 +465,53 @@ export const providerProfileSchema = z.object({
   id: z.string().min(1),
   connectionId: z.string().min(1),
   model: z.string().min(1),
-  enabled: z.boolean()
+  enabled: z.boolean(),
+  /**
+   * **这个模型自己的**上下文窗口（tokens，2026-11-21 从连接级搬到模型级）。
+   *
+   * 为什么搬到模型级：同一端点下不同模型的窗口差着一个数量级（MiniMax 官方出口上
+   * `MiniMax-M3.1-Flash` 与 `MiniMax-M3` 都是 1M，而同一家的 8k 档模型是 8k），
+   * 挂在连接上就等于「换模型不换窗口」——而窗口是**模型**的属性，不是**地址**的属性。
+   *
+   * 缺省（老档案没有这一格）⇒ 读能力表 ⇒ 再回落连接级 ⇒ 再回落默认值，
+   * 判据在 `effectiveContextWindowOf` 一处。
+   */
+  contextWindow: z.number().int().positive().optional(),
+  /**
+   * **这个模型自己的**思考档（2026-11-21 新增）。
+   *
+   * 「切模型带着走」的那一份：切到另一个模型时输入卡那枚思考 chip 读的是新模型这一格，
+   * 不是全局那一份（全局那一份是每轮运行态，两回事）。
+   *
+   * 缺省 ⇒ 该模型的默认档（能力表给的，MiniMax-M3.1-Flash 是 `max`；没写就是 `off`）。
+   */
+  thinkingLevel: thinkingLevelSchema.optional()
 });
 export type ProviderProfile = z.infer<typeof providerProfileSchema>;
+
+/**
+ * **这个模型实际按哪个窗口算上下文预算**（2026-11-21）。
+ *
+ * 判据的次序就是「谁更具体谁赢」：
+ * 1. 档案上用户自己填过的那一格（模型级）；
+ * 2. 能力表里这个模型的窗口（有官方出处的）；
+ * 3. 连接级那一格（2026-11-21 之前的老位置，老配置里只有它）；
+ * 4. 都没有 ⇒ `undefined`，由调用方回退 `DEFAULT_CONTEXT_WINDOW_TOKENS`。
+ *
+ * **返回 `undefined` 而不是编一个数字**：调用方要能看出「这是默认值」，
+ * 界面上要能显示「默认 24000」而不是把 24000 冒充成用户填过的值。
+ */
+export function effectiveContextWindowOf(input: {
+  model: string;
+  profileContextWindow?: number | undefined;
+  connectionContextWindow?: number | undefined;
+}): number | undefined {
+  return (
+    input.profileContextWindow ??
+    capabilityOf(input.model)?.contextWindow ??
+    input.connectionContextWindow
+  );
+}
 
 export const providerStoreFileSchema = z
   .object({
@@ -594,6 +672,10 @@ export interface ProviderProfileView {
   connectionId: string;
   model: string;
   enabled: boolean;
+  /** 这个模型自己填过的上下文窗口；没填过就是 undefined（读能力表与连接级回落）。 */
+  contextWindow?: number;
+  /** 这个模型自己那一档思考档位；没设过就是 undefined（读该模型的默认档）。 */
+  thinkingLevel?: ThinkingLevel;
 }
 
 export interface ProviderView {
@@ -632,7 +714,7 @@ export const connectionDraftSchema = z.object({
       "baseURL 必须是 https://，或本机地址 http://localhost、127.0.0.1"
     ),
   authHeader: z.enum(["bearer", "api-key"]),
-  thinkingWire: z.enum(["standard", "xhigh"]),
+  thinkingWire: thinkingWireSchema,
   /**
    * 上下文窗口（tokens，P0-3）。`null` = 明确清空（改用默认值），
    * `undefined` = 调用方没带这一格（保持现状）。与 apiKey 的「沿用 / 明确清空」同一族语义。
@@ -642,10 +724,19 @@ export const connectionDraftSchema = z.object({
 });
 export type ConnectionDraft = z.infer<typeof connectionDraftSchema>;
 
-/** 档案草稿：模型名 + 走哪条连接。 */
+/**
+ * 档案草稿：模型名 + 走哪条连接 + **这个模型自己的两格能力**（2026-11-21）。
+ *
+ * 两格能力用与 `apiKey` 同一族的语义：
+ * `undefined` = 调用方没带这一格（保持现状）、`null` = 明确清空（回到能力表与默认值）。
+ */
 export const profileDraftSchema = z.object({
   model: z.string().min(1),
-  connectionId: z.string().min(1)
+  connectionId: z.string().min(1),
+  /** 这个模型的上下文窗口（tokens）；null = 明确清空。 */
+  contextWindow: z.number().int().positive().nullable().optional(),
+  /** 这个模型的思考档；null = 明确清空（回到该模型的默认档）。 */
+  thinkingLevel: thinkingLevelSchema.nullable().optional()
 });
 export type ProfileDraft = z.infer<typeof profileDraftSchema>;
 

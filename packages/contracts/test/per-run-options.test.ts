@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   nextThinkingLevel,
   startTurnInputSchema,
+  STANDARD_THINKING_LEVELS,
   THINKING_LEVELS,
   thinkingLevelSchema,
   THINKING_LEVEL_LABELS,
@@ -30,15 +31,19 @@ const base = {
 };
 
 describe("thinkingLevelSchema", () => {
-  it("四档按 off/low/medium/high 的顺序逐字钉死（chip 的循环顺序就是这个数组）", () => {
-    expect([...THINKING_LEVELS]).toEqual(["off", "low", "medium", "high"]);
+  it("六档按 off/low/medium/high/xhigh/max 的顺序逐字钉死（chip 的循环顺序就是这个数组）", () => {
+    // 2026-11-21：四档扩成六档。xhigh / max 两档的出处是 MiniMax 官方文档
+    // （https://platform.minimax.cn/docs/api-reference/text-chat-openai 写明 reasoning_effort
+    // 「可取 low、medium、high、xhigh、max」）——旧注释里那句「本仓没有可验证的落点」到此为止。
+    expect([...THINKING_LEVELS]).toEqual(["off", "low", "medium", "high", "xhigh", "max"]);
   });
 
-  it("四档各自能过，第五种写法不能过", () => {
+  it("六档各自能过，枚举外的写法不能过", () => {
     for (const level of THINKING_LEVELS)
       expect(thinkingLevelSchema.safeParse(level).success).toBe(true);
-    // 反向用例：deepwrite 目录里出现过的 max/xhigh 不是本仓的档，不许被顺手加进枚举。
-    for (const bad of ["none", "min", "max", "xhigh", "OFF", "", "中"])
+    // 反向用例：这些既不在 OpenAI `reasoning_effort` 公开文档里，也不在 MiniMax 那份里，
+    // 不许被顺手加进枚举。
+    for (const bad of ["none", "min", "ultra", "OFF", "", "中"])
       expect(thinkingLevelSchema.safeParse(bad).success).toBe(false);
   });
 
@@ -119,15 +124,19 @@ describe("nextThinkingLevel 的循环（chip 每点一次走一格）", () => {
     expect(nextThinkingLevel("high")).toBe("off");
   });
 
-  // 反向保护：从枚举里删一档而忘了改循环，这里会给出 undefined 而不是悄悄跳格。
-  it("循环四步走过的档位正好是四档，一步不许重复、一步不许漏", () => {
+  // 反向保护：从**通用档集**里删一档而忘了改循环，这里会给出 undefined 而不是悄悄跳格。
+  //
+  // 循环走的是 `STANDARD_THINKING_LEVELS`（通用四档）而不是整个枚举：
+  // 2026-11-21 起枚举有六档，但 xhigh / max 只有能力表里那个模型才认——
+  // 对不认的模型发这两个值就是往上游发它不认的东西。
+  it("循环四步走过的档位正好是通用四档，一步不许重复、一步不许漏", () => {
     const seen: ThinkingLevel[] = [];
     let level: ThinkingLevel = "off";
-    for (let i = 0; i < THINKING_LEVELS.length; i += 1) {
+    for (let i = 0; i < STANDARD_THINKING_LEVELS.length; i += 1) {
       seen.push(level);
       level = nextThinkingLevel(level);
     }
-    expect(seen).toEqual([...THINKING_LEVELS]);
+    expect(seen).toEqual([...STANDARD_THINKING_LEVELS]);
     expect(level).toBe("off");
   });
 });

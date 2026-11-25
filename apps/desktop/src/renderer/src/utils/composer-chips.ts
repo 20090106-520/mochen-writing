@@ -1,7 +1,7 @@
 import {
   DRAFT_SAMPLE_COUNTS,
-  THINKING_LEVELS,
-  THINKING_LEVEL_LABELS,
+  STANDARD_THINKING_LEVELS,
+  THINKING_LEVEL_COMPACT_LABELS,
   THINKING_WIRE_FIELD,
   USER_TEXT_MAX_LEN,
   WEB_SEARCH_TOOL_NAME,
@@ -10,6 +10,7 @@ import {
   codePointLength,
   thinkingWireValueOf,
   type DraftSampleCount,
+  type ModelCapability,
   type PermissionMode,
   type ThinkingLevel,
   type ThinkingWire,
@@ -22,7 +23,6 @@ import { toolRoster } from "./tool-roster";
 export type ComposerChipId =
   | "permission"
   | "work-mode"
-  | "thinking"
   | "web-search"
   | "draft"
   | "tools"
@@ -70,7 +70,6 @@ export interface ComposerChipView {
 export type ComposerChipEvent =
   | "open-permission-menu"
   | "toggle-work-mode"
-  | "cycle-thinking"
   | "toggle-web-search"
   | "cycle-draft-sample"
   | "open-tool-roster"
@@ -86,7 +85,7 @@ export type ComposerChipEvent =
 export const CHIP_EMIT: Record<ComposerChipId, ComposerChipEvent> = {
   permission: "open-permission-menu",
   "work-mode": "toggle-work-mode",
-  thinking: "cycle-thinking",
+
   "web-search": "toggle-web-search",
   draft: "cycle-draft-sample",
   tools: "open-tool-roster",
@@ -152,39 +151,6 @@ function workModeChip(input: { hasBook: boolean; workMode: WorkMode }): Composer
   };
 }
 
-/**
- * 深度思考那一格的文案与提示。
- *
- * #112 照参考图：这一枚只剩档位名（较低 / 标准 / 深度…），脑形图标负责说明它是什么——
- * 上一版把「深度思考 · 低」写成一整串，是在一张已经有图标的卡里重复说同一件事。
- *
- * title 必须报出**这一档实际发出去的那对键值**（本仓铁律：报不出出站字段名的控件不进 UI）：
- * 关档说的是「不发字段」而不是「发 off」——这两件事在服务端行为上并不等价，
- * 而差别正是 `per-run-fields.ts` 里那个 `if (level === "off") return {}`。
- * 循环次序从 `THINKING_LEVELS` 现拼，不手抄第二份档位名（改了标签不会留下一句说谎的提示）。
- */
-const THINKING_CYCLE = THINKING_LEVELS.map((level) => THINKING_LEVEL_LABELS[level]).join(" → ");
-
-function thinkingChip(level: ThinkingLevel, wire: ThinkingWire): ComposerChipView {
-  const on = level !== "off";
-  // 报的是**实际发出去的那个字**，不是档位名：`high` 档在 xhigh 那类端点上真的发 xhigh。
-  // 判据与 `per-run-fields` 共用 contracts 的 thinkingWireValueOf，两边不许各写一遍。
-  const wireValue = thinkingWireValueOf(level, wire);
-  return {
-    id: "thinking",
-    text: THINKING_LEVEL_LABELS[level],
-    disabled: false,
-    title: on
-      ? `深度思考 ${THINKING_LEVEL_LABELS[level]}：本轮出站请求带 ${THINKING_WIRE_FIELD}=${wireValue}。点击按 ${THINKING_CYCLE} 循环。`
-      : `深度思考已关闭：本轮出站请求不发 ${THINKING_WIRE_FIELD} 字段——是真的不发，不是发 "off"。点击按 ${THINKING_CYCLE} 循环。`,
-    active: on,
-    slot: "left",
-    icon: "brain",
-    // 点一下走一格，不展开任何弹层 ⇒ 没有「更多」可下拉。
-    caret: false
-  };
-}
-
 function webSearchChip(enabled: boolean): ComposerChipView {
   // 出站工具数与 NETWORK_TOOL_NAMES 同源：出网的两枚（web_search + web_read）一起进出。
   return {
@@ -230,19 +196,30 @@ function draftChip(sampleCount: DraftSampleCount): ComposerChipView {
   };
 }
 
-/**
- * 模型 chip 是一枚**入口**，不是开关：点开走 `provider:list-models` 拉 `{baseURL}/models` 的候选名单。
- * 恒 `disabled:false`——能不能拉名单只取决于地址，与有没有开书无关，禁用只会造出一枚摆设；
- * 恒 `active:false`——弹层是瞬态而非按下态，`aria-pressed` 用它只会撒谎。
- * title 必须报出真实通道名与被访问的地址（铁律：报不出通道名的控件不进 UI），
- * 同时把「改地址/密钥」这条它自己办不到的事指回模型设置，不让 chip 冒充设置面板。
- *
- * #112 裁定 I（撤销 #105 的合并口径）：参考图左端是 `模型 ▾` 与 `思考等级 ▾` **两枚独立控件**，
- * 合并成一枚「模型 · 等级」是我自创的，同一件事不该在一张卡上说两遍 ⇒ 文案回到裸模型名。
- */
-function modelChip(input: { modelLabel: string; baseURL: string }): ComposerChipView {
+function modelChip(input: {
+  modelLabel: string;
+  baseURL: string;
+  thinkingLevel: ThinkingLevel;
+  thinkingWire: ThinkingWire;
+  thinkingCapability?: ModelCapability | null;
+}): ComposerChipView {
   const { modelLabel, baseURL } = input;
   const endpoint = `${baseURL}/models`;
+  const levels = input.thinkingCapability?.thinkingLevels ?? STANDARD_THINKING_LEVELS;
+  const levelText =
+    levels.length === 0 ? "不适用" : THINKING_LEVEL_COMPACT_LABELS[input.thinkingLevel];
+  const wireValue = thinkingWireValueOf(
+    input.thinkingLevel,
+    input.thinkingWire,
+    input.thinkingCapability ?? null
+  );
+  const levelTitle =
+    levels.length === 0
+      ? `「${modelLabel}」不认 ${THINKING_WIRE_FIELD}，思考深度由模型自己定。`
+      : input.thinkingLevel === "off"
+        ? `本轮出站请求不发 ${THINKING_WIRE_FIELD} 字段。`
+        : `本轮出站请求带 ${THINKING_WIRE_FIELD}=${wireValue}。`;
+  const text = modelLabel === "" ? "未配置模型" : `${modelLabel} ${levelText}`;
   let title: string;
   if (baseURL === "") {
     title =
@@ -250,15 +227,14 @@ function modelChip(input: { modelLabel: string; baseURL: string }): ComposerChip
   } else if (modelLabel === "") {
     title = `还没读出当前模型名。点开可切换模型；名单从 ${endpoint} 拉（走 provider:list-models 通道）。也可在模型设置里手填。`;
   } else {
-    title = `当前模型 ${modelLabel}。点开可切换；名单从 ${endpoint} 拉（走 provider:list-models 通道）。改地址或密钥请到模型设置。`;
+    title = `当前模型 ${modelLabel}，推理强度 ${levelText}。${levelTitle}点开可切换模型与推理强度；名单从 ${endpoint} 拉（走 provider:list-models 通道）。改地址或密钥请到模型设置。`;
   }
   return {
     id: "model",
-    text: modelLabel === "" ? "未配置模型" : modelLabel,
+    text,
     disabled: false,
     title,
     active: false,
-    // 2026-11-09 参考图②：模型名落在发送键左侧（右端），不再占左端首格。
     slot: "right",
     icon: "model",
     caret: true
@@ -271,8 +247,13 @@ export function composerChips(input: {
   workMode: WorkMode;
   saving: boolean;
   thinkingLevel: ThinkingLevel;
-  /** 启用中那条连接把「深度」在线上叫什么；chip 的提示要报真实出站值（2026-10-09 批次 5-㊻）。 */
   thinkingWire: ThinkingWire;
+
+  /**
+   * 当前模型在**能力表**里那一格（2026-11-21）：它认哪几档思考深度、最高档线上叫什么。
+   * 不知道（或调用方没带）就是 null ⇒ 走通用四档（老行为）。
+   */
+  thinkingCapability?: ModelCapability | null;
   webSearchEnabled: boolean;
   /** 多稿档（P0-②）：1 = 关；chip 的文案与 title 由它驱动（三档文案的判定只在本文件那一处）。 */
   sampleCount: DraftSampleCount;
@@ -288,8 +269,13 @@ export function composerChips(input: {
   // 「更多」弹层里多稿 → 工具清单 → / 命令 → 工作模式。
   // 2026-11-08：后四枚不再平铺，收进「更多」弹层——分区判据见 ComposerChipSlot 的注释。
   return [
-    modelChip({ modelLabel: input.modelLabel, baseURL: input.baseURL }),
-    thinkingChip(input.thinkingLevel, input.thinkingWire),
+    modelChip({
+      modelLabel: input.modelLabel,
+      baseURL: input.baseURL,
+      thinkingLevel: input.thinkingLevel,
+      thinkingWire: input.thinkingWire,
+      thinkingCapability: input.thinkingCapability ?? null
+    }),
     webSearchChip(input.webSearchEnabled),
     draftChip(input.sampleCount),
     {

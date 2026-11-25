@@ -40,6 +40,42 @@ describe("内置供应商清单", () => {
     }
   });
 
+  /**
+   * 常用模型名里**不许摆已下线/已退役的型号**（2026-11-21 用户裁定：清理并换成在售型号）。
+   *
+   * 摆一个下线的名字，用户点下去只会被上游拒收——快捷入口的作用是省事，不是添堵。
+   *
+   * 出处（官方，2026-11-21 读）：
+   * - `qwen-turbo`：阿里云百炼《文本生成与视觉理解》的推荐表与旧版模型折叠区里**都没有**它。
+   * - `deepseek-chat` / `deepseek-reasoner`：DeepSeek《Updates》——2026-07-24 退役。
+   * - `moonshot-v1-8k` / `kimi-k2-0905-preview`：Kimi《模型列表》「已下线模型」表。
+   */
+  it("常用模型名里没有已下线/已退役的型号", () => {
+    const retired = [
+      "qwen-turbo",
+      "deepseek-chat",
+      "deepseek-reasoner",
+      "moonshot-v1-8k",
+      "kimi-k2-0905-preview"
+    ];
+    for (const preset of PROVIDER_PRESETS) {
+      for (const model of preset.models) {
+        expect(retired, `${preset.id} 还摆着已下线的 ${model}`).not.toContain(model);
+      }
+    }
+  });
+
+  it("换成的是各家**当前在售**的型号（出处见 provider.ts 里那几行注释）", () => {
+    const modelsOf = (id: string): string[] => presetOf(id)?.models ?? [];
+    expect(modelsOf("bailian")).toEqual(["qwen4-max", "qwen3.7-plus", "qwen3.8-flash"]);
+    expect(modelsOf("deepseek")).toEqual(["deepseek-flash", "deepseek-v4-pro"]);
+    expect(modelsOf("kimi")).toEqual(["kimi-k3.1-pro", "kimi-k3.1-pro-highspeed", "kimi-k3"]);
+    // Kimi 换的是模型名，**端点没换**：官方《API 概述》写明 base_url 仍是 api.moonshot.cn/v1。
+    expect(presetOf("kimi")?.baseURL).toBe("https://api.moonshot.cn/v1");
+    // 取密钥的控制台搬到 platform.kimi.com（官方文档给的就是这个地址）。
+    expect(presetOf("kimi")?.keyUrl).toBe("https://platform.kimi.com/console/api-keys");
+  });
+
   it("分组表覆盖每一枚预置 + 自定义，一枚不多一枚不少（加一家就要落进某个分组）", () => {
     const listed = PROVIDER_DIALOG_GROUPS.flatMap((g) => g.ids);
     const expected = [...PROVIDER_PRESETS.map((p) => p.id), CUSTOM_PROVIDER_ID].sort();

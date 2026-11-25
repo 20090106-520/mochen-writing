@@ -1,5 +1,13 @@
 # 实现计划索引
 
+- **2026-11-21 模型能力表与模型下拉里的两枚开关**（本目录 `2026-11-21-model-capability-and-inline-switches.md`）：
+  用户拿 MiniMax Code 的模型菜单截图来问「像这样的东西没有弄上去没有修改」⇒ 补上「上下文窗口 / 推理等级」两枚开关。
+  **关键的一步是换数据源**：第一七〇节那句「上游 `/models` 不给这些能力位，硬做就是编」在当时是对的，
+  于是另立一份**对着厂商官方文档逐条抄的能力表**（`contracts/src/model-capability.ts`），表里没有的模型走通用口径。
+  查证途中挖出更要紧的一条：**本仓只发 `reasoning_effort`，而只有一部分模型认它**
+  （百炼 `enable_thinking` / 智谱与 MiMo `thinking.type` / gpt-4o 非推理模型）⇒ 那些模型上思考那一枚直接置灰，
+  不摆一个按下去没反应的东西。粒度按用户裁定：窗口与档位都挂**模型（档案）**上。
+  与之配套的两处拆分（行数硬门禁）：`appearance-surface-ladder.sites.ts` 与 `composables/useModelCapability.ts`。
 - Plan 1（本目录 `2026-10-01-plan1-shell-and-file-layer.md`）：三栏壳 + 文件层，对应 spec 的 S1/S2。已完成。
 - Plan 2（本目录 `2026-10-01-plan2-streaming-and-proposal.md`）：**已完成**（S3 + S4，16 任务；真机三栏冒烟通过）。
   流式对话 + 提案写盘与审批；依赖 Plan 1 的 `contracts`、`fs-store` 与 `RendererApi`。

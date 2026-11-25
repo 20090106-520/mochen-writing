@@ -61,6 +61,7 @@ import {
 import { resumeAffordanceOf } from "../utils/turn-resume";
 import { isStuckToBottom, scrollMetricsOf, streamKey } from "../utils/stick-to-bottom";
 import { useNotificationStore } from "../stores/useNotificationStore";
+import { useModelCapability } from "../composables/useModelCapability";
 import { PREFILL_NOTICE } from "../utils/message-actions";
 import { turnProgressOf } from "../utils/turn-progress";
 
@@ -477,6 +478,14 @@ async function chooseModel(name: string): Promise<void> {
 }
 
 /**
+ * 模型下拉里的推理强度与思考 chip 的接线（2026-11-21）。
+ *
+ * 两根线都在 `useModelCapability` 那一处（拆出去是因为中栏这份贴着 800 行硬门禁，
+ * 而这一族不共享中栏的任何状态）。
+ */
+const { setModelLevel } = useModelCapability();
+
+/**
  * 失败态的「去模型设置」出口（2026-10-05）：名单拉不到的原因多半是地址/密钥不对，
  * 而重试治不了它。走 layout 的唯一真身 showSettings（默认页就是 model），不另捏一条开设置的路。
  * 浮层随之关闭——设置中心是整页视图，浮层留着也没有宿主（App.vue 会把中栏整块换掉）。
@@ -721,6 +730,7 @@ onBeforeUnmount(() => {
       :permission-menu-open="book.hasBook && book.permissionMenuOpen"
       :thinking-level="agent.thinkingLevel"
       :thinking-wire="provider.activeThinkingWire"
+      :thinking-capability="provider.activeCapability"
       :web-search-enabled="agent.webSearchEnabled"
       :sample-count="agent.sampleCount"
       :disabled-tools="agent.disabledTools"
@@ -732,7 +742,6 @@ onBeforeUnmount(() => {
       @open-permission-menu="book.togglePermissionMenu()"
       @close-permission-menu="book.closePermissionMenu()"
       @toggle-work-mode="void book.toggleWorkMode()"
-      @cycle-thinking="agent.cycleThinking()"
       @toggle-web-search="agent.toggleWebSearch()"
       @cycle-draft-sample="agent.cycleDraftSample()"
       @open-tool-roster="rosterOpen = true"
@@ -762,10 +771,14 @@ onBeforeUnmount(() => {
       :current="provider.modelLabel"
       :switching="provider.switching"
       :switch-error="provider.switchError"
+      :capability-levels="provider.activeThinkingLevels"
+      :capability-level="provider.activeThinkingLevel"
+      :capability-writing="provider.capabilityWriting"
       @close="modelsOpen = false"
       @retry="provider.loadModels(true)"
       @open-settings="openModelSettings"
       @select="(name) => void chooseModel(name)"
+      @set-level="(level) => void setModelLevel(level)"
     />
   </main>
 </template>

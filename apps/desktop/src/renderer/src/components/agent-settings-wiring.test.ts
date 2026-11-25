@@ -71,8 +71,10 @@ describe("AgentSettingsPanel · 记住思考档（2026-10-05 新增）", () => {
     expect(agentStore).toMatch(
       /toggleThinkingRemember\(\)[\s\S]{0,260}persistThinkingRemember\(storage, this\.thinkingRemembered/
     );
+    // 2026-11-21：cycleThinking 多了一个参数（当前模型认的那几档），
+    // 正则跟着放宽到「`cycleThinking(`」——判据不变：切完档要把档位写进记忆档。
     expect(agentStore).toMatch(
-      /cycleThinking\(\)[\s\S]{0,320}saveThinkingLevel\(storage, this\.thinkingLevel\)/
+      /cycleThinking\([\s\S]{0,320}saveThinkingLevel\(storage, this\.thinkingLevel\)/
     );
     expect(agentStore).toContain('from "../utils/thinking-preference"');
   });

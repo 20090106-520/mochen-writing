@@ -2,15 +2,24 @@ import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import type {
   ConnectionDraft,
+  ModelCapability,
   ModelListQuery,
   ModelListResult,
   ProfileDraft,
   ProviderView,
+  ThinkingLevel,
   ThinkingWire,
   VerifyResult
 } from "@mochen/contracts";
+import {
+  capabilityOf,
+  defaultThinkingLevelOf,
+  effectiveContextWindowOf,
+  thinkingLevelsOf
+} from "@mochen/contracts";
 import { presentableProviderError } from "../utils/provider-error";
 import { modelSwitchDraft } from "../utils/model-switch";
+import { useAgentStore } from "./useAgentStore";
 
 function toReason(caught: unknown): string {
   return presentableProviderError(caught instanceof Error ? caught.message : String(caught));
@@ -35,6 +44,14 @@ export const useProviderStore = defineStore("provider", () => {
   const models = ref<ModelListResult | null>(null);
   const modelsLoading = ref(false);
   const switching = ref(false);
+  /**
+   * 「当前模型的能力」正在写回（2026-11-21）。
+   *
+   * **与 `switching` 分开**：那条说的是「正在写回**模型名**」，
+   * 这一条说的是「正在写回**这个模型的设置**」——两件事在同一块浮层里，
+   * 共用一句话就会有一半是假的（写窗口时闪「正在写回模型名…」）。
+   */
+  const capabilityWriting = ref(false);
   /**
    * 「这一轮切模型」这一次尝试的失败理由（空串 = 没失败）。
    *
@@ -74,6 +91,99 @@ export const useProviderStore = defineStore("provider", () => {
     () => connectionOf(activeConnectionId.value)?.thinkingWire ?? "standard"
   );
 
+  /* ─────────────────── 模型级能力（2026-11-21） ─────────────────── */
+
+  /**
+   * 当前模型在**能力表**里那一格（不知道就是 null）。
+   *
+   * 它回答两件事：这个模型的上游窗口多大、它认哪几档思考深度。
+   * 表是手写的**事实集**（对着厂商文档抄的），不是从 `/models` 推出来的——
+   * 上游那份接口不给这些，猜出来的就是编，编出来的会让占用条的分母说谎。
+   */
+  const activeCapability = computed<ModelCapability | null>(() => capabilityOf(modelLabel.value));
+
+  /**
+   * 当前模型认的思考档集合。
+   *
+   * **空数组 ≠ 通用四档**：空数组是「这个模型不认 `reasoning_effort`」
+   * （百炼用 `enable_thinking`、智谱与 MiMo 用 `thinking.type`、gpt-4o 根本不是推理模型），
+   * 界面对它把思考那一枚置灰并说明原因，而不是摆一个按下去没反应的东西。
+   */
+  const activeThinkingLevels = computed<readonly ThinkingLevel[]>(() =>
+    thinkingLevelsOf(modelLabel.value)
+  );
+
+  /**
+   * 当前模型**自己那一档**（档案上存的 ⇒ 没有就用该模型的默认档）。
+   *
+   * 「每模型一档，切模型带着走」的那一份：切到另一个模型时读的是新模型这一格。
+   * MiniMax-M3.1-Flash 的默认档是 `max`（官方：省略时默认 max）。
+   */
+  const activeThinkingLevel = computed<ThinkingLevel>(
+    () => enabledProfile.value?.thinkingLevel ?? defaultThinkingLevelOf(modelLabel.value)
+  );
+
+  /**
+   * 当前模型的**有效上下文窗口**（档案填过 ⇒ 能力表 ⇒ 连接级）。
+   *
+   * 判据在 contracts 的 `effectiveContextWindowOf` 一处：主进程算预算、界面显示
+   * 同一个数，两边不许各算一遍。
+   */
+  const activeContextWindow = computed<number | undefined>(() =>
+    effectiveContextWindowOf({
+      model: modelLabel.value,
+      profileContextWindow: enabledProfile.value?.contextWindow,
+      connectionContextWindow: connectionOf(activeConnectionId.value)?.contextWindow
+    })
+  );
+
+  /**
+   * 把运行态的思考档换成**当前模型自己那一档**（2026-11-21）。
+   *
+   * 切模型、读配置之后都要过这一下：不然输入卡上那枚 chip 显示的还是上一个模型的档，
+   * 而这一轮发出去的档位也跟着错。
+   */
+  function adoptActiveThinkingLevel(): void {
+    useAgentStore().adoptThinkingLevel(activeThinkingLevel.value);
+  }
+
+  /**
+   * 写当前模型的**两格能力**（窗口 / 思考档），落到档案上（模型级）。
+   *
+   * 走的是 `profileUpsert` 那条已有通路（同连接同名幂等）：不新造一条 IPC，
+   * 也不新造一份「模型能力表」——能力只存在档案里。
+   */
+  async function setModelCapability(patch: {
+    contextWindow?: number | null;
+    thinkingLevel?: ThinkingLevel | null;
+  }): Promise<boolean> {
+    const outcome = modelSwitchDraft(activeConnectionId.value, modelLabel.value);
+    if (!outcome.ok) {
+      error.value = outcome.reason;
+      // 失败必须看得见：这块浮层只摆 `switchError`（`error` 给设置页，浮层里看不见）。
+      switchError.value = outcome.reason;
+      return false;
+    }
+    // **不动 `switching`**：那是「正在写回模型名」的标记，这一刀写的是模型自己的设置。
+    // 共用一个标记 ⇒ 写窗口时屏幕上闪「正在写回模型名…」，那是一句与当前动作无关的假话。
+    capabilityWriting.value = true;
+    switchError.value = "";
+    try {
+      view.value = await window.mochen.profileUpsert({ ...outcome.draft, ...patch });
+      error.value = "";
+      // 档位改了 ⇒ 运行态跟着换（否则 chip 与实际发出去的值对不上）。
+      if (patch.thinkingLevel !== undefined) adoptActiveThinkingLevel();
+      return true;
+    } catch (caught) {
+      error.value = toReason(caught);
+      // 同样搬进浮层看得到的那个通道：写档位失败而屏上零解释，就是「点了没反应」。
+      switchError.value = error.value;
+      return false;
+    } finally {
+      capabilityWriting.value = false;
+    }
+  }
+
   /**
    * 启用中那条模型**自己那条连接**的地址（空串 = 没有启用中的模型，或那条连接已被删）。
    *
@@ -100,6 +210,10 @@ export const useProviderStore = defineStore("provider", () => {
     try {
       view.value = await window.mochen.providerView();
       error.value = "";
+      // 读回来的档案带的是**当前模型自己那一档**思考档 ⇒ 运行态跟着换。
+      // 少了这一下，应用一启动，输入卡上那枚 chip 显示的还是「关闭」，
+      // 而实际该模型（例如 MiniMax-M3.1-Flash）默认是 `max`。
+      adoptActiveThinkingLevel();
     } catch (caught) {
       // 读失败不等于配置变了：留着上一次已知的视图，只把这一轮的错误摆出来。
       error.value = toReason(caught);
@@ -228,6 +342,8 @@ export const useProviderStore = defineStore("provider", () => {
     try {
       view.value = await window.mochen.profileUpsert(draft);
       error.value = "";
+      // 换模型 ⇒ 思考档跟着换（每模型一档，切模型带着走）。
+      adoptActiveThinkingLevel();
       return true;
     } catch (caught) {
       error.value = toReason(caught);
@@ -302,12 +418,17 @@ export const useProviderStore = defineStore("provider", () => {
     models,
     modelsLoading,
     switching,
+    capabilityWriting,
     switchError,
     verify,
     modelLabel,
     activeBaseURL,
     activeConnectionId,
     activeThinkingWire,
+    activeCapability,
+    activeThinkingLevels,
+    activeThinkingLevel,
+    activeContextWindow,
     configured,
     connectionOf,
     refresh,
@@ -320,7 +441,9 @@ export const useProviderStore = defineStore("provider", () => {
     switchModel,
     removeProfile,
     enableProfile,
-    setUtility
+    setUtility,
+    setModelCapability,
+    adoptActiveThinkingLevel
   };
 });
 

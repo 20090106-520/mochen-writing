@@ -155,14 +155,13 @@ describe("chip 行 · 首行常驻 + 更多弹层（2026-11-08 裁定，替换 2
    * 踩过的坑记在这里：`clientWidth`(664) **含 padding**，@container 量的是**内容盒**(628)，
    * 拿 clientWidth 当基数会让整条梯子再偏 36px——第一次重算就是这么算歪的。
    */
-  const LADDER: Array<["722px" | "696px" | "662px" | "615px", string]> = [
+  const LADDER: Array<["722px" | "696px" | "662px", string]> = [
     ["722px", '.composer-toolbar-left .composer-chip[data-chip="tools"] .composer-chip-label'],
     ["696px", '.composer-toolbar-left .composer-chip[data-chip="palette"] .composer-chip-label'],
-    ["662px", '.composer-toolbar-left .composer-chip[data-chip="web-search"] .composer-chip-label'],
-    ["615px", '.composer-toolbar-left .composer-chip[data-chip="thinking"] .composer-chip-label']
+    ["662px", '.composer-toolbar-left .composer-chip[data-chip="web-search"] .composer-chip-label']
   ];
 
-  it("窄栏阶梯：四级各收一枚标签，按「图标能否自解释」排序（tools → palette → web-search → thinking），每级都钉在 @container composer 上", () => {
+  it("窄栏阶梯：三级各收一枚标签（tools → palette → web-search），每级都钉在 @container composer 上", () => {
     for (const [width, selector] of LADDER) {
       const body = blocks(CARD, `@container composer (max-width: ${width})`);
       expect(body, `阶梯 ${width}`).toHaveLength(1);

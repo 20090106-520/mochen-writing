@@ -3,7 +3,7 @@ import type { DraftReading } from "./draft-rank.js";
 import { draftSampleCountSchema } from "./draft-rank.js";
 import { editProposalSchema, PROPOSAL_DECISIONS } from "./patch.js";
 import { bibleProposalSchema } from "./bible-proposal.js";
-import { thinkingLevelSchema } from "./per-run.js";
+import { thinkingLevelSchema } from "./model-capability.js";
 import { SKILL_PATH_MAX_LEN, skillPathsSchema } from "./skill.js";
 
 const id = z.string().min(1);

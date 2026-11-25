@@ -279,14 +279,6 @@
   --text-faint: var(--text-on-state);
 }
 
-/* 深度那枚的紫光晕（设计稿 .pill-deep）。 */
-.composer-chip[data-chip="thinking"][aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--glow-deep) 90%, transparent);
-  box-shadow:
-    0 0 14px color-mix(in srgb, var(--glow-deep) 45%, transparent),
-    inset 0 1px 0 var(--glass-highlight);
-}
-
 /* 联网那枚的蓝光晕（设计稿 .pill-net）。 */
 .composer-chip[data-chip="web-search"][aria-pressed="true"] {
   border-color: color-mix(in srgb, var(--glow-net) 90%, transparent);
@@ -470,7 +462,7 @@
   font-size: 0.857143rem;
 }
 
-/* 模型 ▾ 下拉（2026-10-07 用户裁定）。
+/* 模型 ▾ 下拉（2026-10-07 用户裁定；2026-11-21 改成两栏）。
    原先是全屏遮罩 + 变暗 + 居中模态：为了换一个模型先打断整窗，一行一行地点「改用」。
    现在贴在那枚 chip 下面，点哪一行就切哪一行，当前那行带 ✓。
 
@@ -482,17 +474,36 @@
    原来整个面板一起滚（`overflow: auto` 挂在面板上）：名单一长，头上的搜索框与脚注被一起滚走，
    于是「我搜到哪了」「这个面板怎么用」这两样在滚动过程中都看不见。
    现在面板是 flex 列、列表自己滚——`min-height: 0` 是让 flex 子项肯缩下去的那一行，
-   少了它列表会把面板撑高、滚动条跑到整个面板上（这段的滚动就又回到老样子）。 */
+   少了它列表会把面板撑高、滚动条跑到整个面板上（这段的滚动就又回到老样子）。
+
+   【2026-11-21 改成**两栏并排**：左名单 + 右菜单】
+   照用户给的 MiniMax Code 截图：名单在左，右边那块菜单（模型 › / 推理等级 › / 自定义模型）
+   同时看得见；点菜单里一行，右栏换成那一屏（档位 / 上下文窗口）。
+   ⇒ 面板本身改成 flex **行**，左栏（名单）与右栏（菜单）各自是 flex 子项。 */
 .model-select {
   position: fixed;
   z-index: var(--z-popover);
   display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.model-select-main {
+  display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: inherit;
   overflow: hidden;
   padding: 6px;
   border: 1px solid var(--line-soft);
   border-radius: 12px;
-  /* 2026-11-09：同 .tool-roster——玻璃归 liquid-glass.css 总闸，基态不透明。 */
   background: var(--surface-raised);
   box-shadow: 0 14px 42px var(--shadow-color);
 }
@@ -532,11 +543,20 @@
 /* 刷新（2026-11-20 照参考图搬到底部文字行）：「重新拉名单」是排障动作，参考图把它
    摆在面板末尾与说明同区。头部不再有图标钮（.model-select-icon-btn 规则一并退役，
    dead-css-guard 会盯着它别回来）。 */
+.model-select-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  margin-top: 6px;
+}
+
 .model-select-refresh {
   display: flex;
   align-items: center;
   gap: 7px;
   flex: none;
+  margin-left: auto;
   padding: 5px 8px;
   border: none;
   border-radius: 6px;
@@ -552,37 +572,154 @@
   cursor: default;
 }
 
-/* 搜索框（2026-10-25 改成常驻）：原先是「超过六行才出现」，多数时候面板里就没有搜索框，
-   用户也就不知道能搜。现在名单里只要有模型就在，且打开时光标就落进来。
-   左边那枚 search 图标是 @ 引用菜单那一族的同一形状（输入区里「能搜」这件事得看得见）。 */
-.model-select-search {
+/* 右栏：那块菜单（2026-11-21 照用户截图重做）。
+   形状照 MiniMax Code：左名单、右菜单并排；菜单里点一行进去，右栏换成那一屏
+   （「推理等级 ›」进去是档位，「模型 ›」进去是上下文窗口）。
+
+   这一栏**自己滚**：档位多起来时只有它滚，左边名单不动。 */
+.model-select-menu,
+.model-select-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  max-height: inherit;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: 0 14px 42px var(--shadow-color);
+}
+
+.model-select-menu {
+  flex: 0 0 280px;
+}
+
+.model-select-submenu {
+  flex: 0 0 176px;
+}
+
+.model-select-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.857143rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* 悬停时字色升到正文级（primary 那一形）：底换成状态档，字也得跟着上来，
+   否则「深底 + 灰字」就是结构律要拦的那一格。 */
+.model-select-menu-row:hover:not(:disabled),
+.model-select-menu-row.is-open {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.model-select-menu-row:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+/* 行名（「模型」「推理等级」「自定义模型」）。 */
+.model-select-menu-name {
+  flex: none;
+}
+
+/* 右端那个值：当前模型名 / 当前档，是这一行里最该被看见的字。
+   模型名可能很长（`anthropic/claude-sonnet-4.5`）：挤断而不是把整块撑开。 */
+.model-select-menu-value {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--text-soft);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.model-select-menu-chevron {
+  flex: none;
+  transform: rotate(-90deg);
+}
+
+.model-select-menu-note {
+  margin: 2px 2px 0;
+  color: var(--text-faint);
+  font-size: 0.714286rem;
+  line-height: 1.5;
+}
+
+/* 子菜单的头：左边一枚返回箭头（回到菜单本身），右边是这一屏的名字。 */
+.model-select-menu-head {
   display: flex;
   align-items: center;
   gap: 6px;
   flex: none;
-  padding: 0 4px 6px;
+  padding: 0 2px 6px;
+  color: var(--text-soft);
+  font-size: 0.714286rem;
+  font-weight: 600;
 }
 
-.model-select-search-icon {
-  flex: none;
-  color: var(--text-faint);
+.model-select-menu-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
 }
 
-.model-select-search-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 5px 9px;
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-main) 62%, transparent);
+.model-select-menu-back:hover {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.model-select-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+}
+
+.model-select-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 0.857143rem;
+  font-size: 0.785714rem;
+  text-align: left;
+  cursor: pointer;
 }
 
-.model-select-search-input:focus {
-  border-color: color-mix(in srgb, var(--focus) 55%, var(--line-soft));
-  outline: none;
+.model-select-option:hover {
+  background: var(--selected);
+  color: var(--text);
 }
 
 /* 列表：面板里唯一会滚的那一段。`min-height: 0` 不能省——flex 子项默认不肯缩到内容以下，
@@ -728,8 +865,6 @@
 }
 
 .model-select-retry,
-.model-select-settings,
-.model-select-retry,
 .model-select-settings {
   padding: 4px 12px;
   border: 1px solid var(--line-soft);
@@ -797,6 +932,8 @@
 }
 
 .model-select-row:focus-visible,
+.model-select-menu-row:focus-visible,
+.model-select-option:focus-visible,
 .model-select-retry:focus-visible,
 .model-select-settings:focus-visible,
 .model-select-close:focus-visible,
@@ -822,22 +959,6 @@
   padding: 0 8px;
   color: var(--danger-text);
   font-size: 0.857143rem;
-}
-
-.model-select-foot {
-  flex: none;
-  margin: 8px 0 2px;
-  padding: 0 8px;
-  color: var(--text-faint);
-  font-size: 0.857143rem;
-}
-
-/* 键位提示行（2026-10-25）：排版（横向、右对齐、组距）在 styles.css 的 `.list-keys` 一处，
-   这一族浮层共用；这里只留它在模型选择器里的位置——贴着脚注，不参与滚动。 */
-.model-select-keys {
-  flex: none;
-  margin: 6px 0 2px;
-  padding: 0 8px;
 }
 
 /* ==== deepwrite-composer-card ====

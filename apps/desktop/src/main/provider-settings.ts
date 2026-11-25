@@ -7,6 +7,7 @@ import {
   connectionDraftSchema,
   customConnectionLabel,
   detectProviderByBaseURL,
+  effectiveContextWindowOf,
   firstIssueMessage,
   maskApiKey,
   migrateProviderStore,
@@ -82,6 +83,34 @@ export function connectionLabelOf(connection: ProviderConnection): string {
   }
   const detected = detectProviderByBaseURL(connection.baseURL);
   return detected.known ? detected.label : customConnectionLabel(connection.baseURL);
+}
+
+/**
+ * 把草稿里那**两格模型能力**写回一条档案（2026-11-21）。
+ *
+ * 语义与 `apiKey` 同一族：
+ * - `undefined` = 调用方没带这一格 ⇒ **保持现状**（不清掉用户之前设过的）；
+ * - `null` = 明确清空 ⇒ 删掉这一格，回到能力表与该模型的默认档；
+ * - 数字 / 档位 = 设成这一份。
+ *
+ * 为什么是「模型级」而不是连接级：窗口与思考档都是**模型**的属性——
+ * 同一端点下 `MiniMax-M3.1-Flash` 与 `MiniMax-M3` 都是 1M 窗口，而同一家别的模型不是；
+ * 思考档更是一个模型认哪几档说了算（MiniMax-M3 官方明写它忽略 `reasoning_effort`）。
+ */
+function applyModelCapability(
+  profile: ProviderProfile,
+  draft: Pick<ProfileDraft, "contextWindow" | "thinkingLevel">
+): ProviderProfile {
+  const next: ProviderProfile = { ...profile };
+  if (draft.contextWindow !== undefined) {
+    if (draft.contextWindow === null) delete next.contextWindow;
+    else next.contextWindow = draft.contextWindow;
+  }
+  if (draft.thinkingLevel !== undefined) {
+    if (draft.thinkingLevel === null) delete next.thinkingLevel;
+    else next.thinkingLevel = draft.thinkingLevel;
+  }
+  return next;
 }
 
 export function createProviderSettings(deps: {
@@ -207,7 +236,16 @@ export function createProviderSettings(deps: {
         keyMask: key === null ? "" : maskApiKey(key)
       });
     }
-    const profiles = (store?.profiles ?? []).map((profile) => ({ ...profile }));
+    const profiles = (store?.profiles ?? []).map((profile) => ({
+      id: profile.id,
+      connectionId: profile.connectionId,
+      model: profile.model,
+      enabled: profile.enabled,
+      // 两格能力没设过就不写这个键：视图层要能分清「用户设过」与「没设过」，
+      // 而 exactOptionalPropertyTypes 下「键在但值是 undefined」与「键不在」是两回事。
+      ...(profile.contextWindow === undefined ? {} : { contextWindow: profile.contextWindow }),
+      ...(profile.thinkingLevel === undefined ? {} : { thinkingLevel: profile.thinkingLevel })
+    }));
     // 悬空引用不外露：档案被删后视图里不该再出现这个 id，
     // 设置页据此回落到「跟随主模型」，而不是显示一条已经不存在的模型。
     const utility =
@@ -239,15 +277,22 @@ export function createProviderSettings(deps: {
     }
     // 空串是「明确清空」之后的状态：拿它发请求只会换来 401，不如当作不可用去试下一条。
     if (key === null || key === "") return null;
+    // 上下文窗口（2026-11-21）：**模型级**优先，其次能力表，最后连接级那格。
+    // 判据在 contracts 的 effectiveContextWindowOf 一处——占用条的分母与历史切多少
+    // 都读这一格，界面与出站不许各算一遍。
+    const contextWindow = effectiveContextWindowOf({
+      model: profile.model,
+      profileContextWindow: profile.contextWindow,
+      connectionContextWindow: connection.contextWindow
+    });
     return {
       config: {
         baseURL: connection.baseURL,
         model: profile.model,
         authHeader: connection.authHeader,
         thinkingWire: connection.thinkingWire,
-        ...(connection.contextWindow === undefined
-          ? {}
-          : { contextWindow: connection.contextWindow })
+        // 没算出来就不写这个键：调用方据此回退默认值，界面也要能看出「用的是默认值」。
+        ...(contextWindow === undefined ? {} : { contextWindow })
       },
       apiKey: key
     };
@@ -442,11 +487,24 @@ export function createProviderSettings(deps: {
           : { utilityProfileId: store.utilityProfileId })
       };
       // 同名幂等只在**同一条连接**上；换个供应商用同一个模型名是常事，那是两条档案。
-      if (existing === undefined)
-        next.profiles = [
-          ...next.profiles,
-          { id: randomUUID(), connectionId: parsed.data.connectionId, model: name, enabled: true }
-        ];
+      if (existing === undefined) {
+        const created = applyModelCapability(
+          {
+            id: randomUUID(),
+            connectionId: parsed.data.connectionId,
+            model: name,
+            enabled: true
+          },
+          parsed.data
+        );
+        next.profiles = [...next.profiles, created];
+      } else {
+        // 已有的那条：把两格能力写回去。
+        // undefined = 调用方没带这一格（保持现状）；null = 明确清空（回到能力表与默认值）。
+        next.profiles = next.profiles.map((profile) =>
+          profile.id === existing.id ? applyModelCapability(profile, parsed.data) : profile
+        );
+      }
       await writeStore(next);
       cached = next;
       return toView(next);

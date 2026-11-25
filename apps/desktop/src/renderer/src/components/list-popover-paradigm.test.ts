@@ -19,8 +19,8 @@
  *      组件不许自己写一份，也**不许**直接引裸函数绕过合成器。
  *   ② ↑↓ 改的是**高亮**（下标），不是真焦点——焦点留在搜索框里（能边打字边选）。
  *   ③ Enter 选的是**高亮那条**，不是第一条。
- *   ④ 名单是 listbox/option + aria-selected + is-selected；底部一枚键位提示行，
- *      排版走共用的 `.list-keys`（styles.css 一处）。
+ *   ④ 名单是 listbox/option + aria-selected + is-selected；除模型浮层按用户裁定精简外，
+ *      底部一枚键位提示行，排版走共用的 `.list-keys`（styles.css 一处）。
  *
  * 【为什么用读源码断言而不是组件测试】
  * 本仓 verify 用裸 tsc（没有 vue-tsc），`vue-shim.d.ts` 把 `*.vue` 声明成 any ⇒
@@ -144,13 +144,16 @@ describe("范式 · 名单是 listbox/option + aria-selected", () => {
   });
 });
 
-describe("范式 · 底部一枚键位提示行", () => {
-  it("四个浮层都摆着键位提示行，且排版走共用的 `.list-keys`", () => {
-    for (const path of [MODEL_SELECT, PERMISSION, CONTEXT_MENU, REFERENCE, REVIEW]) {
+describe("范式 · 底部键位提示", () => {
+  it("其余浮层保留共用键位提示；模型浮层按用户裁定不显示提示文字", () => {
+    for (const path of [PERMISSION, CONTEXT_MENU, REFERENCE, REVIEW]) {
       const markup = templateSource(path);
       expect(markup, `${path} 没有键位提示行`).toContain("<kbd>");
       expect(markup, `${path} 的提示行没用共用的排版`).toContain("list-keys");
     }
+    const model = templateSource(MODEL_SELECT);
+    expect(model).not.toContain("<kbd>");
+    expect(model).not.toContain("model-select-keys");
   });
 
   /**

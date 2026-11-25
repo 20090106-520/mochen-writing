@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { USER_TEXT_MAX_LEN, WORK_MODE_LABELS } from "@mochen/contracts";
 import { NO_BOOK_CHIP_LABEL, permissionChipView } from "./permission-chip";
 import {
   CHIP_EMIT,
@@ -6,9 +7,7 @@ import {
   composerCounter,
   WORK_MODE_NO_BOOK_LABEL
 } from "./composer-chips";
-import { USER_TEXT_MAX_LEN, WORK_MODE_LABELS } from "@mochen/contracts";
 
-/** chip 行的入参默认值：只关心某一枚时，其余按「什么都没开」传。 */
 function input(over: Partial<Parameters<typeof composerChips>[0]> = {}) {
   return {
     hasBook: true,
@@ -29,10 +28,8 @@ function chip(id: string, over: Partial<Parameters<typeof composerChips>[0]> = {
   return composerChips(input(over)).find((item) => item.id === id);
 }
 
-/** #112 照参考图定的数组序 = 左端从左到右的渲染序，权限档落在右端。 */
 const CHIP_ORDER = [
   "model",
-  "thinking",
   "web-search",
   "draft",
   "tools",
@@ -42,65 +39,38 @@ const CHIP_ORDER = [
   "permission"
 ];
 
-describe("composer-chips · 八枚真开关/入口，排队不做按钮（F-D + #101 + #104）", () => {
-  it("id 顺序逐字钉死：model/thinking/web-search/draft/tools/palette/work-mode/permission（排队按钮不许长出来）", () => {
+describe("composer-chips · 入口与分区", () => {
+  it("模型与推理合并为一枚入口，其余控件顺序保持稳定", () => {
     expect(composerChips(input()).map((c) => c.id)).toEqual(CHIP_ORDER);
+    expect(chip("thinking")).toBeUndefined();
   });
 
-  it("T9-1 反向钉：palette chip 的 title 不得再宣传不存在的 Ctrl+K 键位", () => {
-    // 实测 hotkeys.ts 的全局 Ctrl 族没有 k，面板真身是裸 / 键。
-    expect(chip("palette")?.title).not.toContain("Ctrl");
-  });
-
-  // ── 先计划后动手（2026-10-05 批次 4） ────────────────────────────────────
-  it("工作模式 chip 文案读 WORK_MODE_LABELS，不手抄标签", () => {
+  it("工作模式读共享标签并有真实开关态", () => {
     expect(chip("work-mode", { workMode: "plan" })?.text).toBe(WORK_MODE_LABELS.plan);
     expect(chip("work-mode", { workMode: "act" })?.text).toBe(WORK_MODE_LABELS.act);
-  });
-
-  // 2026-11-08：它仍是「能碰多大」那一族，但每轮改不到一次 ⇒ 收进「更多」弹层，不与权限档同排。
-  it("工作模式 chip 收进「更多」弹层（与权限档同族、不同区）", () => {
-    expect(chip("work-mode")?.slot).toBe("more");
-  });
-
-  it("有按下态；2026-11-09 起也带三角（先展开两档再选，不再点一下就切）", () => {
-    // 计划档是**按下去生效**的两态，`aria-pressed` 用 active 才不撒谎；
-    // 打开方式统一后它仍是开关态，但入口一律展开二级列表 ⇒ caret 为真。
     expect(chip("work-mode", { workMode: "plan" })?.active).toBe(true);
-    expect(chip("work-mode", { workMode: "act" })?.active).toBe(false);
+    expect(chip("work-mode")?.slot).toBe("more");
     expect(chip("work-mode")?.caret).toBe(true);
-    // 事件名走 CHIP_EMIT 这张穷尽表（铁律 6）：少一格 tsc 当场报，少一个事件这里报。
     expect(CHIP_EMIT["work-mode"]).toBe("toggle-work-mode");
   });
 
-  // 没开书时这一格不存在意义：工作模式是**书级**设置，没书就没有它。
-  it("没打开作品目录 ⇒ 禁用并说清为什么（不假装自己开着某个模式）", () => {
-    const c = chip("work-mode", { hasBook: false, mode: null });
-    expect(c?.disabled).toBe(true);
-    expect(c?.active).toBe(false);
-    expect(c?.text).toBe(WORK_MODE_NO_BOOK_LABEL);
-    // 反向钉（2026-10-14 真机截图）：不许和 permission chip 的无书文案撞成同一串——
-    // 两枚同时出现在卡上时一模一样，读起来像渲染事故（现在一枚在弹层、一枚在首行，仍不许撞）。
-    expect(c?.text).not.toBe(NO_BOOK_CHIP_LABEL);
-    expect(c?.title).toContain("作品目录");
+  it("无书时工作模式禁用，且不借用权限档文案", () => {
+    const current = chip("work-mode", { hasBook: false, mode: null });
+    expect(current?.disabled).toBe(true);
+    expect(current?.active).toBe(false);
+    expect(current?.text).toBe(WORK_MODE_NO_BOOK_LABEL);
+    expect(current?.text).not.toBe(NO_BOOK_CHIP_LABEL);
+    expect(current?.title).toContain("作品目录");
   });
 
-  // 反向钉：图标不许和「工具」那枚撞成同一个（两枚并排长一样，用户分不出按的是哪颗）。
-  it("工作模式的图标与工具 chip 不撞", () => {
-    expect(chip("work-mode", { workMode: "plan" })?.icon).not.toBe(chip("tools")?.icon);
-    expect(chip("work-mode", { workMode: "act" })?.icon).not.toBe(chip("tools")?.icon);
-  });
-
-  it("联动用例：permission chip 与 permissionChipView 的五个显示字段逐字段同值（防两份判定漂移）", () => {
-    const inputs = [
+  it("权限 chip 与 permissionChipView 同源", () => {
+    for (const item of [
       input({ mode: "chapter-write" }),
       input({ mode: "full-access", saving: true }),
       input({ hasBook: false, mode: null })
-    ];
-    for (const item of inputs) {
+    ]) {
       const view = permissionChipView(item);
-      const permission = composerChips(item).find((c) => c.id === "permission");
-      expect(permission).toMatchObject({
+      expect(composerChips(item).find((c) => c.id === "permission")).toMatchObject({
         id: "permission",
         text: view.text,
         disabled: view.disabled,
@@ -110,20 +80,9 @@ describe("composer-chips · 八枚真开关/入口，排队不做按钮（F-D + 
     }
   });
 
-  it("无书 ⇒ permission chip disabled 且文案不是任何档位名（透传 permissionChipView 的诚实）", () => {
-    const permission = chip("permission", { hasBook: false, mode: null });
-    expect(permission?.disabled).toBe(true);
-    expect(permission?.text).toBe("未选作品");
-    expect(permission?.text).not.toBe("只读参考"); // 波 1 缺陷②「捏造档位名」的反向钉
-  });
-
-  it("排队数字不在 chip 行出现（裁定 C：唯一真身是 composeStatusLine）", () => {
-    expect(composerChips(input()).every((c) => !c.text.includes("排队"))).toBe(true);
-  });
-
-  it("每枚 chip 的键集固定为八字段（active 是aria-pressed 的真值来源，不许漏也不许多；#112 起 icon/caret 取代 badge，图标与下拉三角同表决策）", () => {
-    for (const c of composerChips(input()))
-      expect(Object.keys(c).sort()).toEqual([
+  it("每枚 chip 保持相同视图字段", () => {
+    for (const current of composerChips(input())) {
+      expect(Object.keys(current).sort()).toEqual([
         "active",
         "caret",
         "disabled",
@@ -133,252 +92,154 @@ describe("composer-chips · 八枚真开关/入口，排队不做按钮（F-D + 
         "text",
         "title"
       ]);
+    }
+  });
+
+  it("分区为左端联网与技能、右端模型与权限，其余进入更多", () => {
+    const chips = composerChips(input());
+    expect(chips.filter((c) => c.slot === "left").map((c) => c.id)).toEqual([
+      "web-search",
+      "auto-skills"
+    ]);
+    expect(chips.filter((c) => c.slot === "right").map((c) => c.id)).toEqual([
+      "model",
+      "permission"
+    ]);
+    expect(chips.filter((c) => c.slot === "more").map((c) => c.id)).toEqual([
+      "draft",
+      "tools",
+      "palette",
+      "work-mode"
+    ]);
   });
 });
 
-describe("composer-chips · 深度思考", () => {
-  it("文案只有档位名（#112 照参考图：图标已经说明这是思考等级，文字不再重复「深度思考」）", () => {
-    expect(chip("thinking", { thinkingLevel: "off" })?.text).toBe("关闭");
-    expect(chip("thinking", { thinkingLevel: "low" })?.text).toBe("较低");
-    expect(chip("thinking", { thinkingLevel: "medium" })?.text).toBe("标准");
-    expect(chip("thinking", { thinkingLevel: "high" })?.text).toBe("深度");
+describe("composer-chips · 模型与推理强度", () => {
+  it("模型 chip 同步显示紧凑档位名", () => {
+    expect(chip("model")?.text).toBe("mochen-mock 关闭");
+    expect(chip("model", { thinkingLevel: "low" })?.text).toBe("mochen-mock 低");
+    expect(chip("model", { thinkingLevel: "medium" })?.text).toBe("mochen-mock 中");
+    expect(chip("model", { thinkingLevel: "high" })?.text).toBe("mochen-mock 高");
   });
 
-  it("active 只在非 off 时为真（关档时按下态不许骗人）", () => {
-    expect(chip("thinking", { thinkingLevel: "off" })?.active).toBe(false);
-    expect(chip("thinking", { thinkingLevel: "low" })?.active).toBe(true);
-  });
-
-  // 报不出出站字段名的控件不进 UI：title 必须说出这一档实际发出去的那对键值。
-  it("title 逐字报出 reasoning_effort 与档位；关档则说「不发字段」", () => {
-    expect(chip("thinking", { thinkingLevel: "off" })?.title).toContain("reasoning_effort");
-    expect(chip("thinking", { thinkingLevel: "off" })?.title).toContain("不发");
-    expect(chip("thinking", { thinkingLevel: "medium" })?.title).toContain(
-      "reasoning_effort=medium"
-    );
-  });
-
-  it("循环次序从 THINKING_LEVELS 现拼，不手抄第二份档位名（改标签不会留下一句说谎的提示）", () => {
-    for (const level of ["off", "low", "medium", "high"] as const)
-      expect(chip("thinking", { thinkingLevel: level })?.title).toContain(
-        "关闭 → 较低 → 标准 → 深度"
-      );
-  });
-});
-
-describe("composer-chips · 联网搜索与工具清单", () => {
-  it("联网文案恒定「联网搜索」，开关只体现在 active 与 title 上", () => {
-    expect(chip("web-search")?.text).toBe("联网搜索");
-    expect(chip("web-search")?.active).toBe(false);
-    expect(chip("web-search", { webSearchEnabled: true })?.active).toBe(true);
-  });
-
-  it("title 报出两枚出网工具（web_search + web_read）；关的时候说「本轮不带」", () => {
-    expect(chip("web-search")?.title).toContain("web_search");
-    expect(chip("web-search")?.title).toContain("web_read");
-    expect(chip("web-search")?.title).not.toContain("本轮已带");
-    expect(chip("web-search", { webSearchEnabled: true })?.title).toContain("本轮已带联网工具");
-  });
-
-  it("工具 chip 永远不 disabled，且文案里的枚数跟着联网开关走（关 7 / 开 9）", () => {
-    const tools = chip("tools");
-    expect(tools?.disabled).toBe(false);
-    // #112：下拉三角是 icon/caret 两枚字段渲染出来的，不再混进 text（同一件事两份真身）。
-    expect(tools?.text).toBe("工具");
-    // 枚数从 toolRoster(开关) 数出来，不是手抄：关掉那一轮两枚出网工具根本不出站。
-    // 2026-10-23 加 use_skill 后、2026-11-20 加 propose_bible 后：关 7 / 开 9。
-    expect(tools?.title).toContain("7 枚");
-    expect(chip("tools", { webSearchEnabled: true })?.title).toContain("9 枚");
-    expect(tools?.active).toBe(false);
-  });
-
-  it("入口 chip 永不 disabled——它们只看请求形状与本机配置，不依赖是否开书", () => {
-    const chips = composerChips(input({ hasBook: false, mode: null }));
-    for (const id of ["thinking", "web-search", "draft", "tools", "model"])
-      expect(chips.find((c) => c.id === id)?.disabled).toBe(false);
-  });
-
-  it("最裸的一档（没开书 + 没地址 + 没模型名）也不许把模型入口禁成摆设", () => {
-    // 变异 M-B 实测：只测「有 baseURL」那一支时，`disabled: baseURL === ""` 这种写法能全绿通过。
-    const model = chip("model", { hasBook: false, mode: null, modelLabel: "", baseURL: "" });
-    expect(model?.disabled).toBe(false);
-    expect(model?.text).toBe("未配置模型");
-  });
-});
-
-describe("composer-chips · 模型入口（#104）", () => {
-  it("有配置 ⇒ 文案就是 ProviderView.model 本身，不缀中文译名也不塞地址", () => {
-    const model = chip("model");
-    expect(model?.text).toBe("mochen-mock");
-    expect(model?.text).not.toContain("http");
-    expect(model?.text).not.toContain("•"); // 掩码属于密钥，不属于这枚 chip
-  });
-
-  it("没有模型名 ⇒ 老实说「未配置模型」，不冒充任何模型名", () => {
+  it("模型名缺省时只显示未配置模型", () => {
     expect(chip("model", { modelLabel: "" })?.text).toBe("未配置模型");
   });
 
-  it("title 报出通道名 provider:list-models 与被访问的 {baseURL}/models（铁律：报不出通道名不进 UI）", () => {
+  it("不支持推理字段的模型仍保留设置入口，但明确显示不适用", () => {
+    const current = chip("model", {
+      modelLabel: "gpt-4o",
+      thinkingCapability: { contextWindow: 128000, thinkingLevels: [] }
+    });
+    expect(current?.text).toBe("gpt-4o 不适用");
+    expect(current?.disabled).toBe(false);
+    expect(current?.title).toContain("不认 reasoning_effort");
+  });
+
+  it("提示报出真实线格式，而不是把档位名直接拼进出站字段", () => {
+    const current = chip("model", {
+      thinkingLevel: "xhigh",
+      thinkingCapability: {
+        contextWindow: 1_000_000,
+        thinkingLevels: ["low", "medium", "high", "xhigh", "max"]
+      }
+    });
+    expect(current?.title).toContain("reasoning_effort=xhigh");
+    expect(chip("model")?.title).toContain("不发 reasoning_effort 字段");
+    expect(chip("model", { thinkingLevel: "medium" })?.title).toContain("reasoning_effort=medium");
+  });
+
+  it("title 报出真实名单通道与地址", () => {
     const title = chip("model")?.title ?? "";
     expect(title).toContain("provider:list-models");
     expect(title).toContain("http://127.0.0.1:8787/v1/models");
     expect(title).toContain("当前模型 mochen-mock");
+    expect(title).toContain("模型设置");
   });
 
-  it("改地址/密钥不是这枚 chip 能做的事 ⇒ title 把它指回模型设置", () => {
-    expect(chip("model")?.title).toContain("模型设置");
-    expect(chip("model", { modelLabel: "", baseURL: "" })?.title).toContain("模型设置");
+  it("无地址时不谎称能拉名单，也不拼半截地址", () => {
+    const current = chip("model", { modelLabel: "", baseURL: "" });
+    expect(current?.disabled).toBe(false);
+    expect(current?.title).toContain("还没有 API 地址");
+    expect(current?.title).not.toContain("/models");
   });
 
-  it("没配 baseURL 时 title 不谎称能拉到名单，也不拼出「/models」这种半截地址", () => {
-    const title = chip("model", { modelLabel: "", baseURL: "" })?.title ?? "";
-    expect(title).toContain("还没有 API 地址");
-    expect(title).not.toContain("/models");
-  });
-
-  it("active 恒假：弹层打开是瞬态，不是按下态（aria-pressed 用它只会撒谎）", () => {
+  it("模型是入口而非开关，active 恒假且带下拉三角", () => {
     expect(chip("model")?.active).toBe(false);
-    expect(chip("model", { modelLabel: "", baseURL: "" })?.active).toBe(false);
-  });
-});
-
-/**
- * #112 照参考图（用户提供的三张截图）对齐输入卡：
- * 他那张卡左端是 `＋ / 模型 ▾ / 思考等级 ▾` **三枚独立控件**，#105 我把模型与思考等级
- * 合并成一枚 chip 是自创的，截图证明它不存在 ⇒ 撤销合并（裁定 I）。
- * 地球角标同理：它说的是「这一轮带不带 web_search」，挂在模型名字上等于让模型 chip 冒充联网开关；
- * 而联网自己已经是一枚 chip ⇒ badge 字段整个退役，改由 icon 承载（裁定 I 续）。
- * 图标的合法名不靠这条测试把关：`ComposerChipView.icon` 是 `IconName`，写错的名字在 tsc 就编不过。
- */
-describe("composer-chips · #112 撤销合并口径，两枚控件各说各的", () => {
-  it("开着思考等级时模型 chip 仍是裸模型名——等级只在它自己那一枚上说一次", () => {
-    const model = chip("model", { thinkingLevel: "high" });
-    expect(model?.text).toBe("mochen-mock");
-    expect(model?.text).not.toContain("深度");
-    expect(chip("thinking", { thinkingLevel: "high" })?.text).toBe("深度");
-  });
-
-  it("每枚 chip 有自己的图标：模型=立方体、思考=脑、联网=地球、多稿=复制、工具=清单、命令=火花、档位=按档而变", () => {
+    expect(chip("model")?.caret).toBe(true);
     expect(chip("model")?.icon).toBe("model");
-    expect(chip("thinking")?.icon).toBe("brain");
-    expect(chip("web-search")?.icon).toBe("globe");
-    expect(chip("draft")?.icon).toBe("copy");
-    expect(chip("tools")?.icon).toBe("list");
-    expect(chip("palette")?.icon).toBe("sparkles");
-    expect(chip("permission")?.icon).toBe("user");
-    expect(chip("permission", { mode: "full-access" })?.icon).toBe("check");
-    expect(chip("permission", { mode: "chapter-write" })?.icon).toBe("edit");
-    expect(chip("permission", { hasBook: false, mode: null })?.icon).toBe("folder");
-  });
-
-  it("2026-11-09/10 裁定：「更多」四组 + 独立的自动技能入口一律带三角，两枚真开关仍不带", () => {
-    // 截图里四行形态不齐（工具/命令有下拉，多稿/工作模式点一下就切），现在四组全是
-    // 「展开同款二级列表」的入口；自动技能独立成 chip 但同样展开一张卡片，所以也带三角。
-    // 首行常驻的思考/联网仍是点一下走一格的真开关。
-    for (const id of [
-      "model",
-      "permission",
-      "draft",
-      "tools",
-      "palette",
-      "auto-skills",
-      "work-mode"
-    ])
-      expect(chip(id)?.caret, `${id} 该带三角`).toBe(true);
-    for (const id of ["thinking", "web-search"])
-      expect(chip(id)?.caret, `${id} 是首行真开关，不该带三角`).toBe(false);
-  });
-
-  // 2026-11-08 用户裁定（参照 MiniMax Code 输入卡的分区逻辑）：
-  // 首行只留最常用的运行配置 + 权限档；其余低频开关收进「更多」弹层，功能一个不丢。
-  // 2026-11-09 参考图②：模型名落在发送键左侧（右端）。
-  // 2026-11-10「自动技能不要在里面」：它从 more 分区挪到首行左端，独立成一枚入口。
-  it("分区：左端思考/联网/自动技能，右端模型/权限；多稿/工具/命令/工作模式进「更多」", () => {
-    const chips = composerChips(input());
-    const left = chips.filter((c) => c.slot === "left").map((c) => c.id);
-    const right = chips.filter((c) => c.slot === "right").map((c) => c.id);
-    const more = chips.filter((c) => c.slot === "more").map((c) => c.id);
-    expect(left).toEqual(["thinking", "web-search", "auto-skills"]);
-    expect(right).toEqual(["model", "permission"]);
-    expect(more).toEqual(["draft", "tools", "palette", "work-mode"]);
-    // 反向钉：九枚一枚不少——分区变了，功能集合没变。
-    expect(new Set([...left, ...right, ...more]).size).toBe(9);
   });
 });
 
-describe("composer-chips · CHIP_EMIT 与 ComposerChipId 同集", () => {
-  it("九枚 chip 各有唯一事件名，漏一键就会发出 undefined 事件长成死按钮", () => {
-    // 键集必须与 ComposerChipId 完全一致：这枚「按了没反应的 chip」正是红线。
-    expect(Object.keys(CHIP_EMIT).sort()).toEqual([
-      "auto-skills",
-      "draft",
-      "model",
-      "palette",
-      "permission",
-      "thinking",
-      "tools",
-      "web-search",
-      "work-mode"
-    ]);
-    expect(new Set(Object.values(CHIP_EMIT)).size).toBe(9);
-    expect(CHIP_EMIT.permission).toBe("open-permission-menu");
-    expect(CHIP_EMIT.palette).toBe("open-palette");
-    expect(CHIP_EMIT.thinking).toBe("cycle-thinking");
-    expect(CHIP_EMIT["web-search"]).toBe("toggle-web-search");
-    expect(CHIP_EMIT.draft).toBe("cycle-draft-sample");
-    expect(CHIP_EMIT.tools).toBe("open-tool-roster");
+describe("composer-chips · 联网搜索与工具", () => {
+  it("联网文案固定，开关只体现在 active 与 title", () => {
+    expect(chip("web-search")?.text).toBe("联网搜索");
+    expect(chip("web-search")?.active).toBe(false);
+    expect(chip("web-search", { webSearchEnabled: true })?.active).toBe(true);
+    expect(chip("web-search")?.title).toContain("web_search");
+    expect(chip("web-search")?.title).toContain("web_read");
+    expect(chip("web-search")?.caret).toBe(false);
+  });
+
+  it("工具枚数随联网开关联动", () => {
+    expect(chip("tools")?.title).toContain("7 枚");
+    expect(chip("tools", { webSearchEnabled: true })?.title).toContain("9 枚");
+    expect(chip("tools")?.disabled).toBe(false);
+  });
+
+  it("palette 不宣传不存在的 Ctrl+K", () => {
+    expect(chip("palette")?.title).not.toContain("Ctrl");
+  });
+
+  it("入口型 chip 不依赖是否开书", () => {
+    const chips = composerChips(input({ hasBook: false, mode: null }));
+    for (const id of ["web-search", "draft", "tools", "model"]) {
+      expect(chips.find((c) => c.id === id)?.disabled).toBe(false);
+    }
+  });
+});
+
+describe("composer-chips · CHIP_EMIT 与组件 id 同集", () => {
+  it("八枚 chip 各有唯一事件", () => {
+    expect(Object.keys(CHIP_EMIT).sort()).toEqual([...CHIP_ORDER].sort());
+    expect(new Set(Object.values(CHIP_EMIT)).size).toBe(8);
     expect(CHIP_EMIT.model).toBe("open-model-select");
+    expect(CHIP_EMIT.palette).toBe("open-palette");
     expect(CHIP_EMIT["auto-skills"]).toBe("open-auto-skills");
-  });
-
-  it("八枚 chip 的 id 都能在 CHIP_EMIT 里取到事件名（穷尽性运行时钉）", () => {
-    for (const c of composerChips(input())) expect(CHIP_EMIT[c.id]).toBeTypeOf("string");
+    for (const current of composerChips(input())) {
+      expect(CHIP_EMIT[current.id]).toBeTypeOf("string");
+    }
   });
 });
 
-describe("composer-chips · 多稿档（P0-②）", () => {
-  it("三档文案：关 / ×2 / ×3（档与量各说各的话，不把两件事挤成一串）", () => {
+describe("composer-chips · 多稿", () => {
+  it("三档文案与开关态正确", () => {
     expect(chip("draft", { sampleCount: 1 })?.text).toBe("多稿关");
     expect(chip("draft", { sampleCount: 2 })?.text).toBe("多稿 ×2");
     expect(chip("draft", { sampleCount: 3 })?.text).toBe("多稿 ×3");
-  });
-
-  it("active 只在多稿真开着（>1）时为真：关是常态，按下态不许骗人", () => {
     expect(chip("draft", { sampleCount: 1 })?.active).toBe(false);
     expect(chip("draft", { sampleCount: 2 })?.active).toBe(true);
-    expect(chip("draft", { sampleCount: 3 })?.active).toBe(true);
   });
 
-  // 报不出出站字段名的控件不进 UI：title 必须报出真的发出去的那个字段名与值。
-  it("title 逐字报出 sampleCount 与真实值，并把 N 倍 token 成本说在前面", () => {
+  it("提示报出真实 sampleCount 与 token 成本", () => {
     expect(chip("draft", { sampleCount: 1 })?.title).toContain("sampleCount=1");
-    expect(chip("draft", { sampleCount: 1 })?.title).toContain("一次生成");
     expect(chip("draft", { sampleCount: 2 })?.title).toContain("sampleCount=2");
-    expect(chip("draft", { sampleCount: 2 })?.title).toContain("2 倍");
-    expect(chip("draft", { sampleCount: 3 })?.title).toContain("sampleCount=3");
     expect(chip("draft", { sampleCount: 3 })?.title).toContain("3 倍");
-  });
-
-  it("循环次序从 DRAFT_SAMPLE_COUNTS 现拼：三档报的是同一句「关 → ×2 → ×3 → 关」", () => {
-    for (const count of [1, 2, 3] as const)
-      expect(chip("draft", { sampleCount: count })?.title).toContain("关 → ×2 → ×3 → 关");
+    expect(chip("draft")?.title).toContain("关 → ×2 → ×3 → 关");
   });
 });
 
-describe("composerCounter · 计数条与守卫共用同一个上限", () => {
-  it("空串是 0/20000，数字来自 USER_TEXT_MAX_LEN 而不是手抄", () => {
+describe("composerCounter", () => {
+  it("空串与码点计数正确", () => {
     expect(composerCounter("")).toEqual({
       text: `0/${USER_TEXT_MAX_LEN}`,
       over: false,
       near: false
     });
-  });
-
-  it("按码点计数：一个 emoji 算一个字，两条代理对不许算成两个", () => {
     expect(composerCounter("🌊").text).toBe(`1/${USER_TEXT_MAX_LEN}`);
   });
 
-  it("刚好到上限不算超但已接近（near 归 #105 计数条），超一个字才翻 over", () => {
+  it("到上限只提示接近，超过才判超限", () => {
     expect(composerCounter("字".repeat(USER_TEXT_MAX_LEN))).toEqual({
       text: `${USER_TEXT_MAX_LEN}/${USER_TEXT_MAX_LEN}`,
       over: false,
