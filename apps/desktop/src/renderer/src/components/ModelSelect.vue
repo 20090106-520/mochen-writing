@@ -119,6 +119,8 @@ function onKeydown(event: KeyboardEvent): void {
     alt: event.altKey,
     meta: event.metaKey
   };
+  // 【Esc 分层（2026-11-24）】子菜单自己拦 Esc/← 回上级（ModelSelectMenu 的 onSubmenuKeydown
+  // stop 了冒泡），能到这里说明没有子菜单——直接收层。
   if (popoverOwnsKey(event.key, mods, imeOwnsKey(event))) {
     event.stopPropagation();
     close();

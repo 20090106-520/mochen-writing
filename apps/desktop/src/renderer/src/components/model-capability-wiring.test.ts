@@ -38,6 +38,23 @@ describe("ModelSelectMenu · 三行设置卡与级联子菜单", () => {
     expect(tpl.replace(/\s+/g, " ")).toContain("不认 reasoning_effort");
     expect(tpl).toContain(':disabled="levelsEmpty"');
   });
+
+  it("子菜单键盘自管：Esc/← 回上级、↕ 换档高亮（stop 掉 panel 的收层判定）", () => {
+    // ChatGPT 桌面端同款键盘模型：模型与推理档是一个控件，子菜单分层关闭，
+    // Enter 不拦——焦点在高亮那颗选项上，原生 click 就是选中，再拦一份是第二判据（铁律 6）。
+    const script = scriptSource(MENU);
+    const tpl = templateSource(MENU);
+    expect(script).toContain("onSubmenuKeydown");
+    expect(script).toContain('event.key === "Escape" || event.key === "ArrowLeft"');
+    expect(script).toContain("levelHighlight.move");
+    expect(script).toContain('emit("back")');
+    expect(tpl).toContain('@keydown="onSubmenuKeydown"');
+    // 高亮与「当前档 ✓」是两回事：is-active 是键盘指着的行，✓ 是已保存的值。
+    expect(tpl).toContain(`'is-active': activeLevel === optionLevel`);
+    expect(tpl).toContain("optionLevel === props.level");
+    // 进子菜单那一刻高亮重落当前档（initialIndex 只在实例创建时算一次，档位变了它不跟）。
+    expect(script).toContain('if (section === "levels") setActiveLevel(props.level)');
+  });
 });
 
 describe("ModelSelect · 首屏设置卡，模型列表向左展开", () => {

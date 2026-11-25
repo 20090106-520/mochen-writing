@@ -239,7 +239,10 @@ export const STATE_RUNG_SITES: readonly FileSites[] = [
       { needle: ".model-select-menu-row:hover", primary: true },
       /* 子菜单头那枚返回箭头：同样换状态档底，字色升到正文级。 */
       { needle: ".model-select-menu-back:hover", primary: true },
-      { needle: ".model-select-option:hover", primary: true }
+      { needle: ".model-select-option:hover", primary: true },
+      /* 子菜单的键盘高亮（2026-11-24）：↕ 走档时落在的那一行，状态档底与 hover 同一档、
+         字色升到正文级 ⇒ primary；「当前档 ✓」是另一枚标记，不在这里。 */
+      { needle: ".model-select-option.is-active", primary: true }
     ]
   },
   {

@@ -722,6 +722,14 @@
   color: var(--text);
 }
 
+/* 键盘高亮（2026-11-24）：↕ 在推理强度子菜单里走档时落在的那一行。与 hover 同色——
+   大厂菜单的键盘高亮与悬停读同一档表面色（ChatGPT / VSCode 菜单同款），光是「位置动、颜色不变」。
+   注意与「当前档 ✓」是两回事：✓ 标记已保存的值，is-active 只是这会儿指着的行。 */
+.model-select-option.is-active {
+  background: var(--selected);
+  color: var(--text);
+}
+
 /* 列表：面板里唯一会滚的那一段。`min-height: 0` 不能省——flex 子项默认不肯缩到内容以下，
    少了它，列表会把面板撑高、滚动条跑到整个面板上（那就等于没改成三段）。 */
 .model-select-list {
