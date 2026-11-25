@@ -48,4 +48,23 @@ describe("书级技能策略的写入口（P0-4）", () => {
     await book.setSkillDisabled("global:rhythm", false);
     expect(book.meta?.skillPolicy).toEqual({ enabled: [], disabled: [] });
   });
+
+  it("默认挂满 12 条后再设被拒：不写盘、摆一句中文；取消默认不受限（2026-11-24）", async () => {
+    // 书级默认跟着书走：超限会让**每一条线程每一轮**都发不出去，必须在写盘前挡下。
+    await openChapter();
+    const book = useBookStore();
+    book.meta!.skillPolicy = {
+      enabled: Array.from({ length: 12 }, (_, i) => `global:s${String(i).padStart(2, "0")}`),
+      disabled: []
+    };
+    saveMeta.mockClear();
+
+    await book.setSkillDefault("global:第13枚", true);
+    expect(saveMeta).not.toHaveBeenCalled();
+    expect(book.meta?.skillPolicy?.enabled).toHaveLength(12);
+    expect(book.notice).toContain("最多 12 个");
+
+    await book.setSkillDefault("global:s00", false);
+    expect(book.meta?.skillPolicy?.enabled).toHaveLength(11);
+  });
 });

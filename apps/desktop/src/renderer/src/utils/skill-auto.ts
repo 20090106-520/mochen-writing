@@ -1,3 +1,4 @@
+import { SKILL_PATHS_MAX } from "@mochen/contracts";
 import { rankSkills, type SkillCandidate, type SkillPick, type SkillPickScene } from "./skill-pick";
 
 /**
@@ -64,7 +65,6 @@ export interface AutoSkillPlan {
  * 那是「已经在了，不用再推荐一遍」。
  */
 export function autoSkillPlanOf(args: AutoSkillPlanArgs): AutoSkillPlan {
-  const limit = Math.max(0, args.limit ?? AUTO_SKILL_LIMIT);
   const previous = [...args.autoPinned];
   const prevSet = new Set(previous);
   const blocked = new Set(args.blocked);
@@ -75,10 +75,25 @@ export function autoSkillPlanOf(args: AutoSkillPlanArgs): AutoSkillPlan {
   const available = args.candidates.filter(
     (candidate) => !blocked.has(candidate.id) && !disabled.has(candidate.id)
   );
+  // 【预算闸（2026-11-24）】挂入总额有 12 条硬上限（startTurn 的 skillPathsSchema 按它拒收），
+  // 而手动 / 书级默认已占的名额自动功能既数不到、也不许挤占——于是自动这一侧只剩
+  // `SKILL_PATHS_MAX − 手动已占` 的额度可花。手动挂满 12 条时额度为 0：一条都不再挂
+  // （上次自动挂的也一并撤），而不是把清单撑爆、让这一轮在边界上整轮拒收——
+  // 那正是真机上「技能挂多了之后消息发不出去」的来路。
+  const budget = Math.max(0, SKILL_PATHS_MAX - manual.length);
   // keepTies：这里的 limit 是产品默认值（「别一次挂太多」），不是谁的明确要求。
   // 同分时按 id 截断会静默淘汰一条——出厂四条审校技能得分完全相同，
-  // 被淘汰的正好是 `check-style`（去 AI 味）。所以让 `rankSkills` 同分不切档。
-  const picks = rankSkills(available, { ...args.scene, pinned: manual }, limit, manual, true);
+  // 被淘汰的正好是 `check-style`（去 AI 味）。所以让 `rankSkills` 同分不切档，
+  // 但扩容只到预算为止（hardCap），同分再多也不能把总额顶过 12。
+  const limit = Math.min(Math.max(0, args.limit ?? AUTO_SKILL_LIMIT), budget);
+  const picks = rankSkills(
+    available,
+    { ...args.scene, pinned: manual },
+    limit,
+    manual,
+    true,
+    budget
+  );
   const topIds = picks.map((pick) => pick.id);
   const topSet = new Set(topIds);
   const pinnedSet = new Set(args.pinned);

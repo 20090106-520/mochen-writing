@@ -116,23 +116,28 @@ html[data-platform="darwin"] .conversation-pane {
 }
 
 .user-text {
-  /* 【2026-10-17】气泡本体：底色取强调色的一档浅混（18%），描边取同一色的一档（30%）——
+  /* 【2026-10-17】气泡本体：底色取强调色的一档浅混（18%），描边取同一色的一档——
      两档都从 `--focus` 现调，不新造颜色变量（卡片段那条「零色值字面量」的纪律在这里同样成立）。
      **18% 不是随手写的**：真机（皮肤插画底）量到 12% 那一档算出 rgb(207,227,234)，
-     而对面助手气泡的 `--surface-card` 在这套皮肤下是 rgb(228,241,246)——
+     而对面助手气泡在 2026-11-24 前的 `--surface-card` 在这套皮肤下是 rgb(228,241,246)——
      两枚气泡几乎同色，链上「谁说的」又糊回一层。18% 之后自己的那一枚明显深一档，
-     同时仍是浅底，正文的 `--text` 压在上面照样够对比。
-     圆角 16/16/6/16：右下那一角收紧 6px 对着头像，是聊天链上「这句话出自这一侧」的那道口。
+     同时仍是浅底，正文的 `--text` 压在上面照样够对比。（助手气泡现在换成 `--surface-muted`
+     那一档，比 card 深、比这枚浅，两侧的深浅次序没变。）
+     【2026-11-24 精修】描边从 30% 收到 22%、阴影换成 `--shadow-sm` 高程 token（比原先
+     手调的 34% 更轻）：气泡的「框感」交给底色与圆角承担，描边只做发丝线——
+     LobeChat / ChatGPT 档的气泡没有硬描边，靠面与面之间的深浅差立形状。
+     圆角 20/20/4/20：右下那一角收紧 4px 对着头像，是聊天链上「这句话出自这一侧」的
+     那道口；其余三角放大到 20px（原 16px，阶梯「大卡片」档），与助手那一枚同一口径，更柔和。
      `max-width: min(78%, 60ch)` 是把长问句收成气泡（不写就是通栏）；78% 那档是「不要拉满整栏」，
      60ch 那档是行宽上限——中文一句读到头不用来回扫。余下的 22% 不是留白，
      是气泡与左侧助手那一列之间的气口，没了它两侧的气泡会撞上。 */
   max-width: min(78%, 60ch);
   margin: 0;
-  padding: 10px 14px;
-  border: 1px solid color-mix(in srgb, var(--focus) 30%, var(--line-soft));
-  border-radius: 16px 16px 6px 16px;
+  padding: 11px 16px;
+  border: 1px solid color-mix(in srgb, var(--focus) 22%, var(--line-soft));
+  border-radius: 20px 20px 4px 20px;
   background: color-mix(in srgb, var(--focus) 18%, var(--editor));
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 34%, transparent);
+  box-shadow: var(--shadow-sm);
   color: var(--text);
   font-weight: 500;
   white-space: pre-wrap;
@@ -635,30 +640,43 @@ html[data-platform="darwin"] .conversation-pane {
    看上去与自己的那枚气泡不是同一种东西。
    `width: auto` 让这一格按内容收缩，长文自然撑到上限；`max-width: 100%` 的那个 100%
    已经是「行宽 − 头像 26 − 间隙 10」（flex 先给不缩的头像留出份）。
-   圆角 6/16/16/16：左上那一角收紧对着头像，与右侧气泡的右下收紧是同一道口的两面。
-   底色用 `--surface-card`（它在 styles.css 的 :root 有兜底，暗色皮肤下由主题层重定义），
-   不追 `--surface-muted`：后者只在运行时注入，没注入时这一格会静默变透明。 */
+   圆角 4/18/18/18：左上那一角收紧对着头像，与右侧气泡的右下收紧是同一道口的两面。
+   【2026-11-24 精修（用户裁定「对话框也不好看」→ 保留气泡精修）】
+   ① 底色从 `--surface-card` 升到 `--surface-muted`（表面阶梯 0.028 → 0.045）：card 那一档
+      在浅色皮肤下只比页底抬半级，气泡靠 1px 描边撑形状，屏上读起来「糊成一片」——
+      正是截图里那枚淡蓝框的病灶。muted 那一档是阶梯里现成的「面板内凹次级表面」，
+      比页底明显一档、又不抢提案卡的戏；次级灰字（0.71 混）压在 0.045 上仍 ≥ 4.5
+      （appearanceThemeRuntime.ts 阶梯注释的结论），正文级 `--text` 更没问题。
+      跟随主题不变：暗色皮肤下 muted 是 0.09，照样翻上来。
+   ② 描边收成发丝线（--line-soft 的 55% 透明混）：框感交给底色深浅与圆角承担，
+      LobeChat / ChatGPT 档的气泡没有硬描边。
+   ③ 阴影换 `--shadow-sm` 高程 token：与工具卡 / 提案卡同读一张高程表，
+      也比原先手调的 30% 更轻——气泡贴着页面，不是浮在页面上。
+   ④ 圆角 16 → 20（对头像那一角 6 → 4）、内边距 12/16 → 13/18：更柔和的大圆角
+      配更松的内呼吸，与用户那一枚（20/20/4/20、11/16）同一口径。20px 落圆角阶梯的
+      「大卡片」档（radius-ladder.test.ts 的 RADIUS_STEPS），4px 落「小徽标」档——
+      阶外值（如 18px）会被守卫拦下，两档都必须在阶梯上。
+   padding 13/18 是给这段行宽一点内呼吸。
+   【2026-11-11 收成 token】原先这里写死 72ch，而工具卡与提案卡**一条宽度上限都没有**
+   （真机量到 1076 vs 气泡 636）：同一条流里三种宽度，看着像三套排版。
+   行宽现在是 `--transcript-measure` 一个数，消息气泡 / 工具卡 / 提案卡同读它。 */
 .message-line .message-body {
   width: auto;
-  /* 【2026-11-08 可读行宽】此前是 100%：长回答从头像一路铺到列尾，一行七十多个汉字，
-     眼要从左扫到右再折回，读三段就找不到行首（参考图里的回答明显留了右侧气口）。
-     `min(100%, var(--transcript-measure))` = 列窄时照列宽走、列宽时封顶在约 36 个汉字，
-     上限之外留白而不是把字铺满。padding 12/16 是给这段行宽一点内呼吸。
-     【2026-11-11 收成 token】原先这里写死 72ch，而工具卡与提案卡**一条宽度上限都没有**
-     （真机量到 1076 vs 气泡 636）：同一条流里三种宽度，看着像三套排版。
-     行宽现在是 `--transcript-measure` 一个数，消息气泡 / 工具卡 / 提案卡同读它。 */
   max-width: min(100%, var(--transcript-measure));
-  padding: 12px 16px;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px 16px 16px 16px;
-  background: var(--surface-card);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 30%, transparent);
+  padding: 13px 18px;
+  border: 1px solid color-mix(in srgb, var(--line-soft) 55%, transparent);
+  border-radius: 4px 20px 20px 20px;
+  background: var(--surface-muted);
+  box-shadow: var(--shadow-sm);
 }
 
 .message-text {
   color: var(--text);
-  /* 2026-11-08：1.85 → 1.8。行宽收到 72ch 后不需要再靠超大行距撑开，1.8 更接近参考图的段落呼吸。 */
-  line-height: 1.8;
+  /* 2026-11-08：1.85 → 1.8。行宽收到 72ch 后不需要再靠超大行距撑开，1.8 更接近参考图的段落呼吸。
+     2026-11-24：1.8 → 1.75。气泡内边距加到 13/18 后，行距也回到大厂对话正文那一档
+     （ChatGPT / LobeChat 约 1.6–1.75）：1.8 配新内边距会整块偏松，段落高度虚胖。
+     头像那枚 `margin-top: 3px` 是按首行视觉中线对齐的，行距微调 0.05 不必跟着挪。 */
+  line-height: 1.75;
   /* 2026-10-10：正文改走 markdown 渲染后**去掉 `white-space: pre-wrap`**。
      渲染器的输出是块级标签之间夹换行（`<p>a</p>\n<p>b</p>`），pre-wrap 会把那些夹缝
      也变成真换行，于是每两段之间凭空多出一行空白。
@@ -2002,7 +2020,6 @@ html[data-platform="darwin"] .conversation-pane {
    （参照图里麦克风/加号也是纯图标，工具行本来就不该是一排小字），
    让 664 容器（1440 窗口右栏展开）仍是一行、不折行；更窄的 722/696/662/615 四级照旧兜底。 */
 @container composer (max-width: 800px) {
-  .composer-toolbar-left .composer-chip[data-chip="thinking"] .composer-chip-label,
   .composer-toolbar-left .composer-chip[data-chip="web-search"] .composer-chip-label,
   .composer-toolbar-left .composer-chip[data-chip="draft"] .composer-chip-label,
   .composer-toolbar-left .composer-chip[data-chip="tools"] .composer-chip-label,
@@ -2049,12 +2066,6 @@ html[data-platform="darwin"] .conversation-pane {
 
 @container composer (max-width: 662px) {
   .composer-toolbar-left .composer-chip[data-chip="web-search"] .composer-chip-label {
-    display: none;
-  }
-}
-
-@container composer (max-width: 615px) {
-  .composer-toolbar-left .composer-chip[data-chip="thinking"] .composer-chip-label {
     display: none;
   }
 }

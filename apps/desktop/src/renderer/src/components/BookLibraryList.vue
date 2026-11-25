@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import AppIcon from "./AppIcon.vue";
+import DeleteBookConfirm from "./DeleteBookConfirm.vue";
 import { useBookStore } from "../stores/useBookStore";
 import { bookDisplayTitle, uniqueRootPathLabels } from "../utils/book-path";
 import { briefCharText } from "../utils/conversation-brief";
@@ -57,6 +58,22 @@ function openBook(rootPath: string): void {
 function forget(event: MouseEvent, rootPath: string): void {
   event.stopPropagation();
   void book.forgetRecentBook(rootPath);
+}
+
+/**
+ * 删除作品（2026-11-24）：整本书目录移进系统回收站。
+ *
+ * 与「移出记录」的分工写在按钮的 aria-label 上：× 是划掉清单（盘上一个字节不动），
+ * 这一颗是真删。删除是破坏性动作，点开确认条（DeleteBookConfirm，与项目设置面板共用）
+ * 而不是点了就删；正在写的那一本也允许删，确认条上多说一句。
+ */
+const pendingDelete = ref<{ rootPath: string; title: string } | null>(null);
+
+function askDelete(entry: { rootPath: string; title: string }): void {
+  pendingDelete.value = {
+    rootPath: entry.rootPath,
+    title: bookDisplayTitle(entry.title, entry.rootPath)
+  };
 }
 </script>
 
@@ -127,7 +144,24 @@ function forget(event: MouseEvent, rootPath: string): void {
         >
           <AppIcon name="close" :size="13" />
         </button>
+        <button
+          class="book-library-forget is-trash"
+          type="button"
+          :aria-label="`删除作品《${bookDisplayTitle(entry.title, entry.rootPath)}》（移入回收站）`"
+          title="删除作品（移入系统回收站，可还原）"
+          @click.stop="askDelete(entry)"
+        >
+          <AppIcon name="trash" :size="13" />
+        </button>
       </li>
     </ul>
+
+    <!-- 删除作品确认（2026-11-24）：与项目设置面板共用的同一个模态（DeleteBookConfirm）。 -->
+    <DeleteBookConfirm
+      v-if="pendingDelete !== null"
+      :root-path="pendingDelete.rootPath"
+      :title="pendingDelete.title"
+      @close="pendingDelete = null"
+    />
   </div>
 </template>

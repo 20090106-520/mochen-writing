@@ -176,13 +176,22 @@ export function skillPickOf(candidate: SkillCandidate, scene: SkillPickScene): S
  *
  * N 默认取技能挂入上限（`SKILL_PATHS_MAX` = 12）：推荐再多也超不过一轮能挂的数。
  * N ≤ 0 时返回空表——**不是**「给全部」（`Array.slice` 的负数语义是「从末尾切」，不能照抄）。
+ *
+ * 【hardCap 是给自动挂入的预算闸（2026-11-24）】keepTies 的扩容上限原来写死
+ * `SKILL_PATHS_MAX`——它只数**自己榜上的**条数，不知道调用方手上已经挂了多少。
+ * 自动挂入的 `desired` = 手动已挂 ∪ 榜单，于是「手动挂了 10 条 + 四条同分扩到 12」
+ * 会把清单撑到 22 条：这一轮 startTurn 在边界上被 `skillPathsSchema.max(12)`
+ * 整轮拒收——表现正是「消息发不出去，AI 完全不动」。所以自动挂入把
+ * `SKILL_PATHS_MAX − 手动已占` 的预算递进来，同分扩到预算为止；其余调用方
+ * 不传、拿老语义。
  */
 export function rankSkills(
   candidates: readonly SkillCandidate[],
   scene: SkillPickScene,
   limit: number = SKILL_PATHS_MAX,
   pinned: readonly string[] = scene.pinned ?? [],
-  keepTies = false
+  keepTies = false,
+  hardCap: number = SKILL_PATHS_MAX
 ): SkillPick[] {
   if (limit <= 0) return [];
   const pinnedSet = new Set(pinned);
@@ -193,9 +202,10 @@ export function rankSkills(
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id, "en"));
   if (!keepTies) return ranked.slice(0, limit);
 
+  const cap = Math.min(hardCap, SKILL_PATHS_MAX);
   const out: SkillPick[] = [];
   for (const pick of ranked) {
-    if (out.length >= SKILL_PATHS_MAX) break;
+    if (out.length >= cap) break;
     // 已经够 N 条，而这一条分数更低 ⇒ 换档了，到此为止。
     // 同分则继续收：同分档里没有「谁更该进」的依据，砍掉哪一条都是随机淘汰。
     const last = out[out.length - 1];

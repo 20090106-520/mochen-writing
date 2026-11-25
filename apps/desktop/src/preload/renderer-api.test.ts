@@ -174,6 +174,9 @@ describe("createRendererApi", () => {
     // 作品库（2026-10-21）：读回整份清单 / 只递书根划掉一条（不删书）。
     await api.listRecentBooks();
     await api.forgetRecentBook("/book");
+    // 删除作品（2026-11-24）：只递书根，整本书目录由主进程移进系统回收站——
+    // 先关书、清单同步移除都在主进程一次做完，preload 不判不拼。
+    await api.trashBook("/book");
     await api.saveMeta(meta);
     await api.readDoc("chapters/01-开局.md");
     await api.writeDoc("chapters/01-开局.md", "正文", "fp-1");
@@ -293,7 +296,7 @@ describe("createRendererApi", () => {
     await api.webdavList();
     await api.webdavPull("book-2026-10-15-12-00-00");
 
-    expect(calls.length).toBe(75);
+    expect(calls.length).toBe(76);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -303,6 +306,8 @@ describe("createRendererApi", () => {
       // 作品库（2026-10-21）：读整份清单 / 只递书根划掉一条。
       "book:recent",
       "book:forget",
+      // 删除作品（2026-11-24）：整本书目录移进系统回收站，只收书根。
+      "book:trash",
       "book:save-meta",
       "doc:read",
       "doc:write",
@@ -398,6 +403,8 @@ describe("createRendererApi", () => {
       [{ directory: "/new-book", title: "新书" }],
       // 作品库（2026-10-21）：读清单不带实参；划掉一条只递书根。
       [],
+      ["/book"],
+      // 删除作品（2026-11-24）：只递书根，一个路径参数都不能多。
       ["/book"],
       [meta],
       ["chapters/01-开局.md"],
@@ -603,6 +610,8 @@ describe("createRendererApi", () => {
       "setUtility",
       "startTurn",
       "togglePlugin",
+      // 删除作品（2026-11-24）：整本书目录进回收站是往用户磁盘写的一条，进点名册同一规矩。
+      "trashBook",
       // 删除那一枚与「检查更新」一枚（2026-10-10）：检查只报告不下载，更新源在主进程 env 里。
       "trashDoc",
       "uninstallMarketSkill",

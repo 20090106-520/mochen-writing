@@ -171,6 +171,15 @@ describe("排序与取前 N", () => {
     expect(rankSkills(many, scene({ docKind: null }), 3, [], true)).toHaveLength(12);
   });
 
+  it("keepTies 扩容只到 hardCap（2026-11-24 预算闸）：手动已占的名额不参与扩容", () => {
+    // 自动挂入把「12 − 手动已占」递进来：同分再多也只收预算内的几条，
+    // 否则手动 10 条 + 扩容 12 条 = 22 条，那一轮在 startTurn 边界上整轮拒收。
+    const same = Array.from({ length: 8 }, (_, i) =>
+      skill({ id: `global:s${i}`, stages: ["正文"] })
+    );
+    expect(rankSkills(same, scene({ docKind: null }), 3, [], true, 2)).toHaveLength(2);
+  });
+
   it("不开 keepTies 时 limit 一律照切：调用方明说只要三条，就只给三条", () => {
     // 技能库页的「推荐」榜走的是这条：limit 是调用方的明确要求，不是产品默认值。
     const same = Array.from({ length: 8 }, (_, i) =>

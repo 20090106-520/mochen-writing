@@ -278,6 +278,12 @@ export interface BookCreateInput {
 export type BookCreateResult = { ok: true; book: BookOpenResult } | { ok: false; message: string };
 
 /**
+ * book:trash 的返回（2026-11-24）：删书目录进回收站。失败带一句中文人话
+ * （目录不存在 / 回收站写入失败 / 删除前关书失败），渲染层只转述不重编。
+ */
+export type BookTrashResult = { ok: true } | { ok: false; message: string };
+
+/**
  * agent:context-preview 的入参：**看**上下文要传什么。刻意不带任何正文——
  * 渲染层只想知道「会装多少」，正文由主进程自己在 startTurn 时装配。
  */
@@ -379,6 +385,11 @@ export interface RendererApi {
   listRecentBooks(): Promise<RecentBooksSnapshot>;
   /** 只把一条从作品库清单里移除（不删书、不碰盘上任何文件）；返回移除后的整份清单。 */
   forgetRecentBook(rootPath: string): Promise<RecentBooksSnapshot>;
+  /**
+   * 删除作品（2026-11-24）：把整本书目录移进**系统回收站**（可在系统里还原）。
+   * 删的是当前打开的书时，主进程先关书再删；清单同步移除。失败回一句中文人话。
+   */
+  trashBook(rootPath: string): Promise<BookTrashResult>;
   saveMeta(meta: BookMeta): Promise<void>;
   readDoc(relPath: string): Promise<DocContent>;
   writeDoc(relPath: string, content: string, expectedFingerprint: string): Promise<DocWriteResult>;

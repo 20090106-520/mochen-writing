@@ -73,6 +73,20 @@ export const useAutoSkillStore = defineStore("autoSkill", {
   },
   actions: {
     /**
+     * 换书 / 关书时的整体作废（2026-11-24）。五张表全按线程键记，键里没有书——
+     * 不清的话新书的自动挂入会继承上一本写下的否决名单与暂停闸，
+     * 「新书里自动技能一枚不挂」这种说不清的状态就是这么来的。
+     * 技能表本身是全局的（appData），`skillRefreshPending / Failed` 不在此列。
+     */
+    resetForBookSwitch(): void {
+      this.autoPinnedByThread = {};
+      this.autoBlockedByThread = {};
+      this.autoOwnedOverride = {};
+      this.autoPausedByThread = {};
+      this.picksByThread = {};
+    },
+
+    /**
      * 重算这一轮的自动挂入。调用点：输入框草稿变化、技能表刷新、切回对话、开关打开。
      * 打分交给 utils/skill-auto.ts，这里只把计划落到 agent store 那一份线程覆盖上；
      * 清单没变就一个字都不写，免得每敲一个键都触发一轮响应式重渲染。

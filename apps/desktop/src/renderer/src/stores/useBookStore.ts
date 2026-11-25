@@ -51,6 +51,8 @@ import {
 import { installQuitFlushListener } from "../utils/quit-flush-client";
 import { bumpDocLoadToken, readDocIntoTab } from "../utils/doc-read";
 import { useAgentStore } from "./useAgentStore";
+import { useAutoSkillStore } from "./useAutoSkillStore";
+import { useBibleExclusionStore } from "./useBibleExclusionStore";
 import { applySkillDefault, applySkillDisabled } from "../utils/skill-policy-writes";
 import { browseFailureNotice, readBrowseBody, resetBrowseReadGates } from "../utils/browse-read";
 import {
@@ -225,6 +227,11 @@ export const useBookStore = defineStore("book", {
       this.foreshadowsBusy = false;
       // 线程级技能覆盖同属上一本书：线程键就是 relPath，不清的话同名章会继承上一本的口味。
       useAgentStore().skillPathsByThread = {};
+      // 会话转录 / 历史清单 / 提案 / 输入框草稿等按**线程键**记，键里没有书（2026-11-24）：
+      // 不清的话新书的对话页读到的还是上一本留在内存里的转录——真机上正是
+      // 「新书的对话还是第一本的内容」的来路。自动技能那五张按线程的表同理。
+      useAgentStore().resetForBookSwitch();
+      useAutoSkillStore().resetForBookSwitch();
       Object.assign(this, EMPTY_DOC);
       // 换书 = 上一本书的在途读全部作废。不作废的话，那次读回来会把**上一本书的正文**
       // 写进这一本的中栏：令牌对不上，`utils/doc-read` 那道闸会把它丢掉。
@@ -256,6 +263,45 @@ export const useBookStore = defineStore("book", {
       this.applyOpened(result.book);
       // 失败清单只在状态栏那一处说（2026-11-20 去重）：这里只报「建好了」这件事本身。
       this.notice = `新书《${result.book.meta.title}》已建好，开始写吧。`;
+      return true;
+    },
+
+    /** 删除作品（2026-11-24）：整本书目录移进系统回收站。删别的书只刷清单镜像；删当前打开的这本要把书状态整体复位——主进程已关掉快照，不清的话保存、续写、AI 轮次全都会去写一个不存在的书。会话等按线程键的内存态走换书同一条 reset。 */
+    async trashBook(rootPath: string): Promise<boolean> {
+      const result = await window.mochen.trashBook(rootPath);
+      if (!result.ok) {
+        this.notice = result.message;
+        return false;
+      }
+      if (this.rootPath === rootPath) {
+        const bookId = this.meta?.id ?? "";
+        this.rootPath = null;
+        this.meta = null;
+        this.docs = [];
+        this.docTabs = [];
+        this.activeDocTab = null;
+        this.draftsByPath = {};
+        this.browseTabs = [];
+        this.activeBrowse = null;
+        this.browseContents = {};
+        this.browseErrors = {};
+        this.rightPaneMode = "manuscript";
+        this.editorViewMode = "edit";
+        this.foreshadowsOpen = false;
+        this.foreshadowRows = [];
+        this.foreshadowChapterTexts = new Map();
+        this.foreshadowsBusy = false;
+        Object.assign(this, EMPTY_DOC);
+        // 这本书的「本轮不带」排除表跟着书走：书没了表也没意义，清掉防串。
+        useBibleExclusionStore().clear(bookId);
+        const agent = useAgentStore();
+        agent.skillPathsByThread = {};
+        agent.resetForBookSwitch();
+        useAutoSkillStore().resetForBookSwitch();
+      }
+      // 主进程已在删除成功那刻把清单里的这条移除，这里只刷镜像。
+      void this.loadRecentBooks();
+      this.notice = "已把这本书移进系统回收站，误删可在回收站还原。";
       return true;
     },
 

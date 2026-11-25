@@ -109,6 +109,34 @@ describe("autoSkillPlanOf · 只增删自己加的", () => {
     expect(plan.picks.map((pick) => pick.id)).toContain("global:check-style");
   });
 
+  it("预算闸：手动已挂 10 条时，同分扩容只到预算（2），desired 总额不破 12（2026-11-24）", () => {
+    // 同样的四条同分扩容，但手动 / 书级默认已占 10 个名额：扩到 2 就停。
+    // 旧实现扩到 12 → desired 22 条 → startTurn 整轮拒收（「消息发不出去」）。
+    const builtin = ["check-consistency", "check-logic", "check-plot", "check-style"].map((id) =>
+      skill(`global:${id}`, { stages: ["正文"], appliesTo: ["chapter"] })
+    );
+    const manualIds = Array.from({ length: 10 }, (_, i) => `book:手挂${i}`);
+    const plan = autoSkillPlanOf(args({ candidates: builtin, pinned: manualIds }));
+    expect(plan.picks).toHaveLength(2);
+    expect(plan.desired).toHaveLength(12);
+    expect(plan.desired.slice(0, 10)).toEqual(manualIds);
+  });
+
+  it("手动挂满 12 条 ⇒ 自动一条不挂、上次自动挂的也撤（额度为 0，不是负数）", () => {
+    const manualIds = Array.from({ length: 12 }, (_, i) => `book:手挂${i}`);
+    const plan = autoSkillPlanOf(
+      args({
+        candidates: [skill("a", { stages: ["正文"] })],
+        pinned: [...manualIds, "a"],
+        autoPinned: ["a"]
+      })
+    );
+    expect(plan.picks).toEqual([]);
+    expect(plan.add).toEqual([]);
+    expect(plan.desired).toEqual(manualIds);
+    expect(plan.drop).toEqual(["a"]);
+  });
+
   it("limit=0 等于全撤，不把负 slice 语义带进来", () => {
     const many = ["a", "b", "c", "d"].map((id) => skill(id, { stages: ["正文"] }));
     const zero = autoSkillPlanOf(

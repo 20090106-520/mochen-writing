@@ -5,8 +5,9 @@
      面板因此永远显示「尚未打开 / 没有任何作品」，与中栏已开的书对不上。
      移除只从清单划掉，不动磁盘文件。 -->
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import AppIcon from "./AppIcon.vue";
+import DeleteBookConfirm from "./DeleteBookConfirm.vue";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useBookStore } from "../stores/useBookStore";
 
@@ -40,6 +41,13 @@ function createBook(): void {
 
 async function switchProject(entry: { rootPath: string }): Promise<void> {
   await book.openBook(entry.rootPath);
+}
+
+/** 删除作品（2026-11-24）：确认条与作品库列表共用 DeleteBookConfirm，这里只持有「待删的那本」。 */
+const pendingDelete = ref<{ rootPath: string; title: string } | null>(null);
+
+function askDelete(entry: { rootPath: string; title: string }): void {
+  pendingDelete.value = { rootPath: entry.rootPath, title: entry.title };
 }
 
 /** 清单只在开书后刷新；先进设置页的人也得看见现有的最近作品。 */
@@ -98,9 +106,26 @@ onMounted(() => {
           >
             <AppIcon name="close" :size="10" />
           </button>
+          <button
+            class="project-row-remove is-trash"
+            type="button"
+            :aria-label="`删除作品 ${entry.title}（移入回收站）`"
+            title="删除作品（移入系统回收站，可还原）"
+            @click="askDelete(entry)"
+          >
+            <AppIcon name="trash" :size="11" />
+          </button>
         </li>
       </ul>
       <p v-else class="settings-static-text">还没有任何作品，点「创建新书」开始写作。</p>
+
+      <!-- 删除作品确认（2026-11-24）：与作品库列表共用的同一个模态（DeleteBookConfirm）。 -->
+      <DeleteBookConfirm
+        v-if="pendingDelete !== null"
+        :root-path="pendingDelete.rootPath"
+        :title="pendingDelete.title"
+        @close="pendingDelete = null"
+      />
     </section>
   </div>
 </template>
@@ -239,5 +264,13 @@ onMounted(() => {
 .project-row-remove:hover {
   background: var(--danger-soft);
   color: var(--danger);
+}
+
+/* 删除作品那颗（2026-11-24）：与「移除记录」同形状同色族，语义更重的是它——
+   常驻带一圈 danger 淡描边，让「× 是划掉、垃圾桶是真删」第一眼分得开。 */
+.project-row-remove.is-trash {
+  margin-left: 2px;
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 32%, transparent);
 }
 </style>

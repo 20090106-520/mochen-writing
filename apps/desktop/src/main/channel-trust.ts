@@ -67,6 +67,10 @@ export function installedChannelTrustDeps(): ChannelTrustDeps | null {
  *   `book:replace-all`（逐篇重写）与 `import:commit`（批量建章、改 chapterOrder）。
  *
  * 【为什么 `book:open` / `book:create` 是 public】开建选书时还没书，self 档会把自己挡死。
+ * 【为什么 `book:trash` 也是 public（2026-11-24）】删的多半**不是**当前打开的那本
+ *   （作品库清单里的任何一本都该能删），self 档的「要有书」会把「没开书时清理书库」挡死。
+ *   目录来自主进程自己记账的作品库清单，与 book:open / book:forget 同一条信任链；
+ *   形状闸（ipc-guard 的 textRule）拦非路径文本，目标真实性由 service 判存在性兜住。
  * 【为什么 `webdav:*` 是 public】远程配置（config-get/save/verify）与书无关；push/list
  *   要不要落到哪本书由 webdav-service 内部判 no-book，与 channelTrustVerdict 不重复
  *   （铁律 6：同一判据只许一处真身，这里不抢 service 的判）。

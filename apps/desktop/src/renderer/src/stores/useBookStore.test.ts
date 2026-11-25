@@ -174,6 +174,10 @@ const api = {
   listRecentBooks: async () => ({ books: [] }),
   forgetRecentBook: async () => {
     throw new Error("不该在这条用例里移除作品");
+  },
+  // 删除作品（2026-11-24）：这条用例不真删书；谁调了当场喊出来。
+  trashBook: async () => {
+    throw new Error("不该在这条用例里删除作品");
   }
 } satisfies RendererApi;
 

@@ -606,6 +606,15 @@
   line-height: 1.5;
 }
 
+/* —— 删除作品确认条（2026-11-24，DeleteBookConfirm）：正文行 ——
+   一句人话 + 路径小字（复用 .new-book-hint）+ 正在写警告（模板里走 provider-error）。
+   对话框族样式不进 .vue（dialog-chrome-wiring 那条守卫），所以落在这份里。 */
+.delete-book-lead {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.7;
+}
+
 /* —— 新建作品对话框：上次的设定（2026-11-20）——
    明面上的一行建议 + 一枚「沿用」。不默认预填：预填会把「跳过立项 ⇒ 建书请求体
    与旧版本逐字一致」这条保证偷换掉（用户以为跳过了，盘上却多了一份他不想要的约定）。 */

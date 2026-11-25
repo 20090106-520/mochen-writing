@@ -227,7 +227,14 @@ export const MODAL_DIALOGS: readonly ModalDialogSpec[] = [
     name: "添加 / 编辑模型对话框",
     mustPassIsOpen: false
   },
-  { file: "components/ImportTxtDialog.vue", name: "导入 TXT 对话框", mustPassIsOpen: false }
+  { file: "components/ImportTxtDialog.vue", name: "导入 TXT 对话框", mustPassIsOpen: false },
+  {
+    // 删除作品确认条（2026-11-24）：作品库列表与项目设置面板两处入口共用的同一个模态。
+    // 由父组件 v-if 挂载 ⇒ 挂载即开，不传 isOpen（与 NewBookDialog 同一支）。
+    file: "components/DeleteBookConfirm.vue",
+    name: "删除作品确认条",
+    mustPassIsOpen: false
+  }
 ] as const;
 
 /** 模板里挂了 `.workspace-dialog` 的组件（HTML 注释已剥——组件头注释里常点名这个类名）。 */

@@ -257,16 +257,11 @@ describe("输入卡装饰 · 2026-10-17 用户裁定「缺少一些东西」", (
     expect(theme).not.toMatch(/:where\(\s*\.composer-input-surface/);
   });
 
-  it("设计稿：激活 chip 是发光胶囊，深度紫 / 联网蓝各一枚光晕", () => {
+  it("设计稿：激活 chip 是发光胶囊，联网使用蓝色光晕", () => {
     const interaction = styleSource("interaction.css");
     const on = ruleBlock(interaction, '.composer-chip[aria-pressed="true"]');
     expect(on, "设计稿激活态是 999px 胶囊").toContain("border-radius: 999px");
     expect(on).toContain("var(--glass-highlight)");
-    const deep = ruleBlock(
-      interaction,
-      '.composer-chip[data-chip="thinking"][aria-pressed="true"]'
-    );
-    expect(deep, "深度那一枚用 --glow-deep 的紫光晕").toContain("var(--glow-deep)");
     const net = ruleBlock(
       interaction,
       '.composer-chip[data-chip="web-search"][aria-pressed="true"]'

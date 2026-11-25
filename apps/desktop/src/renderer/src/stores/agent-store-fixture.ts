@@ -230,6 +230,10 @@ export const api = {
   // 作品库（2026-10-21）：默认空清单（openBook 之后 store 会顺手刷一次）。
   listRecentBooks: vi.fn(async () => ({ books: [] })),
   forgetRecentBook: vi.fn(async () => ({ books: [] })),
+  // 删除作品（2026-11-24）：默认成功。要断言「递出去的是书根」就 clear 后查 mock.calls。
+  trashBook: vi.fn(async (): Promise<{ ok: true } | { ok: false; message: string }> => ({
+    ok: true
+  })),
   saveMeta,
   readDoc,
   writeDoc,

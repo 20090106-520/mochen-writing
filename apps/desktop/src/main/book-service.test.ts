@@ -52,6 +52,79 @@ afterAll(async () => {
 });
 
 describe("bookService", () => {
+  // —— 删除作品（2026-11-24）：整本书目录移进系统回收站 ——
+  describe("trash", () => {
+    it("递给回收站通路的正是书根；删的不是当前书时快照原样不动", async () => {
+      const trashed: string[] = [];
+      const service = createBookService({
+        retention: () => DEFAULT_CHANGE_RETENTION,
+        trashItem: async (target) => {
+          trashed.push(target);
+        }
+      });
+      await service.open(root);
+      const result = await service.trash(other);
+      expect(result).toEqual({ ok: true });
+      expect(trashed).toEqual([other]);
+      // 当前书没被删：快照还活着，读写照常。
+      expect(service.current()?.root).toBe(root);
+      await service.close();
+    });
+
+    it("删的是当前打开的书：先关快照再删——回收站写盘期间没有半套状态", async () => {
+      const events: string[] = [];
+      const service = createBookService({
+        retention: () => DEFAULT_CHANGE_RETENTION,
+        trashItem: async () => {
+          // 通路面板里取证：走到这里时快照必须已经关了。
+          events.push(`current=${service.current()?.root ?? "null"}`);
+        }
+      });
+      await service.open(root);
+      const result = await service.trash(root);
+      expect(result).toEqual({ ok: true });
+      expect(events).toEqual(["current=null"]);
+      await service.close();
+    });
+
+    it("回收站写入失败：回中文人话；当前书不假装没删过（快照保持关闭）", async () => {
+      const service = createBookService({
+        retention: () => DEFAULT_CHANGE_RETENTION,
+        trashItem: async () => {
+          throw new Error("EBUSY: resource busy");
+        }
+      });
+      await service.open(root);
+      const result = await service.trash(root);
+      expect(result.ok).toBe(false);
+      expect(result.ok ? "" : result.message).toContain("没能把这本书移进回收站");
+      expect(service.current()).toBeNull();
+      await service.close();
+    });
+
+    it("没接回收站通路（装配点忘传）⇒ 明确拒绝，绝不降级成直删", async () => {
+      const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
+      const result = await service.trash(root);
+      expect(result.ok).toBe(false);
+      expect(result.ok ? "" : result.message).toContain("回收站通路没有接上");
+      await service.close();
+    });
+
+    it("空路径 ⇒ 一句中文，一个盘上路径都不碰", async () => {
+      const trashed: string[] = [];
+      const service = createBookService({
+        retention: () => DEFAULT_CHANGE_RETENTION,
+        trashItem: async (target) => {
+          trashed.push(target);
+        }
+      });
+      const result = await service.trash("   ");
+      expect(result.ok).toBe(false);
+      expect(trashed).toEqual([]);
+      await service.close();
+    });
+  });
+
   it("open 返回 meta 与按 chapterOrder 排好的文档列表", async () => {
     const service = createBookService({ retention: () => DEFAULT_CHANGE_RETENTION });
     const opened = await service.open(root);

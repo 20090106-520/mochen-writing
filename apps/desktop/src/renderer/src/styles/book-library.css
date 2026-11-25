@@ -216,6 +216,19 @@
   color: var(--danger-text);
 }
 
+/* 删除作品那颗（2026-11-24）：与「移出记录」并排、同一形状同一显隐，
+   语义更重的是它——常驻用 danger 色的淡描边圈住，悬停加深，
+   让「× 是划掉、垃圾桶是真删」在屏上第一眼就分得开。 */
+.book-library-forget.is-trash {
+  margin-right: 10px;
+  color: var(--danger-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 32%, transparent);
+}
+
+.book-library-forget.is-trash:hover {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
 /* 工作台那一份：横向卡片，书名一行、路径一行；窗口窄时自动换成单列。 */
 .book-library.is-cards .book-library-list {
   display: grid;

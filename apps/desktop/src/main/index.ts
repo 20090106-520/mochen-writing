@@ -182,7 +182,11 @@ app.whenReady().then(async () => {
   await retentionStore.read();
 
   const service = createBookService({
-    retention: () => retentionStore.current()
+    retention: () => retentionStore.current(),
+    // 删除作品（2026-11-24）：回收站通路只有 Electron 的 shell 给——主进程独占（渲染层
+    // 没有任意删盘的能力，这正是沙箱的意义）。注入而不在 service 里 import electron：
+    // service 是纯逻辑层，测试里注入替身就能断言「递进去的正是书根」。
+    trashItem: (target) => shell.trashItem(target)
   });
 
   // 作品库（2026-10-21）：记账点挂在 book:open / book:create 成功那一刻（见 registerBookIpc 的 hooks）。
@@ -195,7 +199,9 @@ app.whenReady().then(async () => {
       const chapterCount = book.docs.filter((doc) => doc.kind === "chapter").length;
       const totalChars = book.docs.reduce((sum, doc) => sum + (doc.chars ?? 0), 0);
       return recentBooks.touch(book.rootPath, book.meta.title, { chapterCount, totalChars });
-    }
+    },
+    // 删除成功后清单同步移除该条（book-service.ts 里那条注释记着为什么两半必须同批）。
+    onTrashed: (rootPath) => recentBooks.forget(rootPath)
   });
   registerRecentBooksIpc((channel, fn) => ipcMain.handle(channel, fn), recentBooks);
   // dialog 的重载签名不好直接对接可测试的窄接口，这里做一层薄适配。

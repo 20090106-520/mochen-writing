@@ -42,6 +42,7 @@ import {
   writeDocFile,
   type AtomicWriteFs
 } from "@mochen/fs-store";
+import type { BookTrashResult } from "@mochen/contracts";
 // 会话文件迁移（2026-11-20 P0）：改章节文件名时同批迁该章的 AI 历史，真身判据只有 agent-runtime 那一份。
 import { renameSessionsForDoc } from "@mochen/agent-runtime";
 // 来源闸 + 参数形状 + 书根 realpath 判定：判据只有这一份，注册点只调不改写（P1-7）。
@@ -60,6 +61,12 @@ export interface BookService {
   open(rootPath: string): Promise<BookOpenResult>;
   /** 建新书骨架并立刻打开：成功返回与 open 同构的结果，渲染层一套填充逻辑两用。 */
   createBook(input: BookCreateInput): Promise<BookCreateResult>;
+  /**
+   * 删除作品（2026-11-24）：把整本书目录移进系统回收站。
+   * 删的是当前打开的书时先关书（快照清空）再删——删完当前书根下的会话、设定全都随目录进回收站，
+   * 主进程绝不能再持有那份快照（否则 agent 工具还在对一本已删除的书读写）。
+   */
+  trash(rootPath: string): Promise<BookTrashResult>;
   saveMeta(meta: BookMeta): Promise<void>;
   /**
    * 只把一章的摘要并进 `book.json`（2026-11-20 审计 R-4）。
@@ -126,7 +133,10 @@ export function registerBookIpc(
    * ⇒ 渲染层镜像读到的仍是旧清单，刚打开的这一本不入库（重启后才补上）。
    * 等待不会把开书拖失败：清单那头的读写错误一律在 store 内部咽掉（见 recent-books-store）。
    */
-  hooks: { onOpened?: (book: BookOpenResult) => void | Promise<void> } = {}
+  hooks: {
+    onOpened?: (book: BookOpenResult) => void | Promise<void>;
+    onTrashed?: (rootPath: string) => void | Promise<unknown>;
+  } = {}
 ): void {
   // 【2026-10-10 全仓扫描 P1-7】这八条原先一律写成 `(_event, …)`：主进程从不问「这条是谁发的」，
   // 于是 `book:open` 收来的 string 会被当成**绝对路径**直接去读 `book.json`。
@@ -141,6 +151,13 @@ export function registerBookIpc(
   handleTrusted(register, IPC_CHANNELS.bookCreate, async (_event, input) => {
     const result = await service.createBook(input as BookCreateInput);
     if (result.ok) await hooks.onOpened?.(result.book);
+    return result;
+  });
+  // 删除作品（2026-11-24）：删除成功后清单同步移除该条——记账与删除是同一件事的两半，
+  // 分到两处就会出现「书没了、清单还在」的假条目（点开 = openBook 抛错）。
+  handleTrusted(register, IPC_CHANNELS.bookTrash, async (_event, rootPath) => {
+    const result = await service.trash(rootPath as string);
+    if (result.ok) await hooks.onTrashed?.(rootPath as string);
     return result;
   });
   handleTrusted(register, IPC_CHANNELS.bookSaveMeta, (_event, meta) =>
@@ -246,6 +263,12 @@ export interface BookServiceDeps {
   /** 现取当前保留上限（每次写盘都读一次，不缓存：设置页可能刚改过）。 */
   retention(): { maxCount: number; maxBytes: number };
   /**
+   * 回收站通路（2026-11-24）：Electron 的 `shell.trashItem`。
+   * 产品装配点必须注入（index.ts）；**刻意不做必填**——37 处既有测试夹具会全体撞红，
+   * 而缺省的失败模式要 fail closed：`trash()` 在没通路时回一句中文错误，**绝不降级成直删**。
+   */
+  trashItem?: (path: string) => Promise<void>;
+  /**
    * 写盘用的那份 fs（2026-10-09 全仓扫描 P0-1）。
    *
    * 不传就是产品默认那份（真文件系统 + 原子写）。做成可注入的唯一理由是：本体要防的失败
@@ -316,6 +339,35 @@ export function createBookService(deps: BookServiceDeps): BookService {
       const skeleton = await createBookSkeleton(directory, meta, deps.fs);
       if (!skeleton.ok) return { ok: false, message: skeleton.message };
       return { ok: true, book: await this.open(directory) };
+    },
+
+    /**
+     * 删除作品（2026-11-24）：整本书目录移进系统回收站。
+     *
+     * 顺序是硬的：**先关书、后删目录**。反过来的话，回收站写盘的那几百毫秒里主进程
+     * 快照还指着这个根——agent 工具此刻对它的一次写就是往一个正在消失的目录里落字节。
+     * 删别的书不动当前快照：当前书原样还在，与 openBookInto 的「失败不动状态」同一口径。
+     * 失败时不改任何状态：trashItem 抛错多半是目录被占用（资源管理器开着、杀软扫描），
+     * 书还在原位，用户看到人话重试即可。
+     */
+    async trash(rootPath) {
+      const directory = typeof rootPath === "string" ? rootPath.trim() : "";
+      if (directory === "") return { ok: false, message: "还没说要删哪一本。" };
+      // 没通路就拒绝：装配点忘了注入 shell 时，删除必须「做不了」，而不是「换个方式硬删」。
+      if (deps.trashItem === undefined)
+        return { ok: false, message: "删除作品的回收站通路没有接上，暂时删不了。" };
+      const current = snapshot;
+      const closing = current !== null && current.root === directory;
+      if (closing) snapshot = null;
+      try {
+        await deps.trashItem(directory);
+      } catch (error) {
+        // 删失败要原样恢复关掉的那本书吗？不：快照的正文读数可能已过期，且此刻目录还在盘上，
+        // 渲染层走一次 openBook 就能回来——不装作「什么都没发生」，也不留半套状态。
+        const message = error instanceof Error ? error.message : String(error);
+        return { ok: false, message: `没能把这本书移进回收站：${message}` };
+      }
+      return { ok: true };
     },
 
     async saveMeta(meta: BookMeta) {

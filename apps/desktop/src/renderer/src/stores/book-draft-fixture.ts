@@ -202,7 +202,9 @@ export function createBookApi(): BookApiFixture {
     webdavPull: offLimits("webdavPull"),
     // 多稿两枚（P0-②）：这份夹具测的是书稿读写，选稿丢稿该越界当场喊出来。
     pickDraft: offLimits("pickDraft"),
-    discardDrafts: offLimits("discardDrafts")
+    discardDrafts: offLimits("discardDrafts"),
+    // 删除作品（2026-11-24）：这份夹具测的是书稿读写，真删该越界当场喊出来。
+    trashBook: offLimits("trashBook")
   } satisfies RendererApi;
 
   return {

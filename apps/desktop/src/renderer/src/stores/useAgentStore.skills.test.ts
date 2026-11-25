@@ -76,6 +76,23 @@ describe("挂入与取下", () => {
     s.toggleSkillForThread(CH, "book:伏笔");
     expect(s.skillPathsOf(CH)).toEqual(["book:节奏"]);
   });
+
+  it("挂满 12 条后再挂被拒：不写覆盖、摆一句中文；取下不受限（2026-11-24）", () => {
+    // 超限的那一轮 startTurn 会被 skillPathsSchema.max(12) 整轮拒收——
+    // 用户看到的只是「消息发不出去」。所以第 13 枚必须在唯一挂入口就挡下。
+    const s = store();
+    const twelve = Array.from({ length: 12 }, (_, i) => `book:s${String(i).padStart(2, "0")}`);
+    for (const id of twelve) s.toggleSkillForThread(CH, id);
+    expect(s.skillPathsOf(CH)).toHaveLength(12);
+    s.toggleSkillForThread(CH, "book:多出来的");
+    expect(s.skillPathsOf(CH)).toHaveLength(12);
+    expect(s.notice).toContain("最多 12 个");
+    // 腾位置不受限：取下一枚后又能挂新的。
+    s.toggleSkillForThread(CH, "book:s00");
+    expect(s.skillPathsOf(CH)).toHaveLength(11);
+    s.toggleSkillForThread(CH, "book:多出来的");
+    expect(s.skillPathsOf(CH)).toHaveLength(12);
+  });
 });
 
 describe("send 把挂入递出去", () => {

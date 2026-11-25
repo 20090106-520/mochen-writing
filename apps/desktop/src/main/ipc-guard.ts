@@ -365,6 +365,7 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   [IPC_CHANNELS.bookForget]: [
     textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "要从作品库移除的作品目录" })
   ],
+  [IPC_CHANNELS.bookTrash]: [textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "删除作品" })],
   [IPC_CHANNELS.bookCreate]: [objectRule("新建作品")],
   [IPC_CHANNELS.bookSaveMeta]: [objectRule("保存作品设置")],
   [IPC_CHANNELS.bookDataRead]: [
@@ -569,6 +570,7 @@ const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
   [IPC_CHANNELS.bookCreate]: (info) => ({ ok: false, message: info.message }),
   // 作品库移除（2026-10-21）被挡时回空清单：调用点按 result.books 渲染，抛错会让那一行悬在 await 上。
   [IPC_CHANNELS.bookForget]: () => ({ books: [] }),
+  [IPC_CHANNELS.bookTrash]: (info) => ({ ok: false, message: info.message }),
   [IPC_CHANNELS.docWrite]: docDeny,
   [IPC_CHANNELS.docCreate]: docDeny,
   // 改文件名（2026-11-20）：与新建同形，新路径由主进程规划，失败档也照 DocRenameResult 回。
