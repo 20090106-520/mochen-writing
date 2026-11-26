@@ -115,6 +115,12 @@ export const STATE_RUNG_SITES: readonly FileSites[] = [
     ]
   },
   {
+    // 设定导入清单（2026-11-24，bible:peek）：行 hover 换 --selected 档底，块里不写 color，
+    // 字色由基规则 `.bible-import-row` 的 `color: var(--text)` 带着（与上面 toggle/jump 同一形）。
+    file: "styles/bible-brief.css",
+    sites: [{ needle: ".bible-import-row:hover", inheritFrom: ".bible-import-row" }]
+  },
+  {
     file: "styles/context-meter.css",
     sites: [
       { needle: ".context-meter-list li.is-active", shadow: ["--text-tertiary"] },

@@ -12,6 +12,7 @@ import type {
   StartTurnInput
 } from "./agent-event.js";
 import type { AppearanceSettings, AppearanceSettingsSnapshot } from "./appearance.js";
+import type { BibleEntry } from "./story-bible.js";
 import type { ChangeDiffResult, ChangeEntry, ChangePruneReport } from "./changes.js";
 import type { ChangeRetention, ChangeRetentionSnapshot } from "./change-retention.js";
 import type { SkillContent, SkillRef, SkillSource } from "./skill.js";
@@ -385,6 +386,11 @@ export interface RendererApi {
   listRecentBooks(): Promise<RecentBooksSnapshot>;
   /** 只把一条从作品库清单里移除（不删书、不碰盘上任何文件）；返回移除后的整份清单。 */
   forgetRecentBook(rootPath: string): Promise<RecentBooksSnapshot>;
+  /**
+   * 读另一本书的设定条目（2026-11-24，复制式导入的数据源）。只读：来源书一个字节不动。
+   * 读不到 / 坏文件回空表——「那本书还没有设定」与「读不出来」走同一个不失败的口径。
+   */
+  biblePeek(rootPath: string): Promise<BibleEntry[]>;
   /**
    * 删除作品（2026-11-24）：把整本书目录移进**系统回收站**（可在系统里还原）。
    * 删的是当前打开的书时，主进程先关书再删；清单同步移除。失败回一句中文人话。

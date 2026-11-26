@@ -177,6 +177,8 @@ describe("createRendererApi", () => {
     // 删除作品（2026-11-24）：只递书根，整本书目录由主进程移进系统回收站——
     // 先关书、清单同步移除都在主进程一次做完，preload 不判不拼。
     await api.trashBook("/book");
+    // 读另一本书的设定条目（2026-11-24）：只递书根、只读；合并与写盘在渲染层当前书那侧。
+    await api.biblePeek("/book-two");
     await api.saveMeta(meta);
     await api.readDoc("chapters/01-开局.md");
     await api.writeDoc("chapters/01-开局.md", "正文", "fp-1");
@@ -296,7 +298,7 @@ describe("createRendererApi", () => {
     await api.webdavList();
     await api.webdavPull("book-2026-10-15-12-00-00");
 
-    expect(calls.length).toBe(76);
+    expect(calls.length).toBe(77);
     // 通道名必须逐字面量列出来：拿 IPC_CHANNELS 当期望值等于用被测常量证明被测常量本身，
     // 那种断言永不失败——把 openBook 改打到 doc:read 它照样绿。
     expect(calls.map((call) => call.channel)).toEqual([
@@ -308,6 +310,8 @@ describe("createRendererApi", () => {
       "book:forget",
       // 删除作品（2026-11-24）：整本书目录移进系统回收站，只收书根。
       "book:trash",
+      // 读另一本书的设定条目（2026-11-24）：只读，复制式导入的数据源。
+      "bible:peek",
       "book:save-meta",
       "doc:read",
       "doc:write",
@@ -406,6 +410,8 @@ describe("createRendererApi", () => {
       ["/book"],
       // 删除作品（2026-11-24）：只递书根，一个路径参数都不能多。
       ["/book"],
+      // 读另一本书的设定条目（2026-11-24）：只递书根，一个路径参数都不能多。
+      ["/book-two"],
       [meta],
       ["chapters/01-开局.md"],
       ["chapters/01-开局.md", "正文", "fp-1"],
@@ -514,6 +520,9 @@ describe("createRendererApi", () => {
     expect(Object.keys(api).sort()).toEqual([
       "appearanceGet",
       "appearanceSave",
+      // 读另一本书的设定（2026-11-24）：只读通道也进点名册——名单与通道表一起对账。
+      // 点名册按 Object.keys().sort() 的字母序断言，b 在 t 前面。
+      "biblePeek",
       "buildExport",
       // 保留上限三枚（2026-10-06 批次 5-⑧）。它们决定写盘时删掉多少用户的历史，
       // 所以和其它改稿通道一样进这份点名册：少一枚 preload 就调不到，多一枚就是多开的口子。

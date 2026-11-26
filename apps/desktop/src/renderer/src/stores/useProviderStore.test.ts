@@ -242,7 +242,8 @@ const api = {
   // 删除作品（2026-11-24）：这条用例不真删书；谁调了当场喊出来。
   trashBook: async () => {
     throw new Error("不该在这条用例里删除作品");
-  }
+  },
+  biblePeek: async () => Promise.reject(new Error("不该在这条用例里读别的书的设定"))
 } satisfies RendererApi;
 function store() {
   return useProviderStore();

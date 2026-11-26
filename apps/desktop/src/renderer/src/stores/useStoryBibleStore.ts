@@ -18,7 +18,12 @@
  */
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { normalizeBibleEntries, type BibleEntry, type BibleEntryType } from "@mochen/contracts";
+import {
+  mergeBibleEntries,
+  normalizeBibleEntries,
+  type BibleEntry,
+  type BibleEntryType
+} from "@mochen/contracts";
 import { useBookFileData } from "../composables/useBookFileData";
 
 /** 类型与形状校验的真身住 contracts；这里转导出，面板与工具沿原来的 import 路径照用。 */
@@ -126,6 +131,20 @@ export const useStoryBibleStore = defineStore("story-bible", () => {
     }
   }
 
+  /**
+   * 从另一本书导入设定条目（2026-11-24，系列共享设定的复制式导入）。
+   *
+   * 判定（谁算重复、谁追加、id 撞车怎么换）在 contracts 的 `mergeBibleEntries`：
+   * **当前书已有的跳过不覆盖**（新书里改过的设定不能被来源书冲掉），新增按来源原序追加。
+   * 合并结果直接交给 `entries`——`useBookFileData` 的既有防抖与坏文件停写闸照常把关，
+   * 这里不开第二条写盘通路。
+   */
+  function importEntries(incoming: readonly BibleEntry[]): { added: number; skipped: number } {
+    const report = mergeBibleEntries(entries.value, incoming);
+    entries.value = report.merged;
+    return { added: report.added, skipped: report.skipped };
+  }
+
   return {
     entries,
     saveError,
@@ -135,6 +154,7 @@ export const useStoryBibleStore = defineStore("story-bible", () => {
     updateEntry,
     removeEntry,
     archiveEntry,
-    restoreEntry
+    restoreEntry,
+    importEntries
   };
 });

@@ -224,6 +224,10 @@ const api = {
   // 删除作品（2026-11-24）：这条用例不真删书；谁调了当场喊出来。
   trashBook: async () => {
     throw new Error("不该在这条用例里删除作品");
+  },
+  // 读另一本书的设定（2026-11-24）：这条用例不碰跨书导入；谁调了当场喊出来。
+  biblePeek: async () => {
+    throw new Error("不该在这条用例里读别的书的设定");
   }
 } satisfies RendererApi;
 

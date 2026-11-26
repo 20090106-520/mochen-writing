@@ -234,6 +234,8 @@ export const api = {
   trashBook: vi.fn(async (): Promise<{ ok: true } | { ok: false; message: string }> => ({
     ok: true
   })),
+  // 读另一本书的设定（2026-11-24）：默认空表（等于「那本书还没有设定」）。
+  biblePeek: vi.fn(async () => []),
   saveMeta,
   readDoc,
   writeDoc,

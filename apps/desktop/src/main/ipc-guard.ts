@@ -352,6 +352,8 @@ export interface GuardOptions {
 
 const relPath = (label: string): ArgRule => textRule({ maxLength: MAX_REL_PATH_CHARS, label });
 const id = (label: string): ArgRule => textRule({ maxLength: MAX_ID_CHARS, label });
+/** 书根/绝对路径那一档（2026-11-24 收拢：9 处同形各抄一遍会把 800 行闸顶爆）。 */
+const pathRule = (label: string): ArgRule => textRule({ maxLength: MAX_ABS_PATH_CHARS, label });
 
 /**
  * 通道 → 参数形状（**一份表**，新增通道先在这里点名）。
@@ -360,12 +362,13 @@ const id = (label: string): ArgRule => textRule({ maxLength: MAX_ID_CHARS, label
  * 那些判定各自住在 fs-store / service 里，这里再抄一遍就是两份判据。
  */
 export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
-  [IPC_CHANNELS.bookOpen]: [textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "打开作品目录" })],
+  [IPC_CHANNELS.bookOpen]: [pathRule("打开作品目录")],
   // 作品库（2026-10-21）：移除一条只递书根的绝对路径；「是不是真在清单里」由 store 自己判。
-  [IPC_CHANNELS.bookForget]: [
-    textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "要从作品库移除的作品目录" })
-  ],
-  [IPC_CHANNELS.bookTrash]: [textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "删除作品" })],
+  [IPC_CHANNELS.bookForget]: [pathRule("要从作品库移除的作品目录")],
+  // 删除作品（2026-11-24）：同样只递书根的绝对路径；「是哪一本」由主进程按书根删。
+  [IPC_CHANNELS.bookTrash]: [pathRule("删除作品")],
+  // 读另一本书的设定条目（2026-11-24）：同样只递书根；只读通道，合并与写盘在当前书那侧。
+  [IPC_CHANNELS.biblePeek]: [pathRule("要读取设定的作品")],
   [IPC_CHANNELS.bookCreate]: [objectRule("新建作品")],
   [IPC_CHANNELS.bookSaveMeta]: [objectRule("保存作品设置")],
   [IPC_CHANNELS.bookDataRead]: [
@@ -428,9 +431,7 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   // 住在 contracts 的 setUtilityProfileInputSchema 与 provider-settings，这里只看形状。
   [IPC_CHANNELS.providerSetUtility]: [objectRule("后台杂活模型的选择")],
   [IPC_CHANNELS.appOpenExternal]: [id("这家服务商")],
-  [IPC_CHANNELS.appOpenWebSource]: [
-    textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "要打开的链接" })
-  ],
+  [IPC_CHANNELS.appOpenWebSource]: [pathRule("要打开的链接")],
 
   [IPC_CHANNELS.skillsRead]: [id("技能来源"), relPath("技能文件")],
   // 兑换码是一整段文本：这里只管形状（是文本、无 NUL、别长到离谱）；
@@ -440,19 +441,11 @@ export const IPC_ARG_SHAPES: Record<string, ArgRule[]> = {
   // 形状闸只管「是文本、无 NUL、别长到离谱」；「是不是 https、是不是 GitHub 的哪种形态」
   // 住在 contracts 的 parseSkillUrl（主进程与渲染层共用同一份判据）。
   // 上限按绝对路径那一档给：仓库地址带分支与多层目录，256 那档会把正常地址误杀。
-  [IPC_CHANNELS.skillsRemoteList]: [
-    textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "技能源地址" })
-  ],
-  [IPC_CHANNELS.skillsRemotePreview]: [
-    textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "技能地址" })
-  ],
-  [IPC_CHANNELS.skillsRemoteInstall]: [
-    textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "技能地址" })
-  ],
+  [IPC_CHANNELS.skillsRemoteList]: [pathRule("技能源地址")],
+  [IPC_CHANNELS.skillsRemotePreview]: [pathRule("技能地址")],
+  [IPC_CHANNELS.skillsRemoteInstall]: [pathRule("技能地址")],
   // 网页转技能：同样只收一条 URL 文本（长度上限与技能地址同档）。
-  [IPC_CHANNELS.skillsWebpageConvert]: [
-    textRule({ maxLength: MAX_ABS_PATH_CHARS, label: "网页地址" })
-  ],
+  [IPC_CHANNELS.skillsWebpageConvert]: [pathRule("网页地址")],
   // 自写技能的草稿是对象：字段级校验在 contracts 的 skillAuthorDraftSchema（返回中文 issue）。
   [IPC_CHANNELS.skillsAuthorSave]: [objectRule("技能草稿")],
   [IPC_CHANNELS.skillsRemove]: [id("要删的技能目录")],
@@ -570,6 +563,8 @@ const IPC_DENY_REPLIES: Record<string, (info: DenyInfo) => unknown> = {
   [IPC_CHANNELS.bookCreate]: (info) => ({ ok: false, message: info.message }),
   // 作品库移除（2026-10-21）被挡时回空清单：调用点按 result.books 渲染，抛错会让那一行悬在 await 上。
   [IPC_CHANNELS.bookForget]: () => ({ books: [] }),
+  // 读不到/被拦都回空表：调用方按「那本书没有设定」走，弹一个错不如安静少导几条。
+  [IPC_CHANNELS.biblePeek]: () => [],
   [IPC_CHANNELS.bookTrash]: (info) => ({ ok: false, message: info.message }),
   [IPC_CHANNELS.docWrite]: docDeny,
   [IPC_CHANNELS.docCreate]: docDeny,

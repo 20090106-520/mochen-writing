@@ -71,6 +71,9 @@ export function installedChannelTrustDeps(): ChannelTrustDeps | null {
  *   （作品库清单里的任何一本都该能删），self 档的「要有书」会把「没开书时清理书库」挡死。
  *   目录来自主进程自己记账的作品库清单，与 book:open / book:forget 同一条信任链；
  *   形状闸（ipc-guard 的 textRule）拦非路径文本，目标真实性由 service 判存在性兜住。
+ * 【为什么 `bible:peek` 也是 public（2026-11-24）】读的是**另一本**书的设定条目（系列共享
+ *   设定的复制式导入），self 档的「要有书」同样会把「新书还没设定、想从前作导一份」挡死。
+ *   只读、无写能力，目标来自同一条作品库信任链。
  * 【为什么 `webdav:*` 是 public】远程配置（config-get/save/verify）与书无关；push/list
  *   要不要落到哪本书由 webdav-service 内部判 no-book，与 channelTrustVerdict 不重复
  *   （铁律 6：同一判据只许一处真身，这里不抢 service 的判）。

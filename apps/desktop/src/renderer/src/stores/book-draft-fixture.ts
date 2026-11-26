@@ -204,7 +204,9 @@ export function createBookApi(): BookApiFixture {
     pickDraft: offLimits("pickDraft"),
     discardDrafts: offLimits("discardDrafts"),
     // 删除作品（2026-11-24）：这份夹具测的是书稿读写，真删该越界当场喊出来。
-    trashBook: offLimits("trashBook")
+    trashBook: offLimits("trashBook"),
+    // 读另一本书的设定（2026-11-24）：这份夹具测的是书稿读写，跨书导入该越界当场喊出来。
+    biblePeek: offLimits("biblePeek")
   } satisfies RendererApi;
 
   return {

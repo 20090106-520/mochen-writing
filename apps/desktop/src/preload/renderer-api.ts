@@ -44,6 +44,8 @@ export function createRendererApi(invoke: Invoke, on: On): RendererApi {
     // 删除作品（2026-11-24）：整本书目录移进系统回收站。只递书根——删哪本、
     // 怎么删（先关书、清单同步移除）全在主进程，preload 不判不拼。
     trashBook: (rootPath) => invoke(IPC_CHANNELS.bookTrash, rootPath),
+    // 读另一本书的设定条目（2026-11-24）：只递书根，只读不写；合并与写盘在渲染层当前书那侧。
+    biblePeek: (rootPath) => invoke(IPC_CHANNELS.biblePeek, rootPath),
     saveMeta: (meta) => invoke(IPC_CHANNELS.bookSaveMeta, meta),
     readDoc: (relPath) => invoke(IPC_CHANNELS.docRead, relPath),
     writeDoc: (relPath, content, expectedFingerprint) =>

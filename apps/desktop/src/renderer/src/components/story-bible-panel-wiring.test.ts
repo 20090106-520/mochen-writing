@@ -105,6 +105,33 @@ describe("④ 列表与空态只有一处判定", () => {
   });
 });
 
+describe("⑤ 跨书导入：目标书独立，迟到回包与残留状态不许串书", () => {
+  it("发起时钉住目标书根；换书或关面板会作废旧回包", () => {
+    expect(script).toContain("const targetRoot = recentBooks.rootPath;");
+    expect(script).toContain(
+      "if (epoch !== importEpoch || recentBooks.rootPath !== targetRoot) return;"
+    );
+    expect(script).toContain("watch(() => recentBooks.rootPath, resetImport);");
+    expect(script).toContain("if (!vis) {\n      resetImport();");
+    expect(script).toContain("if (epoch === importEpoch) importing.value = false;");
+  });
+
+  it("内联来源清单是普通按钮组，不冒充需要方向键接管的 ARIA menu", () => {
+    expect(tpl).toContain('aria-label="选择要导入设定的书"');
+    expect(tpl).toContain(':aria-busy="importing"');
+    expect(tpl).not.toContain('role="menu"');
+    expect(tpl).not.toContain('role="menuitem"');
+    expect(tpl).not.toContain('aria-haspopup="menu"');
+    expect(tpl).toContain('@click="toggleImport"');
+  });
+
+  it("没开接收书时入口禁用；收起清单会清掉结果并取消在途导入", () => {
+    expect(tpl).toContain(':disabled="recentBooks.rootPath === null"');
+    expect(script).toContain("if (importOpen.value) resetImport();");
+    expect(script).toContain("importReport.value = null;");
+  });
+});
+
 describe("新加的这几类都有规则（模板用了、样式忘了写是同一族假控件）", () => {
   it(".bible-empty-title 与 .bible-empty-hint 有真规则", () => {
     expect(ruleBlock(css, ".bible-empty-title")).not.toBe("");

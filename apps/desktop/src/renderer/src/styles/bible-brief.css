@@ -184,3 +184,59 @@
   background: color-mix(in srgb, var(--accent) 6%, transparent);
   border-radius: 8px;
 }
+
+/* —— 从其他书导入设定（2026-11-24，系列共享设定的复制式导入）——
+   入口是栏头那枚 download 钮，展开后的小清单与结果行。样式跟面板的卡片口径走：
+   --surface-card 底 + 圆角 + 轻描边；行 hover 用 --selected 档（与菜单族同一读法）。 */
+.bible-import {
+  margin: -4px 0 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--theme-line, #999) 55%, transparent);
+  border-radius: 10px;
+  background: var(--surface-card);
+}
+
+.bible-import-empty {
+  margin: 0;
+  font-size: 0.785714rem;
+  line-height: 1.6;
+  color: var(--text-tertiary, #999);
+}
+
+.bible-import-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.785714rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bible-import-row:hover {
+  background: var(--selected);
+}
+
+.bible-import-row:disabled {
+  color: var(--text-tertiary, #999);
+  cursor: default;
+}
+
+.bible-import-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bible-import-report {
+  margin: 6px 0 0;
+  font-size: 0.785714rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #bbb);
+}

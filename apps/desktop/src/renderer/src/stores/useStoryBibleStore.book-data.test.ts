@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { useStoryBibleStore } from "./useStoryBibleStore";
+import { useStoryBibleStore, type BibleEntry } from "./useStoryBibleStore";
 import { flushAllBookData, resetBookDataFlushers } from "../composables/bookDataRegistry";
 import {
   bibleEntriesJson,
@@ -93,6 +93,30 @@ describe("故事圣经随书落盘", () => {
     fx.diskOf("/book-b").set("story-bible", bibleEntriesJson([{ id: "b1", title: "乙本人物" }]));
     await fx.switchBook("/book-b");
     expect(bible.entries.map((e) => e.id)).toEqual(["b1"]);
+  });
+
+  it("跨书导入只写当前书，重复导入不再写第二遍", async () => {
+    fx.diskOf("/book-a").set("story-bible", bibleEntriesJson([{ id: "a1", title: "甲本人物" }]));
+    const bible = useStoryBibleStore();
+    await fx.switchBook("/book-a");
+    const incoming = JSON.parse(
+      bibleEntriesJson([
+        { id: "b1", title: "甲本人物", content: "来源书旧版，不该覆盖" },
+        { id: "b2", title: "乙本新人物" }
+      ])
+    ) as BibleEntry[];
+    expect(bible.importEntries(incoming)).toEqual({ added: 1, skipped: 1 });
+    await vi.advanceTimersByTimeAsync(1_000);
+    await fx.settle();
+    expect(fx.writes.map((write) => write.root)).toEqual(["/book-a"]);
+    expect(writtenBibleEntries(fx.writes).map((item) => [item.id, item.content])).toEqual([
+      ["a1", ""],
+      ["b2", ""]
+    ]);
+    expect(bible.importEntries(incoming)).toEqual({ added: 0, skipped: 2 });
+    await vi.advanceTimersByTimeAsync(1_000);
+    await fx.settle();
+    expect(fx.writes).toHaveLength(1);
   });
 
   it("盘上没有、旧全局键有：迁进这本书，成功后才清旧键", async () => {

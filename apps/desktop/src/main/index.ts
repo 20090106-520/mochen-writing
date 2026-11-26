@@ -27,6 +27,7 @@ console.error = ((...args: unknown[]) => {
 }) as typeof _rawError;
 import { IPC_CHANNELS, skillPolicyOf, splitSkillId, stripSkillOrigin } from "@mochen/contracts";
 import type { BookMeta, ExportableDoc, ExportOptions, FlushQuitReply } from "@mochen/contracts";
+import { readStoryBibleEntries } from "./story-bible-read.js";
 import { buildExportContent } from "@mochen/fs-store/export-service";
 import { parseFrontmatter } from "@mochen/fs-store";
 import { createAgentService } from "./agent-service.js";
@@ -204,6 +205,15 @@ app.whenReady().then(async () => {
     onTrashed: (rootPath) => recentBooks.forget(rootPath)
   });
   registerRecentBooksIpc((channel, fn) => ipcMain.handle(channel, fn), recentBooks);
+  // 设定库跨书只读（2026-11-24，bible:peek）：来源书的入口就是作品库清单（与 book:open 同一条
+  // 信任链）。判定与降级（读不到/坏文件回空表）都在 story-bible-read 那一处，这里只注册。
+  // 来源闸/通道档/形状闸都走 trustedHandler 那一份判据（ipc-guard-coverage 钉着不许裸注册）。
+  ipcMain.handle(
+    IPC_CHANNELS.biblePeek,
+    trustedHandler(IPC_CHANNELS.biblePeek, (_event, rootPath: string) =>
+      readStoryBibleEntries(rootPath)
+    )
+  );
   // dialog 的重载签名不好直接对接可测试的窄接口，这里做一层薄适配。
   registerPickDirectoryIpc(ipcMain, {
     showOpenDialog: (options) =>

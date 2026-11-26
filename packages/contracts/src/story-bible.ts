@@ -46,6 +46,63 @@ export interface BibleEntry {
   archived?: boolean;
 }
 
+/**
+ * 设定条目的**导入幂等键**（2026-11-24，系列共享设定的复制式导入）：
+ * `类型:名称`（两侧都去掉空白）。同一把键也用于装配时的同档去重——
+ * 「新书里已经有林夜了，再导一次同一来源不该出现两个林夜」与
+ * 「装配时不把同一设定说两遍」是同一条语义，键也必须同形。
+ */
+export function bibleMergeKeyOf(entry: Pick<BibleEntry, "type" | "title">): string {
+  return `${entry.type}:${entry.title.trim()}`;
+}
+
+export interface BibleMergeReport {
+  /** 合并后的完整清单：当前书原序 + 新增按来源原序追加。 */
+  merged: BibleEntry[];
+  /** 真正新增的条数。 */
+  added: number;
+  /** 因键重合被跳过的条数——当前书里已有的设定，导入**不覆盖**它。 */
+  skipped: number;
+}
+
+/**
+ * 把另一本书的设定条目合并进当前书（2026-11-24）。判定住纯函数，UI 与测试共用。
+ *
+ * 【为什么是「跳过」不是「覆盖」】导入的场景是开续集时把前作设定带过来；当前书里
+ * 那个同名条目多半是作者已经照新作改过的——被来源书的旧版冲掉等于丢稿。
+ * 真想用来源版本，先删当前书那条再导（面板里两步，比一次误冲可挽回得多）。
+ *
+ * 【id 不撞车时保留来源书的】条目 id 是随机数且只在「本轮不带」清单里被引用；保留它，
+ * 同一来源重复导入天然幂等（键重合全跳过）。若当前书已有同 id、不同名的条目
+ * （例如导入后又改了名），必须给新增条目换一个本表内唯一的 id：Vue 列表、详情选中
+ * 与编辑都按 id 找人，两个条目同 id 会点一个改到另一个。
+ */
+export function mergeBibleEntries(
+  current: readonly BibleEntry[],
+  incoming: readonly BibleEntry[]
+): BibleMergeReport {
+  const known = new Set(current.map((entry) => bibleMergeKeyOf(entry)));
+  const knownIds = new Set(current.map((entry) => entry.id));
+  const merged = [...current];
+  let added = 0;
+  let skipped = 0;
+  for (const entry of incoming) {
+    if (known.has(bibleMergeKeyOf(entry))) {
+      skipped += 1;
+      continue;
+    }
+    known.add(bibleMergeKeyOf(entry));
+    let id = entry.id;
+    for (let suffix = 1; knownIds.has(id); suffix += 1) {
+      id = `${entry.id}_imported${suffix === 1 ? "" : `_${suffix}`}`;
+    }
+    knownIds.add(id);
+    merged.push(id === entry.id ? entry : { ...entry, id });
+    added += 1;
+  }
+  return { merged, added, skipped };
+}
+
 const ENTRY_TYPES: readonly BibleEntryType[] = ["character", "location", "timeline"];
 const IMPORTANCES = ["high", "medium", "low"] as const;
 

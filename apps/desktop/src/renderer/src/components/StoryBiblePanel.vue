@@ -17,6 +17,7 @@ import {
 } from "../utils/bible-scope";
 import { parseTags } from "../utils/tag-input";
 import { useModalFocus } from "../composables/useModalFocus";
+import { useBookStore } from "../stores/useBookStore";
 import { BIBLE_DIVISION_NOTE } from "../utils/bible-brief";
 
 const props = defineProps<{ visible: boolean }>();
@@ -36,6 +37,67 @@ useModalFocus({
 });
 
 const bible = useStoryBibleStore();
+
+/**
+ * 从其他书导入设定（2026-11-24）。来源清单 = 作品库里的其他书（排除当前这本）；
+ * 读取走 `biblePeek`（只读，来源书一个字节不动），合并判定在 `mergeBibleEntries`，
+ * 落库走 store 的 `importEntries`（同一份 useBookFileData 通路，不开第二扇写盘的门）。
+ */
+const recentBooks = useBookStore();
+const importOpen = ref(false);
+const importing = ref(false);
+const importReport = ref<string | null>(null);
+/** 关面板、换书、收起清单都会作废旧回包，迟到的那一次不能再改当前书。 */
+let importEpoch = 0;
+const importSources = computed(() =>
+  recentBooks.recentBooks
+    .filter((entry) => entry.rootPath !== recentBooks.rootPath)
+    .map((entry) => ({ rootPath: entry.rootPath, title: entry.title }))
+);
+
+function resetImport(): void {
+  importEpoch += 1;
+  importOpen.value = false;
+  importing.value = false;
+  importReport.value = null;
+}
+
+function toggleImport(): void {
+  if (importOpen.value) resetImport();
+  else importOpen.value = true;
+}
+
+watch(() => recentBooks.rootPath, resetImport);
+
+async function importFrom(source: { rootPath: string; title: string }): Promise<void> {
+  if (importing.value) return;
+  const targetRoot = recentBooks.rootPath;
+  if (targetRoot === null) {
+    importReport.value = "先打开要接收设定的作品，再导入。";
+    return;
+  }
+  const epoch = ++importEpoch;
+  importing.value = true;
+  importReport.value = `正在读取《${source.title}》的设定…`;
+  try {
+    const incoming = await window.mochen.biblePeek(source.rootPath);
+    // 读取期间换了书或关了面板：这次结果只属于发起时的那本书，直接作废。
+    if (epoch !== importEpoch || recentBooks.rootPath !== targetRoot) return;
+    if (incoming.length === 0) {
+      importReport.value = `《${source.title}》里还没有设定条目可导。`;
+      return;
+    }
+    const { added, skipped } = bible.importEntries(incoming);
+    importReport.value =
+      added === 0 && skipped > 0
+        ? `《${source.title}》里的设定都已存在，没有新增条目。`
+        : `已从《${source.title}》导入 ${added} 条设定${skipped > 0 ? `，跳过 ${skipped} 条当前已有的` : ""}。`;
+  } catch {
+    if (epoch === importEpoch) importReport.value = `没能读到《${source.title}》的设定，稍后再试。`;
+  } finally {
+    if (epoch === importEpoch) importing.value = false;
+  }
+}
 
 /** 档位是 `BIBLE_SCOPES` 那五档（含「已归档」——归档不再是单向门）。 */
 const filterTab = ref<BibleScope>("all");
@@ -68,6 +130,7 @@ watch(
   () => props.visible,
   (vis) => {
     if (!vis) {
+      resetImport();
       editingId.value = null;
       showNewForm.value = false;
       newTags.value = "";
@@ -243,6 +306,16 @@ const importanceLabel: Record<string, string> = {
           <button
             class="icon-btn"
             type="button"
+            :title="recentBooks.rootPath === null ? '先打开要接收设定的作品' : '从其他书导入设定'"
+            :disabled="recentBooks.rootPath === null"
+            :aria-expanded="importOpen"
+            @click="toggleImport"
+          >
+            <AppIcon name="download" :size="14" />
+          </button>
+          <button
+            class="icon-btn"
+            type="button"
             title="新建条目"
             @click="showNewForm = !showNewForm"
           >
@@ -253,6 +326,37 @@ const importanceLabel: Record<string, string> = {
           </button>
         </div>
       </header>
+
+      <!-- 从其他书导入设定（2026-11-24，系列共享设定的复制式导入）。
+           清单来自作品库（排除当前书）；合并判定在 mergeBibleEntries——
+           当前书已有的跳过不覆盖，新增追加，id 撞车时换新 id。导入在面板内部完成，
+           结果用一行字报出来（added/skipped），不再叠一层模态。
+           这是面板里的内联区，不是 ARIA menu：普通按钮天然支持 Tab/Enter/Space，
+           不冒充需要方向键与焦点接管的弹出菜单。 -->
+      <section
+        v-if="importOpen"
+        class="bible-import"
+        aria-label="选择要导入设定的书"
+        :aria-busy="importing"
+      >
+        <p v-if="importSources.length === 0" class="bible-import-empty">
+          作品库里还没有别的书——导入的来源是你在「我的作品」里打开过的那些。
+        </p>
+        <button
+          v-for="source in importSources"
+          :key="source.rootPath"
+          class="bible-import-row"
+          type="button"
+          :disabled="importing"
+          @click="importFrom(source)"
+        >
+          <AppIcon name="book" :size="13" />
+          <span class="bible-import-title">{{ source.title }}</span>
+        </button>
+        <p v-if="importReport !== null" class="bible-import-report" role="status">
+          {{ importReport }}
+        </p>
+      </section>
 
       <!-- W-01：两套设定的分工写在这里，与输入卡弹层同读一句（不许各写一份）。 -->
       <p class="bible-division-note">{{ BIBLE_DIVISION_NOTE }}</p>
